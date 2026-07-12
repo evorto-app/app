@@ -21,6 +21,7 @@ import {
 } from '@angular/core';
 import {
   applyEach,
+  disabled,
   form,
   FormField,
   hidden,
@@ -61,6 +62,7 @@ import {
   createTemplateGraphFormModel,
   createTemplateGraphQuestionFormModel,
   createTemplateGraphRegistrationOptionFormModel,
+  resetTemplateGraphPayments,
   type TemplateGraphFormModel,
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import {
@@ -150,6 +152,12 @@ export class PlatformTemplateEditorOperations {
     return this.rpc.queryFilter(['platform', 'templates']);
   }
 
+  tenant(targetTenantId: string) {
+    return this.rpc.globalAdmin.tenants.findOne.queryOptions({
+      id: targetTenantId,
+    });
+  }
+
   update() {
     return this.rpc.platform.templates.update.mutationOptions();
   }
@@ -203,6 +211,19 @@ export class PlatformTemplateEditorComponent {
   protected readonly rolesQuery = injectQuery(() =>
     this.operations.roles(this.tenantId()),
   );
+  protected readonly targetTenantQuery = injectQuery(() =>
+    this.operations.tenant(this.tenantId()),
+  );
+  protected readonly stripeConnected = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.stripeConnected === true,
+  );
+  protected readonly stripeDisconnected = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.stripeConnected === false,
+  );
   private readonly templateModel = signal(createPlatformTemplateFormModel());
   protected readonly templateForm = form(this.templateModel, (template) => {
     required(template.categoryId, { message: 'Select a category.' });
@@ -244,6 +265,13 @@ export class PlatformTemplateEditorComponent {
     });
 
     applyEach(template.registrationOptions, (registration) => {
+      disabled(registration.isPaid, () => !this.stripeConnected());
+      disabled(registration.price, () => !this.stripeConnected());
+      disabled(
+        registration.esnCardDiscountedPrice,
+        () => !this.stripeConnected(),
+      );
+      disabled(registration.stripeTaxRateId, () => !this.stripeConnected());
       required(registration.title, {
         message: 'Enter a registration option title.',
       });
@@ -304,6 +332,9 @@ export class PlatformTemplateEditorComponent {
     });
 
     applyEach(template.addOns, (addOn) => {
+      disabled(addOn.isPaid, () => !this.stripeConnected());
+      disabled(addOn.price, () => !this.stripeConnected());
+      disabled(addOn.stripeTaxRateId, () => !this.stripeConnected());
       required(addOn.title, { message: 'Enter an add-on title.' });
       min(addOn.maxQuantityPerUser, 1);
       min(addOn.price, 1, {
@@ -437,11 +468,22 @@ export class PlatformTemplateEditorComponent {
           this.editorLoadError.set(result.error);
         } else {
           this.editorLoadError.set('');
-          this.templateModel.set(result.model);
+          this.templateModel.set(
+            this.stripeDisconnected()
+              ? resetTemplateGraphPayments(result.model)
+              : result.model,
+          );
           this.templateForm().reset();
         }
         this.initializedTemplateId.set(templateId);
       });
+    });
+    effect(() => {
+      if (!this.stripeDisconnected()) return;
+      const model = this.templateModel();
+      const resetModel = resetTemplateGraphPayments(model);
+      if (resetModel === model) return;
+      untracked(() => this.templateModel.set(resetModel));
     });
   }
 
@@ -656,7 +698,9 @@ export class PlatformTemplateEditorComponent {
     if (this.mutationPending() || this.editorLoadError()) return;
 
     void submit(this.templateForm, async () => {
-      const value = this.templateModel();
+      const value = this.stripeDisconnected()
+        ? resetTemplateGraphPayments(this.templateModel())
+        : this.templateModel();
       const payload = platformTemplateFormToPayload(
         value,
         this.esnCardEnabled(),

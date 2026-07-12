@@ -1,10 +1,11 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
-import { literalUnion } from '@shared/schema-utilities';
+import { literalUnion, positiveNumber } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
 import {
   UserRpcError,
@@ -151,10 +152,25 @@ export const UsersEventSummaryRecord = Schema.Struct({
   guestCount: Schema.Number,
   organizingRegistration: Schema.Boolean,
   paymentState: literalUnion('cancelled', 'notRequired', 'pending', 'recorded'),
+  refunds: Schema.Array(
+    Schema.Struct({
+      amount: positiveNumber,
+      currency: Tenant.fields.currency,
+      source: literalUnion('addon', 'registration'),
+      state: literalUnion(
+        'actionRequired',
+        'needsAttention',
+        'pending',
+        'retrying',
+        'succeeded',
+      ),
+      updatedAt: Schema.NonEmptyString,
+    }),
+  ),
   registrationId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
   start: Schema.String,
-  status: literalUnion('CONFIRMED', 'PENDING', 'WAITLIST'),
+  status: literalUnion('CANCELLED', 'CONFIRMED', 'PENDING', 'WAITLIST'),
   title: Schema.NonEmptyString,
 });
 

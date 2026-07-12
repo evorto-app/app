@@ -1,5 +1,4 @@
 import {
-  alphaFromArgb,
   argbFromRgb,
   blueFromArgb,
   greenFromArgb,

@@ -197,9 +197,6 @@ export async function addRegistrations(
     const eventDate = new Date(event.start);
     const now = getSeedDate(seedDate ?? new Date());
     const isPastEvent = eventDate < now;
-    const isUpcomingEvent =
-      eventDate > now &&
-      eventDate < new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     // Create varied registration patterns based on event type and timing
     let fillPercentage = 0.7; // Default 70%
@@ -298,11 +295,6 @@ export async function addRegistrations(
 
       // Create registrations
       for (const [index, user] of selectedUsers.entries()) {
-        // Get userTenant relationship for this specific tenant
-        const userTenantRelation = user.tenantAssignments?.find(
-          (t) => t.tenantId === tenantId,
-        );
-
         // Generate IDs for the registration and transaction
         const registrationId = getId();
 

@@ -18,6 +18,7 @@ export const tenantStripeTaxRates = pgTable(
     inclusive: boolean('inclusive').notNull().default(false),
     percentage: text(),
     state: text(),
+    stripeAccountId: varchar(),
     stripeTaxRateId: varchar().notNull(),
   },
   (table) => [

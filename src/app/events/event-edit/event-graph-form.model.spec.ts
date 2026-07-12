@@ -8,6 +8,7 @@ import {
   eventGraphFormToPayload,
   eventGraphRecordToFormModel,
   legacyRandomEventEditMessage,
+  resetEventGraphPayments,
   simpleEventGraphIssue,
 } from './event-graph-form.model';
 
@@ -142,6 +143,49 @@ describe('event graph form mapping', () => {
       DEFAULT_TENANT_TIMEZONE,
     );
     expect(result).toEqual({ error: legacyRandomEventEditMessage });
+  });
+
+  it('clears event payment fields without changing graph configuration', () => {
+    const loadResult = eventGraphRecordToFormModel(
+      eventGraph(),
+      DEFAULT_TENANT_TIMEZONE,
+    );
+    if (!('model' in loadResult)) throw new Error('Expected writable graph');
+    const source = {
+      ...loadResult.model,
+      addOns: loadResult.model.addOns.map((addOn) => ({
+        ...addOn,
+        isPaid: true,
+        price: 500,
+        stripeTaxRateId: 'txr_addon',
+      })),
+      registrationOptions: loadResult.model.registrationOptions.map(
+        (option) => ({
+          ...option,
+          esnCardDiscountedPrice: 750,
+          isPaid: true,
+          price: 1000,
+          stripeTaxRateId: 'txr_option',
+        }),
+      ),
+    };
+
+    const reset = resetEventGraphPayments(source);
+
+    expect(reset.registrationOptions[0]).toMatchObject({
+      esnCardDiscountedPrice: '',
+      isPaid: false,
+      price: 0,
+      roleIds: source.registrationOptions[0]?.roleIds,
+      stripeTaxRateId: null,
+    });
+    expect(reset.addOns[0]).toMatchObject({
+      isPaid: false,
+      price: 0,
+      registrationOptions: source.addOns[0]?.registrationOptions,
+      stripeTaxRateId: null,
+      title: source.addOns[0]?.title,
+    });
   });
 
   it('enforces simple compatibility while advanced category gaps remain warnings', () => {

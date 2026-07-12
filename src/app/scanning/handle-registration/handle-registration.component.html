@@ -77,13 +77,17 @@
           <p>Verify the attendee's physical ESNcard if needed.</p>
         </div>
       }
-      @if (scanResultQuery.data().registrationStatusIssue) {
-        <div class="bg-error text-on-error mt-2 rounded p-2">
-          <p class="title-small">Registration is not confirmed</p>
-          <p>
-            This registration is not confirmed, please ask the user to check if
-            they paid. The registration can only be scanned if it is confirmed.
-          </p>
+      @let registrationStatusIssue =
+        scanRegistrationStatusIssueCopy(
+          scanResultQuery.data().registrationStatus
+        );
+      @if (registrationStatusIssue) {
+        <div
+          class="bg-error-container text-on-error-container mt-2 rounded p-2"
+          role="alert"
+        >
+          <p class="title-small">{{ registrationStatusIssue.title }}</p>
+          <p>{{ registrationStatusIssue.body }}</p>
         </div>
       }
       @if (scanResultQuery.data().alreadyCheckedInIssue) {

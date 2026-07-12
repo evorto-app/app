@@ -10,6 +10,7 @@ import {
 } from '../rpc-context-headers';
 import {
   normalizeUsersFindManySearch,
+  resolveProfileRefundState,
   tenantDayBounds,
   userHandlers,
 } from './users.handlers';
@@ -93,6 +94,100 @@ describe('userHandlers', () => {
     expect(normalizeUsersFindManySearch(' alice@example.com ')).toBe(
       '%alice@example.com%',
     );
+  });
+
+  it('derives participant-safe refund progress without exposing provider errors', () => {
+    const pendingRefund = {
+      method: 'stripe',
+      status: 'pending',
+      stripeRefundAttempts: 0,
+      stripeRefundClaimLeaseExpiresAt: null,
+      stripeRefundClaimLeaseId: null,
+      stripeRefundGeneration: 0,
+      stripeRefundMaxAttempts: 8,
+      stripeRefundNextAttemptAt: new Date('2026-01-01T10:05:00.000Z'),
+      stripeRefundRequeuedAt: null,
+      stripeRefundStatus: null,
+    };
+
+    expect(resolveProfileRefundState(pendingRefund)).toBe('pending');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundAttempts: 1,
+      }),
+    ).toBe('retrying');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundGeneration: 1,
+      }),
+    ).toBe('retrying');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundRequeuedAt: new Date('2026-01-01T10:04:00.000Z'),
+      }),
+    ).toBe('retrying');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundNextAttemptAt: null,
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundAttempts: 1,
+        stripeRefundClaimLeaseExpiresAt: new Date('2026-01-01T10:06:00.000Z'),
+        stripeRefundClaimLeaseId: 'lease-1',
+        stripeRefundNextAttemptAt: null,
+      }),
+    ).toBe('retrying');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundAttempts: 8,
+        stripeRefundNextAttemptAt: null,
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundAttempts: 8,
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundClaimLeaseId: 'partial-lease',
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundStatus: 'requires_action',
+      }),
+    ).toBe('actionRequired');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundStatus: 'failed',
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        status: 'successful',
+        stripeRefundStatus: 'succeeded',
+      }),
+    ).toBe('succeeded');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        method: 'cash',
+      }),
+    ).toBe('needsAttention');
   });
 
   it.effect('assignRoles requires users:assignRoles permission', () =>
@@ -449,6 +544,63 @@ describe('userHandlers', () => {
             ],
           },
           {
+            addonPurchases: [],
+            checkInTime: null,
+            event: {
+              description: 'cancelled with refund',
+              end: new Date('2026-01-20T11:00:00.000Z'),
+              id: 'event-cancelled-refund',
+              start: new Date('2026-01-20T10:00:00.000Z'),
+              title: 'Cancelled Refund Event',
+            },
+            eventId: 'event-cancelled-refund',
+            guestCount: 0,
+            id: 'registration-cancelled-refund',
+            registrationOption: {
+              organizingRegistration: false,
+              title: 'Participant',
+            },
+            status: 'CANCELLED',
+            transactions: [
+              {
+                amount: 2500,
+                currency: 'EUR',
+                method: 'stripe',
+                sourceTransaction: null,
+                status: 'successful',
+                stripeCheckoutUrl: null,
+                stripeRefundAttempts: 0,
+                stripeRefundClaimLeaseExpiresAt: null,
+                stripeRefundClaimLeaseId: null,
+                stripeRefundGeneration: 0,
+                stripeRefundMaxAttempts: 8,
+                stripeRefundNextAttemptAt: null,
+                stripeRefundRequeuedAt: null,
+                stripeRefundStatus: null,
+                type: 'registration',
+                updatedAt: new Date('2026-01-20T09:00:00.000Z'),
+              },
+              {
+                amount: -2500,
+                currency: 'EUR',
+                method: 'stripe',
+                sourceTransaction: { type: 'registration' },
+                status: 'pending',
+                stripeCheckoutUrl: null,
+                stripeRefundAttempts: 2,
+                stripeRefundClaimLeaseExpiresAt: null,
+                stripeRefundClaimLeaseId: null,
+                stripeRefundGeneration: 0,
+                stripeRefundMaxAttempts: 8,
+                stripeRefundNextAttemptAt: new Date('2026-01-20T10:10:00.000Z'),
+                stripeRefundRequeuedAt: null,
+                stripeRefundStatus: null,
+                type: 'refund',
+                updatedAt: new Date('2026-01-20T10:05:00.000Z'),
+              },
+            ],
+          },
+          {
             addonPurchases: [
               {
                 addOn: {
@@ -517,6 +669,15 @@ describe('userHandlers', () => {
           eventRegistrations: {
             findMany: findRegistrations,
           },
+          transactions: {
+            findMany: vi.fn(() =>
+              Effect.succeed([
+                {
+                  eventRegistrationId: 'registration-cancelled-refund',
+                },
+              ]),
+            ),
+          },
         },
       };
 
@@ -530,12 +691,25 @@ describe('userHandlers', () => {
       expect(findRegistrations).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            status: {
-              NOT: 'CANCELLED',
-            },
+            OR: [
+              { status: { NOT: 'CANCELLED' } },
+              {
+                id: { in: ['registration-cancelled-refund'] },
+                status: 'CANCELLED',
+              },
+            ],
             tenantId: tenant.id,
             userId: user.id,
           },
+        }),
+      );
+      expect(findRegistrations).toHaveBeenCalledWith(
+        expect.objectContaining({
+          with: expect.objectContaining({
+            transactions: expect.objectContaining({
+              where: { targetUserId: user.id },
+            }),
+          }),
         }),
       );
       expect(result).toEqual([
@@ -549,6 +723,7 @@ describe('userHandlers', () => {
           guestCount: 0,
           organizingRegistration: false,
           paymentState: 'notRequired',
+          refunds: [],
           registrationId: 'registration-waitlist',
           registrationOptionTitle: 'Waitlist option',
           start: '2026-01-01T10:00:00.000Z',
@@ -565,11 +740,37 @@ describe('userHandlers', () => {
           guestCount: 0,
           organizingRegistration: false,
           paymentState: 'cancelled',
+          refunds: [],
           registrationId: 'registration-cancelled-payment',
           registrationOptionTitle: 'Participant',
           start: '2026-01-15T10:00:00.000Z',
           status: 'PENDING',
           title: 'Cancelled Payment Event',
+        },
+        {
+          addonPurchases: [],
+          checkInTime: null,
+          checkoutUrl: null,
+          description: 'cancelled with refund',
+          end: '2026-01-20T11:00:00.000Z',
+          eventId: 'event-cancelled-refund',
+          guestCount: 0,
+          organizingRegistration: false,
+          paymentState: 'recorded',
+          refunds: [
+            {
+              amount: 2500,
+              currency: 'EUR',
+              source: 'registration',
+              state: 'retrying',
+              updatedAt: '2026-01-20T10:05:00.000Z',
+            },
+          ],
+          registrationId: 'registration-cancelled-refund',
+          registrationOptionTitle: 'Participant',
+          start: '2026-01-20T10:00:00.000Z',
+          status: 'CANCELLED',
+          title: 'Cancelled Refund Event',
         },
         {
           addonPurchases: [],
@@ -581,6 +782,7 @@ describe('userHandlers', () => {
           guestCount: 0,
           organizingRegistration: false,
           paymentState: 'recorded',
+          refunds: [],
           registrationId: 'registration-1',
           registrationOptionTitle: 'Participant',
           start: '2026-02-01T10:00:00.000Z',
@@ -603,6 +805,7 @@ describe('userHandlers', () => {
           guestCount: 2,
           organizingRegistration: false,
           paymentState: 'pending',
+          refunds: [],
           registrationId: 'registration-2',
           registrationOptionTitle: 'Standard',
           start: '2026-03-01T10:00:00.000Z',
@@ -643,6 +846,9 @@ describe('userHandlers', () => {
                     transactions: [],
                   },
                 ]),
+            },
+            transactions: {
+              findMany: () => Effect.succeed([]),
             },
           },
         };

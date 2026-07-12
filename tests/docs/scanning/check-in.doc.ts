@@ -131,13 +131,68 @@ The ticket identifies a registration; it is not permission to check someone in b
 - Close another app that may be using the camera.
 - If the device has no usable camera, scan the ticket with a phone's camera and open its Evorto link while signed in as an authorized organizer.
 - A visible error is different from an invalid ticket. Do not check someone in until Evorto shows the registration details.
+- **Invalid QR code** means the camera read a value that is not an Evorto registration-result link. Stay on the scanner, ask the attendee to show the confirmed ticket QR code rather than a payment receipt or screenshot of another code, and scan again. No check-in is recorded from the invalid value.
 
 ## Verify the registration
 
-After a valid ticket is scanned, check the attendee name, event, registration option, registration status, and any ESNcard notice before confirming. Evorto warns when the ticket belongs to the signed-in organizer, the event is too far in the future, the registration is not confirmed, or it has already been checked in.
+After a valid ticket is scanned, check the attendee name, event, registration option, registration status, and any ESNcard notice before confirming. Evorto gives a specific explanation instead of treating every unusable ticket as an unpaid ticket:
+
+- **Registration pending** means the attendee must open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.
+- **Registration on waitlist** means the attendee has no confirmed spot. Ask an organizer to review the waitlist and capacity; do not take payment or create another registration from the scanner.
+- **Registration cancelled** means the existing ticket cannot be checked in. Do not ask the attendee to pay or register again. Ask an organizer to review the existing cancellation or refund if it looks wrong.
+
+The scanner also warns when the ticket belongs to the signed-in organizer, the event is too far in the future, or a confirmed ticket has already been checked in.
 `,
     });
 
+    await database
+      .update(eventRegistrations)
+      .set({ status: 'PENDING' })
+      .where(eq(eventRegistrations.id, registrationId));
+    await page.goto(`/scan/registration/${registrationId}`);
+    const pendingRegistrationAlert = page
+      .getByRole('alert')
+      .filter({ hasText: 'Registration pending' });
+    await expect(pendingRegistrationAlert).toBeVisible();
+    await expect(pendingRegistrationAlert).toContainText(
+      'organizer approval or their existing Stripe Checkout',
+    );
+    await expect(pendingRegistrationAlert).toContainText(
+      'Do not start a second registration or payment from the scanner',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Confirm check-in' }),
+    ).toBeDisabled();
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-handle-registration'),
+      page,
+      'Pending registration explains approval or existing payment',
+    );
+
+    await database
+      .update(eventRegistrations)
+      .set({ status: 'WAITLIST' })
+      .where(eq(eventRegistrations.id, registrationId));
+    await page.goto(`/scan/registration/${registrationId}`);
+    const waitlistRegistrationAlert = page
+      .getByRole('alert')
+      .filter({ hasText: 'Registration on waitlist' });
+    await expect(waitlistRegistrationAlert).toBeVisible();
+    await expect(waitlistRegistrationAlert).toContainText(
+      'does not have a confirmed spot yet',
+    );
+    await expect(waitlistRegistrationAlert).toContainText(
+      'Do not take payment or create another registration from the scanner',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Confirm check-in' }),
+    ).toBeDisabled();
+
+    await database
+      .update(eventRegistrations)
+      .set({ status: 'CONFIRMED' })
+      .where(eq(eventRegistrations.id, registrationId));
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
       page.getByRole('heading', { level: 1, name: 'Registration scanned' }),
@@ -188,10 +243,14 @@ After a valid ticket is scanned, check the attendee name, event, registration op
       body: `
 ## Check in guests who arrive later
 
-The first confirmation above checks in the attendee and one guest. If another guest arrives later, scan the same ticket again. Evorto shows how many guests are already checked in and how many remain. Select only the number arriving now.
+The first confirmation above checks in the attendee and one guest. If another guest arrives later, select **Back to scanner**, then scan the same ticket again. Evorto shows how many guests are already checked in and how many remain. Select only the number arriving now.
 `,
     });
 
+    await page.getByRole('link', { name: 'Back to scanner' }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Scanner' }),
+    ).toBeVisible();
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(page.getByText('1 checked in, 1 remaining.')).toBeVisible();
     const confirmRemainingGuest = await fillScannerGuestCheckInCount(page, {
@@ -201,6 +260,10 @@ The first confirmation above checks in the attendee and one guest. If another gu
     await confirmRemainingGuest.click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
 
+    await page.getByRole('link', { name: 'Back to scanner' }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Scanner' }),
+    ).toBeVisible();
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(page.getByText('Already checked in')).toBeVisible();
     await expect(page.getByText('2 checked in, 0 remaining.')).toBeVisible();

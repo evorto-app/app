@@ -1,9 +1,7 @@
 import consola from 'consola';
-import { eq } from 'drizzle-orm';
 import { reset } from 'drizzle-seed';
 import { DateTime } from 'luxon';
 
-import * as oldSchema from '../old/drizzle';
 import { database } from '../src/db';
 import * as schema from '../src/db/schema';
 import { oldDatabase } from './migrator-database';

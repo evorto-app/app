@@ -1,5 +1,7 @@
 import {
+  apply,
   applyEach,
+  disabled,
   hidden,
   min,
   required,
@@ -217,3 +219,21 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
     });
   });
 });
+
+export const eventGraphFormSchemaWithPaymentAvailability = (
+  paymentAllowed: () => boolean,
+) =>
+  schema<EventGraphFormModel>((form) => {
+    apply(form, eventGraphFormSchema);
+    applyEach(form.registrationOptions, (option) => {
+      disabled(option.isPaid, () => !paymentAllowed());
+      disabled(option.price, () => !paymentAllowed());
+      disabled(option.esnCardDiscountedPrice, () => !paymentAllowed());
+      disabled(option.stripeTaxRateId, () => !paymentAllowed());
+    });
+    applyEach(form.addOns, (addOn) => {
+      disabled(addOn.isPaid, () => !paymentAllowed());
+      disabled(addOn.price, () => !paymentAllowed());
+      disabled(addOn.stripeTaxRateId, () => !paymentAllowed());
+    });
+  });

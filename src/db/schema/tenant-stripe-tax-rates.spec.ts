@@ -4,19 +4,27 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { tenantStripeTaxRates } from './tenant-stripe-tax-rates';
 
 describe('tenant Stripe tax-rate schema', () => {
-  it('enforces one imported Stripe tax rate per tenant', () => {
+  it('persists nullable account ownership while retaining old-app uniqueness', () => {
     const tableConfig = getTableConfig(tenantStripeTaxRates);
 
-    expect(
-      tableConfig.indexes.map((candidate) => ({
-        columns: candidate.config.columns.map((column) => column.name),
-        name: candidate.config.name,
-        unique: candidate.config.unique,
-      })),
-    ).toContainEqual({
+    const indexes = tableConfig.indexes.map((candidate) => ({
+      columns: candidate.config.columns.map((column) => column.name),
+      name: candidate.config.name,
+      unique: candidate.config.unique,
+    }));
+
+    expect(indexes).toContainEqual({
       columns: ['tenantId', 'stripeTaxRateId'],
       name: 'tenant_stripe_tax_rates_tenant_stripe_unique',
       unique: true,
     });
+    expect(indexes).not.toContainEqual(
+      expect.objectContaining({
+        columns: ['tenantId', 'stripeAccountId', 'stripeTaxRateId'],
+      }),
+    );
+    expect(
+      tableConfig.columns.find((column) => column.name === 'stripeAccountId'),
+    ).toMatchObject({ notNull: false });
   });
 });

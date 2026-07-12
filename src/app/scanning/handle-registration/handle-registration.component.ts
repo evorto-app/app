@@ -2,6 +2,7 @@ import type {
   EventsRegistrationAddonCancellationBlockedReason,
   EventsRegistrationAddonFulfillmentRecord,
   EventsRegistrationAddonRefundStatus,
+  EventsRegistrationStatus,
 } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
 import { DatePipe } from '@angular/common';
@@ -127,6 +128,9 @@ export const registrationAddonRefundStatusLabel = (
   status: EventsRegistrationAddonRefundStatus,
 ): string => {
   switch (status) {
+    case 'actionRequired': {
+      return 'Provider action required';
+    }
     case 'cancelledWithoutRefund': {
       return 'Cancelled without refund';
     }
@@ -150,6 +154,73 @@ export const registrationAddonRefundStatusLabel = (
     }
     case 'refunded': {
       return 'Refunded';
+    }
+  }
+};
+
+export const registrationAddonCancellationSuccessMessage = (
+  status: EventsRegistrationAddonRefundStatus,
+): string => {
+  switch (status) {
+    case 'actionRequired': {
+      return 'Cancellation recorded. The Stripe refund requires provider-side action. Do not cancel or charge again; review the existing refund.';
+    }
+    case 'cancelledWithoutRefund': {
+      return 'Cancellation recorded without a refund, as requested.';
+    }
+    case 'failed': {
+      return 'Cancellation recorded, but the refund needs platform administrator attention. Do not cancel or charge again.';
+    }
+    case 'notApplicable': {
+      return 'Cancellation recorded. No refund applies to this add-on.';
+    }
+    case 'notRequested': {
+      return 'Cancellation recorded. No refund was requested.';
+    }
+    case 'notRequired': {
+      return 'Cancellation recorded. No monetary refund was required.';
+    }
+    case 'partiallyRefunded': {
+      return 'Cancellation recorded. Part of the refund completed; the remaining refund is still tracked.';
+    }
+    case 'pending': {
+      return 'Cancellation recorded. Refund processing started.';
+    }
+    case 'refunded': {
+      return 'Cancellation recorded. The refund completed.';
+    }
+  }
+};
+
+export interface ScanRegistrationStatusIssueCopy {
+  readonly body: string;
+  readonly title: string;
+}
+
+export const scanRegistrationStatusIssueCopy = (
+  status: EventsRegistrationStatus,
+): null | ScanRegistrationStatusIssueCopy => {
+  switch (status) {
+    case 'CANCELLED': {
+      return {
+        body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, ask an organizer to review the existing registration.',
+        title: 'Registration cancelled',
+      };
+    }
+    case 'CONFIRMED': {
+      return null;
+    }
+    case 'PENDING': {
+      return {
+        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.',
+        title: 'Registration pending',
+      };
+    }
+    case 'WAITLIST': {
+      return {
+        body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Ask an organizer to review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
+        title: 'Registration on waitlist',
+      };
     }
   }
 };
@@ -304,6 +375,8 @@ export class HandleRegistrationComponent {
     registrationAddonRefundStatusLabel;
   protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
   protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
+  protected readonly scanRegistrationStatusIssueCopy =
+    scanRegistrationStatusIssueCopy;
   protected readonly scanSpotCountLabel = scanSpotCountLabel;
   private readonly dialog = inject(MatDialog);
   private readonly queryClient = inject(QueryClient);
@@ -405,11 +478,9 @@ export class HandleRegistrationComponent {
             onError: (error) => this.addonActionFailed(error),
             onSuccess: async (outcome) => {
               await this.addonActionSucceeded(
-                outcome.refundStatus === 'notRequired'
-                  ? 'Cancellation recorded. No monetary refund was required.'
-                  : outcome.refundStatus === 'pending'
-                    ? 'Cancellation recorded. Refund processing started.'
-                    : 'Add-on cancellation recorded.',
+                registrationAddonCancellationSuccessMessage(
+                  outcome.refundStatus,
+                ),
               );
             },
           },

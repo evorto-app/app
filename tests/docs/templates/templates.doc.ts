@@ -230,6 +230,7 @@ Simple mode is the default and splits registration settings in two.
 There are the settings for participants, and separately, those for organizers.
 Both have the same structure, but you can see that different roles are preselected.
 Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Advanced configuration supports any number of named options and reveals reusable add-ons with explicit option mappings. Every mode change asks for confirmation. To return to simple mode, first save the advanced graph with exactly one organizing and one non-organizing option; switching modes never silently replaces option IDs.
+Paid event registrations and add-ons use Stripe only. If the tenant has no connected Stripe account, keep every registration fee and add-on price at zero; there is no cash or manually settled paid-event fallback.
 The registration consists of the following settings:
 - **Registration option name**: The reusable label copied into events created
   from this template.

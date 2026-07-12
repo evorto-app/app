@@ -1,4 +1,5 @@
 import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
+import type { UsersEventSummaryRecord } from '@shared/rpc-contracts/app-rpcs/users.rpcs';
 
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import {
@@ -28,6 +29,7 @@ import {
   faReceipt,
   faRightFromBracket,
   faTags,
+  faTicket,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
@@ -56,6 +58,7 @@ import {
   esnCardSubmitPayloadFromIdentifier,
 } from './user-profile.esn-card';
 
+type ProfileEventRefund = UsersEventSummaryRecord['refunds'][number];
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
 
 export const profileEditActionDisabled = ({
@@ -94,6 +97,8 @@ export const profileUserAfterEdit = <
 
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
+export const profileTransferClaimPath = '/registration-transfers';
+
 export const profileEventGuestLabel = (guestCount: number): null | string => {
   if (guestCount <= 0) {
     return null;
@@ -116,7 +121,12 @@ export const profileEventPassLabel = (event: {
 export const profileEventNextStepLabel = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): null | string => {
+  if (event.status === 'CANCELLED') {
+    return null;
+  }
+
   if (profileEventContinuePaymentUrl(event)) {
     return 'Finish the checkout payment to confirm your spot.';
   }
@@ -140,8 +150,10 @@ export const isStripeCheckoutUrl = (value: string): boolean => {
 export const profileEventContinuePaymentUrl = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+  status?: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): null | string => {
   if (
+    event.status === 'CANCELLED' ||
     event.paymentState !== 'pending' ||
     !event.checkoutUrl ||
     !isStripeCheckoutUrl(event.checkoutUrl)
@@ -157,8 +169,53 @@ export const profileEventActionNote = (event: {
   checkoutUrl: null | string;
   organizingRegistration: boolean;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
-  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+  refunds?: readonly ProfileEventRefund[];
+  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): string => {
+  if (event.status === 'CANCELLED') {
+    const refunds = event.refunds ?? [];
+    const completedClaims = refunds.filter(
+      ({ state }) => state === 'succeeded',
+    ).length;
+    const progress =
+      refunds.length > 1
+        ? ` ${completedClaims} of ${refunds.length} refunds ${completedClaims === 1 ? 'is' : 'are'} complete.`
+        : '';
+    if (
+      refunds.length > 0 &&
+      refunds.every(({ state }) => state === 'succeeded')
+    ) {
+      return 'Your registration is cancelled and every recorded refund completed.';
+    }
+
+    const guidance: string[] = [];
+    const actionRequired = refunds.some(
+      ({ state }) => state === 'actionRequired',
+    );
+    if (refunds.some(({ state }) => state === 'needsAttention')) {
+      guidance.push(
+        "at least one refund needs a platform administrator's attention",
+      );
+    }
+    if (actionRequired) {
+      guidance.push('at least one Stripe refund requires provider-side action');
+    }
+    if (refunds.some(({ state }) => state === 'retrying')) {
+      guidance.push('at least one refund is retrying automatically');
+    }
+    if (refunds.some(({ state }) => state === 'pending')) {
+      guidance.push('at least one refund is queued or processing');
+    }
+    if (guidance.length > 0) {
+      const organizerFollowUp = actionRequired
+        ? ' Contact the organizer for an update.'
+        : '';
+      return `Your registration remains cancelled, but ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp} Do not pay or register again to retry it.${progress}`;
+    }
+
+    return 'Your registration is cancelled. No refund is recorded for this registration.';
+  }
+
   if (profileEventContinuePaymentUrl(event)) {
     if (event.organizingRegistration) {
       return 'Continue payment from this card to confirm your organizer/helper registration. Organizer access starts after payment succeeds.';
@@ -174,7 +231,7 @@ export const profileEventActionNote = (event: {
           return 'You are checked in. Open the event page for organizer/helper pass details. Cancellation is no longer available after check-in.';
         }
 
-        return 'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.';
+        return 'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.';
       }
 
       if (event.organizingRegistration) {
@@ -224,9 +281,12 @@ export const registrationPaymentLabel = (
 };
 
 export const registrationStatusLabel = (
-  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
+  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST',
 ): string => {
   switch (status) {
+    case 'CANCELLED': {
+      return 'Cancelled';
+    }
     case 'CONFIRMED': {
       return 'Confirmed';
     }
@@ -238,6 +298,33 @@ export const registrationStatusLabel = (
     }
   }
 };
+
+export const registrationRefundStateLabel = (
+  state: ProfileEventRefund['state'],
+): string => {
+  switch (state) {
+    case 'actionRequired': {
+      return 'Provider action required';
+    }
+    case 'needsAttention': {
+      return 'Refund needs attention';
+    }
+    case 'pending': {
+      return 'Refund queued';
+    }
+    case 'retrying': {
+      return 'Refund retrying';
+    }
+    case 'succeeded': {
+      return 'Refund completed';
+    }
+  }
+};
+
+export const registrationRefundSourceLabel = (
+  source: ProfileEventRefund['source'],
+): string =>
+  source === 'registration' ? 'Registration payment' : 'Add-on payment';
 
 export const profileReceiptStatusLabel = (
   status: FinanceReceiptStatus,
@@ -355,6 +442,7 @@ export class UserProfileComponent {
   protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
   protected readonly faTags = faTags;
+  protected readonly faTicket = faTicket;
   protected readonly faUser = faUser;
 
   protected readonly myCardsQuery = injectQuery(() =>
@@ -383,10 +471,15 @@ export class UserProfileComponent {
 
   protected readonly profileEventPassLabel = profileEventPassLabel;
   protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
+  protected readonly profileTransferClaimPath = profileTransferClaimPath;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
   protected readonly registrationPaymentLabel = registrationPaymentLabel;
+  protected readonly registrationRefundSourceLabel =
+    registrationRefundSourceLabel;
+  protected readonly registrationRefundStateLabel =
+    registrationRefundStateLabel;
   protected readonly registrationStatusLabel = registrationStatusLabel;
   protected readonly sectionEntries = computed(() =>
     this.allSectionEntries.filter(

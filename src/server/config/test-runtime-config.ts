@@ -167,13 +167,6 @@ export const testRuntimeConfigState = Config.all({
   CI: Config.boolean('CI').pipe(Config.withDefault(false)),
   CLIENT_ID: optionalTrimmedString('CLIENT_ID'),
   CLIENT_SECRET: optionalTrimmedString('CLIENT_SECRET'),
-  CLOUDFLARE_ACCOUNT_ID: optionalTrimmedString('CLOUDFLARE_ACCOUNT_ID'),
-  CLOUDFLARE_IMAGES_API_TOKEN: optionalTrimmedString(
-    'CLOUDFLARE_IMAGES_API_TOKEN',
-  ),
-  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalTrimmedString(
-    'CLOUDFLARE_IMAGES_DELIVERY_HASH',
-  ),
   DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
   DOCS_IMG_OUT_DIR: optionalTrimmedString('DOCS_IMG_OUT_DIR').pipe(
     Config.map((value) =>
@@ -214,6 +207,9 @@ export const testRuntimeConfigState = Config.all({
     Config.withDefault(false),
   ),
   NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
+  PUBLIC_GOOGLE_MAPS_API_KEY: optionalTrimmedString(
+    'PUBLIC_GOOGLE_MAPS_API_KEY',
+  ),
   S3_ACCESS_KEY_ID: optionalTrimmedString('S3_ACCESS_KEY_ID'),
   S3_BUCKET: optionalTrimmedString('S3_BUCKET'),
   S3_ENDPOINT: optionalTrimmedString('S3_ENDPOINT'),
@@ -298,11 +294,6 @@ const validateCiEnvironment = (
     return Effect.void;
   }
 
-  const requiresIntegrationEnvironment =
-    requiresIntegrationOnlyPlaywrightEnvironment(
-      argv,
-      state.E2E_SELECTED_PROJECTS,
-    );
   const errors = collectMissingFieldErrors([
     ['S3_ACCESS_KEY_ID', Option.isSome(state.S3_ACCESS_KEY_ID)],
     ['S3_BUCKET', Option.isSome(state.S3_BUCKET)],
@@ -311,30 +302,39 @@ const validateCiEnvironment = (
     ['S3_SECRET_ACCESS_KEY', Option.isSome(state.S3_SECRET_ACCESS_KEY)],
     ['STRIPE_WEBHOOK_SECRET', Option.isSome(state.STRIPE_WEBHOOK_SECRET)],
     ['STRIPE_TEST_ACCOUNT_ID', Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)],
+  ]);
+
+  return errors.length > 0
+    ? Effect.fail(combineMissingDataErrors(errors))
+    : Effect.void;
+};
+
+const validateIntegrationEnvironment = (
+  state: TestRuntimeConfigState,
+  argv: readonly string[] = process.argv,
+) => {
+  if (
+    isPlaywrightListOnly(argv) ||
+    !requiresIntegrationOnlyPlaywrightEnvironment(
+      argv,
+      state.E2E_SELECTED_PROJECTS,
+    )
+  ) {
+    return Effect.void;
+  }
+
+  const errors = collectMissingFieldErrors([
     [
       'AUTH0_MANAGEMENT_CLIENT_ID',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID),
+      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID),
     ],
     [
       'AUTH0_MANAGEMENT_CLIENT_SECRET',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
+      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
     ],
     [
-      'CLOUDFLARE_ACCOUNT_ID',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.CLOUDFLARE_ACCOUNT_ID),
-    ],
-    [
-      'CLOUDFLARE_IMAGES_API_TOKEN',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN),
-    ],
-    [
-      'CLOUDFLARE_IMAGES_DELIVERY_HASH',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH),
+      'PUBLIC_GOOGLE_MAPS_API_KEY',
+      Option.isSome(state.PUBLIC_GOOGLE_MAPS_API_KEY),
     ],
   ]);
 
@@ -349,6 +349,7 @@ export const makePlaywrightEnvironmentConfig = (
   Effect.gen(function* () {
     const state = yield* testRuntimeConfigState;
     yield* validateCiEnvironment(state, argv);
+    yield* validateIntegrationEnvironment(state, argv);
     const listOnly = isPlaywrightListOnly(argv);
 
     const errors = [

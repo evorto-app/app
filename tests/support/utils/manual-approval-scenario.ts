@@ -8,6 +8,7 @@ import { usersToAuthenticate } from '../../../helpers/user-data';
 import { createId } from '../../../src/db/create-id';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
+import { deleteRegistrationAcquisitionLedger } from './registration-acquisition-cleanup';
 import { futureServerEventWindow } from './server-test-clock';
 
 export { waitForRegistrationPage as waitForRegistrationStatus } from './event-registration-page';
@@ -170,6 +171,11 @@ export const seedManualApprovalScenario = async ({
       .filter((registrationId) => !originalRegistrationIds.has(registrationId));
 
     if (createdRegistrationIds.length > 0) {
+      await deleteRegistrationAcquisitionLedger({
+        database,
+        registrationIds: createdRegistrationIds,
+        tenantId: tenant.id,
+      });
       await database
         .delete(schema.transactions)
         .where(

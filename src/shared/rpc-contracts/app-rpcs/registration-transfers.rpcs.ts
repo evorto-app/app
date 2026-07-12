@@ -1,9 +1,10 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import {
+  RegistrationTransferRefundLifecycle,
   RegistrationTransferStatus,
   registrationTransferStatuses,
 } from '@shared/registration-transfer';
-import { nonNegativeNumber } from '@shared/schema-utilities';
+import { nonNegativeNumber, positiveNumber } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -16,25 +17,7 @@ export const RegistrationTransferCredential = Schema.NonEmptyString.check(
 );
 
 const NonNegativeQuantity = nonNegativeNumber.check(Schema.isInt());
-
-export class RegistrationTransferAddonInput extends Schema.Class<RegistrationTransferAddonInput>(
-  'RegistrationTransferAddonInput',
-)({
-  addOnId: Schema.NonEmptyString,
-  quantity: NonNegativeQuantity,
-}) {}
-
-export class RegistrationTransferAddonRecord extends Schema.Class<RegistrationTransferAddonRecord>(
-  'RegistrationTransferAddonRecord',
-)({
-  allowMultiple: Schema.Boolean,
-  availableQuantity: NonNegativeQuantity,
-  description: Schema.NullOr(Schema.String),
-  id: Schema.NonEmptyString,
-  maxQuantityPerUser: NonNegativeQuantity,
-  title: Schema.NonEmptyString,
-  unitPrice: nonNegativeNumber,
-}) {}
+const PositiveQuantity = positiveNumber.check(Schema.isInt());
 
 export class RegistrationTransferAnswerInput extends Schema.Class<RegistrationTransferAnswerInput>(
   'RegistrationTransferAnswerInput',
@@ -43,13 +26,36 @@ export class RegistrationTransferAnswerInput extends Schema.Class<RegistrationTr
   questionId: Schema.NonEmptyString,
 }) {}
 
+export class RegistrationTransferBundleAddonRecord extends Schema.Class<RegistrationTransferBundleAddonRecord>(
+  'RegistrationTransferBundleAddonRecord',
+)({
+  cancelledQuantity: NonNegativeQuantity,
+  currentUnitPrice: nonNegativeNumber,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  includedQuantity: NonNegativeQuantity,
+  purchasedQuantity: NonNegativeQuantity,
+  quantity: PositiveQuantity,
+  redeemedQuantity: NonNegativeQuantity,
+  remainingQuantity: NonNegativeQuantity,
+  title: Schema.NonEmptyString,
+}) {}
+
+export class RegistrationTransferBundleRecord extends Schema.Class<RegistrationTransferBundleRecord>(
+  'RegistrationTransferBundleRecord',
+)({
+  addOns: Schema.Array(RegistrationTransferBundleAddonRecord),
+  checkedInGuestCount: NonNegativeQuantity,
+  checkInTime: Schema.NullOr(Schema.NonEmptyString),
+  guestCount: NonNegativeQuantity,
+  guestUnitPrice: nonNegativeNumber,
+}) {}
+
 export class RegistrationTransferClaimInput extends Schema.Class<RegistrationTransferClaimInput>(
   'RegistrationTransferClaimInput',
 )({
-  addOns: Schema.Array(RegistrationTransferAddonInput),
   answers: Schema.Array(RegistrationTransferAnswerInput),
   credential: RegistrationTransferCredential,
-  guestCount: NonNegativeQuantity,
 }) {}
 
 export class RegistrationTransferEventRecord extends Schema.Class<RegistrationTransferEventRecord>(
@@ -59,12 +65,6 @@ export class RegistrationTransferEventRecord extends Schema.Class<RegistrationTr
   id: Schema.NonEmptyString,
   start: Schema.NonEmptyString,
   title: Schema.NonEmptyString,
-}) {}
-
-export class RegistrationTransferGuestAllowance extends Schema.Class<RegistrationTransferGuestAllowance>(
-  'RegistrationTransferGuestAllowance',
-)({
-  allowed: Schema.Boolean,
 }) {}
 
 export class RegistrationTransferQuestionRecord extends Schema.Class<RegistrationTransferQuestionRecord>(
@@ -79,11 +79,9 @@ export class RegistrationTransferQuestionRecord extends Schema.Class<Registratio
 export class RegistrationTransferOptionRecord extends Schema.Class<RegistrationTransferOptionRecord>(
   'RegistrationTransferOptionRecord',
 )({
-  addOns: Schema.Array(RegistrationTransferAddonRecord),
   currency: Tenant.fields.currency,
   currentPrice: nonNegativeNumber,
   description: Schema.NullOr(Schema.String),
-  guestAllowance: RegistrationTransferGuestAllowance,
   id: Schema.NonEmptyString,
   isPaid: Schema.Boolean,
   questions: Schema.Array(RegistrationTransferQuestionRecord),
@@ -93,8 +91,10 @@ export class RegistrationTransferOptionRecord extends Schema.Class<RegistrationT
 export class RegistrationTransferClaimRecord extends Schema.Class<RegistrationTransferClaimRecord>(
   'RegistrationTransferClaimRecord',
 )({
+  bundle: RegistrationTransferBundleRecord,
   event: RegistrationTransferEventRecord,
   expiresAt: Schema.NonEmptyString,
+  refundLifecycle: Schema.NullOr(RegistrationTransferRefundLifecycle),
   registrationOption: RegistrationTransferOptionRecord,
   status: RegistrationTransferStatus,
   transferId: Schema.NonEmptyString,

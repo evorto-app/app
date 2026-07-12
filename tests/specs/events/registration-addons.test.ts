@@ -6,6 +6,7 @@ import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/axe-test';
 import { seedPostRegistrationAddonPurchaseScenario } from '../../support/utils/post-registration-addon-purchase-scenario';
+import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
@@ -274,6 +275,22 @@ test('registers with a free add-on and required registration question', async ({
     }
     expect(addOn.totalAvailableQuantity).toBe(3);
   } finally {
+    const createdRegistrations =
+      await database.query.eventRegistrations.findMany({
+        columns: { id: true },
+        where: {
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        },
+      });
+    await deleteRegistrationAcquisitionLedger({
+      database,
+      registrationIds: createdRegistrations.map(
+        (registration) => registration.id,
+      ),
+      tenantId: tenant.id,
+    });
     await database
       .delete(schema.eventRegistrations)
       .where(

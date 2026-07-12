@@ -1,14 +1,16 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect } from 'effect';
+import { Effect, Exit } from 'effect';
 
 import {
   collectSupportedStripeTaxRatePages,
+  decodePlatformTaxRateAuditRecord,
   ensureStripeAccountUnchanged,
   normalizePlatformTenantUserSearch,
   normalizeTenantAssignableRolePermissions,
   PlatformTaxRateAuditRecord,
   platformTaxRateBatchAuditSnapshot,
   type StripeTaxRateSource,
+  taxRateBatchResourceId,
   uniqueSortedIds,
 } from './platform-tenant-admin.handlers';
 
@@ -38,6 +40,7 @@ const persistedRate = (
     inclusive: true,
     percentage: '19',
     state: null,
+    stripeAccountId: 'acct_current',
     stripeTaxRateId: id,
     tenantId: 'tenant-1',
   });
@@ -130,6 +133,7 @@ describe('platform tenant-admin handler boundaries', () => {
             inclusive: true,
             percentage: '19',
             state: null,
+            stripeAccountId: 'acct_current',
             stripeTaxRateId: 'txr_a',
             tenantId: 'tenant-1',
           },
@@ -141,6 +145,26 @@ describe('platform tenant-admin handler boundaries', () => {
       },
     });
   });
+
+  it('scopes tax-rate audit resource identity to the Stripe account', () => {
+    expect(taxRateBatchResourceId('acct_a', ['txr_b', 'txr_a'])).toBe(
+      taxRateBatchResourceId('acct_a', ['txr_a', 'txr_b']),
+    );
+    expect(taxRateBatchResourceId('acct_a', ['txr_a'])).not.toBe(
+      taxRateBatchResourceId('acct_b', ['txr_a']),
+    );
+  });
+
+  it.effect('fails closed when a selected tax rate has no account owner', () =>
+    Effect.gen(function* () {
+      const exit = yield* decodePlatformTaxRateAuditRecord({
+        ...persistedRate('txr_unowned', 'Unowned'),
+        stripeAccountId: null,
+      }).pipe(Effect.exit);
+
+      expect(Exit.isFailure(exit)).toBe(true);
+    }),
+  );
 
   it.effect('walks every bounded Stripe tax-rate page', () =>
     Effect.gen(function* () {

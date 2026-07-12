@@ -1,3 +1,5 @@
+import type { PlatformRegistrationDetailRecord } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
+
 import { DatePipe } from '@angular/common';
 import {
   afterNextRender,
@@ -9,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
@@ -17,11 +20,16 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
+import {
+  PlatformRegistrationCancellationConfirmationData,
+  PlatformRegistrationCancellationConfirmationDialogComponent,
+} from './platform-registration-cancellation-confirmation-dialog.component';
 
 export const registrationIdFromPlatformScannerInput = (
   value: string,
@@ -34,6 +42,39 @@ export const registrationIdFromPlatformScannerInput = (
     return match?.[1];
   } catch {
     return /^[^\s/]+$/.test(normalized) ? normalized : undefined;
+  }
+};
+
+export interface PlatformRegistrationStatusIssueCopy {
+  readonly body: string;
+  readonly title: string;
+}
+
+export const platformRegistrationStatusIssueCopy = (
+  status: PlatformRegistrationDetailRecord['status'],
+): null | PlatformRegistrationStatusIssueCopy => {
+  switch (status) {
+    case 'CANCELLED': {
+      return {
+        body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, review the existing registration and refund instead of creating a replacement.',
+        title: 'Registration cancelled',
+      };
+    }
+    case 'CONFIRMED': {
+      return null;
+    }
+    case 'PENDING': {
+      return {
+        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.',
+        title: 'Registration pending',
+      };
+    }
+    case 'WAITLIST': {
+      return {
+        body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
+        title: 'Registration on waitlist',
+      };
+    }
   }
 };
 
@@ -106,6 +147,8 @@ export class PlatformScannerComponent {
   protected readonly lookupError = signal('');
   protected readonly lookupInteractive = signal(false);
   protected readonly lookupValue = signal('');
+  protected readonly platformRegistrationStatusIssueCopy =
+    platformRegistrationStatusIssueCopy;
   protected readonly reason = signal('');
   protected readonly registrationQuery = injectQuery(() => ({
     ...this.operations.findOne(
@@ -117,6 +160,7 @@ export class PlatformScannerComponent {
   protected readonly registrationsQuery = injectQuery(() =>
     this.operations.list(this.tenantId(), this.eventId()),
   );
+  private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
@@ -159,9 +203,31 @@ export class PlatformScannerComponent {
   protected cancel(): void {
     const registrationId = this.registrationId();
     const reason = this.reason().trim();
-    if (!registrationId || !reason || this.anyActionPending()) return;
+    if (
+      !registrationId ||
+      !reason ||
+      this.anyActionPending() ||
+      !this.registrationQuery.isSuccess()
+    ) {
+      return;
+    }
+    const registration = this.registrationQuery.data();
 
     void (async () => {
+      const confirmed = await firstValueFrom(
+        this.dialog
+          .open<
+            PlatformRegistrationCancellationConfirmationDialogComponent,
+            PlatformRegistrationCancellationConfirmationData,
+            boolean
+          >(PlatformRegistrationCancellationConfirmationDialogComponent, {
+            data: { reason, registration },
+            width: 'min(38rem, calc(100vw - 2rem))',
+          })
+          .afterClosed(),
+      );
+      if (confirmed !== true || this.anyActionPending()) return;
+
       try {
         await this.cancelMutation.mutateAsync({
           reason,
@@ -207,7 +273,8 @@ export class PlatformScannerComponent {
     return getErrorMessage(error, 'Failed to inspect registration');
   }
 
-  protected openLookup(): void {
+  protected openLookup(event?: Event): void {
+    event?.preventDefault();
     const registrationId = registrationIdFromPlatformScannerInput(
       this.lookupValue(),
     );

@@ -16,10 +16,15 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { type EventsCancellableRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import {
+  type EventsCancellableRegistrationStatus,
+  type EventsRegistrationStatusRecord,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import { resolveTenantDiscountProviders } from '@shared/tenant-config';
 import {
   and,
   eq,
+  gt,
   gte,
   ilike,
   inArray,
@@ -27,7 +32,6 @@ import {
   isNull,
   not,
   notExists,
-  or,
   sql,
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -36,7 +40,6 @@ import { Effect, Option, Result } from 'effect';
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../../db';
-import { createId } from '../../../../../db/create-id';
 import {
   addonToEventRegistrationOptions,
   eventAddons,
@@ -45,14 +48,17 @@ import {
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchaseOrders,
   eventRegistrationAddonPurchases,
-  eventRegistrationAddonRefundAllocations,
+  eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrations,
+  registrationAcquisitionRefundAllocations,
+  registrationTransferRefundPlanItems,
   registrationTransfers,
   rolesToTenantUsers,
   tenants,
   tenantStripeTaxRates,
   transactions,
+  userDiscountCards,
   users,
   usersToTenants,
 } from '../../../../../db/schema';
@@ -66,12 +72,7 @@ import {
   enqueueWaitlistSpotAvailableEmail,
 } from '../../../../notifications/email-delivery';
 import { type RegistrationCancellationActor } from '../../../../notifications/email-templates';
-import {
-  allocateCumulativeQuantityAmount,
-  resolveAddonTaxAmounts,
-} from '../../../../payments/addon-payment-allocation';
-import { ensureAddonPaymentAllocations } from '../../../../payments/addon-payment-allocation.service';
-import { ensureRegistrationPaymentFeeSnapshot } from '../../../../payments/registration-payment-fee-snapshot';
+import { resolveAddonTaxAmounts } from '../../../../payments/addon-payment-allocation';
 import {
   createRegistrationRefundClaim,
   processRegistrationRefundClaim,
@@ -84,7 +85,24 @@ import {
   undoRegistrationAddonRedemption,
 } from '../../../../registrations/addon-fulfillment.service';
 import { purchaseRegistrationAddon } from '../../../../registrations/addon-purchase.service';
-import { ensureRegistrationMutationHasNoActiveTransfer } from '../../../../registrations/registration-transfer-mutation-guard';
+import { organizerDirectTransferPreviewVersion } from '../../../../registrations/organizer-direct-transfer-preview';
+import { allocateAcquisitionComponentQuantity } from '../../../../registrations/registration-acquisition-refund';
+import {
+  establishRegistrationAcquisition,
+  lockCurrentRegistrationAcquisition,
+  RegistrationAcquisitionWriteError,
+  settleAcquisitionComponentTerms,
+} from '../../../../registrations/registration-acquisition-write';
+import {
+  ensureRegistrationMutationHasNoActiveTransfer,
+  RegistrationTransferMutationConflict,
+} from '../../../../registrations/registration-transfer-mutation-guard';
+import {
+  registrationTransferTotalPrice,
+  resolveRegistrationTransferPrice,
+} from '../../../../registrations/registration-transfer-pricing';
+import { resolveRegistrationTransferRefundLifecycle } from '../../../../registrations/registration-transfer-refund-lifecycle';
+import { resolveRegistrationTransferDeadline } from '../../../../registrations/registration-transfer-state';
 import { StripeClient } from '../../../../stripe-client';
 import { tenantOutboundUrl } from '../../../../tenant-outbound-url';
 import { RpcAccess } from '../shared/rpc-access.service';
@@ -199,26 +217,18 @@ const isWithinCheckInWindow = (eventStart: Date, now: Date): boolean =>
 const normalizeTransferTargetSearch = (search: string | undefined) =>
   search?.trim().toLowerCase() ?? '';
 
-const hasSuccessfulPaidRegistrationTransaction = (
-  transactionsToCheck: readonly {
-    amount: number;
-    status: string;
-    type: string;
-  }[],
-) =>
-  transactionsToCheck.some(
-    (transaction) =>
-      (transaction.type === 'registration' || transaction.type === 'addon') &&
-      transaction.status === 'successful' &&
-      transaction.amount > 0,
-  );
+const privateRegistrationTransferRequiredMessage =
+  'This registration bundle cannot be reassigned directly. Create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.';
 
-const hasAppliedRegistrationDiscount = (registration: {
-  appliedDiscountedPrice: null | number;
-  appliedDiscountType: null | string;
-}) =>
-  registration.appliedDiscountedPrice !== null ||
-  registration.appliedDiscountType !== null;
+const directTransferPreviewStatePart = (value: object): string =>
+  JSON.stringify(value) ?? 'null';
+
+const directTransferPreviewResult = <Preview>(
+  preview: Preview,
+): { readonly _tag: 'Preview'; readonly preview: Preview } => ({
+  _tag: 'Preview',
+  preview,
+});
 
 export type RegistrationAddonPurchaseBlockedReason =
   | 'activeTransfer'
@@ -343,39 +353,27 @@ export const registrationAddonPurchaseAvailability = (input: {
 
 export type RegistrationTransferBlockedReason =
   | 'activeTransfer'
-  | 'addonFulfillmentState'
   | 'addonPaymentPending'
-  | 'checkedIn'
   | 'deadlinePassed'
   | 'eventUnavailable'
   | 'none'
-  | 'paidAddon'
-  | 'registrationStatus'
-  | 'unsupportedPaymentMethod';
+  | 'registrationStatus';
 
 export const registrationTransferBlockedReason = (input: {
   readonly activeTransfer: boolean;
-  readonly checkInTime: Date | null;
   readonly eventStart: Date | null;
   readonly eventStatus: null | string;
-  readonly hasAddonFulfillmentState: boolean;
   readonly hasPendingAddonOrder: boolean;
-  readonly hasSuccessfulPaidAddon: boolean;
-  readonly hasUnsupportedPaymentMethod: boolean;
   readonly now: Date;
   readonly registrationStatus: string;
   readonly transferDeadlineHoursBeforeStart: number;
 }): RegistrationTransferBlockedReason => {
   if (input.registrationStatus !== 'CONFIRMED') return 'registrationStatus';
-  if (input.checkInTime !== null) return 'checkedIn';
   if (!input.eventStart || input.eventStatus !== 'APPROVED') {
     return 'eventUnavailable';
   }
   if (input.activeTransfer) return 'activeTransfer';
   if (input.hasPendingAddonOrder) return 'addonPaymentPending';
-  if (input.hasAddonFulfillmentState) return 'addonFulfillmentState';
-  if (input.hasUnsupportedPaymentMethod) return 'unsupportedPaymentMethod';
-  if (input.hasSuccessfulPaidAddon) return 'paidAddon';
   return input.now.getTime() >=
     input.eventStart.getTime() -
       input.transferDeadlineHoursBeforeStart * 60 * 60 * 1000
@@ -474,149 +472,29 @@ export const registrationCancellationStripeRefundTerms = ({
   };
 };
 
-export interface NonStripeAddonLotRefundAllocation {
-  readonly fulfillmentEventId: string;
-  readonly grossAmount: number;
-  readonly purchaseId: string;
-  readonly purchaseLotId: string;
-  readonly quantity: number;
-}
-
-export type NonStripeCancellationRefundPlan =
-  | {
-      readonly _tag: 'ManualReviewRequired';
-      readonly reason: string;
-    }
-  | {
-      readonly _tag: 'Refundable';
-      readonly amount: number;
-      readonly lotRefunds: readonly NonStripeAddonLotRefundAllocation[];
-    };
-
-/**
- * Proves the refundable portion of one non-Stripe source. The registration
- * portion excludes every paid add-on lot, then adds back only lots cancelled
- * by this operation. Redeemed and previously cancelled-without-refund units
- * therefore remain protected from an accidental full-source refund.
- */
-export const planNonStripeCancellationRefund = (input: {
-  readonly cancellations: readonly {
-    readonly fulfillmentEventId: string;
-    readonly lot: Pick<
-      typeof eventRegistrationAddonPurchaseLots.$inferSelect,
-      'id' | 'sourceTransactionId'
-    >;
-    readonly purchaseId: string;
-    readonly quantity: number;
-  }[];
-  readonly lots: readonly Pick<
-    typeof eventRegistrationAddonPurchaseLots.$inferSelect,
-    | 'grossAmount'
-    | 'id'
-    | 'quantity'
-    | 'refundAllocatedQuantity'
-    | 'sourceTransactionId'
-  >[];
-  readonly source: {
-    readonly amount: number;
-    readonly id: string;
-    readonly type: 'addon' | 'registration';
-  };
-}): NonStripeCancellationRefundPlan => {
-  if (!Number.isSafeInteger(input.source.amount) || input.source.amount <= 0) {
-    return {
-      _tag: 'ManualReviewRequired',
-      reason: 'The non-Stripe source amount is invalid.',
-    };
-  }
-  const sourceLots = input.lots.filter(
-    (lot) => lot.sourceTransactionId === input.source.id,
-  );
-  if (input.source.type === 'addon' && sourceLots.length === 0) {
-    return {
-      _tag: 'ManualReviewRequired',
-      reason: 'The non-Stripe add-on source has no immutable purchase lots.',
-    };
-  }
-  if (
-    sourceLots.some(
-      (lot) =>
-        lot.grossAmount === null ||
-        !Number.isSafeInteger(lot.grossAmount) ||
-        lot.grossAmount < 0,
-    )
-  ) {
-    return {
-      _tag: 'ManualReviewRequired',
-      reason: 'The non-Stripe add-on gross allocation is not finalized.',
-    };
-  }
-
-  const fullAddonAmount = sourceLots.reduce(
-    (sum, lot) => sum + (lot.grossAmount ?? 0),
-    0,
-  );
-  if (
-    fullAddonAmount > input.source.amount ||
-    (input.source.type === 'addon' && fullAddonAmount !== input.source.amount)
-  ) {
-    return {
-      _tag: 'ManualReviewRequired',
-      reason: 'The non-Stripe source and add-on allocations do not reconcile.',
-    };
-  }
-
-  const sourceLotById = new Map(sourceLots.map((lot) => [lot.id, lot]));
-  const sourceCancellations = input.cancellations.filter(
-    (allocation) => allocation.lot.sourceTransactionId === input.source.id,
-  );
-  const lotRefunds: NonStripeAddonLotRefundAllocation[] = [];
-  for (const allocation of sourceCancellations) {
-    const lot = sourceLotById.get(allocation.lot.id);
-    if (
-      !lot ||
-      lot.grossAmount === null ||
-      !Number.isSafeInteger(allocation.quantity) ||
-      allocation.quantity <= 0 ||
-      lot.refundAllocatedQuantity + allocation.quantity > lot.quantity
-    ) {
-      return {
-        _tag: 'ManualReviewRequired',
-        reason: 'The non-Stripe cancellation allocation is inconsistent.',
-      };
-    }
-    const grossAmount = allocateCumulativeQuantityAmount({
-      alreadyAllocatedQuantity: lot.refundAllocatedQuantity,
-      amount: lot.grossAmount,
-      quantity: allocation.quantity,
-      totalQuantity: lot.quantity,
-    });
-    lotRefunds.push({
-      fulfillmentEventId: allocation.fulfillmentEventId,
-      grossAmount,
-      purchaseId: allocation.purchaseId,
-      purchaseLotId: lot.id,
-      quantity: allocation.quantity,
-    });
-  }
-  const registrationAmount =
-    input.source.type === 'registration'
-      ? input.source.amount - fullAddonAmount
-      : 0;
-  return {
-    _tag: 'Refundable',
-    amount:
-      registrationAmount +
-      lotRefunds.reduce((sum, allocation) => sum + allocation.grossAmount, 0),
-    lotRefunds,
-  };
-};
-
 const activeRegistrationTransferConflict = () =>
   new EventRegistrationConflictError({
     message:
       'This registration has an active transfer. Resolve or cancel the transfer before changing the registration.',
   });
+
+export const mapRegistrationTransferGuardError = Effect.fn(
+  'mapRegistrationTransferGuardError',
+)((error: unknown) =>
+  error instanceof RegistrationTransferMutationConflict
+    ? Effect.fail(activeRegistrationTransferConflict())
+    : Effect.die(error),
+);
+
+export const mapRegistrationAcquisitionGuardError = Effect.fn(
+  'mapRegistrationAcquisitionGuardError',
+)((error: unknown, conflictMessage: string) =>
+  error instanceof RegistrationAcquisitionWriteError
+    ? Effect.fail(
+        new EventRegistrationConflictError({ message: conflictMessage }),
+      )
+    : Effect.die(error),
+);
 
 const registrationCancellationStateChangedConflict = () =>
   new EventRegistrationConflictError({
@@ -1036,82 +914,6 @@ export const cancelRegistrationForTenant = Effect.fn(
     registration.event.title
       ? yield* registrationNotificationEventUrl(tenant, registration.eventId)
       : null;
-  const preflightSuccessfulPaidStripeTransaction =
-    registration.status === 'CONFIRMED'
-      ? registration.transactions.find(
-          (currentTransaction) =>
-            currentTransaction.status === 'successful' &&
-            currentTransaction.method === 'stripe' &&
-            currentTransaction.type === 'registration' &&
-            currentTransaction.amount > 0,
-        )
-      : undefined;
-  if (preflightSuccessfulPaidStripeTransaction) {
-    yield* ensureRegistrationPaymentFeeSnapshot(
-      preflightSuccessfulPaidStripeTransaction.id,
-    ).pipe(
-      Effect.mapError(
-        () =>
-          new EventRegistrationConflictError({
-            message:
-              'Payment fees are still being reconciled, so this request did not cancel the registration, create a refund, or release its spots. Retry cancellation shortly.',
-          }),
-      ),
-    );
-  }
-  if (
-    registration.status === 'CONFIRMED' &&
-    (registration.addonPurchases ?? []).some(
-      ({ purchasedQuantity }) => purchasedQuantity > 0,
-    )
-  ) {
-    const addOnSourceRows = yield* databaseEffect((database) =>
-      database
-        .select({
-          sourceTransactionId:
-            eventRegistrationAddonPurchaseLots.sourceTransactionId,
-        })
-        .from(eventRegistrationAddonPurchaseLots)
-        .where(
-          and(
-            eq(
-              eventRegistrationAddonPurchaseLots.registrationId,
-              registration.id,
-            ),
-            eq(eventRegistrationAddonPurchaseLots.tenantId, tenant.id),
-            isNotNull(eventRegistrationAddonPurchaseLots.sourceTransactionId),
-          ),
-        ),
-    );
-    const addOnSourceIds = [
-      ...new Set(
-        addOnSourceRows.flatMap(({ sourceTransactionId }) =>
-          sourceTransactionId ? [sourceTransactionId] : [],
-        ),
-      ),
-    ];
-    const stripeAddOnSourceIds = addOnSourceIds.filter((sourceTransactionId) =>
-      registration.transactions.some(
-        (transaction) =>
-          transaction.id === sourceTransactionId &&
-          transaction.method === 'stripe',
-      ),
-    );
-    yield* Effect.forEach(
-      stripeAddOnSourceIds,
-      (sourceTransactionId) =>
-        ensureAddonPaymentAllocations(sourceTransactionId).pipe(
-          Effect.mapError(
-            () =>
-              new EventRegistrationConflictError({
-                message:
-                  'Add-on payment allocations are still being reconciled, so this request did not cancel the registration or release add-on inventory. Retry cancellation shortly.',
-              }),
-          ),
-        ),
-      { discard: true },
-    );
-  }
   const preflightPendingStripeTransaction = registration.transactions.find(
     (currentTransaction) =>
       currentTransaction.status === 'pending' &&
@@ -1188,13 +990,14 @@ export const cancelRegistrationForTenant = Effect.fn(
           yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
             registrationId: lockedRegistration.id,
             tenantId: tenant.id,
-          }).pipe(Effect.mapError(() => activeRegistrationTransferConflict()));
+          }).pipe(Effect.catch(mapRegistrationTransferGuardError));
 
           const lockedRegistrationTransactions = yield* tx
             .select({
               amount: transactions.amount,
               appFee: transactions.appFee,
               currency: transactions.currency,
+              eventId: transactions.eventId,
               id: transactions.id,
               method: transactions.method,
               status: transactions.status,
@@ -1285,17 +1088,6 @@ export const cancelRegistrationForTenant = Effect.fn(
               }),
             );
           }
-          const successfulPaymentSources =
-            lockedRegistrationTransactions.filter(
-              (transaction) =>
-                (transaction.type === 'registration' ||
-                  transaction.type === 'addon') &&
-                transaction.status === 'successful' &&
-                transaction.amount > 0,
-            );
-          const shouldRefundPaidSources =
-            lockedRegistration.status === 'CONFIRMED' &&
-            successfulPaymentSources.length > 0;
           if (lockedRegistration.status === 'CANCELLED') {
             if (expiredCheckout) {
               const checkoutCancellationAlreadyFinalized =
@@ -1443,6 +1235,54 @@ export const cancelRegistrationForTenant = Effect.fn(
             }
           }
 
+          const currentAcquisitionState =
+            lockedRegistration.status === 'CONFIRMED'
+              ? yield* lockCurrentRegistrationAcquisition(tx, {
+                  ownerUserId: lockedRegistration.userId,
+                  registrationId: lockedRegistration.id,
+                  tenantId: tenant.id,
+                }).pipe(
+                  Effect.catch((error) =>
+                    mapRegistrationAcquisitionGuardError(
+                      error,
+                      'Registration acquisition ownership is inconsistent, so this request did not cancel the registration, create a refund, or release inventory.',
+                    ),
+                  ),
+                )
+              : null;
+          const transactionById = new Map(
+            lockedRegistrationTransactions.map((transaction) => [
+              transaction.id,
+              transaction,
+            ]),
+          );
+          const successfulPaymentSources =
+            currentAcquisitionState?.payments.flatMap((payment) => {
+              const transaction = transactionById.get(payment.transactionId);
+              return transaction ? [transaction] : [];
+            }) ?? [];
+          if (
+            currentAcquisitionState &&
+            successfulPaymentSources.length !==
+              currentAcquisitionState.payments.length
+          ) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message:
+                  'Registration acquisition payment ownership is incomplete, so this request did not cancel the registration, create a refund, or release inventory.',
+              }),
+            );
+          }
+          const stripePaymentSources = successfulPaymentSources.filter(
+            (
+              transaction,
+            ): transaction is typeof transaction & { method: 'stripe' } =>
+              transaction.method === 'stripe',
+          );
+          const shouldRefundPaidSources =
+            lockedRegistration.status === 'CONFIRMED' &&
+            successfulPaymentSources.length > 0;
+
           const lockedAddonPurchases = yield* tx
             .select({ id: eventRegistrationAddonPurchases.id })
             .from(eventRegistrationAddonPurchases)
@@ -1477,68 +1317,117 @@ export const cancelRegistrationForTenant = Effect.fn(
                   )
                   .orderBy(eventRegistrationAddonPurchaseLots.id)
                   .for('update');
-          if (
-            lockedRegistration.status === 'CONFIRMED' &&
-            successfulPaymentSources.length > 0
-          ) {
-            const successfulRegistrationSources =
-              successfulPaymentSources.filter(
-                (transaction) => transaction.type === 'registration',
+          if (lockedRegistration.status === 'CONFIRMED') {
+            if (!currentAcquisitionState) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'Registration acquisition ownership is missing, so the registration was not cancelled, no refund was created, and no inventory or spots were released.',
+                }),
               );
-            const sourceById = new Map(
-              successfulPaymentSources.map((source) => [source.id, source]),
-            );
-            const referenceSource = successfulPaymentSources[0];
-            const hasMixedPaymentMethods = successfulPaymentSources.some(
-              (source) => source.method !== referenceSource?.method,
-            );
-            const hasPaymentSourceOwnershipMismatch =
-              successfulPaymentSources.some(
-                (source) => source.targetUserId !== lockedRegistration.userId,
+            }
+            const registrationComponents =
+              currentAcquisitionState.components.filter(
+                ({ kind }) => kind === 'registration',
               );
-            const positiveLots = lockedAddonLots.filter(
-              (lot) =>
-                lot.baseAmount > 0 ||
-                lot.unitPrice > 0 ||
-                (lot.grossAmount ?? 0) > 0,
+            const addonComponents = currentAcquisitionState.components.filter(
+              ({ kind }) => kind === 'addon_lot',
             );
-            const hasUnassignedPositiveLot = positiveLots.some(
-              (lot) => lot.sourceTransactionId === null,
-            );
-            const hasUnknownPositiveLotSource = positiveLots.some(
-              (lot) =>
-                lot.sourceTransactionId !== null &&
-                !sourceById.has(lot.sourceTransactionId),
-            );
-            const hasUnfinalizedPositiveLot = positiveLots.some(
-              (lot) =>
-                lot.grossAmount === null ||
-                lot.netAmount === null ||
-                lot.applicationFeeAmount === null,
-            );
-            const sourceIdsWithPositiveLots = new Set(
-              positiveLots.flatMap((lot) =>
-                lot.sourceTransactionId ? [lot.sourceTransactionId] : [],
+            const componentByLotId = new Map(
+              addonComponents.flatMap((component) =>
+                component.purchaseLotId
+                  ? [[component.purchaseLotId, component]]
+                  : [],
               ),
             );
-            const hasUnassignedAddonSource = successfulPaymentSources.some(
-              (source) =>
-                source.type === 'addon' &&
-                !sourceIdsWithPositiveLots.has(source.id),
+            const paymentById = new Map(
+              currentAcquisitionState.payments.map((payment) => [
+                payment.id,
+                payment,
+              ]),
             );
+            const invalidComponentShape =
+              currentAcquisitionState.acquisition.eventId !==
+                lockedRegistration.eventId ||
+              currentAcquisitionState.acquisition.spotCount !==
+                registrationSpotCount(lockedRegistration.guestCount) ||
+              registrationComponents.length !== 1 ||
+              registrationComponents[0]?.quantity !==
+                registrationSpotCount(lockedRegistration.guestCount) ||
+              addonComponents.length !== lockedAddonLots.length ||
+              lockedAddonLots.some((lot) => {
+                const component = componentByLotId.get(lot.id);
+                return (
+                  !component ||
+                  component.purchaseId !== lot.purchaseId ||
+                  component.quantity !== lot.quantity
+                );
+              });
+            const invalidPaymentShape = successfulPaymentSources.some(
+              (source) => {
+                const acquisitionPayment =
+                  currentAcquisitionState.payments.find(
+                    ({ transactionId }) => transactionId === source.id,
+                  );
+                const components = acquisitionPayment
+                  ? currentAcquisitionState.components.filter(
+                      ({ acquisitionPaymentId }) =>
+                        acquisitionPaymentId === acquisitionPayment.id,
+                    )
+                  : [];
+                return (
+                  !acquisitionPayment ||
+                  source.amount <= 0 ||
+                  source.appFee === null ||
+                  source.eventId !== lockedRegistration.eventId ||
+                  source.status !== 'successful' ||
+                  source.method !== 'stripe' ||
+                  !source.stripeAccountId ||
+                  !hasStripeRefundReference(source) ||
+                  source.stripeFee === null ||
+                  source.stripeNetAmount === null ||
+                  source.targetUserId !== lockedRegistration.userId ||
+                  (source.type !== 'registration' && source.type !== 'addon') ||
+                  components.length === 0 ||
+                  components.some(
+                    (component) => component.currency !== source.currency,
+                  ) ||
+                  components.reduce(
+                    (sum, component) => sum + component.grossAmount,
+                    0,
+                  ) !== source.amount ||
+                  components.reduce(
+                    (sum, component) => sum + component.applicationFeeAmount,
+                    0,
+                  ) !== source.appFee ||
+                  components.reduce(
+                    (sum, component) => sum + component.stripeFeeAmount,
+                    0,
+                  ) !== source.stripeFee ||
+                  components.reduce(
+                    (sum, component) => sum + component.netAmount,
+                    0,
+                  ) !== source.stripeNetAmount
+                );
+              },
+            );
+            const invalidComponentPayment =
+              currentAcquisitionState.components.some((component) =>
+                component.grossAmount > 0
+                  ? !component.acquisitionPaymentId ||
+                    !paymentById.has(component.acquisitionPaymentId)
+                  : component.acquisitionPaymentId !== null,
+              );
             if (
-              successfulRegistrationSources.length > 1 ||
-              hasMixedPaymentMethods ||
-              hasPaymentSourceOwnershipMismatch ||
-              hasUnassignedPositiveLot ||
-              hasUnknownPositiveLotSource ||
-              hasUnfinalizedPositiveLot ||
-              hasUnassignedAddonSource
+              invalidComponentShape ||
+              invalidPaymentShape ||
+              invalidComponentPayment ||
+              stripePaymentSources.length !== successfulPaymentSources.length
             ) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'This payment needs pending manual refund review because each successful registration source and paid add-on lot cannot be assigned to one exact refund plan. The registration was not cancelled, no refund was created, and no inventory or spots were released.',
+                    'Stripe payment ownership or acquisition settlement is inconsistent, so the registration was not cancelled, no refund was created, and no inventory or spots were released. Reconcile the payment and retry cancellation.',
                 }),
               );
             }
@@ -1549,7 +1438,6 @@ export const cancelRegistrationForTenant = Effect.fn(
               cancellationDeadlineHoursBeforeStart:
                 tenants.cancellationDeadlineHoursBeforeStart,
               refundFeesOnCancellation: tenants.refundFeesOnCancellation,
-              stripeAccountId: tenants.stripeAccountId,
             })
             .from(tenants)
             .where(eq(tenants.id, tenant.id))
@@ -1618,25 +1506,23 @@ export const cancelRegistrationForTenant = Effect.fn(
             lockedRegistrationOption.refundFeesOnCancellation,
             lockedTenant.refundFeesOnCancellation,
           );
-          const invalidStripeSource = successfulPaymentSources.find(
+          const invalidStripeSource = stripePaymentSources.find(
             (source) =>
-              source.method === 'stripe' &&
-              (source.stripeAccountId !== lockedTenant.stripeAccountId ||
-                source.appFee === null ||
-                source.stripeFee === null ||
-                source.stripeNetAmount === null ||
-                !hasStripeRefundReference(source) ||
-                !registrationCancellationStripeRefundTerms({
-                  grossAmount: source.amount,
-                  refundFeesOnCancellation,
-                  stripeNetAmount: source.stripeNetAmount,
-                })),
+              source.appFee === null ||
+              source.stripeFee === null ||
+              source.stripeNetAmount === null ||
+              !hasStripeRefundReference(source) ||
+              !registrationCancellationStripeRefundTerms({
+                grossAmount: source.amount,
+                refundFeesOnCancellation,
+                stripeNetAmount: source.stripeNetAmount,
+              }),
           );
           if (shouldRefundPaidSources && invalidStripeSource) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message:
-                  'Payment fees or Stripe account ownership changed for a registration or add-on source, so this request did not cancel the registration, create a refund, or release inventory. Reconcile the payment and retry cancellation.',
+                  'Payment fees or historical Stripe source ownership changed for a registration or add-on source, so this request did not cancel the registration, create a refund, or release inventory. Reconcile the payment and retry cancellation.',
               }),
             );
           }
@@ -1651,7 +1537,7 @@ export const cancelRegistrationForTenant = Effect.fn(
                   },
               eventId: lockedRegistration.eventId,
               reason: `Registration cancelled by ${cancelledBy}`,
-              refundRequested: shouldRefundPaidSources,
+              refundRequested: lockedRegistration.status === 'CONFIRMED',
               registrationId: lockedRegistration.id,
               tenantId: tenant.id,
             });
@@ -1740,279 +1626,272 @@ export const cancelRegistrationForTenant = Effect.fn(
           let refundTransactionId: null | string = null;
           let stripeRefundClaimId: null | string = null;
           if (shouldRefundPaidSources) {
+            if (!currentAcquisitionState) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'Current registration acquisition disappeared before refund allocation.',
+                }),
+              );
+            }
             const cancellationEventIds = new Set(
               addonCancellationAllocations.map(
                 ({ fulfillmentEventId }) => fulfillmentEventId,
               ),
             );
             const monetaryCancellationEventIds = new Set<string>();
-            if (successfulPaymentSources[0]?.method === 'stripe') {
-              const stripeSources = successfulPaymentSources.filter(
-                (transaction) => transaction.method === 'stripe',
+            const priorAllocations = yield* tx
+              .select({
+                componentId:
+                  registrationAcquisitionRefundAllocations.componentId,
+                quantity: registrationAcquisitionRefundAllocations.quantity,
+              })
+              .from(registrationAcquisitionRefundAllocations)
+              .where(
+                and(
+                  eq(
+                    registrationAcquisitionRefundAllocations.acquisitionId,
+                    currentAcquisitionState.acquisition.id,
+                  ),
+                  eq(
+                    registrationAcquisitionRefundAllocations.tenantId,
+                    tenant.id,
+                  ),
+                ),
+              )
+              .orderBy(registrationAcquisitionRefundAllocations.id)
+              .for('update');
+            const priorQuantityByComponent = new Map<string, number>();
+            for (const allocation of priorAllocations) {
+              priorQuantityByComponent.set(
+                allocation.componentId,
+                (priorQuantityByComponent.get(allocation.componentId) ?? 0) +
+                  allocation.quantity,
               );
-              for (const source of stripeSources) {
-                if (
-                  !source.stripeAccountId ||
-                  source.stripeNetAmount === null
-                ) {
-                  return yield* Effect.fail(
-                    new EventRegistrationInternalError({
-                      message:
-                        'A paid add-on source is missing its Stripe fee allocation, so cancellation did not continue.',
-                    }),
-                  );
-                }
-                const sourceLots = lockedAddonLots.filter(
-                  (lot) => lot.sourceTransactionId === source.id,
-                );
-                const sourcePolicyAmount = refundFeesOnCancellation
-                  ? source.amount
-                  : source.stripeNetAmount;
-                const fullAddonPolicyAmount = sourceLots.reduce(
-                  (sum, lot) =>
-                    sum +
-                    (refundFeesOnCancellation
-                      ? (lot.grossAmount ?? 0)
-                      : (lot.netAmount ?? 0)),
-                  0,
-                );
-                const registrationRefundAmount =
-                  source.type === 'registration'
-                    ? sourcePolicyAmount - fullAddonPolicyAmount
-                    : 0;
-                if (registrationRefundAmount < 0) {
-                  return yield* Effect.fail(
-                    new EventRegistrationInternalError({
-                      message:
-                        'Add-on refund allocations exceed their source payment.',
-                    }),
-                  );
-                }
-                const sourceCancellationAllocations =
-                  addonCancellationAllocations.filter(
-                    (allocation) =>
-                      allocation.lot.sourceTransactionId === source.id,
-                  );
-                const lotRefunds = sourceCancellationAllocations.map(
-                  (allocation) => {
-                    const grossAmount = allocateCumulativeQuantityAmount({
-                      alreadyAllocatedQuantity:
-                        allocation.lot.refundAllocatedQuantity,
-                      amount: allocation.lot.grossAmount ?? 0,
-                      quantity: allocation.quantity,
-                      totalQuantity: allocation.lot.quantity,
-                    });
-                    const netAmount = allocateCumulativeQuantityAmount({
-                      alreadyAllocatedQuantity:
-                        allocation.lot.refundAllocatedQuantity,
-                      amount: allocation.lot.netAmount ?? 0,
-                      quantity: allocation.quantity,
-                      totalQuantity: allocation.lot.quantity,
-                    });
-                    const applicationFeeAmount =
-                      allocateCumulativeQuantityAmount({
-                        alreadyAllocatedQuantity:
-                          allocation.lot.refundAllocatedQuantity,
-                        amount: allocation.lot.applicationFeeAmount ?? 0,
-                        quantity: allocation.quantity,
-                        totalQuantity: allocation.lot.quantity,
-                      });
-                    return {
-                      ...allocation,
-                      applicationFeeAmount,
-                      grossAmount,
-                      netAmount,
-                      refundAmount: refundFeesOnCancellation
-                        ? grossAmount
-                        : netAmount,
-                    };
-                  },
-                );
-                const amount =
-                  registrationRefundAmount +
-                  lotRefunds.reduce(
-                    (sum, allocation) => sum + allocation.refundAmount,
-                    0,
-                  );
-                const refundClaim =
-                  amount > 0
-                    ? yield* createRegistrationRefundClaim(tx, {
-                        amount,
-                        applicationFeeRefunded: refundFeesOnCancellation,
-                        currency: source.currency,
-                        eventId: lockedRegistration.eventId,
-                        eventRegistrationId: lockedRegistration.id,
-                        executiveUserId,
-                        operationKey: `registration-cancellation:${lockedRegistration.id}:${source.id}`,
-                        sourceTransactionId: source.id,
-                        stripeAccountId: source.stripeAccountId,
-                        targetUserId: lockedRegistration.userId,
-                        tenantId: tenant.id,
-                      })
-                    : undefined;
-                if (refundClaim) {
-                  refundTransactionId ??= refundClaim.id;
-                  stripeRefundClaimId ??= refundClaim.id;
-                }
-                for (const allocation of lotRefunds) {
-                  yield* tx
-                    .update(eventRegistrationAddonPurchaseLots)
-                    .set({
-                      refundAllocatedApplicationFeeAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedApplicationFeeAmount} + ${allocation.applicationFeeAmount}`,
-                      refundAllocatedGrossAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedGrossAmount} + ${allocation.grossAmount}`,
-                      refundAllocatedNetAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedNetAmount} + ${allocation.netAmount}`,
-                      refundAllocatedQuantity: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedQuantity} + ${allocation.quantity}`,
-                    })
-                    .where(
-                      eq(
-                        eventRegistrationAddonPurchaseLots.id,
-                        allocation.lot.id,
-                      ),
-                    );
-                  yield* tx
-                    .update(eventRegistrationAddonPurchases)
-                    .set({
-                      refundAllocatedPurchasedQuantity: sql`${eventRegistrationAddonPurchases.refundAllocatedPurchasedQuantity} + ${allocation.quantity}`,
-                    })
-                    .where(
-                      eq(
-                        eventRegistrationAddonPurchases.id,
-                        allocation.purchaseId,
-                      ),
-                    );
-                  if (allocation.refundAmount > 0 && refundClaim) {
-                    monetaryCancellationEventIds.add(
-                      allocation.fulfillmentEventId,
-                    );
-                    yield* tx
-                      .insert(eventRegistrationAddonRefundAllocations)
-                      .values({
-                        applicationFeeAmount: allocation.applicationFeeAmount,
-                        applicationFeeRefunded: refundFeesOnCancellation,
-                        currency: source.currency,
-                        eventId: lockedRegistration.eventId,
-                        fulfillmentEventId: allocation.fulfillmentEventId,
-                        grossEntitlementAmount: allocation.grossAmount,
-                        netEntitlementAmount: allocation.netAmount,
-                        purchaseId: allocation.purchaseId,
-                        purchaseLotId: allocation.lot.id,
-                        quantity: allocation.quantity,
-                        refundAmount: allocation.refundAmount,
-                        refundTransactionId: refundClaim.id,
-                        registrationId: lockedRegistration.id,
-                        tenantId: tenant.id,
-                      });
-                  }
-                }
-              }
-            } else {
-              const nonStripeSources = successfulPaymentSources.filter(
-                (
-                  transaction,
-                ): transaction is typeof transaction & {
-                  type: 'addon' | 'registration';
-                } => transaction.method !== 'stripe',
+            }
+            const registrationComponent =
+              currentAcquisitionState.components.find(
+                ({ kind }) => kind === 'registration',
               );
-              const nonStripeSourceIds = new Set(
-                nonStripeSources.map(({ id }) => id),
-              );
-              const hasUnownedSourceLot = lockedAddonLots.some(
-                (lot) =>
-                  lot.sourceTransactionId !== null &&
-                  !nonStripeSourceIds.has(lot.sourceTransactionId),
-              );
-              const plans = nonStripeSources.map((source) => ({
-                plan: planNonStripeCancellationRefund({
-                  cancellations: addonCancellationAllocations,
-                  lots: lockedAddonLots,
-                  source,
+            if (!registrationComponent) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'Registration acquisition component disappeared before cancellation.',
                 }),
-                source,
-              }));
-              const manualReviewPlan = plans.find(
-                ({ plan }) => plan._tag === 'ManualReviewRequired',
               );
-              if (hasUnownedSourceLot || manualReviewPlan) {
-                const detail =
-                  manualReviewPlan?.plan._tag === 'ManualReviewRequired'
-                    ? ` ${manualReviewPlan.plan.reason}`
-                    : '';
+            }
+            const componentByLotId = new Map(
+              currentAcquisitionState.components.flatMap((component) =>
+                component.kind === 'addon_lot' && component.purchaseLotId
+                  ? [[component.purchaseLotId, component] as const]
+                  : [],
+              ),
+            );
+            const registrationAlreadyAllocated =
+              priorQuantityByComponent.get(registrationComponent.id) ?? 0;
+            if (registrationAlreadyAllocated !== 0) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'Registration refund entitlement is inconsistent with its acquisition component.',
+                }),
+              );
+            }
+            type CancellationComponent =
+              (typeof currentAcquisitionState.components)[number];
+            const componentAllocations: {
+              applicationFeeAmount: number;
+              component: CancellationComponent;
+              fulfillmentEventId: null | string;
+              grossAmount: number;
+              netAmount: number;
+              operationKey: string;
+              purchaseId: null | string;
+              quantity: number;
+              stripeFeeAmount: number;
+            }[] = [];
+            if (registrationComponent.grossAmount > 0) {
+              const registrationAmounts = allocateAcquisitionComponentQuantity({
+                alreadyAllocatedQuantity: 0,
+                component: registrationComponent,
+                quantity: registrationComponent.quantity,
+              });
+              if (
+                !registrationAmounts ||
+                !registrationComponent.acquisitionPaymentId
+              ) {
                 return yield* Effect.fail(
-                  new EventRegistrationConflictError({
-                    message: `This non-Stripe payment needs pending manual refund review because its registration-only and add-on amounts cannot be proven exactly.${detail} The registration was not cancelled, no refund was created, and no inventory or spots were released.`,
+                  new EventRegistrationInternalError({
+                    message:
+                      'Paid registration component has no immutable refund entitlement.',
                   }),
                 );
               }
-
-              for (const { plan, source } of plans) {
-                if (plan._tag !== 'Refundable' || plan.amount <= 0) continue;
-                const manualRefundTransactionId = createId();
-                yield* tx.insert(transactions).values({
-                  amount: -plan.amount,
-                  comment: `Pending manual source-split refund for cancelled registration ${lockedRegistration.id}; protected redeemed and previously non-refunded add-on value remains excluded.`,
-                  currency: source.currency,
-                  eventId: lockedRegistration.eventId,
-                  eventRegistrationId: lockedRegistration.id,
-                  executiveUserId,
-                  id: manualRefundTransactionId,
-                  manuallyCreated: true,
-                  method: source.method,
-                  refundOperationKey: `registration-cancellation:${lockedRegistration.id}:${source.id}`,
-                  sourceTransactionId: source.id,
-                  status: 'pending',
-                  targetUserId: lockedRegistration.userId,
-                  tenantId: tenant.id,
-                  type: 'refund',
-                });
-                refundTransactionId ??= manualRefundTransactionId;
-                for (const allocation of plan.lotRefunds) {
+              componentAllocations.push({
+                ...registrationAmounts,
+                component: registrationComponent,
+                fulfillmentEventId: null,
+                operationKey: `registration-cancellation:${lockedRegistration.id}:${registrationComponent.id}`,
+                purchaseId: null,
+                quantity: registrationComponent.quantity,
+              });
+            }
+            for (const cancellationAllocation of addonCancellationAllocations) {
+              const component = componentByLotId.get(
+                cancellationAllocation.lot.id,
+              );
+              const priorMonetaryQuantity = component
+                ? (priorQuantityByComponent.get(component.id) ?? 0)
+                : 0;
+              if (
+                !component ||
+                component.purchaseId !== cancellationAllocation.purchaseId ||
+                component.quantity !== cancellationAllocation.lot.quantity ||
+                priorMonetaryQuantity >
+                  cancellationAllocation.lot.cancelledQuantity
+              ) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'Add-on cancellation no longer matches its immutable acquisition component.',
+                  }),
+                );
+              }
+              if (component.grossAmount === 0) continue;
+              if (!component.acquisitionPaymentId) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'Paid add-on acquisition component has no payment owner.',
+                  }),
+                );
+              }
+              const amounts = allocateAcquisitionComponentQuantity({
+                alreadyAllocatedQuantity:
+                  cancellationAllocation.lot.cancelledQuantity +
+                  cancellationAllocation.lot.redeemedQuantity,
+                component,
+                quantity: cancellationAllocation.quantity,
+              });
+              if (!amounts) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'Add-on cancellation exceeds its immutable acquisition entitlement.',
+                  }),
+                );
+              }
+              componentAllocations.push({
+                ...amounts,
+                component,
+                fulfillmentEventId: cancellationAllocation.fulfillmentEventId,
+                operationKey: `registration-cancellation:${lockedRegistration.id}:${component.id}`,
+                purchaseId: cancellationAllocation.purchaseId,
+                quantity: cancellationAllocation.quantity,
+              });
+            }
+            for (const acquisitionPayment of currentAcquisitionState.payments) {
+              const source = stripePaymentSources.find(
+                ({ id }) => id === acquisitionPayment.transactionId,
+              );
+              if (!source?.stripeAccountId || source.stripeNetAmount === null) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'A paid acquisition source is missing its historical Stripe settlement, so cancellation did not continue.',
+                  }),
+                );
+              }
+              const paymentAllocations = componentAllocations.filter(
+                ({ component }) =>
+                  component.acquisitionPaymentId === acquisitionPayment.id,
+              );
+              const monetaryAllocations = paymentAllocations.filter(
+                (allocation) =>
+                  (refundFeesOnCancellation
+                    ? allocation.grossAmount
+                    : allocation.netAmount) > 0,
+              );
+              const amount = monetaryAllocations.reduce(
+                (sum, allocation) =>
+                  sum +
+                  (refundFeesOnCancellation
+                    ? allocation.grossAmount
+                    : allocation.netAmount),
+                0,
+              );
+              const refundClaim =
+                amount > 0
+                  ? yield* createRegistrationRefundClaim(tx, {
+                      amount,
+                      applicationFeeRefunded: refundFeesOnCancellation,
+                      currency: source.currency,
+                      eventId: lockedRegistration.eventId,
+                      eventRegistrationId: lockedRegistration.id,
+                      executiveUserId,
+                      operationKey: `registration-cancellation:${lockedRegistration.id}:${source.id}`,
+                      sourceTransactionId: source.id,
+                      stripeAccountId: source.stripeAccountId,
+                      targetUserId: lockedRegistration.userId,
+                      tenantId: tenant.id,
+                    })
+                  : undefined;
+              if (refundClaim) {
+                refundTransactionId ??= refundClaim.id;
+                stripeRefundClaimId ??= refundClaim.id;
+              }
+              for (const allocation of monetaryAllocations) {
+                if (allocation.fulfillmentEventId) {
                   monetaryCancellationEventIds.add(
                     allocation.fulfillmentEventId,
                   );
-                  yield* tx
-                    .update(eventRegistrationAddonPurchaseLots)
-                    .set({
-                      refundAllocatedGrossAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedGrossAmount} + ${allocation.grossAmount}`,
-                      refundAllocatedNetAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedNetAmount} + ${allocation.grossAmount}`,
-                      refundAllocatedQuantity: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedQuantity} + ${allocation.quantity}`,
-                    })
-                    .where(
-                      eq(
-                        eventRegistrationAddonPurchaseLots.id,
-                        allocation.purchaseLotId,
-                      ),
-                    );
-                  yield* tx
-                    .update(eventRegistrationAddonPurchases)
-                    .set({
-                      refundAllocatedPurchasedQuantity: sql`${eventRegistrationAddonPurchases.refundAllocatedPurchasedQuantity} + ${allocation.quantity}`,
-                    })
-                    .where(
-                      eq(
-                        eventRegistrationAddonPurchases.id,
-                        allocation.purchaseId,
-                      ),
-                    );
-                  yield* tx
-                    .insert(eventRegistrationAddonRefundAllocations)
-                    .values({
-                      applicationFeeAmount: 0,
-                      applicationFeeRefunded: false,
-                      currency: source.currency,
-                      eventId: lockedRegistration.eventId,
-                      fulfillmentEventId: allocation.fulfillmentEventId,
-                      grossEntitlementAmount: allocation.grossAmount,
-                      netEntitlementAmount: allocation.grossAmount,
-                      purchaseId: allocation.purchaseId,
-                      purchaseLotId: allocation.purchaseLotId,
-                      quantity: allocation.quantity,
-                      refundAmount: allocation.grossAmount,
-                      refundTransactionId: manualRefundTransactionId,
-                      registrationId: lockedRegistration.id,
-                      tenantId: tenant.id,
-                    });
                 }
+                if (!refundClaim) {
+                  return yield* Effect.fail(
+                    new EventRegistrationInternalError({
+                      message:
+                        'Monetary acquisition allocation has no refund claim.',
+                    }),
+                  );
+                }
+                yield* tx
+                  .insert(registrationAcquisitionRefundAllocations)
+                  .values({
+                    acquisitionId: currentAcquisitionState.acquisition.id,
+                    acquisitionPaymentId: acquisitionPayment.id,
+                    applicationFeeAmount: allocation.applicationFeeAmount,
+                    applicationFeeRefunded: refundFeesOnCancellation,
+                    componentId: allocation.component.id,
+                    eventId: lockedRegistration.eventId,
+                    fulfillmentEventId: allocation.fulfillmentEventId,
+                    grossEntitlementAmount: allocation.grossAmount,
+                    netEntitlementAmount: allocation.netAmount,
+                    operationKey: allocation.operationKey,
+                    operationKind: allocation.fulfillmentEventId
+                      ? 'addon_cancellation'
+                      : 'registration_cancellation',
+                    purchaseId: allocation.purchaseId,
+                    quantity: allocation.quantity,
+                    refundAmount: refundFeesOnCancellation
+                      ? allocation.grossAmount
+                      : allocation.netAmount,
+                    refundTransactionId: refundClaim.id,
+                    registrationId: lockedRegistration.id,
+                    stripeFeeAmount: allocation.stripeFeeAmount,
+                    tenantId: tenant.id,
+                  });
               }
+            }
+            if (monetaryCancellationEventIds.size > 0) {
+              yield* tx
+                .update(eventRegistrationAddonFulfillmentEvents)
+                .set({ refundDisposition: 'claims_created' })
+                .where(
+                  inArray(eventRegistrationAddonFulfillmentEvents.id, [
+                    ...monetaryCancellationEventIds,
+                  ]),
+                );
             }
             // eslint-disable-next-line unicorn/prefer-set-methods -- the project TypeScript lib intentionally remains below ES2025
             const noMonetaryRefundEventIds = [...cancellationEventIds].filter(
@@ -2325,18 +2204,28 @@ const cancelRegistration = Effect.fn('cancelRegistration')(function* ({
   });
 });
 
-const transferEventRegistration = ({
-  eventId,
-  registrationId,
-  requireOrganizerAccess = true,
-  targetUserId,
-}: {
-  eventId?: string;
-  registrationId: string;
-  requireOrganizerAccess?: boolean;
-  targetUserId: string;
-}) =>
-  Effect.gen(function* () {
+type EventRegistrationTransferMode =
+  | {
+      readonly _tag: 'OrganizerCommit';
+      readonly eventId: string;
+      readonly previewVersion: string;
+    }
+  | { readonly _tag: 'OrganizerPreview'; readonly eventId: string }
+  | { readonly _tag: 'ParticipantCommit' };
+
+const transferEventRegistration = Effect.fn('transferEventRegistration')(
+  function* ({
+    mode,
+    registrationId,
+    targetUserId,
+  }: {
+    mode: EventRegistrationTransferMode;
+    registrationId: string;
+    targetUserId: string;
+  }) {
+    const requireOrganizerAccess = mode._tag !== 'ParticipantCommit';
+    const eventId =
+      mode._tag === 'ParticipantCommit' ? undefined : mode.eventId;
     yield* RpcAccess.ensureAuthenticated();
     const { tenant } = yield* RpcAccess.current();
     const user = yield* RpcAccess.requireUser();
@@ -2345,10 +2234,8 @@ const transferEventRegistration = ({
     const registration = yield* databaseEffect((database) =>
       database.query.eventRegistrations.findFirst({
         columns: {
-          appliedDiscountedPrice: true,
-          appliedDiscountType: true,
-          checkInTime: true,
           eventId: true,
+          guestCount: true,
           id: true,
           registrationOptionId: true,
           status: true,
@@ -2368,17 +2255,12 @@ const transferEventRegistration = ({
               title: true,
             },
           },
-          transactions: {
-            columns: {
-              amount: true,
-              status: true,
-              type: true,
-            },
-          },
           user: {
             columns: {
               communicationEmail: true,
               email: true,
+              firstName: true,
+              lastName: true,
             },
           },
         },
@@ -2427,14 +2309,6 @@ const transferEventRegistration = ({
       );
     }
 
-    if (registration.checkInTime) {
-      return yield* Effect.fail(
-        new EventRegistrationConflictError({
-          message: 'Checked-in registrations cannot be transferred',
-        }),
-      );
-    }
-
     if (registration.event.start <= now) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
@@ -2447,24 +2321,6 @@ const transferEventRegistration = ({
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message: 'Registration is already assigned to this user',
-        }),
-      );
-    }
-
-    if (hasSuccessfulPaidRegistrationTransaction(registration.transactions)) {
-      return yield* Effect.fail(
-        new EventRegistrationConflictError({
-          message:
-            'Registrations with a paid registration or paid add-on cannot be transferred until multi-source transfer refunds are implemented',
-        }),
-      );
-    }
-
-    if (hasAppliedRegistrationDiscount(registration)) {
-      return yield* Effect.fail(
-        new EventRegistrationConflictError({
-          message:
-            'Discounted registration transfer is not available until transfer discount validation is implemented',
         }),
       );
     }
@@ -2501,7 +2357,9 @@ const transferEventRegistration = ({
         columns: {
           communicationEmail: true,
           email: true,
+          firstName: true,
           id: true,
+          lastName: true,
         },
         where: {
           id: targetUserId,
@@ -2584,8 +2442,47 @@ const transferEventRegistration = ({
       database
         .transaction((tx) =>
           Effect.gen(function* () {
+            const lockedRegistrations = yield* tx
+              .select({
+                checkedInGuestCount: eventRegistrations.checkedInGuestCount,
+                checkInTime: eventRegistrations.checkInTime,
+                eventId: eventRegistrations.eventId,
+                guestCount: eventRegistrations.guestCount,
+                registrationOptionId: eventRegistrations.registrationOptionId,
+                status: eventRegistrations.status,
+                userId: eventRegistrations.userId,
+              })
+              .from(eventRegistrations)
+              .where(
+                and(
+                  eq(eventRegistrations.id, registration.id),
+                  eq(eventRegistrations.tenantId, tenant.id),
+                ),
+              )
+              .for('update');
+            const lockedRegistration = lockedRegistrations[0];
+            if (
+              !lockedRegistration ||
+              lockedRegistration.status !== 'CONFIRMED' ||
+              (!requireOrganizerAccess && lockedRegistration.userId !== user.id)
+            ) {
+              return { _tag: 'RegistrationUnavailable' } as const;
+            }
+            if (
+              lockedRegistration.eventId !== registration.eventId ||
+              lockedRegistration.registrationOptionId !==
+                registration.registrationOptionId ||
+              lockedRegistration.userId !== registration.userId
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'The registration changed before it could be transferred. Review it again.',
+                }),
+              );
+            }
             const membershipUserIds = [
-              registration.userId,
+              lockedRegistration.userId,
               targetUserId,
             ].toSorted();
             const lockedMemberships = yield* tx
@@ -2602,43 +2499,43 @@ const transferEventRegistration = ({
               )
               .orderBy(usersToTenants.userId)
               .for('update');
-            if (
-              lockedMemberships.every(
-                (membership) => membership.userId !== targetUserId,
-              )
-            ) {
+            const lockedTargetMembership = lockedMemberships.find(
+              (membership) => membership.userId === targetUserId,
+            );
+            if (!lockedTargetMembership) {
               return { _tag: 'TargetMembershipMissing' } as const;
             }
-
-            const lockedRegistrations = yield* tx
-              .select({
-                checkInTime: eventRegistrations.checkInTime,
-                status: eventRegistrations.status,
-                userId: eventRegistrations.userId,
-              })
-              .from(eventRegistrations)
+            const lockedTargetRoleAssignments = yield* tx
+              .select({ roleId: rolesToTenantUsers.roleId })
+              .from(rolesToTenantUsers)
               .where(
                 and(
-                  eq(eventRegistrations.id, registration.id),
-                  eq(eventRegistrations.tenantId, tenant.id),
+                  eq(rolesToTenantUsers.tenantId, tenant.id),
+                  eq(
+                    rolesToTenantUsers.userTenantId,
+                    lockedTargetMembership.id,
+                  ),
                 ),
               )
+              .orderBy(rolesToTenantUsers.roleId)
               .for('update');
-            const lockedRegistration = lockedRegistrations[0];
-            if (
-              !lockedRegistration ||
-              lockedRegistration.status !== 'CONFIRMED' ||
-              lockedRegistration.checkInTime ||
-              (!requireOrganizerAccess && lockedRegistration.userId !== user.id)
-            ) {
-              return { _tag: 'RegistrationUnavailable' } as const;
-            }
             yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
               registrationId: registration.id,
               tenantId: tenant.id,
-            }).pipe(
-              Effect.mapError(() => activeRegistrationTransferConflict()),
-            );
+            }).pipe(Effect.catch(mapRegistrationTransferGuardError));
+            const currentAcquisitionState =
+              yield* lockCurrentRegistrationAcquisition(tx, {
+                ownerUserId: lockedRegistration.userId,
+                registrationId: registration.id,
+                tenantId: tenant.id,
+              }).pipe(
+                Effect.catch((error) =>
+                  mapRegistrationAcquisitionGuardError(
+                    error,
+                    'Registration acquisition ownership is inconsistent, so this registration was not transferred.',
+                  ),
+                ),
+              );
 
             const activeTargetRegistrations =
               yield* tx.query.eventRegistrations.findMany({
@@ -2730,25 +2627,506 @@ const transferEventRegistration = ({
               );
             }
 
-            const successfulPaidAddonTransactions = yield* tx
-              .select({ id: transactions.id })
-              .from(transactions)
-              .where(
-                and(
-                  eq(transactions.eventRegistrationId, registration.id),
-                  eq(transactions.status, 'successful'),
-                  eq(transactions.tenantId, tenant.id),
-                  eq(transactions.type, 'addon'),
-                  sql`${transactions.amount} > 0`,
-                ),
-              )
-              .orderBy(transactions.id)
-              .for('update');
-            if (successfulPaidAddonTransactions.length > 0) {
+            const successfulPaidSourceTransactions =
+              currentAcquisitionState.payments.length === 0
+                ? []
+                : yield* tx
+                    .select({
+                      amount: transactions.amount,
+                      appFee: transactions.appFee,
+                      currency: transactions.currency,
+                      eventId: transactions.eventId,
+                      id: transactions.id,
+                      method: transactions.method,
+                      status: transactions.status,
+                      stripeAccountId: transactions.stripeAccountId,
+                      stripeChargeId: transactions.stripeChargeId,
+                      stripeFee: transactions.stripeFee,
+                      stripeNetAmount: transactions.stripeNetAmount,
+                      stripePaymentIntentId: transactions.stripePaymentIntentId,
+                      targetUserId: transactions.targetUserId,
+                      type: transactions.type,
+                    })
+                    .from(transactions)
+                    .where(
+                      and(
+                        eq(transactions.eventRegistrationId, registration.id),
+                        eq(transactions.tenantId, tenant.id),
+                        inArray(
+                          transactions.id,
+                          currentAcquisitionState.payments.map(
+                            ({ transactionId }) => transactionId,
+                          ),
+                        ),
+                      ),
+                    )
+                    .orderBy(transactions.id)
+                    .for('update');
+            const acquisitionPaymentByTransactionId = new Map(
+              currentAcquisitionState.payments.map((payment) => [
+                payment.transactionId,
+                payment,
+              ]),
+            );
+            const invalidAcquisitionPayment =
+              successfulPaidSourceTransactions.length !==
+                currentAcquisitionState.payments.length ||
+              successfulPaidSourceTransactions.some((source) => {
+                const acquisitionPayment =
+                  acquisitionPaymentByTransactionId.get(source.id);
+                const components = acquisitionPayment
+                  ? currentAcquisitionState.components.filter(
+                      ({ acquisitionPaymentId }) =>
+                        acquisitionPaymentId === acquisitionPayment.id,
+                    )
+                  : [];
+                return (
+                  !acquisitionPayment ||
+                  source.amount <= 0 ||
+                  source.appFee === null ||
+                  source.eventId !== registration.eventId ||
+                  source.method !== 'stripe' ||
+                  source.status !== 'successful' ||
+                  !source.stripeAccountId ||
+                  (!source.stripeChargeId && !source.stripePaymentIntentId) ||
+                  source.stripeFee === null ||
+                  source.stripeNetAmount === null ||
+                  source.targetUserId !== lockedRegistration.userId ||
+                  (source.type !== 'registration' && source.type !== 'addon') ||
+                  components.length === 0 ||
+                  components.some(
+                    (component) => component.currency !== source.currency,
+                  ) ||
+                  components.reduce(
+                    (sum, component) => sum + component.grossAmount,
+                    0,
+                  ) !== source.amount ||
+                  components.reduce(
+                    (sum, component) => sum + component.applicationFeeAmount,
+                    0,
+                  ) !== source.appFee ||
+                  components.reduce(
+                    (sum, component) => sum + component.stripeFeeAmount,
+                    0,
+                  ) !== source.stripeFee ||
+                  components.reduce(
+                    (sum, component) => sum + component.netAmount,
+                    0,
+                  ) !== source.stripeNetAmount
+                );
+              });
+            if (invalidAcquisitionPayment) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Registrations with a paid add-on cannot be transferred until multi-source transfer refunds are implemented.',
+                    'Registration acquisition payment ownership is inconsistent, so this registration was not transferred.',
+                }),
+              );
+            }
+
+            const sourceRefunds =
+              successfulPaidSourceTransactions.length === 0
+                ? []
+                : yield* tx
+                    .select({
+                      amount: transactions.amount,
+                      method: transactions.method,
+                      sourceTransactionId: transactions.sourceTransactionId,
+                      status: transactions.status,
+                      stripeRefundStatus: transactions.stripeRefundStatus,
+                    })
+                    .from(transactions)
+                    .where(
+                      and(
+                        eq(transactions.tenantId, tenant.id),
+                        eq(transactions.type, 'refund'),
+                        inArray(
+                          transactions.sourceTransactionId,
+                          successfulPaidSourceTransactions.map(({ id }) => id),
+                        ),
+                      ),
+                    )
+                    .orderBy(transactions.id)
+                    .for('update');
+            if (
+              sourceRefunds.some(
+                (refund) =>
+                  refund.method !== 'stripe' ||
+                  refund.status !== 'successful' ||
+                  refund.stripeRefundStatus !== 'succeeded' ||
+                  !refund.sourceTransactionId,
+              )
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'An earlier source refund is unresolved. Resolve it before creating a private transfer offer.',
+                }),
+              );
+            }
+
+            const refundedBySourceTransaction = new Map<string, number>();
+            for (const refund of sourceRefunds) {
+              if (!refund.sourceTransactionId || refund.amount >= 0) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message: 'Source refund history has an invalid amount',
+                  }),
+                );
+              }
+              refundedBySourceTransaction.set(
+                refund.sourceTransactionId,
+                (refundedBySourceTransaction.get(refund.sourceTransactionId) ??
+                  0) - refund.amount,
+              );
+            }
+
+            let sourceRefundAmountDue = 0;
+            for (const payment of successfulPaidSourceTransactions) {
+              const refundedAmount =
+                refundedBySourceTransaction.get(payment.id) ?? 0;
+              if (refundedAmount > payment.amount) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message: 'Source refunds exceed an original payment',
+                  }),
+                );
+              }
+              sourceRefundAmountDue += payment.amount - refundedAmount;
+            }
+
+            const lockedPricingRows = yield* tx
+              .select({
+                discountProviders: tenants.discountProviders,
+                eventStart: eventInstances.start,
+                eventStatus: eventInstances.status,
+                optionPrice: eventRegistrationOptions.price,
+                optionRoleIds: eventRegistrationOptions.roleIds,
+                optionStripeTaxRateId: eventRegistrationOptions.stripeTaxRateId,
+                optionTitle: eventRegistrationOptions.title,
+                optionTransferDeadlineHoursBeforeStart:
+                  eventRegistrationOptions.transferDeadlineHoursBeforeStart,
+                stripeAccountId: tenants.stripeAccountId,
+                tenantTransferDeadlineHoursBeforeStart:
+                  tenants.transferDeadlineHoursBeforeStart,
+              })
+              .from(eventRegistrationOptions)
+              .innerJoin(
+                eventInstances,
+                eq(eventInstances.id, eventRegistrationOptions.eventId),
+              )
+              .innerJoin(tenants, eq(tenants.id, eventInstances.tenantId))
+              .where(
+                and(
+                  eq(
+                    eventRegistrationOptions.id,
+                    registration.registrationOptionId,
+                  ),
+                  eq(eventRegistrationOptions.eventId, registration.eventId),
+                  eq(eventInstances.tenantId, tenant.id),
+                ),
+              )
+              .for('update');
+            const lockedPricing = lockedPricingRows[0];
+            if (!lockedPricing) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message: 'Registration transfer pricing is unavailable',
+                }),
+              );
+            }
+            const lockedNow = new Date();
+            if (lockedPricing.eventStatus !== 'APPROVED') {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Registration can no longer be transferred',
+                }),
+              );
+            }
+            yield* resolveRegistrationTransferDeadline({
+              eventStart: lockedPricing.eventStart,
+              now: lockedNow,
+              optionHoursBeforeStart:
+                lockedPricing.optionTransferDeadlineHoursBeforeStart,
+              tenantHoursBeforeStart:
+                lockedPricing.tenantTransferDeadlineHoursBeforeStart,
+            }).pipe(
+              Effect.mapError(
+                (error) =>
+                  new EventRegistrationConflictError({
+                    message: error.message,
+                  }),
+              ),
+            );
+            const lockedTargetRoleIds = new Set(
+              lockedTargetRoleAssignments.map(({ roleId }) => roleId),
+            );
+            if (
+              lockedPricing.optionRoleIds.length > 0 &&
+              lockedPricing.optionRoleIds.every(
+                (roleId) => !lockedTargetRoleIds.has(roleId),
+              )
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'Target user is not eligible for this registration option',
+                }),
+              );
+            }
+
+            const lockedBundleAddOns = yield* tx
+              .select({
+                addonId: eventAddons.id,
+                cancelledQuantity:
+                  eventRegistrationAddonPurchases.cancelledQuantity,
+                description: eventAddons.description,
+                includedQuantity:
+                  eventRegistrationAddonPurchases.includedQuantity,
+                price: eventAddons.price,
+                purchasedQuantity:
+                  eventRegistrationAddonPurchases.purchasedQuantity,
+                purchaseId: eventRegistrationAddonPurchases.id,
+                quantity: eventRegistrationAddonPurchases.quantity,
+                redeemedQuantity:
+                  eventRegistrationAddonPurchases.redeemedQuantity,
+                stripeTaxRateId: eventAddons.stripeTaxRateId,
+                title: eventAddons.title,
+                updatedAt: eventRegistrationAddonPurchases.updatedAt,
+              })
+              .from(eventRegistrationAddonPurchases)
+              .innerJoin(
+                eventAddons,
+                and(
+                  eq(eventAddons.id, eventRegistrationAddonPurchases.addonId),
+                  eq(
+                    eventAddons.eventId,
+                    eventRegistrationAddonPurchases.eventId,
+                  ),
+                ),
+              )
+              .where(
+                and(
+                  eq(
+                    eventRegistrationAddonPurchases.registrationId,
+                    registration.id,
+                  ),
+                  eq(eventRegistrationAddonPurchases.tenantId, tenant.id),
+                ),
+              )
+              .orderBy(eventRegistrationAddonPurchases.id)
+              .for('update');
+            const lockedBundleLots =
+              lockedBundleAddOns.length === 0
+                ? []
+                : yield* tx
+                    .select({
+                      applicationFeeAmount:
+                        eventRegistrationAddonPurchaseLots.applicationFeeAmount,
+                      baseAmount: eventRegistrationAddonPurchaseLots.baseAmount,
+                      cancelledQuantity:
+                        eventRegistrationAddonPurchaseLots.cancelledQuantity,
+                      currency: eventRegistrationAddonPurchaseLots.currency,
+                      grossAmount:
+                        eventRegistrationAddonPurchaseLots.grossAmount,
+                      id: eventRegistrationAddonPurchaseLots.id,
+                      netAmount: eventRegistrationAddonPurchaseLots.netAmount,
+                      paymentAllocationFinalizedAt:
+                        eventRegistrationAddonPurchaseLots.paymentAllocationFinalizedAt,
+                      purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
+                      quantity: eventRegistrationAddonPurchaseLots.quantity,
+                      redeemedQuantity:
+                        eventRegistrationAddonPurchaseLots.redeemedQuantity,
+                      refundAllocatedApplicationFeeAmount:
+                        eventRegistrationAddonPurchaseLots.refundAllocatedApplicationFeeAmount,
+                      refundAllocatedGrossAmount:
+                        eventRegistrationAddonPurchaseLots.refundAllocatedGrossAmount,
+                      refundAllocatedNetAmount:
+                        eventRegistrationAddonPurchaseLots.refundAllocatedNetAmount,
+                      refundAllocatedQuantity:
+                        eventRegistrationAddonPurchaseLots.refundAllocatedQuantity,
+                      sourceTransactionId:
+                        eventRegistrationAddonPurchaseLots.sourceTransactionId,
+                      stripeFeeAmount:
+                        eventRegistrationAddonPurchaseLots.stripeFeeAmount,
+                      taxAmount: eventRegistrationAddonPurchaseLots.taxAmount,
+                      taxRateDisplayName:
+                        eventRegistrationAddonPurchaseLots.taxRateDisplayName,
+                      taxRateInclusive:
+                        eventRegistrationAddonPurchaseLots.taxRateInclusive,
+                      taxRatePercentage:
+                        eventRegistrationAddonPurchaseLots.taxRatePercentage,
+                      unitPrice: eventRegistrationAddonPurchaseLots.unitPrice,
+                      updatedAt: eventRegistrationAddonPurchaseLots.updatedAt,
+                    })
+                    .from(eventRegistrationAddonPurchaseLots)
+                    .where(
+                      and(
+                        inArray(
+                          eventRegistrationAddonPurchaseLots.purchaseId,
+                          lockedBundleAddOns.map(
+                            ({ purchaseId }) => purchaseId,
+                          ),
+                        ),
+                        eq(
+                          eventRegistrationAddonPurchaseLots.tenantId,
+                          tenant.id,
+                        ),
+                      ),
+                    )
+                    .orderBy(eventRegistrationAddonPurchaseLots.id)
+                    .for('update');
+            const taxRateIds = [
+              lockedPricing.optionStripeTaxRateId,
+              ...lockedBundleAddOns.map(
+                ({ stripeTaxRateId }) => stripeTaxRateId,
+              ),
+            ].filter((id): id is string => Boolean(id));
+            const lockedTaxRates =
+              taxRateIds.length === 0 || !lockedPricing.stripeAccountId
+                ? []
+                : yield* tx
+                    .select({
+                      displayName: tenantStripeTaxRates.displayName,
+                      inclusive: tenantStripeTaxRates.inclusive,
+                      percentage: tenantStripeTaxRates.percentage,
+                      stripeTaxRateId: tenantStripeTaxRates.stripeTaxRateId,
+                    })
+                    .from(tenantStripeTaxRates)
+                    .where(
+                      and(
+                        eq(tenantStripeTaxRates.tenantId, tenant.id),
+                        eq(
+                          tenantStripeTaxRates.stripeAccountId,
+                          lockedPricing.stripeAccountId,
+                        ),
+                        eq(tenantStripeTaxRates.active, true),
+                        eq(tenantStripeTaxRates.inclusive, true),
+                        inArray(
+                          tenantStripeTaxRates.stripeTaxRateId,
+                          taxRateIds,
+                        ),
+                      ),
+                    )
+                    .for('update');
+            const taxRateById = new Map(
+              lockedTaxRates.map((taxRate) => [
+                taxRate.stripeTaxRateId,
+                taxRate,
+              ]),
+            );
+            if (
+              taxRateIds.some(
+                (id) =>
+                  !taxRateById.has(id) ||
+                  taxRateById.get(id)?.percentage === null,
+              )
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'Registration transfer tax terms changed before ownership could be reassigned.',
+                }),
+              );
+            }
+            const currentRegistrationComponents =
+              currentAcquisitionState.components.filter(
+                ({ kind }) => kind === 'registration',
+              );
+            const currentAddonComponents =
+              currentAcquisitionState.components.filter(
+                ({ kind }) => kind === 'addon_lot',
+              );
+            const currentComponentByLotId = new Map(
+              currentAddonComponents.flatMap((component) =>
+                component.purchaseLotId
+                  ? [[component.purchaseLotId, component] as const]
+                  : [],
+              ),
+            );
+            if (
+              currentAcquisitionState.acquisition.eventId !==
+                registration.eventId ||
+              currentAcquisitionState.acquisition.spotCount !==
+                registrationSpotCount(lockedRegistration.guestCount) ||
+              currentRegistrationComponents.length !== 1 ||
+              currentRegistrationComponents[0]?.quantity !==
+                registrationSpotCount(lockedRegistration.guestCount) ||
+              currentAddonComponents.length !== lockedBundleLots.length ||
+              lockedBundleLots.some((lot) => {
+                const component = currentComponentByLotId.get(lot.id);
+                return (
+                  lockedBundleAddOns.every(
+                    ({ purchaseId }) => purchaseId !== lot.purchaseId,
+                  ) ||
+                  !component ||
+                  component.purchaseId !== lot.purchaseId ||
+                  component.quantity !== lot.quantity
+                );
+              })
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'Registration acquisition components no longer match the transferred bundle.',
+                }),
+              );
+            }
+            const lockedDiscountCards = yield* tx
+              .select({
+                type: userDiscountCards.type,
+                validTo: userDiscountCards.validTo,
+              })
+              .from(userDiscountCards)
+              .where(
+                and(
+                  eq(userDiscountCards.status, 'verified'),
+                  eq(userDiscountCards.tenantId, tenant.id),
+                  eq(userDiscountCards.userId, targetUserId),
+                ),
+              )
+              .for('update');
+            const lockedDiscounts = yield* tx
+              .select({
+                discountedPrice:
+                  eventRegistrationOptionDiscounts.discountedPrice,
+                discountType: eventRegistrationOptionDiscounts.discountType,
+              })
+              .from(eventRegistrationOptionDiscounts)
+              .where(
+                eq(
+                  eventRegistrationOptionDiscounts.registrationOptionId,
+                  registration.registrationOptionId,
+                ),
+              )
+              .for('update');
+            const enabledDiscountTypes = new Set(
+              Object.entries(
+                resolveTenantDiscountProviders(lockedPricing.discountProviders),
+              )
+                .filter(([, provider]) => provider.status === 'enabled')
+                .map(([discountType]) => discountType),
+            );
+            const recipientPrice = resolveRegistrationTransferPrice({
+              basePrice: lockedPricing.optionPrice,
+              cards: lockedDiscountCards,
+              discounts: lockedDiscounts,
+              enabledDiscountTypes,
+              eventStart: lockedPricing.eventStart,
+            });
+            const recipientBundlePrice = registrationTransferTotalPrice({
+              addOnTotal: lockedBundleAddOns.reduce(
+                (total, addOn) => total + addOn.price * addOn.purchasedQuantity,
+                0,
+              ),
+              effectivePrice: recipientPrice.effectivePrice,
+              guestCount: lockedRegistration.guestCount,
+              guestUnitPrice: lockedPricing.optionPrice,
+            });
+            if (sourceRefundAmountDue > 0 || recipientBundlePrice > 0) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: privateRegistrationTransferRequiredMessage,
                 }),
               );
             }
@@ -2771,13 +3149,201 @@ const transferEventRegistration = ({
                     eq(eventRegistrations.userId, targetUserId),
                     not(eq(eventRegistrations.id, registration.id)),
                     not(eq(eventRegistrations.status, 'CANCELLED')),
-                    sql`${eventInstances.start} > ${now}`,
+                    sql`${eventInstances.start} > ${lockedNow}`,
                   ),
                 )
                 .limit(activeRegistrationLimit);
               if (activeFutureRegistrations.length >= activeRegistrationLimit) {
                 return { _tag: 'TenantLimitReached' as const };
               }
+            }
+
+            const previewAddOns = lockedBundleAddOns.map((addOn) => ({
+              cancelledQuantity: addOn.cancelledQuantity,
+              currentUnitPrice: addOn.price,
+              description: addOn.description,
+              id: addOn.addonId,
+              includedQuantity: addOn.includedQuantity,
+              purchasedQuantity: addOn.purchasedQuantity,
+              quantity: addOn.quantity,
+              redeemedQuantity: addOn.redeemedQuantity,
+              remainingQuantity: Math.max(
+                0,
+                addOn.quantity -
+                  addOn.redeemedQuantity -
+                  addOn.cancelledQuantity,
+              ),
+              title: addOn.title,
+            }));
+            const previewVersion = organizerDirectTransferPreviewVersion({
+              acquisitionId: currentAcquisitionState.acquisition.id,
+              addOns: lockedBundleAddOns.map((addOn) => ({
+                addonId: addOn.addonId,
+                cancelledQuantity: addOn.cancelledQuantity,
+                currentUnitPrice: addOn.price,
+                description: addOn.description,
+                includedQuantity: addOn.includedQuantity,
+                purchasedQuantity: addOn.purchasedQuantity,
+                purchaseId: addOn.purchaseId,
+                quantity: addOn.quantity,
+                redeemedQuantity: addOn.redeemedQuantity,
+                title: addOn.title,
+              })),
+              checkedInGuestCount: lockedRegistration.checkedInGuestCount,
+              checkInTime: lockedRegistration.checkInTime,
+              guestCount: lockedRegistration.guestCount,
+              guestUnitPrice: lockedPricing.optionPrice,
+              lockedState: {
+                acquisition: directTransferPreviewStatePart(
+                  currentAcquisitionState.acquisition,
+                ),
+                acquisitionComponents: currentAcquisitionState.components.map(
+                  (component) => directTransferPreviewStatePart(component),
+                ),
+                acquisitionPayments: currentAcquisitionState.payments.map(
+                  (payment) => directTransferPreviewStatePart(payment),
+                ),
+                addOnLots: lockedBundleLots.map((lot) =>
+                  directTransferPreviewStatePart(lot),
+                ),
+                discountCards: lockedDiscountCards.map((card) =>
+                  directTransferPreviewStatePart(card),
+                ),
+                discounts: lockedDiscounts.map((discount) =>
+                  directTransferPreviewStatePart(discount),
+                ),
+                pricing: directTransferPreviewStatePart({
+                  ...lockedPricing,
+                  recipientPrice,
+                }),
+                sourceRefunds: sourceRefunds.map((refund) =>
+                  directTransferPreviewStatePart(refund),
+                ),
+                sourceTransactions: successfulPaidSourceTransactions.map(
+                  (transaction) => directTransferPreviewStatePart(transaction),
+                ),
+                targetRoleIds: lockedTargetRoleAssignments.map(
+                  ({ roleId }) => roleId,
+                ),
+                taxRates: lockedTaxRates.map((taxRate) =>
+                  directTransferPreviewStatePart(taxRate),
+                ),
+              },
+              registrationId: registration.id,
+              registrationOptionId: registration.registrationOptionId,
+              registrationOptionTitle: lockedPricing.optionTitle,
+              sourceUserId: lockedRegistration.userId,
+              targetUserId,
+            });
+
+            if (mode._tag === 'OrganizerPreview') {
+              if (!registration.user) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message: 'Registration owner relation missing',
+                  }),
+                );
+              }
+              return directTransferPreviewResult({
+                bundle: {
+                  addOns: previewAddOns,
+                  checkedInGuestCount: lockedRegistration.checkedInGuestCount,
+                  checkInTime:
+                    lockedRegistration.checkInTime?.toISOString() ?? null,
+                  guestCount: lockedRegistration.guestCount,
+                  guestUnitPrice: lockedPricing.optionPrice,
+                },
+                completionMode: 'databaseOnly' as const,
+                currency: tenant.currency,
+                previewVersion,
+                pricing: {
+                  appliedDiscountedPrice: recipientPrice.appliedDiscountedPrice,
+                  appliedDiscountType: recipientPrice.appliedDiscountType,
+                  discountAmount: recipientPrice.discountAmount,
+                  recipientBundlePrice: 0 as const,
+                  recipientRegistrationPrice: recipientPrice.effectivePrice,
+                  sourceRefundAmountDue: 0 as const,
+                },
+                recipient: {
+                  email: targetUser.email,
+                  firstName: targetUser.firstName,
+                  id: targetUser.id,
+                  lastName: targetUser.lastName,
+                },
+                registrationOption: {
+                  currentPrice: lockedPricing.optionPrice,
+                  id: registration.registrationOptionId,
+                  title: lockedPricing.optionTitle,
+                },
+                source: {
+                  email: registration.user.email,
+                  firstName: registration.user.firstName,
+                  id: lockedRegistration.userId,
+                  lastName: registration.user.lastName,
+                },
+              });
+            }
+
+            if (
+              mode._tag === 'OrganizerCommit' &&
+              mode.previewVersion !== previewVersion
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'The registration bundle changed after it was reviewed. Review the transfer again before confirming.',
+                }),
+              );
+            }
+
+            const registrationTaxRate = lockedPricing.optionStripeTaxRateId
+              ? taxRateById.get(lockedPricing.optionStripeTaxRateId)
+              : undefined;
+            const directAcquisitionTerms = [
+              {
+                allocationKey: 'registration',
+                baseAmount: 0,
+                id: 'registration',
+                kind: 'registration' as const,
+                quantity: registrationSpotCount(lockedRegistration.guestCount),
+                taxRateDisplayName: registrationTaxRate?.displayName ?? null,
+                taxRateInclusive: registrationTaxRate?.inclusive ?? null,
+                taxRatePercentage: registrationTaxRate?.percentage ?? null,
+              },
+              ...lockedBundleLots.flatMap((lot) => {
+                const addOn = lockedBundleAddOns.find(
+                  ({ purchaseId }) => purchaseId === lot.purchaseId,
+                );
+                if (!addOn) return [];
+                const taxRate = addOn.stripeTaxRateId
+                  ? taxRateById.get(addOn.stripeTaxRateId)
+                  : undefined;
+                return [
+                  {
+                    allocationKey: `addon-lot:${lot.id}`,
+                    baseAmount: 0,
+                    id: `addon-lot:${lot.id}`,
+                    kind: 'addon_lot' as const,
+                    purchaseId: lot.purchaseId,
+                    purchaseLotId: lot.id,
+                    quantity: lot.quantity,
+                    taxRateDisplayName: taxRate?.displayName ?? null,
+                    taxRateInclusive: taxRate?.inclusive ?? null,
+                    taxRatePercentage: taxRate?.percentage ?? null,
+                  },
+                ];
+              }),
+            ];
+            const settledDirectAcquisition = settleAcquisitionComponentTerms({
+              terms: directAcquisitionTerms,
+            });
+            if (!settledDirectAcquisition) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'Recipient transfer acquisition terms could not be settled.',
+                }),
+              );
             }
 
             const targetRegistrations = alias(
@@ -2787,6 +3353,14 @@ const transferEventRegistration = ({
             const transferredRegistrations = yield* tx
               .update(eventRegistrations)
               .set({
+                appliedDiscountedPrice: recipientPrice.appliedDiscountedPrice,
+                appliedDiscountType: recipientPrice.appliedDiscountType,
+                basePriceAtRegistration: lockedPricing.optionPrice,
+                discountAmount: recipientPrice.discountAmount,
+                stripeTaxRateId: lockedPricing.optionStripeTaxRateId,
+                taxRateDisplayName: registrationTaxRate?.displayName,
+                taxRateInclusive: registrationTaxRate?.inclusive,
+                taxRatePercentage: registrationTaxRate?.percentage,
                 userId: targetUserId,
               })
               .where(
@@ -2819,6 +3393,27 @@ const transferEventRegistration = ({
             if (transferredRegistrations.length !== 1) {
               return { _tag: 'RegistrationUnavailable' } as const;
             }
+            yield* establishRegistrationAcquisition(tx, {
+              acquiredAt: new Date(),
+              components: settledDirectAcquisition,
+              currency: tenant.currency,
+              eventId: registration.eventId,
+              kind: 'direct_transfer',
+              operationKey: `direct-registration-transfer:${currentAcquisitionState.acquisition.id}`,
+              ownerUserId: targetUserId,
+              registrationId: registration.id,
+              spotCount: registrationSpotCount(lockedRegistration.guestCount),
+              tenantId: tenant.id,
+            }).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new EventRegistrationInternalError({
+                    cause,
+                    message:
+                      'Recipient acquisition could not be established after ownership transfer.',
+                  }),
+              ),
+            );
             if (registration.event.title && transferEventUrl) {
               if (previousOwnerEmail) {
                 yield* enqueueRegistrationTransferredEmail(tx, {
@@ -2876,6 +3471,9 @@ const transferEventRegistration = ({
         ),
     );
 
+    if (transferResult._tag === 'Preview') {
+      return transferResult.preview;
+    }
     if (transferResult._tag === 'TargetMembershipMissing') {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
@@ -2904,7 +3502,9 @@ const transferEventRegistration = ({
         }),
       );
     }
-  });
+    return;
+  },
+);
 
 export const eventRegistrationHandlers = {
   'events.approveRegistration': ({ eventId, registrationId }, _options) =>
@@ -3140,9 +3740,7 @@ export const eventRegistrationHandlers = {
             yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
               registrationId: registration.id,
               tenantId: tenant.id,
-            }).pipe(
-              Effect.mapError(() => activeRegistrationTransferConflict()),
-            );
+            }).pipe(Effect.catch(mapRegistrationTransferGuardError));
 
             const updatedRegistrations = yield* tx
               .update(eventRegistrations)
@@ -3226,9 +3824,6 @@ export const eventRegistrationHandlers = {
       const registration = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findFirst({
           columns: {
-            appliedDiscountedPrice: true,
-            appliedDiscountType: true,
-            checkInTime: true,
             eventId: true,
             id: true,
             registrationOptionId: true,
@@ -3245,13 +3840,6 @@ export const eventRegistrationHandlers = {
             event: {
               columns: {
                 start: true,
-              },
-            },
-            transactions: {
-              columns: {
-                amount: true,
-                status: true,
-                type: true,
               },
             },
           },
@@ -3288,43 +3876,10 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      if (registration.checkInTime) {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message: 'Checked-in registrations cannot be transferred',
-          }),
-        );
-      }
-
       if (registration.event.start <= now) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
             message: 'Registration can no longer be transferred',
-          }),
-        );
-      }
-
-      if (
-        registration.transactions.some(
-          (transaction) =>
-            transaction.type === 'registration' &&
-            transaction.status === 'successful' &&
-            transaction.amount > 0,
-        )
-      ) {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message:
-              'Paid registration transfer is not available until the refund/resale flow is implemented',
-          }),
-        );
-      }
-
-      if (hasAppliedRegistrationDiscount(registration)) {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message:
-              'Discounted registration transfer is not available until transfer discount validation is implemented',
           }),
         );
       }
@@ -3625,6 +4180,10 @@ export const eventRegistrationHandlers = {
                   and(
                     eq(tenantStripeTaxRates.tenantId, tenant.id),
                     eq(
+                      tenantStripeTaxRates.stripeAccountId,
+                      tenant.stripeAccountId ?? '',
+                    ),
+                    eq(
                       tenantStripeTaxRates.stripeTaxRateId,
                       eventAddons.stripeTaxRateId,
                     ),
@@ -3653,8 +4212,8 @@ export const eventRegistrationHandlers = {
               database
                 .select({
                   expiresAt: registrationTransfers.expiresAt,
-                  recipientRegistrationId:
-                    registrationTransfers.recipientRegistrationId,
+                  ownershipTransferredAt:
+                    registrationTransfers.ownershipTransferredAt,
                   sourceRegistrationId:
                     registrationTransfers.sourceRegistrationId,
                   status: registrationTransfers.status,
@@ -3663,15 +4222,9 @@ export const eventRegistrationHandlers = {
                 .from(registrationTransfers)
                 .where(
                   and(
-                    or(
-                      inArray(
-                        registrationTransfers.sourceRegistrationId,
-                        registrations.map((registration) => registration.id),
-                      ),
-                      inArray(
-                        registrationTransfers.recipientRegistrationId,
-                        registrations.map((registration) => registration.id),
-                      ),
+                    inArray(
+                      registrationTransfers.sourceRegistrationId,
+                      registrations.map((registration) => registration.id),
                     ),
                     inArray(registrationTransfers.status, [
                       ...activeRegistrationTransferStatuses,
@@ -3680,36 +4233,84 @@ export const eventRegistrationHandlers = {
                   ),
                 ),
             );
+      const activeTransferRefundRows =
+        activeTransfers.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  refund: {
+                    manuallyCreated: transactions.manuallyCreated,
+                    method: transactions.method,
+                    status: transactions.status,
+                    stripeRefundAttempts: transactions.stripeRefundAttempts,
+                    stripeRefundClaimLeaseExpiresAt:
+                      transactions.stripeRefundClaimLeaseExpiresAt,
+                    stripeRefundClaimLeaseId:
+                      transactions.stripeRefundClaimLeaseId,
+                    stripeRefundMaxAttempts:
+                      transactions.stripeRefundMaxAttempts,
+                    stripeRefundNextAttemptAt:
+                      transactions.stripeRefundNextAttemptAt,
+                    stripeRefundStatus: transactions.stripeRefundStatus,
+                  },
+                  transferId: registrationTransferRefundPlanItems.transferId,
+                })
+                .from(registrationTransferRefundPlanItems)
+                .leftJoin(
+                  transactions,
+                  and(
+                    eq(
+                      transactions.id,
+                      registrationTransferRefundPlanItems.refundTransactionId,
+                    ),
+                    eq(
+                      transactions.tenantId,
+                      registrationTransferRefundPlanItems.tenantId,
+                    ),
+                    eq(transactions.type, 'refund'),
+                  ),
+                )
+                .where(
+                  and(
+                    inArray(
+                      registrationTransferRefundPlanItems.transferId,
+                      activeTransfers.map((transfer) => transfer.transferId),
+                    ),
+                    eq(registrationTransferRefundPlanItems.tenantId, tenant.id),
+                    gt(registrationTransferRefundPlanItems.refundAmountDue, 0),
+                  ),
+                ),
+            );
+      const activeTransferRefunds = new Map<
+        string,
+        (typeof activeTransferRefundRows)[number]['refund'][]
+      >();
+      for (const row of activeTransferRefundRows) {
+        const refunds = activeTransferRefunds.get(row.transferId) ?? [];
+        refunds.push(row.refund);
+        activeTransferRefunds.set(row.transferId, refunds);
+      }
       const registrationIds = new Set(
         registrations.map((registration) => registration.id),
       );
       const activeTransferByRegistrationId = new Map<
         string,
-        {
-          expiresAt: string;
-          registrationSide: 'recipient' | 'source';
-          status:
-            'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
-          transferId: string;
-        }
+        NonNullable<EventsRegistrationStatusRecord['activeTransfer']>
       >();
       for (const transfer of activeTransfers) {
         if (!isActiveRegistrationTransferStatus(transfer.status)) continue;
+        const refundLifecycle = resolveRegistrationTransferRefundLifecycle({
+          refunds: activeTransferRefunds.get(transfer.transferId) ?? [],
+          transferStatus: transfer.status,
+        });
         if (registrationIds.has(transfer.sourceRegistrationId)) {
           activeTransferByRegistrationId.set(transfer.sourceRegistrationId, {
             expiresAt: transfer.expiresAt.toISOString(),
-            registrationSide: 'source',
-            status: transfer.status,
-            transferId: transfer.transferId,
-          });
-        }
-        if (
-          transfer.recipientRegistrationId &&
-          registrationIds.has(transfer.recipientRegistrationId)
-        ) {
-          activeTransferByRegistrationId.set(transfer.recipientRegistrationId, {
-            expiresAt: transfer.expiresAt.toISOString(),
-            registrationSide: 'recipient',
+            refundLifecycle,
+            registrationSide: transfer.ownershipTransferredAt
+              ? 'recipient'
+              : 'source',
             status: transfer.status,
             transferId: transfer.transferId,
           });
@@ -3875,27 +4476,9 @@ export const eventRegistrationHandlers = {
         });
         const transferBlockedReason = registrationTransferBlockedReason({
           activeTransfer: activeTransfer !== null,
-          checkInTime: registration.checkInTime,
           eventStart: registration.event?.start ?? null,
           eventStatus: registration.event?.status ?? null,
-          hasAddonFulfillmentState: registration.addonPurchases.some(
-            (purchase) =>
-              purchase.redeemedQuantity > 0 || purchase.cancelledQuantity > 0,
-          ),
           hasPendingAddonOrder: pendingOrder !== undefined,
-          hasSuccessfulPaidAddon: registration.transactions.some(
-            (transaction) =>
-              transaction.type === 'addon' &&
-              transaction.status === 'successful' &&
-              transaction.amount > 0,
-          ),
-          hasUnsupportedPaymentMethod: registration.transactions.some(
-            (transaction) =>
-              transaction.type === 'registration' &&
-              transaction.status === 'successful' &&
-              transaction.amount > 0 &&
-              transaction.method !== 'stripe',
-          ),
           now,
           registrationStatus: registration.status,
           transferDeadlineHoursBeforeStart:
@@ -3981,6 +4564,25 @@ export const eventRegistrationHandlers = {
           roleIds: user.roleIds,
         },
       });
+    }),
+  'events.previewEventRegistrationTransfer': (
+    { eventId, registrationId, targetUserId },
+    _options,
+  ) =>
+    Effect.gen(function* () {
+      const preview = yield* transferEventRegistration({
+        mode: { _tag: 'OrganizerPreview', eventId },
+        registrationId,
+        targetUserId,
+      });
+      if (!preview) {
+        return yield* Effect.fail(
+          new EventRegistrationInternalError({
+            message: 'Registration transfer preview was not produced',
+          }),
+        );
+      }
+      return preview;
     }),
   'events.purchaseRegistrationAddon': (
     { addOnId, operationKey, quantity, registrationId },
@@ -4184,6 +4786,7 @@ export const eventRegistrationHandlers = {
         registrationOption: {
           title: registration.registrationOption.title,
         },
+        registrationStatus: registration.status,
         registrationStatusIssue: isRegistrationStatusIssue,
         remainingGuestCount,
         sameUserIssue: isSameUserIssue,
@@ -4194,14 +4797,14 @@ export const eventRegistrationHandlers = {
       };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.transferEventRegistration': (
-    { eventId, registrationId, targetUserId },
+    { eventId, previewVersion, registrationId, targetUserId },
     _options,
   ) =>
     transferEventRegistration({
-      eventId,
+      mode: { _tag: 'OrganizerCommit', eventId, previewVersion },
       registrationId,
       targetUserId,
-    }),
+    }).pipe(Effect.asVoid),
   'events.transferMyRegistration': (
     { registrationId, targetEmail },
     _options,
@@ -4236,10 +4839,11 @@ export const eventRegistrationHandlers = {
       }
 
       return yield* transferEventRegistration({
+        mode: { _tag: 'ParticipantCommit' },
         registrationId,
-        requireOrganizerAccess: false,
         targetUserId: targetUser.id,
       }).pipe(
+        Effect.asVoid,
         Effect.catchTag('EventRegistrationNotFoundError', (error) =>
           error.message === 'Target tenant user not found'
             ? Effect.fail(

@@ -16,7 +16,8 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 // test.use({ storageState: defaultStateFile });
 
-// Skip this journey if Auth0 Management credentials are not configured
+// Keep credential discovery separate from test registration. The integration
+// journey fails its explicit precondition instead of being skipped or omitted.
 const hasManagementEnvironment = Effect.runSync(
   hasAuth0ManagementEnvironment.pipe(
     Effect.provideService(

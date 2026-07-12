@@ -1,8 +1,10 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
+import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
+import { StripeClient } from '../../../stripe-client';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -99,6 +101,7 @@ const noLocaleMoneyDependentDataQuery = () => ({
 const withTenantSettingsTransaction = <T extends object>(
   database: T,
   options: {
+    readonly hasPaidEventConfiguration?: boolean;
     readonly hasPendingStripeObligations?: boolean;
     readonly lockedCurrency?: 'AUD' | 'CZK' | 'EUR';
     readonly lockedStripeAccountId?: null | string;
@@ -107,8 +110,13 @@ const withTenantSettingsTransaction = <T extends object>(
 ) => {
   const query =
     'query' in database ? database.query : noLocaleMoneyDependentDataQuery();
+  let limitedSelectCount = 0;
   const transactionDatabase = {
     ...database,
+    delete:
+      'delete' in database
+        ? database.delete
+        : () => ({ where: () => Effect.void }),
     insert:
       'insert' in database
         ? database.insert
@@ -130,38 +138,46 @@ const withTenantSettingsTransaction = <T extends object>(
             }),
           }),
     query,
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          for: () =>
+    select: () => {
+      const selectQuery = {
+        for: () =>
+          Effect.succeed([
+            {
+              currency: options.lockedCurrency ?? 'EUR',
+              id: 'tenant-1',
+              stripeAccountId: options.lockedStripeAccountId ?? null,
+              timezone: options.lockedTimezone ?? 'Europe/Amsterdam',
+            },
+          ]),
+        from: () => selectQuery,
+        innerJoin: () => selectQuery,
+        limit: () => {
+          const isPendingObligationQuery = limitedSelectCount++ === 0;
+          return Effect.succeed(
+            isPendingObligationQuery
+              ? options.hasPendingStripeObligations
+                ? [{ id: 'stripe-obligation-1' }]
+                : []
+              : options.hasPaidEventConfiguration
+                ? [{ id: 'paid-configuration-1' }]
+                : [],
+          );
+        },
+        orderBy: () => ({
+          limit: () =>
             Effect.succeed([
               {
-                currency: options.lockedCurrency ?? 'EUR',
-                id: 'tenant-1',
-                stripeAccountId: options.lockedStripeAccountId ?? null,
-                timezone: options.lockedTimezone ?? 'Europe/Amsterdam',
+                id: 'policy-1',
+                privacyPolicyText: 'Current tenant privacy policy',
+                privacyPolicyUrl: null,
+                version: 1,
               },
             ]),
-          limit: () =>
-            Effect.succeed(
-              options.hasPendingStripeObligations
-                ? [{ id: 'stripe-obligation-1' }]
-                : [],
-            ),
-          orderBy: () => ({
-            limit: () =>
-              Effect.succeed([
-                {
-                  id: 'policy-1',
-                  privacyPolicyText: 'Current tenant privacy policy',
-                  privacyPolicyUrl: null,
-                  version: 1,
-                },
-              ]),
-          }),
         }),
-      }),
-    }),
+        where: () => selectQuery,
+      };
+      return selectQuery;
+    },
   };
 
   return {
@@ -174,6 +190,116 @@ const withTenantSettingsTransaction = <T extends object>(
 
 const provideDatabase = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
+
+type StripeHttpRequestArguments = Parameters<
+  InstanceType<typeof Stripe.HttpClient>['makeRequest']
+>;
+
+class TaxRateStripeHttpClient extends Stripe.HttpClient {
+  override getClientName(): string {
+    return 'evorto-admin-tax-rate-test';
+  }
+
+  override makeRequest(
+    ...arguments_: StripeHttpRequestArguments
+  ): Promise<TaxRateStripeResponse> {
+    const [host, , path, method] = arguments_;
+    if (
+      host !== 'api.stripe.com' ||
+      method !== 'GET' ||
+      path !== '/v1/tax_rates/txr_admin'
+    ) {
+      return Promise.reject(
+        new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
+      );
+    }
+
+    return Promise.resolve(
+      new TaxRateStripeResponse({
+        active: true,
+        country: 'DE',
+        display_name: 'VAT',
+        id: 'txr_admin',
+        inclusive: true,
+        percentage: 19,
+        state: null,
+      }),
+    );
+  }
+}
+
+class TaxRateStripeResponse extends Stripe.HttpClientResponse {
+  constructor(private readonly body: unknown) {
+    super(200, { 'request-id': 'req_admin_tax_rate' });
+  }
+
+  override getRawResponse(): unknown {
+    return this.body;
+  }
+
+  override toJSON(): Promise<unknown> {
+    return Promise.resolve(this.body);
+  }
+}
+
+const createTaxRateAdminOptions = () => ({
+  headers: Headers.fromInput({
+    [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+    [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
+      'admin:tax',
+    ]),
+    [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
+      ...createTenant(),
+      stripeAccountId: 'acct_current',
+    }),
+  }),
+});
+
+const createTaxRateImportDatabase = (input: {
+  readonly existingRateStripeAccountId?: string | undefined;
+  readonly lockedStripeAccountId: null | string;
+}) => {
+  const selectQuery = {
+    for: () =>
+      Effect.succeed([{ stripeAccountId: input.lockedStripeAccountId }]),
+    from: () => selectQuery,
+    where: () => selectQuery,
+  };
+  const transactionDatabase = {
+    query: {
+      tenantStripeTaxRates: {
+        findFirst: () =>
+          Effect.succeed(
+            input.existingRateStripeAccountId
+              ? {
+                  id: 'tax-rate-row-1',
+                  stripeAccountId: input.existingRateStripeAccountId,
+                }
+              : undefined,
+          ),
+      },
+    },
+    select: () => selectQuery,
+  };
+
+  return {
+    transaction: <A, E, R>(
+      run: (database: typeof transactionDatabase) => Effect.Effect<A, E, R>,
+    ) => run(transactionDatabase),
+  };
+};
+
+const taxRateImportLayer = (database: object) =>
+  Layer.mergeAll(
+    provideDatabase(database),
+    Layer.succeed(
+      StripeClient,
+      new Stripe('sk_test_admin_tax_rate', {
+        httpClient: new TaxRateStripeHttpClient(),
+        maxNetworkRetries: 0,
+      }),
+    ),
+  );
 
 describe('adminHandlers role permissions', () => {
   it.effect('findMany requires role management permission', () =>
@@ -231,6 +357,63 @@ describe('adminHandlers role permissions', () => {
       });
       expect(role).not.toHaveProperty('showInHub');
     }),
+  );
+});
+
+describe('adminHandlers Stripe tax-rate import', () => {
+  it.effect(
+    'keeps a concurrent tenant account change in the expected channel',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
+          { ids: ['txr_admin'] },
+          createTaxRateAdminOptions(),
+        ).pipe(
+          Effect.provide(
+            taxRateImportLayer(
+              createTaxRateImportDatabase({
+                lockedStripeAccountId: 'acct_changed',
+              }),
+            ),
+          ),
+          Effect.flip,
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          message: 'Stripe account changed while tax rates were loading',
+          reason: 'Reload the page and import rates from the current account.',
+        });
+      }),
+  );
+
+  it.effect(
+    'keeps a conflicting stored rate account in the expected channel',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
+          { ids: ['txr_admin'] },
+          createTaxRateAdminOptions(),
+        ).pipe(
+          Effect.provide(
+            taxRateImportLayer(
+              createTaxRateImportDatabase({
+                existingRateStripeAccountId: 'acct_foreign',
+                lockedStripeAccountId: 'acct_current',
+              }),
+            ),
+          ),
+          Effect.flip,
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          message:
+            'Imported tax-rate metadata belongs to a different Stripe account',
+          reason:
+            'Change or disconnect the Stripe account before importing this rate.',
+        });
+      }),
   );
 });
 
@@ -768,6 +951,106 @@ describe('adminHandlers tenant settings', () => {
         expect(error.message).toBe(
           'Stripe account cannot change while registration Checkouts or refunds are pending',
         );
+      }),
+  );
+
+  it.effect(
+    'blocks Stripe account removal while paid event configuration exists',
+    () =>
+      Effect.gen(function* () {
+        const database = withTenantSettingsTransaction(
+          {
+            update: () => {
+              throw new Error('database update should not be touched');
+            },
+          },
+          {
+            hasPaidEventConfiguration: true,
+            lockedStripeAccountId: 'acct_existing',
+          },
+        );
+
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          createSettingsInput(),
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Stripe account cannot change while paid event configuration exists',
+        );
+        expect(error.reason).toContain(
+          'Make every event and template registration option and add-on free',
+        );
+      }),
+  );
+
+  it.effect(
+    'blocks Stripe account rotation while paid event configuration exists',
+    () =>
+      Effect.gen(function* () {
+        const database = withTenantSettingsTransaction(
+          {
+            update: () => {
+              throw new Error('database update should not be touched');
+            },
+          },
+          {
+            hasPaidEventConfiguration: true,
+            lockedStripeAccountId: 'acct_existing',
+          },
+        );
+
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            stripeAccountId: 'acct_next',
+            timezone: 'Europe/Amsterdam',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Stripe account cannot change while paid event configuration exists',
+        );
+      }),
+  );
+
+  it.effect(
+    'removes old-account and legacy tax metadata before rotating Stripe accounts',
+    () =>
+      Effect.gen(function* () {
+        let deletedTaxMetadata = false;
+        const updateQuery = {
+          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+          set: () => updateQuery,
+          where: () => updateQuery,
+        };
+        const database = withTenantSettingsTransaction(
+          {
+            delete: () => ({
+              where: () => {
+                deletedTaxMetadata = true;
+                return Effect.void;
+              },
+            }),
+            update: () => updateQuery,
+          },
+          { lockedStripeAccountId: 'acct_existing' },
+        );
+
+        const result = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            stripeAccountId: 'acct_new',
+            timezone: 'Europe/Amsterdam',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)));
+
+        expect(deletedTaxMetadata).toBe(true);
+        expect(result.stripeAccountId).toBe('acct_new');
       }),
   );
 

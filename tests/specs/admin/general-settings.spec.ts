@@ -36,7 +36,12 @@ test('tenant admin updates relaunch general settings @admin', async ({
   const seoTitle = `Tenant settings spec ${suffix}`;
   const seoDescription = `Search preview copy for tenant settings spec ${suffix}`;
   const legalNoticeText = `Hosted imprint text ${suffix}`;
-  const stripeAccountId = `acct_settings_${tenant.id}`;
+  const stripeAccountId = tenant.stripeAccountId;
+  if (!stripeAccountId) {
+    throw new Error(
+      'Expected seeded tenant to have a connected Stripe account',
+    );
+  }
   const termsText = `Hosted terms text ${suffix}`;
   const buyEsnCardUrl = `https://esncard.example.org/${tenant.id}`;
 

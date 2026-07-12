@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   registrationAddonCancellationBlockedMessage,
+  registrationAddonCancellationSuccessMessage,
   registrationAddonOperationKey,
   RegistrationAddonRedeemIntentStore,
   registrationAddonRefundStatusLabel,
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
   scanGuestCheckInCountFromInput,
+  scanRegistrationStatusIssueCopy,
   scanSpotCountLabel,
 } from './handle-registration.component';
 
@@ -135,6 +137,9 @@ describe('registration add-on fulfillment copy', () => {
   });
 
   it('keeps every durable refund state explicit', () => {
+    expect(registrationAddonRefundStatusLabel('actionRequired')).toBe(
+      'Provider action required',
+    );
     expect(registrationAddonRefundStatusLabel('notApplicable')).toBe(
       'Not applicable',
     );
@@ -157,6 +162,68 @@ describe('registration add-on fulfillment copy', () => {
     expect(registrationAddonRefundStatusLabel('notRequired')).toBe(
       'No monetary refund required',
     );
+  });
+
+  it('explains every cancellation outcome without suggesting a duplicate action', () => {
+    expect(registrationAddonCancellationSuccessMessage('actionRequired')).toBe(
+      'Cancellation recorded. The Stripe refund requires provider-side action. Do not cancel or charge again; review the existing refund.',
+    );
+    expect(
+      registrationAddonCancellationSuccessMessage('cancelledWithoutRefund'),
+    ).toBe('Cancellation recorded without a refund, as requested.');
+    expect(registrationAddonCancellationSuccessMessage('failed')).toBe(
+      'Cancellation recorded, but the refund needs platform administrator attention. Do not cancel or charge again.',
+    );
+    expect(registrationAddonCancellationSuccessMessage('notApplicable')).toBe(
+      'Cancellation recorded. No refund applies to this add-on.',
+    );
+    expect(registrationAddonCancellationSuccessMessage('notRequested')).toBe(
+      'Cancellation recorded. No refund was requested.',
+    );
+    expect(registrationAddonCancellationSuccessMessage('notRequired')).toBe(
+      'Cancellation recorded. No monetary refund was required.',
+    );
+    expect(
+      registrationAddonCancellationSuccessMessage('partiallyRefunded'),
+    ).toBe(
+      'Cancellation recorded. Part of the refund completed; the remaining refund is still tracked.',
+    );
+    expect(registrationAddonCancellationSuccessMessage('pending')).toBe(
+      'Cancellation recorded. Refund processing started.',
+    );
+    expect(registrationAddonCancellationSuccessMessage('refunded')).toBe(
+      'Cancellation recorded. The refund completed.',
+    );
+  });
+});
+
+describe('scan registration status copy', () => {
+  it('keeps confirmed registrations free of a status warning', () => {
+    expect(scanRegistrationStatusIssueCopy('CONFIRMED')).toBeNull();
+  });
+
+  it('explains cancelled tickets without asking the attendee to pay again', () => {
+    const copy = scanRegistrationStatusIssueCopy('CANCELLED');
+
+    expect(copy).toEqual({
+      body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, ask an organizer to review the existing registration.',
+      title: 'Registration cancelled',
+    });
+    expect(copy?.body).not.toContain('check if they paid');
+  });
+
+  it('distinguishes pending approval or Checkout from a duplicate payment', () => {
+    expect(scanRegistrationStatusIssueCopy('PENDING')).toEqual({
+      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.',
+      title: 'Registration pending',
+    });
+  });
+
+  it('explains that a waitlisted attendee has no confirmed spot', () => {
+    expect(scanRegistrationStatusIssueCopy('WAITLIST')).toEqual({
+      body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Ask an organizer to review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
+      title: 'Registration on waitlist',
+    });
   });
 });
 

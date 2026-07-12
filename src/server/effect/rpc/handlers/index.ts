@@ -1,7 +1,6 @@
 export { adminHandlers } from './admin.handlers';
 export { configHandlers } from './config.handlers';
 export { discountHandlers } from './discounts.handlers';
-export { editorMediaHandlers } from './editor-media.handlers';
 export { eventHandlers } from './events/events.handlers';
 export { financeHandlers } from './finance/finance.handlers';
 export { globalAdminHandlers } from './global-admin.handlers';

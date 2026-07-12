@@ -3,7 +3,7 @@ import type { DatabaseClient } from '@db/index';
 import { Database } from '@db/index';
 import { emailOutbox } from '@db/schema';
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
-import { ConfigProvider, Effect, Layer } from 'effect';
+import { ConfigProvider, Effect, Exit, Layer } from 'effect';
 
 import {
   enqueueReceiptReviewedEmail,
@@ -11,6 +11,7 @@ import {
   enqueueRegistrationConfirmedEmail,
   enqueueRegistrationTransferredEmail,
   enqueueWaitlistSpotAvailableEmail,
+  handleEmailOutboxProcessorCause,
   processDueEmailOutbox,
 } from './email-delivery';
 
@@ -27,6 +28,18 @@ describe('email delivery', () => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
+
+  it.effect('preserves scoped worker interruption', () =>
+    Effect.gen(function* () {
+      const exit = yield* Effect.exit(
+        Effect.interrupt.pipe(
+          Effect.catchCause(handleEmailOutboxProcessorCause),
+        ),
+      );
+
+      expect(Exit.hasInterrupts(exit)).toBe(true);
+    }),
+  );
 
   it.effect(
     'queues receipt review notifications with fixed from and tenant reply-to',

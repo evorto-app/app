@@ -11,9 +11,11 @@ import {
   eventRegistrationAddonFulfillmentEvents,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
-  eventRegistrationAddonRefundAllocations,
   eventRegistrationOptions,
   eventRegistrations,
+  registrationAcquisitionComponents,
+  registrationAcquisitionRefundAllocations,
+  registrationAcquisitions,
   registrationTransfers,
   tenants,
   transactions,
@@ -28,9 +30,9 @@ import { and, asc, desc, eq, inArray, notExists, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
 
-import { allocateCumulativeQuantityAmount } from '../payments/addon-payment-allocation';
-import { ensureAddonPaymentAllocations } from '../payments/addon-payment-allocation.service';
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
+import { allocateAcquisitionComponentQuantity } from './registration-acquisition-refund';
+import { lockCurrentRegistrationAcquisition } from './registration-acquisition-write';
 import { ensureRegistrationMutationHasNoActiveTransfer } from './registration-transfer-mutation-guard';
 
 export interface RegistrationAddonCancellationAllocation {
@@ -51,24 +53,81 @@ type RegistrationAddonRefundHistoryAllocation = Pick<
 >;
 
 type RegistrationAddonRefundHistoryClaim = Pick<
-  typeof eventRegistrationAddonRefundAllocations.$inferSelect,
+  typeof registrationAcquisitionRefundAllocations.$inferSelect,
   'fulfillmentEventId' | 'quantity'
 > &
-  Pick<typeof transactions.$inferSelect, 'status' | 'stripeRefundStatus'>;
+  Pick<
+    typeof transactions.$inferSelect,
+    | 'manuallyCreated'
+    | 'method'
+    | 'status'
+    | 'stripeRefundAttempts'
+    | 'stripeRefundClaimLeaseExpiresAt'
+    | 'stripeRefundClaimLeaseId'
+    | 'stripeRefundMaxAttempts'
+    | 'stripeRefundNextAttemptAt'
+    | 'stripeRefundStatus'
+  >;
 
 type RegistrationAddonRefundHistoryEvent = Pick<
   typeof eventRegistrationAddonFulfillmentEvents.$inferSelect,
   'id' | 'refundDisposition' | 'refundRequested' | 'type'
 >;
 
-type RegistrationAddonRefundHistoryLot = Pick<
-  typeof eventRegistrationAddonPurchaseLots.$inferSelect,
-  | 'cancelledQuantity'
-  | 'grossAmount'
-  | 'quantity'
-  | 'redeemedQuantity'
-  | 'sourceTransactionId'
->;
+interface RegistrationAddonRefundHistoryLot {
+  readonly cancelledQuantity: number;
+  readonly grossAmount: number;
+  readonly quantity: number;
+  readonly redeemedQuantity: number;
+}
+
+export const registrationAddonRefundClaimProgress = (
+  refunds: readonly RegistrationAddonRefundHistoryClaim[],
+): 'actionRequired' | 'failed' | 'pending' | null => {
+  const failed = refunds.some(
+    (refund) =>
+      refund.status === 'cancelled' ||
+      refund.stripeRefundStatus === 'failed' ||
+      refund.stripeRefundStatus === 'canceled',
+  );
+  if (failed) return 'failed';
+
+  const actionRequired = refunds.some(
+    (refund) =>
+      refund.method === 'stripe' &&
+      !refund.manuallyCreated &&
+      refund.status === 'pending' &&
+      refund.stripeRefundStatus === 'requires_action',
+  );
+  if (actionRequired) return 'actionRequired';
+
+  const stopped = refunds.some((refund) => {
+    if (
+      refund.method !== 'stripe' ||
+      refund.manuallyCreated ||
+      refund.status !== 'pending'
+    ) {
+      return false;
+    }
+    const leaseShapeValid =
+      (refund.stripeRefundClaimLeaseId === null) ===
+      (refund.stripeRefundClaimLeaseExpiresAt === null);
+    const activeLease =
+      refund.stripeRefundClaimLeaseId !== null &&
+      refund.stripeRefundClaimLeaseExpiresAt !== null;
+    return (
+      !leaseShapeValid ||
+      (!activeLease &&
+        (refund.stripeRefundAttempts >= refund.stripeRefundMaxAttempts ||
+          refund.stripeRefundNextAttemptAt === null))
+    );
+  });
+  if (stopped) return 'failed';
+
+  return refunds.some((refund) => refund.status === 'pending')
+    ? 'pending'
+    : null;
+};
 
 export const deriveRegistrationAddonRefundState = (input: {
   readonly allocations: readonly RegistrationAddonRefundHistoryAllocation[];
@@ -94,7 +153,7 @@ export const deriveRegistrationAddonRefundState = (input: {
     0,
   );
   const monetaryRefundAvailable = cancellablePurchasedLots.some(
-    (lot) => lot.sourceTransactionId !== null && (lot.grossAmount ?? 1) > 0,
+    (lot) => lot.grossAmount > 0,
   );
   const refundAvailability: EventsRegistrationAddonFulfillmentRecord['refundAvailability'] =
     cancellablePurchasedQuantity === 0
@@ -130,7 +189,9 @@ export const deriveRegistrationAddonRefundState = (input: {
     purchasedCancellationEvents.map((event) => event.id),
   );
   const purchasedRefunds = input.refunds.filter((refund) =>
-    purchasedCancellationEventIds.has(refund.fulfillmentEventId),
+    refund.fulfillmentEventId
+      ? purchasedCancellationEventIds.has(refund.fulfillmentEventId)
+      : false,
   );
   const refundedQuantity = purchasedRefunds
     .filter(
@@ -139,15 +200,7 @@ export const deriveRegistrationAddonRefundState = (input: {
         refund.stripeRefundStatus === 'succeeded',
     )
     .reduce((sum, refund) => sum + refund.quantity, 0);
-  const hasFailedRefund = purchasedRefunds.some(
-    (refund) =>
-      refund.status === 'cancelled' ||
-      refund.stripeRefundStatus === 'failed' ||
-      refund.stripeRefundStatus === 'canceled',
-  );
-  const hasPendingRefund = purchasedRefunds.some(
-    (refund) => refund.status === 'pending',
-  );
+  const claimProgress = registrationAddonRefundClaimProgress(purchasedRefunds);
   const cancellationWithoutRefundQuantity = purchasedCancellationEvents
     .filter((event) => !event.refundRequested)
     .reduce((sum, event) => sum + event.quantity, 0);
@@ -170,8 +223,7 @@ export const deriveRegistrationAddonRefundState = (input: {
     claimsRequestedQuantity;
 
   let refundStatus: EventsRegistrationAddonRefundStatus = 'notRequested';
-  if (hasFailedRefund) refundStatus = 'failed';
-  else if (hasPendingRefund) refundStatus = 'pending';
+  if (claimProgress) refundStatus = claimProgress;
   else if (refundedQuantity > 0) {
     refundStatus =
       refundedQuantity >= purchasedCancelledQuantity
@@ -303,6 +355,7 @@ export const getRegistrationAddonFulfillment = Effect.fn(
             .select({
               eventId: eventRegistrations.eventId,
               status: eventRegistrations.status,
+              userId: eventRegistrations.userId,
             })
             .from(eventRegistrations)
             .where(
@@ -390,133 +443,202 @@ export const getRegistrationAddonFulfillment = Effect.fn(
           if (purchases.length === 0) {
             return { addOns: [], registrationId: input.registrationId };
           }
+          const acquisitionRows = yield* tx
+            .select({
+              id: registrationAcquisitions.id,
+              ownerUserId: registrationAcquisitions.ownerUserId,
+            })
+            .from(registrationAcquisitions)
+            .where(
+              and(
+                eq(registrationAcquisitions.tenantId, input.tenantId),
+                eq(
+                  registrationAcquisitions.registrationId,
+                  input.registrationId,
+                ),
+              ),
+            )
+            .orderBy(desc(registrationAcquisitions.ordinal))
+            .limit(1);
+          const acquisition = acquisitionRows[0];
+          if (!acquisition || acquisition.ownerUserId !== registration.userId) {
+            return yield* internal(
+              'Current add-on acquisition ownership is missing',
+            );
+          }
           const purchaseIds = purchases.map(({ id }) => id);
-          const [lots, fulfillmentAllocations, fulfillmentEvents, refundRows] =
-            yield* Effect.all([
-              tx
-                .select({
-                  cancelledQuantity:
-                    eventRegistrationAddonPurchaseLots.cancelledQuantity,
-                  grossAmount: eventRegistrationAddonPurchaseLots.grossAmount,
-                  purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
-                  quantity: eventRegistrationAddonPurchaseLots.quantity,
-                  redeemedQuantity:
-                    eventRegistrationAddonPurchaseLots.redeemedQuantity,
-                  refundAllocatedQuantity:
-                    eventRegistrationAddonPurchaseLots.refundAllocatedQuantity,
-                  sourceTransactionId:
-                    eventRegistrationAddonPurchaseLots.sourceTransactionId,
-                })
-                .from(eventRegistrationAddonPurchaseLots)
-                .where(
-                  and(
-                    inArray(
-                      eventRegistrationAddonPurchaseLots.purchaseId,
-                      purchaseIds,
-                    ),
-                    eq(
-                      eventRegistrationAddonPurchaseLots.tenantId,
-                      input.tenantId,
-                    ),
+          const [
+            lots,
+            fulfillmentAllocations,
+            fulfillmentEvents,
+            refundRows,
+            acquisitionComponents,
+          ] = yield* Effect.all([
+            tx
+              .select({
+                cancelledQuantity:
+                  eventRegistrationAddonPurchaseLots.cancelledQuantity,
+                id: eventRegistrationAddonPurchaseLots.id,
+                purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
+                quantity: eventRegistrationAddonPurchaseLots.quantity,
+                redeemedQuantity:
+                  eventRegistrationAddonPurchaseLots.redeemedQuantity,
+              })
+              .from(eventRegistrationAddonPurchaseLots)
+              .where(
+                and(
+                  inArray(
+                    eventRegistrationAddonPurchaseLots.purchaseId,
+                    purchaseIds,
+                  ),
+                  eq(
+                    eventRegistrationAddonPurchaseLots.tenantId,
+                    input.tenantId,
                   ),
                 ),
-              tx
-                .select({
-                  fulfillmentEventId:
-                    eventRegistrationAddonFulfillmentAllocations.fulfillmentEventId,
-                  purchaseId:
+              ),
+            tx
+              .select({
+                fulfillmentEventId:
+                  eventRegistrationAddonFulfillmentAllocations.fulfillmentEventId,
+                purchaseId:
+                  eventRegistrationAddonFulfillmentAllocations.purchaseId,
+                quantity: eventRegistrationAddonFulfillmentAllocations.quantity,
+                source: eventRegistrationAddonFulfillmentAllocations.source,
+              })
+              .from(eventRegistrationAddonFulfillmentAllocations)
+              .where(
+                and(
+                  inArray(
                     eventRegistrationAddonFulfillmentAllocations.purchaseId,
-                  quantity:
-                    eventRegistrationAddonFulfillmentAllocations.quantity,
-                  source: eventRegistrationAddonFulfillmentAllocations.source,
-                })
-                .from(eventRegistrationAddonFulfillmentAllocations)
-                .where(
-                  and(
-                    inArray(
-                      eventRegistrationAddonFulfillmentAllocations.purchaseId,
-                      purchaseIds,
-                    ),
-                    eq(
-                      eventRegistrationAddonFulfillmentAllocations.tenantId,
-                      input.tenantId,
-                    ),
+                    purchaseIds,
                   ),
-                ),
-              tx
-                .select({
-                  createdAt: eventRegistrationAddonFulfillmentEvents.createdAt,
-                  id: eventRegistrationAddonFulfillmentEvents.id,
-                  purchaseId:
-                    eventRegistrationAddonFulfillmentEvents.purchaseId,
-                  refundDisposition:
-                    eventRegistrationAddonFulfillmentEvents.refundDisposition,
-                  refundRequested:
-                    eventRegistrationAddonFulfillmentEvents.refundRequested,
-                  reversesEventId:
-                    eventRegistrationAddonFulfillmentEvents.reversesEventId,
-                  type: eventRegistrationAddonFulfillmentEvents.type,
-                })
-                .from(eventRegistrationAddonFulfillmentEvents)
-                .where(
-                  and(
-                    inArray(
-                      eventRegistrationAddonFulfillmentEvents.purchaseId,
-                      purchaseIds,
-                    ),
-                    eq(
-                      eventRegistrationAddonFulfillmentEvents.tenantId,
-                      input.tenantId,
-                    ),
-                  ),
-                )
-                .orderBy(
-                  desc(eventRegistrationAddonFulfillmentEvents.createdAt),
-                  desc(eventRegistrationAddonFulfillmentEvents.id),
-                ),
-              tx
-                .select({
-                  fulfillmentEventId:
-                    eventRegistrationAddonRefundAllocations.fulfillmentEventId,
-                  purchaseId:
-                    eventRegistrationAddonFulfillmentEvents.purchaseId,
-                  quantity: eventRegistrationAddonRefundAllocations.quantity,
-                  status: transactions.status,
-                  stripeRefundStatus: transactions.stripeRefundStatus,
-                })
-                .from(eventRegistrationAddonRefundAllocations)
-                .innerJoin(
-                  eventRegistrationAddonFulfillmentEvents,
                   eq(
-                    eventRegistrationAddonFulfillmentEvents.id,
-                    eventRegistrationAddonRefundAllocations.fulfillmentEventId,
-                  ),
-                )
-                .innerJoin(
-                  transactions,
-                  eq(
-                    transactions.id,
-                    eventRegistrationAddonRefundAllocations.refundTransactionId,
-                  ),
-                )
-                .where(
-                  and(
-                    inArray(
-                      eventRegistrationAddonFulfillmentEvents.purchaseId,
-                      purchaseIds,
-                    ),
-                    eq(
-                      eventRegistrationAddonRefundAllocations.tenantId,
-                      input.tenantId,
-                    ),
+                    eventRegistrationAddonFulfillmentAllocations.tenantId,
+                    input.tenantId,
                   ),
                 ),
-            ]);
+              ),
+            tx
+              .select({
+                createdAt: eventRegistrationAddonFulfillmentEvents.createdAt,
+                id: eventRegistrationAddonFulfillmentEvents.id,
+                purchaseId: eventRegistrationAddonFulfillmentEvents.purchaseId,
+                refundDisposition:
+                  eventRegistrationAddonFulfillmentEvents.refundDisposition,
+                refundRequested:
+                  eventRegistrationAddonFulfillmentEvents.refundRequested,
+                reversesEventId:
+                  eventRegistrationAddonFulfillmentEvents.reversesEventId,
+                type: eventRegistrationAddonFulfillmentEvents.type,
+              })
+              .from(eventRegistrationAddonFulfillmentEvents)
+              .where(
+                and(
+                  inArray(
+                    eventRegistrationAddonFulfillmentEvents.purchaseId,
+                    purchaseIds,
+                  ),
+                  eq(
+                    eventRegistrationAddonFulfillmentEvents.tenantId,
+                    input.tenantId,
+                  ),
+                ),
+              )
+              .orderBy(
+                desc(eventRegistrationAddonFulfillmentEvents.createdAt),
+                desc(eventRegistrationAddonFulfillmentEvents.id),
+              ),
+            tx
+              .select({
+                fulfillmentEventId:
+                  registrationAcquisitionRefundAllocations.fulfillmentEventId,
+                manuallyCreated: transactions.manuallyCreated,
+                method: transactions.method,
+                purchaseId: registrationAcquisitionRefundAllocations.purchaseId,
+                quantity: registrationAcquisitionRefundAllocations.quantity,
+                status: transactions.status,
+                stripeRefundAttempts: transactions.stripeRefundAttempts,
+                stripeRefundClaimLeaseExpiresAt:
+                  transactions.stripeRefundClaimLeaseExpiresAt,
+                stripeRefundClaimLeaseId: transactions.stripeRefundClaimLeaseId,
+                stripeRefundMaxAttempts: transactions.stripeRefundMaxAttempts,
+                stripeRefundNextAttemptAt:
+                  transactions.stripeRefundNextAttemptAt,
+                stripeRefundStatus: transactions.stripeRefundStatus,
+              })
+              .from(registrationAcquisitionRefundAllocations)
+              .innerJoin(
+                transactions,
+                eq(
+                  transactions.id,
+                  registrationAcquisitionRefundAllocations.refundTransactionId,
+                ),
+              )
+              .where(
+                and(
+                  inArray(
+                    registrationAcquisitionRefundAllocations.purchaseId,
+                    purchaseIds,
+                  ),
+                  eq(
+                    registrationAcquisitionRefundAllocations.tenantId,
+                    input.tenantId,
+                  ),
+                  eq(
+                    registrationAcquisitionRefundAllocations.operationKind,
+                    'addon_cancellation',
+                  ),
+                ),
+              ),
+            tx
+              .select({
+                grossAmount: registrationAcquisitionComponents.grossAmount,
+                purchaseId: registrationAcquisitionComponents.purchaseId,
+                purchaseLotId: registrationAcquisitionComponents.purchaseLotId,
+              })
+              .from(registrationAcquisitionComponents)
+              .where(
+                and(
+                  eq(
+                    registrationAcquisitionComponents.acquisitionId,
+                    acquisition.id,
+                  ),
+                  eq(registrationAcquisitionComponents.kind, 'addon_lot'),
+                  eq(
+                    registrationAcquisitionComponents.tenantId,
+                    input.tenantId,
+                  ),
+                ),
+              ),
+          ]);
+
+          const acquisitionComponentByLotId = new Map(
+            acquisitionComponents.flatMap((component) =>
+              component.purchaseLotId
+                ? [[component.purchaseLotId, component] as const]
+                : [],
+            ),
+          );
+          if (
+            lots.some((lot) => {
+              const component = acquisitionComponentByLotId.get(lot.id);
+              return !component || component.purchaseId !== lot.purchaseId;
+            })
+          ) {
+            return yield* internal(
+              'Current add-on acquisition components are incomplete',
+            );
+          }
 
           const addOns = purchases.map((purchase) => {
-            const purchaseLots = lots.filter(
-              (lot) => lot.purchaseId === purchase.id,
-            );
+            const purchaseLots = lots
+              .filter((lot) => lot.purchaseId === purchase.id)
+              .map((lot) => ({
+                ...lot,
+                grossAmount:
+                  acquisitionComponentByLotId.get(lot.id)?.grossAmount ?? 0,
+              }));
             const purchasedRedeemedQuantity = purchaseLots.reduce(
               (sum, lot) => sum + lot.redeemedQuantity,
               0,
@@ -775,12 +897,7 @@ export const cancelRemainingRegistrationAddons = Effect.fn(
       quantity,
       reason: input.reason,
       refundDisposition: input.refundRequested
-        ? lotAllocations.some(
-            ({ lot }) =>
-              lot.sourceTransactionId !== null && (lot.grossAmount ?? 0) > 0,
-          )
-          ? 'claims_created'
-          : 'no_monetary_refund_required'
+        ? 'no_monetary_refund_required'
         : 'not_requested',
       refundRequested: input.refundRequested,
       registrationId: input.registrationId,
@@ -1183,50 +1300,6 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
       );
     }
 
-    let paidSourceIds: string[] = [];
-    if (input.refundRequested) {
-      const sourceIds = yield* Database.use((database) =>
-        database
-          .select({
-            sourceTransactionId:
-              eventRegistrationAddonPurchaseLots.sourceTransactionId,
-          })
-          .from(eventRegistrationAddonPurchaseLots)
-          .where(
-            and(
-              eq(
-                eventRegistrationAddonPurchaseLots.purchaseId,
-                input.registrationAddonId,
-              ),
-              eq(eventRegistrationAddonPurchaseLots.tenantId, input.tenantId),
-            ),
-          ),
-      ).pipe(
-        Effect.mapError((cause) =>
-          internal('Add-on payment sources could not be loaded', cause),
-        ),
-      );
-      paidSourceIds = [
-        ...new Set(
-          sourceIds.flatMap(({ sourceTransactionId }) =>
-            sourceTransactionId ? [sourceTransactionId] : [],
-          ),
-        ),
-      ].toSorted();
-      yield* Effect.forEach(
-        paidSourceIds,
-        (sourceTransactionId) =>
-          ensureAddonPaymentAllocations(sourceTransactionId).pipe(
-            Effect.mapError((cause) =>
-              conflict(
-                `Payment allocation is still reconciling: ${cause.message}`,
-              ),
-            ),
-          ),
-        { discard: true },
-      );
-    }
-
     return yield* mapUnexpected(
       Database.use((database) =>
         database.transaction((tx) =>
@@ -1248,6 +1321,11 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
               .for('update');
             const registration = registrationRows[0];
             if (!registration) return yield* notFound();
+            if (registration.status !== 'CONFIRMED') {
+              return yield* conflict(
+                'Only confirmed registrations can fulfill add-ons',
+              );
+            }
             yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
               registrationId: input.registrationId,
               tenantId: input.tenantId,
@@ -1258,40 +1336,73 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                 ),
               ),
             );
-            const lockedSources =
-              paidSourceIds.length === 0
-                ? []
-                : yield* tx
-                    .select({
-                      currency: transactions.currency,
-                      id: transactions.id,
-                      status: transactions.status,
-                      stripeAccountId: transactions.stripeAccountId,
-                      targetUserId: transactions.targetUserId,
-                    })
-                    .from(transactions)
-                    .where(
-                      and(
-                        inArray(transactions.id, paidSourceIds),
-                        eq(transactions.tenantId, input.tenantId),
-                        inArray(transactions.type, ['registration', 'addon']),
-                      ),
-                    )
-                    .orderBy(asc(transactions.id))
-                    .for('update');
+
+            // The registration row lock is the root lock for the immutable
+            // acquisition, its payments, and its components.
+            const currentAcquisition =
+              yield* lockCurrentRegistrationAcquisition(tx, {
+                ownerUserId: registration.userId,
+                registrationId: input.registrationId,
+                tenantId: input.tenantId,
+              }).pipe(
+                Effect.mapError((cause) =>
+                  conflict(
+                    `Current add-on acquisition is not settled: ${cause.message}`,
+                  ),
+                ),
+              );
             if (
-              lockedSources.length !== paidSourceIds.length ||
-              lockedSources.some(
-                (source) =>
-                  source.status !== 'successful' ||
-                  source.targetUserId !== registration.userId,
-              )
+              currentAcquisition.acquisition.eventId !== registration.eventId
             ) {
-              return yield* conflict(
-                'Add-on payment ownership is not reconciled',
+              return yield* internal(
+                'Current add-on acquisition event does not match',
               );
             }
-            const locked = yield* lockFulfillmentRows(tx, input);
+
+            const purchases = yield* tx
+              .select()
+              .from(eventRegistrationAddonPurchases)
+              .where(
+                and(
+                  eq(
+                    eventRegistrationAddonPurchases.id,
+                    input.registrationAddonId,
+                  ),
+                  eq(
+                    eventRegistrationAddonPurchases.registrationId,
+                    input.registrationId,
+                  ),
+                  eq(
+                    eventRegistrationAddonPurchases.eventId,
+                    registration.eventId,
+                  ),
+                  eq(eventRegistrationAddonPurchases.tenantId, input.tenantId),
+                ),
+              )
+              .for('update');
+            const purchase = purchases[0];
+            if (!purchase) return yield* notFound();
+            const lots = yield* tx
+              .select()
+              .from(eventRegistrationAddonPurchaseLots)
+              .where(
+                and(
+                  eq(
+                    eventRegistrationAddonPurchaseLots.purchaseId,
+                    purchase.id,
+                  ),
+                  eq(
+                    eventRegistrationAddonPurchaseLots.tenantId,
+                    input.tenantId,
+                  ),
+                ),
+              )
+              .orderBy(
+                asc(eventRegistrationAddonPurchaseLots.createdAt),
+                asc(eventRegistrationAddonPurchaseLots.id),
+              )
+              .for('update');
+
             const existing = yield* tx
               .select({
                 id: eventRegistrationAddonFulfillmentEvents.id,
@@ -1306,7 +1417,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                 and(
                   eq(
                     eventRegistrationAddonFulfillmentEvents.purchaseId,
-                    locked.purchase.id,
+                    purchase.id,
                   ),
                   eq(
                     eventRegistrationAddonFulfillmentEvents.operationKey,
@@ -1319,12 +1430,13 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                 ),
               )
               .limit(1);
-            if (existing[0]) {
+            const existingEvent = existing[0];
+            if (existingEvent) {
               if (
-                existing[0].type !== 'cancelled' ||
-                existing[0].refundRequested !== input.refundRequested ||
-                existing[0].quantity !== input.quantity ||
-                existing[0].reason !== reason
+                existingEvent.type !== 'cancelled' ||
+                existingEvent.refundRequested !== input.refundRequested ||
+                existingEvent.quantity !== input.quantity ||
+                existingEvent.reason !== reason
               ) {
                 return yield* conflict('Operation key was already used');
               }
@@ -1339,7 +1451,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                     and(
                       eq(
                         eventRegistrationAddonFulfillmentAllocations.fulfillmentEventId,
-                        existing[0].id,
+                        existingEvent.id,
                       ),
                       eq(
                         eventRegistrationAddonFulfillmentAllocations.source,
@@ -1349,7 +1461,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                   )
                   .limit(1);
                 return {
-                  fulfillmentEventId: existing[0].id,
+                  fulfillmentEventId: existingEvent.id,
                   refundStatus:
                     purchasedAllocations.length === 0
                       ? ('notRequired' as const)
@@ -1358,53 +1470,67 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
               }
               const replayClaims = yield* tx
                 .select({
+                  fulfillmentEventId:
+                    registrationAcquisitionRefundAllocations.fulfillmentEventId,
+                  manuallyCreated: transactions.manuallyCreated,
+                  method: transactions.method,
+                  quantity: registrationAcquisitionRefundAllocations.quantity,
                   status: transactions.status,
+                  stripeRefundAttempts: transactions.stripeRefundAttempts,
+                  stripeRefundClaimLeaseExpiresAt:
+                    transactions.stripeRefundClaimLeaseExpiresAt,
+                  stripeRefundClaimLeaseId:
+                    transactions.stripeRefundClaimLeaseId,
+                  stripeRefundMaxAttempts: transactions.stripeRefundMaxAttempts,
+                  stripeRefundNextAttemptAt:
+                    transactions.stripeRefundNextAttemptAt,
                   stripeRefundStatus: transactions.stripeRefundStatus,
                 })
-                .from(eventRegistrationAddonRefundAllocations)
+                .from(registrationAcquisitionRefundAllocations)
                 .innerJoin(
                   transactions,
                   eq(
                     transactions.id,
-                    eventRegistrationAddonRefundAllocations.refundTransactionId,
+                    registrationAcquisitionRefundAllocations.refundTransactionId,
                   ),
                 )
                 .where(
-                  eq(
-                    eventRegistrationAddonRefundAllocations.fulfillmentEventId,
-                    existing[0].id,
+                  and(
+                    eq(
+                      registrationAcquisitionRefundAllocations.fulfillmentEventId,
+                      existingEvent.id,
+                    ),
+                    eq(
+                      registrationAcquisitionRefundAllocations.operationKind,
+                      'addon_cancellation',
+                    ),
                   ),
                 );
+              const claimProgress =
+                registrationAddonRefundClaimProgress(replayClaims);
               const refundStatus: EventsRegistrationAddonRefundStatus =
                 replayClaims.length === 0
                   ? 'notRequired'
-                  : replayClaims.some(
-                        (claim) =>
-                          claim.status === 'cancelled' ||
-                          claim.stripeRefundStatus === 'failed' ||
-                          claim.stripeRefundStatus === 'canceled',
-                      )
-                    ? 'failed'
-                    : replayClaims.some((claim) => claim.status === 'pending')
-                      ? 'pending'
-                      : replayClaims.every(
-                            (claim) =>
-                              claim.status === 'successful' ||
-                              claim.stripeRefundStatus === 'succeeded',
-                          )
-                        ? 'refunded'
-                        : 'pending';
+                  : (claimProgress ??
+                    (replayClaims.every(
+                      (claim) =>
+                        claim.status === 'successful' ||
+                        claim.stripeRefundStatus === 'succeeded',
+                    )
+                      ? 'refunded'
+                      : 'pending'));
               return {
-                fulfillmentEventId: existing[0].id,
+                fulfillmentEventId: existingEvent.id,
                 refundStatus,
               };
             }
+
             const cancellationSelection = selectRegistrationAddonCancellation({
-              cancelledQuantity: locked.purchase.cancelledQuantity,
-              includedQuantity: locked.purchase.includedQuantity,
-              lots: locked.lots,
+              cancelledQuantity: purchase.cancelledQuantity,
+              includedQuantity: purchase.includedQuantity,
+              lots,
               quantity: input.quantity,
-              redeemedQuantity: locked.purchase.redeemedQuantity,
+              redeemedQuantity: purchase.redeemedQuantity,
             });
             if (!cancellationSelection) {
               return yield* conflict(
@@ -1412,71 +1538,305 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
               );
             }
             const selectedLots = cancellationSelection.lots.flatMap(
-              (allocation) => {
-                const lot = locked.lots.find(({ id }) => id === allocation.id);
-                return lot ? [{ lot, quantity: allocation.quantity }] : [];
+              (selection) => {
+                const lot = lots.find(({ id }) => id === selection.id);
+                if (!lot) return [];
+                const components = currentAcquisition.components.filter(
+                  (component) =>
+                    component.kind === 'addon_lot' &&
+                    component.purchaseLotId === lot.id &&
+                    component.purchaseId === purchase.id,
+                );
+                return components.length === 1
+                  ? [
+                      {
+                        component: components[0],
+                        lot,
+                        quantity: selection.quantity,
+                      },
+                    ]
+                  : [];
               },
             );
             if (selectedLots.length !== cancellationSelection.lots.length) {
-              return yield* internal(
-                'Selected add-on purchase lot disappeared during cancellation',
+              return yield* conflict(
+                'Current add-on acquisition components are incomplete or ambiguous',
               );
             }
-            const selectedIncludedQuantity =
-              cancellationSelection.includedQuantity;
 
-            const lockedTenants = yield* tx
-              .select({
-                refundFeesOnCancellation: tenants.refundFeesOnCancellation,
-              })
-              .from(tenants)
-              .where(eq(tenants.id, input.tenantId))
-              .for('update');
-            const lockedOptions = yield* tx
-              .select({
-                refundFeesOnCancellation:
-                  eventRegistrationOptions.refundFeesOnCancellation,
-              })
-              .from(eventRegistrationOptions)
-              .where(
-                and(
-                  eq(
-                    eventRegistrationOptions.id,
-                    locked.registration.registrationOptionId,
-                  ),
-                  eq(
-                    eventRegistrationOptions.eventId,
-                    locked.registration.eventId,
-                  ),
-                ),
-              )
-              .for('update');
-            if (!lockedTenants[0] || !lockedOptions[0]) {
+            const componentIds = selectedLots.map(
+              ({ component }) => component.id,
+            );
+            const priorAllocations =
+              componentIds.length === 0
+                ? []
+                : yield* tx
+                    .select()
+                    .from(registrationAcquisitionRefundAllocations)
+                    .where(
+                      and(
+                        inArray(
+                          registrationAcquisitionRefundAllocations.componentId,
+                          componentIds,
+                        ),
+                        eq(
+                          registrationAcquisitionRefundAllocations.tenantId,
+                          input.tenantId,
+                        ),
+                      ),
+                    )
+                    .orderBy(registrationAcquisitionRefundAllocations.id)
+                    .for('update');
+
+            const lockedTenants = input.refundRequested
+              ? yield* tx
+                  .select({
+                    refundFeesOnCancellation: tenants.refundFeesOnCancellation,
+                  })
+                  .from(tenants)
+                  .where(eq(tenants.id, input.tenantId))
+                  .for('update')
+              : [];
+            const lockedOptions = input.refundRequested
+              ? yield* tx
+                  .select({
+                    refundFeesOnCancellation:
+                      eventRegistrationOptions.refundFeesOnCancellation,
+                  })
+                  .from(eventRegistrationOptions)
+                  .where(
+                    and(
+                      eq(
+                        eventRegistrationOptions.id,
+                        registration.registrationOptionId,
+                      ),
+                      eq(
+                        eventRegistrationOptions.eventId,
+                        registration.eventId,
+                      ),
+                    ),
+                  )
+                  .for('update')
+              : [];
+            if (
+              input.refundRequested &&
+              (!lockedTenants[0] || !lockedOptions[0])
+            ) {
               return yield* internal('Add-on refund policy is missing');
             }
-            const refundFees =
-              lockedOptions[0].refundFeesOnCancellation ??
-              lockedTenants[0].refundFeesOnCancellation;
-            const fulfillmentEventId = createId();
-            const claims: string[] = [];
-            let refundAllocatedQuantity = 0;
+            const refundFees = input.refundRequested
+              ? (lockedOptions[0]?.refundFeesOnCancellation ??
+                lockedTenants[0]?.refundFeesOnCancellation ??
+                false)
+              : false;
 
+            const plannedRefunds = [];
+            if (input.refundRequested) {
+              for (const selected of selectedLots) {
+                const component = selected.component;
+                const prior = priorAllocations.filter(
+                  ({ componentId }) => componentId === component.id,
+                );
+                const priorQuantity = prior.reduce(
+                  (sum, allocation) => sum + allocation.quantity,
+                  0,
+                );
+                const priorGrossAmount = prior.reduce(
+                  (sum, allocation) => sum + allocation.grossEntitlementAmount,
+                  0,
+                );
+                const priorNetAmount = prior.reduce(
+                  (sum, allocation) => sum + allocation.netEntitlementAmount,
+                  0,
+                );
+                const priorStripeFeeAmount = prior.reduce(
+                  (sum, allocation) => sum + allocation.stripeFeeAmount,
+                  0,
+                );
+                const priorApplicationFeeAmount = prior.reduce(
+                  (sum, allocation) => sum + allocation.applicationFeeAmount,
+                  0,
+                );
+                const unavailableQuantity =
+                  selected.lot.redeemedQuantity +
+                  selected.lot.cancelledQuantity;
+                const amounts = allocateAcquisitionComponentQuantity({
+                  alreadyAllocatedQuantity: unavailableQuantity,
+                  component,
+                  quantity: selected.quantity,
+                });
+                if (
+                  !amounts ||
+                  priorQuantity > selected.lot.cancelledQuantity ||
+                  priorGrossAmount + amounts.grossAmount >
+                    component.grossAmount ||
+                  priorNetAmount + amounts.netAmount > component.netAmount ||
+                  priorStripeFeeAmount + amounts.stripeFeeAmount >
+                    component.stripeFeeAmount ||
+                  priorApplicationFeeAmount + amounts.applicationFeeAmount >
+                    component.applicationFeeAmount
+                ) {
+                  return yield* conflict(
+                    'Current add-on refund entitlement is inconsistent or exhausted',
+                  );
+                }
+                const refundAmount = refundFees
+                  ? amounts.grossAmount
+                  : amounts.netAmount;
+                if (refundAmount === 0) continue;
+                if (
+                  amounts.grossAmount <= 0 ||
+                  component.acquisitionPaymentId === null
+                ) {
+                  return yield* internal(
+                    'Monetary add-on component payment ownership is missing',
+                  );
+                }
+                plannedRefunds.push({
+                  ...amounts,
+                  acquisitionPaymentId: component.acquisitionPaymentId,
+                  component,
+                  quantity: selected.quantity,
+                  refundAmount,
+                });
+              }
+            }
+
+            const selectedPaymentIds = [
+              ...new Set(
+                plannedRefunds.map(
+                  ({ acquisitionPaymentId }) => acquisitionPaymentId,
+                ),
+              ),
+            ].toSorted();
+            const selectedPayments = selectedPaymentIds.flatMap((paymentId) => {
+              const payment = currentAcquisition.payments.find(
+                ({ id }) => id === paymentId,
+              );
+              return payment ? [payment] : [];
+            });
+            if (selectedPayments.length !== selectedPaymentIds.length) {
+              return yield* internal(
+                'Current add-on acquisition payment is missing',
+              );
+            }
+            const sourceTransactionIds = selectedPayments
+              .map(({ transactionId }) => transactionId)
+              .toSorted();
+            const lockedSources =
+              sourceTransactionIds.length === 0
+                ? []
+                : yield* tx
+                    .select({
+                      amount: transactions.amount,
+                      appFee: transactions.appFee,
+                      currency: transactions.currency,
+                      eventId: transactions.eventId,
+                      eventRegistrationId: transactions.eventRegistrationId,
+                      id: transactions.id,
+                      method: transactions.method,
+                      status: transactions.status,
+                      stripeAccountId: transactions.stripeAccountId,
+                      stripeChargeId: transactions.stripeChargeId,
+                      stripeFee: transactions.stripeFee,
+                      stripeNetAmount: transactions.stripeNetAmount,
+                      stripePaymentIntentId: transactions.stripePaymentIntentId,
+                      targetUserId: transactions.targetUserId,
+                      tenantId: transactions.tenantId,
+                      type: transactions.type,
+                    })
+                    .from(transactions)
+                    .where(inArray(transactions.id, sourceTransactionIds))
+                    .orderBy(transactions.id)
+                    .for('update');
+            if (
+              lockedSources.length !== sourceTransactionIds.length ||
+              lockedSources.some(
+                (source) =>
+                  (source.type !== 'registration' && source.type !== 'addon') ||
+                  source.method !== 'stripe' ||
+                  source.status !== 'successful' ||
+                  source.eventId !== registration.eventId ||
+                  source.eventRegistrationId !== input.registrationId ||
+                  source.targetUserId !== registration.userId ||
+                  source.tenantId !== input.tenantId ||
+                  source.stripeAccountId === null ||
+                  (source.stripeChargeId === null &&
+                    source.stripePaymentIntentId === null),
+              )
+            ) {
+              return yield* conflict(
+                'Current add-on payment ownership is not refundable',
+              );
+            }
+            for (const plan of plannedRefunds) {
+              const payment = selectedPayments.find(
+                ({ id }) => id === plan.acquisitionPaymentId,
+              );
+              const source = lockedSources.find(
+                ({ id }) => id === payment?.transactionId,
+              );
+              if (!source || source.currency !== plan.component.currency) {
+                return yield* conflict(
+                  'Current add-on payment currency does not match',
+                );
+              }
+            }
+            for (const payment of selectedPayments) {
+              const source = lockedSources.find(
+                ({ id }) => id === payment.transactionId,
+              );
+              const components = currentAcquisition.components.filter(
+                ({ acquisitionPaymentId }) =>
+                  acquisitionPaymentId === payment.id,
+              );
+              const currencies = new Set(
+                components.map(({ currency }) => currency),
+              );
+              if (
+                !source ||
+                components.length === 0 ||
+                currencies.size !== 1 ||
+                !currencies.has(source.currency) ||
+                source.amount !==
+                  components.reduce(
+                    (sum, component) => sum + component.grossAmount,
+                    0,
+                  ) ||
+                source.appFee !==
+                  components.reduce(
+                    (sum, component) => sum + component.applicationFeeAmount,
+                    0,
+                  ) ||
+                source.stripeFee !==
+                  components.reduce(
+                    (sum, component) => sum + component.stripeFeeAmount,
+                    0,
+                  ) ||
+                source.stripeNetAmount !==
+                  components.reduce(
+                    (sum, component) => sum + component.netAmount,
+                    0,
+                  )
+              ) {
+                return yield* conflict(
+                  'Current add-on payment settlement no longer matches its immutable acquisition components',
+                );
+              }
+            }
+
+            const fulfillmentEventId = createId();
             yield* tx.insert(eventRegistrationAddonFulfillmentEvents).values({
               actorKind: 'user',
               actorUserId: input.actorUserId,
-              eventId: locked.registration.eventId,
+              eventId: registration.eventId,
               id: fulfillmentEventId,
               operationKey,
-              purchaseId: locked.purchase.id,
+              purchaseId: purchase.id,
               quantity: input.quantity,
               reason,
               refundDisposition: input.refundRequested
-                ? selectedLots.some(({ lot }) => {
-                    const amount = refundFees ? lot.grossAmount : lot.netAmount;
-                    return (
-                      lot.sourceTransactionId !== null && (amount ?? 0) > 0
-                    );
-                  })
+                ? plannedRefunds.length > 0
                   ? 'claims_created'
                   : 'no_monetary_refund_required'
                 : 'not_requested',
@@ -1485,144 +1845,156 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
               tenantId: input.tenantId,
               type: 'cancelled',
             });
-            for (const { lot, quantity } of selectedLots) {
+
+            const claimByPaymentId = new Map<string, string>();
+            for (const payment of selectedPayments) {
+              const source = lockedSources.find(
+                ({ id }) => id === payment.transactionId,
+              );
+              if (!source?.stripeAccountId) {
+                return yield* internal(
+                  'Current add-on Stripe payment ownership is missing',
+                );
+              }
+              const paymentPlans = plannedRefunds.filter(
+                ({ acquisitionPaymentId }) =>
+                  acquisitionPaymentId === payment.id,
+              );
+              const refundAmount = paymentPlans.reduce(
+                (sum, plan) => sum + plan.refundAmount,
+                0,
+              );
+              const claim = yield* createRegistrationRefundClaim(tx, {
+                amount: refundAmount,
+                applicationFeeRefunded: refundFees,
+                currency: source.currency,
+                eventId: registration.eventId,
+                eventRegistrationId: input.registrationId,
+                executiveUserId: input.actorUserId,
+                operationKey: `addon-cancel:${fulfillmentEventId}:${payment.id}`,
+                sourceTransactionId: source.id,
+                stripeAccountId: source.stripeAccountId,
+                targetUserId: registration.userId,
+                tenantId: input.tenantId,
+              });
+              claimByPaymentId.set(payment.id, claim.id);
+            }
+
+            for (const plan of plannedRefunds) {
+              const refundTransactionId = claimByPaymentId.get(
+                plan.acquisitionPaymentId,
+              );
+              if (!refundTransactionId) {
+                return yield* internal(
+                  'Current add-on refund claim was not persisted',
+                );
+              }
               yield* tx
+                .insert(registrationAcquisitionRefundAllocations)
+                .values({
+                  acquisitionId: currentAcquisition.acquisition.id,
+                  acquisitionPaymentId: plan.acquisitionPaymentId,
+                  applicationFeeAmount: plan.applicationFeeAmount,
+                  applicationFeeRefunded: refundFees,
+                  componentId: plan.component.id,
+                  eventId: registration.eventId,
+                  fulfillmentEventId,
+                  grossEntitlementAmount: plan.grossAmount,
+                  netEntitlementAmount: plan.netAmount,
+                  operationKey: `addon-cancel:${fulfillmentEventId}:${plan.component.id}`,
+                  operationKind: 'addon_cancellation',
+                  purchaseId: purchase.id,
+                  quantity: plan.quantity,
+                  refundAmount: plan.refundAmount,
+                  refundTransactionId,
+                  registrationId: input.registrationId,
+                  stripeFeeAmount: plan.stripeFeeAmount,
+                  tenantId: input.tenantId,
+                });
+            }
+
+            for (const selected of selectedLots) {
+              const updatedLots = yield* tx
                 .update(eventRegistrationAddonPurchaseLots)
                 .set({
-                  cancelledQuantity: sql`${eventRegistrationAddonPurchaseLots.cancelledQuantity} + ${quantity}`,
+                  cancelledQuantity: sql`${eventRegistrationAddonPurchaseLots.cancelledQuantity} + ${selected.quantity}`,
                 })
-                .where(eq(eventRegistrationAddonPurchaseLots.id, lot.id));
+                .where(
+                  and(
+                    eq(eventRegistrationAddonPurchaseLots.id, selected.lot.id),
+                    sql`${eventRegistrationAddonPurchaseLots.redeemedQuantity} + ${eventRegistrationAddonPurchaseLots.cancelledQuantity} + ${selected.quantity} <= ${eventRegistrationAddonPurchaseLots.quantity}`,
+                  ),
+                )
+                .returning({ id: eventRegistrationAddonPurchaseLots.id });
+              if (updatedLots.length !== 1) {
+                return yield* internal(
+                  'Add-on purchase lot cancellation changed unexpectedly',
+                );
+              }
               yield* tx
                 .insert(eventRegistrationAddonFulfillmentAllocations)
                 .values({
                   fulfillmentEventId,
-                  purchaseId: locked.purchase.id,
-                  purchaseLotId: lot.id,
-                  quantity,
+                  purchaseId: purchase.id,
+                  purchaseLotId: selected.lot.id,
+                  quantity: selected.quantity,
                   source: 'purchased',
                   tenantId: input.tenantId,
                 });
-
-              if (!input.refundRequested) continue;
-              const grossAmount = lot.grossAmount ?? 0;
-              const netAmount = lot.netAmount ?? 0;
-              const applicationFeeAmount = lot.applicationFeeAmount ?? 0;
-              const grossAllocation = allocateCumulativeQuantityAmount({
-                alreadyAllocatedQuantity: lot.refundAllocatedQuantity,
-                amount: grossAmount,
-                quantity,
-                totalQuantity: lot.quantity,
-              });
-              const netAllocation = allocateCumulativeQuantityAmount({
-                alreadyAllocatedQuantity: lot.refundAllocatedQuantity,
-                amount: netAmount,
-                quantity,
-                totalQuantity: lot.quantity,
-              });
-              const appFeeAllocation = allocateCumulativeQuantityAmount({
-                alreadyAllocatedQuantity: lot.refundAllocatedQuantity,
-                amount: applicationFeeAmount,
-                quantity,
-                totalQuantity: lot.quantity,
-              });
-              const refundAmount = refundFees ? grossAllocation : netAllocation;
-              if (lot.sourceTransactionId && refundAmount > 0) {
-                const source = lockedSources.find(
-                  ({ id }) => id === lot.sourceTransactionId,
-                );
-                if (!source?.stripeAccountId) {
-                  return yield* conflict(
-                    'Add-on Stripe payment ownership is missing',
-                  );
-                }
-                const claim = yield* createRegistrationRefundClaim(tx, {
-                  amount: refundAmount,
-                  applicationFeeRefunded: refundFees,
-                  currency: source.currency,
-                  eventId: locked.registration.eventId,
-                  eventRegistrationId: input.registrationId,
-                  executiveUserId: input.actorUserId,
-                  operationKey: `addon-cancel:${fulfillmentEventId}:${lot.id}`,
-                  sourceTransactionId: source.id,
-                  stripeAccountId: source.stripeAccountId,
-                  targetUserId: locked.registration.userId,
-                  tenantId: input.tenantId,
-                });
-                const refundTransactionId = claim.id;
-                claims.push(claim.id);
-                yield* tx
-                  .insert(eventRegistrationAddonRefundAllocations)
-                  .values({
-                    applicationFeeAmount: appFeeAllocation,
-                    applicationFeeRefunded: refundFees,
-                    currency: source.currency,
-                    eventId: locked.registration.eventId,
-                    fulfillmentEventId,
-                    grossEntitlementAmount: grossAllocation,
-                    netEntitlementAmount: netAllocation,
-                    purchaseId: locked.purchase.id,
-                    purchaseLotId: lot.id,
-                    quantity,
-                    refundAmount,
-                    refundTransactionId,
-                    registrationId: input.registrationId,
-                    tenantId: input.tenantId,
-                  });
-              }
-              yield* tx
-                .update(eventRegistrationAddonPurchaseLots)
-                .set({
-                  refundAllocatedApplicationFeeAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedApplicationFeeAmount} + ${appFeeAllocation}`,
-                  refundAllocatedGrossAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedGrossAmount} + ${grossAllocation}`,
-                  refundAllocatedNetAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedNetAmount} + ${netAllocation}`,
-                  refundAllocatedQuantity: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedQuantity} + ${quantity}`,
-                })
-                .where(eq(eventRegistrationAddonPurchaseLots.id, lot.id));
-              refundAllocatedQuantity += quantity;
             }
-            if (selectedIncludedQuantity > 0) {
+            if (cancellationSelection.includedQuantity > 0) {
               yield* tx
                 .insert(eventRegistrationAddonFulfillmentAllocations)
                 .values({
                   fulfillmentEventId,
-                  purchaseId: locked.purchase.id,
-                  quantity: selectedIncludedQuantity,
+                  purchaseId: purchase.id,
+                  quantity: cancellationSelection.includedQuantity,
                   source: 'included',
                   tenantId: input.tenantId,
                 });
             }
-            yield* tx
+            const updatedPurchases = yield* tx
               .update(eventRegistrationAddonPurchases)
               .set({
                 cancelledQuantity: sql`${eventRegistrationAddonPurchases.cancelledQuantity} + ${input.quantity}`,
-                ...(refundAllocatedQuantity > 0 && {
-                  refundAllocatedPurchasedQuantity: sql`${eventRegistrationAddonPurchases.refundAllocatedPurchasedQuantity} + ${refundAllocatedQuantity}`,
-                }),
               })
               .where(
-                eq(eventRegistrationAddonPurchases.id, locked.purchase.id),
+                and(
+                  eq(eventRegistrationAddonPurchases.id, purchase.id),
+                  sql`${eventRegistrationAddonPurchases.redeemedQuantity} + ${eventRegistrationAddonPurchases.cancelledQuantity} + ${input.quantity} <= ${eventRegistrationAddonPurchases.quantity}`,
+                ),
+              )
+              .returning({ id: eventRegistrationAddonPurchases.id });
+            if (updatedPurchases.length !== 1) {
+              return yield* internal(
+                'Add-on cancellation counters changed unexpectedly',
               );
-            yield* tx
+            }
+            const releasedStock = yield* tx
               .update(eventAddons)
               .set({
                 totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${input.quantity}`,
               })
               .where(
                 and(
-                  eq(eventAddons.id, locked.purchase.addonId),
-                  eq(eventAddons.eventId, locked.registration.eventId),
+                  eq(eventAddons.id, purchase.addonId),
+                  eq(eventAddons.eventId, registration.eventId),
                 ),
-              );
+              )
+              .returning({ id: eventAddons.id });
+            if (releasedStock.length !== 1) {
+              return yield* internal('Add-on inventory could not be released');
+            }
             return {
               fulfillmentEventId,
               refundStatus: input.refundRequested
-                ? claims.length > 0
-                  ? 'pending'
-                  : 'notRequired'
+                ? plannedRefunds.length > 0
+                  ? ('pending' as const)
+                  : ('notRequired' as const)
                 : selectedLots.length === 0
-                  ? 'notRequired'
-                  : 'cancelledWithoutRefund',
-            } as const;
+                  ? ('notRequired' as const)
+                  : ('cancelledWithoutRefund' as const),
+            };
           }),
         ),
       ),

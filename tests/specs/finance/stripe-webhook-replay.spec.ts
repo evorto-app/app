@@ -8,6 +8,7 @@ import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { createSettledStripeTestPayment } from '../../support/utils/settled-stripe-test-payment';
 
 test.use({ storageState: userStateFile });
 
@@ -25,6 +26,7 @@ type SignedCheckoutWebhookInput = {
   transactionId: string;
 } & (
   | {
+      chargeId?: string;
       eventType: 'checkout.session.completed';
       paymentIntentId: string;
     }
@@ -54,7 +56,7 @@ const buildSignedCheckoutWebhook = (input: SignedCheckoutWebhookInput) => {
               currency: 'eur',
               payment_intent: {
                 id: input.paymentIntentId,
-                latest_charge: `ch_test_${getId()}`,
+                latest_charge: input.chargeId ?? `ch_test_${getId()}`,
               },
               payment_status: 'paid',
               status: 'complete',
@@ -266,7 +268,6 @@ test('an exact pending transaction and checkout session match completes once und
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
-  const paymentIntentId = `pi_test_${getId()}`;
   const stripeEventId = `evt_test_${getId()}`;
   const originalOption =
     await database.query.eventRegistrationOptions.findFirst({
@@ -295,6 +296,7 @@ test('an exact pending transaction and checkout session match completes once und
     );
 
   await database.insert(schema.eventRegistrations).values({
+    basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
@@ -321,6 +323,14 @@ test('an exact pending transaction and checkout session match completes once und
     type: 'registration',
   });
 
+  const settledPayment = await createSettledStripeTestPayment({
+    amount: 2500,
+    applicationFeeAmount: null,
+    currency: 'EUR',
+    stripeAccountId,
+    transactionId,
+  });
+
   const payload = JSON.stringify({
     account: stripeAccountId,
     api_version: '2024-11-20.acacia',
@@ -337,8 +347,8 @@ test('an exact pending transaction and checkout session match completes once und
         },
         object: 'checkout.session',
         payment_intent: {
-          id: paymentIntentId,
-          latest_charge: 'ch_test_' + getId(),
+          id: settledPayment.paymentIntentId,
+          latest_charge: settledPayment.chargeId,
         },
         payment_status: 'paid',
         status: 'complete',
@@ -411,7 +421,7 @@ test('an exact pending transaction and checkout session match completes once und
       };
     })
     .toEqual({
-      paymentIntentId,
+      paymentIntentId: settledPayment.paymentIntentId,
       status: 'successful',
     });
 
@@ -521,7 +531,6 @@ test('competing completion and expiry webhooks leave one coherent registration o
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
-  const paymentIntentId = `pi_test_${getId()}`;
   const originalOption =
     await database.query.eventRegistrationOptions.findFirst({
       columns: {
@@ -544,6 +553,7 @@ test('competing completion and expiry webhooks leave one coherent registration o
       ),
     );
   await database.insert(schema.eventRegistrations).values({
+    basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
@@ -569,10 +579,19 @@ test('competing completion and expiry webhooks leave one coherent registration o
     type: 'registration',
   });
 
+  const settledPayment = await createSettledStripeTestPayment({
+    amount: 2500,
+    applicationFeeAmount: null,
+    currency: 'EUR',
+    stripeAccountId,
+    transactionId,
+  });
+
   const completedWebhook = buildSignedCheckoutWebhook({
+    chargeId: settledPayment.chargeId,
     eventId: `evt_test_${getId()}`,
     eventType: 'checkout.session.completed',
-    paymentIntentId,
+    paymentIntentId: settledPayment.paymentIntentId,
     registrationId,
     sessionId: checkoutSessionId,
     tenantId: tenant.id,
@@ -632,7 +651,9 @@ test('competing completion and expiry webhooks leave one coherent registration o
     expect(completedStatus).toBe(200);
     expect(expiredStatus).toBe(409);
     expect(finalTransaction?.status).toBe('successful');
-    expect(finalTransaction?.stripePaymentIntentId).toBe(paymentIntentId);
+    expect(finalTransaction?.stripePaymentIntentId).toBe(
+      settledPayment.paymentIntentId,
+    );
     expect(finalOption?.confirmedSpots).toBe(
       (originalOption?.confirmedSpots ?? 0) + 1,
     );
@@ -789,6 +810,7 @@ test('invalid checkout bindings and stale state leave registrations, payments, a
     expect(optionBefore).toBeTruthy();
 
     await database.insert(schema.eventRegistrations).values({
+      basePriceAtRegistration: 2500,
       eventId: seeded.scenario.events.paidOpen.eventId,
       id: registrationId,
       registrationOptionId: seeded.scenario.events.paidOpen.optionId,
@@ -826,14 +848,23 @@ test('invalid checkout bindings and stale state leave registrations, payments, a
             transactionId: 'transaction-foreign',
           }
         : { registrationId, tenantId: tenant.id, transactionId };
+    const settledPayment = isRegistrationRace
+      ? await createSettledStripeTestPayment({
+          amount: 2500,
+          applicationFeeAmount: null,
+          currency: 'EUR',
+          stripeAccountId,
+          transactionId,
+        })
+      : undefined;
     const paymentIntent =
       scenario === 'missing-target-payment-intent'
         ? paymentIntentId
         : isExpired
           ? undefined
           : {
-              id: paymentIntentId,
-              latest_charge: 'ch_test_' + getId(),
+              id: settledPayment?.paymentIntentId ?? paymentIntentId,
+              latest_charge: settledPayment?.chargeId ?? 'ch_test_' + getId(),
             };
     const payload = JSON.stringify({
       ...(scenario !== 'missing-account' && {
@@ -956,6 +987,7 @@ test('expired checkout webhook resolves the persisted session and releases reser
     );
 
   await database.insert(schema.eventRegistrations).values({
+    basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
@@ -1142,10 +1174,10 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
-  const paymentIntentId = `pi_test_${getId()}`;
   const stripeEventId = `evt_test_${getId()}`;
 
   await database.insert(schema.eventRegistrations).values({
+    basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
@@ -1172,6 +1204,14 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     type: 'registration',
   });
 
+  const settledPayment = await createSettledStripeTestPayment({
+    amount: 2500,
+    applicationFeeAmount: null,
+    currency: 'EUR',
+    stripeAccountId,
+    transactionId,
+  });
+
   await database.insert(schema.stripeWebhookEvents).values({
     eventType: 'checkout.session.completed',
     processedAt: new Date(Date.now() - 10 * 60 * 1000),
@@ -1196,8 +1236,8 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
         },
         object: 'checkout.session',
         payment_intent: {
-          id: paymentIntentId,
-          latest_charge: 'ch_test_' + getId(),
+          id: settledPayment.paymentIntentId,
+          latest_charge: settledPayment.chargeId,
         },
         payment_status: 'paid',
         status: 'complete',
@@ -1250,11 +1290,18 @@ test('checkout webhook resolves registration by payment intent when metadata is 
   const registrationId = getId();
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
-  const paymentIntentId = `pi_test_${getId()}`;
-  const stripeChargeId = `ch_test_${getId()}`;
   const stripeEventId = `evt_test_${getId()}`;
 
+  const settledPayment = await createSettledStripeTestPayment({
+    amount: 2500,
+    applicationFeeAmount: null,
+    currency: 'EUR',
+    stripeAccountId,
+    transactionId,
+  });
+
   await database.insert(schema.eventRegistrations).values({
+    basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
@@ -1276,7 +1323,7 @@ test('checkout webhook resolves registration by payment intent when metadata is 
     stripeAccountId,
     stripeCheckoutSessionId: checkoutSessionId,
     stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
-    stripePaymentIntentId: paymentIntentId,
+    stripePaymentIntentId: settledPayment.paymentIntentId,
     targetUserId: regularUserId,
     tenantId: tenant.id,
     type: 'registration',
@@ -1294,8 +1341,8 @@ test('checkout webhook resolves registration by payment intent when metadata is 
         metadata: {},
         object: 'checkout.session',
         payment_intent: {
-          id: paymentIntentId,
-          latest_charge: stripeChargeId,
+          id: settledPayment.paymentIntentId,
+          latest_charge: settledPayment.chargeId,
         },
         payment_status: 'paid',
         status: 'complete',
@@ -1354,8 +1401,8 @@ test('checkout webhook resolves registration by payment intent when metadata is 
       };
     })
     .toEqual({
-      chargeId: stripeChargeId,
-      paymentIntentId,
+      chargeId: settledPayment.chargeId,
+      paymentIntentId: settledPayment.paymentIntentId,
       status: 'successful',
     });
 });

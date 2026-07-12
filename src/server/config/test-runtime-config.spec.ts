@@ -30,12 +30,23 @@ const requiredPlaywrightEntries = [
   ['CLIENT_ID', 'client-id'],
   ['CLIENT_SECRET', 'client-secret'],
   ['DATABASE_URL', 'postgresql://db.example/app'],
+  ['AUTH0_MANAGEMENT_CLIENT_ID', 'management-client-id'],
+  ['AUTH0_MANAGEMENT_CLIENT_SECRET', 'management-client-secret'],
   ['ISSUER_BASE_URL', 'https://issuer.example'],
+  ['PUBLIC_GOOGLE_MAPS_API_KEY', 'maps-api-key'],
   ['SECRET', 'super-secret'],
   ['STRIPE_API_KEY', 'stripe-api-key'],
   ['STRIPE_TEST_ACCOUNT_ID', 'acct_123'],
   ['STRIPE_WEBHOOK_SECRET', 'whsec_123'],
 ] as const;
+
+const requiredPlaywrightEntriesWithoutIntegrationCredentials =
+  requiredPlaywrightEntries.filter(
+    ([name]) =>
+      name !== 'AUTH0_MANAGEMENT_CLIENT_ID' &&
+      name !== 'AUTH0_MANAGEMENT_CLIENT_SECRET' &&
+      name !== 'PUBLIC_GOOGLE_MAPS_API_KEY',
+  );
 
 const localPlaywrightEntriesWithoutStaticWebhookSecret =
   requiredPlaywrightEntries.filter(
@@ -282,11 +293,11 @@ describe('test-runtime-config', () => {
   );
 
   it.effect(
-    'does not require Auth0 Management or Cloudflare Images in CI when only baseline projects are selected',
+    'does not require Auth0 Management or Google Maps in CI when only baseline projects are selected',
     () =>
       Effect.gen(function* () {
         const provider = providerFromEntries([
-          ...requiredPlaywrightEntries,
+          ...requiredPlaywrightEntriesWithoutIntegrationCredentials,
           ['BASE_URL', 'http://localhost:4200'],
           ['CI', 'true'],
           ['S3_ACCESS_KEY_ID', 'access-key'],
@@ -311,7 +322,7 @@ describe('test-runtime-config', () => {
     () =>
       Effect.gen(function* () {
         const provider = providerFromEntries([
-          ...requiredPlaywrightEntries,
+          ...requiredPlaywrightEntriesWithoutIntegrationCredentials,
           ['BASE_URL', 'http://localhost:4200'],
           ['CI', 'true'],
           ['S3_ACCESS_KEY_ID', 'access-key'],
@@ -357,18 +368,12 @@ describe('test-runtime-config', () => {
   );
 
   it.effect(
-    'requires Auth0 Management and Cloudflare Images in CI when an integration project is selected',
+    'requires Auth0 Management and Google Maps whenever an integration project is selected',
     () =>
       Effect.gen(function* () {
         const provider = providerFromEntries([
-          ...requiredPlaywrightEntries,
+          ...requiredPlaywrightEntriesWithoutIntegrationCredentials,
           ['BASE_URL', 'http://localhost:4200'],
-          ['CI', 'true'],
-          ['S3_ACCESS_KEY_ID', 'access-key'],
-          ['S3_BUCKET', 'bucket'],
-          ['S3_ENDPOINT', 'http://minio:9000'],
-          ['S3_REGION', 'us-east-1'],
-          ['S3_SECRET_ACCESS_KEY', 'secret-key'],
         ]);
 
         const error = yield* Effect.flip(
@@ -380,7 +385,7 @@ describe('test-runtime-config', () => {
           ]),
         );
         expect(error.message).toMatch(
-          /AUTH0_MANAGEMENT_CLIENT_ID[\s\S]*CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_ACCOUNT_ID[\s\S]*AUTH0_MANAGEMENT_CLIENT_ID/,
+          /AUTH0_MANAGEMENT_CLIENT_ID[\s\S]*PUBLIC_GOOGLE_MAPS_API_KEY|PUBLIC_GOOGLE_MAPS_API_KEY[\s\S]*AUTH0_MANAGEMENT_CLIENT_ID/,
         );
       }),
   );

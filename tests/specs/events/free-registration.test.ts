@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
+import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({
@@ -173,6 +174,22 @@ test('register for a free event as regular user', async ({
     }
     expect(after.confirmedSpots).toBeGreaterThanOrEqual(confirmedBefore + 1);
   } finally {
+    const createdRegistrations =
+      await database.query.eventRegistrations.findMany({
+        columns: { id: true },
+        where: {
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: user.id,
+        },
+      });
+    await deleteRegistrationAcquisitionLedger({
+      database,
+      registrationIds: createdRegistrations.map(
+        (registration) => registration.id,
+      ),
+      tenantId: tenant.id,
+    });
     if (createdRegistrationId) {
       await database
         .delete(schema.emailOutbox)

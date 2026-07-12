@@ -162,6 +162,8 @@ High-risk data areas:
 - Stripe payment/refund mapping
 - guest quantities
 - add-on entitlement, redemption, cancellation, and stock state
+- transfer-bundle identity across registration, add-on quantities, source
+  payments, and fulfillment history
 - check-in state
 - receipt persistence
 - event archival
@@ -212,11 +214,38 @@ Stripe is the source of truth for payment state.
 
 Evorto should use local payment data only as application state derived from Stripe and app workflow needs.
 
-Payments belong to each tenant's configured Stripe Connect account. Every
-tenant payment, customer, Checkout, payment-intent, expiry, and refund call
-must pass that account as the connected-account context. Evorto adds only its
+New payments belong to each tenant's currently configured Stripe Connect
+account. Each persisted payment retains its owning account across later account
+rotation, and every expiry or refund call must use that original account as the
+connected-account context. Customer, Checkout, and payment-intent calls use the
+account that owns the relevant payment workflow. Evorto adds only its
 application fee; tenant payment and cancellation settings remain tenant-owned,
 with narrower registration-option overrides where configured.
+
+Event registrations and add-ons have no non-Stripe paid path. Without a
+connected Stripe account, persisted and editable registration options and
+add-ons must be free. Manual finance transactions used by other workflows do
+not authorize cash or manually settled event payments.
+
+A registration transfer is one atomic bundle boundary: the registration plus
+all included, free, and purchased add-ons, their fixed quantities, original
+source-payment allocations, guest/check-in state, and fulfillment history.
+Claiming a transfer must not accept recipient-selected add-on omissions or guest
+changes. Price the unchanged bundle from current base prices and the recipient's
+current discounts, refund each original Stripe source exactly, and calculate
+the recipient payment independently. Only a wholly free bundle with no refund
+obligation may complete database-only.
+
+Transfer ownership and refund provenance use an application-append-only
+acquisition ledger. Production server code inserts ownership epochs,
+acquisition-owned payments, priced components, refund allocations, and exact
+refund-plan provenance, but does not update or delete them. Composite `NO ACTION`
+foreign keys make source registration, payment, lot, transfer, and refund
+evidence fail closed against cascading deletion. PostgreSQL does not currently
+deny direct updates or deletes by the database owner; operational schema resets
+and test cleanup may remove ledger rows. Resolve the current acquisition under
+the tenant-scoped registration lock. Authorization remains in the server
+Effect/RPC boundary; this design does not add PostgreSQL RLS.
 
 High-risk payment flows:
 
@@ -240,6 +269,19 @@ Customer-facing email is rendered from React Email components and committed to
 the transactional outbox before delivery through the configured provider. Do
 not bypass the outbox for template rendering, delivery, idempotency, retries, or
 failure observability.
+
+An exhausted outbox row remains stored and read-only. The current product does
+not expose an exhausted-email requeue or correction mutation.
+
+## Location and Image Provider Boundary
+
+Google Maps is required production infrastructure for location search and place
+details. Keep provider/configuration failures explicit, and require live
+credential-backed verification before release.
+
+Cloudflare Images is being removed and is not a release dependency. Do not add
+new Cloudflare Images product coupling or treat its credentials/tests as a
+release gate while removal is in progress.
 
 ## Storage Boundary
 
@@ -374,6 +416,10 @@ that require organizer/check-in access. Unilateral registration or add-on
 cancellation/refund is a distinct capability and must be checked server-side on
 every mutation. Refund creation remains Stripe-connected-account work and must
 not refund included units or already redeemed/cancelled quantities twice.
+
+Transfer uses the same settled entitlement graph as one inseparable bundle.
+Recipient flows may collect current eligibility answers and payment, but may not
+reselect add-ons, rewrite quantities, or discard fulfillment history.
 
 Raise this when: changing schema, event setup UI, checkout, capacity, discounts, waitlists, guests, or check-in.
 

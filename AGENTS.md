@@ -54,6 +54,7 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run test:e2e:live-esncard:release` - run the full live-provider release certification locally.
 - `bun run test:e2e:install` - install the local Playwright browser binaries.
 - `bun run lint` - lint with autofix.
+- `bun run format:check` - verify formatting without changing files.
 - `bun run format:write` - format with Prettier.
 - `bun run docker:start` / `bun run docker:stop` - start/stop local services;
   `docker:start` may reset local data and should leave enough seeded data to
@@ -152,6 +153,10 @@ package scripts instead of bare `dotenv` shell commands.
   reasons to defer coverage to CI. CI confirms an already-green local result;
   it is never the first full test run.
 - After every file edit, run `bun run lint` and `bun run format:write`.
+- Lint covers application, test, helper, migration, and root TypeScript config
+  sources while excluding vendored `repos/`. Node-side helper/migration/config
+  tooling uses the shared TypeScript correctness rules without Angular UI or
+  deterministic sort-order rules.
 - Markdown-only edits do not need a WebStorm `get_file_problems` pass.
 - Before calling WebStorm `get_file_problems` on edited files, run `bun run lint`.
 - After editing non-Markdown files, run WebStorm `get_file_problems` on those files when possible.

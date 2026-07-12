@@ -18,6 +18,9 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  registrationAcquisitionComponents,
+  registrationAcquisitionPayments,
+  registrationAcquisitions,
   tenants,
   users,
   usersToTenants,
@@ -235,6 +238,19 @@ const cleanLimitFixture = async (
   await database
     .delete(emailOutbox)
     .where(inArray(emailOutbox.tenantId, [fixture.tenantId]));
+  await database
+    .delete(registrationAcquisitionComponents)
+    .where(
+      inArray(registrationAcquisitionComponents.tenantId, [fixture.tenantId]),
+    );
+  await database
+    .delete(registrationAcquisitionPayments)
+    .where(
+      inArray(registrationAcquisitionPayments.tenantId, [fixture.tenantId]),
+    );
+  await database
+    .delete(registrationAcquisitions)
+    .where(inArray(registrationAcquisitions.tenantId, [fixture.tenantId]));
   await database
     .delete(eventRegistrations)
     .where(inArray(eventRegistrations.eventId, fixture.eventIds));

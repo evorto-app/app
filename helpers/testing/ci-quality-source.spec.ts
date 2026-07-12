@@ -2,7 +2,7 @@ import {
   DEFAULT_E2E_NOW_ISO,
   DEFAULT_E2E_SEED_KEY,
 } from '@shared/testing/deterministic-test-defaults';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -12,7 +12,98 @@ const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const readSource = (relativePath: string): string =>
   readFileSync(path.join(repositoryRoot, relativePath), 'utf8');
 
+const workflowPaths = readdirSync(
+  path.join(repositoryRoot, '.github/workflows'),
+)
+  .filter((fileName) => fileName.endsWith('.yml'))
+  .map((fileName) => `.github/workflows/${fileName}`);
+
+const broadEnvironmentBlocks = (workflow: string): readonly string[] => {
+  const lines = workflow.split('\n');
+  const blocks: string[] = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line === undefined) {
+      continue;
+    }
+    if (line !== 'env:' && line !== '    env:') {
+      continue;
+    }
+
+    const indentation = line.length - line.trimStart().length;
+    const block = [line];
+    for (let next = index + 1; next < lines.length; next += 1) {
+      const candidate = lines[next];
+      if (candidate === undefined) {
+        continue;
+      }
+      const candidateIndentation =
+        candidate.length - candidate.trimStart().length;
+      if (candidate.trim() && candidateIndentation <= indentation) {
+        break;
+      }
+      block.push(candidate);
+    }
+    blocks.push(block.join('\n'));
+  }
+
+  return blocks;
+};
+
+const actionStepBlocks = (workflow: string): readonly string[] => {
+  const lines = workflow.split('\n');
+  const stepStarts = lines.flatMap((line, index) =>
+    line.startsWith('      - ') ? [index] : [],
+  );
+
+  return stepStarts.map((start, index) => {
+    const end = stepStarts[index + 1] ?? lines.length;
+    return lines.slice(start, end).join('\n');
+  });
+};
+
 describe('CI quality source', () => {
+  it('pins every external workflow action and keeps secrets out of broad env', () => {
+    for (const sourcePath of workflowPaths) {
+      const workflow = readSource(sourcePath);
+      expect(workflow, sourcePath).toContain('permissions:');
+
+      for (const line of workflow.split('\n')) {
+        if (!line.includes('uses:')) {
+          continue;
+        }
+        const match = line.match(
+          /^\s*(?:-\s+)?uses:\s+(\S+?)(?:\s+#\s+(.+))?$/u,
+        );
+        expect(match, `${sourcePath}: ${line.trim()}`).not.toBeNull();
+        const actionReference = match?.[1];
+        if (!actionReference || actionReference.startsWith('./')) {
+          continue;
+        }
+
+        const separator = actionReference.lastIndexOf('@');
+        expect(separator, `${sourcePath}: ${actionReference}`).toBeGreaterThan(
+          0,
+        );
+        expect(actionReference.slice(separator + 1)).toMatch(/^[a-f0-9]{40}$/u);
+        expect(match?.[2]?.trim(), `${sourcePath}: ${actionReference}`).toMatch(
+          /\S/u,
+        );
+      }
+
+      for (const environmentBlock of broadEnvironmentBlocks(workflow)) {
+        expect(environmentBlock, sourcePath).not.toContain('${{ secrets.');
+      }
+      for (const stepBlock of actionStepBlocks(workflow)) {
+        if (!stepBlock.includes('uses:') || stepBlock.includes('uses: ./')) {
+          continue;
+        }
+        expect(stepBlock, sourcePath).not.toContain('${{ secrets.');
+      }
+    }
+  });
+
   it('starts Docker and Playwright with the same deterministic clock', () => {
     const source = readSource('.github/workflows/e2e-baseline.yml');
 
@@ -84,11 +175,16 @@ describe('CI quality source', () => {
 
   it('keeps repository-owned pull request quality gates complete', () => {
     const source = readSource('.github/workflows/pr-quality.yml');
+    const packageJson = JSON.parse(readSource('package.json')) as {
+      scripts?: Record<string, string>;
+    };
 
     expect(source).toContain('pull_request:');
     expect(source).toContain('name: Knope and change files');
     expect(source).toContain('run: knope --validate');
     expect(source).toContain('name: Lint, unit tests, and build');
+    expect(packageJson.scripts?.['format:check']).toBe('prettier --check .');
+    expect(source).toContain('run: bun run format:check');
     expect(source).toContain('bun run lint');
     expect(source).toContain('git diff --exit-code');
     expect(source).toContain('bun run test:unit:server');
@@ -98,6 +194,46 @@ describe('CI quality source', () => {
     expect(source).toContain('bun run test:integration:postgres');
     expect(source).toMatch(/run: bun run test:unit\n/u);
     expect(source).toContain('bun run build:app');
+  });
+
+  it('lints repository-owned tooling without traversing vendored sources', () => {
+    const workspace = JSON.parse(readSource('angular.json')) as {
+      projects?: {
+        evorto?: {
+          architect?: {
+            lint?: {
+              options?: { lintFilePatterns?: string[] };
+            };
+          };
+        };
+      };
+    };
+    const eslintConfig = readSource('eslint.config.mjs');
+    const lintFilePatterns =
+      workspace.projects?.evorto?.architect?.lint?.options?.lintFilePatterns ??
+      [];
+
+    expect(lintFilePatterns).toEqual([
+      '*.config.ts',
+      'helpers/**/*.ts',
+      'migration/**/*.ts',
+      'src/**/*.ts',
+      'src/**/*.html',
+      'tests/**/*.ts',
+    ]);
+    expect(lintFilePatterns).not.toContain('repos/**/*.ts');
+    expect(eslintConfig).toContain('const toolingFiles = [');
+    for (const sourcePattern of [
+      '"*.config.ts"',
+      '"helpers/**/*.ts"',
+      '"migration/**/*.ts"',
+    ]) {
+      expect(eslintConfig).toContain(sourcePattern);
+    }
+    expect(eslintConfig).toContain('...tseslint.configs.strict');
+    expect(eslintConfig).toContain('process: "readonly"');
+    expect(eslintConfig).toContain('files: ["migration/**/*.ts"]');
+    expect(eslintConfig).toContain('ignores: ["repos/**/*"]');
   });
 
   it('retries frozen dependency installs in required pull request workflows', () => {

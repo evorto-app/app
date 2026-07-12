@@ -40,7 +40,8 @@ import { EventGeneralForm } from '../../shared/components/forms/event-general-fo
 import {
   createEventGeneralFormModel,
   EventGeneralFormModel,
-  eventGeneralFormSchema,
+  eventGeneralFormSchemaWithPaymentAvailability,
+  resetEventGeneralFormPayments,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { createEventFormModelFromTemplate } from './template-create-event.mapper';
@@ -129,9 +130,12 @@ export class TemplateCreateEventComponent {
   protected readonly createEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel({}, this.tenantTimezone),
   );
+  protected readonly stripeConnected = computed(() =>
+    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  );
   protected readonly createEventForm = form(
     this.createEventModel,
-    eventGeneralFormSchema,
+    eventGeneralFormSchemaWithPaymentAvailability(() => this.stripeConnected()),
   );
   protected readonly createEventMutation = injectMutation(() =>
     this.operations.createEvent(),
@@ -159,6 +163,12 @@ export class TemplateCreateEventComponent {
   );
   protected readonly legacyRandomTemplateEventMessage =
     legacyRandomTemplateEventMessage;
+  protected readonly stripeConnectionKnown = computed(
+    () => this.config.tenantSignal() !== null,
+  );
+  protected readonly paidControlsUnavailable = computed(
+    () => this.stripeConnectionKnown() && !this.stripeConnected(),
+  );
   protected readonly registrationModes = writableRegistrationModes;
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
@@ -181,8 +191,11 @@ export class TemplateCreateEventComponent {
       const startDateTime = this.toDateTime(
         untracked(() => this.createEventForm.start().value()),
       );
+      const model = createEventFormModelFromTemplate(template, startDateTime);
       this.createEventModel.set(
-        createEventFormModelFromTemplate(template, startDateTime),
+        this.paidControlsUnavailable()
+          ? resetEventGeneralFormPayments(model)
+          : model,
       );
       this.lastStart.set(startDateTime);
       this.initializedTemplateId.set(template.id);
@@ -229,6 +242,13 @@ export class TemplateCreateEventComponent {
         );
       }
     });
+    effect(() => {
+      if (!this.paidControlsUnavailable()) return;
+      const model = this.createEventModel();
+      const resetModel = resetEventGeneralFormPayments(model);
+      if (resetModel === model) return;
+      untracked(() => this.createEventModel.set(resetModel));
+    });
   }
 
   async onSubmit(event: Event) {
@@ -245,7 +265,9 @@ export class TemplateCreateEventComponent {
     }
 
     await submit(this.createEventForm, async (formState) => {
-      const formValue = formState().value();
+      const formValue = this.paidControlsUnavailable()
+        ? resetEventGeneralFormPayments(formState().value())
+        : formState().value();
       if (!formValue.icon) {
         return;
       }

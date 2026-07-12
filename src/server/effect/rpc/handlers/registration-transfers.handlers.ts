@@ -36,10 +36,8 @@ export const registrationTransferHandlers = {
       const user = yield* requireTransferUser;
       const service = yield* RegistrationTransferService;
       return yield* service.claim({
-        addOns: input.addOns,
         answers: input.answers,
         credential: input.credential,
-        guestCount: input.guestCount,
         tenant: context.tenant,
         user,
       });

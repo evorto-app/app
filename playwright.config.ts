@@ -24,10 +24,9 @@ const desktopChrome = {
   ...devices['Desktop Chrome'],
   channel: environment.E2E_BROWSER_CHANNEL,
 };
-const integrationOnlyTestTagPattern =
-  /@needs-(auth0-management|cloudflare|google-maps)\b/;
+const integrationOnlyTestTagPattern = /@needs-(auth0-management|google-maps)\b/;
 const externalServiceTestTagPattern =
-  /@needs-(auth0-management|cloudflare|google-maps|live-esncard)\b/;
+  /@needs-(auth0-management|google-maps|live-esncard)\b/;
 const liveEsncardTestTagPattern = /@needs-live-esncard\b/;
 
 const createModeProject = (
@@ -60,18 +59,22 @@ const webServer = (() => {
     return;
   }
 
+  const command = environment.NEON_LOCAL_PROXY
+    ? 'bun run docker:webserver'
+    : 'bash helpers/testing/host-e2e-webserver.sh';
+
   const readinessUrl = new URL(
     APPLICATION_READINESS_PATH,
     environment.BASE_URL,
   ).toString();
 
   return {
-    command: 'bun run docker:webserver',
+    command,
     gracefulShutdown: {
       signal: 'SIGTERM',
       timeout: 90_000,
     },
-    reuseExistingServer: true,
+    reuseExistingServer: environment.NEON_LOCAL_PROXY,
     timeout: 240_000,
     url: readinessUrl,
   } as const;

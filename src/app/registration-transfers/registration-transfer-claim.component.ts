@@ -1,4 +1,7 @@
-import type { RegistrationTransferStatus } from '@shared/registration-transfer';
+import type {
+  RegistrationTransferRefundLifecycle,
+  RegistrationTransferStatus,
+} from '@shared/registration-transfer';
 
 import { CurrencyPipe, DatePipe, DOCUMENT } from '@angular/common';
 import {
@@ -30,12 +33,6 @@ import {
 import { AppRpc } from '../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../core/error-message';
 
-interface TransferClaimAddOnModel {
-  addOnId: string;
-  maxQuantity: number;
-  quantity: number;
-}
-
 interface TransferClaimAnswerModel {
   answer: string;
   questionId: string;
@@ -43,9 +40,7 @@ interface TransferClaimAnswerModel {
 }
 
 interface TransferClaimFormModel {
-  addOns: TransferClaimAddOnModel[];
   answers: TransferClaimAnswerModel[];
-  guestCount: number;
 }
 
 const answerSchema = schema<TransferClaimAnswerModel>((answer) => {
@@ -56,31 +51,22 @@ const answerSchema = schema<TransferClaimAnswerModel>((answer) => {
   );
 });
 
-const addOnSchema = schema<TransferClaimAddOnModel>((addOn) => {
-  validate(addOn.quantity, ({ value, valueOf }) => {
-    const quantity = value();
-    return Number.isInteger(quantity) &&
-      quantity >= 0 &&
-      quantity <= valueOf(addOn.maxQuantity)
-      ? undefined
-      : {
-          kind: 'quantity',
-          message: `Choose between 0 and ${valueOf(addOn.maxQuantity)}.`,
-        };
-  });
+const transferClaimFormSchema = schema<TransferClaimFormModel>((claim) => {
+  applyEach(claim.answers, answerSchema);
 });
 
-const transferClaimFormSchema = schema<TransferClaimFormModel>((claim) => {
-  applyEach(claim.addOns, addOnSchema);
-  applyEach(claim.answers, answerSchema);
-  validate(claim.guestCount, ({ value }) =>
-    Number.isInteger(value()) && value() >= 0
-      ? undefined
-      : {
-          kind: 'guestCount',
-          message: 'Guest count must be a whole number of zero or more.',
-        },
-  );
+export const registrationTransferClaimPayload = ({
+  answers,
+  credential,
+}: {
+  answers: readonly { answer: string; questionId: string }[];
+  credential: string;
+}) => ({
+  answers: answers.map((answer) => ({
+    answer: answer.answer,
+    questionId: answer.questionId,
+  })),
+  credential,
 });
 
 export const registrationTransferCheckoutUrl = (
@@ -99,6 +85,7 @@ export const registrationTransferCheckoutUrl = (
 
 export const registrationTransferStatusCopy = (
   status: RegistrationTransferStatus,
+  refundLifecycle: null | RegistrationTransferRefundLifecycle = null,
 ): null | {
   body: string;
   title: string;
@@ -114,28 +101,49 @@ export const registrationTransferStatusCopy = (
     }
     case 'checkout_pending': {
       return {
-        body: 'Your registration is reserved but not confirmed. Continue the existing Stripe Checkout; do not start another claim.',
+        body: 'Your payment is pending. The fixed ticket bundle stays confirmed for its current owner until payment succeeds. Continue the existing Stripe Checkout; do not start another claim.',
         title: 'Payment still required',
         tone: 'info',
       };
     }
     case 'compensated': {
       return {
-        body: 'The transfer could not finish. Your recipient registration was cancelled and your full payment, including the platform fee, was refunded. Do not pay or claim again.',
+        body: 'The transfer could not finish, so the ticket stayed with its previous owner and your full payment, including the platform fee, was refunded. Do not pay or claim again.',
         title: 'Transfer stopped — payment refunded',
         tone: 'info',
       };
     }
     case 'compensation_failed': {
       return {
-        body: 'The transfer could not finish and your recipient registration was cancelled. Your full refund needs operator attention. Do not pay or claim again; a finance or platform administrator must requeue the existing refund.',
+        body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs operator attention. Do not pay or claim again; a platform administrator must requeue the existing refund.',
         title: 'Transfer stopped — refund needs attention',
         tone: 'error',
       };
     }
     case 'compensation_pending': {
+      if (refundLifecycle?.state === 'actionRequired') {
+        return {
+          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund, including the platform fee, requires provider-side action. Do not pay or claim again; contact the organizer for an update.',
+          title: 'Transfer stopped — refund action required',
+          tone: 'error',
+        };
+      }
+      if (refundLifecycle?.state === 'succeeded') {
+        return {
+          body: 'The transfer could not finish, so the ticket stayed with its previous owner and your full payment, including the platform fee, was refunded. Do not pay or claim again.',
+          title: 'Transfer stopped — payment refunded',
+          tone: 'info',
+        };
+      }
+      if (refundLifecycle?.state !== 'processing') {
+        return {
+          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs platform-administrator attention. Do not pay or claim again; a platform administrator must review the existing refund before it can continue.',
+          title: 'Transfer stopped — refund needs attention',
+          tone: 'error',
+        };
+      }
       return {
-        body: 'The transfer could not finish because the original ticket changed after your payment. Your recipient registration was cancelled and a full refund, including the platform fee, is processing. Do not pay or claim again.',
+        body: 'The transfer could not finish because the original ticket changed after your payment. The ticket stayed with its previous owner, and your full refund, including the platform fee, is processing. Do not pay or claim again.',
         title: 'Transfer stopped — refund processing',
         tone: 'info',
       };
@@ -159,14 +167,35 @@ export const registrationTransferStatusCopy = (
     }
     case 'refund_failed': {
       return {
-        body: 'Your registration is confirmed and the previous owner was cancelled, but their refund needs operator attention. You do not need to pay or claim again; a finance or platform administrator must safely requeue the existing refund.',
+        body: 'The fixed registration bundle now belongs to you, but the previous owner refund needs operator attention. You do not need to pay or claim again; a platform administrator must safely requeue the existing refund.',
         title: 'Transfer complete — refund needs attention',
         tone: 'error',
       };
     }
     case 'refund_pending': {
+      if (refundLifecycle?.state === 'actionRequired') {
+        return {
+          body: 'The fixed registration bundle now belongs to you. The previous owner refund requires provider-side action. You do not need to pay or claim again.',
+          title: 'Transfer complete — refund action required',
+          tone: 'error',
+        };
+      }
+      if (refundLifecycle?.state === 'succeeded') {
+        return {
+          body: 'The fixed registration bundle now belongs to you, and the previous owner refund completed.',
+          title: 'Transfer complete — refund completed',
+          tone: 'success',
+        };
+      }
+      if (refundLifecycle?.state !== 'processing') {
+        return {
+          body: 'The fixed registration bundle now belongs to you, but the previous owner refund processing stopped and needs platform-administrator attention. You do not need to pay or claim again.',
+          title: 'Transfer complete — refund needs attention',
+          tone: 'error',
+        };
+      }
       return {
-        body: 'Your registration is confirmed and the previous owner was cancelled. Their refund is queued and may finish asynchronously.',
+        body: 'The fixed registration bundle now belongs to you. The previous owner refund is queued and may finish asynchronously.',
         title: 'Transfer complete — refund processing',
         tone: 'success',
       };
@@ -192,9 +221,7 @@ export const registrationTransferStatusCopy = (
 export class RegistrationTransferClaimComponent {
   public readonly credential = input.required<string>();
   private readonly claimModel = signal<TransferClaimFormModel>({
-    addOns: [],
     answers: [],
-    guestCount: 0,
   });
   protected readonly claimForm = form(this.claimModel, transferClaimFormSchema);
   private readonly rpc = AppRpc.injectClient();
@@ -226,17 +253,11 @@ export class RegistrationTransferClaimComponent {
         return;
       }
       this.claimModel.set({
-        addOns: claim.registrationOption.addOns.map((addOn) => ({
-          addOnId: addOn.id,
-          maxQuantity: addOn.maxQuantityPerUser,
-          quantity: 0,
-        })),
         answers: claim.registrationOption.questions.map((question) => ({
           answer: '',
           questionId: question.id,
           required: question.required,
         })),
-        guestCount: 0,
       });
       this.initializedTransferId.set(claim.transferId);
     });
@@ -269,18 +290,12 @@ export class RegistrationTransferClaimComponent {
     await submit(this.claimForm, async (formState) => {
       const value = formState().value();
       try {
-        const result = await this.claimMutation.mutateAsync({
-          addOns: value.addOns.map((addOn) => ({
-            addOnId: addOn.addOnId,
-            quantity: addOn.quantity,
-          })),
-          answers: value.answers.map((answer) => ({
-            answer: answer.answer,
-            questionId: answer.questionId,
-          })),
-          credential: this.credential(),
-          guestCount: value.guestCount,
-        });
+        const result = await this.claimMutation.mutateAsync(
+          registrationTransferClaimPayload({
+            answers: value.answers,
+            credential: this.credential(),
+          }),
+        );
         if (!this.openCheckout(result.checkoutUrl)) {
           await this.claimQuery.refetch();
         }

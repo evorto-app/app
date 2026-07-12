@@ -57,6 +57,9 @@ test('Publish and complete tenant onboarding @admin', async ({
       .filter((question) => question.retiredAt === null)
       .map((question) => question.id),
   );
+  const privacyPolicyText =
+    'We process your profile and onboarding answers to provide section membership services.';
+  const privacyPolicyUrl = `https://example.com/privacy/${tenant.id}`;
 
   registerDatabaseCleanup(async (cleanupDatabase) => {
     const currentPolicies =
@@ -163,7 +166,9 @@ Use **Admin Tools** -> **Tenant onboarding**. The account needs **admin:changeSe
     body: `
 ## Configure the policy and questions
 
-Provide hosted **Privacy policy text**, an external HTTPS **Privacy policy URL**, or both. Evorto retains each published policy version with its publication time and author.
+Provide hosted **Privacy policy text**, an external HTTPS **Privacy policy URL**, or both. Text and URL saved together form one policy version with one publication time and author. On **Complete tenant setup**, Evorto shows the hosted text and an **Open the full privacy policy** link; the member's single checkbox accepts that whole version.
+
+The public footer uses a separate display rule: while a URL is saved, **Privacy** opens that external URL and the local \`/legal/privacy\` route does not expose the stored hosted text. Clear the URL and publish again when the footer should use the hosted route instead.
 
 Use **Add question** for tenant-wide information that every user must provide. **Short text** accepts up to 250 characters. **Selection list** requires 2 to 20 unique options, one per line. Publishing a changed question set retires the previous questions instead of rewriting their historical answers.
 `,
@@ -171,9 +176,10 @@ Use **Add question** for tenant-wide information that every user must provide. *
 
   await settings
     .getByRole('textbox', { name: 'Privacy policy text' })
-    .fill(
-      'We process your profile and onboarding answers to provide section membership services.',
-    );
+    .fill(privacyPolicyText);
+  await settings
+    .getByRole('textbox', { name: 'Privacy policy URL' })
+    .fill(privacyPolicyUrl);
   const questionInputs = settings.getByRole('textbox', { name: 'Question' });
   const previousQuestionCount = await questionInputs.count();
   await settings.getByRole('button', { name: 'Add question' }).click();
@@ -210,7 +216,11 @@ Use **Add question** for tenant-wide information that every user must provide. *
   if (!publishedPolicy) {
     throw new Error('Expected onboarding docs to publish a policy version');
   }
-  expect(publishedPolicy.createdByUserId).toBe(adminUser.id);
+  expect(publishedPolicy).toMatchObject({
+    createdByUserId: adminUser.id,
+    privacyPolicyText,
+    privacyPolicyUrl,
+  });
 
   await testInfo.attach('markdown', {
     body: `
@@ -233,6 +243,12 @@ Evorto does not create a tenant membership or grant default roles until all curr
       name: `Privacy policy version ${publishedPolicy.version}`,
     }),
   ).toBeVisible();
+  await expect(
+    onboarding.getByText(privacyPolicyText, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    onboarding.getByRole('link', { name: 'Open the full privacy policy' }),
+  ).toHaveAttribute('href', privacyPolicyUrl);
   await takeScreenshot(
     testInfo,
     onboarding,
@@ -291,7 +307,7 @@ Evorto does not create a tenant membership or grant default roles until all curr
 
 Completing onboarding for another tenant joins that tenant without silently replacing the user's existing home tenant. On the profile page, Evorto explains when the current tenant differs from the home tenant and offers the deliberate **Make this my home tenant** action.
 
-Privacy acceptances and question answers remain attached to their tenant and immutable policy or question records. A later policy version requires a new acceptance; unchanged policy content does not create another version.
+Privacy acceptances and question answers remain attached to their tenant and immutable policy or question records. Hosted text plus an external URL is still one accepted policy version, not two separate acceptances. A later policy version requires a new acceptance; unchanged policy content does not create another version.
 `,
   });
 });

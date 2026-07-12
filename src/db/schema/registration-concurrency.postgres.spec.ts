@@ -38,7 +38,11 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  registrationAcquisitionComponents,
+  registrationAcquisitionPayments,
+  registrationAcquisitions,
   tenants,
+  tenantStripeTaxRates,
   transactions,
   users,
   usersToTenants,
@@ -69,6 +73,7 @@ interface Fixture {
   eventId: string;
   optionId: string;
   registrationId: string;
+  taxRateId: string;
   templateId: string;
   tenantId: string;
   userId: string;
@@ -450,6 +455,7 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
   const purchaseId = makeId('purchase', suffix);
   const purchaseLotId = makeId('lot', suffix);
   const registrationId = makeId('reg', suffix);
+  const taxRateId = `txr_${suffix}`;
   const now = Date.now();
 
   await database.insert(tenants).values({
@@ -457,6 +463,15 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     id: tenantId,
     name: `Concurrency ${suffix}`,
     stripeAccountId: `acct_${suffix}`,
+  });
+  await database.insert(tenantStripeTaxRates).values({
+    active: true,
+    displayName: 'VAT',
+    inclusive: true,
+    percentage: '19',
+    stripeAccountId: `acct_${suffix}`,
+    stripeTaxRateId: taxRateId,
+    tenantId,
   });
   await database.insert(users).values({
     auth0Id: `auth0|${suffix}`,
@@ -507,6 +522,7 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     price: 1000,
     registrationMode: 'application',
     spots: 2,
+    stripeTaxRateId: taxRateId,
     title: 'Participant',
   });
   await database.insert(eventAddons).values({
@@ -575,6 +591,7 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     eventId,
     optionId,
     registrationId,
+    taxRateId,
     templateId,
     tenantId,
     userId,
@@ -616,6 +633,15 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
   await database
+    .delete(registrationAcquisitionComponents)
+    .where(eq(registrationAcquisitionComponents.tenantId, fixture.tenantId));
+  await database
+    .delete(registrationAcquisitionPayments)
+    .where(eq(registrationAcquisitionPayments.tenantId, fixture.tenantId));
+  await database
+    .delete(registrationAcquisitions)
+    .where(eq(registrationAcquisitions.tenantId, fixture.tenantId));
+  await database
     .delete(transactions)
     .where(eq(transactions.tenantId, fixture.tenantId));
   await database
@@ -649,6 +675,9 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
       ),
     );
   await database.delete(users).where(eq(users.id, fixture.userId));
+  await database
+    .delete(tenantStripeTaxRates)
+    .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
   await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
 };
 
@@ -717,6 +746,18 @@ const assertEquivalentStripeRequests = (
     1,
   );
   expect(new Set(requests.map((request) => request.requestData)).size).toBe(1);
+};
+
+const assertStripeRequestUsesTaxRate = (
+  request: CapturedStripeRequest | undefined,
+  taxRateId: string,
+): void => {
+  expect(request).toBeDefined();
+  expect(
+    new URLSearchParams(request?.requestData).get(
+      'line_items[0][tax_rates][0]',
+    ),
+  ).toBe(taxRateId);
 };
 
 describe('database registration concurrency invariants', () => {
@@ -1130,6 +1171,10 @@ describe('paid manual approval concurrency', () => {
       value: { status: 'paymentPending' },
     });
     assertEquivalentStripeRequests(fakeHttpClient.createRequests);
+    assertStripeRequestUsesTaxRate(
+      fakeHttpClient.createRequests[0],
+      fixture.taxRateId,
+    );
     expect(new Set(fakeHttpClient.createdSessionIds).size).toBe(1);
 
     const finalState = await readFixtureState(database, fixture);
@@ -1374,6 +1419,10 @@ describe('direct paid registration concurrency', () => {
       status: 'success',
     });
     assertEquivalentStripeRequests(fakeHttpClient.createRequests);
+    assertStripeRequestUsesTaxRate(
+      fakeHttpClient.createRequests[0],
+      fixture.taxRateId,
+    );
     expect(fakeHttpClient.createdSessionIds).toHaveLength(1);
 
     const finalState = await readDirectFixtureState(database, fixture);

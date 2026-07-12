@@ -83,6 +83,7 @@ export class PlatformTaxRateAuditRecord extends Schema.Class<PlatformTaxRateAudi
   inclusive: Schema.Boolean,
   percentage: Schema.NullOr(Schema.String),
   state: Schema.NullOr(Schema.String),
+  stripeAccountId: Schema.NonEmptyString,
   stripeTaxRateId: Schema.NonEmptyString,
   tenantId: Schema.NonEmptyString,
 }) {}
@@ -320,6 +321,7 @@ export const platformTaxRateBatchAuditSnapshot = (
         inclusive: rate.inclusive,
         percentage: rate.percentage,
         state: rate.state,
+        stripeAccountId: rate.stripeAccountId,
         stripeTaxRateId: rate.stripeTaxRateId,
         tenantId: rate.tenantId,
       })),
@@ -327,9 +329,15 @@ export const platformTaxRateBatchAuditSnapshot = (
   };
 };
 
-const taxRateBatchResourceId = (stripeTaxRateIds: readonly string[]): string =>
+export const taxRateBatchResourceId = (
+  stripeAccountId: string,
+  stripeTaxRateIds: readonly string[],
+): string =>
   createHash('sha256')
-    .update(stripeTaxRateIds.toSorted().join('\u{0}'), 'utf8')
+    .update(
+      [stripeAccountId, ...stripeTaxRateIds.toSorted()].join('\u{0}'),
+      'utf8',
+    )
     .digest('hex');
 
 export const normalizePlatformTenantUserSearch = (
@@ -347,11 +355,17 @@ export const normalizePlatformTenantUserSearch = (
 export const uniqueSortedIds = (ids: readonly string[]): string[] =>
   [...new Set(ids)].toSorted();
 
+export const decodePlatformTaxRateAuditRecord = (rate: unknown) =>
+  Schema.decodeUnknownEffect(PlatformTaxRateAuditRecord)(rate).pipe(
+    Effect.orDie,
+  );
+
 const selectPlatformTaxRateAuditRecords = Effect.fn(
   'PlatformTenantAdmin.selectPlatformTaxRateAuditRecords',
 )(function* (
   database: SelectDatabase,
   targetTenantId: string,
+  stripeAccountId: string,
   stripeTaxRateIds: readonly string[],
 ) {
   const rates = yield* database
@@ -363,6 +377,7 @@ const selectPlatformTaxRateAuditRecords = Effect.fn(
       inclusive: tenantStripeTaxRates.inclusive,
       percentage: tenantStripeTaxRates.percentage,
       state: tenantStripeTaxRates.state,
+      stripeAccountId: tenantStripeTaxRates.stripeAccountId,
       stripeTaxRateId: tenantStripeTaxRates.stripeTaxRateId,
       tenantId: tenantStripeTaxRates.tenantId,
     })
@@ -370,11 +385,14 @@ const selectPlatformTaxRateAuditRecords = Effect.fn(
     .where(
       and(
         eq(tenantStripeTaxRates.tenantId, targetTenantId),
+        eq(tenantStripeTaxRates.stripeAccountId, stripeAccountId),
         inArray(tenantStripeTaxRates.stripeTaxRateId, stripeTaxRateIds),
       ),
     );
 
-  return rates.map((rate) => PlatformTaxRateAuditRecord.make(rate));
+  return yield* Effect.all(
+    rates.map((rate) => decodePlatformTaxRateAuditRecord(rate)),
+  );
 });
 
 export const PLATFORM_STRIPE_TAX_RATE_MAX_PAGES = 20;
@@ -743,7 +761,7 @@ export const platformTenantAdminHandlers = {
         (id) => retrieveSupportedStripeTaxRate(stripe, stripeAccount, id),
         { concurrency: 10 },
       );
-      const resourceId = taxRateBatchResourceId(ids);
+      const resourceId = taxRateBatchResourceId(stripeAccount, ids);
 
       return yield* providePlatformOperation(
         databaseEffect((database) =>
@@ -760,8 +778,34 @@ export const platformTenantAdminHandlers = {
               const before = yield* selectPlatformTaxRateAuditRecords(
                 transaction,
                 input.targetTenantId,
+                stripeAccount,
                 ids,
               ).pipe(Effect.orDie);
+              const existingRateAccounts = yield* transaction
+                .select({
+                  stripeAccountId: tenantStripeTaxRates.stripeAccountId,
+                })
+                .from(tenantStripeTaxRates)
+                .where(
+                  and(
+                    eq(tenantStripeTaxRates.tenantId, input.targetTenantId),
+                    inArray(tenantStripeTaxRates.stripeTaxRateId, ids),
+                  ),
+                );
+              if (
+                existingRateAccounts.some(
+                  (rate) =>
+                    rate.stripeAccountId !== null &&
+                    rate.stripeAccountId !== stripeAccount,
+                )
+              ) {
+                return yield* new RpcBadRequestError({
+                  message:
+                    'Imported tax-rate metadata belongs to a different Stripe account',
+                  reason:
+                    'Change or disconnect the Stripe account before importing this rate.',
+                });
+              }
 
               yield* Effect.forEach(
                 stripeRates,
@@ -776,6 +820,7 @@ export const platformTenantAdminHandlers = {
                         ? null
                         : String(stripeRate.percentage),
                     state: stripeRate.state ?? null,
+                    stripeAccountId: stripeAccount,
                     stripeTaxRateId: stripeRate.id,
                     tenantId: input.targetTenantId,
                   };
@@ -798,6 +843,7 @@ export const platformTenantAdminHandlers = {
               const after = yield* selectPlatformTaxRateAuditRecords(
                 transaction,
                 input.targetTenantId,
+                stripeAccount,
                 ids,
               ).pipe(Effect.orDie);
 
@@ -863,6 +909,7 @@ export const platformTenantAdminHandlers = {
               .where(
                 and(
                   eq(tenantStripeTaxRates.tenantId, input.targetTenantId),
+                  eq(tenantStripeTaxRates.stripeAccountId, stripeAccount),
                   inArray(
                     tenantStripeTaxRates.stripeTaxRateId,
                     supportedRates.map((rate) => rate.id),

@@ -6,7 +6,7 @@ import { emailOutbox as emailOutboxTable } from '@db/schema';
 import { render } from '@react-email/render';
 import { serverEmailConfig } from '@server/config/server-config';
 import { asc, sql } from 'drizzle-orm';
-import { Duration, Effect, Schema } from 'effect';
+import { Cause, Duration, Effect, Schema } from 'effect';
 
 import type { Tenant } from '../../types/custom/tenant';
 import type { RegistrationCancellationActor } from './email-templates';
@@ -531,12 +531,15 @@ export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
   },
 );
 
+export const handleEmailOutboxProcessorCause = (cause: Cause.Cause<unknown>) =>
+  Cause.hasInterrupts(cause)
+    ? Effect.failCause(cause)
+    : Effect.logError('Email outbox processor failed').pipe(
+        Effect.annotateLogs({ cause: String(cause) }),
+      );
+
 export const runEmailOutboxProcessor = processDueEmailOutbox().pipe(
-  Effect.catchCause((cause) =>
-    Effect.logError('Email outbox processor failed').pipe(
-      Effect.annotateLogs({ cause: String(cause) }),
-    ),
-  ),
+  Effect.catchCause(handleEmailOutboxProcessorCause),
   Effect.andThen(Effect.sleep(Duration.seconds(15))),
   Effect.forever,
 );

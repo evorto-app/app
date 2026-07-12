@@ -3,8 +3,8 @@ import {
   resolveTenantDiscountProviders,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
-import { and, eq, isNull, or, sql } from 'drizzle-orm';
-import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { ConfigProvider, Context, Effect, Layer, Option, Schema } from 'effect';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -22,6 +22,7 @@ import {
   eventRegistrations,
   type RegistrationCheckoutLineItemSnapshot,
   type RegistrationCheckoutSnapshot,
+  RegistrationCheckoutSnapshotSchema,
   tenantStripeTaxRates,
   transactions,
   userDiscountCards,
@@ -43,6 +44,10 @@ import {
   enqueueRegistrationConfirmedEmail,
 } from '../../../../notifications/email-delivery';
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
+import {
+  establishRegistrationAcquisition,
+  settleAcquisitionComponentTerms,
+} from '../../../../registrations/registration-acquisition-write';
 import { registrationCheckoutInitialReconcileAt } from '../../../../registrations/registration-checkout-completion';
 import { StripeClient } from '../../../../stripe-client';
 import {
@@ -277,6 +282,16 @@ const buildRegistrationCheckoutParameters = ({
   success_url: `${snapshot.eventUrl}?registrationStatus=success`,
 });
 
+export const decodeRegistrationCheckoutSnapshot = Effect.fn(
+  'EventRegistrationService.decodeRegistrationCheckoutSnapshot',
+)((snapshot: unknown, message: string) =>
+  Schema.decodeUnknownEffect(RegistrationCheckoutSnapshotSchema)(snapshot).pipe(
+    Effect.mapError(
+      (cause) => new EventRegistrationInternalError({ cause, message }),
+    ),
+  ),
+);
+
 type RegistrationPaymentClaim = Pick<
   typeof transactions.$inferSelect,
   | 'appFee'
@@ -383,6 +398,10 @@ const resumeDirectRegistrationCheckout = Effect.fn(
       }),
     );
   }
+  const checkoutRequestSnapshot = yield* decodeRegistrationCheckoutSnapshot(
+    paymentClaim.stripeCheckoutRequest,
+    'Registration payment setup cannot be resumed; cancel the registration and register again',
+  );
   const stripeAccount = paymentClaim.stripeAccountId;
   if (!stripeAccount) {
     return yield* Effect.fail(
@@ -584,7 +603,7 @@ const resumeDirectRegistrationCheckout = Effect.fn(
       appFee: paymentClaim.appFee,
       currency: paymentClaim.currency,
       registrationId,
-      snapshot: paymentClaim.stripeCheckoutRequest,
+      snapshot: checkoutRequestSnapshot,
       tenantId,
       transactionId: paymentClaim.id,
     }),
@@ -912,6 +931,158 @@ interface RegistrationAddonRecord {
   totalAvailableQuantity: number;
 }
 
+interface RegistrationTaxConfigurationAddonExpectation {
+  readonly addOnId: string;
+  readonly requiresTaxRate: boolean;
+  readonly stripeTaxRateId: null | string;
+}
+
+interface RegistrationTaxRateSnapshot {
+  readonly displayName: null | string;
+  readonly inclusive: boolean;
+  readonly percentage: string;
+  readonly stripeTaxRateId: string;
+}
+
+const registrationTaxConfigurationChanged = () =>
+  new EventRegistrationConflictError({
+    message:
+      'Registration tax configuration changed before the payment terms could be reserved',
+  });
+
+/**
+ * Locks the priced option, every selected/included add-on, and the exact tax
+ * rows owned by the tenant's already-locked Stripe account. Callers must lock
+ * the tenant row first so account replacement and monetary reservation share
+ * one serialization boundary.
+ */
+export const lockCurrentRegistrationTaxConfiguration = Effect.fn(
+  'EventRegistration.lockCurrentRegistrationTaxConfiguration',
+)(function* (
+  database: Pick<DatabaseClient, 'select'>,
+  input: {
+    readonly addOns: readonly RegistrationTaxConfigurationAddonExpectation[];
+    readonly eventId: string;
+    readonly optionRequiresTaxRate: boolean;
+    readonly optionStripeTaxRateId: null | string;
+    readonly registrationOptionId: string;
+    readonly stripeAccountId: string;
+    readonly tenantId: string;
+  },
+) {
+  const lockedOptions = yield* database
+    .select({
+      stripeTaxRateId: eventRegistrationOptions.stripeTaxRateId,
+    })
+    .from(eventRegistrationOptions)
+    .where(
+      and(
+        eq(eventRegistrationOptions.id, input.registrationOptionId),
+        eq(eventRegistrationOptions.eventId, input.eventId),
+      ),
+    )
+    .for('update')
+    .pipe(Effect.orDie);
+  const lockedOption = lockedOptions[0];
+  if (
+    !lockedOption ||
+    lockedOption.stripeTaxRateId !== input.optionStripeTaxRateId ||
+    (input.optionRequiresTaxRate && !lockedOption.stripeTaxRateId)
+  ) {
+    return yield* Effect.fail(registrationTaxConfigurationChanged());
+  }
+
+  const expectedAddOnById = new Map(
+    input.addOns.map((addOn) => [addOn.addOnId, addOn]),
+  );
+  if (expectedAddOnById.size !== input.addOns.length) {
+    return yield* Effect.fail(registrationTaxConfigurationChanged());
+  }
+  const lockedAddOns =
+    input.addOns.length === 0
+      ? []
+      : yield* database
+          .select({
+            addOnId: eventAddons.id,
+            stripeTaxRateId: eventAddons.stripeTaxRateId,
+          })
+          .from(eventAddons)
+          .where(
+            and(
+              eq(eventAddons.eventId, input.eventId),
+              inArray(
+                eventAddons.id,
+                input.addOns.map((addOn) => addOn.addOnId),
+              ),
+            ),
+          )
+          .orderBy(eventAddons.id)
+          .for('update')
+          .pipe(Effect.orDie);
+  if (
+    lockedAddOns.length !== input.addOns.length ||
+    lockedAddOns.some((addOn) => {
+      const expected = expectedAddOnById.get(addOn.addOnId);
+      return (
+        !expected ||
+        addOn.stripeTaxRateId !== expected.stripeTaxRateId ||
+        (expected.requiresTaxRate && !addOn.stripeTaxRateId)
+      );
+    })
+  ) {
+    return yield* Effect.fail(registrationTaxConfigurationChanged());
+  }
+
+  const taxRateIds = [
+    ...new Set(
+      [
+        lockedOption.stripeTaxRateId,
+        ...lockedAddOns.map((addOn) => addOn.stripeTaxRateId),
+      ].filter((taxRateId): taxRateId is string => taxRateId !== null),
+    ),
+  ];
+  if (taxRateIds.length === 0)
+    return new Map<string, RegistrationTaxRateSnapshot>();
+
+  const lockedTaxRates = yield* database
+    .select({
+      displayName: tenantStripeTaxRates.displayName,
+      inclusive: tenantStripeTaxRates.inclusive,
+      percentage: tenantStripeTaxRates.percentage,
+      stripeTaxRateId: tenantStripeTaxRates.stripeTaxRateId,
+    })
+    .from(tenantStripeTaxRates)
+    .where(
+      and(
+        eq(tenantStripeTaxRates.tenantId, input.tenantId),
+        eq(tenantStripeTaxRates.stripeAccountId, input.stripeAccountId),
+        eq(tenantStripeTaxRates.active, true),
+        eq(tenantStripeTaxRates.inclusive, true),
+        inArray(tenantStripeTaxRates.stripeTaxRateId, taxRateIds),
+      ),
+    )
+    .orderBy(tenantStripeTaxRates.stripeTaxRateId)
+    .for('update')
+    .pipe(Effect.orDie);
+  if (lockedTaxRates.length !== taxRateIds.length) {
+    return yield* Effect.fail(registrationTaxConfigurationChanged());
+  }
+
+  const taxRateById = new Map<string, RegistrationTaxRateSnapshot>();
+  for (const taxRate of lockedTaxRates) {
+    if (taxRate.percentage === null) {
+      return yield* Effect.fail(registrationTaxConfigurationChanged());
+    }
+    taxRateById.set(taxRate.stripeTaxRateId, {
+      displayName: taxRate.displayName,
+      inclusive: taxRate.inclusive,
+      percentage: taxRate.percentage,
+      stripeTaxRateId: taxRate.stripeTaxRateId,
+    });
+  }
+  return taxRateById;
+});
+
 interface RegistrationQuestionAnswerInput {
   answer: string;
   questionId: string;
@@ -1091,6 +1262,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
+        const now = getServerNow(pinnedNowIso).toJSDate();
         yield* tenantOutboundRootUrl(tenant).pipe(
           Effect.mapError(
             (cause) =>
@@ -1231,21 +1403,54 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         );
         const selectedTaxRateId =
           registrationOption.stripeTaxRateId ?? undefined;
-        const selectedTaxRate = selectedTaxRateId
-          ? yield* databaseEffect((database) =>
-              database.query.tenantStripeTaxRates.findFirst({
-                columns: {
-                  displayName: true,
-                  inclusive: true,
-                  percentage: true,
-                },
-                where: {
-                  stripeTaxRateId: selectedTaxRateId,
-                  tenantId: tenant.id,
-                },
+        const tenantStripeAccountId = tenant.stripeAccountId;
+        const selectedTaxRate =
+          selectedTaxRateId && tenantStripeAccountId
+            ? yield* databaseEffect((database) =>
+                database.query.tenantStripeTaxRates.findFirst({
+                  columns: {
+                    displayName: true,
+                    inclusive: true,
+                    percentage: true,
+                  },
+                  where: {
+                    active: true,
+                    inclusive: true,
+                    stripeAccountId: tenantStripeAccountId,
+                    stripeTaxRateId: selectedTaxRateId,
+                    tenantId: tenant.id,
+                  },
+                }),
+              )
+            : undefined;
+        if (
+          selectedTaxRateId &&
+          (!selectedTaxRate || selectedTaxRate.percentage === null)
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'Registration tax configuration is unavailable for the connected Stripe account',
+            }),
+          );
+        }
+        const addOnTaxExpectations: RegistrationTaxConfigurationAddonExpectation[] =
+          [];
+        for (const purchase of orderedAddonPurchases) {
+          if (!purchase.addOn) {
+            return yield* Effect.fail(
+              new EventRegistrationInternalError({
+                message: 'Registration add-on relation missing',
               }),
-            )
-          : undefined;
+            );
+          }
+          addOnTaxExpectations.push({
+            addOnId: purchase.addonId,
+            requiresTaxRate:
+              purchase.unitPrice > 0 && purchase.purchasedQuantity > 0,
+            stripeTaxRateId: purchase.addOn.stripeTaxRateId,
+          });
+        }
 
         const basePrice = registrationOption.isPaid
           ? registrationOption.price
@@ -1430,14 +1635,26 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 }
 
-                const lockedStripeAccount = requiresCheckout
+                const hasTaxConfiguration =
+                  selectedTaxRateId !== undefined ||
+                  addOnTaxExpectations.some(
+                    (addOn) => addOn.stripeTaxRateId !== null,
+                  );
+                const mustLockStripeAccount =
+                  requiresCheckout || hasTaxConfiguration;
+                const lockedStripeAccount = mustLockStripeAccount
                   ? yield* lockTenantStripeAccount(tx, tenant.id)
                   : undefined;
-                if (requiresCheckout && !lockedStripeAccount) {
+                if (mustLockStripeAccount && !lockedStripeAccount) {
                   return yield* Effect.fail(
-                    new EventRegistrationInternalError({
-                      message: 'Stripe account not found',
-                    }),
+                    requiresCheckout
+                      ? new EventRegistrationInternalError({
+                          message: 'Stripe account not found',
+                        })
+                      : new EventRegistrationConflictError({
+                          message:
+                            'Registration tax configuration is unavailable because Stripe is not connected',
+                        }),
                   );
                 }
 
@@ -1482,6 +1699,21 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     claim: existingClaim,
                   };
                 }
+
+                const lockedTaxRateById = lockedStripeAccount
+                  ? yield* lockCurrentRegistrationTaxConfiguration(tx, {
+                      addOns: addOnTaxExpectations,
+                      eventId,
+                      optionRequiresTaxRate: registrationOption.isPaid,
+                      optionStripeTaxRateId: registrationOption.stripeTaxRateId,
+                      registrationOptionId: registrationOption.id,
+                      stripeAccountId: lockedStripeAccount,
+                      tenantId: tenant.id,
+                    })
+                  : new Map<string, RegistrationTaxRateSnapshot>();
+                const lockedSelectedTaxRate = selectedTaxRateId
+                  ? lockedTaxRateById.get(selectedTaxRateId)
+                  : undefined;
 
                 if (requiresCheckout) {
                   const insertedClaims = yield* tx
@@ -1621,9 +1853,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
                     ...(selectedTaxRateId && {
                       stripeTaxRateId: selectedTaxRateId,
-                      taxRateDisplayName: selectedTaxRate?.displayName,
-                      taxRateInclusive: selectedTaxRate?.inclusive,
-                      taxRatePercentage: selectedTaxRate?.percentage,
+                      taxRateDisplayName: lockedSelectedTaxRate?.displayName,
+                      taxRateInclusive: lockedSelectedTaxRate?.inclusive,
+                      taxRatePercentage: lockedSelectedTaxRate?.percentage,
                     }),
                   })
                   .where(
@@ -1643,6 +1875,105 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 }
 
                 if (!requiresCheckout) {
+                  const lockedLots = yield* tx
+                    .select({
+                      baseAmount: eventRegistrationAddonPurchaseLots.baseAmount,
+                      id: eventRegistrationAddonPurchaseLots.id,
+                      purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
+                      quantity: eventRegistrationAddonPurchaseLots.quantity,
+                      sourceLineKey:
+                        eventRegistrationAddonPurchaseLots.sourceLineKey,
+                      taxRateDisplayName:
+                        eventRegistrationAddonPurchaseLots.taxRateDisplayName,
+                      taxRateInclusive:
+                        eventRegistrationAddonPurchaseLots.taxRateInclusive,
+                      taxRatePercentage:
+                        eventRegistrationAddonPurchaseLots.taxRatePercentage,
+                    })
+                    .from(eventRegistrationAddonPurchaseLots)
+                    .where(
+                      and(
+                        eq(
+                          eventRegistrationAddonPurchaseLots.registrationId,
+                          registration.id,
+                        ),
+                        eq(
+                          eventRegistrationAddonPurchaseLots.tenantId,
+                          tenant.id,
+                        ),
+                      ),
+                    )
+                    .for('update');
+                  const purchasedAddonCount = orderedAddonPurchases.filter(
+                    ({ purchasedQuantity }) => purchasedQuantity > 0,
+                  ).length;
+                  if (lockedLots.length !== purchasedAddonCount) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message:
+                          'Approved registration add-on acquisition terms are incomplete',
+                      }),
+                    );
+                  }
+                  const settledComponents = settleAcquisitionComponentTerms({
+                    terms: [
+                      {
+                        allocationKey: `registration-initial:${registration.id}`,
+                        baseAmount:
+                          effectivePrice + basePrice * registration.guestCount,
+                        id: `registration:${registration.id}`,
+                        kind: 'registration',
+                        quantity: registeredSpotCount,
+                        taxRateDisplayName:
+                          lockedSelectedTaxRate?.displayName ?? null,
+                        taxRateInclusive:
+                          lockedSelectedTaxRate?.inclusive ?? null,
+                        taxRatePercentage:
+                          lockedSelectedTaxRate?.percentage ?? null,
+                      },
+                      ...lockedLots.map((lot) => ({
+                        allocationKey: lot.sourceLineKey,
+                        baseAmount: lot.baseAmount,
+                        id: `addon-lot:${lot.id}`,
+                        kind: 'addon_lot' as const,
+                        purchaseId: lot.purchaseId,
+                        purchaseLotId: lot.id,
+                        quantity: lot.quantity,
+                        taxRateDisplayName: lot.taxRateDisplayName,
+                        taxRateInclusive: lot.taxRateInclusive,
+                        taxRatePercentage: lot.taxRatePercentage,
+                      })),
+                    ],
+                  });
+                  if (!settledComponents) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message:
+                          'Approved free registration acquisition terms are not zero-value',
+                      }),
+                    );
+                  }
+                  yield* establishRegistrationAcquisition(tx, {
+                    acquiredAt: now,
+                    components: settledComponents,
+                    currency: tenant.currency,
+                    eventId,
+                    kind: 'initial',
+                    operationKey: `registration-initial:${registration.id}`,
+                    ownerUserId: registration.userId,
+                    registrationId: registration.id,
+                    spotCount: registeredSpotCount,
+                    tenantId: tenant.id,
+                  }).pipe(
+                    Effect.mapError(
+                      (cause) =>
+                        new EventRegistrationInternalError({
+                          cause,
+                          message:
+                            'Approved registration acquisition could not be persisted',
+                        }),
+                    ),
+                  );
                   yield* enqueueManualApprovalEmail(tx, {
                     approvalKey: 'confirmed',
                     eventTitle: registration.event.title,
@@ -1724,7 +2055,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
-        const checkoutRequestSnapshot = paymentClaim.stripeCheckoutRequest;
+        const checkoutRequestSnapshot =
+          yield* decodeRegistrationCheckoutSnapshot(
+            paymentClaim.stripeCheckoutRequest,
+            'Registration payment setup cannot be resumed; cancel the registration and apply again',
+          );
         const stripeAccount = paymentClaim.stripeAccountId;
         if (!stripeAccount) {
           return yield* Effect.fail(
@@ -2475,6 +2810,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   eventAddons.stripeTaxRateId,
                 ),
                 eq(tenantStripeTaxRates.tenantId, tenant.id),
+                eq(
+                  tenantStripeTaxRates.stripeAccountId,
+                  tenant.stripeAccountId ?? '',
+                ),
+                eq(tenantStripeTaxRates.active, true),
+                eq(tenantStripeTaxRates.inclusive, true),
               ),
             )
             .where(
@@ -2495,10 +2836,32 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               availableAddOns,
             }),
         });
+        if (
+          selectedAddOns.some(
+            (addOn) =>
+              addOn.selectedQuantity > 0 &&
+              addOn.price > 0 &&
+              (!addOn.stripeTaxRateId ||
+                addOn.taxRateInclusive !== true ||
+                addOn.taxRatePercentage === null),
+          )
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'Add-on tax configuration is unavailable for the connected Stripe account',
+            }),
+          );
+        }
         const addOnPurchasePlans = selectedAddOns.map((addOn) => ({
           addOn,
           purchaseId: createId(),
           ...(addOn.selectedQuantity > 0 && { purchaseLotId: createId() }),
+        }));
+        const addOnTaxExpectations = selectedAddOns.map((addOn) => ({
+          addOnId: addOn.addOnId,
+          requiresTaxRate: addOn.price > 0 && addOn.selectedQuantity > 0,
+          stripeTaxRateId: addOn.stripeTaxRateId,
         }));
         const selectedAddonTotalPrice = selectedAddOns.reduce(
           (total, addOn) => total + addOn.price * addOn.selectedQuantity,
@@ -2513,23 +2876,41 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         // as capacity and add-on reservations, before Stripe is contacted.
         const selectedTaxRateId =
           registrationOption.stripeTaxRateId ?? undefined;
-        const selectedTaxRate = selectedTaxRateId
-          ? yield* databaseEffect((database) =>
-              database.query.tenantStripeTaxRates.findFirst({
-                columns: {
-                  displayName: true,
-                  inclusive: true,
-                  percentage: true,
-                },
-                where: {
-                  stripeTaxRateId: selectedTaxRateId,
-                  tenantId: tenant.id,
-                },
-              }),
-            )
-          : undefined;
+        const tenantStripeAccountId = tenant.stripeAccountId;
+        const selectedTaxRate =
+          selectedTaxRateId && tenantStripeAccountId
+            ? yield* databaseEffect((database) =>
+                database.query.tenantStripeTaxRates.findFirst({
+                  columns: {
+                    displayName: true,
+                    inclusive: true,
+                    percentage: true,
+                  },
+                  where: {
+                    active: true,
+                    inclusive: true,
+                    stripeAccountId: tenantStripeAccountId,
+                    stripeTaxRateId: selectedTaxRateId,
+                    tenantId: tenant.id,
+                  },
+                }),
+              )
+            : undefined;
+        if (
+          selectedTaxRateId &&
+          (!selectedTaxRate || selectedTaxRate.percentage === null)
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'Registration tax configuration is unavailable for the connected Stripe account',
+            }),
+          );
+        }
 
-        const basePrice = registrationOption.price;
+        const basePrice = registrationOption.isPaid
+          ? registrationOption.price
+          : 0;
         let discountResolution: DiscountResolution =
           noDiscountResolution(basePrice);
         if (!manualApproval && registrationOption.isPaid && basePrice > 0) {
@@ -2693,16 +3074,42 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 }
 
-                const lockedStripeAccount = directCheckout
+                const hasTaxConfiguration =
+                  selectedTaxRateId !== undefined ||
+                  addOnTaxExpectations.some(
+                    (addOn) => addOn.stripeTaxRateId !== null,
+                  );
+                const mustLockStripeAccount =
+                  directCheckout !== undefined || hasTaxConfiguration;
+                const lockedStripeAccount = mustLockStripeAccount
                   ? yield* lockTenantStripeAccount(tx, tenant.id)
                   : undefined;
-                if (directCheckout && !lockedStripeAccount) {
+                if (mustLockStripeAccount && !lockedStripeAccount) {
                   return yield* Effect.fail(
-                    new EventRegistrationInternalError({
-                      message: 'Stripe account not found',
-                    }),
+                    directCheckout
+                      ? new EventRegistrationInternalError({
+                          message: 'Stripe account not found',
+                        })
+                      : new EventRegistrationConflictError({
+                          message:
+                            'Registration tax configuration is unavailable because Stripe is not connected',
+                        }),
                   );
                 }
+                const lockedTaxRateById = lockedStripeAccount
+                  ? yield* lockCurrentRegistrationTaxConfiguration(tx, {
+                      addOns: addOnTaxExpectations,
+                      eventId,
+                      optionRequiresTaxRate: registrationOption.isPaid,
+                      optionStripeTaxRateId: registrationOption.stripeTaxRateId,
+                      registrationOptionId: registrationOption.id,
+                      stripeAccountId: lockedStripeAccount,
+                      tenantId: tenant.id,
+                    })
+                  : new Map<string, RegistrationTaxRateSnapshot>();
+                const lockedSelectedTaxRate = selectedTaxRateId
+                  ? lockedTaxRateById.get(selectedTaxRateId)
+                  : undefined;
                 const activeRegistrationLimit = Math.max(
                   0,
                   Math.trunc(tenant.maxActiveRegistrationsPerUser ?? 0),
@@ -2796,9 +3203,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                         : 'CONFIRMED',
                     ...(selectedTaxRateId && {
                       stripeTaxRateId: selectedTaxRateId,
-                      taxRateDisplayName: selectedTaxRate?.displayName,
-                      taxRateInclusive: selectedTaxRate?.inclusive,
-                      taxRatePercentage: selectedTaxRate?.percentage,
+                      taxRateDisplayName: lockedSelectedTaxRate?.displayName,
+                      taxRateInclusive: lockedSelectedTaxRate?.inclusive,
+                      taxRatePercentage: lockedSelectedTaxRate?.percentage,
                     }),
                     tenantId: tenant.id,
                     userId: user.id,
@@ -2830,6 +3237,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   purchaseId,
                   purchaseLotId,
                 } of addOnPurchasePlans) {
+                  const lockedAddOnTaxRate = addOn.stripeTaxRateId
+                    ? lockedTaxRateById.get(addOn.stripeTaxRateId)
+                    : undefined;
                   if (!manualApproval) {
                     const updatedAddOns = yield* tx
                       .update(eventAddons)
@@ -2866,9 +3276,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     refundAllocatedPurchasedQuantity: 0,
                     registrationId: userRegistration.id,
                     registrationOptionId: registrationOption.id,
-                    taxRateDisplayName: addOn.taxRateDisplayName,
-                    taxRateInclusive: addOn.taxRateInclusive,
-                    taxRatePercentage: addOn.taxRatePercentage,
+                    taxRateDisplayName: lockedAddOnTaxRate?.displayName,
+                    taxRateInclusive: lockedAddOnTaxRate?.inclusive,
+                    taxRatePercentage: lockedAddOnTaxRate?.percentage,
                     tenantId: tenant.id,
                     unitPrice: addOn.price,
                   });
@@ -2898,13 +3308,97 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                           directCheckout && {
                             sourceTransactionId: directCheckout.transactionId,
                           }),
-                        taxRateDisplayName: addOn.taxRateDisplayName,
-                        taxRateInclusive: addOn.taxRateInclusive,
-                        taxRatePercentage: addOn.taxRatePercentage,
+                        taxRateDisplayName: lockedAddOnTaxRate?.displayName,
+                        taxRateInclusive: lockedAddOnTaxRate?.inclusive,
+                        taxRatePercentage: lockedAddOnTaxRate?.percentage,
                         tenantId: tenant.id,
                         unitPrice: addOn.price,
                       });
                   }
+                }
+
+                if (!manualApproval && !requiresCheckout) {
+                  const settledComponents = settleAcquisitionComponentTerms({
+                    terms: [
+                      {
+                        allocationKey: `registration-initial:${userRegistration.id}`,
+                        baseAmount: effectivePrice + basePrice * guestCount,
+                        id: `registration:${userRegistration.id}`,
+                        kind: 'registration',
+                        quantity: requestedSpotCount,
+                        taxRateDisplayName:
+                          lockedSelectedTaxRate?.displayName ?? null,
+                        taxRateInclusive:
+                          lockedSelectedTaxRate?.inclusive ?? null,
+                        taxRatePercentage:
+                          lockedSelectedTaxRate?.percentage ?? null,
+                      },
+                      ...addOnPurchasePlans.flatMap(
+                        ({ addOn, purchaseId, purchaseLotId }) =>
+                          purchaseLotId
+                            ? [
+                                {
+                                  allocationKey: `addon-lot:${purchaseLotId}`,
+                                  baseAmount:
+                                    addOn.price * addOn.selectedQuantity,
+                                  id: `addon-lot:${purchaseLotId}`,
+                                  kind: 'addon_lot' as const,
+                                  purchaseId,
+                                  purchaseLotId,
+                                  quantity: addOn.selectedQuantity,
+                                  taxRateDisplayName:
+                                    (addOn.stripeTaxRateId
+                                      ? lockedTaxRateById.get(
+                                          addOn.stripeTaxRateId,
+                                        )?.displayName
+                                      : null) ?? null,
+                                  taxRateInclusive:
+                                    (addOn.stripeTaxRateId
+                                      ? lockedTaxRateById.get(
+                                          addOn.stripeTaxRateId,
+                                        )?.inclusive
+                                      : null) ?? null,
+                                  taxRatePercentage:
+                                    (addOn.stripeTaxRateId
+                                      ? lockedTaxRateById.get(
+                                          addOn.stripeTaxRateId,
+                                        )?.percentage
+                                      : null) ?? null,
+                                },
+                              ]
+                            : [],
+                      ),
+                    ],
+                  });
+                  if (!settledComponents) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message:
+                          'Direct free registration acquisition terms are not zero-value',
+                      }),
+                    );
+                  }
+                  yield* establishRegistrationAcquisition(tx, {
+                    acquiredAt: now,
+                    components: settledComponents,
+                    currency: tenant.currency,
+                    eventId,
+                    kind: 'initial',
+                    operationKey: `registration-initial:${userRegistration.id}`,
+                    ownerUserId: user.id,
+                    registrationId: userRegistration.id,
+                    spotCount: requestedSpotCount,
+                    tenantId: tenant.id,
+                  }).pipe(
+                    Effect.mapError(
+                      (cause) =>
+                        new EventRegistrationInternalError({
+                          cause,
+                          message:
+                            'Direct registration acquisition could not be persisted',
+                        }),
+                    ),
+                  );
                 }
 
                 if (directConfirmationTicketUrl) {

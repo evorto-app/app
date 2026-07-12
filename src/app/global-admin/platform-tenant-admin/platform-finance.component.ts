@@ -37,6 +37,7 @@ import {
 
 import type {
   PlatformFinanceReceiptWithSubmitterRecord,
+  PlatformFinanceRefundLifecycleSummary,
   PlatformFinanceRefundRecoveryRecord,
   PlatformFinanceReimbursementGroup,
 } from '../../../shared/rpc-contracts/app-rpcs/platform-tenant-finance.rpcs';
@@ -95,6 +96,57 @@ export const platformReceiptReviewDisabled = ({
   formInvalid ||
   mutationPending ||
   (status === 'approved' && !evidenceAvailable);
+
+export interface PlatformRefundLifecycleCopy {
+  readonly detail: string;
+  readonly label: string;
+}
+
+export const platformRefundLifecycleCopy = (
+  summary: PlatformFinanceRefundLifecycleSummary,
+): PlatformRefundLifecycleCopy => {
+  const attemptSummary =
+    summary.attempts !== null && summary.maxAttempts !== null
+      ? ` ${summary.attempts} of ${summary.maxAttempts} attempts used.`
+      : '';
+
+  switch (summary.status) {
+    case 'action-required': {
+      return {
+        detail: summary.recoveryMode
+          ? `Stripe requires additional provider-side action.${attemptSummary} Complete it in the connected Stripe account, then open Refund recovery to resume status checks.`
+          : `Stripe requires additional provider-side action.${attemptSummary} Review the connected Stripe account; automatic status checks remain scheduled.`,
+        label: 'Provider action required',
+      };
+    }
+    case 'needs-attention': {
+      return {
+        detail: summary.recoveryMode
+          ? `Automatic processing stopped.${attemptSummary} Open Refund recovery to review it.`
+          : `This refund is not eligible for safe requeue.${attemptSummary} It will not appear in Refund recovery; review its recorded payment source and lifecycle state.`,
+        label: 'Needs attention',
+      };
+    }
+    case 'pending': {
+      return {
+        detail: 'Automatic refund processing is queued.',
+        label: 'Pending',
+      };
+    }
+    case 'retrying': {
+      return {
+        detail: `Automatic refund processing is active.${attemptSummary}`,
+        label: 'Retrying',
+      };
+    }
+    case 'succeeded': {
+      return {
+        detail: 'Refund processing is complete.',
+        label: 'Succeeded',
+      };
+    }
+  }
+};
 
 const emptyReview = (): ReceiptReviewModel => ({
   alcoholAmount: 0,
@@ -200,6 +252,7 @@ export class PlatformFinanceComponent {
   protected readonly recoveryQueueQuery = injectQuery(() =>
     this.operations.recoveryQueue(this.tenantId()),
   );
+  protected readonly refundLifecycleCopy = platformRefundLifecycleCopy;
   private readonly refundRecoveryModel = signal<RefundRecoveryModel>({
     reason: '',
     refundClaimId: '',
@@ -309,6 +362,7 @@ export class PlatformFinanceComponent {
     'amount',
     'status',
     'method',
+    'refundLifecycle',
     'comment',
   ];
   protected readonly transactionPageIndex = signal(0);
@@ -440,7 +494,7 @@ export class PlatformFinanceComponent {
         this.notifications.showSuccess(
           result.mode === 'newGeneration'
             ? 'Terminal refund scheduled as a new safe generation'
-            : 'Exhausted refund processing resumed',
+            : 'Stopped refund processing resumed',
         );
         this.selectedRefundClaim.set(null);
         this.refundRecoveryModel.set({ reason: '', refundClaimId: '' });

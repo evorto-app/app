@@ -13,6 +13,7 @@ import {
   eventTemplateCategories,
   eventTemplates,
 } from '../../../../../db/schema';
+import { ensureStripeForPaidEventConfiguration } from '../../../../payments/paid-event-configuration';
 import { lockTenantRoleGraph } from '../../../../roles/tenant-role-graph';
 import { lockTenantCurrencyForFinancialConfiguration } from '../../../../tenant-currency-integrity';
 import {
@@ -173,6 +174,14 @@ export const platformTemplateHandlers = {
               $client: database.$client,
             });
             return Effect.gen(function* () {
+              yield* ensureStripeForPaidEventConfiguration(
+                transaction,
+                targetTenantId,
+                {
+                  addOns: templateInput.addOns,
+                  registrationOptions: templateInput.registrationOptions,
+                },
+              );
               yield* lockTenantRoleGraph(transaction, targetTenantId).pipe(
                 Effect.orDie,
               );
@@ -307,6 +316,14 @@ export const platformTemplateHandlers = {
               $client: database.$client,
             });
             return Effect.gen(function* () {
+              yield* ensureStripeForPaidEventConfiguration(
+                transaction,
+                targetTenantId,
+                {
+                  addOns: templateInput.addOns,
+                  registrationOptions: templateInput.registrationOptions,
+                },
+              );
               yield* lockTenantRoleGraph(transaction, targetTenantId).pipe(
                 Effect.orDie,
               );

@@ -105,6 +105,10 @@ describe('platform template full-graph handler', () => {
     );
 
     expect(source).toContain('database.transaction');
+    expect(source).toContain('ensureStripeForPaidEventConfiguration');
+    expect(
+      source.indexOf('yield* ensureStripeForPaidEventConfiguration'),
+    ).toBeLessThan(source.indexOf('yield* lockTenantRoleGraph'));
     expect(source).toContain(
       'lockTenantCurrencyForFinancialConfiguration(\n                transaction,\n                targetTenantId,\n                operation.targetTenant.currency,\n              )',
     );

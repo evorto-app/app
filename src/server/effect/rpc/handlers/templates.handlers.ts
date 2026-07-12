@@ -11,6 +11,7 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { eventTemplates } from '../../../../db/schema';
+import { ensureStripeForPaidEventConfiguration } from '../../../payments/paid-event-configuration';
 import { lockTenantRoleGraph } from '../../../roles/tenant-role-graph';
 import { lockTenantCurrencyForFinancialConfiguration } from '../../../tenant-currency-integrity';
 import { RpcAccess } from './shared/rpc-access.service';
@@ -49,6 +50,14 @@ export const templateHandlers = {
               $client: database.$client,
             });
             return Effect.gen(function* () {
+              yield* ensureStripeForPaidEventConfiguration(
+                transaction,
+                tenant.id,
+                {
+                  addOns: input.addOns,
+                  registrationOptions: input.registrationOptions,
+                },
+              );
               yield* lockTenantRoleGraph(transaction, tenant.id);
               yield* lockTenantCurrencyForFinancialConfiguration(
                 transaction,
@@ -90,6 +99,25 @@ export const templateHandlers = {
               $client: database.$client,
             });
             return Effect.gen(function* () {
+              yield* ensureStripeForPaidEventConfiguration(
+                transaction,
+                tenant.id,
+                {
+                  addOns: input.addOns ?? [],
+                  registrationOptions: [
+                    input.organizerRegistration,
+                    input.participantRegistration,
+                  ],
+                },
+              ).pipe(
+                Effect.catchTag('RpcBadRequestError', (error) =>
+                  Effect.fail(
+                    new TemplateSimpleBadRequestError({
+                      message: error.message,
+                    }),
+                  ),
+                ),
+              );
               yield* lockTenantRoleGraph(transaction, tenant.id);
               yield* lockTenantCurrencyForFinancialConfiguration(
                 transaction,
@@ -187,6 +215,14 @@ export const templateHandlers = {
               $client: database.$client,
             });
             return Effect.gen(function* () {
+              yield* ensureStripeForPaidEventConfiguration(
+                transaction,
+                tenant.id,
+                {
+                  addOns: input.addOns,
+                  registrationOptions: input.registrationOptions,
+                },
+              );
               yield* lockTenantRoleGraph(transaction, tenant.id);
               yield* lockTenantCurrencyForFinancialConfiguration(
                 transaction,
@@ -244,12 +280,33 @@ export const templateHandlers = {
             const transactionalDatabase = Object.assign(transaction, {
               $client: database.$client,
             });
-            return SimpleTemplateService.updateSimpleTemplate({
-              esnCardEnabled:
-                tenant.discountProviders?.esnCard?.status === 'enabled',
-              input,
-              tenantId: tenant.id,
-            }).pipe(Effect.provideService(Database, transactionalDatabase));
+            return Effect.gen(function* () {
+              yield* ensureStripeForPaidEventConfiguration(
+                transaction,
+                tenant.id,
+                {
+                  addOns: input.addOns ?? [],
+                  registrationOptions: [
+                    input.organizerRegistration,
+                    input.participantRegistration,
+                  ],
+                },
+              ).pipe(
+                Effect.catchTag('RpcBadRequestError', (error) =>
+                  Effect.fail(
+                    new TemplateSimpleBadRequestError({
+                      message: error.message,
+                    }),
+                  ),
+                ),
+              );
+              return yield* SimpleTemplateService.updateSimpleTemplate({
+                esnCardEnabled:
+                  tenant.discountProviders?.esnCard?.status === 'enabled',
+                input,
+                tenantId: tenant.id,
+              }).pipe(Effect.provideService(Database, transactionalDatabase));
+            });
           })
           .pipe(
             Effect.catch((error) =>

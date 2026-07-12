@@ -43,6 +43,14 @@ export const PlatformFinanceRefundClaimStatus = literalUnion(
   'requires_action',
 );
 
+export const PlatformFinanceRefundLifecycleStatus = literalUnion(
+  'action-required',
+  'needs-attention',
+  'pending',
+  'retrying',
+  'succeeded',
+);
+
 export class PlatformFinanceReceiptRecord extends Schema.Class<PlatformFinanceReceiptRecord>(
   'PlatformFinanceReceiptRecord',
 )({
@@ -95,6 +103,15 @@ export class PlatformFinanceReceiptApprovalGroup extends Schema.Class<PlatformFi
   eventStart: Schema.NonEmptyString,
   eventTitle: Schema.NonEmptyString,
   receipts: Schema.Array(PlatformFinanceReceiptWithSubmitterRecord),
+}) {}
+
+export class PlatformFinanceRefundLifecycleSummary extends Schema.Class<PlatformFinanceRefundLifecycleSummary>(
+  'PlatformFinanceRefundLifecycleSummary',
+)({
+  attempts: Schema.NullOr(nonNegativeNumber),
+  maxAttempts: Schema.NullOr(positiveNumber),
+  recoveryMode: Schema.NullOr(PlatformFinanceRefundRecoveryMode),
+  status: PlatformFinanceRefundLifecycleStatus,
 }) {}
 
 export class PlatformFinanceRefundTransferRecord extends Schema.Class<PlatformFinanceRefundTransferRecord>(
@@ -166,8 +183,15 @@ export class PlatformFinanceTenantContext extends Schema.Class<PlatformFinanceTe
   targetTenantId: Schema.NonEmptyString,
 }) {}
 
+export class PlatformFinanceTransactionRecord extends Schema.Class<PlatformFinanceTransactionRecord>(
+  'PlatformFinanceTransactionRecord',
+)({
+  ...FinanceTransactionRecord.fields,
+  refundLifecycle: Schema.NullOr(PlatformFinanceRefundLifecycleSummary),
+}) {}
+
 export const PlatformFinanceTransactionsFindManyResult = Schema.Struct({
-  data: Schema.Array(FinanceTransactionRecord),
+  data: Schema.Array(PlatformFinanceTransactionRecord),
   tenantContext: PlatformFinanceTenantContext,
   total: nonNegativeNumber,
 });

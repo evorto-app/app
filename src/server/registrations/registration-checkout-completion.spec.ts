@@ -10,6 +10,7 @@ import {
   registrationCheckoutMetadataOwnsClaim,
   registrationCheckoutPaymentIntentId,
   registrationCheckoutPaymentOwnsClaim,
+  registrationCheckoutTargetOwnsClaim,
 } from './registration-checkout-completion';
 
 const identity = {
@@ -194,6 +195,30 @@ describe('registration Checkout completion ownership', () => {
     ).toBe(false);
   });
 
+  it('requires direct Checkout ownership while allowing an issued transfer to target its recipient', () => {
+    expect(
+      registrationCheckoutTargetOwnsClaim({
+        registrationUserId: 'source-user',
+        targetUserId: 'source-user',
+        transferId: null,
+      }),
+    ).toBe(true);
+    expect(
+      registrationCheckoutTargetOwnsClaim({
+        registrationUserId: 'source-user',
+        targetUserId: 'recipient-user',
+        transferId: 'transfer-1',
+      }),
+    ).toBe(true);
+    expect(
+      registrationCheckoutTargetOwnsClaim({
+        registrationUserId: 'source-user',
+        targetUserId: 'recipient-user',
+        transferId: null,
+      }),
+    ).toBe(false);
+  });
+
   it('derives payment intent ownership from either Stripe representation', () => {
     expect(
       registrationCheckoutPaymentIntentId(
@@ -239,6 +264,66 @@ describe('registration Checkout completion ownership', () => {
         expect(error.message).toBe(
           'Stripe payment intent ownership does not match Checkout',
         );
+      }),
+  );
+
+  it.effect(
+    'maps a missing Stripe payment intent rejection to an invalid binding and preserves its cause',
+    () =>
+      Effect.gen(function* () {
+        const stripe = new Stripe('sk_test_123');
+        const cause = {
+          raw: { code: 'resource_missing' },
+          type: 'StripeInvalidRequestError',
+        };
+        const retrieve = vi
+          .spyOn(stripe.paymentIntents, 'retrieve')
+          .mockRejectedValue(cause);
+
+        const error = yield* completePaidRegistrationCheckout(
+          identity,
+          checkoutSession({ paymentIntent: 'pi_missing' }),
+        ).pipe(
+          Effect.flip,
+          Effect.provideService(Database, registrationPreflightDatabase()),
+          Effect.provideService(StripeClient, stripe),
+        );
+
+        expect(retrieve).toHaveBeenCalledWith(
+          'pi_missing',
+          { expand: ['latest_charge'] },
+          { stripeAccount: identity.stripeAccountId },
+        );
+        expect(error.kind).toBe('invalidBinding');
+        expect(error.message).toBe(
+          'Stripe payment intent is missing during checkout completion',
+        );
+        expect(error.cause).toBe(cause);
+      }),
+  );
+
+  it.effect(
+    'maps an unknown Stripe payment intent rejection to an internal completion error and preserves its cause',
+    () =>
+      Effect.gen(function* () {
+        const stripe = new Stripe('sk_test_123');
+        const cause = new Error('Stripe is temporarily unavailable');
+        vi.spyOn(stripe.paymentIntents, 'retrieve').mockRejectedValue(cause);
+
+        const error = yield* completePaidRegistrationCheckout(
+          identity,
+          checkoutSession({ paymentIntent: 'pi_retry' }),
+        ).pipe(
+          Effect.flip,
+          Effect.provideService(Database, registrationPreflightDatabase()),
+          Effect.provideService(StripeClient, stripe),
+        );
+
+        expect(error.kind).toBe('internal');
+        expect(error.message).toBe(
+          'Stripe payment intent could not be resolved during checkout completion',
+        );
+        expect(error.cause).toBe(cause);
       }),
   );
 

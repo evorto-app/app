@@ -23,7 +23,11 @@ import {
   fillScannerGuestCheckInCount,
   waitForScannerAddonFulfillment,
 } from '../../support/utils/scanner-result-page';
-import { seedScannerFulfillmentAddon } from '../../support/utils/seed-scanner-fulfillment';
+import {
+  cleanupScannerRegistrationAcquisition,
+  seedScannerFulfillmentAddon,
+  seedScannerRegistrationAcquisition,
+} from '../../support/utils/seed-scanner-fulfillment';
 
 test.use({ storageState: adminStateFile });
 
@@ -149,6 +153,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
 
   const scannerFixture = await requireScannerFixture({ database, seeded });
   const registrationId = getId();
+  const acquisitionId = getId();
   const toteAddOnId = getId();
   const totePurchaseId = getId();
   const totePurchaseLotId = getId();
@@ -173,7 +178,15 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       tenantId: scannerFixture.tenantId,
       userId: scannerFixture.userId,
     });
+    await seedScannerRegistrationAcquisition({
+      acquisitionId,
+      database,
+      eventId: scannerFixture.eventId,
+      registrationId,
+      tenant: seeded.tenant,
+    });
     await seedScannerFulfillmentAddon({
+      acquisitionId,
       addOnId: toteAddOnId,
       database,
       eventId: scannerFixture.eventId,
@@ -187,6 +200,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       title: toteTitle,
     });
     await seedScannerFulfillmentAddon({
+      acquisitionId,
       addOnId: voucherAddOnId,
       database,
       eventId: scannerFixture.eventId,
@@ -200,6 +214,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       title: voucherTitle,
     });
     await seedScannerFulfillmentAddon({
+      acquisitionId,
       addOnId: checklistAddOnId,
       database,
       eventId: scannerFixture.eventId,
@@ -499,7 +514,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       [totePurchaseId]: {
         cancelledQuantity: 1,
         redeemedQuantity: 2,
-        refundAllocatedPurchasedQuantity: 1,
+        refundAllocatedPurchasedQuantity: 0,
       },
       [voucherPurchaseId]: {
         cancelledQuantity: 1,
@@ -531,7 +546,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       [totePurchaseLotId]: {
         cancelledQuantity: 1,
         redeemedQuantity: 1,
-        refundAllocatedQuantity: 1,
+        refundAllocatedQuantity: 0,
       },
       [voucherPurchaseLotId]: {
         cancelledQuantity: 1,
@@ -605,6 +620,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
           checklistPurchaseId,
         ]),
       );
+    await cleanupScannerRegistrationAcquisition({ acquisitionId, database });
     await database
       .delete(eventRegistrations)
       .where(eq(eventRegistrations.id, registrationId));
@@ -633,6 +649,7 @@ test.describe('organizer add-on cancellation permissions', () => {
 
     const scannerFixture = await requireScannerFixture({ database, seeded });
     const registrationId = getId();
+    const acquisitionId = getId();
     const addOnId = getId();
     const purchaseId = getId();
     const purchaseLotId = getId();
@@ -654,7 +671,15 @@ test.describe('organizer add-on cancellation permissions', () => {
         tenantId: scannerFixture.tenantId,
         userId: scannerFixture.userId,
       });
+      await seedScannerRegistrationAcquisition({
+        acquisitionId,
+        database,
+        eventId: scannerFixture.eventId,
+        registrationId,
+        tenant: seeded.tenant,
+      });
       await seedScannerFulfillmentAddon({
+        acquisitionId,
         addOnId,
         database,
         eventId: scannerFixture.eventId,
@@ -703,6 +728,7 @@ test.describe('organizer add-on cancellation permissions', () => {
         'Cancelling units requires Cancel registrations and add-ons access.',
       );
     } finally {
+      await cleanupScannerRegistrationAcquisition({ acquisitionId, database });
       await database
         .delete(eventRegistrations)
         .where(eq(eventRegistrations.id, registrationId));

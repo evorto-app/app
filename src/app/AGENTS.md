@@ -35,6 +35,13 @@
 ## App-Specific Practices
 
 - Normalize optional string fields to `null` at submit boundaries where APIs expect `null` over empty strings.
+- Paid registration/add-on controls must be unavailable with an explicit
+  explanation when the tenant has no connected Stripe account.
+- Transfer claim UI presents the registration, guest quantity, all included,
+  free, and purchased add-on quantities, and check-in/fulfillment history as one
+  fixed bundle. It must not let the recipient omit or re-quantity settled bundle
+  contents. Display current base prices and recipient-current discounts only;
+  source-user discounts must not appear as recipient entitlements.
 - Use `consola/browser` instead of `console.*`.
 - Create scoped loggers with `consola.withTag('app/<feature>')`.
 - After every app file edit, run `bun run lint` and `bun run format:write`.

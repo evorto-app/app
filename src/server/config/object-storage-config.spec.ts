@@ -55,6 +55,23 @@ describe('object-storage-config', () => {
   );
 
   it.effect(
+    'requires an explicit bucket instead of defaulting to testing',
+    () =>
+      Effect.gen(function* () {
+        const provider = providerFromEntries([
+          ['S3_ACCESS_KEY_ID', 'test-key'],
+          ['S3_ENDPOINT', 'https://s3.example.test'],
+          ['S3_REGION', 'auto'],
+          ['S3_SECRET_ACCESS_KEY', 'test-secret'],
+        ]);
+
+        const error = yield* Effect.flip(readObjectStorageConfig(provider));
+        expect(error.message).toMatch(/S3_BUCKET/);
+        expect(error.message).not.toContain('testing');
+      }),
+  );
+
+  it.effect(
     'uses an explicit public endpoint for browser-facing signatures',
     () =>
       Effect.gen(function* () {

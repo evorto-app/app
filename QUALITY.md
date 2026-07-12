@@ -215,11 +215,12 @@ the durable Playwright and generated-documentation coverage.
    scanner review, prefer a deterministic registration-result URL; emulate a
    camera in Playwright only when the browser path is straightforward and
    reliable.
-6. **Live ESNcard provider:** the Release workflow must complete the protected
-   `ESNcard Release Certification` job for add, refresh, remove, and provider
-   error UX. Use its manual dispatch for rotation checks. Local certification
-   runs with
-   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard:release`
+6. **Required production providers:** the Release workflow must complete the
+   protected **Production Provider Certification** job. It runs the Auth0
+   Management and Google Maps integration projects before active-card add,
+   refresh, remove, expired-card status, and provider-error UX. Use its manual
+   dispatch for rotation checks. Local ESNcard certification runs with
+   `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard:release`
    and must pass the same fail-closed credential preflight plus the provider
    error unit check. A missing identifier fails the run; live-provider coverage
    is never converted into a skipped test.
@@ -247,11 +248,33 @@ including file arguments, `--filter`, `--grep`, `--grep-invert`, `--include`,
 `--last-failed`, `--related`, project, shard, `--changed`, or reporter
 overrides. Run the complete PR-equivalent command set documented in `README.md`;
 one selected suite or a clean source scan never replaces the complete runtime
-result. Changes to Auth0 Management, Cloudflare Images, or Google Maps
-integration paths additionally require `bun run test:e2e:integration` with
-their local credentials. Before merging, pushing, or releasing to `main`, run
+result. Before any push, PR update, merge, or release that triggers provider
+certification, run both `bun run test:e2e:integration` with the approved Auth0
+Management and Google Maps credentials and
 `bun run test:e2e:live-esncard:release` with the protected live-provider
-identifier.
+active and permanently expired identifiers. The live ESNcard provider portion
+is not the whole provider gate. Both commands must finish locally with
+every collected test passing and zero incomplete outcomes before CI is
+attempted. Cloudflare Images is being removed and is not a release gate.
+
+Account-scoped Stripe tax-rate releases require the verified, idempotent
+`db:backfill-stripe-tax-rate-accounts` command after the nullable schema
+expansion and before application versions that require account-owned rates are
+released. The command must finish with every stored rate assigned to its
+tenant's current non-null account and with both temporary rolling-release
+integrity triggers installed. A provider lookup, stale account, invalid row, or
+guard failure blocks the rollout; do not replace this gate with a direct
+account-ID copy. Deployment automation for this prerequisite is intentionally
+owned by a separate change. The exact rollout and recovery contract is
+documented in `STRIPE_TAX_RATE_ACCOUNT_ROLLOUT.md`.
+
+Repository-owned workflows pin every external action to a reviewed full commit
+SHA and retain a readable release/tag comment. Workflow- and job-level
+environment blocks must not contain Actions secrets: validate required values
+before checkout/tool setup, then expose each secret only to the install, build,
+runtime, or certification step that needs it. Copilot cloud-agent runtime
+credentials belong in GitHub Agents secrets/variables, not broad setup-workflow
+environment.
 
 Docker-backed Playwright follows explicit ownership. When Playwright starts
 `docker:webserver`, that process removes its own project-scoped Compose objects

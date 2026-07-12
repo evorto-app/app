@@ -52,9 +52,10 @@ import {
   type EventGraphFormModel,
   eventGraphFormToPayload,
   eventGraphRecordToFormModel,
+  resetEventGraphPayments,
   simpleEventGraphIssue,
 } from './event-graph-form.model';
-import { eventGraphFormSchema } from './event-graph-form.schema';
+import { eventGraphFormSchemaWithPaymentAvailability } from './event-graph-form.schema';
 import {
   EventRegistrationModeDialog,
   type EventRegistrationModeDialogData,
@@ -151,7 +152,13 @@ export class EventEdit {
       );
   });
   protected readonly eventEditSubmitDisabled = eventEditSubmitDisabled;
-  protected readonly eventForm = form(this.eventModel, eventGraphFormSchema);
+  protected readonly stripeConnected = computed(() =>
+    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  );
+  protected readonly eventForm = form(
+    this.eventModel,
+    eventGraphFormSchemaWithPaymentAvailability(() => this.stripeConnected()),
+  );
   protected readonly eventQuery = injectQuery(() =>
     this.rpc.events.findGraphForEdit.queryOptions({ id: this.eventId() }),
   );
@@ -168,6 +175,12 @@ export class EventEdit {
       key: option.key,
       title: option.title,
     })),
+  );
+  protected readonly stripeConnectionKnown = computed(
+    () => this.config.tenantSignal() !== null,
+  );
+  protected readonly paidControlsUnavailable = computed(
+    () => this.stripeConnectionKnown() && !this.stripeConnected(),
   );
   protected readonly saveError = signal<null | string>(null);
   protected readonly simpleModeIssue = computed(() =>
@@ -198,11 +211,23 @@ export class EventEdit {
           this.initializedEventId.set(event.id);
           return;
         }
-        this.eventModel.set(loadResult.model);
+        this.eventModel.set(
+          this.paidControlsUnavailable()
+            ? resetEventGraphPayments(loadResult.model)
+            : loadResult.model,
+        );
         this.eventForm().reset();
         this.loadBlock.set(null);
         this.initializedEventId.set(event.id);
       });
+    });
+
+    effect(() => {
+      if (!this.paidControlsUnavailable()) return;
+      const model = this.eventModel();
+      const resetModel = resetEventGraphPayments(model);
+      if (resetModel === model) return;
+      untracked(() => this.eventModel.set(resetModel));
     });
   }
 
@@ -409,8 +434,11 @@ export class EventEdit {
     }
 
     await submit(this.eventForm, async (formState) => {
+      const formValue = this.paidControlsUnavailable()
+        ? resetEventGraphPayments(formState().value())
+        : formState().value();
       const payloadResult = eventGraphFormToPayload(
-        formState().value(),
+        formValue,
         this.esnEnabled(),
       );
       if ('error' in payloadResult) {

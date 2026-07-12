@@ -14,6 +14,7 @@ import {
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { Schema } from 'effect';
 
 import { eventInstances } from './event-instances';
 import { eventRegistrations } from './event-registrations';
@@ -49,24 +50,32 @@ export const stripeRefundStatus = pgEnum('stripe_refund_status', [
   'canceled',
 ]);
 
-export interface RegistrationCheckoutLineItemSnapshot {
-  readonly addonId?: string;
-  readonly allocationKey?: string;
-  readonly kind?: 'addon' | 'registration';
-  readonly name: string;
-  readonly quantity: number;
-  readonly taxRateId?: string;
-  readonly unitAmount: number;
-}
+export const RegistrationCheckoutLineItemSnapshotSchema = Schema.Struct({
+  addonId: Schema.optional(Schema.String),
+  allocationKey: Schema.optional(Schema.String),
+  kind: Schema.optional(Schema.Literals(['addon', 'registration'])),
+  name: Schema.String,
+  quantity: Schema.Number,
+  taxRateId: Schema.optional(Schema.String),
+  unitAmount: Schema.Number,
+});
 
-export interface RegistrationCheckoutSnapshot {
-  readonly customerEmail: string;
-  readonly eventTitle: string;
-  readonly eventUrl: string;
-  readonly expiresAt: number;
-  readonly lineItems: readonly RegistrationCheckoutLineItemSnapshot[];
-  readonly notificationEmail: string;
-}
+export type RegistrationCheckoutLineItemSnapshot = Schema.Schema.Type<
+  typeof RegistrationCheckoutLineItemSnapshotSchema
+>;
+
+export const RegistrationCheckoutSnapshotSchema = Schema.Struct({
+  customerEmail: Schema.String,
+  eventTitle: Schema.String,
+  eventUrl: Schema.String,
+  expiresAt: Schema.Number,
+  lineItems: Schema.Array(RegistrationCheckoutLineItemSnapshotSchema),
+  notificationEmail: Schema.String,
+});
+
+export type RegistrationCheckoutSnapshot = Schema.Schema.Type<
+  typeof RegistrationCheckoutSnapshotSchema
+>;
 
 export interface RegistrationRefundAttemptHistory {
   readonly closedAt: string;
@@ -78,6 +87,8 @@ export interface RegistrationRefundAttemptHistory {
 
 export const pendingRegistrationTransactionUniqueIndexName =
   'transactions_pending_registration_unique';
+export const paidEventTransactionMethodCheckName =
+  'transactions_paid_event_method_stripe';
 export const registrationRefundOperationUniqueIndexName =
   'transactions_registration_refund_operation_unique';
 
@@ -174,6 +185,10 @@ export const transactions = pgTable(
       .where(
         sql`${table.type} = 'refund' AND ${table.sourceTransactionId} IS NOT NULL AND ${table.refundOperationKey} IS NOT NULL`,
       ),
+    paidEventTransactionMethod: check(
+      paidEventTransactionMethodCheckName,
+      sql`${table.type} NOT IN ('registration', 'addon') OR ${table.method} = 'stripe'`,
+    ),
     refundOperationShape: check(
       'transactions_refund_operation_shape',
       sql`(

@@ -120,8 +120,16 @@ The profile page displays your personal information, including:
 - Global reimbursement details (IBAN / PayPal) used when finance teams record manual receipt reimbursements
 
 From here you can open the edit dialog to update your profile details.
+
+## Claiming a private registration transfer
+
+If another participant sends you a manual transfer code, select **Claim transfer** under **Account Actions**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The same claim flow also opens directly from a private transfer link.
 `,
     });
+
+    await expect(
+      page.getByRole('link', { exact: true, name: 'Claim transfer' }),
+    ).toBeVisible();
 
     const editProfileButton = page.getByRole('button', {
       name: 'Edit profile',
@@ -214,7 +222,7 @@ The user profile now uses a two-column layout:
 - Left side: section navigation cards
 - Right side: selected section content
 - The **Events** section links each registration back to event details, shows registration status, selected option, guest quantity and purchased add-ons when applicable, payment state, and check-in time when available, and exposes implemented recovery actions such as continuing a pending checkout payment or opening the event page where confirmed tickets are shown
-- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, expose waitlist routing back to the event page, and stop advertising cancellation or transfer once a registration is checked in
+- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/transfer details back to the event page, expose waitlist routing back to the event page, and explain that cancellation stops after check-in while a transfer preserves the attendee and guest check-in history
 - Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
     });
@@ -319,7 +327,7 @@ The user profile now uses a two-column layout:
     ).toBeVisible();
     await expect(
       checkedInEventCard.getByText(
-        'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
+        'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
       ),
     ).toBeVisible();
     await expect(

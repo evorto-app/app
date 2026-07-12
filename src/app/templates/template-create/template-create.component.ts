@@ -22,14 +22,16 @@ import {
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 
+import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import {
   createOrdinaryTemplateGraphFormModel,
   ordinaryTemplateGraphFormToPayload,
 } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form';
-import { ordinaryTemplateGraphFormSchema } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema';
+import { ordinaryTemplateGraphFormSchemaWithPaymentAvailability } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema';
 import { TemplateGraphEditorComponent } from '../../shared/components/forms/template-graph-editor/template-graph-editor.component';
+import { resetTemplateGraphPayments } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 
 const logger = consola.withTag('app/templates/create');
@@ -67,12 +69,18 @@ export class TemplateCreateComponent {
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
+  private readonly config = inject(ConfigService);
+  protected readonly stripeConnected = computed(() =>
+    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  );
   private readonly templateModel = signal(
     createOrdinaryTemplateGraphFormModel(),
   );
   protected readonly templateForm = form(
     this.templateModel,
-    ordinaryTemplateGraphFormSchema,
+    ordinaryTemplateGraphFormSchemaWithPaymentAvailability(() =>
+      this.stripeConnected(),
+    ),
   );
   protected readonly canSubmit = computed(
     () =>
@@ -98,6 +106,12 @@ export class TemplateCreateComponent {
   });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly iconUsage = TemplateCreateIconUsage.make({});
+  protected readonly stripeConnectionKnown = computed(
+    () => this.config.tenantSignal() !== null,
+  );
+  protected readonly paidControlsUnavailable = computed(
+    () => this.stripeConnectionKnown() && !this.stripeConnected(),
+  );
   protected readonly taxRatesQuery = injectQuery(() =>
     this.rpc.taxRates.listActive.queryOptions(),
   );
@@ -144,6 +158,13 @@ export class TemplateCreateComponent {
         this.initializedDefaults.set(true);
       });
     });
+    effect(() => {
+      if (!this.paidControlsUnavailable()) return;
+      const model = this.templateModel();
+      const resetModel = resetTemplateGraphPayments(model);
+      if (resetModel === model) return;
+      untracked(() => this.templateModel.set(resetModel));
+    });
   }
 
   protected errorMessage(error: unknown): string {
@@ -155,7 +176,9 @@ export class TemplateCreateComponent {
     if (!this.canSubmit()) return;
 
     await submit(this.templateForm, async (formState) => {
-      const value = formState().value();
+      const value = this.paidControlsUnavailable()
+        ? resetTemplateGraphPayments(formState().value())
+        : formState().value();
       if (!value.icon || !this.discountProvidersQuery.isSuccess()) return;
       const payload = ordinaryTemplateGraphFormToPayload(
         { ...value, icon: value.icon },

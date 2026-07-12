@@ -1,17 +1,21 @@
 import { describe, expect, it } from '@effect/vitest';
+import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
   PlatformRegistrationPageLimit,
   PlatformRegistrationsListInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
-import { Effect, Schema } from 'effect';
+import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
 import { readFileSync } from 'node:fs';
+import Stripe from 'stripe';
 import { vi } from 'vitest';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { RegistrationTransferMutationConflict } from '../../../../registrations/registration-transfer-mutation-guard';
+import { StripeClient } from '../../../../stripe-client';
+import { EventRegistrationService } from '../events/event-registration.service';
 import {
   providePlatformOperation,
   type ResolvedPlatformOperation,
@@ -209,6 +213,25 @@ const operation: ResolvedPlatformOperation = {
   },
   targetTenant,
 };
+
+const platformRegistrationInternalFailureLayer = Layer.mergeAll(
+  ConfigProvider.layer(
+    ConfigProvider.fromEnv({
+      env: { E2E_NOW_ISO: 'not-an-instant' },
+    }),
+  ),
+  EventRegistrationService.Default,
+  Layer.mock(Database)({
+    query: {
+      tenants: {
+        findFirst: () => Effect.succeed(targetTenant),
+      },
+    },
+  }),
+  Layer.succeed(RpcRequestContext, operation.requestContext),
+  Layer.succeed(StripeClient, new Stripe('sk_test_platform_registration')),
+  RpcAccess.Default,
+);
 
 describe('platform event, template, and registration handlers', () => {
   it('exports only explicit platform namespaces', () => {
@@ -492,50 +515,83 @@ describe('platform event, template, and registration handlers', () => {
     }),
   );
 
-  it('maps source and recipient active transfers to truthful platform conflicts', () => {
-    const source = platformRegistrationActiveTransferError(
+  it.effect('preserves platform approval internal failures as defects', () =>
+    Effect.gen(function* () {
+      const exit = yield* platformHandlers['platform.registrations.approve'](
+        {
+          reason: 'Approve the target registration',
+          registrationId: registrationRecord.id,
+          targetTenantId: targetTenant.id,
+        },
+        undefined,
+      ).pipe(
+        Effect.provide(platformRegistrationInternalFailureLayer),
+        Effect.exit,
+      );
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isSuccess(exit)) {
+        return;
+      }
+      const defect = Cause.squash(exit.cause);
+      expect(defect).toBeInstanceOf(EventRegistrationInternalError);
+      expect(defect).toMatchObject({
+        message: expect.stringContaining('Invalid server configuration'),
+      });
+    }),
+  );
+
+  it.effect('preserves platform cancellation internal causes as defects', () =>
+    Effect.gen(function* () {
+      const exit = yield* platformHandlers['platform.registrations.cancel'](
+        {
+          reason: 'Cancel the target registration',
+          registrationId: registrationRecord.id,
+          targetTenantId: targetTenant.id,
+        },
+        undefined,
+      ).pipe(
+        Effect.provide(platformRegistrationInternalFailureLayer),
+        Effect.exit,
+      );
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isSuccess(exit)) {
+        return;
+      }
+      const defect = Cause.squash(exit.cause);
+      expect(defect).toBeInstanceOf(EventRegistrationInternalError);
+      expect(defect).toMatchObject({
+        cause: expect.any(Error),
+        message: 'Invalid E2E_NOW_ISO server clock value',
+      });
+    }),
+  );
+
+  it('maps an active in-place transfer to a truthful platform conflict', () => {
+    const error = platformRegistrationActiveTransferError(
       new RegistrationTransferMutationConflict({
-        message: 'Active source transfer',
-        registrationId: 'registration-source',
-        registrationSide: 'source',
+        message: 'Active transfer',
+        registrationId: 'registration-1',
         status: 'open',
         transferId: 'transfer-1',
       }),
     );
-    const recipient = platformRegistrationActiveTransferError(
-      new RegistrationTransferMutationConflict({
-        message: 'Active recipient transfer',
-        registrationId: 'registration-recipient',
-        registrationSide: 'recipient',
-        status: 'checkout_pending',
-        transferId: 'transfer-2',
-      }),
-    );
 
-    expect(source.reason).toBe('registrationTransferActive');
-    expect(source.message).toContain('source registration');
-    expect(source.message).toContain('Finish or cancel');
-    expect(recipient.reason).toBe('registrationTransferActive');
-    expect(recipient.message).toContain('recipient registration');
-    expect(recipient.message).toContain('active transfer workflow');
+    expect(error.reason).toBe('registrationTransferActive');
+    expect(error.message).toContain('this registration');
+    expect(error.message).toContain('Finish or cancel');
   });
 
   it.effect(
-    'blocks source and recipient active transfers before opening a check-in transaction',
+    'blocks an active in-place transfer before opening a check-in transaction',
     () =>
       Effect.gen(function* () {
         for (const transfer of [
           {
             id: 'transfer-source',
-            recipientRegistrationId: null,
             sourceRegistrationId: registrationRecord.id,
             status: 'open',
-          },
-          {
-            id: 'transfer-recipient',
-            recipientRegistrationId: registrationRecord.id,
-            sourceRegistrationId: 'registration-source',
-            status: 'checkout_pending',
           },
         ] as const) {
           const transaction = vi.fn(() =>
@@ -713,8 +769,17 @@ describe('platform event, template, and registration handlers', () => {
     expect(createHandler).toContain(
       'lockTenantRoleGraph(\n                transaction,\n                input.targetTenantId,',
     );
+    expect(createHandler).toContain('lockTenantStripeAccount(');
+    expect(createHandler.indexOf('lockTenantStripeAccount')).toBeLessThan(
+      createHandler.indexOf('lockTenantRoleGraph'),
+    );
     expect(createHandler.indexOf('lockTenantRoleGraph')).toBeLessThan(
       createHandler.indexOf('const creatorMemberships'),
     );
+    expect(eventSource.indexOf('if (beforeEventLock)')).toBeLessThan(
+      eventSource.indexOf('const lockedEvents'),
+    );
+    expect(eventSource).toContain('ensureStripeForStoredEventConfiguration(');
+    expect(eventSource).toContain('ensureStripeForPaidEventConfiguration(');
   });
 });

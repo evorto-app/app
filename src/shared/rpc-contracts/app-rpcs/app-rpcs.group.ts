@@ -1,7 +1,6 @@
 import { AdminRpcs } from './admin.rpcs';
 import { ConfigRpcs } from './config.rpcs';
 import { DiscountsRpcs } from './discounts.rpcs';
-import { EditorMediaRpcs } from './editor-media.rpcs';
 import { EventsRpcs } from './events.rpcs';
 import { FinanceRpcs } from './finance.rpcs';
 import { GlobalAdminRpcs } from './global-admin.rpcs';
@@ -20,7 +19,6 @@ import { UsersRpcs } from './users.rpcs';
 const AppRpcsBase = ConfigRpcs.merge(
   AdminRpcs,
   DiscountsRpcs,
-  EditorMediaRpcs,
   EventsRpcs,
   FinanceRpcs,
   GlobalAdminRpcs,

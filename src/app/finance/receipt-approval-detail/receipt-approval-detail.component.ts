@@ -184,6 +184,7 @@ export class ReceiptApprovalDetailComponent {
   }
 
   private async review(status: 'approved' | 'rejected'): Promise<void> {
+    const receiptId = this.receiptId();
     const formInvalid = this.form.invalid;
     const reviewState = {
       formInvalid,
@@ -234,50 +235,52 @@ export class ReceiptApprovalDetailComponent {
     }
 
     try {
-      await this.reviewMutation.mutateAsync(
-        {
-          alcoholAmount,
-          depositAmount,
-          hasAlcohol: value.hasAlcohol,
-          hasDeposit: value.hasDeposit,
-          id: this.receiptId(),
-          purchaseCountry: value.purchaseCountry,
-          receiptDate: receiptDate.toISOString(),
-          rejectionReason:
-            status === 'rejected'
-              ? this.rejectionReason().trim() || null
-              : null,
-          status,
-          taxAmount,
-          totalAmount,
-        },
-        {
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter([
-                'finance',
-                'receipts.pendingApprovalGrouped',
-              ]),
-            );
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter([
-                'finance',
-                'receipts.refundableGroupedByRecipient',
-              ]),
-            );
-            await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.finance.receipts.findOneForApproval.queryKey({
-                id: this.receiptId(),
-              }),
-            });
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['finance', 'receipts.byEvent']),
-            );
-          },
-        },
-      );
+      await this.reviewMutation.mutateAsync({
+        alcoholAmount,
+        depositAmount,
+        hasAlcohol: value.hasAlcohol,
+        hasDeposit: value.hasDeposit,
+        id: receiptId,
+        purchaseCountry: value.purchaseCountry,
+        receiptDate: receiptDate.toISOString(),
+        rejectionReason:
+          status === 'rejected' ? this.rejectionReason().trim() || null : null,
+        status,
+        taxAmount,
+        totalAmount,
+      });
+      await Promise.all([
+        this.queryClient.invalidateQueries({
+          ...this.rpc.queryFilter([
+            'finance',
+            'receipts.pendingApprovalGrouped',
+          ]),
+          refetchType: 'none',
+        }),
+        this.queryClient.invalidateQueries({
+          ...this.rpc.queryFilter([
+            'finance',
+            'receipts.refundableGroupedByRecipient',
+          ]),
+          refetchType: 'none',
+        }),
+        this.queryClient.invalidateQueries({
+          ...this.rpc.queryFilter(['finance', 'receipts.byEvent']),
+          refetchType: 'none',
+        }),
+      ]);
       this.notifications.showSuccess(receiptReviewSuccessMessage(status));
-      await this.router.navigate(['/finance/receipts-approval']);
+      const navigated = await this.router.navigate([
+        '/finance/receipts-approval',
+      ]);
+      if (navigated) {
+        this.queryClient.removeQueries({
+          exact: true,
+          queryKey: this.rpc.finance.receipts.findOneForApproval.queryKey({
+            id: receiptId,
+          }),
+        });
+      }
     } catch (error) {
       this.notifications.showError(
         getErrorMessage(error, 'Failed to review receipt'),

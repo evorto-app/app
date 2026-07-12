@@ -97,6 +97,7 @@ unfiltered commands below against the commit that will be pushed:
 bun install --frozen-lockfile
 knope --validate
 bun run format:write
+bun run format:check
 bun run lint
 git diff --exit-code
 test -z "$(git status --porcelain=v1)"
@@ -120,11 +121,40 @@ The block above is the normal pull-request baseline. Any caller-forwarded
 selector beyond a canonical package script that reduces collection is
 diagnostic-only, including file arguments, `--filter`, `--grep`,
 `--grep-invert`, `--include`, `--last-failed`, `--related`, project, shard,
-`--changed`, or reporter overrides. Changes to Auth0 Management, Cloudflare
-Images, or Google Maps integration paths also require
-`bun run test:e2e:integration` with the applicable local credentials. Before
-merging, pushing, or releasing to `main`, also run
-`bun run test:e2e:live-esncard:release` with the protected provider identifier.
+`--changed`, or reporter overrides. Before any push, PR update, merge, or
+release that triggers provider certification, the local provider gate requires
+both commands, in this order:
+
+```bash
+bun run test:e2e:integration
+bun run test:e2e:live-esncard:release
+```
+
+The integration command requires the approved Auth0 Management and Google Maps
+credentials. The second command requires both protected ESNcard provider
+identifiers—one active and one permanently expired—and certifies only the
+ESNcard provider portion. Both runs must pass entirely with the same
+zero-failure, zero-skip, zero-todo, zero-fixme,
+zero-expected-failure, zero-retry/flake, zero-interruption, and zero-focused-test
+rule before CI is attempted.
+
+The **Production Provider Certification** workflow repeats both provider runs
+behind the protected `esncard-release-certification` GitHub environment. The
+baseline E2E secret set and certification environment supply a test-mode
+`STRIPE_TEST_API_KEY`, which is mapped to the application's `STRIPE_API_KEY`
+name only inside test steps. Production Stripe credentials remain separate and
+must be exposed only to the operational command that requires them.
+
+The account-scoped Stripe tax-rate rollout requires
+`bun run db:backfill-stripe-tax-rate-accounts` after the nullable schema
+expansion and before releasing application versions that require account-owned
+rates. That command performs a Stripe Connect-verified metadata refresh and
+installs temporary fail-closed database rollout guards; it never infers
+ownership from the tenant row alone. Any unresolved ownership, provider,
+account-change, or guard-installation error blocks the rollout. Deployment
+automation for this prerequisite is handled separately. See
+[STRIPE_TAX_RATE_ACCOUNT_ROLLOUT.md](STRIPE_TAX_RATE_ACCOUNT_ROLLOUT.md) for the
+operator recovery and later contract-cleanup procedure.
 
 The final Playwright runs must exercise the exact checkout being pushed. Stop
 an unknown reused server and let the gate own a fresh stack, or start the exact

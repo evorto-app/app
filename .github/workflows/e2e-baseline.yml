@@ -10,13 +10,15 @@ concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   e2e:
     name: Playwright E2E (functional + docs)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
       CI: true
       APP_HOST_PORT: 4200
       BASE_URL: http://localhost:4200
@@ -34,81 +36,54 @@ jobs:
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       E2E_NOW_ISO: "2026-09-15T12:00:00.000Z"
       E2E_SEED_KEY: evorto-e2e-default-v1
-      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-      PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
-      CLIENT_ID: ${{ secrets.CLIENT_ID }}
-      CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
       ISSUER_BASE_URL: ${{ vars.ISSUER_BASE_URL }}
-      SECRET: ${{ secrets.SECRET }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 're_test_ci_e2e_no_delivery' }}
-      AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
-      AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN }}
-      CLOUDFLARE_IMAGES_DELIVERY_HASH: ${{ vars.CLOUDFLARE_IMAGES_DELIVERY_HASH }}
-      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+      RESEND_API_KEY: re_test_ci_e2e_no_delivery
       STRIPE_TEST_ACCOUNT_ID: ${{ vars.STRIPE_TEST_ACCOUNT_ID }}
-      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
       S3_ACCESS_KEY_ID: minioadmin
       S3_BUCKET: evorto-ci
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_SECRET_ACCESS_KEY: minioadmin
     steps:
+      - name: Validate required configuration
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
+          SECRET: ${{ secrets.SECRET }}
+          STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          for variable_name in FONT_AWESOME_TOKEN NEON_API_KEY NEON_PROJECT_ID PARENT_BRANCH_ID CLIENT_ID CLIENT_SECRET ISSUER_BASE_URL SECRET STRIPE_TEST_API_KEY STRIPE_TEST_ACCOUNT_ID STRIPE_WEBHOOK_SECRET; do
+            if [ -z "${!variable_name}" ]; then
+              echo "::error::Missing required E2E configuration: ${variable_name}"
+              exit 1
+            fi
+          done
+          if [[ "${STRIPE_TEST_API_KEY}" != sk_test_* ]]; then
+            echo "::error::STRIPE_TEST_API_KEY must be a Stripe test-mode secret key"
+            exit 1
+          fi
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.3.14"
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.15.0"
 
-      - name: Validate required configuration
-        run: |
-          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
-            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
-            exit 1
-          fi
-          if [ -z "${NEON_API_KEY}" ]; then
-            echo "::error::Missing required secret: NEON_API_KEY"
-            exit 1
-          fi
-          if [ -z "${NEON_PROJECT_ID}" ]; then
-            echo "::error::Missing required repository variable: NEON_PROJECT_ID"
-            exit 1
-          fi
-          if [ -z "${STRIPE_TEST_ACCOUNT_ID}" ]; then
-            echo "::error::Missing required repository variable: STRIPE_TEST_ACCOUNT_ID"
-            exit 1
-          fi
-          if [ -z "${CLIENT_SECRET}" ]; then
-            echo "::error::Missing required secret: CLIENT_SECRET"
-            exit 1
-          fi
-          if [ -z "${STRIPE_API_KEY}" ]; then
-            echo "::error::Missing required secret: STRIPE_API_KEY"
-            exit 1
-          fi
-          if [ -z "${ISSUER_BASE_URL}" ]; then
-            echo "::error::Missing required repository variable: ISSUER_BASE_URL"
-            exit 1
-          fi
-          if [ -z "${SECRET}" ]; then
-            echo "::error::Missing required secret: SECRET"
-            exit 1
-          fi
-          if [ -z "${RESEND_API_KEY}" ]; then
-            echo "::error::Missing required secret: RESEND_API_KEY"
-            exit 1
-          fi
-
       - name: Install dependencies
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           for attempt in 1 2 3; do
             if bun install --frozen-lockfile; then
@@ -133,16 +108,25 @@ jobs:
           chmod 0777 "${NEON_LOCAL_METADATA_DIR}"
 
       - name: Pull Docker images (compose)
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: docker compose pull
 
       - name: Build Docker images (compose)
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: docker compose build --pull
 
       - name: Start Docker stack for E2E
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
         run: |
           docker compose down --timeout 60 --remove-orphans
           docker compose up -d db db-expiration minio stripe minio-init
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if docker compose exec -T db pg_isready -h 127.0.0.1 -p 5432 -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
               echo "Database is reachable"
               exit 0
@@ -155,15 +139,28 @@ jobs:
           exit 1
 
       - name: Confirm Neon branch expiration
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
         run: bun helpers/testing/set-neon-local-branch-expiration.ts
 
       - name: Start application container
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
+          SECRET: ${{ secrets.SECRET }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: docker compose up -d evorto
 
       - name: Wait for application
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           ready_url="${BASE_URL}${APP_READY_PATH}"
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${ready_url}" || true)"
             if [ "${ready_status}" = "204" ]; then
               echo "Application is reachable at ${ready_url}"
@@ -177,6 +174,12 @@ jobs:
           exit 1
 
       - name: Run Playwright suites
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          SECRET: ${{ secrets.SECRET }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: |
           mkdir -p test-results/docker-logs
           if [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ]; then
@@ -204,6 +207,8 @@ jobs:
 
       - name: Collect Docker logs
         if: always()
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           mkdir -p test-results/docker-logs
           docker compose logs --no-color db-expiration db-setup minio minio-init evorto > test-results/docker-logs/docker-compose.log || true
@@ -214,11 +219,13 @@ jobs:
 
       - name: Stop Docker stack
         if: always()
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: docker compose down --timeout 60 --remove-orphans
 
       - name: Upload Playwright test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-test-results
           path: |
@@ -229,7 +236,7 @@ jobs:
 
       - name: Upload generated docs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-docs
           path: test-results/docs/**

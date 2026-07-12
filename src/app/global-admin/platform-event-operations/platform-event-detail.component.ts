@@ -37,9 +37,13 @@ import {
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import {
+  resetAddOnPayment,
+  resetRegistrationPayment,
+} from '../../shared/components/forms/payment-configuration';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 
-interface PlatformEventAddonEdit {
+export interface PlatformEventAddonEdit {
   allowMultiple: boolean;
   allowPurchaseBeforeEvent: boolean;
   allowPurchaseDuringEvent: boolean;
@@ -59,18 +63,18 @@ interface PlatformEventAddonEdit {
   totalAvailableQuantity: number;
 }
 
+export interface PlatformEventGraphEditModel {
+  addOns: PlatformEventAddonEdit[];
+  questions: PlatformEventQuestionEdit[];
+  registrationOptions: PlatformEventRegistrationOptionEdit[];
+}
+
 interface PlatformEventEditFormModel {
   description: string;
   end: string;
   reason: string;
   start: string;
   title: string;
-}
-
-interface PlatformEventGraphEditModel {
-  addOns: PlatformEventAddonEdit[];
-  questions: PlatformEventQuestionEdit[];
-  registrationOptions: PlatformEventRegistrationOptionEdit[];
 }
 
 interface PlatformEventQuestionEdit {
@@ -107,12 +111,30 @@ export const writablePlatformEventRegistrationOptions = <
   return supported.length === options.length ? supported : undefined;
 };
 
-interface PlatformEventRegistrationOptionEdit extends Omit<
+export interface PlatformEventRegistrationOptionEdit extends Omit<
   PlatformEventRegistrationOption,
   'roleIds'
 > {
   roleIds: string[];
 }
+
+export const resetPlatformEventGraphPayments = <
+  Model extends PlatformEventGraphEditModel,
+>(
+  model: Model,
+): Model => {
+  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, null));
+  const registrationOptions = model.registrationOptions.map((option) =>
+    resetRegistrationPayment(option, null, null),
+  );
+  const unchanged =
+    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
+    registrationOptions.every(
+      (option, index) => option === model.registrationOptions[index],
+    );
+
+  return unchanged ? model : { ...model, addOns, registrationOptions };
+};
 
 const localDateTimeValue = (value: string): string => {
   const date = new Date(value);
@@ -161,6 +183,12 @@ export class PlatformEventDetailOperations {
 
   submitForReview() {
     return this.rpc.platform.events.submitForReview.mutationOptions();
+  }
+
+  tenant(targetTenantId: string) {
+    return this.rpc.globalAdmin.tenants.findOne.queryOptions({
+      id: targetTenantId,
+    });
   }
 
   update() {
@@ -231,6 +259,19 @@ export class PlatformEventDetailComponent {
   protected readonly reviewMutation = injectMutation(() =>
     this.operations.review(),
   );
+  protected readonly targetTenantQuery = injectQuery(() =>
+    this.operations.tenant(this.tenantId()),
+  );
+  protected readonly stripeConnected = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.stripeConnected === true,
+  );
+  protected readonly stripeDisconnected = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.stripeConnected === false,
+  );
   protected readonly submitMutation = injectMutation(() =>
     this.operations.submitForReview(),
   );
@@ -259,7 +300,7 @@ export class PlatformEventDetailComponent {
           start: localDateTimeValue(event.start),
           title: event.title,
         });
-        this.graphModel.set({
+        const graph: PlatformEventGraphEditModel = {
           addOns: event.addOns.map((addOn) => ({
             ...addOn,
             registrationOptions: addOn.registrationOptions.map((option) => ({
@@ -271,10 +312,22 @@ export class PlatformEventDetailComponent {
             ...option,
             roleIds: [...option.roleIds],
           })),
-        });
+        };
+        this.graphModel.set(
+          this.stripeDisconnected()
+            ? resetPlatformEventGraphPayments(graph)
+            : graph,
+        );
         this.editForm().reset();
         this.initializedEventId.set(event.id);
       });
+    });
+    effect(() => {
+      if (!this.stripeDisconnected()) return;
+      const graph = this.graphModel();
+      const resetGraph = resetPlatformEventGraphPayments(graph);
+      if (resetGraph === graph) return;
+      untracked(() => this.graphModel.set(resetGraph));
     });
   }
 
@@ -412,7 +465,9 @@ export class PlatformEventDetailComponent {
 
     void submit(this.editForm, async () => {
       const value = this.editModel();
-      const graph = this.graphModel();
+      const graph = this.stripeDisconnected()
+        ? resetPlatformEventGraphPayments(this.graphModel())
+        : this.graphModel();
       const registrationOptions = writablePlatformEventRegistrationOptions(
         graph.registrationOptions,
       );
@@ -458,6 +513,13 @@ export class PlatformEventDetailComponent {
       | 'isPaid',
     value: boolean,
   ): void {
+    if (field === 'isPaid') {
+      if (value && !this.stripeConnected()) return;
+      this.updateAddOn(index, (addOn) =>
+        value ? { ...addOn, isPaid: true } : resetAddOnPayment(addOn, null),
+      );
+      return;
+    }
     this.updateAddOn(index, (addOn) => ({ ...addOn, [field]: value }));
   }
 
@@ -466,6 +528,7 @@ export class PlatformEventDetailComponent {
     field: 'maxQuantityPerUser' | 'price' | 'totalAvailableQuantity',
     event: Event,
   ): void {
+    if (field === 'price' && !this.stripeConnected()) return;
     const value = numberInputValue(event);
     if (value === null || value === undefined) return;
     this.updateAddOn(index, (addOn) => ({ ...addOn, [field]: value }));
@@ -528,6 +591,7 @@ export class PlatformEventDetailComponent {
   }
 
   protected setAddOnTaxRate(index: number, event: MatSelectChange): void {
+    if (!this.stripeConnected()) return;
     const value: unknown = event.value;
     this.updateAddOn(index, (addOn) => ({
       ...addOn,
@@ -542,6 +606,7 @@ export class PlatformEventDetailComponent {
   ): void {
     const value = textInputValue(event);
     if (value === undefined) return;
+    if (field === 'stripeTaxRateId' && !this.stripeConnected()) return;
     this.updateAddOn(index, (addOn) => {
       if (field === 'description') {
         return { ...addOn, description: value || null };
@@ -558,9 +623,18 @@ export class PlatformEventDetailComponent {
     field: 'isPaid' | 'organizingRegistration',
     value: boolean,
   ): void {
+    if (field === 'isPaid') {
+      if (value && !this.stripeConnected()) return;
+      this.updateRegistrationOption(index, (option) =>
+        value
+          ? { ...option, isPaid: true }
+          : resetRegistrationPayment(option, null, null),
+      );
+      return;
+    }
     this.updateRegistrationOption(index, (option) => ({
       ...option,
-      [field]: value,
+      organizingRegistration: value,
     }));
   }
 
@@ -600,6 +674,12 @@ export class PlatformEventDetailComponent {
       | 'transferDeadlineHoursBeforeStart',
     event: Event,
   ): void {
+    if (
+      (field === 'price' || field === 'esnCardDiscountedPrice') &&
+      !this.stripeConnected()
+    ) {
+      return;
+    }
     const value = numberInputValue(event);
     if (value === undefined) return;
     this.updateRegistrationOption(index, (option) => {
@@ -650,6 +730,7 @@ export class PlatformEventDetailComponent {
   }
 
   protected setOptionTaxRate(index: number, event: MatSelectChange): void {
+    if (!this.stripeConnected()) return;
     const value: unknown = event.value;
     this.updateRegistrationOption(index, (option) => ({
       ...option,
@@ -665,6 +746,7 @@ export class PlatformEventDetailComponent {
   ): void {
     const value = textInputValue(event);
     if (value === undefined) return;
+    if (field === 'stripeTaxRateId' && !this.stripeConnected()) return;
     this.updateRegistrationOption(index, (option) => {
       if (field === 'title') return { ...option, title: value };
       return { ...option, [field]: value || null };

@@ -374,6 +374,7 @@ test.describe('Manual approval registrations', () => {
 
       await deliverCompletedRegistrationCheckoutWebhook({
         amount: pendingTransaction.amount,
+        applicationFeeAmount: pendingTransaction.appFee,
         currency: pendingTransaction.currency,
         paymentIntentId: pendingTransaction.stripePaymentIntentId,
         registrationId: registration.id,

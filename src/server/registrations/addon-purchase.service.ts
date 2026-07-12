@@ -32,6 +32,10 @@ import {
 } from '../integrations/stripe-checkout';
 import { resolveAddonTaxAmounts } from '../payments/addon-payment-allocation';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
+import {
+  appendAddonLotAcquisitionComponent,
+  settleAcquisitionComponentTerms,
+} from './registration-acquisition-write';
 import { registrationCheckoutInitialReconcileAt } from './registration-checkout-completion';
 import { ensureRegistrationMutationHasNoActiveTransfer } from './registration-transfer-mutation-guard';
 
@@ -536,23 +540,26 @@ const reserveRegistrationAddonPurchase = Effect.fn(
     );
   }
 
-  const taxRows = addon.stripeTaxRateId
-    ? yield* tx
-        .select({
-          displayName: tenantStripeTaxRates.displayName,
-          inclusive: tenantStripeTaxRates.inclusive,
-          percentage: tenantStripeTaxRates.percentage,
-        })
-        .from(tenantStripeTaxRates)
-        .where(
-          and(
-            eq(tenantStripeTaxRates.tenantId, input.tenantId),
-            eq(tenantStripeTaxRates.stripeTaxRateId, addon.stripeTaxRateId),
-            eq(tenantStripeTaxRates.active, true),
-          ),
-        )
-        .for('update')
-    : [];
+  const taxRows =
+    addon.stripeTaxRateId && tenant.stripeAccountId
+      ? yield* tx
+          .select({
+            displayName: tenantStripeTaxRates.displayName,
+            inclusive: tenantStripeTaxRates.inclusive,
+            percentage: tenantStripeTaxRates.percentage,
+          })
+          .from(tenantStripeTaxRates)
+          .where(
+            and(
+              eq(tenantStripeTaxRates.tenantId, input.tenantId),
+              eq(tenantStripeTaxRates.stripeAccountId, tenant.stripeAccountId),
+              eq(tenantStripeTaxRates.stripeTaxRateId, addon.stripeTaxRateId),
+              eq(tenantStripeTaxRates.active, true),
+              eq(tenantStripeTaxRates.inclusive, true),
+            ),
+          )
+          .for('update')
+      : [];
   const taxRate = taxRows[0];
   if (addon.stripeTaxRateId && (!taxRate || taxRate.percentage === null)) {
     return yield* conflict(
@@ -688,6 +695,41 @@ const reserveRegistrationAddonPurchase = Effect.fn(
       unitPrice: addon.price,
       window,
     });
+    const settledComponents = settleAcquisitionComponentTerms({
+      terms: [
+        {
+          allocationKey: `addon-order:${orderId}`,
+          baseAmount: 0,
+          id: `addon-lot:${purchaseLotId}`,
+          kind: 'addon_lot',
+          purchaseId,
+          purchaseLotId,
+          quantity: input.quantity,
+          taxRateDisplayName: taxRate?.displayName ?? null,
+          taxRateInclusive,
+          taxRatePercentage,
+        },
+      ],
+    });
+    const settledComponent = settledComponents?.[0];
+    if (!settledComponent || settledComponent.kind !== 'addon_lot') {
+      return yield* internal(
+        'Free add-on acquisition terms are not zero-value',
+      );
+    }
+    yield* appendAddonLotAcquisitionComponent(tx, {
+      acquiredAt: input.now,
+      component: settledComponent,
+      currency: tenant.currency,
+      eventId: registration.eventId,
+      ownerUserId: registration.userId,
+      registrationId: input.registrationId,
+      tenantId: input.tenantId,
+    }).pipe(
+      Effect.mapError((cause) =>
+        internal('Free add-on acquisition could not be persisted', cause),
+      ),
+    );
     return {
       _tag: 'Completed',
       orderId,

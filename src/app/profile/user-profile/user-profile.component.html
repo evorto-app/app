@@ -89,12 +89,31 @@
           <h2 class="title-medium">Account Actions</h2>
           <p class="text-on-surface-variant text-sm">
             Manage your global profile details, notification email,
-            reimbursement details, and session actions.
+            reimbursement details, private registration transfers, and session
+            actions.
           </p>
-          <a href="/logout" mat-stroked-button class="flex items-center gap-2">
-            <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
-            Logout
-          </a>
+          <div class="flex flex-wrap gap-2">
+            <a
+              mat-flat-button
+              [routerLink]="profileTransferClaimPath"
+              class="flex items-center gap-2"
+            >
+              <fa-duotone-icon [icon]="faTicket" class="mr-2" />
+              Claim transfer
+            </a>
+            <a
+              href="/logout"
+              mat-stroked-button
+              class="flex items-center gap-2"
+            >
+              <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
+              Logout
+            </a>
+          </div>
+          <p class="body-small text-on-surface-variant">
+            Received a private code? Use Claim transfer to review the complete
+            registration bundle before accepting it.
+          </p>
         </div>
       }
       @case ("events") {
@@ -186,6 +205,26 @@
                           {{ registrationPaymentLabel(event.paymentState) }}
                         </dd>
                       </div>
+                      @if (event.refunds.length > 0) {
+                        <div>
+                          <dt class="text-on-surface-variant">Refunds:</dt>
+                          <dd class="grid gap-1">
+                            @for (refund of event.refunds; track $index) {
+                              <span>
+                                {{
+                                  registrationRefundSourceLabel(refund.source)
+                                }}:
+                                {{ registrationRefundStateLabel(refund.state) }}
+                                ·
+                                {{
+                                  refund.amount / 100
+                                    | currency: refund.currency
+                                }}
+                              </span>
+                            }
+                          </dd>
+                        </div>
+                      }
                       @if (profileEventNextStepLabel(event); as nextStep) {
                         <div>
                           <dt class="text-on-surface-variant inline">

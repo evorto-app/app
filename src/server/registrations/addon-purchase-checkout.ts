@@ -13,8 +13,12 @@ import {
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
-import { ensureAddonPaymentAllocations } from '../payments/addon-payment-allocation.service';
 import { StripeClient } from '../stripe-client';
+import {
+  appendAddonLotAcquisitionComponent,
+  resolveStripeAcquisitionPaymentSettlement,
+  settleAcquisitionComponentTerms,
+} from './registration-acquisition-write';
 import { activeRegistrationTransferMutationPredicate } from './registration-transfer-mutation-guard';
 
 export const registrationAddonPurchaseLockOrder = [
@@ -235,9 +239,18 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
     database
       .select({
         amount: transactions.amount,
+        baseAmount: eventRegistrationAddonPurchaseOrders.baseAmount,
         currency: transactions.currency,
         expiresAt: eventRegistrationAddonPurchaseOrders.expiresAt,
         persistedPaymentIntentId: transactions.stripePaymentIntentId,
+        purchaseId: eventRegistrationAddonPurchaseOrders.purchaseId,
+        purchaseLotId: eventRegistrationAddonPurchaseOrders.purchaseLotId,
+        quantity: eventRegistrationAddonPurchaseOrders.quantity,
+        taxRateDisplayName:
+          eventRegistrationAddonPurchaseOrders.taxRateDisplayName,
+        taxRateInclusive: eventRegistrationAddonPurchaseOrders.taxRateInclusive,
+        taxRatePercentage:
+          eventRegistrationAddonPurchaseOrders.taxRatePercentage,
       })
       .from(transactions)
       .innerJoin(
@@ -302,6 +315,52 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
     session,
     paymentIntentId,
   );
+  if (!stripeChargeId) {
+    return yield* checkoutError(
+      input,
+      'Completed add-on Checkout charge is not available yet',
+    );
+  }
+  const paymentSettlement = yield* resolveStripeAcquisitionPaymentSettlement({
+    expectedCurrency: claim.currency,
+    expectedGrossAmount: claim.amount,
+    expectedPaymentIntentId: paymentIntentId,
+    stripeAccountId: input.stripeAccountId,
+    stripeChargeId,
+  }).pipe(
+    Effect.mapError((cause) =>
+      checkoutError(
+        input,
+        'Add-on Checkout payment fees are not settled yet',
+        cause,
+      ),
+    ),
+  );
+  const settledComponents = settleAcquisitionComponentTerms({
+    payment: paymentSettlement,
+    terms: [
+      {
+        allocationKey: `addon-order:${input.orderId}`,
+        baseAmount: claim.baseAmount,
+        id: `addon-lot:${claim.purchaseLotId}`,
+        kind: 'addon_lot',
+        purchaseId: claim.purchaseId,
+        purchaseLotId: claim.purchaseLotId,
+        quantity: claim.quantity,
+        taxRateDisplayName: claim.taxRateDisplayName,
+        taxRateInclusive: claim.taxRateInclusive,
+        taxRatePercentage: claim.taxRatePercentage,
+      },
+    ],
+  });
+  const settledComponent = settledComponents?.[0];
+  if (!settledComponent || settledComponent.kind !== 'addon_lot') {
+    return yield* checkoutError(
+      input,
+      'Add-on Checkout component settlement does not match its payment',
+    );
+  }
+  const completedAt = new Date();
 
   const completion = yield* Database.use((database) =>
     database
@@ -354,6 +413,9 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
               currency: transactions.currency,
               paymentIntentId: transactions.stripePaymentIntentId,
               status: transactions.status,
+              stripeChargeId: transactions.stripeChargeId,
+              stripeFee: transactions.stripeFee,
+              stripeNetAmount: transactions.stripeNetAmount,
             })
             .from(transactions)
             .where(
@@ -409,6 +471,13 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
             transaction.currency !== claim.currency ||
             (transaction.paymentIntentId !== null &&
               transaction.paymentIntentId !== paymentIntentId) ||
+            (transaction.stripeChargeId !== null &&
+              transaction.stripeChargeId !== stripeChargeId) ||
+            (transaction.stripeFee !== null &&
+              transaction.stripeFee !== paymentSettlement.stripeFeeAmount) ||
+            (transaction.stripeNetAmount !== null &&
+              transaction.stripeNetAmount !==
+                paymentSettlement.stripeNetAmount) ||
             order.expiresAt?.getTime() !== claimExpiresAt.getTime() ||
             order.requestedByUserId !== registration.userId ||
             order.eventId !== registration.eventId ||
@@ -455,10 +524,19 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
           const purchase = purchases[0];
           const lots = yield* tx
             .select({
+              applicationFeeAmount:
+                eventRegistrationAddonPurchaseLots.applicationFeeAmount,
+              grossAmount: eventRegistrationAddonPurchaseLots.grossAmount,
               id: eventRegistrationAddonPurchaseLots.id,
+              netAmount: eventRegistrationAddonPurchaseLots.netAmount,
+              paymentAllocationFinalizedAt:
+                eventRegistrationAddonPurchaseLots.paymentAllocationFinalizedAt,
               purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
               sourceTransactionId:
                 eventRegistrationAddonPurchaseLots.sourceTransactionId,
+              stripeFeeAmount:
+                eventRegistrationAddonPurchaseLots.stripeFeeAmount,
+              taxAmount: eventRegistrationAddonPurchaseLots.taxAmount,
             })
             .from(eventRegistrationAddonPurchaseLots)
             .where(
@@ -483,6 +561,62 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
                 'Completed add-on Checkout entitlement is missing',
               );
             }
+            if (
+              (lot.applicationFeeAmount !== null &&
+                lot.applicationFeeAmount !==
+                  settledComponent.applicationFeeAmount) ||
+              (lot.grossAmount !== null &&
+                lot.grossAmount !== settledComponent.grossAmount) ||
+              (lot.netAmount !== null &&
+                lot.netAmount !== settledComponent.netAmount) ||
+              (lot.stripeFeeAmount !== null &&
+                lot.stripeFeeAmount !== settledComponent.stripeFeeAmount) ||
+              (lot.taxAmount !== null &&
+                lot.taxAmount !== settledComponent.taxAmount)
+            ) {
+              return yield* checkoutError(
+                input,
+                'Completed add-on Checkout lot settlement changed',
+              );
+            }
+            yield* tx
+              .update(transactions)
+              .set({
+                appFee: paymentSettlement.applicationFeeAmount,
+                stripeChargeId,
+                stripeFee: paymentSettlement.stripeFeeAmount,
+                stripeNetAmount: paymentSettlement.stripeNetAmount,
+              })
+              .where(eq(transactions.id, input.transactionId));
+            yield* tx
+              .update(eventRegistrationAddonPurchaseLots)
+              .set({
+                applicationFeeAmount: settledComponent.applicationFeeAmount,
+                grossAmount: settledComponent.grossAmount,
+                netAmount: settledComponent.netAmount,
+                paymentAllocationFinalizedAt:
+                  lot.paymentAllocationFinalizedAt ?? completedAt,
+                stripeFeeAmount: settledComponent.stripeFeeAmount,
+                taxAmount: settledComponent.taxAmount,
+              })
+              .where(eq(eventRegistrationAddonPurchaseLots.id, lot.id));
+            yield* appendAddonLotAcquisitionComponent(tx, {
+              acquiredAt: completedAt,
+              component: settledComponent,
+              currency: transaction.currency,
+              eventId: registration.eventId,
+              ownerUserId: registration.userId,
+              payment: {
+                settlement: paymentSettlement,
+                stripeAccountId: input.stripeAccountId,
+                stripeChargeId,
+                stripePaymentIntentId: paymentIntentId,
+                transactionId: input.transactionId,
+                type: 'addon',
+              },
+              registrationId: input.registrationId,
+              tenantId: input.tenantId,
+            });
             return 'alreadyCompleted' as const;
           }
           if (lot) {
@@ -495,12 +629,15 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
           const completedTransactions = yield* tx
             .update(transactions)
             .set({
+              appFee: paymentSettlement.applicationFeeAmount,
               status: 'successful',
               stripeChargeId,
               stripeCheckoutReconcileLastError: null,
               stripeCheckoutReconcileLeaseExpiresAt: null,
               stripeCheckoutReconcileLeaseId: null,
               stripeCheckoutReconcileNextAt: null,
+              stripeFee: paymentSettlement.stripeFeeAmount,
+              stripeNetAmount: paymentSettlement.stripeNetAmount,
               stripePaymentIntentId: paymentIntentId,
             })
             .where(
@@ -561,16 +698,22 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
             });
           }
           yield* tx.insert(eventRegistrationAddonPurchaseLots).values({
+            applicationFeeAmount: settledComponent.applicationFeeAmount,
             baseAmount: order.baseAmount,
             currency: order.currency,
             eventId: order.eventId,
+            grossAmount: settledComponent.grossAmount,
             id: order.purchaseLotId,
+            netAmount: settledComponent.netAmount,
+            paymentAllocationFinalizedAt: completedAt,
             purchaseId: order.purchaseId,
             quantity: order.quantity,
             registrationId: order.registrationId,
             registrationOptionId: order.registrationOptionId,
             sourceLineKey: `addon-order:${order.id}`,
             sourceTransactionId: input.transactionId,
+            stripeFeeAmount: settledComponent.stripeFeeAmount,
+            taxAmount: settledComponent.taxAmount,
             taxRateDisplayName: order.taxRateDisplayName,
             taxRateInclusive: order.taxRateInclusive,
             taxRatePercentage: order.taxRatePercentage,
@@ -579,7 +722,7 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
           });
           const completedOrders = yield* tx
             .update(eventRegistrationAddonPurchaseOrders)
-            .set({ completedAt: new Date(), status: 'completed' })
+            .set({ completedAt, status: 'completed' })
             .where(
               and(
                 eq(eventRegistrationAddonPurchaseOrders.id, order.id),
@@ -600,6 +743,23 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
               'Locked add-on order could not be completed',
             );
           }
+          yield* appendAddonLotAcquisitionComponent(tx, {
+            acquiredAt: completedAt,
+            component: settledComponent,
+            currency: transaction.currency,
+            eventId: registration.eventId,
+            ownerUserId: registration.userId,
+            payment: {
+              settlement: paymentSettlement,
+              stripeAccountId: input.stripeAccountId,
+              stripeChargeId,
+              stripePaymentIntentId: paymentIntentId,
+              transactionId: input.transactionId,
+              type: 'addon',
+            },
+            registrationId: input.registrationId,
+            tenantId: input.tenantId,
+          });
           return 'finalized' as const;
         }),
       )
@@ -614,19 +774,6 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
               ),
         ),
       ),
-  );
-  yield* ensureAddonPaymentAllocations(input.transactionId).pipe(
-    Effect.catch((error) =>
-      Effect.logWarning(
-        'Add-on Checkout completed before its payment fee allocation was ready',
-      ).pipe(
-        Effect.annotateLogs({
-          cause: error,
-          orderId: input.orderId,
-          transactionId: input.transactionId,
-        }),
-      ),
-    ),
   );
   return completion;
 });

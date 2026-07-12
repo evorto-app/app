@@ -8,6 +8,9 @@
   <mat-checkbox [checked]="form.isPaid().value()" (change)="setIsPaid($event)">
     Enable payment
   </mat-checkbox>
+  <p class="text-on-surface-variant text-sm">
+    Paid options require a connected Stripe account.
+  </p>
 
   @if (form.isPaid().value()) {
     <div class="grid gap-4">

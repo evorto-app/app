@@ -26,6 +26,13 @@ describe('platform event registration-mode compatibility', () => {
   });
 
   it('shows legacy random as a disabled migration state, not a writable option', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
+      ),
+      'utf8',
+    );
     const template = readFileSync(
       nodePath.join(
         process.cwd(),
@@ -39,5 +46,9 @@ describe('platform event registration-mode compatibility', () => {
     expect(template).not.toContain('<mat-option value="random"');
     expect(template).toContain('unsupportedRegistrationOptions().length > 0');
     expect(template).toContain('event.simpleModeEnabled');
+    expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
+    expect(source).toContain('resetPlatformEventGraphPayments');
+    expect(template).toContain('[disabled]="!stripeConnected()"');
+    expect(template).toContain('status could not be loaded');
   });
 });

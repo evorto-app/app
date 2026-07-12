@@ -416,15 +416,6 @@ export const discountHandlers = {
         );
       }
 
-      if (upsertedCard.status !== 'verified') {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: `Discount card validation failed with status ${upsertedCard.status}`,
-            reason: upsertedCard.status,
-          }),
-        );
-      }
-
       return normalizeUserDiscountCardRecord(upsertedCard);
     }),
 } satisfies Partial<AppRpcHandlers>;

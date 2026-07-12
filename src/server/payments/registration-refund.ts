@@ -18,9 +18,10 @@ import {
 } from 'drizzle-orm';
 import { Cause, Clock, Effect, Result, Schedule, Schema } from 'effect';
 
+import type { RegistrationRefundWorkerRuntimeMode } from '../config/registration-refund-worker-config';
+
 import { reconcileRegistrationTransferRefund } from '../registrations/registration-transfer-refund-reconciliation';
 import { StripeClient } from '../stripe-client';
-import { lockTenantStripeAccount } from './pending-stripe-obligations';
 
 const refundClaimLeaseMs = 10 * 60 * 1000;
 const refundWorkerInterval = Schedule.spaced('30 seconds');
@@ -113,13 +114,14 @@ export const registrationRefundRequeueEligibility = (claim: {
   ) {
     return 'succeeded';
   }
-  if (
-    claim.status !== 'pending' ||
-    claim.leaseId !== null ||
-    claim.leaseExpiresAt !== null ||
-    claim.nextAttemptAt !== null
-  ) {
+  if (claim.status !== 'pending') {
     return 'ambiguous';
+  }
+  if ((claim.leaseId === null) !== (claim.leaseExpiresAt === null)) {
+    return 'ambiguous';
+  }
+  if (claim.leaseId !== null) {
+    return 'active';
   }
   if (
     claim.stripeRefundStatus === 'failed' ||
@@ -127,10 +129,27 @@ export const registrationRefundRequeueEligibility = (claim: {
   ) {
     return claim.refundId ? 'newGeneration' : 'ambiguous';
   }
-  if (claim.attempts >= claim.maxAttempts) {
+  if (claim.nextAttemptAt !== null && claim.attempts < claim.maxAttempts) {
+    return 'active';
+  }
+  if (claim.refundId !== null) {
+    // A persisted provider ID makes resuming safe even after a long pause:
+    // the worker retrieves that exact refund instead of creating another one.
     return 'resumeGeneration';
   }
-  return 'active';
+  if (
+    claim.attempts === 0 &&
+    claim.nextAttemptAt === null &&
+    claim.stripeRefundStatus === null
+  ) {
+    // Claim acquisition increments attempts before contacting Stripe, so an
+    // untouched orphan cannot hide an earlier provider request.
+    return 'resumeGeneration';
+  }
+  // Reusing an old idempotency key cannot prove safety after Stripe's retention
+  // window. Without a persisted refund ID, prior provider execution is
+  // ambiguous and an operator must not be offered a duplicate-producing retry.
+  return 'ambiguous';
 };
 
 export const registrationRefundIdempotencyKey = (
@@ -235,21 +254,6 @@ export const createRegistrationRefundClaim = Effect.fn(
   ) {
     return yield* new RegistrationRefundClaimError({
       message: 'Refund source transaction does not match the persisted payment',
-      refundClaimId: input.sourceTransactionId,
-    });
-  }
-
-  const lockedStripeAccountId = yield* lockTenantStripeAccount(
-    database,
-    input.tenantId,
-  );
-  if (
-    !lockedStripeAccountId ||
-    lockedStripeAccountId !== input.stripeAccountId
-  ) {
-    return yield* new RegistrationRefundClaimError({
-      message:
-        'Tenant Stripe account changed before the refund obligation could be claimed',
       refundClaimId: input.sourceTransactionId,
     });
   }
@@ -419,20 +423,6 @@ export const requeueRegistrationRefundClaim = Effect.fn(
     });
   }
 
-  const lockedStripeAccountId = yield* lockTenantStripeAccount(
-    database,
-    input.tenantId,
-  );
-  if (
-    !lockedStripeAccountId ||
-    lockedStripeAccountId !== claim.stripeAccountId
-  ) {
-    return yield* new RegistrationRefundRequeueError({
-      message: 'Refund Stripe account ownership changed before requeue',
-      refundClaimId: input.refundClaimId,
-    });
-  }
-
   const now = new Date(yield* Clock.currentTimeMillis);
   const before = {
     attempts: claim.attempts,
@@ -493,7 +483,9 @@ export const requeueRegistrationRefundClaim = Effect.fn(
           : isNull(transactions.stripeRefundStatus),
         isNull(transactions.stripeRefundClaimLeaseExpiresAt),
         isNull(transactions.stripeRefundClaimLeaseId),
-        isNull(transactions.stripeRefundNextAttemptAt),
+        claim.nextAttemptAt
+          ? eq(transactions.stripeRefundNextAttemptAt, claim.nextAttemptAt)
+          : isNull(transactions.stripeRefundNextAttemptAt),
         eq(transactions.status, 'pending'),
         eq(transactions.tenantId, input.tenantId),
         eq(transactions.type, 'refund'),
@@ -587,13 +579,16 @@ export const registrationRefundStatusCanAdvance = (
   current === 'requires_action' ||
   current === incoming;
 
-const refundStatusUpdate = (
-  refund: Stripe.Refund,
+export const registrationRefundStatusUpdate = (
+  refund: Pick<Stripe.Refund, 'id' | 'status'>,
   now: Date,
+  attempts: number,
+  maxAttempts: number,
 ): Partial<typeof transactions.$inferInsert> => {
   const status = persistedRegistrationRefundStatus(refund.status);
   const terminal =
     status === 'canceled' || status === 'failed' || status === 'succeeded';
+  const processingStopped = !terminal && attempts >= maxAttempts;
   return {
     status: status === 'succeeded' ? 'successful' : 'pending',
     stripeRefundClaimLeaseExpiresAt: null,
@@ -602,10 +597,11 @@ const refundStatusUpdate = (
     stripeRefundLastError:
       status === 'failed' || status === 'canceled'
         ? `Stripe refund reached terminal status ${status}`
-        : null,
-    stripeRefundNextAttemptAt: terminal
-      ? null
-      : new Date(now.getTime() + 60_000),
+        : processingStopped
+          ? `Stripe refund remained ${status} after maximum processing attempts`
+          : null,
+    stripeRefundNextAttemptAt:
+      terminal || processingStopped ? null : new Date(now.getTime() + 60_000),
     stripeRefundStatus: status,
   };
 };
@@ -912,7 +908,14 @@ export const processRegistrationRefundClaim = Effect.fn(
       Effect.gen(function* () {
         const updatedClaims = yield* tx
           .update(transactions)
-          .set(refundStatusUpdate(refund, now))
+          .set(
+            registrationRefundStatusUpdate(
+              refund,
+              now,
+              claim.stripeRefundAttempts,
+              claim.stripeRefundMaxAttempts,
+            ),
+          )
           .where(
             and(
               eq(transactions.id, claim.id),
@@ -966,8 +969,10 @@ export const reconcileRegistrationRefundWebhook = Effect.fn(
             id: transactions.id,
             sourceTransactionId: transactions.sourceTransactionId,
             stripeAccountId: transactions.stripeAccountId,
+            stripeRefundAttempts: transactions.stripeRefundAttempts,
             stripeRefundGeneration: transactions.stripeRefundGeneration,
             stripeRefundId: transactions.stripeRefundId,
+            stripeRefundMaxAttempts: transactions.stripeRefundMaxAttempts,
             stripeRefundStatus: transactions.stripeRefundStatus,
             tenantId: transactions.tenantId,
           })
@@ -1046,7 +1051,14 @@ export const reconcileRegistrationRefundWebhook = Effect.fn(
         if (statusCanAdvance) {
           yield* tx
             .update(transactions)
-            .set(refundStatusUpdate(refund, now))
+            .set(
+              registrationRefundStatusUpdate(
+                refund,
+                now,
+                claim.stripeRefundAttempts,
+                claim.stripeRefundMaxAttempts,
+              ),
+            )
             .where(eq(transactions.id, refundClaimId));
         }
 
@@ -1138,3 +1150,32 @@ export const runRegistrationRefundWorker =
     ),
     Effect.repeat(refundWorkerInterval),
   );
+
+export type RegistrationRefundWorkerStartupResult =
+  'disabledForPlaywright' | 'started';
+
+const registrationRefundWorkerStarted: RegistrationRefundWorkerStartupResult =
+  'started';
+const registrationRefundWorkerDisabled: RegistrationRefundWorkerStartupResult =
+  'disabledForPlaywright';
+
+export const launchRegistrationRefundWorker = <A, E, R>(
+  mode: RegistrationRefundWorkerRuntimeMode,
+  worker: Effect.Effect<A, E, R>,
+) =>
+  mode === 'enabled'
+    ? worker.pipe(
+        Effect.forkScoped,
+        Effect.tap(() =>
+          Effect.logInfo('Registration refund worker started').pipe(
+            Effect.annotateLogs({ mode }),
+          ),
+        ),
+        Effect.as(registrationRefundWorkerStarted),
+      )
+    : Effect.logWarning(
+        'Registration refund worker disabled for validated Playwright runtime',
+      ).pipe(
+        Effect.annotateLogs({ mode }),
+        Effect.as(registrationRefundWorkerDisabled),
+      );

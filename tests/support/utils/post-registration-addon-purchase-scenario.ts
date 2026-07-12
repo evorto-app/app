@@ -10,6 +10,7 @@ import { relations } from '@db/relations';
 import * as schema from '@db/schema';
 import { StripeClient } from '@server/stripe-client';
 import { completePaidAddonPurchaseCheckout } from '@server/registrations/addon-purchase-checkout';
+import { redeemRegistrationAddon } from '@server/registrations/addon-fulfillment.service';
 import { purchaseRegistrationAddon } from '@server/registrations/addon-purchase.service';
 import { resolveTenantPublicOrigin } from '@shared/tenant-origin';
 
@@ -442,6 +443,7 @@ const resolveScenarioEventWindow = (
 
 interface SeedPostRegistrationAddonPurchaseScenarioInput {
   readonly database: TestDatabase;
+  readonly paidIncludedQuantity?: number;
   readonly templateId: string;
   readonly tenant: {
     readonly domain: string;
@@ -467,6 +469,10 @@ export interface PostRegistrationAddonPurchaseScenario {
   cleanup: () => Promise<void>;
   completeCheckout: () => Promise<'alreadyCompleted' | 'finalized'>;
   readPendingCheckout: () => Promise<PaidAddonCheckout>;
+  redeemPaidAddon: (
+    operationKey: string,
+    actorUserId?: string,
+  ) => Promise<{ readonly fulfillmentEventId: string }>;
   setWindow: (window: 'before' | 'during') => Promise<void>;
 }
 
@@ -481,6 +487,16 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
 ): Promise<PostRegistrationAddonPurchaseScenario> => {
   if (!input.testClock.isValid) {
     throw new Error('Expected a valid Playwright test clock');
+  }
+  const paidIncludedQuantity = input.paidIncludedQuantity ?? 0;
+  if (
+    !Number.isSafeInteger(paidIncludedQuantity) ||
+    paidIncludedQuantity < 0 ||
+    paidIncludedQuantity > initialStock - paidPurchaseQuantity
+  ) {
+    throw new Error(
+      'Paid add-on included quantity must leave stock for the deterministic paid checkout',
+    );
   }
 
   const tenant = await input.database.query.tenants.findFirst({
@@ -524,6 +540,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
   const eventId = createId();
   const optionId = createId();
   const registrationId = createId();
+  const paidPurchaseId = createId();
   const freeAddOn = { id: createId(), title: 'Free refreshment voucher' };
   const paidAddOn = { id: createId(), title: 'Paid workshop kit' };
   const duringOnlyAddOn = { id: createId(), title: 'Event-day snack' };
@@ -616,6 +633,36 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
       updatedAt: nowDate,
       userId: user.id,
     });
+    const acquisitionId = createId();
+    await tx.insert(schema.registrationAcquisitions).values({
+      acquiredAt: nowDate,
+      eventId,
+      id: acquisitionId,
+      kind: 'initial',
+      operationKey: `registration-initial:${registrationId}`,
+      ordinal: 0,
+      ownerUserId: user.id,
+      registrationId,
+      spotCount: 1,
+      tenantId: input.tenant.id,
+    });
+    await tx.insert(schema.registrationAcquisitionComponents).values({
+      acquiredAt: nowDate,
+      acquisitionId,
+      allocationKey: `registration-initial:${registrationId}`,
+      applicationFeeAmount: 0,
+      baseAmount: 0,
+      currency: input.tenant.currency,
+      eventId,
+      grossAmount: 0,
+      kind: 'registration',
+      netAmount: 0,
+      quantity: 1,
+      registrationId,
+      stripeFeeAmount: 0,
+      taxAmount: 0,
+      tenantId: input.tenant.id,
+    });
     await tx.insert(schema.eventAddons).values([
       {
         allowMultiple: true,
@@ -648,7 +695,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
         price: paidUnitPrice,
         stripeTaxRateId: null,
         title: paidAddOn.title,
-        totalAvailableQuantity: initialStock,
+        totalAvailableQuantity: initialStock - paidIncludedQuantity,
         updatedAt: nowDate,
       },
       {
@@ -690,11 +737,25 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
       [freeAddOn, paidAddOn, duringOnlyAddOn, beforeOnlyAddOn].map((addOn) => ({
         addonId: addOn.id,
         eventId,
-        includedQuantity: 0,
+        includedQuantity: addOn.id === paidAddOn.id ? paidIncludedQuantity : 0,
         optionalPurchaseQuantity,
         registrationOptionId: optionId,
       })),
     );
+    if (paidIncludedQuantity > 0) {
+      await tx.insert(schema.eventRegistrationAddonPurchases).values({
+        addonId: paidAddOn.id,
+        eventId,
+        id: paidPurchaseId,
+        includedQuantity: paidIncludedQuantity,
+        purchasedQuantity: 0,
+        quantity: paidIncludedQuantity,
+        registrationId,
+        registrationOptionId: optionId,
+        tenantId: input.tenant.id,
+        unitPrice: paidUnitPrice,
+      });
+    }
   });
 
   const setWindow = async (window: 'before' | 'during') => {
@@ -946,6 +1007,24 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
           tenantId: input.tenant.id,
         },
       });
+    const acquisitionPayment =
+      await input.database.query.registrationAcquisitionPayments.findFirst({
+        where: {
+          registrationId,
+          tenantId: input.tenant.id,
+          transactionId: identity.transactionId,
+        },
+      });
+    const acquisitionComponent = acquisitionPayment
+      ? await input.database.query.registrationAcquisitionComponents.findFirst({
+          where: {
+            acquisitionPaymentId: acquisitionPayment.id,
+            kind: 'addon_lot',
+            registrationId,
+            tenantId: input.tenant.id,
+          },
+        })
+      : undefined;
     if (
       !completedTransaction ||
       completedTransaction.appFee !== applicationFee ||
@@ -958,7 +1037,11 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
       completedLot.applicationFeeAmount !== applicationFee ||
       completedLot.grossAmount !== paidGrossAmount ||
       completedLot.netAmount !== stripeNetAmount ||
-      completedLot.stripeFeeAmount !== stripeFee
+      completedLot.stripeFeeAmount !== stripeFee ||
+      !acquisitionPayment ||
+      acquisitionComponent?.purchaseLotId !== completedLot.id ||
+      acquisitionComponent.grossAmount !== paidGrossAmount ||
+      acquisitionComponent.netAmount !== stripeNetAmount
     ) {
       throw new Error(
         'Production add-on fee snapshot did not persist the reconciled Stripe allocation',
@@ -967,7 +1050,104 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
     return completion;
   };
 
+  const redeemPaidAddon = async (
+    operationKey: string,
+    actorUserId = user.id,
+  ) => {
+    const purchase =
+      await input.database.query.eventRegistrationAddonPurchases.findFirst({
+        columns: { id: true },
+        where: {
+          addonId: paidAddOn.id,
+          registrationId,
+          tenantId: input.tenant.id,
+        },
+      });
+    if (!purchase) {
+      throw new Error('Expected the settled paid add-on entitlement');
+    }
+    return Effect.runPromise(
+      redeemRegistrationAddon({
+        actorUserId,
+        operationKey,
+        registrationAddonId: purchase.id,
+        registrationId,
+        tenantId: input.tenant.id,
+      }).pipe(Effect.provide(scenarioLayer)),
+    );
+  };
+
   const cleanup = async () => {
+    await input.database
+      .delete(schema.registrationAcquisitionRefundAllocations)
+      .where(
+        and(
+          eq(
+            schema.registrationAcquisitionRefundAllocations.registrationId,
+            registrationId,
+          ),
+          eq(
+            schema.registrationAcquisitionRefundAllocations.tenantId,
+            input.tenant.id,
+          ),
+        ),
+      );
+    await input.database
+      .delete(schema.registrationAcquisitionComponents)
+      .where(
+        and(
+          eq(
+            schema.registrationAcquisitionComponents.registrationId,
+            registrationId,
+          ),
+          eq(
+            schema.registrationAcquisitionComponents.tenantId,
+            input.tenant.id,
+          ),
+        ),
+      );
+    await input.database
+      .delete(schema.registrationAcquisitionPayments)
+      .where(
+        and(
+          eq(
+            schema.registrationAcquisitionPayments.registrationId,
+            registrationId,
+          ),
+          eq(schema.registrationAcquisitionPayments.tenantId, input.tenant.id),
+        ),
+      );
+    await input.database
+      .delete(schema.registrationAcquisitions)
+      .where(
+        and(
+          eq(schema.registrationAcquisitions.registrationId, registrationId),
+          eq(schema.registrationAcquisitions.tenantId, input.tenant.id),
+        ),
+      );
+    await input.database
+      .delete(schema.eventRegistrationAddonFulfillmentEvents)
+      .where(
+        and(
+          eq(
+            schema.eventRegistrationAddonFulfillmentEvents.registrationId,
+            registrationId,
+          ),
+          eq(
+            schema.eventRegistrationAddonFulfillmentEvents.tenantId,
+            input.tenant.id,
+          ),
+        ),
+      );
+    await input.database
+      .delete(schema.transactions)
+      .where(
+        and(
+          eq(schema.transactions.eventRegistrationId, registrationId),
+          eq(schema.transactions.tenantId, input.tenant.id),
+          eq(schema.transactions.type, 'refund'),
+        ),
+      );
     await input.database
       .delete(schema.eventRegistrationAddonPurchaseLots)
       .where(
@@ -1061,6 +1241,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
     eventId,
     optionId,
     readPendingCheckout,
+    redeemPaidAddon,
     registrationId,
     setWindow,
     title: input.title,

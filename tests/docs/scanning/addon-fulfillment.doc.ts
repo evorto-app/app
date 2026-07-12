@@ -14,7 +14,11 @@ import {
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { waitForScannerAddonFulfillment } from '../../support/utils/scanner-result-page';
-import { seedScannerFulfillmentAddon } from '../../support/utils/seed-scanner-fulfillment';
+import {
+  cleanupScannerRegistrationAcquisition,
+  seedScannerFulfillmentAddon,
+  seedScannerRegistrationAcquisition,
+} from '../../support/utils/seed-scanner-fulfillment';
 
 test.use({ storageState: adminStateFile });
 
@@ -38,6 +42,7 @@ test('Fulfill scanned registration add-ons', async ({
   }
 
   const registrationId = getId();
+  const acquisitionId = getId();
   const addOnId = getId();
   const purchaseId = getId();
   const purchaseLotId = getId();
@@ -54,7 +59,15 @@ test('Fulfill scanned registration add-ons', async ({
       tenantId: seeded.tenant.id,
       userId: attendee.id,
     });
+    await seedScannerRegistrationAcquisition({
+      acquisitionId,
+      database,
+      eventId,
+      registrationId,
+      tenant: seeded.tenant,
+    });
     await seedScannerFulfillmentAddon({
+      acquisitionId,
       addOnId,
       database,
       eventId,
@@ -83,7 +96,7 @@ You need a confirmed organizer/helper registration for this event or **Organize 
 
 The QR value is only a registration locator. Evorto rechecks the current tenant and your organizer permissions before showing the result or accepting an action.
 
-This generated walkthrough opens the deterministic registration-result URL directly. That keeps documentation repeatable without pretending that a synthetic camera stream proves real-device camera behavior. Review camera permission, focus, and QR recognition manually on a representative organizer device; if camera emulation later becomes straightforward and reliable, it can supplement this result-page journey.
+This generated walkthrough opens the deterministic registration-result URL directly, while the separate check-in guide exercises deterministic mocked camera permission and readiness. Synthetic camera input does not prove physical-device focus or QR recognition, so the accepted Browser review also checks the camera fallback and a real result page manually on a representative organizer-sized viewport.
 `,
     });
 
@@ -154,7 +167,7 @@ After a redemption, the scanner offers **Undo last redemption** only for that ad
 
 Select **Cancel unredeemed units**, choose a whole-unit quantity, enter the required operational reason, and explicitly choose refund handling when optional units are selected. Evorto allocates the selected cancellation to optional purchased units first, then included units; the dialog shows the exact split before submission. Included units can be cancelled while they remain unredeemed, but they are never refunded. Optional purchased units may be cancelled with or without refund handling.
 
-For this free optional add-on, the refund choice explains that no monetary refund is required and records that outcome explicitly. This walkthrough does not exercise a paid Stripe refund. Paid refund and recovery evidence belongs to the finance/payment tests; follow the displayed status and the tenant's operator recovery guidance when payment processing needs attention.
+For this free optional add-on, the refund choice explains that no monetary refund is required and records that outcome explicitly. This walkthrough does not exercise a paid Stripe refund. Continue with the **Cancel a Stripe-backed registration with settled add-ons and recover its refund** section in [Participant registration cancellation](/docs/participant-registration-cancellation) for signed local Stripe-shaped webhook updates, participant and scanner status, and audited platform-operator recovery. That local journey does not certify live provider or bank settlement.
 `,
     });
 
@@ -256,6 +269,7 @@ Cancellation is hidden without the separate cancellation permission and is rejec
       .where(
         eq(eventRegistrationAddonFulfillmentEvents.purchaseId, purchaseId),
       );
+    await cleanupScannerRegistrationAcquisition({ acquisitionId, database });
     await database
       .delete(eventRegistrations)
       .where(eq(eventRegistrations.id, registrationId));

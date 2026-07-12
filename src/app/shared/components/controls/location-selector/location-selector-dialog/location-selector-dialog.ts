@@ -6,7 +6,6 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { debounce, form, FormField } from '@angular/forms/signals';
 import {
   MatAutocompleteModule,
   MatAutocompleteSelectedEvent,
@@ -21,6 +20,8 @@ import { Effect } from 'effect';
 import {
   catchError,
   combineLatest,
+  debounceTime,
+  distinctUntilChanged,
   from,
   of,
   shareReplay,
@@ -94,25 +95,22 @@ const isLocationSuggestion = (value: unknown): value is LocationSuggestion =>
     MatAutocompleteModule,
     MatProgressBarModule,
     AsyncPipe,
-    FormField,
   ],
   selector: 'app-location-selector-dialog',
   styles: ``,
   templateUrl: './location-selector-dialog.html',
 })
 export class LocationSelectorDialog {
-  private readonly searchModel = signal<{
-    query: LocationSuggestion | string;
-  }>({ query: '' });
-  protected readonly searchForm = form(this.searchModel, (schema) => {
-    debounce(schema, 300);
-  });
+  protected readonly searchQuery = signal<LocationSuggestion | string>('');
   private readonly configService = inject(ConfigService);
   private readonly locationSearch = inject(LocationSearch);
   private readonly searchRetry = signal(0);
 
   protected readonly locationSearchState$ = combineLatest([
-    toObservable(this.searchForm.query().value),
+    toObservable(this.searchQuery).pipe(
+      distinctUntilChanged(),
+      debounceTime(300),
+    ),
     toObservable(this.searchRetry),
   ]).pipe(
     switchMap(([query]) => {
@@ -161,6 +159,7 @@ export class LocationSelectorDialog {
       return;
     }
 
+    this.searchQuery.set(value);
     await this.loadPlaceDetails(value);
   }
 
@@ -178,6 +177,13 @@ export class LocationSelectorDialog {
 
   protected retrySearch(): void {
     this.searchRetry.update((attempt) => attempt + 1);
+  }
+
+  protected updateSearchQuery(event: Event): void {
+    const input = event.target;
+    if (input instanceof HTMLInputElement) {
+      this.searchQuery.set(input.value);
+    }
   }
 
   private failedSearchState(failure: LocationSearchError): LocationSearchState {

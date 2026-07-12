@@ -586,6 +586,7 @@ describe('globalAdminHandlers', () => {
     Effect.gen(function* () {
       let capturedAudit: Record<string, unknown> | undefined;
       let capturedUpdate: Record<string, unknown> | undefined;
+      let deletedTaxMetadata = false;
       const beforeTenant = {
         currency: 'EUR',
         domain: 'tenant.example.com',
@@ -623,11 +624,18 @@ describe('globalAdminHandlers', () => {
       };
       const pendingObligationsQuery = {
         from: () => pendingObligationsQuery,
+        innerJoin: () => pendingObligationsQuery,
         limit: () => Effect.succeed([]),
         where: () => pendingObligationsQuery,
       };
       let selectCount = 0;
       const database = {
+        delete: () => ({
+          where: () => {
+            deletedTaxMetadata = true;
+            return Effect.void;
+          },
+        }),
         insert: (table: unknown) => ({
           values: (value: Record<string, unknown>) => {
             expect(table).toBe(platformAuditEntries);
@@ -669,6 +677,7 @@ describe('globalAdminHandlers', () => {
         name: 'Tenant',
         stripeAccountId: null,
       });
+      expect(deletedTaxMetadata).toBe(true);
       expect(capturedAudit).toMatchObject({
         action: 'tenant.update',
         actorEmail: 'platform@example.org',
@@ -764,6 +773,107 @@ describe('globalAdminHandlers', () => {
       expect(update).not.toHaveBeenCalled();
       expect(insert).not.toHaveBeenCalled();
     }),
+  );
+
+  it.effect(
+    'blocks Stripe account rotation after locking when paid event configuration exists',
+    () =>
+      Effect.gen(function* () {
+        const operations: string[] = [];
+        const beforeSelect = {
+          for: () => {
+            operations.push('tenant-lock');
+            return Effect.succeed([
+              {
+                currency: 'EUR',
+                domain: 'tenant.example.com',
+                id: 'tenant-1',
+                locale: 'de-DE',
+                name: 'Tenant',
+                stripeAccountId: 'acct_current',
+                theme: 'evorto',
+                timezone: 'Europe/Berlin',
+              },
+            ]);
+          },
+          from: () => beforeSelect,
+          where: () => beforeSelect,
+        };
+        const pendingObligationsSelect = {
+          from: () => pendingObligationsSelect,
+          limit: () => {
+            operations.push('pending-obligation-check');
+            return Effect.succeed([]);
+          },
+          where: () => pendingObligationsSelect,
+        };
+        const paidConfigurationSelect = {
+          from: () => paidConfigurationSelect,
+          innerJoin: () => paidConfigurationSelect,
+          limit: () => {
+            operations.push('paid-configuration-check');
+            return Effect.succeed([{ id: 'paid-option-1' }]);
+          },
+          where: () => paidConfigurationSelect,
+        };
+        const selectResults = [
+          beforeSelect,
+          pendingObligationsSelect,
+          paidConfigurationSelect,
+        ];
+        const update = vi.fn(() => {
+          throw new Error('tenant update should not run');
+        });
+        const insert = vi.fn(() => {
+          throw new Error('audit insert should not run');
+        });
+        const database = {
+          insert,
+          query: {
+            tenants: {
+              findFirst: () => Effect.succeed({ id: 'tenant-1' }),
+            },
+          },
+          select: () => {
+            const result = selectResults.shift();
+            if (!result) {
+              throw new Error('unexpected select');
+            }
+            return result;
+          },
+          transaction: (operation: (transaction: object) => unknown) =>
+            operation(database),
+          update,
+        };
+
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          {
+            id: 'tenant-1',
+            reason: 'Rotate Stripe after provider offboarding',
+            tenant: {
+              currency: 'EUR',
+              domain: 'tenant.example.com',
+              name: 'Tenant',
+              stripeAccountId: 'acct_next',
+              theme: 'evorto',
+              timezone: 'Europe/Berlin',
+            },
+          },
+          { headers: createHeaders([]) } as never,
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Stripe account cannot change while paid event configuration exists',
+        );
+        expect(operations).toEqual([
+          'tenant-lock',
+          'pending-obligation-check',
+          'paid-configuration-check',
+        ]);
+        expect(update).not.toHaveBeenCalled();
+        expect(insert).not.toHaveBeenCalled();
+      }),
   );
 
   it.effect(

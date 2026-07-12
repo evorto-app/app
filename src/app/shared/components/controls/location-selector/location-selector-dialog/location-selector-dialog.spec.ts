@@ -71,6 +71,25 @@ describe('LocationSelectorDialog', () => {
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
   });
 
+  it('keeps the typed query visible while provider search is debounced', async () => {
+    const input: HTMLInputElement | null =
+      fixture.nativeElement.querySelector('input');
+    if (!input) throw new Error('Location input was not rendered');
+
+    input.value = 'Berlin';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(input.value).toBe('Berlin');
+    expect(search).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(search).toHaveBeenCalledWith('Berlin', undefined);
+    });
+    expect(input.value).toBe('Berlin');
+  });
+
   it('explains missing provider configuration instead of showing no results', async () => {
     searchEffect = Effect.fail(
       new LocationConfigurationError({

@@ -18,6 +18,7 @@ export * from './finance-receipts';
 export * from './global-enums';
 export * from './icons';
 export * from './platform-audit-entries';
+export * from './registration-acquisitions';
 export * from './registration-transfers';
 export * from './roles';
 export * from './stripe-webhook-events';

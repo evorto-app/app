@@ -59,6 +59,17 @@
       </section>
 
       <section class="border-outline-variant bg-surface rounded-lg border p-4">
+        @if (!stripeConnectionKnown()) {
+          <p class="text-on-surface-variant mb-4 text-sm" role="status">
+            Paid controls are unavailable while the tenant's Stripe status is
+            loading.
+          </p>
+        } @else if (paidControlsUnavailable()) {
+          <p class="text-on-surface-variant mb-4 text-sm" role="status">
+            Paid controls are unavailable because this tenant has no connected
+            Stripe account. Saving keeps registration options and add-ons free.
+          </p>
+        }
         <app-template-graph-editor
           [defaultParticipantRoleIds]="defaultParticipantRoleIds()"
           [esnEnabled]="esnEnabled()"

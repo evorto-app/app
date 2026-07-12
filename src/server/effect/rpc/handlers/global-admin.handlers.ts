@@ -42,11 +42,16 @@ import {
   registrationTransfers,
   tenantPrivacyPolicyVersions,
   tenants,
+  tenantStripeTaxRates,
 } from '../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
 import { TENANT_FORMATTING_LOCALE } from '../../../../types/custom/tenant';
 import { emailOutboxStaleSendingPredicate } from '../../../notifications/email-outbox-lease';
 import { normalizeTenantPrivacyPolicy } from '../../../onboarding/tenant-onboarding.service';
+import {
+  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+  tenantHasPaidEventConfiguration,
+} from '../../../payments/paid-event-configuration';
 import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
 import {
   tenantCurrencyChangeBlockedErrorDetails,
@@ -617,6 +622,18 @@ export const globalAdminHandlers = {
                     'Complete or cancel every pending Checkout and refund before changing the connected account.',
                 });
               }
+
+              const hasPaidEventConfiguration =
+                yield* tenantHasPaidEventConfiguration(transaction, id);
+              if (hasPaidEventConfiguration) {
+                return yield* new RpcBadRequestError(
+                  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+                );
+              }
+
+              yield* transaction
+                .delete(tenantStripeTaxRates)
+                .where(eq(tenantStripeTaxRates.tenantId, id));
             }
 
             if (beforeTenant.currency !== tenantInput.currency) {

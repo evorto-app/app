@@ -120,7 +120,7 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
-  it('describes confirmed cancellation and refund fallback handling', () => {
+  it('describes confirmed cancellation and Stripe refund handling', () => {
     expect(
       registrationCancellationCopy({
         activeTransfer: null,
@@ -133,7 +133,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: 'Cancel registration',
       helperText:
-        'This cancels your confirmed registration and releases your spot. If this was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.',
+        'This cancels your confirmed registration and releases your spot. Paid refunds start only when Stripe payment ownership, fee allocation, and add-on amounts reconcile safely. Refunds then process asynchronously.',
     });
   });
 
@@ -141,6 +141,7 @@ describe('registrationCancellationCopy', () => {
     const registration = {
       activeTransfer: {
         expiresAt: '2030-05-01T12:00:00.000Z',
+        refundLifecycle: null,
         registrationSide: 'recipient' as const,
         status: 'checkout_pending' as const,
         transferId: 'transfer-1',
@@ -215,18 +216,9 @@ describe('registration transfer copy', () => {
     );
   });
 
-  it('explains each add-on and payment-specific transfer block', () => {
+  it('explains a pending add-on payment transfer block', () => {
     expect(registrationTransferBlockedCopy('addonPaymentPending')).toContain(
       'pending add-on checkout',
-    );
-    expect(registrationTransferBlockedCopy('addonFulfillmentState')).toContain(
-      'Redeemed or cancelled add-ons',
-    );
-    expect(
-      registrationTransferBlockedCopy('unsupportedPaymentMethod'),
-    ).toContain('does not support automated transfer refunds');
-    expect(registrationTransferBlockedCopy('paidAddon')).toContain(
-      'paid add-on',
     );
   });
 
@@ -247,12 +239,14 @@ describe('registration transfer copy', () => {
   it('does not offer transfer cancellation during refund reconciliation', () => {
     const refundPending = registrationActiveTransferStatusCopy({
       expiresAt: '2030-05-01T12:00:00.000Z',
+      refundLifecycle: { state: 'processing' },
       registrationSide: 'source',
       status: 'refund_pending',
       transferId: 'transfer-1',
     });
     const refundFailed = registrationActiveTransferStatusCopy({
       expiresAt: '2030-05-01T12:00:00.000Z',
+      refundLifecycle: { state: 'needsAttention' },
       registrationSide: 'recipient',
       status: 'refund_failed',
       transferId: 'transfer-1',
@@ -269,6 +263,30 @@ describe('registration transfer copy', () => {
       title: 'Transfer refund needs attention',
     });
     expect(refundFailed.body).toContain('Your ticket remains confirmed');
+  });
+
+  it('does not describe provider action or stopped refunds as processing', () => {
+    const actionRequired = registrationActiveTransferStatusCopy({
+      expiresAt: '2030-05-01T12:00:00.000Z',
+      refundLifecycle: { state: 'actionRequired' },
+      registrationSide: 'source',
+      status: 'refund_pending',
+      transferId: 'transfer-1',
+    });
+    const stopped = registrationActiveTransferStatusCopy({
+      expiresAt: '2030-05-01T12:00:00.000Z',
+      refundLifecycle: { state: 'needsAttention' },
+      registrationSide: 'recipient',
+      status: 'refund_pending',
+      transferId: 'transfer-1',
+    });
+
+    expect(actionRequired.title).toBe(
+      'Transfer refund requires provider action',
+    );
+    expect(actionRequired.body).not.toContain('being processed');
+    expect(stopped.title).toBe('Transfer refund needs attention');
+    expect(stopped.body).toContain('processing stopped');
   });
 });
 

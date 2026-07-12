@@ -244,18 +244,17 @@
                                 (click)="openTransferDialog(user)"
                                 [disabled]="
                                   organizerRegistrationTransferDisabled({
-                                    checkedIn: user.checkedIn,
                                     mutationPending:
                                       approveRegistrationMutation.isPending() ||
                                       transferRegistrationMutation.isPending() ||
                                       cancelRegistrationMutation.isPending(),
-                                    transferAvailable: user.transferAvailable,
+                                    status: user.status,
                                   })
                                 "
                               >
                                 {{
-                                  user.transferAvailable
-                                    ? "Transfer registration"
+                                  user.status === "CONFIRMED"
+                                    ? "Review transfer"
                                     : "Transfer unavailable"
                                 }}
                               </button>

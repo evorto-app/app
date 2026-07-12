@@ -289,6 +289,28 @@
             Options, add-on mappings, questions, and audit entry are saved
             together.
           </p>
+          @if (targetTenantQuery.isPending()) {
+            <p class="body-small text-on-surface-variant mt-2" role="status">
+              Paid controls are unavailable while the target tenant's Stripe
+              status is loading.
+            </p>
+          } @else if (targetTenantQuery.isError()) {
+            <p class="body-small text-error mt-2" role="alert">
+              Paid controls are unavailable because the target tenant's Stripe
+              status could not be loaded. Existing payment data is preserved.
+            </p>
+          } @else if (!targetTenantQuery.data()) {
+            <p class="body-small text-error mt-2" role="alert">
+              Paid controls are unavailable because the target tenant could not
+              be found. Existing payment data is preserved.
+            </p>
+          } @else if (stripeDisconnected()) {
+            <p class="body-small text-on-surface-variant mt-2" role="status">
+              Paid controls are unavailable because the target tenant has no
+              connected Stripe account. Saving keeps registration options and
+              add-ons free.
+            </p>
+          }
         </div>
         @if (!isSimpleMode()) {
           <button mat-button type="button" (click)="addRegistrationOption()">

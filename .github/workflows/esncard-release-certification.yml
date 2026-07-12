@@ -1,19 +1,56 @@
-name: ESNcard Release Certification
+name: Production Provider Certification
 
 on:
   workflow_call:
+    secrets:
+      AUTH0_MANAGEMENT_CLIENT_ID:
+        description: Auth0 Management client used by credential-backed integration journeys
+        required: true
+      AUTH0_MANAGEMENT_CLIENT_SECRET:
+        description: Auth0 Management secret used by credential-backed integration journeys
+        required: true
+      CLIENT_ID:
+        description: Auth0 application client id used by the certification stack
+        required: true
+      CLIENT_SECRET:
+        description: Auth0 application secret used by the certification stack
+        required: true
+      E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER:
+        description: Approved permanently expired non-production ESNcard identity
+        required: true
+      E2E_LIVE_ESN_CARD_IDENTIFIER:
+        description: Approved active non-production ESNcard identity
+        required: true
+      FONT_AWESOME_TOKEN:
+        description: Font Awesome package registry token
+        required: true
+      NEON_API_KEY:
+        description: Neon Local branch-management API key
+        required: true
+      PARENT_BRANCH_ID:
+        description: Explicit Neon parent branch for the disposable certification branch
+        required: true
+      PUBLIC_GOOGLE_MAPS_API_KEY:
+        description: Browser-restricted Google Maps integration key
+        required: true
+      SECRET:
+        description: Application session signing secret
+        required: true
+      STRIPE_TEST_API_KEY:
+        description: Stripe test API key used by the certification stack
+        required: true
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: esncard-release-certification-${{ github.ref }}
+  group: provider-certification
   cancel-in-progress: false
 
 jobs:
   certify:
-    name: Live add, refresh, remove, and provider-error UX
+    name: Required Auth0, Google Maps, and ESNcard certification
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: esncard-release-certification
@@ -22,15 +59,10 @@ jobs:
       APP_READY_PATH: /readyz
       BASE_URL: http://localhost:4200
       CI: true
-      CLIENT_ID: ${{ secrets.CLIENT_ID }}
-      CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
       COMPOSE_PROJECT_NAME: evorto-esncard-release
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       DELETE_BRANCH: true
-      E2E_LIVE_ESN_CARD_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_IDENTIFIER }}
-      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
       ISSUER_BASE_URL: ${{ vars.ISSUER_BASE_URL }}
-      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_DATABASE_NAME: appdb
       NEON_LOCAL_BRANCH_TTL_HOURS: 4
       NEON_LOCAL_HOST_PORT: 55432
@@ -39,56 +71,74 @@ jobs:
       NEON_LOCAL_PROXY: true
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       NO_WEBSERVER: true
-      PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 're_test_esncard_release_no_delivery' }}
+      RESEND_API_KEY: re_test_provider_certification_no_delivery
       S3_ACCESS_KEY_ID: minioadmin
       S3_BUCKET: evorto-esncard-release
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_SECRET_ACCESS_KEY: minioadmin
-      SECRET: ${{ secrets.SECRET }}
-      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
       STRIPE_TEST_ACCOUNT_ID: ${{ vars.STRIPE_TEST_ACCOUNT_ID }}
       STRIPE_WEBHOOK_SECRET: whsec_esncard_release_not_used
     steps:
+      - name: Validate required provider certification configuration
+        shell: bash
+        env:
+          AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
+          AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER }}
+          E2E_LIVE_ESN_CARD_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_IDENTIFIER }}
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
+          PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}
+          SECRET: ${{ secrets.SECRET }}
+          STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+        run: |
+          for variable_name in FONT_AWESOME_TOKEN NEON_API_KEY NEON_PROJECT_ID PARENT_BRANCH_ID CLIENT_ID CLIENT_SECRET AUTH0_MANAGEMENT_CLIENT_ID AUTH0_MANAGEMENT_CLIENT_SECRET ISSUER_BASE_URL PUBLIC_GOOGLE_MAPS_API_KEY E2E_LIVE_ESN_CARD_IDENTIFIER E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER SECRET STRIPE_TEST_API_KEY STRIPE_TEST_ACCOUNT_ID; do
+            if [ -z "${!variable_name}" ]; then
+              echo "::error::Missing required provider certification configuration: ${variable_name}"
+              exit 1
+            fi
+          done
+          if [[ "${STRIPE_TEST_API_KEY}" != sk_test_* ]]; then
+            echo "::error::STRIPE_TEST_API_KEY must be a Stripe test-mode secret key"
+            exit 1
+          fi
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.3.14"
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.15.0"
 
-      - name: Require approved release credential
-        shell: bash
-        run: |
-          if [ -z "${E2E_LIVE_ESN_CARD_IDENTIFIER}" ]; then
-            echo "::error::Missing required environment secret: E2E_LIVE_ESN_CARD_IDENTIFIER. Configure an approved non-production ESNcard identity in the esncard-release-certification environment."
-            exit 1
-          fi
-
-      - name: Validate required stack configuration
-        shell: bash
-        run: |
-          for variable_name in FONT_AWESOME_TOKEN NEON_API_KEY NEON_PROJECT_ID CLIENT_ID CLIENT_SECRET ISSUER_BASE_URL SECRET STRIPE_API_KEY STRIPE_TEST_ACCOUNT_ID; do
-            if [ -z "${!variable_name}" ]; then
-              echo "::error::Missing required release-stack configuration: ${variable_name}"
-              exit 1
-            fi
-          done
-
       - name: Install dependencies
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: bun install --frozen-lockfile
 
       - name: Generate runtime environment
         run: bun run env:runtime
 
       - name: Run fail-closed release preflight
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER }}
+          E2E_LIVE_ESN_CARD_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_IDENTIFIER }}
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
+          SECRET: ${{ secrets.SECRET }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
         run: bun helpers/testing/runtime-preflight.ts esncard-release
 
       - name: Install Playwright browsers
@@ -101,15 +151,22 @@ jobs:
           chmod 0777 "${NEON_LOCAL_METADATA_DIR}"
 
       - name: Pull and build Docker images
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           docker compose pull
           docker compose build --pull
 
       - name: Start Docker stack
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
         run: |
           docker compose down --timeout 60 --remove-orphans
           docker compose up -d db db-expiration minio stripe minio-init
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if docker compose exec -T db pg_isready -h 127.0.0.1 -p 5432 -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
               echo "Database is reachable"
               exit 0
@@ -121,15 +178,28 @@ jobs:
           exit 1
 
       - name: Confirm Neon branch expiration
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
         run: bun helpers/testing/set-neon-local-branch-expiration.ts
 
       - name: Start application container
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
+          PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}
+          SECRET: ${{ secrets.SECRET }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
         run: docker compose up -d evorto
 
       - name: Wait for application
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           ready_url="${BASE_URL}${APP_READY_PATH}"
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${ready_url}" || true)"
             if [ "${ready_status}" = "204" ]; then
               echo "Application is reachable"
@@ -141,12 +211,36 @@ jobs:
           docker compose ps
           exit 1
 
+      - name: Run credential-backed Auth0 and Google Maps integration certification
+        env:
+          AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
+          AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_SELECTED_PROJECTS: local-chrome-integration,docs-integration
+          PLAYWRIGHT_SELECTED_PROJECTS: local-chrome-integration,docs-integration
+          PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}
+          SECRET: ${{ secrets.SECRET }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+        run: bun run test:e2e:integration
+
       - name: Run provider-error UI and live ESNcard certification
         env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER }}
+          E2E_LIVE_ESN_CARD_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_IDENTIFIER }}
           E2E_SELECTED_PROJECTS: local-chrome-live-esncard
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
           PLAYWRIGHT_SELECTED_PROJECTS: local-chrome-live-esncard
+          SECRET: ${{ secrets.SECRET }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
         run: bun run test:e2e:live-esncard:release
 
       - name: Stop Docker stack
         if: always()
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: docker compose down --timeout 60 --remove-orphans

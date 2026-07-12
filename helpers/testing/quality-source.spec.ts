@@ -46,8 +46,12 @@ describe('quality source', () => {
     expect(queue).toContain('Organizer authoring and check-in');
     expect(queue).toContain('Tenant administration and finance');
     expect(queue).toContain('Platform administration');
-    expect(queue).toContain('Live ESNcard provider');
+    expect(queue).toContain('Production Provider Certification');
+    expect(queue).toMatch(/Auth0\s+Management/u);
+    expect(queue).toContain('Google Maps');
+    expect(queue).toContain('ESNcard');
     expect(queue).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
+    expect(queue).toContain('E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER');
     expect(queue).toContain('bun run test:e2e:live-esncard');
   });
 
@@ -70,6 +74,7 @@ describe('quality source', () => {
     );
     expect(source).toContain('in-app Browser manual review queue');
     expect(source).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
+    expect(source).toContain('E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER');
   });
 
   it('keeps quality guidance honest about blocked Browser review', () => {

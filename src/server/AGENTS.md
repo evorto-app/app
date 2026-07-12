@@ -28,6 +28,19 @@
 - Reference known Auth0 error classes from upstream when defining mappings: [auth0-server-js errors.ts](https://github.com/auth0/auth0-auth-js/blob/main/packages/auth0-server-js/src/errors.ts).
 - Prefer Bun-native storage clients (for example Bun `S3Client`) for object storage integrations.
 - Keep server-side security headers and webhook protections aligned with current runtime middleware.
+- Event registration and add-on charges are Stripe-only. Reject paid event
+  configuration or execution without the tenant's connected Stripe account;
+  do not add a cash/manual paid-event fallback.
+- Treat registration transfer as one inseparable registration/add-on bundle.
+  Preserve guest quantity, every included/free/purchased add-on quantity, and
+  check-in/fulfillment history. Calculate recipient pricing independently at
+  current base prices with recipient-current discounts only, refund each
+  original Stripe source exactly, and use database-only completion only when
+  the whole bundle is free and no refund is required.
+- Google Maps is required production functionality. Cloudflare Images is being
+  removed and must not gain new product coupling or release-gate requirements.
+- Keep exhausted email-outbox rows stored and read-only. There is no operator
+  requeue, edit, or recovery action for exhausted mail in the current product.
 
 ## Logging
 

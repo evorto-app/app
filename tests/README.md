@@ -44,20 +44,61 @@ replace it with aspirational documentation.
   new idempotency generation versus resuming the existing durable claim, and
   keeps deferred random allocation read-compatible but non-writable.
 - Prefer the target-scoped registration-result route for repeatable platform
-  scanner checks. Keep real camera behavior in the organizer scanner's manual
-  review unless Playwright camera emulation is straightforward and reliable.
+  scanner checks. The organizer guide already exercises deterministic mocked
+  camera permission/readiness, while Browser review covers the fallback and a
+  real result page. This evidence does not claim physical-device focus or QR
+  recognition certification.
+
+## Paid Registration Checkout Coverage
+
+- Paid registration-completion fixtures create an idempotent Stripe test-mode
+  PaymentIntent and wait for its connected-account balance transaction before
+  sending the signed local Checkout webhook. That keeps the production
+  charge, fee, currency, and ownership reconciliation active instead of
+  accepting invented charge ids. It is test-mode workflow evidence, not
+  certification of live bank or card-network settlement.
 
 ## Registration Transfer Coverage
 
 - `specs/events/registration-transfer.spec.ts` exercises the free-registration
-  private-link claim flow, paid private-offer/current-price and self-claim
+  private-offer/manual-code claim flow, paid private-offer/current-price and self-claim
   boundaries, deterministic paid Checkout completion through the shared server
-  finalizer, terminal source-refund failure plus operator requeue, and paid
-  non-Stripe cancellation with a durable manual refund.
+  finalizer, and terminal source-refund failure plus operator requeue. Binding
+  transfer coverage must also prove that the registration, guest quantity, all
+  included/free/purchased add-on quantities, and fulfillment/check-in history
+  move unchanged as one fixed bundle, priced at current base prices with only
+  the recipient's current discounts, with one exact refund per original Stripe
+  source. The recipient payment is recalculated independently from those source
+  refunds, and source-user discounts do not transfer. Only a wholly free bundle
+  with no refund may complete database-only.
 - `docs/events/registration-transfer.doc.ts` generates the participant-facing
-  walkthrough for creating and claiming a private transfer link. Its paid
+  walkthrough for creating and claiming a private transfer offer by link or manual code. Its paid
   journey captures the pending Checkout, confirmed/refund-processing,
-  refund-needs-attention, and safely requeued states from persisted data.
+  refund-needs-attention, and safely requeued states from persisted data and
+  explains the fixed-bundle, current-recipient-pricing contract.
+
+## Registration Cancellation Coverage
+
+- `docs/events/registration-cancellation.doc.ts` keeps the ordinary free-ticket
+  and organizer cancellation guidance together with a Stripe-backed add-on
+  recovery journey. The Stripe journey starts from a free confirmed
+  registration with one included and two settled optional units, records one
+  included and one purchased redemption through the production service, then
+  cancels through the participant UI and reads back exact source allocation,
+  refund allocation, inventory, capacity, and cancellation-email state.
+- The same journey sends signed local Stripe refund webhooks through the
+  production `/webhooks/stripe` handler. It proves the failed, safely requeued
+  generation-1, and succeeded states across the organizer scanner result,
+  participant Profile, Global Admin **Refund recovery** UI, durable refund
+  history, and append-only platform audit record. This is deterministic local
+  workflow evidence, not certification of live bank or card-network settlement.
+- The Docker Playwright server sets `E2E_RUNTIME_MODE=playwright`. Server startup
+  accepts that mode only together with `NODE_ENV=development`,
+  `NEON_LOCAL_PROXY=true`, and the pinned `E2E_NOW_ISO`, then pauses only the
+  recurring registration-refund worker so audited recovery assertions and
+  signed webhook transitions cannot race it. Immediate refund processing still
+  runs through production code. Outside that validated local mode the worker is
+  enabled by default; an attempted production override fails server startup.
 
 ## Receipt Submission Coverage
 
@@ -112,9 +153,9 @@ CI-triggering action, use the canonical unfiltered command set in the root
 ```bash
 bun run test:e2e
 bun run test:e2e:ui
-AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_IMAGES_API_TOKEN=... CLOUDFLARE_IMAGES_DELIVERY_HASH=... bun run test:e2e:integration
-E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard
-E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard:release
+AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... PUBLIC_GOOGLE_MAPS_API_KEY=... bun run test:e2e:integration
+E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard
+E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard:release
 bun run test:e2e:docs
 bun run test:e2e:docs:publish
 bun run test:e2e:install
@@ -178,6 +219,16 @@ printed or committed.
   bucket initialization, or branch-expiration setup.
 - Start the local runtime stack in foreground for Playwright `webServer` without
   forcing `docker compose down`: `bun run docker:webserver`
+- When an explicit disposable database sets `NEON_LOCAL_PROXY=false`, the
+  canonical Playwright command uses `host-e2e-webserver.sh` instead of the full
+  Compose stack. That wrapper starts only this worktree's MinIO service when it
+  is absent, initializes the local bucket, gives the host Angular server the
+  same local S3 endpoint and credentials used by receipt fixtures, and restores
+  a MinIO container that it started from a stopped state. It never runs Compose
+  teardown or recreates unrelated services. Stop any manually started app on
+  `BASE_URL` before this mode; host-runtime reuse is deliberately disabled so a
+  server with remote or mismatched object-storage configuration cannot be
+  mistaken for a valid functional-test runtime.
 - Start the local runtime stack in foreground from a reset state:
   `bun run docker:start:foreground`
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
@@ -202,9 +253,10 @@ printed or committed.
   Local, Auth0, Stripe, the application session secret, and Font Awesome package
   registry access for the premium and brand icon packages. It also reports Bun, Docker
   Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
-  cache status. It lists optional live-provider variables, such as
-  `E2E_LIVE_ESN_CARD_IDENTIFIER`, without printing values and without making
-  Docker startup depend on them. Missing Playwright browsers are warnings
+  cache status. It lists optional live-provider variables, including
+  `E2E_LIVE_ESN_CARD_IDENTIFIER` and
+  `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`, without printing values and without
+  making Docker startup depend on them. Missing Playwright browsers are warnings
   because they affect Playwright runs, not Docker startup.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
@@ -247,18 +299,25 @@ printed or committed.
   image identity.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - `bun run test:e2e:integration` runs all integration-only Playwright
-  projects. It is intended for credential-gated specs and docs such as Auth0
-  Management account creation.
-- `bun run test:e2e:live-esncard` runs only the live esncard.org
-  add/refresh/remove profile path. It uses the dedicated
+  projects. It is the Auth0 Management and required Google Maps portion of the
+  provider gate and requires their approved local credentials.
+- `bun run test:e2e:live-esncard` runs only the live esncard.org active-card
+  add/refresh/remove and expired-card status path. It uses the dedicated
   `local-chrome-live-esncard` project with normal authenticated setup and
   narrows execution to
   `tests/specs/profile/user-profile-live-esncard.spec.ts` and
   `@needs-live-esncard`. The command runs the fail-closed live-provider runtime
-  preflight first; a missing `E2E_LIVE_ESN_CARD_IDENTIFIER` is an error, not a
-  skipped test. This focused command does not run the provider-error unit check;
-  use `bun run test:e2e:live-esncard:release` for the complete local release
-  certification required before merging, pushing, or releasing to `main`.
+  preflight first; a missing `E2E_LIVE_ESN_CARD_IDENTIFIER` or
+  `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` is an error, not a skipped test. This
+  focused command does not run the provider-error unit check;
+  use `bun run test:e2e:live-esncard:release` for the ESNcard provider portion.
+  Complete local provider certification requires both
+  `bun run test:e2e:integration` and
+  `bun run test:e2e:live-esncard:release`, in that order, before any push, PR
+  update, merge, or release that triggers the provider gate. Every collected
+  test in both commands must pass with zero failures, skips, todos, fixmes,
+  expected failures, retries/flakes, interruptions, or focused tests before CI
+  is attempted.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs
@@ -352,7 +411,6 @@ baseline credential contract.
 Integration-only coverage is tagged at the test-title level:
 
 - `@needs-auth0-management`
-- `@needs-cloudflare`
 - `@needs-google-maps`
 
 The dedicated live-provider project selects `@needs-live-esncard` without
@@ -369,6 +427,8 @@ Required for full Playwright flows:
 - `ISSUER_BASE_URL`
 - `NEON_API_KEY` for Docker-backed Neon Local runs
 - `NEON_PROJECT_ID` for Docker-backed Neon Local runs
+- `PARENT_BRANCH_ID` for CI/provider workflows, so their disposable branch
+  parent is explicit
 - `SECRET`
 - `STRIPE_API_KEY`
 - `STRIPE_TEST_ACCOUNT_ID`
@@ -401,47 +461,60 @@ Required only for integration-tagged Playwright projects:
 
 - `AUTH0_MANAGEMENT_CLIENT_ID`
 - `AUTH0_MANAGEMENT_CLIENT_SECRET`
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_IMAGES_DELIVERY_HASH`
-- `CLOUDFLARE_IMAGES_API_TOKEN`
+- `PUBLIC_GOOGLE_MAPS_API_KEY`
 
 Required for every live-provider run (but not for local Docker startup):
 
-- `E2E_LIVE_ESN_CARD_IDENTIFIER` for the profile ESNcard add/refresh/remove
-  journey against esncard.org. Use a real valid card identifier only from a
-  local secret source; do not check it into the repo. Run it with
-  `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` when you
-  exercise that live-provider path locally. Its credential preflight fails
-  closed before Playwright starts when the identifier is absent. The dedicated
-  `local-chrome-live-esncard` project does not require unrelated Auth0
-  Management or Cloudflare provider credentials.
+- `E2E_LIVE_ESN_CARD_IDENTIFIER` for active-card add/refresh/remove and
+  `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` for the permanently expired-card state
+  against esncard.org. Supply both only from a local secret source; do not check
+  either into the repository. Run the path with
+  `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard`.
+  Its credential preflight fails closed before Playwright starts when either
+  identifier is absent. The dedicated `local-chrome-live-esncard` project does
+  not require unrelated Auth0 Management or Google Maps provider credentials.
 
-### ESNcard release credential ownership and rotation
+### Production provider certification credential ownership and rotation
 
-The `ESNcard Release Certification` workflow is both manually dispatchable and
-called as a required job by the repository Release and Fly Deploy workflows.
-Its job targets the protected `esncard-release-certification` GitHub environment
-and fails before setup when that environment cannot provide the
-`E2E_LIVE_ESN_CARD_IDENTIFIER` secret. Every `main` push must complete the
-reusable certification workflow before the actual Fly deployment job can apply
-the database schema or deploy the application. The deploy workflow inherits
-secrets into the reusable workflow instead of duplicating credential handling.
+The **Production Provider Certification** workflow is both manually
+dispatchable and called as a required job by the repository Release workflow.
+Its job targets the protected `esncard-release-certification` GitHub
+environment. The first step validates the required secret and variable names
+before checkout or tool setup, including Auth0 Management, Google Maps,
+`E2E_LIVE_ESN_CARD_IDENTIFIER`, and
+`E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`. The Release caller maps only the
+declared required secrets; the called job keeps the protected environment
+boundary, whose secrets take precedence.
 
-The designated release-operations maintainer owns this environment secret and
-must keep a backup maintainer able to rotate it. The value must be an
-ESNcard-program-approved non-production identity, never a member's personal
-card. Review its validity before each release and rotate it immediately when it
-expires, is revoked, changes custodian, or may have been disclosed. Rotation is
-performed out of band in the GitHub environment: replace the secret, dispatch
-`ESNcard Release Certification`, verify the run, then retire the old provider
-identity. Neither workflow output nor test artifacts should contain the value.
+The GitHub environment and its protection rules must be created out of band;
+referencing its name in workflow source is not proof that the environment is
+protected. The Google Maps key must allow the certification localhost origin,
+have billing enabled, and enable Maps JavaScript API plus Places API (New).
+Runtime object-storage config has no fallback to a test bucket. Store the
+test-mode Stripe key as
+`STRIPE_TEST_API_KEY` in the repository E2E secret set and in the certification
+environment. Baseline and certification test steps map it to the runtime
+`STRIPE_API_KEY` variable expected by the application; they never receive a
+production Stripe key.
+
+The designated release-operations maintainer owns both environment secrets and
+must keep a backup maintainer able to rotate them. Both values must be
+ESNcard-program-approved non-production identities, never a member's personal
+card. Review both provider outcomes before each release. Rotate the active
+identity immediately if it expires, and rotate either identity if it is revoked,
+changes custodian, may have been disclosed, or no longer produces its expected
+active or permanently expired outcome. Rotation is performed out of band in the
+GitHub environment: replace the affected secret, dispatch
+`Production Provider Certification`, verify the run, then retire the replaced
+provider identity. Neither workflow output nor test artifacts should contain
+either value.
 
 The current esncard.org validation endpoint requires no API key, OAuth client,
 or other ESNcard provider credential. Normal CI infrastructure still needs the
 application's Auth0, Neon, Stripe, Font Awesome, and local-stack configuration;
 those are not ESNcard provider credentials. Repository code can enforce the
-gate but cannot provision the approved non-production identity or configure the
-GitHub environment protection rules.
+gate but cannot configure the GitHub environment protection rules or provision
+either approved identity.
 
 ## Local Stack Isolation
 

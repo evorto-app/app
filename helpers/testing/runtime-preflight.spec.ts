@@ -195,12 +195,40 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'playwright.config.ts'),
       'utf8',
     );
+    expect(playwrightConfig).toContain(
+      "? 'bun run docker:webserver'\n    : 'bash helpers/testing/host-e2e-webserver.sh'",
+    );
+    expect(playwrightConfig).toContain(
+      'reuseExistingServer: environment.NEON_LOCAL_PROXY',
+    );
     expect(playwrightConfig).toMatch(
-      /command: 'bun run docker:webserver',[\s\S]*?gracefulShutdown:\s*\{\s*signal:\s*'SIGTERM',\s*timeout:\s*90_000,?\s*\}/,
+      /gracefulShutdown:\s*\{\s*signal:\s*'SIGTERM',\s*timeout:\s*90_000,?\s*\}/,
     );
     expect(playwrightConfig).not.toContain(
       "command: 'bun run docker:start:foreground'",
     );
+
+    const hostE2eWebServer = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/host-e2e-webserver.sh'),
+      'utf8',
+    );
+    expect(hostE2eWebServer).toContain('set -euo pipefail');
+    expect(hostE2eWebServer).toContain(
+      'docker compose up --detach --no-deps minio',
+    );
+    expect(hostE2eWebServer).toContain(
+      'docker compose run --rm --no-deps minio-init',
+    );
+    expect(hostE2eWebServer).toContain(
+      'export S3_ENDPOINT="${local_s3_endpoint}"',
+    );
+    expect(hostE2eWebServer).toContain(
+      'export S3_PUBLIC_ENDPOINT="${local_s3_endpoint}"',
+    );
+    expect(hostE2eWebServer).toMatch(
+      /if wait "\$\{app_pid\}"; then\s+app_status=0\s+else\s+app_status="\$\?"\s+fi/,
+    );
+    expect(hostE2eWebServer).not.toContain('docker compose down');
 
     const testsGuidance = fs.readFileSync(
       path.join(process.cwd(), 'tests/AGENTS.md'),
@@ -360,6 +388,7 @@ describe('evaluateRuntimePreflight', () => {
       'CLIENT_ID',
       'CLIENT_SECRET',
       'E2E_NOW_ISO',
+      'E2E_RUNTIME_MODE',
       'E2E_SEED_KEY',
       'ISSUER_BASE_URL',
       'NODE_ENV',
@@ -393,6 +422,7 @@ describe('evaluateRuntimePreflight', () => {
       'S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"',
     );
     expect(evortoService).toContain('NODE_ENV: "development"');
+    expect(evortoService).toContain('E2E_RUNTIME_MODE: "playwright"');
     expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
@@ -412,6 +442,17 @@ describe('evaluateRuntimePreflight', () => {
     expect(runtimeEnvironment).toContain('E2E_NOW_ISO: e2eNowIso');
     expect(runtimeEnvironment).toContain('E2E_SEED_KEY: e2eSeedKey');
     expect(runtimeEnvironment).toContain("NODE_ENV: 'development'");
+
+    const baseFixture = fs.readFileSync(
+      path.join(process.cwd(), 'tests/support/fixtures/base-test.ts'),
+      'utf8',
+    );
+    expect(baseFixture).toContain('const startedAt = performance.now()');
+    expect(baseFixture).toContain('performance.now() - startedAt');
+    expect(baseFixture).toContain('return currentTime()');
+    expect(baseFixture).not.toContain(
+      'static override now() {\n          return value;',
+    );
 
     expect(composeFile).toContain('FONT_AWESOME_TOKEN:');
     expect(composeFile).toContain('environment: FONT_AWESOME_TOKEN');
@@ -493,7 +534,8 @@ describe('evaluateRuntimePreflight', () => {
       expect.arrayContaining([
         expect.objectContaining({
           details: [
-            'missing E2E_LIVE_ESN_CARD_IDENTIFIER: Optional local live esncard.org Playwright coverage',
+            'missing E2E_LIVE_ESN_CARD_IDENTIFIER: Optional local active-card esncard.org Playwright coverage',
+            'missing E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: Optional local expired-card esncard.org Playwright coverage',
           ],
           label: 'Optional docker live-provider variables',
           severity: 'ok',
@@ -508,6 +550,7 @@ describe('evaluateRuntimePreflight', () => {
       env: {
         ...requiredDockerEnvironment,
         E2E_LIVE_ESN_CARD_IDENTIFIER: 'live-card-id',
+        E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: 'expired-card-id',
       },
       fileExists: (filePath) => filePath === '/repo/.env.dev',
       runCommand: successfulCommand,
@@ -517,7 +560,8 @@ describe('evaluateRuntimePreflight', () => {
       expect.arrayContaining([
         expect.objectContaining({
           details: [
-            'E2E_LIVE_ESN_CARD_IDENTIFIER: Optional local live esncard.org Playwright coverage',
+            'E2E_LIVE_ESN_CARD_IDENTIFIER: Optional local active-card esncard.org Playwright coverage',
+            'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: Optional local expired-card esncard.org Playwright coverage',
           ],
           label: 'Optional docker live-provider variables',
           severity: 'ok',
@@ -526,7 +570,7 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
-  it('fails release certification closed when the approved ESNcard identifier is absent', () => {
+  it('fails release certification closed when either approved ESNcard identifier is absent', () => {
     const result = evaluateRuntimePreflight('esncard-release', {
       cwd: '/repo',
       env: requiredDockerEnvironment,
@@ -539,7 +583,8 @@ describe('evaluateRuntimePreflight', () => {
       expect.arrayContaining([
         expect.objectContaining({
           details: expect.arrayContaining([
-            'E2E_LIVE_ESN_CARD_IDENTIFIER: Approved non-production ESNcard identifier for mandatory release certification',
+            'E2E_LIVE_ESN_CARD_IDENTIFIER: Approved active non-production ESNcard identifier for mandatory release certification',
+            'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: Approved permanently expired non-production ESNcard identifier for mandatory release certification',
           ]),
           label: 'Required esncard-release runtime variables',
           severity: 'failure',
@@ -548,13 +593,15 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
-  it('accepts the approved ESNcard identifier without reporting its value', () => {
+  it('accepts both approved ESNcard identifiers without reporting their values', () => {
     const releaseIdentifier = 'approved-non-production-card';
+    const expiredReleaseIdentifier = 'approved-expired-non-production-card';
     const result = evaluateRuntimePreflight('esncard-release', {
       cwd: '/repo',
       env: {
         ...requiredDockerEnvironment,
         E2E_LIVE_ESN_CARD_IDENTIFIER: releaseIdentifier,
+        E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: expiredReleaseIdentifier,
       },
       fileExists: (filePath) => filePath === '/repo/.env.dev',
       runCommand: successfulCommand,
@@ -562,11 +609,15 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(result.failed).toBe(false);
     expect(JSON.stringify(result.checks)).not.toContain(releaseIdentifier);
+    expect(JSON.stringify(result.checks)).not.toContain(
+      expiredReleaseIdentifier,
+    );
     expect(result.checks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           details: expect.arrayContaining([
-            'E2E_LIVE_ESN_CARD_IDENTIFIER: Approved non-production ESNcard identifier for mandatory release certification',
+            'E2E_LIVE_ESN_CARD_IDENTIFIER: Approved active non-production ESNcard identifier for mandatory release certification',
+            'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: Approved permanently expired non-production ESNcard identifier for mandatory release certification',
           ]),
           label: 'Available esncard-release runtime variables',
           severity: 'ok',

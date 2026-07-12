@@ -188,7 +188,9 @@ const graphInput = {
   unlisted: false,
 };
 
-const createSimpleWriteValidationDatabase = () => {
+const createSimpleWriteValidationDatabase = (
+  stripeAccountId: null | string = 'acct_connected',
+) => {
   const transactionalDatabase = {
     execute: () => Effect.void,
     query: {
@@ -199,10 +201,15 @@ const createSimpleWriteValidationDatabase = () => {
         findMany: () => Effect.succeed([{ id: 'role-1' }]),
       },
     },
-    select: () => ({
+    select: (selection: Record<string, unknown>) => ({
       from: () => ({
         where: () => ({
-          for: () => Effect.succeed([{ currency: 'EUR', id: 'tenant-1' }]),
+          for: () =>
+            Effect.succeed(
+              Reflect.has(selection, 'stripeAccountId')
+                ? [{ stripeAccountId }]
+                : [{ currency: 'EUR', id: 'tenant-1' }],
+            ),
         }),
       }),
     }),
@@ -300,6 +307,38 @@ describe('templateHandlers permissions', () => {
   );
 
   it.effect(
+    'simple create rejects paid configuration when Stripe is not connected',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* templateHandlers['templates.createSimpleTemplate'](
+          {
+            ...templateInput,
+            participantRegistration: {
+              ...templateInput.participantRegistration,
+              isPaid: true,
+              price: 2500,
+            },
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createSimpleHandlerLayer(
+              ['templates:create'],
+              createSimpleWriteValidationDatabase(null),
+            ),
+          ),
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'TemplateSimpleBadRequestError',
+          message:
+            'Connect Stripe before configuring paid registration options or add-ons',
+        });
+      }),
+  );
+
+  it.effect(
     'simple update surfaces a zero-price paid add-on as a typed bad request',
     () =>
       Effect.gen(function* () {
@@ -339,6 +378,36 @@ describe('templateHandlers permissions', () => {
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.permission).toBe('templates:create');
     }),
+  );
+
+  it.effect(
+    'graph create rejects paid configuration when Stripe is not connected',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* templateHandlers['templates.create'](
+          {
+            ...graphInput,
+            registrationOptions: graphInput.registrationOptions.map(
+              (option, index) =>
+                index === 0 ? { ...option, isPaid: true, price: 2500 } : option,
+            ),
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(
+              ['templates:create'],
+              createSimpleWriteValidationDatabase(null),
+            ),
+          ),
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'stripeRequiredForPaidEventConfiguration',
+        });
+      }),
   );
 
   it.effect('graph update requires templates:editAll', () =>

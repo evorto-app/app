@@ -123,6 +123,7 @@ export const resolveIcon = async (
     );
     throw new Error(
       `Failed to resolve icon ${iconName} for tenant ${tenantId}`,
+      { cause: error },
     );
   }
 };

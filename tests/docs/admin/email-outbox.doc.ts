@@ -120,7 +120,7 @@ Each active row identifies the tenant name and primary domain, recipient, email 
 - **Queued, 0/8, Not attempted** means Evorto has stored the message durably and has not tried the provider yet.
 - **Queued** with a prior attempt and a **Last error** means an automatic retry is scheduled for **Next attempt**. Wait until that time, then use **Refresh** to read the latest state.
 - **Sending** means a worker owns a time-limited delivery claim. If a process stops, Evorto can reclaim the row after that claim lease expires; do not infer that the email is permanently stuck from a brief Sending state.
-- **Failed**, attempts equal to the maximum, and an **Exhausted** timestamp means automatic retries have stopped. Record the recipient and last error for investigation. The current page is read-only: fixing the cause and manually requeueing an exhausted row remain operator actions outside this UI.
+- **Failed**, attempts equal to the maximum, and an **Exhausted** timestamp means automatic retries have stopped. Record the tenant, recipient, and last error for incident investigation. The row intentionally remains stored and read-only; the current product does not requeue or edit exhausted email.
 
 There is currently no tenant/status search control and no manual retry button on this page. **Refresh** only reloads the overview; it does not send or requeue an email.
 `,
@@ -137,7 +137,7 @@ There is currently no tenant/status search control and no manual retry button on
 
 A signed-in user without platform administrator authority is redirected to the forbidden page when opening \`/global-admin/email-outbox\` directly. Do not grant a broad tenant role as a workaround; platform access is separate.
 
-For an exhausted row, capture the tenant, recipient, attempt count, and last error before coordinating recovery. For a queued retry or an active Sending row, prefer a later Refresh so the automatic processor can settle it before manual intervention.
+For an exhausted row, capture the tenant, recipient, attempt count, and last error as durable evidence while investigating the underlying provider or data problem. Do not expect a recovery action on this page. For a queued retry or an active Sending row, prefer a later Refresh so the automatic processor can settle it before manual intervention.
 `,
     });
   } finally {

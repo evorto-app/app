@@ -36,6 +36,9 @@
         Allow multiple units
       </mat-checkbox>
       <mat-checkbox [formField]="addOn.isPaid">Paid add-on</mat-checkbox>
+      <p class="text-on-surface-variant text-sm">
+        Paid add-ons require a connected Stripe account.
+      </p>
     </section>
 
     @if (!addOn.price().hidden()) {

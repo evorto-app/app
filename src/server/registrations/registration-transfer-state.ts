@@ -160,14 +160,3 @@ export const resolveRegistrationTransferRefundPlan = Effect.fn(
     applicationFeeRefunded: false,
   } satisfies RegistrationTransferRefundPlan;
 });
-
-export const registrationTransferCapacityDelta = ({
-  recipientSpotCount,
-  sourceSpotCount,
-}: {
-  recipientSpotCount: number;
-  sourceSpotCount: number;
-}) => ({
-  additionalReservation: Math.max(0, recipientSpotCount - sourceSpotCount),
-  confirmedDelta: recipientSpotCount - sourceSpotCount,
-});

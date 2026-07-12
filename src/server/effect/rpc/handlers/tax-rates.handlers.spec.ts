@@ -26,15 +26,18 @@ const tenant = {
     allowOther: false,
     receiptCountries: ['NL'],
   },
-  stripeAccountId: null,
+  stripeAccountId: 'acct_current',
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
 };
 
-const createHeaders = (permissions: readonly Permission[]) => ({
+const createHeaders = (
+  permissions: readonly Permission[],
+  currentTenant = tenant,
+) => ({
   [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
   [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(permissions),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
+  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(currentTenant),
 });
 
 describe('taxRateHandlers permissions', () => {
@@ -88,10 +91,37 @@ describe('taxRateHandlers permissions', () => {
             where: {
               active: true,
               inclusive: true,
+              stripeAccountId: 'acct_current',
               tenantId: 'tenant-1',
             },
           }),
         );
+      }),
+  );
+
+  it.effect(
+    'does not expose legacy unscoped rates without a current account',
+    () =>
+      Effect.gen(function* () {
+        const findMany = vi.fn(() => Effect.succeed([]));
+        const result = yield* taxRateHandlers['taxRates.listActive'](
+          undefined,
+          {
+            headers: createHeaders(['templates:view'], {
+              ...tenant,
+              stripeAccountId: null,
+            }),
+          } as never,
+        ).pipe(
+          Effect.provide(
+            Layer.succeed(Database, {
+              query: { tenantStripeTaxRates: { findMany } },
+            } as never),
+          ),
+        );
+
+        expect(result).toEqual([]);
+        expect(findMany).not.toHaveBeenCalled();
       }),
   );
 

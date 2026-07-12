@@ -142,7 +142,6 @@ export interface EventOrganizeParticipant {
   paymentSetupRequired: boolean;
   registrationId: string;
   status: EventsRegistrationStatus;
-  transferAvailable: boolean;
 }
 
 export const organizerRegistrationActionDisabled = ({
@@ -154,14 +153,12 @@ export const organizerRegistrationActionDisabled = ({
 }): boolean => checkedIn || mutationPending;
 
 export const organizerRegistrationTransferDisabled = ({
-  checkedIn,
   mutationPending,
-  transferAvailable,
+  status,
 }: {
-  checkedIn: boolean;
   mutationPending: boolean;
-  transferAvailable: boolean;
-}): boolean => checkedIn || mutationPending || !transferAvailable;
+  status: EventsRegistrationStatus;
+}): boolean => mutationPending || status !== 'CONFIRMED';
 
 export const organizerRegistrationApprovalDisabled = ({
   manualApprovalAvailable,
@@ -513,12 +510,11 @@ export class EventOrganize {
   ): Promise<void> {
     if (
       organizerRegistrationTransferDisabled({
-        checkedIn: registration.checkedIn,
         mutationPending:
           this.approveRegistrationMutation.isPending() ||
           this.transferRegistrationMutation.isPending() ||
           this.cancelRegistrationMutation.isPending(),
-        transferAvailable: registration.transferAvailable,
+        status: registration.status,
       })
     ) {
       return;
@@ -549,6 +545,7 @@ export class EventOrganize {
     this.transferRegistrationMutation.mutate(
       {
         eventId: this.eventId(),
+        previewVersion: result.previewVersion,
         registrationId: registration.registrationId,
         targetUserId: result.targetUserId,
       },

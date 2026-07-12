@@ -17,10 +17,7 @@ import {
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
-import {
-  eventQueryHandlers,
-  organizerRegistrationTransferAvailable,
-} from './events-query.handlers';
+import { eventQueryHandlers } from './events-query.handlers';
 import { eventHandlers } from './events.handlers';
 
 const emptyHandlerOptions = { headers: Headers.fromInput({}) };
@@ -54,9 +51,11 @@ const createUser = (permissions: readonly Permission[] = []) => ({
 });
 
 const createEventQueryDatabase = ({
+  attendeeRows = [],
   organizerRegistration = false,
   registrationOptionAggregates = [],
 }: {
+  attendeeRows?: readonly object[];
   organizerRegistration?: boolean;
   registrationOptionAggregates?: readonly {
     checkedInSpots: number;
@@ -64,7 +63,7 @@ const createEventQueryDatabase = ({
     spots: number;
   }[];
 } = {}) => {
-  const attendeeQuery = vi.fn(() => Effect.succeed([]));
+  const attendeeQuery = vi.fn(() => Effect.succeed([...attendeeRows]));
   const aggregateQuery = {
     innerJoin: vi.fn(() => aggregateQuery),
     where: vi.fn(() => Effect.succeed([...registrationOptionAggregates])),
@@ -272,6 +271,7 @@ describe('eventHandlers composition', () => {
       'events.getRegistrationAddonFulfillment',
       'events.getRegistrationStatus',
       'events.joinWaitlist',
+      'events.previewEventRegistrationTransfer',
       'events.purchaseRegistrationAddon',
       'events.redeemRegistrationAddon',
       'events.registerForEvent',
@@ -285,47 +285,6 @@ describe('eventHandlers composition', () => {
       'events.updateGraph',
       'events.updateListing',
     ]);
-  });
-});
-
-describe('organizerRegistrationTransferAvailable', () => {
-  it('keeps organizer-assisted transfer unavailable for paid, checked-in, or past registrations', () => {
-    const futureStart = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const pastStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    expect(
-      organizerRegistrationTransferAvailable({
-        checkInTime: null,
-        eventStart: futureStart,
-        transactions: [],
-      }),
-    ).toBe(true);
-    expect(
-      organizerRegistrationTransferAvailable({
-        checkInTime: new Date(),
-        eventStart: futureStart,
-        transactions: [],
-      }),
-    ).toBe(false);
-    expect(
-      organizerRegistrationTransferAvailable({
-        checkInTime: null,
-        eventStart: pastStart,
-        transactions: [],
-      }),
-    ).toBe(false);
-    expect(
-      organizerRegistrationTransferAvailable({
-        checkInTime: null,
-        eventStart: futureStart,
-        transactions: [
-          {
-            amount: 2500,
-            status: 'successful',
-          },
-        ],
-      }),
-    ).toBe(false);
   });
 });
 

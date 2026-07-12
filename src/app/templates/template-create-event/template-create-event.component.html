@@ -99,6 +99,24 @@
             class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
           >
             <h2 class="title-large mb-4 p-2">Registration Options</h2>
+            @if (!stripeConnectionKnown()) {
+              <p
+                class="text-on-surface-variant mb-4 px-2 text-sm"
+                role="status"
+              >
+                Paid controls are unavailable while the tenant's Stripe status
+                is loading.
+              </p>
+            } @else if (paidControlsUnavailable()) {
+              <p
+                class="text-on-surface-variant mb-4 px-2 text-sm"
+                role="status"
+              >
+                Paid controls are unavailable because this tenant has no
+                connected Stripe account. The new event will use free
+                registration options.
+              </p>
+            }
             <div
               class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
             >

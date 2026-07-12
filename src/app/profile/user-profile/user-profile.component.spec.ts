@@ -13,10 +13,19 @@ import {
   profileEventPassLabel,
   profileReceiptStatusLabel,
   profileSectionFromFragment,
+  profileTransferClaimPath,
   profileUserAfterEdit,
   registrationPaymentLabel,
+  registrationRefundSourceLabel,
+  registrationRefundStateLabel,
   registrationStatusLabel,
 } from './user-profile.component';
+
+describe('profile account actions', () => {
+  it('links the transfer claim action to the manual-code entry page', () => {
+    expect(profileTransferClaimPath).toBe('/registration-transfers');
+  });
+});
 
 describe('profile home tenant state', () => {
   it('warns only when the current tenant differs from an explicit home tenant', () => {
@@ -79,17 +88,20 @@ describe('profile event labels', () => {
     );
   });
 
-  it('does not advertise cancellation or transfer after check-in', () => {
-    expect(
-      profileEventActionNote({
-        checkInTime: '2026-02-01T10:30:00.000Z',
-        checkoutUrl: null,
-        organizingRegistration: false,
-        paymentState: 'recorded',
-        status: 'CONFIRMED',
-      }),
-    ).toBe(
-      'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
+  it('explains that a checked-in registration can transfer with its history', () => {
+    const actionNote = profileEventActionNote({
+      checkInTime: '2026-02-01T10:30:00.000Z',
+      checkoutUrl: null,
+      organizingRegistration: false,
+      paymentState: 'recorded',
+      status: 'CONFIRMED',
+    });
+
+    expect(actionNote).toBe(
+      'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
+    );
+    expect(actionNote).not.toContain(
+      'transfer is no longer available after check-in',
     );
   });
 
@@ -161,12 +173,14 @@ describe('profile event labels', () => {
       profileEventNextStepLabel({
         checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
         paymentState: 'pending',
+        status: 'PENDING',
       }),
     ).toBe('Finish the checkout payment to confirm your spot.');
     expect(
       profileEventNextStepLabel({
         checkoutUrl: null,
         paymentState: 'pending',
+        status: 'PENDING',
       }),
     ).toBe(
       'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.',
@@ -175,16 +189,25 @@ describe('profile event labels', () => {
       profileEventNextStepLabel({
         checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
         paymentState: 'recorded',
+        status: 'CONFIRMED',
       }),
     ).toBeNull();
     expect(
       profileEventNextStepLabel({
         checkoutUrl: 'javascript:alert(1)',
         paymentState: 'pending',
+        status: 'PENDING',
       }),
     ).toBe(
       'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.',
     );
+    expect(
+      profileEventNextStepLabel({
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_stale',
+        paymentState: 'pending',
+        status: 'CANCELLED',
+      }),
+    ).toBeNull();
   });
 
   it('renders the payment continuation action only for pending checkout registrations', () => {
@@ -227,6 +250,16 @@ describe('profile event labels', () => {
     expect(isStripeCheckoutUrl('javascript:alert(1)')).toBe(false);
   });
 
+  it('never offers Checkout again for a cancelled registration', () => {
+    expect(
+      profileEventContinuePaymentUrl({
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
+        paymentState: 'pending',
+        status: 'CANCELLED',
+      }),
+    ).toBeNull();
+  });
+
   it('labels guest quantities only when a registration includes guests', () => {
     expect(profileEventGuestLabel(0)).toBeNull();
     expect(profileEventGuestLabel(1)).toBe('Includes 1 guest');
@@ -241,9 +274,82 @@ describe('profile event labels', () => {
   });
 
   it('keeps registration status labels aligned with persisted states', () => {
+    expect(registrationStatusLabel('CANCELLED')).toBe('Cancelled');
     expect(registrationStatusLabel('CONFIRMED')).toBe('Confirmed');
     expect(registrationStatusLabel('PENDING')).toBe('Pending');
     expect(registrationStatusLabel('WAITLIST')).toBe('Waitlist');
+  });
+
+  it('keeps participant refund sources and states literal', () => {
+    expect(registrationRefundSourceLabel('registration')).toBe(
+      'Registration payment',
+    );
+    expect(registrationRefundSourceLabel('addon')).toBe('Add-on payment');
+    expect(registrationRefundStateLabel('actionRequired')).toBe(
+      'Provider action required',
+    );
+    expect(registrationRefundStateLabel('pending')).toBe('Refund queued');
+    expect(registrationRefundStateLabel('retrying')).toBe('Refund retrying');
+    expect(registrationRefundStateLabel('needsAttention')).toBe(
+      'Refund needs attention',
+    );
+    expect(registrationRefundStateLabel('succeeded')).toBe('Refund completed');
+  });
+
+  it('keeps cancelled registrations visible with honest refund next steps', () => {
+    const baseRefund = {
+      amount: 2500,
+      currency: 'EUR' as const,
+      source: 'registration' as const,
+      updatedAt: '2026-03-01T10:05:00.000Z',
+    };
+    const cancelledEvent = {
+      checkInTime: null,
+      checkoutUrl: null,
+      organizingRegistration: false,
+      paymentState: 'recorded' as const,
+      status: 'CANCELLED' as const,
+    };
+
+    expect(
+      profileEventActionNote({
+        ...cancelledEvent,
+        refunds: [{ ...baseRefund, state: 'pending' }],
+      }),
+    ).toContain('Money has not necessarily been returned yet');
+    expect(
+      profileEventActionNote({
+        ...cancelledEvent,
+        refunds: [
+          { ...baseRefund, state: 'succeeded' },
+          {
+            ...baseRefund,
+            source: 'addon',
+            state: 'needsAttention',
+          },
+        ],
+      }),
+    ).toBe(
+      "Your registration remains cancelled, but at least one refund needs a platform administrator's attention. Money has not necessarily been returned yet. Do not pay or register again to retry it. 1 of 2 refunds is complete.",
+    );
+    const mixedFollowUp = profileEventActionNote({
+      ...cancelledEvent,
+      refunds: [
+        { ...baseRefund, state: 'needsAttention' },
+        {
+          ...baseRefund,
+          source: 'addon',
+          state: 'actionRequired',
+        },
+      ],
+    });
+    expect(mixedFollowUp).toContain(
+      "at least one refund needs a platform administrator's attention",
+    );
+    expect(mixedFollowUp).toContain(
+      'at least one Stripe refund requires provider-side action',
+    );
+    expect(mixedFollowUp).toContain('Contact the organizer for an update.');
   });
 });
 

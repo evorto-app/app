@@ -13,6 +13,7 @@ import * as Headers from 'effect/unstable/http/Headers';
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
 
+import { sanitizeRelativeRedirectPath } from '../../shared/auth-redirect';
 import { RuntimeConfig } from '../config/runtime-config';
 
 const SESSION_COOKIE_NAME = 'appSession';
@@ -76,22 +77,6 @@ const toCookieRecord = (cookies: Record<string, unknown>) => {
   }
 
   return normalized;
-};
-
-const sanitizeReturnPath = (value: null | string | undefined) => {
-  if (!value) {
-    return;
-  }
-
-  if (
-    !value.startsWith('/') ||
-    value.startsWith('//') ||
-    value.includes('://')
-  ) {
-    return;
-  }
-
-  return value;
 };
 
 const cookieHandler: CookieHandler<AuthStoreOptions> = {
@@ -339,7 +324,7 @@ export const handleLoginRequest = (
   Effect.gen(function* () {
     const requestUrl = toAbsoluteRequestUrl(request);
     const redirectUrl =
-      sanitizeReturnPath(
+      sanitizeRelativeRedirectPath(
         requestUrl.searchParams.get('redirectUrl') ??
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';
@@ -402,7 +387,9 @@ export const handleCallbackRequest = (
     }
 
     const redirectUrl =
-      sanitizeReturnPath(asString(completedLogin.appState?.redirectUrl)) ?? '/';
+      sanitizeRelativeRedirectPath(
+        asString(completedLogin.appState?.redirectUrl),
+      ) ?? '/';
 
     const redirectResponse = HttpServerResponse.redirect(redirectUrl);
     return yield* applyCookieMutations(
@@ -418,7 +405,7 @@ export const handleLogoutRequest = (
     const { auth } = yield* RuntimeConfig;
     const requestUrl = toAbsoluteRequestUrl(request);
     const returnPath =
-      sanitizeReturnPath(
+      sanitizeRelativeRedirectPath(
         requestUrl.searchParams.get('redirectUrl') ??
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';

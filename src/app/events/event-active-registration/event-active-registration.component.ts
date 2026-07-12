@@ -227,7 +227,7 @@ export const registrationCancellationCopy = (registration: {
   if (registration.status === 'CONFIRMED') {
     return {
       buttonLabel: 'Cancel registration',
-      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. If this was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
+      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. Paid refunds start only when Stripe payment ownership, fee allocation, and add-on amounts reconcile safely. Refunds then process asynchronously.`,
     };
   }
 
@@ -263,14 +263,8 @@ export const registrationTransferBlockedCopy = (
     case 'activeTransfer': {
       return 'A transfer offer is already active for this ticket.';
     }
-    case 'addonFulfillmentState': {
-      return 'Redeemed or cancelled add-ons must be resolved by an organizer before this ticket can be transferred.';
-    }
     case 'addonPaymentPending': {
       return 'Finish or let the pending add-on checkout expire before transferring this ticket.';
-    }
-    case 'checkedIn': {
-      return 'This ticket has already been checked in and can no longer be transferred.';
     }
     case 'deadlinePassed': {
       return 'The transfer deadline for this event has passed.';
@@ -281,14 +275,8 @@ export const registrationTransferBlockedCopy = (
     case 'none': {
       return '';
     }
-    case 'paidAddon': {
-      return 'This ticket includes a paid add-on and cannot be transferred.';
-    }
     case 'registrationStatus': {
       return 'Only confirmed registrations can be transferred.';
-    }
-    case 'unsupportedPaymentMethod': {
-      return 'This ticket was paid using a method that does not support automated transfer refunds. Contact an organizer for help.';
     }
   }
 };
@@ -357,14 +345,47 @@ export const registrationActiveTransferStatusCopy = (
       return {
         body:
           activeTransfer.registrationSide === 'recipient'
-            ? 'The ticket transfer is complete, but the previous owner refund needs organizer attention. Your ticket remains confirmed.'
-            : 'The ticket transfer is complete, but your refund needs organizer attention. The transfer can no longer be cancelled.',
+            ? 'The ticket transfer is complete, but the previous owner refund needs platform-administrator attention. Your ticket remains confirmed.'
+            : 'The ticket transfer is complete, but your refund needs platform-administrator attention. The transfer can no longer be cancelled.',
         cancelLabel: null,
         showExpiry: false,
         title: 'Transfer refund needs attention',
       };
     }
     case 'refund_pending': {
+      if (activeTransfer.refundLifecycle?.state === 'actionRequired') {
+        return {
+          body:
+            activeTransfer.registrationSide === 'recipient'
+              ? 'The ticket transfer is complete, but the previous owner refund requires provider-side action. Your ticket remains confirmed.'
+              : 'The ticket transfer is complete, but your refund requires provider-side action. Do not pay or register again to retry it.',
+          cancelLabel: null,
+          showExpiry: false,
+          title: 'Transfer refund requires provider action',
+        };
+      }
+      if (activeTransfer.refundLifecycle?.state === 'succeeded') {
+        return {
+          body:
+            activeTransfer.registrationSide === 'recipient'
+              ? 'The ticket transfer is complete and the previous owner refund completed. Your ticket remains confirmed.'
+              : 'The ticket transfer is complete and your recorded refund completed.',
+          cancelLabel: null,
+          showExpiry: false,
+          title: 'Transfer refund completed',
+        };
+      }
+      if (activeTransfer.refundLifecycle?.state !== 'processing') {
+        return {
+          body:
+            activeTransfer.registrationSide === 'recipient'
+              ? 'The ticket transfer is complete, but the previous owner refund processing stopped and needs platform-administrator attention. Your ticket remains confirmed.'
+              : 'The ticket transfer is complete, but your refund processing stopped and needs platform-administrator attention. Do not pay or register again to retry it.',
+          cancelLabel: null,
+          showExpiry: false,
+          title: 'Transfer refund needs attention',
+        };
+      }
       return {
         body:
           activeTransfer.registrationSide === 'recipient'

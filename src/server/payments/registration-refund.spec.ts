@@ -2,8 +2,10 @@ import type Stripe from 'stripe';
 
 import { describe, expect, it } from '@effect/vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
+import { Effect, Ref } from 'effect';
 
 import {
+  launchRegistrationRefundWorker,
   normalizeRegistrationRefundBatchSize,
   persistedRegistrationRefundStatus,
   registrationRefundClaimablePredicate,
@@ -15,6 +17,7 @@ import {
   registrationRefundRetryDelayMs,
   registrationRefundSourcePaymentPredicate,
   registrationRefundStatusCanAdvance,
+  registrationRefundStatusUpdate,
 } from './registration-refund';
 
 const dialect = new PgDialect();
@@ -22,6 +25,34 @@ const normalizeSql = (statement: string): string =>
   statement.replaceAll(/\s+/g, ' ').trim();
 
 describe('registration refund claims', () => {
+  it.effect('starts the worker in the enabled production/default mode', () =>
+    Effect.gen(function* () {
+      const workerRan = yield* Ref.make(false);
+      const result = yield* launchRegistrationRefundWorker(
+        'enabled',
+        Ref.set(workerRan, true),
+      );
+      yield* Effect.yieldNow;
+
+      expect(result).toBe('started');
+      expect(yield* Ref.get(workerRan)).toBe(true);
+    }),
+  );
+
+  it.effect('does not start the worker in validated Playwright mode', () =>
+    Effect.gen(function* () {
+      const workerRan = yield* Ref.make(false);
+      const result = yield* launchRegistrationRefundWorker(
+        'disabledForPlaywright',
+        Ref.set(workerRan, true),
+      );
+      yield* Effect.yieldNow;
+
+      expect(result).toBe('disabledForPlaywright');
+      expect(yield* Ref.get(workerRan)).toBe(false);
+    }),
+  );
+
   it('persists a null executive for platform-owned claims', () => {
     expect(
       registrationRefundClaimInsert(
@@ -75,7 +106,7 @@ describe('registration refund claims', () => {
         refundId: null,
         stripeRefundStatus: null,
       }),
-    ).toBe('resumeGeneration');
+    ).toBe('ambiguous');
     expect(
       registrationRefundRequeueEligibility({
         ...base,
@@ -89,6 +120,55 @@ describe('registration refund claims', () => {
         leaseId: 'lease-active',
       }),
     ).toBe('ambiguous');
+    expect(
+      registrationRefundRequeueEligibility({
+        ...base,
+        leaseExpiresAt: new Date('2026-07-10T12:10:00.000Z'),
+        leaseId: 'lease-active',
+        refundId: null,
+        stripeRefundStatus: null,
+      }),
+    ).toBe('active');
+    expect(
+      registrationRefundRequeueEligibility({
+        ...base,
+        attempts: 1,
+        nextAttemptAt: new Date('2026-07-10T12:10:00.000Z'),
+        refundId: null,
+        stripeRefundStatus: null,
+      }),
+    ).toBe('active');
+    expect(
+      registrationRefundRequeueEligibility({
+        ...base,
+        nextAttemptAt: new Date('2026-07-10T12:10:00.000Z'),
+        refundId: null,
+        stripeRefundStatus: 'pending',
+      }),
+    ).toBe('ambiguous');
+    expect(
+      registrationRefundRequeueEligibility({
+        ...base,
+        attempts: 1,
+        refundId: null,
+        stripeRefundStatus: null,
+      }),
+    ).toBe('ambiguous');
+    expect(
+      registrationRefundRequeueEligibility({
+        ...base,
+        attempts: 0,
+        refundId: null,
+        stripeRefundStatus: null,
+      }),
+    ).toBe('resumeGeneration');
+    expect(
+      registrationRefundRequeueEligibility({
+        ...base,
+        refundId: 're_processing',
+        stripeRefundStatus: 'pending',
+      }),
+    ).toBe('resumeGeneration');
   });
 
   it('bounds worker batch sizes and exponential retry delays', () => {
@@ -110,6 +190,31 @@ describe('registration refund claims', () => {
     expect(persistedRegistrationRefundStatus('succeeded')).toBe('succeeded');
     expect(persistedRegistrationRefundStatus('future_status')).toBe('pending');
     expect(persistedRegistrationRefundStatus(null)).toBe('pending');
+  });
+
+  it('stops polling non-terminal provider states when retry budget is exhausted', () => {
+    const now = new Date('2026-07-10T12:00:00.000Z');
+    expect(
+      registrationRefundStatusUpdate(
+        { id: 're_pending', status: 'pending' },
+        now,
+        8,
+        8,
+      ),
+    ).toMatchObject({
+      stripeRefundLastError:
+        'Stripe refund remained pending after maximum processing attempts',
+      stripeRefundNextAttemptAt: null,
+      stripeRefundStatus: 'pending',
+    });
+    expect(
+      registrationRefundStatusUpdate(
+        { id: 're_pending', status: 'pending' },
+        now,
+        7,
+        8,
+      ).stripeRefundNextAttemptAt,
+    ).toEqual(new Date('2026-07-10T12:01:00.000Z'));
   });
 
   it('does not let stale pending events downgrade terminal refund outcomes', () => {

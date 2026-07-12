@@ -52,6 +52,28 @@
                 {{ transaction.method }}
               </td>
             </ng-container>
+            <ng-container matColumnDef="refundLifecycle">
+              <th mat-header-cell *matHeaderCellDef>Refund lifecycle</th>
+              <td mat-cell *matCellDef="let transaction">
+                @if (transaction.refundLifecycle; as lifecycle) {
+                  @let copy = refundLifecycleCopy(lifecycle);
+                  <p
+                    class="body-medium"
+                    [class.text-error]="lifecycle.status === 'needs-attention'"
+                    [class.text-warning]="
+                      lifecycle.status === 'action-required'
+                    "
+                  >
+                    {{ copy.label }}
+                  </p>
+                  <p class="body-small text-on-surface-variant max-w-64 py-1">
+                    {{ copy.detail }}
+                  </p>
+                } @else {
+                  —
+                }
+              </td>
+            </ng-container>
             <ng-container matColumnDef="comment">
               <th mat-header-cell *matHeaderCellDef>Comment</th>
               <td mat-cell *matCellDef="let transaction">
@@ -467,9 +489,9 @@
     >
       <div>
         <p class="body-small text-on-surface-variant mb-3">
-          Only terminal Stripe refunds and exhausted, unleased refund processing
-          appear here. Active, pending, ambiguous, and succeeded refunds cannot
-          be requeued.
+          Only terminal Stripe refunds and stopped, unleased refund processing
+          appear here. Scheduled, leased, ambiguous, and succeeded refunds
+          cannot be requeued.
         </p>
         @if (recoveryQueueQuery.isPending()) {
           <p role="status" class="body-medium">Loading refund recovery...</p>
@@ -496,7 +518,7 @@
                     {{
                       claim.mode === "newGeneration"
                         ? "Terminal refund"
-                        : "Exhausted refund processing"
+                        : "Stopped refund processing"
                     }}
                   </p>
                   <p class="body-small text-on-surface-variant">
@@ -541,7 +563,7 @@
             {{
               claim.mode === "newGeneration"
                 ? "Retry terminal refund"
-                : "Resume exhausted refund"
+                : "Resume stopped refund"
             }}
           </h2>
           <p class="body-small text-on-surface-variant mt-1">
@@ -605,7 +627,7 @@
                   ? "Scheduling..."
                   : claim.mode === "newGeneration"
                     ? "Schedule new refund generation"
-                    : "Resume exhausted refund"
+                    : "Resume stopped refund"
               }}
             </button>
           </div>

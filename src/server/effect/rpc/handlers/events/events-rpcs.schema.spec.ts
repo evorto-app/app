@@ -15,12 +15,14 @@ import {
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
   EventsJoinWaitlistPayload,
+  EventsPreviewEventRegistrationTransfer,
   EventsPurchaseRegistrationAddonPayload,
   EventsPurchaseRegistrationAddonResult,
   EventsRegisterForEventPayload,
   EventsRegistrationAddonRecord,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
+  EventsTransferEventRegistration,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { EventLocation } from '../../../../../types/location';
 
@@ -102,16 +104,16 @@ describe('events RPC registration status schema', () => {
         registrationOptionId: 'option-1',
         registrationOptionTitle: 'Participant',
         status: 'CONFIRMED',
-        transferAvailable: false,
-        transferBlockedReason: 'paidAddon',
+        transferAvailable: true,
+        transferBlockedReason: 'none',
       }),
     ).not.toThrow();
   });
 
   it('represents transfer blockers enforced by the offer flow', () => {
     for (const transferBlockedReason of [
-      'addonFulfillmentState',
-      'unsupportedPaymentMethod',
+      'activeTransfer',
+      'addonPaymentPending',
     ]) {
       expect(() =>
         Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
@@ -145,6 +147,12 @@ describe('events RPC registration status schema', () => {
         Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
           activeTransfer: {
             expiresAt: '2026-08-01T17:00:00.000Z',
+            refundLifecycle:
+              status === 'refund_failed'
+                ? { state: 'needsAttention' }
+                : status === 'refund_pending'
+                  ? { state: 'processing' }
+                  : null,
             registrationSide: 'source',
             status,
             transferId: 'transfer-1',
@@ -248,7 +256,7 @@ describe('events RPC registration status schema', () => {
       Schema.decodeUnknownSync(EventsGetOrganizeOverviewUser)({
         addonPurchases: [
           {
-            quantity: 1,
+            quantity: 3,
             title: 'Dinner',
             unitPrice: 1500,
           },
@@ -267,7 +275,6 @@ describe('events RPC registration status schema', () => {
         paymentSetupRequired: false,
         registrationId: 'registration-1',
         status: 'CONFIRMED',
-        transferAvailable: true,
         userId: 'user-1',
       }),
     ).not.toThrow();
@@ -309,6 +316,83 @@ describe('events RPC cancellation precondition schema', () => {
       Schema.decodeUnknownSync(EventsCancelRegistration.payloadSchema)({
         expectedStatus: 'CONFIRMED',
         registrationId: 'registration-1',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('events organizer direct-transfer preview schema', () => {
+  it('accepts the authoritative fixed-bundle and zero-payment preview', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(
+        EventsPreviewEventRegistrationTransfer.successSchema,
+      )({
+        bundle: {
+          addOns: [
+            {
+              cancelledQuantity: 0,
+              currentUnitPrice: 0,
+              description: 'Workshop materials',
+              id: 'addon-1',
+              includedQuantity: 1,
+              purchasedQuantity: 1,
+              quantity: 2,
+              redeemedQuantity: 1,
+              remainingQuantity: 1,
+              title: 'Workshop kit',
+            },
+          ],
+          checkedInGuestCount: 1,
+          checkInTime: '2026-07-12T16:00:00.000Z',
+          guestCount: 2,
+          guestUnitPrice: 0,
+        },
+        completionMode: 'databaseOnly',
+        currency: 'EUR',
+        previewVersion: 'preview-version-1',
+        pricing: {
+          appliedDiscountedPrice: 0,
+          appliedDiscountType: 'esnCard',
+          discountAmount: 1200,
+          recipientBundlePrice: 0,
+          recipientRegistrationPrice: 0,
+          sourceRefundAmountDue: 0,
+        },
+        recipient: {
+          email: 'recipient@example.com',
+          firstName: 'Target',
+          id: 'target-user-1',
+          lastName: 'Recipient',
+        },
+        registrationOption: {
+          currentPrice: 1200,
+          id: 'option-1',
+          title: 'Participant',
+        },
+        source: {
+          email: 'source@example.com',
+          firstName: 'Source',
+          id: 'source-user-1',
+          lastName: 'Owner',
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('requires the reviewed preview version when confirming', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsTransferEventRegistration.payloadSchema)({
+        eventId: 'event-1',
+        previewVersion: 'preview-version-1',
+        registrationId: 'registration-1',
+        targetUserId: 'target-user-1',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsTransferEventRegistration.payloadSchema)({
+        eventId: 'event-1',
+        registrationId: 'registration-1',
+        targetUserId: 'target-user-1',
       }),
     ).toThrow();
   });

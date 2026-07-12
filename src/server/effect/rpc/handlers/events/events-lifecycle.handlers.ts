@@ -27,6 +27,12 @@ import {
   templateRegistrationQuestions,
 } from '../../../../../db/schema';
 import {
+  ensureStripeForPaidEventConfiguration,
+  eventConfigurationHasPaidItems,
+  stripeRequiredForPaidEventConfigurationError,
+} from '../../../../payments/paid-event-configuration';
+import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
+import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
 } from '../../../../roles/tenant-role-graph';
@@ -332,6 +338,16 @@ export const createEventGraph = (input: EventCreateInput) =>
         ),
       }),
     );
+    const lockedStripeAccountId = yield* Database.use((database) =>
+      lockTenantStripeAccount(database, tenant.id).pipe(Effect.orDie),
+    );
+    const hasPaidRegistrationOptions = eventConfigurationHasPaidItems({
+      addOns: [],
+      registrationOptions: sanitizedRegistrationOptions,
+    });
+    if (hasPaidRegistrationOptions && !lockedStripeAccountId) {
+      return yield* Effect.fail(stripeRequiredForPaidEventConfigurationError());
+    }
 
     const registrationRoleIds = sanitizedRegistrationOptions.flatMap(
       (option) => option.roleIds,
@@ -513,6 +529,16 @@ export const createEventGraph = (input: EventCreateInput) =>
           })),
       }),
     );
+    if (
+      !hasPaidRegistrationOptions &&
+      !lockedStripeAccountId &&
+      eventConfigurationHasPaidItems({
+        addOns: templateAddonsToCopy,
+        registrationOptions: [],
+      })
+    ) {
+      return yield* Effect.fail(stripeRequiredForPaidEventConfigurationError());
+    }
     for (const addOn of templateAddonsToCopy) {
       const validation = yield* databaseEffect((database) =>
         validateTaxRate(database, {
@@ -950,6 +976,36 @@ export const eventLifecycleHandlers = {
       const updatedEvent = yield* databaseEffect((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
+            const transactionalDatabase = Object.assign(tx, {
+              $client: database.$client,
+            });
+            if (
+              eventConfigurationHasPaidItems({
+                addOns: [],
+                registrationOptions: sanitizedRegistrationOptions,
+              })
+            ) {
+              const stripeAccountId = yield* lockTenantStripeAccount(
+                tx,
+                tenant.id,
+              );
+              if (!stripeAccountId) {
+                transactionFailure =
+                  stripeRequiredForPaidEventConfigurationError();
+                yield* tx.rollback();
+              }
+            }
+            for (const option of sanitizedRegistrationOptions) {
+              const validation = yield* validateTaxRate(transactionalDatabase, {
+                isPaid: option.isPaid,
+                stripeTaxRateId: option.stripeTaxRateId ?? null,
+                tenantId: tenant.id,
+              });
+              if (!validation.success) {
+                transactionFailure = invalidRegistrationOptionTaxRateError();
+                yield* tx.rollback();
+              }
+            }
             yield* lockTenantRoleGraph(tx, tenant.id);
             const registrationRolesExist = yield* tenantRoleIdsExist(
               tx,
@@ -1221,6 +1277,14 @@ export const eventLifecycleHandlers = {
               $client: database.$client,
             });
             return Effect.gen(function* () {
+              yield* ensureStripeForPaidEventConfiguration(
+                transactionalDatabase,
+                tenant.id,
+                {
+                  addOns: input.addOns,
+                  registrationOptions: input.registrationOptions,
+                },
+              );
               const lockedEvents = yield* transaction
                 .select({ id: eventInstances.id })
                 .from(eventInstances)

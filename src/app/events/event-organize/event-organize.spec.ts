@@ -170,35 +170,31 @@ describe('organizerRegistrationActionDisabled', () => {
 });
 
 describe('organizerRegistrationTransferDisabled', () => {
-  it('blocks organizer transfer for checked-in, paid, or in-flight rows', () => {
+  it('allows confirmed rows into authoritative review regardless of prior fulfillment or payment history', () => {
     expect(
       organizerRegistrationTransferDisabled({
-        checkedIn: true,
         mutationPending: false,
-        transferAvailable: true,
-      }),
-    ).toBe(true);
-    expect(
-      organizerRegistrationTransferDisabled({
-        checkedIn: false,
-        mutationPending: true,
-        transferAvailable: true,
-      }),
-    ).toBe(true);
-    expect(
-      organizerRegistrationTransferDisabled({
-        checkedIn: false,
-        mutationPending: false,
-        transferAvailable: false,
-      }),
-    ).toBe(true);
-    expect(
-      organizerRegistrationTransferDisabled({
-        checkedIn: false,
-        mutationPending: false,
-        transferAvailable: true,
+        status: 'CONFIRMED',
       }),
     ).toBe(false);
+    expect(
+      organizerRegistrationTransferDisabled({
+        mutationPending: true,
+        status: 'CONFIRMED',
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationTransferDisabled({
+        mutationPending: false,
+        status: 'PENDING',
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationTransferDisabled({
+        mutationPending: false,
+        status: 'WAITLIST',
+      }),
+    ).toBe(true);
   });
 });
 

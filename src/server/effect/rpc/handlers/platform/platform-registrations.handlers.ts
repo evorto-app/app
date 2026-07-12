@@ -95,13 +95,11 @@ const registrationNotFound = (registrationId: string) =>
   });
 
 export const platformRegistrationActiveTransferError = (
-  conflict: RegistrationTransferMutationConflict,
+  _conflict: RegistrationTransferMutationConflict,
 ) =>
   new RpcBadRequestError({
     message:
-      conflict.registrationSide === 'source'
-        ? 'Finish or cancel the active transfer before checking in this source registration.'
-        : 'Finish the active transfer workflow before checking in this recipient registration.',
+      'Finish or cancel the active transfer before checking in this registration.',
     reason: 'registrationTransferActive',
   });
 
@@ -138,12 +136,7 @@ const mapPlatformRegistrationMutationError = (error: unknown) => {
     );
   }
   if (error instanceof EventRegistrationInternalError) {
-    return Effect.fail(
-      new RpcBadRequestError({
-        message: error.message,
-        reason: 'registrationOperationFailed',
-      }),
-    );
+    return Effect.die(error);
   }
   return Effect.die(error);
 };

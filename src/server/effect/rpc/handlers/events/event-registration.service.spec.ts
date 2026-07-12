@@ -13,16 +13,22 @@ import {
   eventRegistrationAddonPurchases,
   eventRegistrationOptions,
   eventRegistrations,
+  registrationAcquisitionComponents,
+  registrationAcquisitions,
+  RegistrationCheckoutSnapshotSchema,
   tenants,
+  tenantStripeTaxRates,
   transactions,
   usersToTenants,
 } from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
 import {
   type ApproveManualRegistrationArguments,
+  decodeRegistrationCheckoutSnapshot,
   EventRegistrationService,
   isDefinitiveCheckoutSessionCreateFailure,
   isUserEligibleForRegistrationOption,
+  lockCurrentRegistrationTaxConfiguration,
   orderRegistrationAddonPurchases,
   validateRegistrationAddons,
   validateRegistrationQuestionAnswers,
@@ -48,10 +54,17 @@ const tenantPublicOrigin = {
   domain: 'tenant.example.com',
 } as const;
 const selectLockedTenantMembership = () => ({
-  from: () => ({
-    where: () => ({
-      for: () => Effect.succeed([{ id: 'tenant-user-1' }]),
-    }),
+  from: (table: unknown) => ({
+    where: () =>
+      table === registrationAcquisitions
+        ? {
+            orderBy: () => ({
+              for: () => Effect.succeed([]),
+            }),
+          }
+        : {
+            for: () => Effect.succeed([{ id: 'tenant-user-1' }]),
+          },
   }),
 });
 const configProviderLayer = ConfigProvider.layer(
@@ -113,7 +126,7 @@ const paidManualApprovalRegistration = {
     isPaid: true,
     price: 1000,
     registrationMode: 'application',
-    stripeTaxRateId: null,
+    stripeTaxRateId: 'txr_19',
   },
   registrationOptionId: 'option-1',
   status: 'PENDING',
@@ -167,24 +180,10 @@ const freeManualApprovalRegistration = {
     ...paidManualApprovalRegistration.registrationOption,
     isPaid: false,
     price: 0,
+    stripeTaxRateId: null,
   },
 } as const;
 
-const registrationCheckoutSnapshotSchema = Schema.Struct({
-  customerEmail: Schema.String,
-  eventTitle: Schema.String,
-  eventUrl: Schema.String,
-  expiresAt: Schema.Number,
-  lineItems: Schema.Array(
-    Schema.Struct({
-      name: Schema.String,
-      quantity: Schema.Number,
-      taxRateId: Schema.optional(Schema.String),
-      unitAmount: Schema.Number,
-    }),
-  ),
-  notificationEmail: Schema.String,
-});
 const transactionCurrencySchema = Schema.Literals(['EUR', 'CZK', 'AUD']);
 
 const emptyRegistrationAddonSelect = () => ({
@@ -235,6 +234,8 @@ const createManualApprovalDatabase = ({
   registrationStatuses?: readonly ('CANCELLED' | 'PENDING')[];
 } = {}) => {
   let bindingUpdateCount = 0;
+  let acquisitionComponentInsertValues: unknown;
+  let acquisitionInsertValues: unknown;
   let claim: ManualApprovalClaim | null = existingClaim;
   let claimExecutiveUserId: null | string | undefined;
   let claimInsertValues: Record<string, unknown> | undefined;
@@ -274,7 +275,7 @@ const createManualApprovalDatabase = ({
                       Schema.NullOr(Schema.String),
                     )(values['stripeAccountId']),
                     stripeCheckoutRequest: Schema.decodeUnknownSync(
-                      Schema.NullOr(registrationCheckoutSnapshotSchema),
+                      Schema.NullOr(RegistrationCheckoutSnapshotSchema),
                     )(values['stripeCheckoutRequest']),
                     stripeCheckoutSessionId: null,
                     stripeCheckoutUrl: null,
@@ -297,6 +298,18 @@ const createManualApprovalDatabase = ({
                 return Effect.succeed([]);
               },
             };
+          }
+
+          if (
+            table === registrationAcquisitions ||
+            table === registrationAcquisitionComponents
+          ) {
+            if (table === registrationAcquisitions) {
+              acquisitionInsertValues = values;
+            } else {
+              acquisitionComponentInsertValues = values;
+            }
+            return Effect.void;
           }
 
           throw new Error('Unexpected manual approval insert table');
@@ -330,6 +343,48 @@ const createManualApprovalDatabase = ({
               return {
                 for: () =>
                   Effect.succeed(persistedEmail ? [{ id: 'email-1' }] : []),
+              };
+            }
+
+            if (table === eventRegistrationAddonPurchaseLots) {
+              return {
+                for: () => Effect.succeed([]),
+              };
+            }
+
+            if (table === eventRegistrationOptions) {
+              return {
+                for: () =>
+                  Effect.succeed([
+                    {
+                      stripeTaxRateId:
+                        registration.registrationOption.stripeTaxRateId,
+                    },
+                  ]),
+              };
+            }
+
+            if (table === tenantStripeTaxRates) {
+              return {
+                orderBy: () => ({
+                  for: () =>
+                    Effect.succeed([
+                      {
+                        displayName: 'VAT',
+                        inclusive: true,
+                        percentage: '19',
+                        stripeTaxRateId: 'txr_19',
+                      },
+                    ]),
+                }),
+              };
+            }
+
+            if (table === registrationAcquisitions) {
+              return {
+                orderBy: () => ({
+                  for: () => Effect.succeed([]),
+                }),
               };
             }
 
@@ -417,6 +472,15 @@ const createManualApprovalDatabase = ({
       eventRegistrations: {
         findFirst: () => Effect.succeed(registration),
       },
+      tenantStripeTaxRates: {
+        findFirst: () =>
+          Effect.succeed({
+            active: true,
+            displayName: 'VAT',
+            inclusive: true,
+            percentage: '19',
+          }),
+      },
       userDiscountCards: {
         findMany: () => Effect.succeed([]),
       },
@@ -439,6 +503,8 @@ const createManualApprovalDatabase = ({
   };
 
   return {
+    acquisitionComponentInsertValues: () => acquisitionComponentInsertValues,
+    acquisitionInsertValues: () => acquisitionInsertValues,
     bindingUpdateCount: () => bindingUpdateCount,
     claimExecutiveUserId: () => claimExecutiveUserId,
     claimInsertCount: () => claimInsertCount,
@@ -493,8 +559,16 @@ const createDirectCheckoutDatabase = ({
 }: {
   bindingSucceeds?: boolean;
   operationOrder?: string[];
-  registrationOption?: { isPaid?: boolean; price?: number };
+  registrationOption?: {
+    isPaid?: boolean;
+    price?: number;
+    stripeTaxRateId?: null | string;
+  };
 } = {}) => {
+  const effectiveStripeTaxRateId =
+    registrationOption.isPaid === false
+      ? null
+      : (registrationOption.stripeTaxRateId ?? 'txr_19');
   let bindingUpdateCount = 0;
   let claim: ManualApprovalClaim | null = null;
   let claimInsertCount = 0;
@@ -582,7 +656,7 @@ const createDirectCheckoutDatabase = ({
                     Schema.NullOr(Schema.String),
                   )(values['stripeAccountId']),
                   stripeCheckoutRequest: Schema.decodeUnknownSync(
-                    Schema.NullOr(registrationCheckoutSnapshotSchema),
+                    Schema.NullOr(RegistrationCheckoutSnapshotSchema),
                   )(values['stripeCheckoutRequest']),
                   stripeCheckoutSessionId: null,
                   stripeCheckoutUrl: null,
@@ -596,6 +670,12 @@ const createDirectCheckoutDatabase = ({
               onConflictDoNothing: () => Effect.void,
             };
           }
+          if (
+            table === registrationAcquisitions ||
+            table === registrationAcquisitionComponents
+          ) {
+            return Effect.void;
+          }
           return {};
         },
       }),
@@ -606,34 +686,61 @@ const createDirectCheckoutDatabase = ({
       },
       select: () => ({
         from: (table) => ({
-          where: () => ({
-            for: () => {
-              if (table === usersToTenants) {
-                return Effect.succeed([{ id: 'tenant-user-1' }]);
-              }
-              if (table === tenants) {
-                return Effect.succeed([{ stripeAccountId: 'acct_123' }]);
-              }
-              if (table === eventRegistrations) {
-                return Effect.succeed(registration ? [registration] : []);
-              }
-              if (table === eventRegistrationAddonPurchases) {
-                return Effect.succeed([]);
-              }
-              if (table === transactions && claim) {
-                return Effect.succeed([
-                  {
-                    ...claim,
-                    method: 'stripe' as const,
-                    status: 'pending' as const,
-                    stripeCheckoutCancellationRequestedAt: null,
-                    type: 'registration' as const,
+          where: () =>
+            table === registrationAcquisitions
+              ? {
+                  orderBy: () => ({
+                    for: () => Effect.succeed([]),
+                  }),
+                }
+              : {
+                  for: () => {
+                    if (table === usersToTenants) {
+                      return Effect.succeed([{ id: 'tenant-user-1' }]);
+                    }
+                    if (table === tenants) {
+                      return Effect.succeed([{ stripeAccountId: 'acct_123' }]);
+                    }
+                    if (table === eventRegistrationOptions) {
+                      return Effect.succeed([
+                        {
+                          stripeTaxRateId: effectiveStripeTaxRateId,
+                        },
+                      ]);
+                    }
+                    if (table === eventRegistrations) {
+                      return Effect.succeed(registration ? [registration] : []);
+                    }
+                    if (table === eventRegistrationAddonPurchases) {
+                      return Effect.succeed([]);
+                    }
+                    if (table === transactions && claim) {
+                      return Effect.succeed([
+                        {
+                          ...claim,
+                          method: 'stripe' as const,
+                          status: 'pending' as const,
+                          stripeCheckoutCancellationRequestedAt: null,
+                          type: 'registration' as const,
+                        },
+                      ]);
+                    }
+                    return Effect.succeed([]);
                   },
-                ]);
-              }
-              return Effect.succeed([]);
-            },
-          }),
+                  orderBy: () => ({
+                    for: () =>
+                      table === tenantStripeTaxRates
+                        ? Effect.succeed([
+                            {
+                              displayName: 'VAT',
+                              inclusive: true,
+                              percentage: '19',
+                              stripeTaxRateId: 'txr_19',
+                            },
+                          ])
+                        : Effect.succeed([]),
+                  }),
+                },
         }),
       }),
       update: (table) => ({
@@ -700,11 +807,21 @@ const createDirectCheckoutDatabase = ({
             ...approvedRegistrationOption,
             isPaid: true,
             price: 1000,
+            stripeTaxRateId: effectiveStripeTaxRateId,
             ...registrationOption,
           }),
       },
       eventRegistrations: {
         findFirst: () => Effect.succeed(registration),
+      },
+      tenantStripeTaxRates: {
+        findFirst: () =>
+          Effect.succeed({
+            active: true,
+            displayName: 'VAT',
+            inclusive: true,
+            percentage: '19',
+          }),
       },
       userDiscountCards: {
         findMany: () => Effect.succeed([]),
@@ -786,6 +903,208 @@ const approveManualRegistrationForTest = ({
   });
 
 describe('EventRegistrationService', () => {
+  describe('decodeRegistrationCheckoutSnapshot', () => {
+    const validSnapshot = {
+      customerEmail: 'checkout@example.com',
+      eventTitle: 'Stored event',
+      eventUrl: 'https://tenant.example.com/events/event-1',
+      expiresAt: 1_900_000_000,
+      lineItems: [
+        {
+          name: 'Registration fee',
+          quantity: 1,
+          unitAmount: 1000,
+        },
+      ],
+      notificationEmail: 'notify@example.com',
+    };
+
+    it.effect('decodes a persisted checkout request', () =>
+      Effect.gen(function* () {
+        expect(
+          yield* decodeRegistrationCheckoutSnapshot(
+            validSnapshot,
+            'Invalid persisted checkout request',
+          ),
+        ).toEqual(validSnapshot);
+      }),
+    );
+
+    it.effect('maps a malformed persisted request to an internal error', () =>
+      Effect.gen(function* () {
+        const error = yield* decodeRegistrationCheckoutSnapshot(
+          { ...validSnapshot, lineItems: 'not-an-array' },
+          'Invalid persisted checkout request',
+        ).pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error).toMatchObject({
+          cause: { _tag: 'SchemaError' },
+          message: 'Invalid persisted checkout request',
+        });
+      }),
+    );
+  });
+
+  describe('lockCurrentRegistrationTaxConfiguration', () => {
+    const createDatabase = ({
+      addOnStripeTaxRateId = 'txr_addon',
+      taxRates = [
+        {
+          displayName: 'Registration VAT',
+          inclusive: true,
+          percentage: '19',
+          stripeTaxRateId: 'txr_registration',
+        },
+        {
+          displayName: 'Add-on VAT',
+          inclusive: true,
+          percentage: '7',
+          stripeTaxRateId: 'txr_addon',
+        },
+      ],
+    }: {
+      addOnStripeTaxRateId?: null | string;
+      taxRates?: readonly {
+        displayName: null | string;
+        inclusive: boolean;
+        percentage: null | string;
+        stripeTaxRateId: string;
+      }[];
+    } = {}) => {
+      const lockOrder: string[] = [];
+      const select = vi.fn(() => ({
+        from: (table: unknown) => ({
+          where: () => ({
+            for: () => {
+              lockOrder.push('option');
+              return Effect.succeed([{ stripeTaxRateId: 'txr_registration' }]);
+            },
+            orderBy: () => ({
+              for: () => {
+                if (table === eventAddons) {
+                  lockOrder.push('addon');
+                  return Effect.succeed([
+                    {
+                      addOnId: 'addon-1',
+                      stripeTaxRateId: addOnStripeTaxRateId,
+                    },
+                  ]);
+                }
+                if (table === tenantStripeTaxRates) {
+                  lockOrder.push('tax-rate');
+                  return Effect.succeed(taxRates);
+                }
+                return Effect.die(
+                  new Error('Unexpected tax configuration table'),
+                );
+              },
+            }),
+          }),
+        }),
+      }));
+      return { database: { select }, lockOrder, select };
+    };
+
+    it.effect(
+      'locks the complete graph and returns only current-account tax snapshots',
+      () =>
+        Effect.gen(function* () {
+          const fixture = createDatabase();
+          const result = yield* lockCurrentRegistrationTaxConfiguration(
+            fixture.database as never,
+            {
+              addOns: [
+                {
+                  addOnId: 'addon-1',
+                  requiresTaxRate: true,
+                  stripeTaxRateId: 'txr_addon',
+                },
+              ],
+              eventId: 'event-1',
+              optionRequiresTaxRate: true,
+              optionStripeTaxRateId: 'txr_registration',
+              registrationOptionId: 'option-1',
+              stripeAccountId: 'acct_current',
+              tenantId: 'tenant-1',
+            },
+          );
+
+          expect(fixture.lockOrder).toEqual(['option', 'addon', 'tax-rate']);
+          expect(result.get('txr_registration')).toMatchObject({
+            displayName: 'Registration VAT',
+            percentage: '19',
+          });
+          expect(result.get('txr_addon')).toMatchObject({
+            displayName: 'Add-on VAT',
+            percentage: '7',
+          });
+        }),
+    );
+
+    it.effect(
+      'fails closed when the add-on tax ID changes before reservation',
+      () =>
+        Effect.gen(function* () {
+          const fixture = createDatabase({
+            addOnStripeTaxRateId: 'txr_replaced',
+          });
+          const error = yield* lockCurrentRegistrationTaxConfiguration(
+            fixture.database as never,
+            {
+              addOns: [
+                {
+                  addOnId: 'addon-1',
+                  requiresTaxRate: true,
+                  stripeTaxRateId: 'txr_addon',
+                },
+              ],
+              eventId: 'event-1',
+              optionRequiresTaxRate: true,
+              optionStripeTaxRateId: 'txr_registration',
+              registrationOptionId: 'option-1',
+              stripeAccountId: 'acct_current',
+              tenantId: 'tenant-1',
+            },
+          ).pipe(Effect.flip);
+
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(error.message).toContain('tax configuration changed');
+          expect(fixture.lockOrder).toEqual(['option', 'addon']);
+        }),
+    );
+
+    it.effect(
+      'fails closed when referenced rates are absent from the locked account',
+      () =>
+        Effect.gen(function* () {
+          const fixture = createDatabase({ taxRates: [] });
+          const error = yield* lockCurrentRegistrationTaxConfiguration(
+            fixture.database as never,
+            {
+              addOns: [
+                {
+                  addOnId: 'addon-1',
+                  requiresTaxRate: true,
+                  stripeTaxRateId: 'txr_addon',
+                },
+              ],
+              eventId: 'event-1',
+              optionRequiresTaxRate: true,
+              optionStripeTaxRateId: 'txr_registration',
+              registrationOptionId: 'option-1',
+              stripeAccountId: 'acct_replacement',
+              tenantId: 'tenant-1',
+            },
+          ).pipe(Effect.flip);
+
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(error.message).toContain('tax configuration changed');
+          expect(fixture.lockOrder).toEqual(['option', 'addon', 'tax-rate']);
+        }),
+    );
+  });
+
   describe('isDefinitiveCheckoutSessionCreateFailure', () => {
     const invalidRequest = (overrides: Record<string, unknown> = {}) =>
       new Stripe.errors.StripeInvalidRequestError({
@@ -2364,6 +2683,7 @@ describe('EventRegistrationService', () => {
     'stores guest count when registering multiple participant spots',
     () =>
       Effect.gen(function* () {
+        let insertedAcquisition: unknown;
         let insertedRegistration: unknown;
         const mockDatabase = {
           query: {
@@ -2408,6 +2728,15 @@ describe('EventRegistrationService', () => {
                   }
                   if (table === eventRegistrations) {
                     insertedRegistration = value;
+                  }
+                  if (
+                    table === registrationAcquisitions ||
+                    table === registrationAcquisitionComponents
+                  ) {
+                    if (table === registrationAcquisitions) {
+                      insertedAcquisition = value;
+                    }
+                    return Effect.void;
                   }
                   return {
                     returning: () => Effect.succeed([{ id: 'registration-1' }]),
@@ -2465,6 +2794,15 @@ describe('EventRegistrationService', () => {
             status: 'CONFIRMED',
           }),
         );
+        expect(insertedAcquisition).toEqual(
+          expect.objectContaining({
+            kind: 'initial',
+            operationKey: 'registration-initial:registration-1',
+            ordinal: 0,
+            ownerUserId: 'user-1',
+            spotCount: 3,
+          }),
+        );
       }),
   );
 
@@ -2506,6 +2844,12 @@ describe('EventRegistrationService', () => {
                 return {
                   onConflictDoNothing: () => Effect.succeed([]),
                 };
+              }
+              if (
+                table === registrationAcquisitions ||
+                table === registrationAcquisitionComponents
+              ) {
+                return Effect.void;
               }
               throw new Error('Unexpected direct free insert table');
             },
@@ -2865,6 +3209,24 @@ describe('EventRegistrationService', () => {
       expect(approvalDatabase.reservationUpdateCount()).toBe(1);
       expect(approvalDatabase.emailInsertCount()).toBe(1);
       expect(approvalDatabase.emailKinds).toEqual(['manualApproval']);
+      expect(approvalDatabase.acquisitionInsertValues()).toEqual(
+        expect.objectContaining({
+          kind: 'initial',
+          operationKey: 'registration-initial:registration-1',
+          ordinal: 0,
+          ownerUserId: 'user-1',
+          registrationId: 'registration-1',
+          spotCount: 1,
+        }),
+      );
+      expect(approvalDatabase.acquisitionComponentInsertValues()).toEqual([
+        expect.objectContaining({
+          allocationKey: 'registration-initial:registration-1',
+          grossAmount: 0,
+          kind: 'registration',
+          netAmount: 0,
+        }),
+      ]);
     }),
   );
 
@@ -2935,6 +3297,7 @@ describe('EventRegistrationService', () => {
                 expect.objectContaining({
                   name: 'Registration fee for Approved event',
                   quantity: 1,
+                  taxRateId: 'txr_19',
                   unitAmount: 1000,
                 }),
               ],
@@ -2951,7 +3314,7 @@ describe('EventRegistrationService', () => {
     () =>
       Effect.gen(function* () {
         const storedSnapshot = Schema.decodeUnknownSync(
-          registrationCheckoutSnapshotSchema,
+          RegistrationCheckoutSnapshotSchema,
         )({
           customerEmail: 'stored-customer@example.com',
           eventTitle: 'Stored event title',
@@ -3142,6 +3505,7 @@ describe('EventRegistrationService', () => {
                 {
                   name: 'Registration fee for Approved event',
                   quantity: 1,
+                  taxRateId: 'txr_19',
                   unitAmount: 1000,
                 },
               ],
@@ -3725,7 +4089,7 @@ describe('EventRegistrationService', () => {
                         includedQuantity: 0,
                         maxQuantityPerUser: 1,
                         optionalPurchaseQuantity: 1,
-                        price: 500,
+                        price: 0,
                         stripeTaxRateId: null,
                         taxRateDisplayName: null,
                         taxRateInclusive: null,

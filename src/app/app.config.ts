@@ -82,9 +82,6 @@ export const appConfig: ApplicationConfig = {
       provide: DATE_PIPE_DEFAULT_OPTIONS,
       useFactory: tenantDatePipeConfig,
     },
-    // provideCloudflareLoader(
-    //   'https://imagedelivery.net/DxTiV2GJoeCDYZ1DN5RPUA/',
-    // ),
     {
       provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,
       useValue: {

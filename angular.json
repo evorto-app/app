@@ -142,6 +142,9 @@
           "builder": "@angular-eslint/builder:lint",
           "options": {
             "lintFilePatterns": [
+              "*.config.ts",
+              "helpers/**/*.ts",
+              "migration/**/*.ts",
               "src/**/*.ts",
               "src/**/*.html",
               "tests/**/*.ts"

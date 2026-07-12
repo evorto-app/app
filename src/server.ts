@@ -33,6 +33,7 @@ import {
 } from './server/auth/auth-session';
 import { formatConfigError } from './server/config/config-error';
 import { makeRuntimeConfigProvider } from './server/config/provider';
+import { registrationRefundWorkerRuntimeModeConfig } from './server/config/registration-refund-worker-config';
 import { RuntimeConfig } from './server/config/runtime-config';
 import {
   serverNetworkConfig,
@@ -69,10 +70,15 @@ import {
   MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES,
 } from './server/http/stripe-webhook.web-handler';
 import { handleTenantBrandAssetWebRequest } from './server/http/tenant-brand-asset.web-handler';
+import { createUnknownTenantResponse } from './server/http/unknown-tenant-response';
 import { runEmailOutboxProcessor } from './server/notifications/email-delivery';
-import { runRegistrationRefundWorker } from './server/payments/registration-refund';
+import {
+  launchRegistrationRefundWorker,
+  runRegistrationRefundWorker,
+} from './server/payments/registration-refund';
 import { runExpiredRegistrationCheckoutCleanupWorker } from './server/registrations/expired-checkout-cleanup';
 import { stripeClientLayer } from './server/stripe-client';
+import { sanitizeRelativeRedirectPath } from './shared/auth-redirect';
 
 const angularApp = new AngularAppEngine();
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
@@ -81,22 +87,6 @@ const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 const rpcPath = '/rpc';
 const stripeWebhookPath = '/webhooks/stripe';
-
-const sanitizeRedirectPath = (value: null | string) => {
-  if (!value) {
-    return;
-  }
-
-  if (
-    !value.startsWith('/') ||
-    value.startsWith('//') ||
-    value.includes('://')
-  ) {
-    return;
-  }
-
-  return value;
-};
 
 const isStaticMethod = (method: string) =>
   method === 'GET' || method === 'HEAD';
@@ -254,7 +244,7 @@ const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
     Effect.map((renderedResponse) =>
       renderedResponse
         ? HttpServerResponse.fromWeb(renderedResponse)
-        : notFoundServerResponse,
+        : createUnknownTenantResponse(request.method),
     ),
   );
 
@@ -316,7 +306,9 @@ const forwardLoginRouteLayer = HttpLayerRouter.add(
     Effect.sync(() => {
       const requestUrl = toAbsoluteRequestUrl(request);
       const redirectPath =
-        sanitizeRedirectPath(requestUrl.searchParams.get('redirectUrl')) ?? '/';
+        sanitizeRelativeRedirectPath(
+          requestUrl.searchParams.get('redirectUrl'),
+        ) ?? '/';
 
       const target = new URL('/login', requestUrl.origin);
       target.searchParams.set('redirectUrl', redirectPath);
@@ -653,7 +645,20 @@ const serveEffect = Effect.gen(function* () {
           ),
       ),
     );
+  const configuredRegistrationRefundWorkerMode =
+    registrationRefundWorkerRuntimeModeConfig
+      .parse(requestHandlerRuntimeConfigProvider)
+      .pipe(
+        Effect.mapError(
+          (error) =>
+            new Error(
+              `Invalid server configuration:\n${formatConfigError(error)}`,
+            ),
+        ),
+      );
   const { PORT: port } = yield* configuredServerConfig;
+  const registrationRefundWorkerMode =
+    yield* configuredRegistrationRefundWorkerMode;
 
   const serverLayer = HttpLayerRouter.serve(routesLayer).pipe(
     Layer.provide(
@@ -694,10 +699,12 @@ const serveEffect = Effect.gen(function* () {
         Effect.provide(stripeClientContext),
         Effect.forkScoped,
       );
-      yield* runRegistrationRefundWorker.pipe(
-        Effect.provide(databaseContext),
-        Effect.provide(stripeClientContext),
-        Effect.forkScoped,
+      yield* launchRegistrationRefundWorker(
+        registrationRefundWorkerMode,
+        runRegistrationRefundWorker.pipe(
+          Effect.provide(databaseContext),
+          Effect.provide(stripeClientContext),
+        ),
       );
       yield* Effect.logInfo('Bun Effect server listening').pipe(
         Effect.annotateLogs({

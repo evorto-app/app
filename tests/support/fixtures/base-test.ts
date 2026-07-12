@@ -139,17 +139,20 @@ export const test = base.extend<BaseFixtures>({
         return;
       }
       const realDate = Date;
+      const startedAt = performance.now();
+      const currentTime = () =>
+        Math.floor(value + (performance.now() - startedAt));
       class FixedDate extends realDate {
         constructor(...args: [] | ConstructorParameters<typeof realDate>) {
           if (args.length === 0) {
-            super(value);
+            super(currentTime());
             return;
           }
           super(...args);
         }
 
         static override now() {
-          return value;
+          return currentTime();
         }
       }
 

@@ -31,13 +31,14 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/admin/email-outbox.doc.ts [admin, globalAdmin]
   - docs/admin/global-admin.doc.ts [admin, globalAdmin]
   - docs/admin/general-settings.doc.ts [admin]
+  - docs/admin/google-maps-location.doc.ts [admin, @needs-google-maps]
   - docs/admin/platform-tenant-operations.doc.ts [admin, globalAdmin]
   - docs/events/event-approval.doc.ts
   - docs/events/manual-approval.doc.ts [stripe]
   - docs/events/organizer-signup.doc.ts
   - docs/events/event-management.doc.ts
   - docs/events/register.doc.ts [stripe]
-  - docs/events/registration-cancellation.doc.ts
+  - docs/events/registration-cancellation.doc.ts [stripe]
   - docs/events/registration-transfer.doc.ts
   - docs/events/unlisted-admin.doc.ts
   - docs/events/unlisted-user.doc.ts
@@ -55,10 +56,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/templates/templates.doc.ts
   - docs/users/create-account.doc.ts [@needs-auth0-management]
   - docs/users/tenant-onboarding.doc.ts [admin]
+  - docs/users/unknown-tenant-domain.doc.ts [public recovery]
 
 - Functional tests (`*.spec.ts` / `*.test.ts`):
   - specs/admin/email-outbox.spec.ts [admin, globalAdmin]
   - specs/admin/general-settings.spec.ts [admin]
+  - specs/admin/google-maps-location.spec.ts [admin, @needs-google-maps]
   - specs/admin/global-admin-tenants.spec.ts [admin, globalAdmin]
   - specs/admin/platform-tenant-operations.spec.ts [admin, globalAdmin]
   - specs/admin/roles-management.spec.ts [admin, permissions]
@@ -109,9 +112,20 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/events/**`
   - the dedicated registration-transfer spec and generated guide cover the
     free private-link create/claim flow, paid offer/self-claim boundaries,
-    current-price review, paid Checkout finalization, source-refund terminal
-    failure and operator requeue, and paid non-Stripe cancellation/refund
-    readback
+    current-price review, in-place paid Checkout finalization, source-refund
+    terminal failure, and operator requeue. The fixed-bundle candidate adds
+    unchanged guest/add-on quantities and history, current-base pricing with
+    recipient discounts only, and one exact plan/claim per original Stripe
+    source. The source-aligned candidate now proves the append-only acquisition
+    ownership/payment/component/refund-allocation ledger; final paid runtime
+    coverage must execute those assertions, and PROD-002 remains open until that
+    candidate passes the complete local gate
+  - the generated registration-cancellation guide covers a free confirmed
+    ticket with one included and two Stripe-settled optional add-on units,
+    production-service redemption, participant cancellation, exact source and
+    refund allocation, inventory restoration, signed terminal-failure and
+    generation-1 success webhooks, scanner/Profile status projections, and
+    audited Global Admin refund recovery
   - `specs/discounts/esn-discounts.test.ts`
   - app event edit, lifecycle-action, and organizer-action guard coverage in
     `src/app/events`
@@ -142,6 +156,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     random graphs, and verifies that later template edits do not rewrite an
     event-owned snapshot
   - shared registration-mode label coverage in `src/shared`
+- Required Google Maps provider path:
+  - `specs/admin/google-maps-location.spec.ts` proves the live loader,
+    autocomplete search, place-details fetch, persisted Google place shape, and
+    reload readback
+  - `docs/admin/google-maps-location.doc.ts` generates the corresponding
+    beginner operator guide and exercises the same credential-backed provider
+    boundary under `@needs-google-maps`
 - Roles and permissions:
   - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
@@ -256,19 +277,17 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   snapshot persistence, and order/transaction/purchase/immutable-lot/stock
   readback with exact cleanup. Handler/RPC unit and source coverage separately
   pins authenticated current-user and tenant forwarding into that service.
-- `specs/events/registration-transfer.spec.ts` creates a free confirmed
-  registration, persists a private bearer-link offer using hashed credentials,
-  claims it as a second authenticated tenant user, and reads back the cancelled
-  source, confirmed recipient, stable capacity, completed transfer, and queued
-  notification before cleaning up its generated rows. It also proves that a
-  Stripe-paid source can create a private offer while the source cannot claim
-  it, that the intended recipient sees the current paid price before Checkout,
-  that the shared Checkout completion path confirms the recipient, cancels the
-  source, and persists one source-refund obligation, that a terminal Stripe
-  refund failure remains attached to the completed transfer until an operator
-  requeues its next idempotency generation, and that cancelling a paid
-  non-Stripe registration creates exactly one pending manual refund and
-  releases confirmed capacity.
+- `specs/events/registration-transfer.spec.ts` owns the functional private
+  bearer-link offer/claim flow. Its fixed-bundle candidate keeps one confirmed
+  registration id while ownership changes, preserves guest count, every
+  included/free/purchased add-on quantity and fulfillment/check-in history,
+  keeps capacity and stock unchanged, recalculates the recipient payment
+  independently from current base prices with only the recipient's current
+  eligible discounts, and creates one exact refund plan/claim per original
+  Stripe source. Source-user discounts do not transfer, and database-only
+  completion is limited to a wholly free bundle with no refund obligation. It
+  also covers source self-claim denial, terminal refund failure, and operator
+  requeue. This candidate is not validated until the complete local gate passes.
 - `src/db/schema/registration-concurrency.postgres.spec.ts` recreates the
   inverse shared-user lock timing between a transfer notification read and a
   parallel multi-user registration insert. It proves the point-in-time email
@@ -282,9 +301,20 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   registrations, generated questions, and option counters.
 - `docs/events/registration-transfer.doc.ts` generates the dedicated private
   transfer-link guide, including bearer-credential handling, recipient review,
-  persisted ownership transition, and page-backed paid-transfer states for
-  pending Checkout, successful ownership transfer with refund processing,
-  terminal source-refund failure, and safe operator requeue.
+  persisted in-place ownership transition, and page-backed paid-transfer states
+  for pending Checkout, successful ownership transfer with refund processing,
+  terminal source-refund failure, and safe operator requeue. Its paid fixture
+  includes guest/check-in state, paid and free add-ons with redemption and
+  cancellation history, an earlier partial add-on refund, and two original
+  Stripe sources. Before/after database assertions keep registration identity,
+  quantities, fulfillment/refund history, capacity, and stock unchanged; verify
+  that a historical source discount is replaced by recipient-current pricing;
+  and prove distinct exact refund plans and claims without presenting a cash or
+  manually settled paid-event fallback. Its paid helper and guide are realigned
+  to the final append-only acquisition ledger: strict helper TypeScript and
+  source guards pass, and the targeted project collects the journey. This
+  inventory does not treat it as executable evidence until the detached runtime
+  and complete local gates pass without incomplete outcomes.
 - `docs/events/manual-approval.doc.ts` documents the complete participant and
   organizer journey for free and paid applications. It begins from Events
   navigation, explains that applications neither reserve nor charge, reads back
@@ -323,16 +353,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   default role assignment, and cleanup.
 - `specs/profile/user-profile-live-esncard.spec.ts` is collected by
   the dedicated `local-chrome-live-esncard` project and fails its explicit
-  precondition without `E2E_LIVE_ESN_CARD_IDENTIFIER`. It is the functional
-  integration path for live external ESNcard add, refresh, and remove provider
+  precondition without both `E2E_LIVE_ESN_CARD_IDENTIFIER` and
+  `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`. It is the functional integration path
+  for live external active-card add/refresh/remove and expired-card status
   outcomes. Use
-  `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` to run only
-  this provider path locally when a valid live identifier is available. The
-  protected release-certification environment must supply an approved
-  non-production identity; the Release workflow cannot continue when the
-  credential is absent or the live path fails. The release command disables
-  traces and value-bearing assertions so the identifier is not copied into
-  artifacts.
+  `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard`
+  to run only this provider path locally. The protected release-certification
+  environment must supply both approved non-production identities; the Release
+  workflow cannot continue when either credential is absent or the live path
+  fails. The release command disables traces and value-bearing assertions so
+  neither identifier is copied into artifacts.
 - `specs/finance/stripe-webhook-replay.spec.ts` fails its `beforeAll`
   precondition when `STRIPE_WEBHOOK_SECRET` is absent. That credential gate is
   not a substitute for product coverage. This is separate from the Docker stack's Compose-managed Stripe
@@ -382,9 +412,9 @@ and the release-gated live ESNcard provider credential path.
     guest/status/payment labels, profile event add-on summaries,
     implemented-action notes, waitlist event-page routing, and the
     payment-continuation next-step copy. It also proves profile payment
-    continuation links render only for pending Stripe Checkout HTTPS URLs, and
-    checked-in profile event cards no longer advertise cancellation or transfer
-    actions.
+    continuation links render only for pending Stripe Checkout HTTPS URLs.
+    Checked-in profile cards block cancellation while explaining that a transfer
+    preserves the existing attendee and guest check-in history.
     The generated profile docs and matching profile-event spec now read back the
     persisted confirmed registration, add-on purchase, pending checkout
     transaction, waitlist registration, and checked-in registration rows behind
@@ -396,17 +426,19 @@ and the release-gated live ESNcard provider credential path.
     pending-checkout card exposes the profile-level **Continue payment** action,
     and read back the pending registration plus checked-in add-on purchase rows
     behind those visible cards.
-    Organizer overview app coverage also proves checked-in rows and in-flight
-    writes disable participant cancellation and organizer-assisted transfer.
-  - Live external ESNcard add, refresh, and remove provider outcomes with
-    readable error states are now represented by
+    Organizer overview app coverage also proves checked-in rows disable
+    participant cancellation while transfer preserves existing check-in history;
+    in-flight writes continue to disable conflicting actions.
+  - Live external ESNcard active-card add/refresh/remove and expired-card status
+    outcomes with readable error states are now represented by
     `specs/profile/user-profile-live-esncard.spec.ts`, an external-provider-tagged
-    Playwright path with a fail-closed
-    `E2E_LIVE_ESN_CARD_IDENTIFIER` credential preflight. It stays out of
+    Playwright path with fail-closed `E2E_LIVE_ESN_CARD_IDENTIFIER` and
+    `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` credential preflight. It stays out of
     deterministic baseline CI, while the Release workflow calls the protected,
-    fail-closed ESNcard certification workflow and also runs the existing
-    provider-error UI coverage. The dedicated live-provider project needs no
-    ESNcard API key or unrelated Auth0 Management/Cloudflare provider
+    fail-closed provider certification workflow. That workflow runs the Auth0
+    Management/Google Maps integration projects before the ESNcard provider and
+    provider-error UI coverage. The dedicated ESNcard project itself needs no
+    ESNcard API key or unrelated Auth0 Management/Google Maps provider
     credentials.
     Generated discounts docs now include a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
@@ -549,7 +581,9 @@ and the release-gated live ESNcard provider credential path.
     follows the same
     deterministic result URL, captures the overview, undo, cancellation dialog,
     and completed counters, and leaves real-device camera review as an explicit
-    manual step instead of treating synthetic camera input as proof.
+    manual step instead of treating synthetic camera input as proof. The paid
+    Stripe cancellation, refund status, and recovery continuation is covered by
+    `docs/events/registration-cancellation.doc.ts`.
   - Docker-backed system-Chrome organizer aggregate review now passes for the
     scanner spec and generated event-management docs. The page-backed scanner
     spec confirms buyer-plus-guest
@@ -651,9 +685,9 @@ and the release-gated live ESNcard provider credential path.
     while sent rows remain summary-only. Permission coverage allows platform
     admins and denies ordinary signed-in users on the direct outbox route. The
     beginner guide distinguishes automatic queued retry, a time-limited sending
-    claim, automatic abandoned-claim recovery, and exhausted failures, and is
-    explicit that interactive tenant/status filtering and manual requeueing are
-    not current UI features.
+    claim, automatic abandoned-claim recovery, and exhausted failures. Exhausted
+    rows intentionally remain stored and read-only; no requeue or edit recovery
+    action is required for the current product scope.
   - Trusted tenant URL coverage derives one secure HTTPS public origin from the
     normalized primary domain and rejects credentials, non-default ports,
     paths, fragments, alternate hosts, and absolute URL overrides. Production
@@ -707,11 +741,19 @@ and the release-gated live ESNcard provider credential path.
     applies search before pagination, so multi-role users do not collapse page
     size.
 - Registrations:
-  - `docs/events/registration-cancellation.doc.ts` covers ordinary paid
+  - `docs/events/registration-cancellation.doc.ts` covers ordinary free
     participant cancellation, organizer cancellation, guest-capacity release,
-    manual-refund recording, cancellation and waitlist emails, deadline denial,
-    and confirmation safety; it also documents permission/tenant boundaries and
-    retry/idempotency guidance without claiming a new denial test.
+    zero-refund readback, cancellation and waitlist emails, deadline denial, and
+    confirmation safety. Its Stripe add-on journey settles two optional
+    units beside one included unit, redeems the included and one purchased unit
+    through the production service, then proves participant cancellation
+    preserves redeemed units, restocks only the remaining purchased unit, and
+    creates one exactly allocated refund claim. Signed local failed and
+    generation-1 succeeded webhooks exercise the production handler, scanner
+    and Profile projections, Global Admin **Refund recovery**, immutable refund
+    history, and append-only recovery audit. The guide also documents
+    permission/tenant boundaries and retry/idempotency guidance without
+    claiming a new denial test or live provider settlement certification.
   - `specs/events/manual-approval.spec.ts` and
     `docs/events/manual-approval.doc.ts` now cover application creation, free
     approval, paid approval and Checkout completion, exactly-one payment/email

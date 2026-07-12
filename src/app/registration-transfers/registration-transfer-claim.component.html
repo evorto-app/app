@@ -3,9 +3,9 @@
     <p class="label-large text-primary">Registration transfer</p>
     <h1 class="headline-medium">Review before you claim</h1>
     <p class="body-large text-on-surface-variant">
-      This uses the event's current eligibility, questions, availability,
-      add-ons, discount, and price. The previous owner's choices are not copied
-      to you.
+      The registration, guest count, and every included, free, or purchased
+      add-on transfer together as one fixed bundle. Current prices and your
+      eligible discount are recalculated for you.
     </p>
   </header>
 
@@ -15,11 +15,21 @@
     </div>
   } @else if (claimQuery.isError()) {
     <section
-      class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+      class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-5"
       role="alert"
     >
       <h2 class="title-medium">Transfer could not be opened</h2>
-      <p>{{ errorMessage(claimQuery.error(), "Transfer not found") }}</p>
+      <p>
+        We could not open a transfer with this code. Check the complete code and
+        try again, or ask the sender for the current code.
+      </p>
+      <a
+        mat-stroked-button
+        class="justify-self-start"
+        routerLink="/registration-transfers"
+      >
+        Enter another code
+      </a>
     </section>
   } @else if (claimQuery.data(); as claim) {
     <section class="bg-surface-container-low grid gap-4 rounded-xl p-5">
@@ -39,7 +49,9 @@
           <p class="body-large">{{ claim.registrationOption.title }}</p>
         </div>
         <div>
-          <p class="label-medium text-on-surface-variant">Current price</p>
+          <p class="label-medium text-on-surface-variant">
+            Your current registration price
+          </p>
           <p class="body-large">
             {{
               claim.registrationOption.currentPrice / 100
@@ -48,14 +60,122 @@
           </p>
         </div>
       </div>
+      <div class="grid gap-3 border-t border-outline-variant pt-4">
+        <div>
+          <h3 class="title-medium">Fixed bundle contents</h3>
+          <p class="body-small text-on-surface-variant mt-1">
+            These quantities and their existing check-in and use history
+            transfer together and cannot be removed or changed.
+          </p>
+        </div>
+        <dl class="grid gap-3">
+          <div class="grid gap-1 sm:grid-cols-[1fr_auto] sm:gap-4">
+            <dt class="body-medium">Registration</dt>
+            <dd class="body-medium sm:text-right">
+              1 × {{ claim.registrationOption.title }}
+            </dd>
+          </div>
+          <div class="grid gap-1 sm:grid-cols-[1fr_auto] sm:gap-4">
+            <dt class="body-medium">Guests</dt>
+            <dd class="body-medium sm:text-right">
+              @if (claim.bundle.guestCount > 0) {
+                {{ claim.bundle.guestCount }} ×
+                {{
+                  claim.bundle.guestUnitPrice / 100
+                    | currency: claim.registrationOption.currency
+                }}
+              } @else {
+                None
+              }
+            </dd>
+          </div>
+          <div
+            class="grid gap-1 border-t border-outline-variant pt-3 sm:grid-cols-[1fr_auto] sm:gap-4"
+          >
+            <dt class="body-medium">Registration check-in</dt>
+            <dd class="body-medium sm:text-right">
+              @if (claim.bundle.checkInTime) {
+                Checked in {{ claim.bundle.checkInTime | date: "medium" }}
+              } @else {
+                Not checked in
+              }
+            </dd>
+          </div>
+          <div class="grid gap-1 sm:grid-cols-[1fr_auto] sm:gap-4">
+            <dt class="body-medium">Guests checked in</dt>
+            <dd class="body-medium sm:text-right">
+              {{ claim.bundle.checkedInGuestCount }} of
+              {{ claim.bundle.guestCount }}
+            </dd>
+          </div>
+          @for (addOn of claim.bundle.addOns; track addOn.id) {
+            <div
+              class="grid gap-1 border-t border-outline-variant pt-3 sm:grid-cols-[1fr_auto] sm:gap-4"
+            >
+              <dt class="grid gap-1">
+                <span class="body-medium">{{ addOn.title }}</span>
+                @if (addOn.description) {
+                  <span class="body-small text-on-surface-variant">
+                    {{ addOn.description }}
+                  </span>
+                }
+              </dt>
+              <dd class="body-medium grid gap-2 sm:min-w-48 sm:text-right">
+                <span>
+                  {{ addOn.quantity }} total ·
+                  {{
+                    addOn.currentUnitPrice / 100
+                      | currency: claim.registrationOption.currency
+                  }}
+                  current unit price
+                </span>
+                <dl
+                  class="body-small grid grid-cols-[1fr_auto] gap-x-3 gap-y-1"
+                >
+                  @if (addOn.includedQuantity > 0) {
+                    <div class="contents">
+                      <dt class="text-on-surface-variant">Included</dt>
+                      <dd>{{ addOn.includedQuantity }}</dd>
+                    </div>
+                  }
+                  @if (addOn.purchasedQuantity > 0) {
+                    <div class="contents">
+                      <dt class="text-on-surface-variant">Purchased</dt>
+                      <dd>{{ addOn.purchasedQuantity }}</dd>
+                    </div>
+                  }
+                  <div class="contents">
+                    <dt class="text-on-surface-variant">Available to use</dt>
+                    <dd>{{ addOn.remainingQuantity }}</dd>
+                  </div>
+                  <div class="contents">
+                    <dt class="text-on-surface-variant">Redeemed</dt>
+                    <dd>{{ addOn.redeemedQuantity }}</dd>
+                  </div>
+                  <div class="contents">
+                    <dt class="text-on-surface-variant">Cancelled</dt>
+                    <dd>{{ addOn.cancelledQuantity }}</dd>
+                  </div>
+                </dl>
+              </dd>
+            </div>
+          } @empty {
+            <div
+              class="grid gap-1 border-t border-outline-variant pt-3 sm:grid-cols-[1fr_auto] sm:gap-4"
+            >
+              <dt class="body-medium">Add-ons</dt>
+              <dd class="body-medium sm:text-right">None</dd>
+            </div>
+          }
+        </dl>
+      </div>
       <p class="body-small text-on-surface-variant">
-        Claim before {{ claim.expiresAt | date: "medium" }}. Starting a paid
-        claim reserves only the additional capacity needed until Checkout
-        finishes.
+        Claim before {{ claim.expiresAt | date: "medium" }}. A paid claim keeps
+        this offer bound to the fixed bundle until Checkout finishes.
       </p>
     </section>
 
-    @if (statusCopy(claim.status); as state) {
+    @if (statusCopy(claim.status, claim.refundLifecycle); as state) {
       <section
         class="grid gap-3 rounded-xl p-5"
         [class.bg-error-container]="state.tone === 'error'"
@@ -131,75 +251,13 @@
           </section>
         }
 
-        @if (claim.registrationOption.addOns.length > 0) {
-          <section class="grid gap-4" aria-labelledby="transfer-addons-heading">
-            <div>
-              <h2 id="transfer-addons-heading" class="title-medium">
-                Choose current add-ons
-              </h2>
-              <p class="body-small text-on-surface-variant mt-1">
-                Availability and price are checked atomically when you claim.
-              </p>
-            </div>
-            @for (
-              addOnField of claimForm.addOns;
-              track addOnField;
-              let addOnIndex = $index
-            ) {
-              @let addOn = claim.registrationOption.addOns[addOnIndex];
-              @if (addOn) {
-                <div
-                  class="bg-surface-container-low grid gap-3 rounded-xl p-4 sm:grid-cols-[1fr_9rem] sm:items-start"
-                >
-                  <div class="grid gap-1">
-                    <h3 class="title-small">{{ addOn.title }}</h3>
-                    @if (addOn.description) {
-                      <p class="body-small text-on-surface-variant">
-                        {{ addOn.description }}
-                      </p>
-                    }
-                    <p class="body-small text-on-surface-variant">
-                      {{
-                        addOn.unitPrice / 100
-                          | currency: claim.registrationOption.currency
-                      }}
-                      each · {{ addOn.availableQuantity }} available
-                    </p>
-                  </div>
-                  <mat-form-field>
-                    <mat-label>Quantity</mat-label>
-                    <input
-                      matInput
-                      type="number"
-                      step="1"
-                      [formField]="addOnField.quantity"
-                    />
-                  </mat-form-field>
-                </div>
-              }
-            }
-          </section>
-        }
-
-        @if (claim.registrationOption.guestAllowance.allowed) {
-          <mat-form-field class="max-w-56">
-            <mat-label>Guests</mat-label>
-            <input
-              matInput
-              type="number"
-              step="1"
-              [formField]="claimForm.guestCount"
-            />
-            <mat-hint>Guests use the current base option price.</mat-hint>
-          </mat-form-field>
-        }
-
         <section class="bg-surface-container-high grid gap-2 rounded-xl p-4">
           <h2 class="title-small">What happens next</h2>
           <p class="body-small text-on-surface-variant">
-            Free claims confirm you before the previous owner is cancelled. Paid
-            claims open Stripe Checkout on this tenant's connected account;
-            their registration remains active until your payment succeeds.
+            Free claims move the fixed bundle to you in one database
+            transaction. Paid claims open Stripe Checkout on this tenant's
+            connected account; the bundle stays with its current owner until
+            your payment succeeds.
           </p>
         </section>
 

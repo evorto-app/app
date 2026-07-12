@@ -1,22 +1,23 @@
 import type { DatabaseClient } from '@db/index';
 
 import { registrationTransfers } from '@db/schema';
-import {
-  activeRegistrationTransferStatuses,
-  isActiveRegistrationTransferStatus,
-} from '@shared/registration-transfer';
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
+import { and, eq, inArray } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 type RegistrationTransferGuardTransaction = Pick<DatabaseClient, 'select'>;
+
+export const registrationTransferMutationBlockingStatuses = [
+  'open',
+  'checkout_pending',
+] as const satisfies readonly (typeof activeRegistrationTransferStatuses)[number][];
 
 export class RegistrationTransferMutationConflict extends Schema.TaggedErrorClass<RegistrationTransferMutationConflict>()(
   'RegistrationTransferMutationConflict',
   {
     message: Schema.String,
     registrationId: Schema.String,
-    registrationSide: Schema.Literals(['recipient', 'source']),
-    status: Schema.Literals(activeRegistrationTransferStatuses),
+    status: Schema.Literals(registrationTransferMutationBlockingStatuses),
     transferId: Schema.String,
   },
 ) {}
@@ -27,18 +28,10 @@ export const activeRegistrationTransferMutationPredicate = (input: {
 }) =>
   and(
     eq(registrationTransfers.tenantId, input.tenantId),
-    or(
-      and(
-        eq(registrationTransfers.sourceRegistrationId, input.registrationId),
-        inArray(
-          registrationTransfers.status,
-          activeRegistrationTransferStatuses,
-        ),
-      ),
-      and(
-        eq(registrationTransfers.recipientRegistrationId, input.registrationId),
-        eq(registrationTransfers.status, 'checkout_pending'),
-      ),
+    eq(registrationTransfers.sourceRegistrationId, input.registrationId),
+    inArray(
+      registrationTransfers.status,
+      registrationTransferMutationBlockingStatuses,
     ),
   );
 
@@ -54,27 +47,23 @@ export const ensureRegistrationMutationHasNoActiveTransfer = Effect.fn(
   const transferRows = yield* tx
     .select({
       id: registrationTransfers.id,
-      recipientRegistrationId: registrationTransfers.recipientRegistrationId,
-      sourceRegistrationId: registrationTransfers.sourceRegistrationId,
       status: registrationTransfers.status,
     })
     .from(registrationTransfers)
     .where(activeRegistrationTransferMutationPredicate(input))
     .for('update');
   const transfer = transferRows[0];
-  if (!transfer || !isActiveRegistrationTransferStatus(transfer.status)) return;
+  if (
+    !transfer ||
+    (transfer.status !== 'open' && transfer.status !== 'checkout_pending')
+  ) {
+    return;
+  }
 
-  const registrationSide =
-    transfer.sourceRegistrationId === input.registrationId
-      ? 'source'
-      : 'recipient';
   return yield* new RegistrationTransferMutationConflict({
     message:
-      registrationSide === 'source'
-        ? 'Cancel the active transfer offer before changing, cancelling, or checking in this registration.'
-        : 'Use the transfer flow before changing or cancelling this recipient registration.',
+      'Cancel the active transfer offer before changing, cancelling, or checking in this registration.',
     registrationId: input.registrationId,
-    registrationSide,
     status: transfer.status,
     transferId: transfer.id,
   });

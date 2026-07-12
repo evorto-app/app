@@ -225,6 +225,11 @@ export const prepareStripeWebhookRequest = Effect.fn(
   return { rawBody, signature };
 });
 
+type StripeRefundWebhookEvent =
+  | Stripe.RefundCreatedEvent
+  | Stripe.RefundFailedEvent
+  | Stripe.RefundUpdatedEvent;
+
 type SupportedStripeWebhookEventType =
   | 'charge.updated'
   | 'checkout.session.async_payment_failed'
@@ -234,6 +239,61 @@ type SupportedStripeWebhookEventType =
   | 'refund.created'
   | 'refund.failed'
   | 'refund.updated';
+
+const StripeExpandableId = Schema.NullOr(
+  Schema.Union([
+    Schema.NonEmptyString,
+    Schema.Struct({ id: Schema.NonEmptyString }),
+  ]),
+);
+
+const StripeRefundWebhookObject = Schema.Struct({
+  amount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  charge: StripeExpandableId,
+  currency: Schema.NonEmptyString,
+  id: Schema.NonEmptyString,
+  metadata: Schema.Record(Schema.String, Schema.String),
+  object: Schema.Literal('refund'),
+  payment_intent: StripeExpandableId,
+  status: Schema.NullOr(
+    Schema.Literals([
+      'canceled',
+      'failed',
+      'pending',
+      'requires_action',
+      'succeeded',
+    ]),
+  ),
+});
+
+export const decodeStripeRefundWebhookObject = Schema.decodeUnknownEffect(
+  StripeRefundWebhookObject,
+);
+
+const isStripeRefundWebhookEvent = (
+  event: Stripe.Event,
+): event is StripeRefundWebhookEvent =>
+  event.type === 'refund.created' ||
+  event.type === 'refund.failed' ||
+  event.type === 'refund.updated';
+
+const validateStripeRefundWebhookEvent = Effect.fn(
+  'validateStripeRefundWebhookEvent',
+)(function* (event: StripeRefundWebhookEvent) {
+  return yield* decodeStripeRefundWebhookObject(event.data.object).pipe(
+    Effect.as(true),
+    Effect.catchTag('SchemaError', (error) =>
+      Effect.logWarning('Stripe refund webhook payload is invalid').pipe(
+        Effect.annotateLogs({
+          eventId: event.id,
+          eventType: event.type,
+          issue: error.message,
+        }),
+        Effect.as(false),
+      ),
+    ),
+  );
+});
 
 export const isSupportedStripeWebhookEventType = (
   eventType: string,
@@ -260,17 +320,20 @@ export const asyncCheckoutFailureAction = (session: {
 const getTenantIdFromWebhookEvent = (
   event: Stripe.Event,
 ): string | undefined => {
-  if (event.type.startsWith('refund.')) {
-    const refund = event.data.object as Stripe.Refund;
-    const tenantId = refund.metadata?.['tenantId'];
+  if (
+    event.type === 'checkout.session.async_payment_failed' ||
+    event.type === 'checkout.session.async_payment_succeeded' ||
+    event.type === 'checkout.session.completed' ||
+    event.type === 'checkout.session.expired' ||
+    event.type === 'refund.created' ||
+    event.type === 'refund.failed' ||
+    event.type === 'refund.updated'
+  ) {
+    const tenantId = event.data.object.metadata?.['tenantId'];
     return tenantId && tenantId.length > 0 ? tenantId : undefined;
   }
 
-  if (!event.type.startsWith('checkout.session.')) return undefined;
-
-  const session = event.data.object as Stripe.Checkout.Session;
-  const tenantId = session.metadata?.['tenantId'];
-  return tenantId && tenantId.length > 0 ? tenantId : undefined;
+  return;
 };
 
 const getCheckoutTenant = (tenantId: string) =>
@@ -737,6 +800,13 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
 
     if (!isSupportedStripeWebhookEventType(event.type)) {
       return responseText('Ignored');
+    }
+
+    if (
+      isStripeRefundWebhookEvent(event) &&
+      !(yield* validateStripeRefundWebhookEvent(event))
+    ) {
+      return responseText('Invalid refund payload', 400);
     }
 
     const tenantId = getTenantIdFromWebhookEvent(event);
@@ -1438,7 +1508,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
         case 'refund.created':
         case 'refund.failed':
         case 'refund.updated': {
-          const refund = event.data.object as Stripe.Refund;
+          const refund = event.data.object;
           if (!refund.metadata?.['refundClaimId']) {
             return responseText('Non-registration refund ignored');
           }

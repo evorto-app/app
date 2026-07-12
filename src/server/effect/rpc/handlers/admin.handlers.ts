@@ -37,7 +37,14 @@ import {
   normalizeTenantPrivacyPolicy,
   publishPrivacyPolicyVersionIfChanged,
 } from '../../../onboarding/tenant-onboarding.service';
-import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
+import {
+  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+  tenantHasPaidEventConfiguration,
+} from '../../../payments/paid-event-configuration';
+import {
+  lockTenantStripeAccount,
+  tenantHasPendingStripeObligations,
+} from '../../../payments/pending-stripe-obligations';
 import {
   ensureTenantRetainsAnotherDefaultUserRole,
   ensureTenantRoleIsUnreferenced,
@@ -58,6 +65,19 @@ const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
+
+const databaseBadRequestEffect = <A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+): Effect.Effect<A, RpcBadRequestError, Database | R> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        error instanceof RpcBadRequestError
+          ? Effect.fail(error)
+          : Effect.die(error),
+      ),
+    ),
+  );
 
 const databaseRoleEffect = <A, R>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
@@ -652,49 +672,76 @@ export const adminHandlers = {
         ),
       );
 
-      yield* databaseEffect((database) =>
+      yield* databaseBadRequestEffect((database) =>
         database.transaction((tx) =>
-          Effect.all(
-            stripeRates.map((stripeRate) =>
-              Effect.gen(function* () {
-                const existingRate =
-                  yield* tx.query.tenantStripeTaxRates.findFirst({
-                    columns: {
-                      id: true,
-                    },
-                    where: {
-                      stripeTaxRateId: stripeRate.id,
-                      tenantId: tenant.id,
-                    },
-                  });
+          Effect.gen(function* () {
+            const lockedStripeAccount = yield* lockTenantStripeAccount(
+              tx,
+              tenant.id,
+            );
+            if (lockedStripeAccount !== stripeAccount) {
+              return yield* new RpcBadRequestError({
+                message: 'Stripe account changed while tax rates were loading',
+                reason:
+                  'Reload the page and import rates from the current account.',
+              });
+            }
 
-                const values: Omit<
-                  typeof tenantStripeTaxRates.$inferInsert,
-                  'id'
-                > = {
-                  active: !!stripeRate.active,
-                  country: stripeRate.country ?? null,
-                  displayName: stripeRate.display_name ?? null,
-                  inclusive: !!stripeRate.inclusive,
-                  percentage:
-                    stripeRate.percentage !== null &&
-                    stripeRate.percentage !== undefined
-                      ? String(stripeRate.percentage)
-                      : undefined,
-                  state: stripeRate.state ?? null,
-                  stripeTaxRateId: stripeRate.id,
-                  tenantId: tenant.id,
-                };
+            yield* Effect.all(
+              stripeRates.map((stripeRate) =>
+                Effect.gen(function* () {
+                  const existingRate =
+                    yield* tx.query.tenantStripeTaxRates.findFirst({
+                      columns: {
+                        id: true,
+                        stripeAccountId: true,
+                      },
+                      where: {
+                        stripeTaxRateId: stripeRate.id,
+                        tenantId: tenant.id,
+                      },
+                    });
+                  if (
+                    existingRate?.stripeAccountId &&
+                    existingRate.stripeAccountId !== stripeAccount
+                  ) {
+                    return yield* new RpcBadRequestError({
+                      message:
+                        'Imported tax-rate metadata belongs to a different Stripe account',
+                      reason:
+                        'Change or disconnect the Stripe account before importing this rate.',
+                    });
+                  }
 
-                yield* existingRate
-                  ? tx
-                      .update(tenantStripeTaxRates)
-                      .set(values)
-                      .where(eq(tenantStripeTaxRates.id, existingRate.id))
-                  : tx.insert(tenantStripeTaxRates).values(values);
-              }),
-            ),
-          ).pipe(Effect.asVoid),
+                  const values: Omit<
+                    typeof tenantStripeTaxRates.$inferInsert,
+                    'id'
+                  > = {
+                    active: !!stripeRate.active,
+                    country: stripeRate.country ?? null,
+                    displayName: stripeRate.display_name ?? null,
+                    inclusive: !!stripeRate.inclusive,
+                    percentage:
+                      stripeRate.percentage !== null &&
+                      stripeRate.percentage !== undefined
+                        ? String(stripeRate.percentage)
+                        : undefined,
+                    state: stripeRate.state ?? null,
+                    stripeAccountId: stripeAccount,
+                    stripeTaxRateId: stripeRate.id,
+                    tenantId: tenant.id,
+                  };
+
+                  yield* existingRate
+                    ? tx
+                        .update(tenantStripeTaxRates)
+                        .set(values)
+                        .where(eq(tenantStripeTaxRates.id, existingRate.id))
+                    : tx.insert(tenantStripeTaxRates).values(values);
+                }),
+              ),
+            ).pipe(Effect.asVoid);
+          }),
         ),
       );
     }),
@@ -705,6 +752,10 @@ export const adminHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
+      const stripeAccountId = tenant.stripeAccountId;
+      if (!stripeAccountId) {
+        return [];
+      }
       const importedTaxRates = yield* databaseEffect((database) =>
         database.query.tenantStripeTaxRates.findMany({
           columns: {
@@ -716,7 +767,10 @@ export const adminHandlers = {
             state: true,
             stripeTaxRateId: true,
           },
-          where: { tenantId: tenant.id },
+          where: {
+            stripeAccountId,
+            tenantId: tenant.id,
+          },
         }),
       );
 
@@ -911,6 +965,18 @@ export const adminHandlers = {
                       'Complete or cancel every pending Checkout and refund before changing the connected account.',
                   });
                 }
+
+                const hasPaidEventConfiguration =
+                  yield* tenantHasPaidEventConfiguration(tx, tenant.id);
+                if (hasPaidEventConfiguration) {
+                  return yield* new RpcBadRequestError(
+                    stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+                  );
+                }
+
+                yield* tx
+                  .delete(tenantStripeTaxRates)
+                  .where(eq(tenantStripeTaxRates.tenantId, tenant.id));
               }
 
               if (lockedTenant.currency !== input.currency) {

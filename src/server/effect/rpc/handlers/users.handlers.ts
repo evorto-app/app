@@ -29,7 +29,10 @@ import {
   type Permission,
 } from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { UsersAuthData } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
+import {
+  UsersAuthData,
+  type UsersEventSummaryRecord,
+} from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { User } from '../../../../types/custom/user';
 import { lockTenantRoleGraph } from '../../../roles/tenant-role-graph';
@@ -166,6 +169,119 @@ const resolvePendingRegistrationCheckoutUrl = (
       transaction.type === 'registration' &&
       transaction.stripeCheckoutUrl,
   )?.stripeCheckoutUrl ?? null;
+
+type ProfileRefundRecord = UsersEventSummaryRecord['refunds'][number];
+type ProfileRefundState = ProfileRefundRecord['state'];
+
+export const resolveProfileRefundState = (refund: {
+  readonly method: string;
+  readonly status: string;
+  readonly stripeRefundAttempts: number;
+  readonly stripeRefundClaimLeaseExpiresAt: Date | null;
+  readonly stripeRefundClaimLeaseId: null | string;
+  readonly stripeRefundGeneration: number;
+  readonly stripeRefundMaxAttempts: number;
+  readonly stripeRefundNextAttemptAt: Date | null;
+  readonly stripeRefundRequeuedAt: Date | null;
+  readonly stripeRefundStatus: null | string;
+}): ProfileRefundState => {
+  if (
+    refund.status === 'cancelled' ||
+    refund.stripeRefundStatus === 'canceled' ||
+    refund.stripeRefundStatus === 'failed'
+  ) {
+    return 'needsAttention';
+  }
+
+  if (
+    refund.status === 'successful' ||
+    refund.stripeRefundStatus === 'succeeded'
+  ) {
+    return 'succeeded';
+  }
+
+  if (
+    refund.method === 'stripe' &&
+    refund.status === 'pending' &&
+    refund.stripeRefundStatus === 'requires_action'
+  ) {
+    return 'actionRequired';
+  }
+
+  if (refund.method === 'stripe' && refund.status === 'pending') {
+    const leaseShapeValid =
+      (refund.stripeRefundClaimLeaseId === null) ===
+      (refund.stripeRefundClaimLeaseExpiresAt === null);
+    if (!leaseShapeValid) {
+      return 'needsAttention';
+    }
+    const activeLease =
+      refund.stripeRefundClaimLeaseId !== null &&
+      refund.stripeRefundClaimLeaseExpiresAt !== null;
+    if (
+      !activeLease &&
+      (refund.stripeRefundAttempts >= refund.stripeRefundMaxAttempts ||
+        refund.stripeRefundNextAttemptAt === null)
+    ) {
+      return 'needsAttention';
+    }
+
+    return refund.stripeRefundAttempts > 0 ||
+      refund.stripeRefundGeneration > 0 ||
+      refund.stripeRefundRequeuedAt !== null ||
+      refund.stripeRefundClaimLeaseId !== null
+      ? 'retrying'
+      : 'pending';
+  }
+
+  return 'needsAttention';
+};
+
+const resolveProfileRefunds = (
+  registrationTransactions: readonly {
+    readonly amount: number;
+    readonly currency: UsersEventSummaryRecord['refunds'][number]['currency'];
+    readonly method: string;
+    readonly sourceTransaction?: null | { readonly type: string };
+    readonly status: string;
+    readonly stripeRefundAttempts: number;
+    readonly stripeRefundClaimLeaseExpiresAt: Date | null;
+    readonly stripeRefundClaimLeaseId: null | string;
+    readonly stripeRefundGeneration: number;
+    readonly stripeRefundMaxAttempts: number;
+    readonly stripeRefundNextAttemptAt: Date | null;
+    readonly stripeRefundRequeuedAt: Date | null;
+    readonly stripeRefundStatus: null | string;
+    readonly type: string;
+    readonly updatedAt: Date;
+  }[],
+): UsersEventSummaryRecord['refunds'] =>
+  registrationTransactions
+    .flatMap((transaction) => {
+      if (transaction.type !== 'refund') return [];
+      const source = transaction.sourceTransaction?.type;
+      if (source !== 'addon' && source !== 'registration') {
+        throw new Error(
+          'Registration refund references an unsupported or missing payment source',
+        );
+      }
+
+      return [
+        {
+          amount: Math.abs(transaction.amount),
+          currency: transaction.currency,
+          source,
+          state: resolveProfileRefundState(transaction),
+          updatedAt: transaction.updatedAt.toISOString(),
+        } satisfies ProfileRefundRecord,
+      ];
+    })
+    .toSorted(
+      (left, right) =>
+        left.updatedAt.localeCompare(right.updatedAt) ||
+        left.source.localeCompare(right.source) ||
+        left.amount - right.amount,
+    );
 
 export const tenantDayBounds = (timezone: string, now = DateTime.now()) => {
   const tenantNow = now.setZone(timezone);
@@ -329,6 +445,24 @@ export const userHandlers = {
       );
       const user = yield* requireUserHeader(options.headers);
 
+      const refundRegistrationRows = yield* databaseEffect((database) =>
+        database.query.transactions.findMany({
+          columns: { eventRegistrationId: true },
+          where: {
+            targetUserId: user.id,
+            tenantId: tenant.id,
+            type: 'refund',
+          },
+        }),
+      );
+      const cancelledRegistrationIds = [
+        ...new Set(
+          refundRegistrationRows.flatMap(({ eventRegistrationId }) =>
+            eventRegistrationId ? [eventRegistrationId] : [],
+          ),
+        ),
+      ];
+
       const registrations = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findMany({
           columns: {
@@ -339,9 +473,17 @@ export const userHandlers = {
             status: true,
           },
           where: {
-            status: {
-              NOT: 'CANCELLED',
-            },
+            ...(cancelledRegistrationIds.length === 0
+              ? { status: { NOT: 'CANCELLED' as const } }
+              : {
+                  OR: [
+                    { status: { NOT: 'CANCELLED' as const } },
+                    {
+                      id: { in: cancelledRegistrationIds },
+                      status: 'CANCELLED' as const,
+                    },
+                  ],
+                }),
             tenantId: tenant.id,
             userId: user.id,
           },
@@ -376,10 +518,29 @@ export const userHandlers = {
             },
             transactions: {
               columns: {
+                amount: true,
+                currency: true,
                 method: true,
                 status: true,
                 stripeCheckoutUrl: true,
+                stripeRefundAttempts: true,
+                stripeRefundClaimLeaseExpiresAt: true,
+                stripeRefundClaimLeaseId: true,
+                stripeRefundGeneration: true,
+                stripeRefundMaxAttempts: true,
+                stripeRefundNextAttemptAt: true,
+                stripeRefundRequeuedAt: true,
+                stripeRefundStatus: true,
                 type: true,
+                updatedAt: true,
+              },
+              where: {
+                targetUserId: user.id,
+              },
+              with: {
+                sourceTransaction: {
+                  columns: { type: true },
+                },
               },
             },
           },
@@ -397,14 +558,6 @@ export const userHandlers = {
             missingRegistrationRelationDefect(registration),
           );
         }
-        if (registration.status === 'CANCELLED') {
-          return yield* Effect.die(
-            new Error(
-              `Cancelled registration ${registration.id} was returned by users.events`,
-            ),
-          );
-        }
-
         mappedRegistrations.push({
           addonPurchases: registration.addonPurchases.flatMap((purchase) =>
             purchase.addOn
@@ -428,6 +581,10 @@ export const userHandlers = {
           paymentState: resolveRegistrationPaymentState(
             registration.transactions,
           ),
+          refunds:
+            registration.status === 'CANCELLED'
+              ? resolveProfileRefunds(registration.transactions)
+              : [],
           registrationId: registration.id,
           registrationOptionTitle: registration.registrationOption.title,
           status: registration.status,
@@ -450,6 +607,7 @@ export const userHandlers = {
           guestCount: registration.guestCount,
           organizingRegistration: registration.organizingRegistration,
           paymentState: registration.paymentState,
+          refunds: registration.refunds,
           registrationId: registration.registrationId,
           registrationOptionTitle: registration.registrationOptionTitle,
           start: registration.event.start.toISOString(),

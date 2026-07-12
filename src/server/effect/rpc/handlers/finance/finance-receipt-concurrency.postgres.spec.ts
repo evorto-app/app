@@ -3,7 +3,7 @@ import { inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import { randomUUID } from 'node:crypto';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 
 import { databaseLayer } from '../../../../../db/database.layer';
 import { createNodePgPoolConfig } from '../../../../../db/pg-connection-config';
@@ -31,6 +31,9 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
+const lockObservationTimeoutMs = 30_000;
+const lockPollIntervalMs = 50;
+const postgresConcurrencyTestTimeoutMs = 60_000;
 
 type TestDatabase = NodePgDatabase<typeof relations>;
 
@@ -49,7 +52,7 @@ const makeDatabaseServiceLayer = (url: string) =>
   );
 
 const waitForBlockedReceiptLock = async (pool: Pool, blockingPid: number) => {
-  const deadline = Date.now() + 10_000;
+  const deadline = Date.now() + lockObservationTimeoutMs;
   while (Date.now() < deadline) {
     const blocked = await pool.query<{ count: string }>(
       `
@@ -60,14 +63,24 @@ const waitForBlockedReceiptLock = async (pool: Pool, blockingPid: number) => {
         AND activity.state = 'active'
         AND activity.wait_event_type = 'Lock'
         AND $1::int = ANY(pg_blocking_pids(activity.pid))
-        AND activity.query ILIKE '%finance_receipts%'
     `,
       [blockingPid],
     );
     if (Number(blocked.rows[0]?.count ?? 0) >= 1) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, lockPollIntervalMs));
   }
   throw new Error('Timed out waiting for blocked finance receipt lock');
+};
+
+const readBackendPid = async (client: PoolClient): Promise<number> => {
+  const result = await client.query<{ pid: number }>(
+    'SELECT pg_backend_pid() AS pid',
+  );
+  const pid = result.rows[0]?.pid;
+  if (!Number.isInteger(pid)) {
+    throw new TypeError('PostgreSQL lock holder has no backend PID');
+  }
+  return pid;
 };
 
 describe('receipt review and reimbursement serialization', () => {
@@ -79,8 +92,18 @@ describe('receipt review and reimbursement serialization', () => {
   const receiptUploadIds: string[] = [];
   const templateIds: string[] = [];
   const tenantIds: string[] = [];
-  const transactionIds: string[] = [];
   const userIds: string[] = [];
+  const handlerOperations: Promise<boolean>[] = [];
+
+  const trackHandlerOperation = <A>(operation: Promise<A>): Promise<A> => {
+    handlerOperations.push(
+      operation.then(
+        () => true,
+        () => false,
+      ),
+    );
+    return operation;
+  };
 
   beforeAll(() => {
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
@@ -88,6 +111,7 @@ describe('receipt review and reimbursement serialization', () => {
   });
 
   afterAll(async () => {
+    await Promise.all(handlerOperations);
     await database
       .delete(financeReceipts)
       .where(inArray(financeReceipts.id, receiptIds));
@@ -96,7 +120,7 @@ describe('receipt review and reimbursement serialization', () => {
       .where(inArray(financeReceiptUploads.id, receiptUploadIds));
     await database
       .delete(transactions)
-      .where(inArray(transactions.id, transactionIds));
+      .where(inArray(transactions.tenantId, tenantIds));
     await database
       .delete(eventInstances)
       .where(inArray(eventInstances.id, eventIds));
@@ -109,7 +133,7 @@ describe('receipt review and reimbursement serialization', () => {
     await database.delete(users).where(inArray(users.id, userIds));
     await database.delete(tenants).where(inArray(tenants.id, tenantIds));
     await pool.end();
-  });
+  }, postgresConcurrencyTestTimeoutMs);
 
   const seedReceipt = async (status: 'approved' | 'submitted') => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
@@ -254,115 +278,122 @@ describe('receipt review and reimbursement serialization', () => {
     return { eventId, handlerLayer, receiptId, tenantId, userId };
   };
 
-  it('re-reads the locked amount and currency before inserting the reimbursement ledger row', async () => {
-    const fixture = await seedReceipt('approved');
-    const client = await pool.connect();
-    try {
-      if (typeof client.processID !== 'number') {
-        throw new TypeError('PostgreSQL lock holder has no backend PID');
+  it(
+    're-reads the locked amount and currency before inserting the reimbursement ledger row',
+    async () => {
+      const fixture = await seedReceipt('approved');
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const blockingPid = await readBackendPid(client);
+        await client.query(
+          'SELECT id FROM finance_receipts WHERE id = $1 FOR UPDATE',
+          [fixture.receiptId],
+        );
+        await client.query(
+          'UPDATE finance_receipts SET "totalAmount" = 200 WHERE id = $1',
+          [fixture.receiptId],
+        );
+
+        const refund = trackHandlerOperation(
+          Effect.runPromise(
+            financeHandlers['finance.receipts.createRefund'](
+              {
+                payoutReference: 'NL91ABNA0417164300',
+                payoutType: 'iban',
+                receiptIds: [fixture.receiptId],
+              },
+              { headers: {} } as never,
+            ).pipe(Effect.provide(fixture.handlerLayer)),
+          ),
+        );
+
+        await waitForBlockedReceiptLock(pool, blockingPid);
+        await client.query('COMMIT');
+        const result = await refund;
+
+        expect(result.totalAmount).toBe(200);
+        expect(
+          await database.query.transactions.findFirst({
+            columns: { amount: true, currency: true },
+            where: { id: result.transactionId },
+          }),
+        ).toEqual({ amount: -200, currency: 'CZK' });
+        expect(
+          await database.query.financeReceipts.findFirst({
+            columns: { status: true, totalAmount: true },
+            where: { id: fixture.receiptId },
+          }),
+        ).toEqual({ status: 'refunded', totalAmount: 200 });
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => null);
+        throw error;
+      } finally {
+        client.release();
       }
-      await client.query('BEGIN');
-      await client.query(
-        'SELECT id FROM finance_receipts WHERE id = $1 FOR UPDATE',
-        [fixture.receiptId],
-      );
-      await client.query(
-        'UPDATE finance_receipts SET "totalAmount" = 200 WHERE id = $1',
-        [fixture.receiptId],
-      );
+    },
+    postgresConcurrencyTestTimeoutMs,
+  );
 
-      const refund = Effect.runPromise(
-        financeHandlers['finance.receipts.createRefund'](
-          {
-            payoutReference: 'NL91ABNA0417164300',
-            payoutType: 'iban',
-            receiptIds: [fixture.receiptId],
-          },
-          { headers: {} } as never,
-        ).pipe(Effect.provide(fixture.handlerLayer)),
-      );
+  it(
+    'rejects a stale rejection that waits behind a concurrent reimbursement transition',
+    async () => {
+      const fixture = await seedReceipt('approved');
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const blockingPid = await readBackendPid(client);
+        await client.query(
+          'SELECT id FROM finance_receipts WHERE id = $1 FOR UPDATE',
+          [fixture.receiptId],
+        );
+        await client.query(
+          "UPDATE finance_receipts SET status = 'refunded' WHERE id = $1",
+          [fixture.receiptId],
+        );
 
-      await waitForBlockedReceiptLock(pool, client.processID);
-      await client.query('COMMIT');
-      const result = await refund;
-      transactionIds.push(result.transactionId);
+        const review = trackHandlerOperation(
+          Effect.runPromise(
+            financeHandlers['finance.receipts.review'](
+              {
+                alcoholAmount: 0,
+                depositAmount: 0,
+                hasAlcohol: false,
+                hasDeposit: false,
+                id: fixture.receiptId,
+                purchaseCountry: 'NL',
+                receiptDate: '2026-07-31',
+                rejectionReason: 'The receipt should be rejected',
+                status: 'rejected',
+                taxAmount: 20,
+                totalAmount: 300,
+              },
+              { headers: {} } as never,
+            ).pipe(Effect.flip, Effect.provide(fixture.handlerLayer)),
+          ),
+        );
 
-      expect(result.totalAmount).toBe(200);
-      expect(
-        await database.query.transactions.findFirst({
-          columns: { amount: true, currency: true },
-          where: { id: result.transactionId },
-        }),
-      ).toEqual({ amount: -200, currency: 'CZK' });
-      expect(
-        await database.query.financeReceipts.findFirst({
-          columns: { status: true, totalAmount: true },
-          where: { id: fixture.receiptId },
-        }),
-      ).toEqual({ status: 'refunded', totalAmount: 200 });
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => null);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }, 30_000);
+        await waitForBlockedReceiptLock(pool, blockingPid);
+        await client.query('COMMIT');
+        const error = await review;
 
-  it('rejects a stale rejection that waits behind a concurrent reimbursement transition', async () => {
-    const fixture = await seedReceipt('approved');
-    const client = await pool.connect();
-    try {
-      if (typeof client.processID !== 'number') {
-        throw new TypeError('PostgreSQL lock holder has no backend PID');
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'refundedReceipt',
+        });
+        expect(
+          await database.query.financeReceipts.findFirst({
+            columns: { status: true, totalAmount: true },
+            where: { id: fixture.receiptId },
+          }),
+        ).toEqual({ status: 'refunded', totalAmount: 100 });
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => null);
+        throw error;
+      } finally {
+        client.release();
       }
-      await client.query('BEGIN');
-      await client.query(
-        'SELECT id FROM finance_receipts WHERE id = $1 FOR UPDATE',
-        [fixture.receiptId],
-      );
-      await client.query(
-        "UPDATE finance_receipts SET status = 'refunded' WHERE id = $1",
-        [fixture.receiptId],
-      );
-
-      const review = Effect.runPromise(
-        financeHandlers['finance.receipts.review'](
-          {
-            alcoholAmount: 0,
-            depositAmount: 0,
-            hasAlcohol: false,
-            hasDeposit: false,
-            id: fixture.receiptId,
-            purchaseCountry: 'NL',
-            receiptDate: '2026-07-31',
-            rejectionReason: 'The receipt should be rejected',
-            status: 'rejected',
-            taxAmount: 20,
-            totalAmount: 300,
-          },
-          { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(fixture.handlerLayer)),
-      );
-
-      await waitForBlockedReceiptLock(pool, client.processID);
-      await client.query('COMMIT');
-      const error = await review;
-
-      expect(error).toMatchObject({
-        _tag: 'RpcBadRequestError',
-        reason: 'refundedReceipt',
-      });
-      expect(
-        await database.query.financeReceipts.findFirst({
-          columns: { status: true, totalAmount: true },
-          where: { id: fixture.receiptId },
-        }),
-      ).toEqual({ status: 'refunded', totalAmount: 100 });
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => null);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }, 30_000);
+    },
+    postgresConcurrencyTestTimeoutMs,
+  );
 });

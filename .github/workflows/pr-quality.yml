@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Install Knope
         uses: knope-dev/action@19617851f9f13ab2f27a05989c55efb18aca3675 # v2.1.2
@@ -36,7 +36,6 @@ jobs:
     timeout-minutes: 15
     env:
       CI: true
-      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
       POSTGRES_INTEGRATION_DATABASE_URL: postgresql://evorto:integration@localhost:5432/evorto_postgres_integration
       POSTGRES_INTEGRATION_DISPOSABLE: "true"
     services:
@@ -54,27 +53,31 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.14"
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.15.0"
-
       - name: Validate required configuration
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           if [ -z "${FONT_AWESOME_TOKEN}" ]; then
             echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
             exit 1
           fi
 
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.15.0"
+
       - name: Install dependencies
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           for attempt in 1 2 3; do
             if bun install --frozen-lockfile; then
@@ -98,29 +101,32 @@ jobs:
     timeout-minutes: 40
     env:
       CI: true
-      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.14"
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.15.0"
-
       - name: Validate required configuration
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           if [ -z "${FONT_AWESOME_TOKEN}" ]; then
             echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
             exit 1
           fi
 
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.15.0"
+
       - name: Install dependencies
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           for attempt in 1 2 3; do
             if bun install --frozen-lockfile; then
@@ -134,6 +140,9 @@ jobs:
             echo "::warning::Dependency installation attempt ${attempt} failed; retrying in ${retry_delay_seconds}s"
             sleep "${retry_delay_seconds}"
           done
+
+      - name: Check formatting
+        run: bun run format:check
 
       - name: Lint without uncommitted fixes
         run: |

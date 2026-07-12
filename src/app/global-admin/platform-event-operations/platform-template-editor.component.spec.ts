@@ -321,8 +321,17 @@ describe('platform template editor graph mapping', () => {
     expect(source).toContain('min(addOn.price, 1');
     expect(source).toContain('TemplateModeConfirmationDialogComponent');
     expect(source).toContain('persistedAdvancedToSimpleModeIssue');
+    expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
+    expect(source).toContain(
+      'disabled(registration.isPaid, () => !this.stripeConnected())',
+    );
+    expect(source).toContain(
+      'disabled(addOn.isPaid, () => !this.stripeConnected())',
+    );
+    expect(source).toContain('resetTemplateGraphPayments');
     expect(template).toContain("requestMode('simple')");
     expect(template).toContain("requestMode('advanced')");
+    expect(template).toContain('status could not be loaded');
     expect(template).not.toContain(
       '[formField]="templateForm.simpleModeEnabled"',
     );

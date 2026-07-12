@@ -39,6 +39,11 @@ import {
   usersToTenants,
 } from '../../../../../db/schema';
 import {
+  ensureStripeForPaidEventConfiguration,
+  ensureStripeForStoredEventConfiguration,
+} from '../../../../payments/paid-event-configuration';
+import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
+import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
 } from '../../../../roles/tenant-role-graph';
@@ -1010,6 +1015,9 @@ const runEventMutation = <A extends PlatformEventMutationTarget>(
     before: PlatformEventDetailRecord,
     esnCardEnabled: boolean,
   ) => Effect.Effect<void, RpcBadRequestError>,
+  beforeEventLock?: (
+    database: DatabaseClient,
+  ) => Effect.Effect<void, RpcBadRequestError>,
 ) =>
   Effect.gen(function* () {
     const operation = yield* resolvePlatformMutation(input);
@@ -1021,6 +1029,9 @@ const runEventMutation = <A extends PlatformEventMutationTarget>(
             const transactionalDatabase = Object.assign(transaction, {
               $client: database.$client,
             });
+            if (beforeEventLock) {
+              yield* beforeEventLock(transactionalDatabase);
+            }
             const lockedEvents = yield* transaction
               .select({ id: eventInstances.id })
               .from(eventInstances)
@@ -1082,6 +1093,10 @@ export const platformEventHandlers = {
               $client: database.$client,
             });
             return Effect.gen(function* () {
+              yield* lockTenantStripeAccount(
+                transaction,
+                input.targetTenantId,
+              ).pipe(Effect.orDie);
               yield* lockTenantRoleGraph(
                 transaction,
                 input.targetTenantId,
@@ -1286,6 +1301,10 @@ export const platformEventHandlers = {
               .where(
                 and(
                   eq(tenantStripeTaxRates.tenantId, input.targetTenantId),
+                  eq(
+                    tenantStripeTaxRates.stripeAccountId,
+                    operation.targetTenant.stripeAccountId ?? '',
+                  ),
                   eq(tenantStripeTaxRates.active, true),
                   eq(tenantStripeTaxRates.inclusive, true),
                 ),
@@ -1396,6 +1415,14 @@ export const platformEventHandlers = {
           }
         });
       },
+      input.approved
+        ? (database) =>
+            ensureStripeForStoredEventConfiguration(
+              database,
+              input.targetTenantId,
+              input.eventId,
+            )
+        : undefined,
     );
   },
   'platform.events.submitForReview': (
@@ -1538,6 +1565,11 @@ export const platformEventHandlers = {
           );
         });
       },
+      (database) =>
+        ensureStripeForPaidEventConfiguration(database, input.targetTenantId, {
+          addOns: input.addOns,
+          registrationOptions: input.registrationOptions,
+        }),
     );
   },
   'platform.events.updateListing': (

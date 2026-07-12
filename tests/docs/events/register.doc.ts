@@ -279,7 +279,7 @@ test.describe('Register for events', () => {
   You can see this by additional information being available and also your ticket QR code.
   This example shows **Includes 1 guest plus you.** The guest remains attached to the signed-in buyer's registration, and the two people consume two confirmed spots. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
   Show this ticket QR code when attending the event. Evorto also queues a confirmation email with a link back to this authenticated ticket page. The link is not a bearer credential: the participant must still sign in as the ticket owner.
-  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
+  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. Paid event registrations and add-ons are Stripe-only, so Evorto submits the applicable refunds against their original Stripe payment sources.`,
     });
 
     await takeScreenshot(
@@ -1125,6 +1125,7 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
     });
     await deliverCompletedRegistrationCheckoutWebhook({
       amount: pendingTransaction.amount,
+      applicationFeeAmount: pendingTransaction.appFee,
       currency: pendingTransaction.currency,
       paymentIntentId: pendingTransaction.stripePaymentIntentId,
       registrationId: pendingTransaction.eventRegistrationId,

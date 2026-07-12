@@ -102,14 +102,27 @@ proxy crash leaves the stack failed so the next explicit stack start also reruns
 the branch-expiration sidecar instead of creating an untracked replacement
 branch. CI or another controlled environment can set
 `NEON_LOCAL_METADATA_DIR` to an absolute host directory when a bind mount is
-intentional. Playwright `webServer` uses `bun run docker:webserver`, which
-starts the foreground Compose stack without forcing `docker compose down` first.
-The wrapper traps process exit and Playwright shutdown signals, then runs the
+intentional. With the normal generated `NEON_LOCAL_PROXY=true` environment,
+Playwright `webServer` uses `bun run docker:webserver`, which starts the
+foreground Compose stack without forcing `docker compose down` first. The
+wrapper traps process exit and Playwright shutdown signals, then runs the
 project-scoped `docker compose down --timeout 60 --remove-orphans` so stopped
 containers and networks do not linger. Playwright allows 90 seconds for that
 60-second Compose shutdown plus object removal. When Playwright reuses a stack
 that was already serving the app, it never starts that wrapper; the user-owned
-stack therefore keeps running. `bun run docker:resume` rejects the default
+stack therefore keeps running.
+
+An explicitly supplied disposable database with `NEON_LOCAL_PROXY=false` uses
+`helpers/testing/host-e2e-webserver.sh`. That host wrapper starts or temporarily
+resumes only the current worktree's MinIO container, initializes its bucket,
+and exports the same loopback S3 endpoint and credentials to the Angular server
+that receipt fixtures use. It restores a previously stopped MinIO container and
+removes a MinIO container it created after the host server stops; it never calls
+Compose teardown or mutates unrelated services or projects. Existing host app
+servers are not reused in this mode because their storage configuration cannot
+be proven after startup.
+
+`bun run docker:resume` rejects the default
 ephemeral `DELETE_BRANCH=true` mode because the branch is gone after the
 database stops. It inspects the existing database container rather than
 trusting current dotenv values, because retained containers keep the
@@ -180,11 +193,12 @@ belong in your untracked `.env` or exported shell environment. Do not add real
 secret values to `.env.example`, `.env.dev.local`, or `.env.dev`.
 
 The same non-mutating preflight has an `esncard-release` target. Local Docker
-treats `E2E_LIVE_ESN_CARD_IDENTIFIER` as optional, while
+treats `E2E_LIVE_ESN_CARD_IDENTIFIER` and
+`E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` as optional, while
 `bun helpers/testing/runtime-preflight.ts esncard-release` treats the approved
-non-production identifier as required and reports only its variable name and
-purpose, never its value. The release workflow invokes this target before the
-live provider journey.
+active and permanently expired non-production identifiers as required and
+reports only their variable names and purposes, never their values. The release
+workflow invokes this target before the live provider journey.
 
 Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration

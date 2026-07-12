@@ -7,7 +7,10 @@ import {
   createEmptyEventGraphFormModel,
   createEventGraphAddon,
 } from './event-graph-form.model';
-import { eventGraphFormSchema } from './event-graph-form.schema';
+import {
+  eventGraphFormSchema,
+  eventGraphFormSchemaWithPaymentAvailability,
+} from './event-graph-form.schema';
 
 describe('eventGraphFormSchema', () => {
   beforeEach(() => {
@@ -62,5 +65,25 @@ describe('eventGraphFormSchema', () => {
 
     expect(price().hidden()).toBe(true);
     expect(price().errors()).toEqual([]);
+  });
+
+  it('reactively disables payment toggles when Stripe is unavailable', () => {
+    const paymentAllowed = signal(false);
+    const graph = form(
+      signal({
+        ...createEmptyEventGraphFormModel('Europe/Berlin'),
+        addOns: [createEventGraphAddon()],
+      }),
+      eventGraphFormSchemaWithPaymentAvailability(() => paymentAllowed()),
+      { injector: TestBed.inject(Injector) },
+    );
+
+    expect(graph.addOns[0].isPaid().disabled()).toBe(true);
+    expect(graph.addOns[0].price().disabled()).toBe(true);
+
+    paymentAllowed.set(true);
+
+    expect(graph.addOns[0].isPaid().disabled()).toBe(false);
+    expect(graph.addOns[0].price().disabled()).toBe(false);
   });
 });

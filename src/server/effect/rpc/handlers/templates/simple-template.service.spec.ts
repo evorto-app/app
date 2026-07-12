@@ -100,6 +100,9 @@ const createValidationDatabase = ({
       roles: {
         findMany: () => Effect.succeed(roleIds.map((id) => ({ id }))),
       },
+      tenants: {
+        findFirst: () => Effect.succeed({ stripeAccountId: 'acct_connected' }),
+      },
       tenantStripeTaxRates: {
         findFirst: () => Effect.succeed(taxRate),
         findMany: () => Effect.succeed([]),

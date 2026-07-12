@@ -1,7 +1,8 @@
 import type Stripe from 'stripe';
 
-import { Database } from '@db/index';
+import { Database, type DatabaseClient } from '@db/index';
 import {
+  eventRegistrationAddonPurchaseLots,
   eventRegistrationOptions,
   eventRegistrations,
   registrationTransfers,
@@ -14,6 +15,12 @@ import { Effect, Schema } from 'effect';
 import { enqueueRegistrationConfirmedEmail } from '../notifications/email-delivery';
 import { StripeClient } from '../stripe-client';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
+import {
+  type AcquisitionPaymentSettlement,
+  establishRegistrationAcquisition,
+  resolveStripeAcquisitionPaymentSettlement,
+  settleAcquisitionComponentTerms,
+} from './registration-acquisition-write';
 import { finalizeRegistrationTransferCheckout } from './registration-transfer-finalization';
 
 const initialCheckoutReconcileDelayMs = 5000;
@@ -98,6 +105,13 @@ export const registrationCheckoutPaymentOwnsClaim = (input: {
   Boolean(input.sessionCurrency) &&
   input.sessionCurrency?.toUpperCase() === input.persistedCurrency;
 
+export const registrationCheckoutTargetOwnsClaim = (input: {
+  readonly registrationUserId: string;
+  readonly targetUserId: string;
+  readonly transferId: null | string;
+}): boolean =>
+  input.transferId !== null || input.targetUserId === input.registrationUserId;
+
 const latestChargeId = (
   paymentIntent:
     | null
@@ -111,19 +125,20 @@ const latestChargeId = (
   return typeof latestCharge === 'string' ? latestCharge : latestCharge?.id;
 };
 
-const isStripeMissingResourceError = (error: unknown): boolean => {
-  if (!error || typeof error !== 'object') return false;
-  const candidate = error as {
-    code?: unknown;
-    raw?: { code?: unknown };
-    type?: unknown;
-  };
-  return (
-    candidate.type === 'StripeInvalidRequestError' &&
-    (candidate.code === 'resource_missing' ||
-      candidate.raw?.code === 'resource_missing')
-  );
-};
+const StripeInvalidRequestError = Schema.Struct({
+  type: Schema.Literals(['StripeInvalidRequestError']),
+});
+const StripeMissingResourceCode = Schema.Struct({
+  code: Schema.Literals(['resource_missing']),
+});
+const StripeMissingResourceRawCode = Schema.Struct({
+  raw: StripeMissingResourceCode,
+});
+
+const isStripeMissingResourceError = (error: unknown): boolean =>
+  Schema.is(StripeInvalidRequestError)(error) &&
+  (Schema.is(StripeMissingResourceCode)(error) ||
+    Schema.is(StripeMissingResourceRawCode)(error));
 
 const checkoutNotificationEmail = (user: {
   communicationEmail: string;
@@ -163,6 +178,189 @@ export const registrationCheckoutMetadataOwnsClaim = (input: {
     ? metadataTransferId === input.transferId || !hasAnyOwnershipMetadata
     : !metadataTransferId;
 };
+
+type RegistrationCheckoutTransaction = Pick<
+  DatabaseClient,
+  'insert' | 'select' | 'update'
+>;
+
+const establishPaidInitialRegistrationAcquisition = Effect.fn(
+  'establishPaidInitialRegistrationAcquisition',
+)(function* (
+  tx: RegistrationCheckoutTransaction,
+  input: RegistrationCheckoutCompletionIdentity & {
+    readonly acquiredAt: Date;
+    readonly currency: typeof transactions.$inferSelect.currency;
+    readonly eventId: string;
+    readonly guestCount: number;
+    readonly ownerUserId: string;
+    readonly paymentIntentId: string;
+    readonly paymentSettlement: AcquisitionPaymentSettlement;
+    readonly registration: {
+      readonly appliedDiscountedPrice: null | number;
+      readonly basePriceAtRegistration: null | number;
+      readonly stripeTaxRateDisplayName: null | string;
+      readonly stripeTaxRateInclusive: boolean | null;
+      readonly stripeTaxRatePercentage: null | string;
+    };
+    readonly stripeChargeId: string;
+  },
+) {
+  const lots = yield* tx
+    .select({
+      applicationFeeAmount:
+        eventRegistrationAddonPurchaseLots.applicationFeeAmount,
+      baseAmount: eventRegistrationAddonPurchaseLots.baseAmount,
+      currency: eventRegistrationAddonPurchaseLots.currency,
+      grossAmount: eventRegistrationAddonPurchaseLots.grossAmount,
+      id: eventRegistrationAddonPurchaseLots.id,
+      netAmount: eventRegistrationAddonPurchaseLots.netAmount,
+      paymentAllocationFinalizedAt:
+        eventRegistrationAddonPurchaseLots.paymentAllocationFinalizedAt,
+      purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
+      quantity: eventRegistrationAddonPurchaseLots.quantity,
+      sourceLineKey: eventRegistrationAddonPurchaseLots.sourceLineKey,
+      sourceTransactionId:
+        eventRegistrationAddonPurchaseLots.sourceTransactionId,
+      stripeFeeAmount: eventRegistrationAddonPurchaseLots.stripeFeeAmount,
+      taxAmount: eventRegistrationAddonPurchaseLots.taxAmount,
+      taxRateDisplayName: eventRegistrationAddonPurchaseLots.taxRateDisplayName,
+      taxRateInclusive: eventRegistrationAddonPurchaseLots.taxRateInclusive,
+      taxRatePercentage: eventRegistrationAddonPurchaseLots.taxRatePercentage,
+    })
+    .from(eventRegistrationAddonPurchaseLots)
+    .where(
+      and(
+        eq(
+          eventRegistrationAddonPurchaseLots.registrationId,
+          input.registrationId,
+        ),
+        eq(eventRegistrationAddonPurchaseLots.tenantId, input.tenantId),
+      ),
+    )
+    .orderBy(eventRegistrationAddonPurchaseLots.id)
+    .for('update');
+  if (
+    lots.some(
+      (lot) =>
+        lot.currency !== input.currency ||
+        (lot.baseAmount > 0
+          ? lot.sourceTransactionId !== input.transactionId
+          : lot.sourceTransactionId !== null),
+    )
+  ) {
+    return yield* failStateConflict(
+      input,
+      'Registration add-on lot payment ownership changed before acquisition',
+    );
+  }
+
+  const basePrice = input.registration.basePriceAtRegistration ?? 0;
+  const effectivePrice = input.registration.appliedDiscountedPrice ?? basePrice;
+  const settledComponents = settleAcquisitionComponentTerms({
+    payment: input.paymentSettlement,
+    terms: [
+      {
+        allocationKey: `registration-initial:${input.registrationId}`,
+        baseAmount: effectivePrice + basePrice * input.guestCount,
+        id: `registration:${input.registrationId}`,
+        kind: 'registration',
+        quantity: registrationSpotCount(input.guestCount),
+        taxRateDisplayName: input.registration.stripeTaxRateDisplayName,
+        taxRateInclusive: input.registration.stripeTaxRateInclusive,
+        taxRatePercentage: input.registration.stripeTaxRatePercentage,
+      },
+      ...lots.map((lot) => ({
+        allocationKey: lot.sourceLineKey,
+        baseAmount: lot.baseAmount,
+        id: `addon-lot:${lot.id}`,
+        kind: 'addon_lot' as const,
+        purchaseId: lot.purchaseId,
+        purchaseLotId: lot.id,
+        quantity: lot.quantity,
+        taxRateDisplayName: lot.taxRateDisplayName,
+        taxRateInclusive: lot.taxRateInclusive,
+        taxRatePercentage: lot.taxRatePercentage,
+      })),
+    ],
+  });
+  if (!settledComponents) {
+    return yield* failStateConflict(
+      input,
+      'Registration acquisition components do not settle to the Checkout payment',
+    );
+  }
+
+  for (const lot of lots) {
+    const component = settledComponents.find(
+      ({ id }) => id === `addon-lot:${lot.id}`,
+    );
+    if (!component || component.kind !== 'addon_lot') {
+      return yield* failStateConflict(
+        input,
+        'Registration add-on lot acquisition component is missing',
+      );
+    }
+    if (
+      (lot.applicationFeeAmount !== null &&
+        lot.applicationFeeAmount !== component.applicationFeeAmount) ||
+      (lot.grossAmount !== null && lot.grossAmount !== component.grossAmount) ||
+      (lot.netAmount !== null && lot.netAmount !== component.netAmount) ||
+      (lot.stripeFeeAmount !== null &&
+        lot.stripeFeeAmount !== component.stripeFeeAmount) ||
+      (lot.taxAmount !== null && lot.taxAmount !== component.taxAmount)
+    ) {
+      return yield* failStateConflict(
+        input,
+        'Registration add-on lot settlement changed before acquisition',
+      );
+    }
+    yield* tx
+      .update(eventRegistrationAddonPurchaseLots)
+      .set({
+        applicationFeeAmount: component.applicationFeeAmount,
+        grossAmount: component.grossAmount,
+        netAmount: component.netAmount,
+        paymentAllocationFinalizedAt:
+          lot.paymentAllocationFinalizedAt ?? input.acquiredAt,
+        stripeFeeAmount: component.stripeFeeAmount,
+        taxAmount: component.taxAmount,
+      })
+      .where(eq(eventRegistrationAddonPurchaseLots.id, lot.id));
+  }
+
+  yield* establishRegistrationAcquisition(tx, {
+    acquiredAt: input.acquiredAt,
+    components: settledComponents,
+    currency: input.currency,
+    eventId: input.eventId,
+    kind: 'initial',
+    operationKey: `registration-initial:${input.registrationId}`,
+    ownerUserId: input.ownerUserId,
+    payment: {
+      settlement: input.paymentSettlement,
+      stripeAccountId: input.stripeAccountId,
+      stripeChargeId: input.stripeChargeId,
+      stripePaymentIntentId: input.paymentIntentId,
+      transactionId: input.transactionId,
+      type: 'registration',
+    },
+    registrationId: input.registrationId,
+    spotCount: registrationSpotCount(input.guestCount),
+    tenantId: input.tenantId,
+  }).pipe(
+    Effect.mapError(
+      (cause) =>
+        new RegistrationCheckoutCompletionError({
+          cause,
+          kind: 'stateConflict',
+          message: 'Initial registration acquisition could not be persisted',
+          registrationId: input.registrationId,
+          transactionId: input.transactionId,
+        }),
+    ),
+  );
+});
 
 /**
  * Applies the exact paid Checkout transition shared by webhooks, the scheduled
@@ -331,27 +529,26 @@ export const completePaidRegistrationCheckout = Effect.fn(
     inlineChargeId ??
     (yield* Effect.gen(function* () {
       const stripe = yield* StripeClient;
-      const paymentIntent = yield* Effect.promise(() =>
-        stripe.paymentIntents.retrieve(
-          paymentIntentId,
-          { expand: ['latest_charge'] },
-          { stripeAccount: input.stripeAccountId },
-        ),
-      ).pipe(
-        Effect.catchDefect((cause) =>
-          isStripeMissingResourceError(cause)
-            ? failInvalidBinding(
-                input,
-                'Stripe payment intent is missing during checkout completion',
-                cause,
-              )
-            : failCompletion(
-                input,
-                'Stripe payment intent could not be resolved during checkout completion',
-                cause,
-              ),
-        ),
-      );
+      const paymentIntent = yield* Effect.tryPromise({
+        catch: (cause) =>
+          new RegistrationCheckoutCompletionError({
+            cause,
+            kind: isStripeMissingResourceError(cause)
+              ? 'invalidBinding'
+              : 'internal',
+            message: isStripeMissingResourceError(cause)
+              ? 'Stripe payment intent is missing during checkout completion'
+              : 'Stripe payment intent could not be resolved during checkout completion',
+            registrationId: input.registrationId,
+            transactionId: input.transactionId,
+          }),
+        try: () =>
+          stripe.paymentIntents.retrieve(
+            paymentIntentId,
+            { expand: ['latest_charge'] },
+            { stripeAccount: input.stripeAccountId },
+          ),
+      });
       if (paymentIntent.id !== paymentIntentId) {
         return yield* failInvalidBinding(
           input,
@@ -360,6 +557,31 @@ export const completePaidRegistrationCheckout = Effect.fn(
       }
       return latestChargeId(paymentIntent);
     }));
+  if (!stripeChargeId) {
+    return yield* failCompletion(
+      input,
+      'Registration Checkout charge is not available yet',
+    );
+  }
+  const paymentSettlement = yield* resolveStripeAcquisitionPaymentSettlement({
+    expectedCurrency: preflight.currency,
+    expectedGrossAmount: preflight.amount,
+    expectedPaymentIntentId: paymentIntentId,
+    stripeAccountId: input.stripeAccountId,
+    stripeChargeId,
+  }).pipe(
+    Effect.mapError(
+      (cause) =>
+        new RegistrationCheckoutCompletionError({
+          cause,
+          kind: 'internal',
+          message: 'Registration Checkout payment fees are not settled yet',
+          registrationId: input.registrationId,
+          transactionId: input.transactionId,
+        }),
+    ),
+  );
+  const completedAt = new Date();
 
   const notificationEventUrl =
     preflight.type === 'direct'
@@ -385,10 +607,16 @@ export const completePaidRegistrationCheckout = Effect.fn(
       Effect.gen(function* () {
         const lockedRegistrations = yield* tx
           .select({
+            appliedDiscountedPrice: eventRegistrations.appliedDiscountedPrice,
+            basePriceAtRegistration: eventRegistrations.basePriceAtRegistration,
             eventId: eventRegistrations.eventId,
             guestCount: eventRegistrations.guestCount,
             registrationOptionId: eventRegistrations.registrationOptionId,
             status: eventRegistrations.status,
+            stripeTaxRateDisplayName: eventRegistrations.taxRateDisplayName,
+            stripeTaxRateInclusive: eventRegistrations.taxRateInclusive,
+            stripeTaxRatePercentage: eventRegistrations.taxRatePercentage,
+            userId: eventRegistrations.userId,
           })
           .from(eventRegistrations)
           .where(
@@ -409,9 +637,14 @@ export const completePaidRegistrationCheckout = Effect.fn(
         const lockedTransactions = yield* tx
           .select({
             amount: transactions.amount,
+            appFee: transactions.appFee,
             currency: transactions.currency,
             paymentIntentId: transactions.stripePaymentIntentId,
             status: transactions.status,
+            stripeChargeId: transactions.stripeChargeId,
+            stripeFee: transactions.stripeFee,
+            stripeNetAmount: transactions.stripeNetAmount,
+            targetUserId: transactions.targetUserId,
           })
           .from(transactions)
           .where(
@@ -461,6 +694,37 @@ export const completePaidRegistrationCheckout = Effect.fn(
             'Registration Checkout payment intent ownership changed',
           );
         }
+        if (!lockedTransaction.targetUserId) {
+          return yield* failStateConflict(
+            input,
+            'Registration Checkout target ownership is missing',
+          );
+        }
+        const targetUserId = lockedTransaction.targetUserId;
+        if (
+          !registrationCheckoutTargetOwnsClaim({
+            registrationUserId: lockedRegistration.userId,
+            targetUserId,
+            transferId:
+              preflight.type === 'transfer' ? preflight.transferId : null,
+          }) ||
+          (lockedTransaction.appFee !== null &&
+            lockedTransaction.appFee !==
+              paymentSettlement.applicationFeeAmount) ||
+          (lockedTransaction.stripeChargeId !== null &&
+            lockedTransaction.stripeChargeId !== stripeChargeId) ||
+          (lockedTransaction.stripeFee !== null &&
+            lockedTransaction.stripeFee !==
+              paymentSettlement.stripeFeeAmount) ||
+          (lockedTransaction.stripeNetAmount !== null &&
+            lockedTransaction.stripeNetAmount !==
+              paymentSettlement.stripeNetAmount)
+        ) {
+          return yield* failStateConflict(
+            input,
+            'Registration Checkout settled payment ownership changed',
+          );
+        }
         if (
           lockedTransaction.status !== 'pending' &&
           lockedTransaction.status !== 'successful'
@@ -475,6 +739,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           const completedTransactions = yield* tx
             .update(transactions)
             .set({
+              appFee: paymentSettlement.applicationFeeAmount,
               status: 'successful',
               stripeChargeId,
               stripeCheckoutCancellationRequestedAt: null,
@@ -482,6 +747,8 @@ export const completePaidRegistrationCheckout = Effect.fn(
               stripeCheckoutReconcileLeaseExpiresAt: null,
               stripeCheckoutReconcileLeaseId: null,
               stripeCheckoutReconcileNextAt: null,
+              stripeFee: paymentSettlement.stripeFeeAmount,
+              stripeNetAmount: paymentSettlement.stripeNetAmount,
               stripePaymentIntentId: paymentIntentId,
             })
             .where(
@@ -508,6 +775,16 @@ export const completePaidRegistrationCheckout = Effect.fn(
               'Locked pending registration transaction could not be completed',
             );
           }
+        } else {
+          yield* tx
+            .update(transactions)
+            .set({
+              appFee: paymentSettlement.applicationFeeAmount,
+              stripeChargeId,
+              stripeFee: paymentSettlement.stripeFeeAmount,
+              stripeNetAmount: paymentSettlement.stripeNetAmount,
+            })
+            .where(eq(transactions.id, input.transactionId));
         }
 
         const transferFinalization =
@@ -530,6 +807,18 @@ export const completePaidRegistrationCheckout = Effect.fn(
           lockedTransaction.status === 'successful' &&
           lockedRegistration.status === 'CONFIRMED'
         ) {
+          yield* establishPaidInitialRegistrationAcquisition(tx, {
+            ...input,
+            acquiredAt: completedAt,
+            currency: lockedTransaction.currency,
+            eventId: lockedRegistration.eventId,
+            guestCount: lockedRegistration.guestCount,
+            ownerUserId: targetUserId,
+            paymentIntentId,
+            paymentSettlement,
+            registration: lockedRegistration,
+            stripeChargeId,
+          });
           return 'alreadyCompleted' as const;
         }
         if (lockedRegistration.status !== 'PENDING') {
@@ -579,6 +868,19 @@ export const completePaidRegistrationCheckout = Effect.fn(
               eq(eventRegistrationOptions.eventId, updatedRegistration.eventId),
             ),
           );
+
+        yield* establishPaidInitialRegistrationAcquisition(tx, {
+          ...input,
+          acquiredAt: completedAt,
+          currency: lockedTransaction.currency,
+          eventId: updatedRegistration.eventId,
+          guestCount: updatedRegistration.guestCount,
+          ownerUserId: targetUserId,
+          paymentIntentId,
+          paymentSettlement,
+          registration: lockedRegistration,
+          stripeChargeId,
+        });
 
         if (
           preflight.notificationContext.eventId !==

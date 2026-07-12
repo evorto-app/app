@@ -9,7 +9,10 @@
     Paste the registration ID or the attendee ticket URL. The platform path
     validates the target tenant again and never treats the QR code as authority.
   </p>
-  <div class="flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-start">
+  <form
+    class="flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-start"
+    (submit)="openLookup($event)"
+  >
     <mat-form-field class="grow">
       <mat-label>Registration ID or result URL</mat-label>
       <input
@@ -25,13 +28,12 @@
     <button
       class="sm:mt-2"
       mat-flat-button
-      type="button"
+      type="submit"
       [disabled]="!lookupInteractive()"
-      (click)="openLookup()"
     >
       Inspect
     </button>
-  </div>
+  </form>
 </section>
 
 @if (registrationId()) {
@@ -98,12 +100,17 @@
           </div>
         </dl>
 
-        @if (registration.registrationStatusIssue) {
+        @let registrationStatusIssue =
+          platformRegistrationStatusIssueCopy(registration.status);
+        @if (registrationStatusIssue) {
           <p
             class="bg-error-container text-on-error-container mt-4 p-3"
             role="alert"
           >
-            Only confirmed registrations can be checked in.
+            <span class="title-small block">
+              {{ registrationStatusIssue.title }}
+            </span>
+            <span>{{ registrationStatusIssue.body }}</span>
           </p>
         } @else if (registration.checkInTimingIssue) {
           <p class="bg-tertiary-container text-on-tertiary-container mt-4 p-3">
@@ -286,6 +293,10 @@
   </div>
   @if (registrationsQuery.isPending()) {
     <p role="status">Loading registrations...</p>
+  } @else if (registrationsQuery.isError()) {
+    <p class="bg-error-container text-on-error-container p-4" role="alert">
+      {{ errorMessage(registrationsQuery.error()) }}
+    </p>
   } @else if (registrationsQuery.isSuccess()) {
     <div class="divide-outline-variant divide-y">
       @for (registration of registrationsQuery.data(); track registration.id) {

@@ -1,7 +1,6 @@
 import consola from 'consola';
 import { and, count, eq, InferSelectModel, inArray, sql } from 'drizzle-orm';
 import { uniq } from 'es-toolkit';
-import { DateTime } from 'luxon';
 
 import * as oldSchema from '../../old/drizzle';
 import { database } from '../../src/db';

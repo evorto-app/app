@@ -8,6 +8,7 @@ import { usersToAuthenticate } from '../../../helpers/user-data';
 import { createId } from '../../../src/db/create-id';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
+import { deleteRegistrationAcquisitionLedger } from './registration-acquisition-cleanup';
 import { futureServerEventWindow } from './server-test-clock';
 
 type TestDatabase = NodePgDatabase<typeof relations>;
@@ -217,6 +218,11 @@ export const seedOrganizerSignupScenario = async ({
       }
     }
 
+    await deleteRegistrationAcquisitionLedger({
+      database,
+      registrationIds,
+      tenantId: seeded.tenant.id,
+    });
     await database
       .delete(schema.transactions)
       .where(

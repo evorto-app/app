@@ -12,6 +12,10 @@ import type { SupportedTenantTimezone } from '../../../types/custom/tenant';
 import type { EventLocationType } from '../../../types/location';
 
 import { tenantNow, toTenantDateTime } from '../../core/tenant-runtime';
+import {
+  resetAddOnPayment,
+  resetRegistrationPayment,
+} from '../../shared/components/forms/payment-configuration';
 
 export interface EventGraphAddonFormModel {
   allowMultiple: boolean;
@@ -98,6 +102,22 @@ export interface EventGraphUpdatePayload {
   start: string;
   title: string;
 }
+
+export const resetEventGraphPayments = (
+  model: EventGraphFormModel,
+): EventGraphFormModel => {
+  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, null));
+  const registrationOptions = model.registrationOptions.map((option) =>
+    resetRegistrationPayment(option, null, ''),
+  );
+  const unchanged =
+    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
+    registrationOptions.every(
+      (option, index) => option === model.registrationOptions[index],
+    );
+
+  return unchanged ? model : { ...model, addOns, registrationOptions };
+};
 
 export const legacyRandomEventEditMessage =
   'This event uses legacy random allocation. It remains readable, but its registration configuration cannot be edited until it is explicitly migrated.';

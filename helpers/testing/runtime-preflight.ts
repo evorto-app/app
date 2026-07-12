@@ -76,20 +76,35 @@ const dockerRequiredVariables = [
 
 const liveEsncardReleaseVariable = {
   description:
-    'Approved non-production ESNcard identifier for mandatory release certification',
+    'Approved active non-production ESNcard identifier for mandatory release certification',
   name: 'E2E_LIVE_ESN_CARD_IDENTIFIER',
+} satisfies RequiredVariable;
+
+const expiredEsncardReleaseVariable = {
+  description:
+    'Approved permanently expired non-production ESNcard identifier for mandatory release certification',
+  name: 'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER',
 } satisfies RequiredVariable;
 
 export const requiredByTarget = {
   docker: dockerRequiredVariables,
-  'esncard-release': [...dockerRequiredVariables, liveEsncardReleaseVariable],
+  'esncard-release': [
+    ...dockerRequiredVariables,
+    liveEsncardReleaseVariable,
+    expiredEsncardReleaseVariable,
+  ],
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
 export const optionalByTarget = {
   docker: [
     {
       ...liveEsncardReleaseVariable,
-      description: 'Optional local live esncard.org Playwright coverage',
+      description: 'Optional local active-card esncard.org Playwright coverage',
+    },
+    {
+      ...expiredEsncardReleaseVariable,
+      description:
+        'Optional local expired-card esncard.org Playwright coverage',
     },
   ],
   'esncard-release': [],

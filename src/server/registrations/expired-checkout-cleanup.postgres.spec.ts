@@ -28,6 +28,9 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  registrationAcquisitionComponents,
+  registrationAcquisitionPayments,
+  registrationAcquisitions,
   registrationTransfers,
   tenants,
   transactions,
@@ -290,6 +293,7 @@ const seedFixture = async (
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: 1000,
     eventId,
     id: registrationId,
     registrationOptionId: optionId,
@@ -376,6 +380,15 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
+  await database
+    .delete(registrationAcquisitionComponents)
+    .where(eq(registrationAcquisitionComponents.tenantId, fixture.tenantId));
+  await database
+    .delete(registrationAcquisitionPayments)
+    .where(eq(registrationAcquisitionPayments.tenantId, fixture.tenantId));
+  await database
+    .delete(registrationAcquisitions)
+    .where(eq(registrationAcquisitions.tenantId, fixture.tenantId));
   await database
     .delete(transactions)
     .where(eq(transactions.tenantId, fixture.tenantId));
@@ -752,6 +765,25 @@ describe('expired unbound checkout cleanup concurrency', () => {
         payment_status: 'paid',
         status: 'complete',
       } as never);
+    const retrieveCharge = vi
+      .spyOn(stripe.charges, 'retrieve')
+      .mockResolvedValue({
+        amount: 1000,
+        balance_transaction: {
+          amount: 1000,
+          currency: 'eur',
+          fee_details: [
+            { amount: 35, type: 'application_fee' },
+            { amount: 29, type: 'stripe_fee' },
+          ],
+          net: 936,
+        },
+        captured: true,
+        currency: 'eur',
+        id: stripeChargeId,
+        paid: true,
+        payment_intent: stripePaymentIntentId,
+      } as never);
     const configLayer = ConfigProvider.layer(
       ConfigProvider.fromEnv({
         env: {
@@ -780,6 +812,11 @@ describe('expired unbound checkout cleanup concurrency', () => {
     expect(retrieve).toHaveBeenCalledWith(stripeCheckoutSessionId, undefined, {
       stripeAccount: fixture.stripeAccountId,
     });
+    expect(retrieveCharge).toHaveBeenCalledWith(
+      stripeChargeId,
+      { expand: ['balance_transaction'] },
+      { stripeAccount: fixture.stripeAccountId },
+    );
 
     const state = await readFixtureState(database, fixture);
     expect(state.registration?.status).toBe('CONFIRMED');
@@ -818,6 +855,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
     );
     expect(replay.scanned).toBe(0);
     expect(retrieve).toHaveBeenCalledTimes(1);
+    expect(retrieveCharge).toHaveBeenCalledTimes(1);
   }, 30_000);
 
   it('fails closed before registration mutation when Stripe gross or currency differs', async () => {

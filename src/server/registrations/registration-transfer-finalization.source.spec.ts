@@ -5,50 +5,174 @@ const readSiblingSource = (fileName: string): string =>
   readFileSync(new URL(fileName, import.meta.url), 'utf8');
 
 describe('registration transfer transactional finalization source', () => {
-  it('owns only the transfer capacity delta and keeps recipient confirmation before source cancellation', () => {
+  it('reassigns the sealed registration bundle in place without changing capacity or fulfillment', () => {
     const source = readSiblingSource('./registration-transfer-finalization.ts');
     const finalization = source.slice(
       source.indexOf('export const finalizeRegistrationTransferCheckout'),
       source.indexOf('export const expireRegistrationTransferCheckout'),
     );
-    const confirmation = finalization.indexOf(".set({ status: 'CONFIRMED' })");
-    const sourceCancellation = finalization.indexOf(
-      ".set({ status: 'CANCELLED' })",
-    );
 
     expect(finalization).toContain(
-      'confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${transfer.recipientSpotCount} - ${transfer.sourceSpotCount}`',
+      'transfer.recipientRegistrationId !== transfer.sourceRegistrationId',
     );
     expect(finalization).toContain(
-      'reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${transfer.reservedAdditionalSpots}`',
+      '.from(registrationTransferBundleAddonPurchases)',
     );
-    expect(finalization).not.toContain('registrationSpotCount(');
-    expect(finalization).toContain('source.checkInTime !== null');
-    expect(finalization).toContain('source.checkedInGuestCount !== 0');
-    expect(confirmation).toBeGreaterThan(-1);
-    expect(sourceCancellation).toBeGreaterThan(confirmation);
+    expect(finalization).toContain(
+      '.from(registrationTransferBundleAddonPurchaseLots)',
+    );
+    expect(finalization).toContain('.from(eventRegistrationAddonPurchases)');
+    expect(finalization).toContain('bundleSnapshotMatches(snapshot, current)');
+    expect(finalization).toContain('.update(eventRegistrations)');
+    expect(finalization).toContain('userId: transfer.recipientUserId');
+    expect(finalization).toContain(
+      'eq(eventRegistrations.id, transfer.sourceRegistrationId)',
+    );
+    expect(finalization).not.toContain('.insert(eventRegistrations)');
+    expect(finalization).not.toContain('.update(eventRegistrationOptions)');
+    expect(finalization).not.toContain(
+      '.update(eventRegistrationAddonPurchases)',
+    );
+    expect(finalization).not.toContain('.update(eventAddons)');
+    expect(finalization).not.toContain(".set({ status: 'CANCELLED' })");
+    expect(finalization).not.toContain(".set({ status: 'PENDING' })");
   });
 
-  it('compensates a paid recipient with one full application-fee refund and one transfer-owned delta release', () => {
+  it('establishes one fully settled recipient acquisition from exact positive Checkout lines', () => {
+    const source = readSiblingSource('./registration-transfer-finalization.ts');
+    const finalization = source.slice(
+      source.indexOf('export const finalizeRegistrationTransferCheckout'),
+      source.indexOf('export const expireRegistrationTransferCheckout'),
+    );
+
+    expect(finalization).toContain('checkoutBaseAmount !== payment.amount');
+    expect(finalization).toContain("line.kind !== 'addon'");
+    expect(finalization).toContain('registrationTransferAddonAllocationKey(');
+    expect(finalization).toContain(
+      'const componentTerms: AcquisitionComponentTerm[] = []',
+    );
+    expect(finalization).toContain("allocationKey: 'registration'");
+    expect(finalization).toContain("kind: 'registration'");
+    expect(finalization).toContain('allocationKey: `addon-lot:${lot.id}`');
+    expect(finalization).toContain("kind: 'addon_lot'");
+    expect(finalization).toContain(
+      'const settledTerms = settleAcquisitionComponentTerms({',
+    );
+    expect(finalization).toContain('stripeNetAmount: payment.stripeNetAmount');
+    expect(finalization).toContain(
+      'yield* establishRegistrationAcquisition(tx, {',
+    );
+    expect(finalization).toContain('components: settledTerms');
+    expect(finalization).toContain("kind: 'claim_transfer'");
+    expect(finalization).toContain(
+      'operationKey: `registration-transfer:${transfer.id}`',
+    );
+    expect(finalization).toContain('ownerUserId: recipientUserId');
+    expect(finalization).toContain('stripeAccountId: payment.stripeAccountId');
+    expect(finalization).toContain('stripeChargeId: payment.stripeChargeId');
+    expect(finalization).toContain(
+      'stripePaymentIntentId: payment.stripePaymentIntentId',
+    );
+    expect(finalization).toContain('transactionId: input.transactionId');
+    expect(finalization).toContain('transferId: transfer.id');
+    expect(finalization).toContain('registrationId: recipientRegistrationId');
+    expect(finalization).toContain(
+      'Effect.catch((error) => Effect.die(error))',
+    );
+    expect(finalization).not.toContain(
+      'Recipient acquisition could not be established: ${error.message}',
+    );
+    expect(finalization).not.toContain(
+      'registrationTransferRecipientAddonPayments',
+    );
+    expect(finalization).not.toContain(
+      'registrationTransferRecipientAddonRefundAllocations',
+    );
+    expect(finalization).not.toContain(
+      '.update(eventRegistrationAddonPurchaseLots)',
+    );
+  });
+
+  it('creates and attaches one exact source refund claim per positive plan item', () => {
+    const source = readSiblingSource('./registration-transfer-finalization.ts');
+    const finalization = source.slice(
+      source.indexOf('export const finalizeRegistrationTransferCheckout'),
+      source.indexOf('export const expireRegistrationTransferCheckout'),
+    );
+
+    expect(finalization).toContain(
+      '.from(registrationTransferRefundPlanItems)',
+    );
+    expect(finalization).toContain('for (const plan of refundPlans)');
+    expect(finalization).toContain('if (plan.refundAmountDue === 0) continue');
+    expect(finalization).toContain('amount: plan.refundAmountDue');
+    expect(finalization).toContain(
+      'sourceTransactionId: plan.sourceTransactionId',
+    );
+    expect(finalization).toContain(
+      '.update(registrationTransferRefundPlanItems)',
+    );
+    expect(finalization).toContain(
+      '.set({ refundTransactionId: refundClaim.id })',
+    );
+    expect(finalization).toContain(
+      "refundClaimIds.length > 0 ? 'refund_pending' : 'completed'",
+    );
+  });
+
+  it('locks every current acquisition payment and requires exact refund-plan coverage before ownership changes', () => {
+    const source = readSiblingSource('./registration-transfer-finalization.ts');
+    const finalization = source.slice(
+      source.indexOf('export const finalizeRegistrationTransferCheckout'),
+      source.indexOf('export const expireRegistrationTransferCheckout'),
+    );
+    const coverageCheck = finalization.indexOf(
+      'refundPlansExactlyCoverCurrentAcquisitionPayments({',
+    );
+    const ownershipUpdate = finalization.indexOf('.update(eventRegistrations)');
+
+    expect(finalization).toContain('.from(registrationAcquisitionPayments)');
+    expect(finalization).toContain(
+      'registrationAcquisitionPayments.acquisitionId',
+    );
+    expect(finalization).toContain('currentAcquisition.id');
+    expect(finalization).toContain(
+      '.orderBy(registrationAcquisitionPayments.transactionId)',
+    );
+    expect(finalization).toContain(".for('update')");
+    expect(finalization).toContain(
+      'currentPayments: currentAcquisitionPayments',
+    );
+    expect(finalization).toContain(
+      'The source refund plan does not exactly cover the current acquisition payments',
+    );
+    expect(coverageCheck).toBeGreaterThan(-1);
+    expect(ownershipUpdate).toBeGreaterThan(coverageCheck);
+  });
+
+  it('compensates the recipient without touching the source bundle', () => {
     const source = readSiblingSource('./registration-transfer-finalization.ts');
     const compensation = source.slice(
       source.indexOf('const compensateRegistrationTransferRecipient'),
-      source.indexOf('export const finalizeRegistrationTransferCheckout'),
+      source.indexOf('const bundleSnapshotMatches'),
     );
 
     expect(compensation).toContain('amount: input.payment.amount');
     expect(compensation).toContain('applicationFeeRefunded: true');
+    expect(compensation).toContain(
+      'compensationRefundTransactionId: compensationClaim.id',
+    );
     expect(compensation).toContain("status: 'compensation_pending'");
     expect(compensation).toContain("eventType: 'compensation_queued'");
-    expect(compensation).toContain("eventType: 'recipient_cancelled'");
-    expect(
-      compensation.match(
-        /reservedSpots: sql`\$\{eventRegistrationOptions\.reservedSpots\} - \$\{input\.transfer\.reservedAdditionalSpots\}`/g,
-      ),
-    ).toHaveLength(1);
+    expect(compensation).not.toContain('.update(eventRegistrations)');
+    expect(compensation).not.toContain('.update(eventRegistrationOptions)');
+    expect(compensation).not.toContain(
+      '.update(eventRegistrationAddonPurchases)',
+    );
+    expect(compensation).not.toContain('.update(eventAddons)');
   });
 
-  it('keeps checkout expiry source-safe and refund reconciliation cycle-free', () => {
+  it('expires only the recipient payment attempt and keeps reconciliation cycle-free', () => {
     const finalization = readSiblingSource(
       './registration-transfer-finalization.ts',
     );
@@ -59,14 +183,18 @@ describe('registration transfer transactional finalization source', () => {
       finalization.indexOf('export const expireRegistrationTransferCheckout'),
     );
 
-    expect(expiry).toContain(".set({ status: 'CANCELLED' })");
-    expect(expiry).toContain('reservedAdditionalSpots');
+    expect(expiry).toContain('.update(transactions)');
+    expect(expiry).toContain("status: 'cancelled'");
+    expect(expiry).toContain(
+      'transfer.recipientRegistrationId !== transfer.sourceRegistrationId',
+    );
     expect(expiry).toContain("status: 'expired'");
-    expect(expiry).not.toContain('sourceRegistrationId');
-    expect(reconciliation).toContain("'compensation_failed'");
-    expect(reconciliation).toContain("'compensated'");
-    expect(reconciliation).toContain("'refund_failed'");
-    expect(reconciliation).toContain("'completed'");
+    expect(expiry).not.toContain('.update(eventRegistrations)');
+    expect(expiry).not.toContain('.update(eventRegistrationOptions)');
+    expect(expiry).not.toContain('.update(eventRegistrationAddonPurchases)');
+    expect(expiry).not.toContain('.update(eventAddons)');
+    expect(reconciliation).toContain('registrationTransferRefundPlanItems');
+    expect(reconciliation).toContain('compensationRefundTransactionId');
     expect(reconciliation).not.toContain('registration-refund');
   });
 
@@ -117,45 +245,88 @@ describe('registration transfer transactional finalization source', () => {
     expect(genericCancellation).toBeGreaterThan(genericCancellationTransition);
     expect(
       claimedRefund.indexOf('reconcileRegistrationTransferRefund'),
-    ).toBeGreaterThan(claimedRefund.indexOf('.set(refundStatusUpdate'));
+    ).toBeGreaterThan(claimedRefund.indexOf('registrationRefundStatusUpdate('));
+  });
+
+  it('uses each persisted source account even after the tenant account rotates', () => {
+    const refund = readSiblingSource('../payments/registration-refund.ts');
+    const createClaim = refund.slice(
+      refund.indexOf('export const createRegistrationRefundClaim'),
+      refund.indexOf('export interface RequeueRegistrationRefundClaimInput'),
+    );
+    const requeue = refund.slice(
+      refund.indexOf('export const requeueRegistrationRefundClaim'),
+      refund.indexOf('const claimRegistrationRefund'),
+    );
+
+    expect(createClaim).toContain(
+      'sourceTransaction.stripeAccountId !== input.stripeAccountId',
+    );
+    expect(createClaim).not.toContain('lockTenantStripeAccount');
+    expect(requeue).not.toContain('lockTenantStripeAccount');
   });
 });
 
 describe('registration transfer claim lock source', () => {
-  it('revalidates account, currency, eligibility, pricing, tax, questions, and add-ons under locks', () => {
-    const source = readSiblingSource('./registration-transfer.service.ts');
-    const transactionStart = source.indexOf(
-      'const claimResult = yield* Database.use',
+  it('projects every tenant-scoped refund plan without exposing provider details', () => {
+    const service = readSiblingSource('./registration-transfer.service.ts');
+    const eventHandlers = readSiblingSource(
+      '../effect/rpc/handlers/events/events-registration.handlers.ts',
     );
-    const lockedClaim = source.slice(transactionStart);
+    const getClaim = service.slice(
+      service.indexOf('const getClaim = Effect.fn'),
+      service.indexOf('const cancel = Effect.fn'),
+    );
+    const activeTransfers = eventHandlers.slice(
+      eventHandlers.indexOf('const activeTransfers ='),
+      eventHandlers.indexOf('const addOnOptionsByRegistrationOptionId'),
+    );
 
-    expect(lockedClaim).toContain('lockTenantStripeAccount(');
-    expect(lockedClaim).toContain('currency: tenants.currency');
-    expect(lockedClaim).toContain('rolesToTenantUsers.roleId');
-    expect(lockedClaim).toContain(".for('update')");
+    expect(getClaim).toContain('eq(registrationTransfers.tenantId, tenant.id)');
+    expect(getClaim).toContain('transfer.recipientUserId !== user.id');
+    expect(getClaim).toContain('.from(registrationTransferRefundPlanItems)');
+    expect(getClaim).toContain('transactions.tenantId');
+    expect(getClaim).toContain('registrationTransferRefundPlanItems.tenantId');
+    expect(activeTransfers).toContain(
+      'eq(registrationTransfers.tenantId, tenant.id)',
+    );
+    expect(activeTransfers).toContain(
+      '.from(registrationTransferRefundPlanItems)',
+    );
+    expect(activeTransfers).toContain(
+      'resolveRegistrationTransferRefundLifecycle({',
+    );
+    expect(getClaim).not.toContain('stripeRefundLastError');
+    expect(activeTransfers).not.toContain('stripeRefundLastError');
+  });
+
+  it('revalidates identity, eligibility, sealed fulfillment, current prices, discounts, and tax under locks', () => {
+    const source = readSiblingSource('./registration-transfer.service.ts');
+    const lockedClaim = source.slice(
+      source.indexOf('const claimResult = yield* Database.use'),
+      source.indexOf('switch (claimResult._tag)'),
+    );
+
+    expect(lockedClaim).toContain('const lockedSources');
+    expect(lockedClaim).toContain('const lockedTransfers');
+    expect(lockedClaim).toContain(
+      '.from(registrationTransferBundleAddonPurchases)',
+    );
+    expect(lockedClaim).toContain('.from(eventRegistrationAddonPurchases)');
+    expect(lockedClaim).toContain('snapshot.redeemedQuantity !==');
+    expect(lockedClaim).toContain('snapshot.cancelledQuantity !==');
     expect(lockedClaim).toContain('eventRegistrationQuestions.required');
-    expect(lockedClaim).toContain(
-      'addonToEventRegistrationOptions.includedQuantity',
-    );
-    expect(lockedClaim).toContain(
-      'addonToEventRegistrationOptions.optionalPurchaseQuantity',
-    );
-    expect(lockedClaim).toContain(
-      'eventAddons.allowPurchaseDuringRegistration',
-    );
-    expect(lockedClaim).toContain('addOn.selectedQuantity');
-    expect(lockedClaim).toContain('addOn.fulfilledQuantity');
+    expect(lockedClaim).toContain('isUserEligibleForRegistrationOption({');
+    expect(lockedClaim).toContain('eventAddons.price');
     expect(lockedClaim).toContain(
       'eventRegistrationOptionDiscounts.discountedPrice',
     );
     expect(lockedClaim).toContain('tenantStripeTaxRates.stripeTaxRateId');
-    expect(lockedClaim).toContain(
-      'appliedDiscountType: discountResolution.appliedDiscountType',
-    );
-    expect(lockedClaim).toContain('currency: paymentClaim.currency');
+    expect(lockedClaim).toContain('addOn.price * addOn.purchasedQuantity');
+    expect(lockedClaim).toContain(".for('update')");
   });
 
-  it('does not lock global notification user rows across tenant transfer work', () => {
+  it('keeps notification-only global user rows outside tenant locks', () => {
     const service = readSiblingSource('./registration-transfer.service.ts');
     const finalization = readSiblingSource(
       './registration-transfer-finalization.ts',
@@ -185,7 +356,7 @@ describe('registration transfer claim lock source', () => {
     expect(finalizationUserQuery).not.toContain(".for('update')");
   });
 
-  it('reconciles persisted Checkout status and authorizes only transfer-bound cancellation', () => {
+  it('cancels only the transfer-bound payment while preserving the source bundle', () => {
     const source = readSiblingSource('./registration-transfer.service.ts');
     const cancellation = source.slice(
       source.indexOf(
@@ -205,20 +376,23 @@ describe('registration transfer claim lock source', () => {
     expect(cancellation).toContain(
       'eq(registrationTransfers.recipientUserId, user.id)',
     );
-    expect(cancellation).toContain('locked.reservedAdditionalSpots');
-    expect(cancellation).not.toContain('registrationSpotCount(');
+    expect(cancellation).toContain(
+      'locked.recipientRegistrationId !== locked.sourceRegistrationId',
+    );
+    expect(cancellation).toContain('.update(transactions)');
+    expect(cancellation).not.toContain('.update(eventRegistrations)');
+    expect(cancellation).not.toContain('.update(eventRegistrationOptions)');
+    expect(cancellation).not.toContain(
+      '.update(eventRegistrationAddonPurchases)',
+    );
+    expect(cancellation).not.toContain('.update(eventAddons)');
     expect(retry).toContain('retrieveHostedCheckoutSession(');
-    expect(retry).toContain('row.stripeAccountId');
-    expect(retry).toContain("checkoutSession.status === 'open'");
     expect(retry).toContain('completePaidRegistrationCheckout(');
     expect(retry).toContain('expireRegistrationTransferCheckout(');
   });
 
-  it('uses registration-first lock ordering for offer creation, claim, and expiry', () => {
+  it('uses deterministic locks before offer or claim writes', () => {
     const service = readSiblingSource('./registration-transfer.service.ts');
-    const finalization = readSiblingSource(
-      './registration-transfer-finalization.ts',
-    );
     const createOffer = service.slice(
       service.indexOf(
         "const createOffer = Effect.fn('RegistrationTransferService.createOffer')",
@@ -229,30 +403,20 @@ describe('registration transfer claim lock source', () => {
       service.indexOf('const claimResult = yield* Database.use'),
       service.indexOf('switch (claimResult._tag)'),
     );
-    const expiry = finalization.slice(
-      finalization.indexOf('export const expireRegistrationTransferCheckout'),
-    );
 
     expect(createOffer.indexOf('const lockedSources')).toBeGreaterThan(-1);
     expect(createOffer.indexOf('const lockedTenants')).toBeGreaterThan(
       createOffer.indexOf('const lockedSources'),
     );
-    expect(createOffer.indexOf('yield* tenantOutboundUrl(')).toBeGreaterThan(
-      createOffer.indexOf('const lockedTenants'),
-    );
     expect(
       createOffer.indexOf('.insert(registrationTransfers)'),
-    ).toBeGreaterThan(createOffer.indexOf('yield* tenantOutboundUrl('));
+    ).toBeGreaterThan(createOffer.indexOf('const lockedTenants'));
     expect(claim.indexOf('const lockedSources')).toBeGreaterThan(-1);
     expect(claim.indexOf('const lockedTransfers')).toBeGreaterThan(
       claim.indexOf('const lockedSources'),
     );
-    expect(expiry.indexOf('const recipientRows')).toBeGreaterThan(-1);
-    expect(expiry.indexOf('const paymentRows')).toBeGreaterThan(
-      expiry.indexOf('const recipientRows'),
-    );
-    expect(expiry.indexOf('const transferRows')).toBeGreaterThan(
-      expiry.indexOf('const paymentRows'),
+    expect(claim.indexOf('const bundleSnapshots')).toBeGreaterThan(
+      claim.indexOf('const lockedTransfers'),
     );
   });
 
@@ -268,22 +432,13 @@ describe('registration transfer claim lock source', () => {
       service.indexOf('const claimResult = yield* Database.use'),
       service.indexOf('switch (claimResult._tag)'),
     );
-    const lockedTenantQuery = createOffer.slice(
-      createOffer.indexOf('const lockedTenants'),
-      createOffer.indexOf('const lockedTenant ='),
-    );
 
     expect(service).toContain(
       "import { tenantOutboundUrl } from '../tenant-outbound-url'",
     );
-    expect(service).toContain("| 'domain'");
     expect(service).not.toContain('canonicalRootUrl');
     expect(service).not.toContain('transferBaseUrl');
-    expect(service).not.toContain('serverConfig');
     expect(createOffer).toContain('yield* tenantOutboundUrl(');
-    expect(createOffer).toContain('domain: tenants.domain');
-    expect(createOffer).toContain('lockedTenant,');
-    expect(lockedTenantQuery).toContain(".for('update')");
     expect(createOffer).toContain(
       '`/registration-transfers/${encodeURIComponent(credentials.claimToken)}`',
     );

@@ -8,6 +8,7 @@ import {
   PlatformFinanceRefundRecoveryRecord,
   PlatformFinanceRequeueRefundClaimInput,
   PlatformFinanceTenantContext,
+  PlatformFinanceTransactionRecord,
 } from './platform-tenant-finance.rpcs';
 
 describe('platform tenant finance RPC schemas', () => {
@@ -122,6 +123,47 @@ describe('platform tenant finance RPC schemas', () => {
       refundClaimId: 'refund-claim-1',
       targetTenantId: 'tenant-1',
     });
+  });
+
+  it('models a platform-only refund lifecycle without provider error details', () => {
+    const decoded = Schema.decodeUnknownSync(PlatformFinanceTransactionRecord)({
+      amount: -1200,
+      appFee: null,
+      comment: 'Registration refund',
+      createdAt: '2026-07-10T10:00:00.000Z',
+      currency: 'EUR',
+      id: 'refund-claim-1',
+      method: 'stripe',
+      refundLifecycle: {
+        attempts: 8,
+        maxAttempts: 8,
+        recoveryMode: 'resumeGeneration',
+        status: 'needs-attention',
+      },
+      status: 'pending',
+      stripeFee: null,
+      stripeRefundLastError: 'Provider request contained a secret detail',
+    });
+
+    expect(decoded.refundLifecycle).toMatchObject({
+      attempts: 8,
+      maxAttempts: 8,
+      recoveryMode: 'resumeGeneration',
+      status: 'needs-attention',
+    });
+    expect(decoded).not.toHaveProperty('stripeRefundLastError');
+
+    expect(
+      Schema.decodeUnknownSync(PlatformFinanceTransactionRecord)({
+        ...decoded,
+        refundLifecycle: {
+          attempts: 1,
+          maxAttempts: 8,
+          recoveryMode: null,
+          status: 'action-required',
+        },
+      }).refundLifecycle?.status,
+    ).toBe('action-required');
   });
 
   it('returns target currency and receipt-country configuration explicitly', () => {

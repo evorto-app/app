@@ -117,15 +117,17 @@ const failOnPrematureNodeBodyClose = (request: IncomingMessage) =>
       }),
   }).pipe(Effect.andThen(Effect.never));
 
-const rejectNodeBody = (request: IncomingMessage) =>
-  Effect.sync(() => {
-    const absorbDrainError = () => null;
-    request.on('error', absorbDrainError);
-    request.once('close', () => {
-      request.off('error', absorbDrainError);
-    });
-    request.resume();
+const rejectNodeBodySynchronously = (request: IncomingMessage): void => {
+  const absorbDrainError = () => null;
+  request.on('error', absorbDrainError);
+  request.once('close', () => {
+    request.off('error', absorbDrainError);
   });
+  request.resume();
+};
+
+const rejectNodeBody = (request: IncomingMessage) =>
+  Effect.sync(() => rejectNodeBodySynchronously(request));
 
 /**
  * Reads a Web request body without allowing either a declared or streamed body
@@ -194,5 +196,5 @@ export const readNodeRequestBody = Effect.fn('readNodeRequestBody')(function* (
  * or delaying the route response until an untrusted sender reaches EOF.
  */
 export const discardNodeRequestBody = (request: IncomingMessage): void => {
-  Effect.runSync(rejectNodeBody(request));
+  rejectNodeBodySynchronously(request);
 };

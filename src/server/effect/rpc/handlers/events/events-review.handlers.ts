@@ -11,7 +11,9 @@ import { DateTime, Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
+import { Database } from '../../../../../db';
 import { eventInstances } from '../../../../../db/schema';
+import { ensureStripeForStoredEventConfiguration } from '../../../../payments/paid-event-configuration';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { canEditEvent, databaseEffect } from './events.shared';
 
@@ -90,25 +92,45 @@ export const eventReviewHandlers = {
       }
       const reviewedAt = yield* DateTime.nowAsDate;
 
-      const reviewedEvents = yield* databaseEffect((database) =>
+      const reviewedEvents = yield* Database.use((database) =>
         database
-          .update(eventInstances)
-          .set({
-            reviewedAt,
-            reviewedBy: user.id,
-            status: decision.status,
-            statusComment: decision.statusComment,
-          })
-          .where(
-            and(
-              eq(eventInstances.id, eventId),
-              eq(eventInstances.tenantId, tenant.id),
-              eq(eventInstances.status, 'PENDING_REVIEW'),
-            ),
+          .transaction((transaction) =>
+            Effect.gen(function* () {
+              if (approved) {
+                yield* ensureStripeForStoredEventConfiguration(
+                  transaction,
+                  tenant.id,
+                  eventId,
+                );
+              }
+
+              return yield* transaction
+                .update(eventInstances)
+                .set({
+                  reviewedAt,
+                  reviewedBy: user.id,
+                  status: decision.status,
+                  statusComment: decision.statusComment,
+                })
+                .where(
+                  and(
+                    eq(eventInstances.id, eventId),
+                    eq(eventInstances.tenantId, tenant.id),
+                    eq(eventInstances.status, 'PENDING_REVIEW'),
+                  ),
+                )
+                .returning({
+                  id: eventInstances.id,
+                });
+            }),
           )
-          .returning({
-            id: eventInstances.id,
-          }),
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof RpcBadRequestError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
       );
       if (reviewedEvents.length > 0) {
         return;

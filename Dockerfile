@@ -1,6 +1,6 @@
-FROM node:24.15.0-bookworm-slim AS node-runtime
+FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS node-runtime
 
-FROM oven/bun:1.3.14 AS base
+FROM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS base
 
 # Canvas dependencies removed - not currently used in production
 # RUN apk add --no-cache \

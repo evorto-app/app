@@ -44,17 +44,6 @@ import {
   isEsnCardEnabled,
 } from './events.shared';
 
-const hasSuccessfulPaidRegistrationTransaction = (
-  transactionsToCheck: readonly {
-    amount: number;
-    status: string;
-  }[],
-) =>
-  transactionsToCheck.some(
-    (transaction) =>
-      transaction.status === 'successful' && transaction.amount > 0,
-  );
-
 export const eventOrganizeCapabilities = ({
   confirmedOrganizerRegistration,
   permissions,
@@ -133,23 +122,6 @@ const canOrganizeEvent = Effect.fn('Events.canOrganizeEvent')(function* ({
     permissions,
   });
 });
-
-export const organizerRegistrationTransferAvailable = ({
-  checkInTime,
-  eventStart,
-  transactions,
-}: {
-  checkInTime: Date | null;
-  eventStart: Date | null;
-  transactions: readonly {
-    amount: number;
-    status: string;
-  }[];
-}) =>
-  checkInTime === null &&
-  eventStart !== null &&
-  eventStart > new Date() &&
-  !hasSuccessfulPaidRegistrationTransaction(transactions);
 
 export const organizerRegistrationApprovalState = ({
   registrationMode,
@@ -680,6 +652,10 @@ export const eventQueryHandlers = {
                 .where(
                   and(
                     eq(tenantStripeTaxRates.tenantId, tenant.id),
+                    eq(
+                      tenantStripeTaxRates.stripeAccountId,
+                      tenant.stripeAccountId ?? '',
+                    ),
                     inArray(tenantStripeTaxRates.stripeTaxRateId, taxRateIds),
                   ),
                 ),
@@ -1060,11 +1036,6 @@ export const eventQueryHandlers = {
                 },
               },
             },
-            event: {
-              columns: {
-                start: true,
-              },
-            },
             registrationOption: {
               columns: {
                 id: true,
@@ -1216,12 +1187,6 @@ export const eventQueryHandlers = {
                 ...approvalState,
                 registrationId: registration.id,
                 status: registration.status,
-                transferAvailable:
-                  organizerRegistrationTransferAvailable({
-                    checkInTime: registration.checkInTime,
-                    eventStart: registration.event?.start ?? null,
-                    transactions: registration.transactions,
-                  }) && registration.status === 'CONFIRMED',
                 userId: registration.user.id,
               };
             });

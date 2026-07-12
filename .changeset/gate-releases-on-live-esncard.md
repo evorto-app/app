@@ -2,8 +2,9 @@
 evorto: patch
 ---
 
-# Gate releases on live ESNcard certification
+# Gate repository releases on live ESNcard certification
 
-Require the protected, non-production ESNcard identity to pass live add,
-refresh, remove, and provider-error UI verification before either the repository
-release job or the actual main-branch Fly deployment can continue.
+Require protected active and permanently expired non-production ESNcard
+identities to pass live add, refresh, remove, expired-state, and provider-error
+UI verification before the repository release job can continue. Deployment
+orchestration is intentionally left to its separate change.

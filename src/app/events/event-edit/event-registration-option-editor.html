@@ -116,6 +116,9 @@
 
     <section class="grid gap-3">
       <mat-checkbox [formField]="option.isPaid">Paid option</mat-checkbox>
+      <p class="text-on-surface-variant text-sm">
+        Paid options require a connected Stripe account.
+      </p>
       @if (!option.price().hidden()) {
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <mat-form-field>

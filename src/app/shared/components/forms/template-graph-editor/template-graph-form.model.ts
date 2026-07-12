@@ -1,5 +1,10 @@
 import type { WritableRegistrationMode } from '@shared/registration-modes';
 
+import {
+  resetAddOnPayment,
+  resetRegistrationPayment,
+} from '../payment-configuration';
+
 export interface TemplateGraphAddonFormModel {
   allowMultiple: boolean;
   allowPurchaseBeforeEvent: boolean;
@@ -193,3 +198,21 @@ export const createTemplateGraphQuestionFormModel = (
   sortOrder: 0,
   title: '',
 });
+
+export const resetTemplateGraphPayments = <
+  Model extends Pick<TemplateGraphFormModel, 'addOns' | 'registrationOptions'>,
+>(
+  model: Model,
+): Model => {
+  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, ''));
+  const registrationOptions = model.registrationOptions.map((option) =>
+    resetRegistrationPayment(option, '', ''),
+  );
+  const unchanged =
+    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
+    registrationOptions.every(
+      (option, index) => option === model.registrationOptions[index],
+    );
+
+  return unchanged ? model : { ...model, addOns, registrationOptions };
+};

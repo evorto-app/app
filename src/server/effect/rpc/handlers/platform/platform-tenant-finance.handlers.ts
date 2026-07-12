@@ -11,6 +11,7 @@ import {
   PlatformFinanceReceiptWithSubmitterRecord,
   type PlatformFinanceRecordReimbursementInput,
   PlatformFinanceRefundClaimStatus,
+  PlatformFinanceRefundLifecycleSummary,
   PlatformFinanceRefundRecoveryMode,
   PlatformFinanceRefundRecoveryRecord,
   PlatformFinanceRefundTransferRecord,
@@ -18,10 +19,21 @@ import {
   PlatformFinanceReimbursementReceipt,
   type PlatformFinanceRequeueRefundClaimInput,
   PlatformFinanceTenantContext,
+  PlatformFinanceTransactionRecord,
   PlatformTenantFinanceRpcs,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-finance.rpcs';
 import { RpcRequestContextMiddleware } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
-import { and, count, desc, eq, inArray, isNull, not } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  not,
+  or,
+} from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -32,6 +44,7 @@ import {
   eventInstances,
   financeReceipts,
   financeReceiptUploads,
+  registrationTransferRefundPlanItems,
   registrationTransfers,
   tenants,
   transactions,
@@ -41,10 +54,15 @@ import { Tenant } from '../../../../../types/custom/tenant';
 import { enqueueReceiptReviewedEmail } from '../../../../notifications/email-delivery';
 import {
   registrationRefundRequeueEligibility,
+  RegistrationRefundRequeueError,
   type RegistrationRefundRequeueState,
   requeueRegistrationRefundClaim,
 } from '../../../../payments/registration-refund';
-import { markRegistrationTransferRefundRequeued } from '../../../../registrations/registration-transfer-refund-reconciliation';
+import {
+  lockRegistrationTransferRefundForRecovery,
+  markRegistrationTransferRefundRequeued,
+  type RegistrationTransferRefundRequeueStatus,
+} from '../../../../registrations/registration-transfer-refund-reconciliation';
 import {
   financeReceiptView,
   normalizeFinanceReceiptBaseRecord,
@@ -83,6 +101,31 @@ interface FinanceReceiptSubmitterRow extends FinanceReceiptRow {
 }
 
 type FinanceReceiptTableRow = typeof financeReceipts.$inferSelect;
+
+type PlatformFinanceTransactionRow = Pick<
+  typeof transactions.$inferSelect,
+  | 'amount'
+  | 'appFee'
+  | 'comment'
+  | 'createdAt'
+  | 'currency'
+  | 'eventRegistrationId'
+  | 'id'
+  | 'manuallyCreated'
+  | 'method'
+  | 'sourceTransactionId'
+  | 'status'
+  | 'stripeFee'
+  | 'stripeRefundAttempts'
+  | 'stripeRefundClaimLeaseExpiresAt'
+  | 'stripeRefundClaimLeaseId'
+  | 'stripeRefundId'
+  | 'stripeRefundMaxAttempts'
+  | 'stripeRefundNextAttemptAt'
+  | 'stripeRefundRequeuedAt'
+  | 'stripeRefundStatus'
+  | 'type'
+>;
 
 type PlatformTenantFinanceHandlers = RpcGroup.HandlersFrom<
   Rpc.AddMiddleware<
@@ -246,9 +289,33 @@ export const payoutDetailsVersion = (
     .update(`platform-payout:v1:${payoutType}:${payoutReference.trim()}`)
     .digest('hex');
 
+type RefundRecoveryModeCandidate = Pick<
+  RefundRecoveryCandidate,
+  | 'attempts'
+  | 'eventRegistrationId'
+  | 'leaseExpiresAt'
+  | 'leaseId'
+  | 'maxAttempts'
+  | 'nextAttemptAt'
+  | 'refundId'
+  | 'sourceTransactionId'
+  | 'status'
+  | 'stripeRefundStatus'
+>;
+
 const recoveryMode = (
-  claim: RefundRecoveryCandidate,
+  claim: RefundRecoveryModeCandidate,
 ): null | Schema.Schema.Type<typeof PlatformFinanceRefundRecoveryMode> => {
+  if (
+    !claim.eventRegistrationId ||
+    !claim.sourceTransactionId ||
+    claim.leaseExpiresAt !== null ||
+    claim.leaseId !== null ||
+    (claim.nextAttemptAt !== null && claim.attempts < claim.maxAttempts)
+  ) {
+    return null;
+  }
+
   const eligibility = registrationRefundRequeueEligibility({
     attempts: claim.attempts,
     leaseExpiresAt: claim.leaseExpiresAt,
@@ -262,6 +329,91 @@ const recoveryMode = (
   return eligibility === 'newGeneration' || eligibility === 'resumeGeneration'
     ? eligibility
     : null;
+};
+
+export const toPlatformFinanceTransactionRecord = (
+  transaction: PlatformFinanceTransactionRow,
+) => {
+  let refundLifecycle = null;
+  if (transaction.type === 'refund') {
+    const automaticAttempts =
+      transaction.method === 'stripe' && !transaction.manuallyCreated
+        ? transaction.stripeRefundAttempts
+        : null;
+    const automaticMaxAttempts =
+      transaction.method === 'stripe' && !transaction.manuallyCreated
+        ? transaction.stripeRefundMaxAttempts
+        : null;
+    const lifecycleRecoveryMode =
+      transaction.method === 'stripe' && !transaction.manuallyCreated
+        ? recoveryMode({
+            attempts: transaction.stripeRefundAttempts,
+            eventRegistrationId: transaction.eventRegistrationId,
+            leaseExpiresAt: transaction.stripeRefundClaimLeaseExpiresAt,
+            leaseId: transaction.stripeRefundClaimLeaseId,
+            maxAttempts: transaction.stripeRefundMaxAttempts,
+            nextAttemptAt: transaction.stripeRefundNextAttemptAt,
+            refundId: transaction.stripeRefundId,
+            sourceTransactionId: transaction.sourceTransactionId,
+            status: transaction.status,
+            stripeRefundStatus: transaction.stripeRefundStatus,
+          })
+        : null;
+    const automaticLeaseActive =
+      transaction.stripeRefundClaimLeaseExpiresAt !== null &&
+      transaction.stripeRefundClaimLeaseId !== null;
+    const automaticLeaseAmbiguous =
+      (transaction.stripeRefundClaimLeaseExpiresAt === null) !==
+      (transaction.stripeRefundClaimLeaseId === null);
+    const automaticWorkStopped =
+      automaticAttempts !== null &&
+      !automaticLeaseActive &&
+      (automaticLeaseAmbiguous ||
+        automaticAttempts >= transaction.stripeRefundMaxAttempts ||
+        transaction.stripeRefundNextAttemptAt === null);
+    const automaticNeedsAttention =
+      transaction.status === 'cancelled' ||
+      transaction.stripeRefundStatus === 'canceled' ||
+      transaction.stripeRefundStatus === 'failed' ||
+      (automaticAttempts !== null && automaticWorkStopped);
+
+    let lifecycleStatus: PlatformFinanceRefundLifecycleSummary['status'];
+    if (
+      transaction.stripeRefundStatus === 'succeeded' ||
+      transaction.status === 'successful'
+    ) {
+      lifecycleStatus = 'succeeded';
+    } else if (automaticNeedsAttention && lifecycleRecoveryMode === null) {
+      lifecycleStatus = 'needs-attention';
+    } else if (transaction.stripeRefundStatus === 'requires_action') {
+      lifecycleStatus = 'action-required';
+    } else if (
+      automaticNeedsAttention ||
+      transaction.manuallyCreated ||
+      transaction.method !== 'stripe'
+    ) {
+      lifecycleStatus = 'needs-attention';
+    } else if (
+      transaction.stripeRefundAttempts === 0 &&
+      transaction.stripeRefundRequeuedAt === null
+    ) {
+      lifecycleStatus = 'pending';
+    } else {
+      lifecycleStatus = 'retrying';
+    }
+
+    refundLifecycle = PlatformFinanceRefundLifecycleSummary.make({
+      attempts: automaticAttempts,
+      maxAttempts: automaticMaxAttempts,
+      recoveryMode: lifecycleRecoveryMode,
+      status: lifecycleStatus,
+    });
+  }
+
+  return PlatformFinanceTransactionRecord.make({
+    ...normalizeFinanceTransactionRecord(transaction),
+    refundLifecycle,
+  });
 };
 
 export const toRefundRecoveryRecord = (claim: RefundRecoveryCandidate) => {
@@ -542,15 +694,15 @@ export const platformReimbursementReceiptUpdate = (input: {
   status: 'refunded' as const,
 });
 
-const runPlatformRead = <A, R>(
-  targetTenantId: string,
-  allowedPermission: Permission,
-  read: (
-    database: DatabaseClient,
-    tenant: Tenant,
-  ) => Effect.Effect<A, RpcBadRequestError, R>,
-) =>
-  Effect.gen(function* () {
+const runPlatformRead = Effect.fn('PlatformTenantFinance.runPlatformRead')(
+  function* <A, R>(
+    targetTenantId: string,
+    allowedPermission: Permission,
+    read: (
+      database: DatabaseClient,
+      tenant: Tenant,
+    ) => Effect.Effect<A, RpcBadRequestError, R>,
+  ) {
     const operation = yield* resolvePlatformRead(targetTenantId);
 
     return yield* providePlatformOperation(
@@ -563,66 +715,65 @@ const runPlatformRead = <A, R>(
       operation,
       [allowedPermission],
     );
-  });
+  },
+);
 
-const validateReceiptReviewInput = (
-  input: PlatformFinanceReceiptReviewInput,
-  tenant: Tenant,
-) =>
-  Effect.gen(function* () {
-    const rejectionReason = input.rejectionReason?.trim() || null;
-    if (input.status === 'rejected' && !rejectionReason) {
-      return yield* new RpcBadRequestError({
-        message: 'A rejection reason is required when rejecting a receipt',
-        reason: 'missingRejectionReason',
-      });
-    }
+const validateReceiptReviewInput = Effect.fn(
+  'PlatformTenantFinance.validateReceiptReviewInput',
+)(function* (input: PlatformFinanceReceiptReviewInput, tenant: Tenant) {
+  const rejectionReason = input.rejectionReason?.trim() || null;
+  if (input.status === 'rejected' && !rejectionReason) {
+    return yield* new RpcBadRequestError({
+      message: 'A rejection reason is required when rejecting a receipt',
+      reason: 'missingRejectionReason',
+    });
+  }
 
-    const depositAmount = input.hasDeposit ? input.depositAmount : 0;
-    const alcoholAmount = input.hasAlcohol ? input.alcoholAmount : 0;
-    if (depositAmount + alcoholAmount > input.totalAmount) {
-      return yield* new RpcBadRequestError({
-        message: 'Deposit and alcohol amounts exceed the total amount',
-        reason: 'inconsistentAmounts',
-      });
-    }
-    if (input.taxAmount > input.totalAmount) {
-      return yield* new RpcBadRequestError({
-        message: 'Tax amount exceeds the total amount',
-        reason: 'taxAmountExceedsTotal',
-      });
-    }
+  const depositAmount = input.hasDeposit ? input.depositAmount : 0;
+  const alcoholAmount = input.hasAlcohol ? input.alcoholAmount : 0;
+  if (depositAmount + alcoholAmount > input.totalAmount) {
+    return yield* new RpcBadRequestError({
+      message: 'Deposit and alcohol amounts exceed the total amount',
+      reason: 'inconsistentAmounts',
+    });
+  }
+  if (input.taxAmount > input.totalAmount) {
+    return yield* new RpcBadRequestError({
+      message: 'Tax amount exceeds the total amount',
+      reason: 'taxAmountExceedsTotal',
+    });
+  }
 
-    const purchaseCountry = validateReceiptCountryForTenant(
-      tenant,
-      input.purchaseCountry,
-    );
-    if (!purchaseCountry) {
-      return yield* new RpcBadRequestError({
-        message: 'Receipt purchase country is invalid',
-        reason: 'invalidPurchaseCountry',
-      });
-    }
+  const purchaseCountry = validateReceiptCountryForTenant(
+    tenant,
+    input.purchaseCountry,
+  );
+  if (!purchaseCountry) {
+    return yield* new RpcBadRequestError({
+      message: 'Receipt purchase country is invalid',
+      reason: 'invalidPurchaseCountry',
+    });
+  }
 
-    const receiptDate = new Date(input.receiptDate);
-    if (Number.isNaN(receiptDate.getTime())) {
-      return yield* new RpcBadRequestError({
-        message: 'Receipt date is invalid',
-        reason: 'invalidReceiptDate',
-      });
-    }
+  const receiptDate = new Date(input.receiptDate);
+  if (Number.isNaN(receiptDate.getTime())) {
+    return yield* new RpcBadRequestError({
+      message: 'Receipt date is invalid',
+      reason: 'invalidReceiptDate',
+    });
+  }
 
-    return {
-      alcoholAmount,
-      depositAmount,
-      purchaseCountry,
-      receiptDate,
-      rejectionReason: input.status === 'rejected' ? rejectionReason : null,
-    };
-  });
+  return {
+    alcoholAmount,
+    depositAmount,
+    purchaseCountry,
+    receiptDate,
+    rejectionReason: input.status === 'rejected' ? rejectionReason : null,
+  };
+});
 
-const reviewReceipt = (input: PlatformFinanceReceiptReviewInput) =>
-  Effect.gen(function* () {
+const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
+  function* (input: PlatformFinanceReceiptReviewInput) {
     const operation = yield* resolvePlatformMutation(input);
 
     return yield* providePlatformOperation(
@@ -812,392 +963,382 @@ const reviewReceipt = (input: PlatformFinanceReceiptReviewInput) =>
       operation,
       ['finance:approveReceipts'],
     );
-  });
+  },
+);
 
-const requeueRefundClaim = (input: PlatformFinanceRequeueRefundClaimInput) =>
-  Effect.gen(function* () {
-    const operation = yield* resolvePlatformMutation(input);
+export const mapPlatformRefundRequeueError = Effect.fn(
+  'PlatformTenantFinance.mapRefundRequeueError',
+)((error: unknown) =>
+  error instanceof RegistrationRefundRequeueError
+    ? Effect.fail(
+        new RpcBadRequestError({
+          message: error.message,
+          reason: 'refundRequeueNotAllowed',
+        }),
+      )
+    : Effect.die(error),
+);
 
-    return yield* providePlatformOperation(
-      Effect.gen(function* () {
-        yield* RpcAccess.ensurePermission('finance:refundReceipts');
+const requeueRefundClaim = Effect.fn(
+  'PlatformTenantFinance.requeueRefundClaim',
+)(function* (input: PlatformFinanceRequeueRefundClaimInput) {
+  const operation = yield* resolvePlatformMutation(input);
 
-        return yield* databaseEffect((database) =>
-          database.transaction((transaction) =>
-            Effect.gen(function* () {
-              const identityRows = yield* transaction
-                .select({
-                  amount: transactions.amount,
-                  currency: transactions.currency,
-                  eventId: transactions.eventId,
-                  eventRegistrationId: transactions.eventRegistrationId,
-                  lastError: transactions.stripeRefundLastError,
-                  maxAttempts: transactions.stripeRefundMaxAttempts,
-                  sourceTransactionId: transactions.sourceTransactionId,
-                })
-                .from(transactions)
-                .where(
-                  and(
-                    eq(transactions.id, input.refundClaimId),
-                    eq(transactions.method, 'stripe'),
-                    eq(transactions.tenantId, input.targetTenantId),
-                    eq(transactions.type, 'refund'),
-                  ),
-                )
-                .for('update')
-                .pipe(Effect.orDie);
-              const identity = identityRows[0];
-              if (
-                !identity?.eventRegistrationId ||
-                !identity.sourceTransactionId
-              ) {
-                return yield* new RpcBadRequestError({
-                  message:
-                    'Refund claim is missing its registration or source transaction identity',
-                  reason: 'invalidRefundClaimIdentity',
-                });
-              }
+  return yield* providePlatformOperation(
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('finance:refundReceipts');
 
-              const recovery = yield* requeueRegistrationRefundClaim(
-                transaction,
-                {
-                  reason: input.reason,
-                  refundClaimId: input.refundClaimId,
-                  tenantId: input.targetTenantId,
-                },
-              ).pipe(
-                Effect.mapError(
-                  (error) =>
-                    new RpcBadRequestError({
-                      message: error.message,
-                      reason: 'refundRequeueNotAllowed',
-                    }),
+      return yield* databaseEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            const identityRows = yield* transaction
+              .select({
+                amount: transactions.amount,
+                currency: transactions.currency,
+                eventId: transactions.eventId,
+                eventRegistrationId: transactions.eventRegistrationId,
+                lastError: transactions.stripeRefundLastError,
+                maxAttempts: transactions.stripeRefundMaxAttempts,
+                sourceTransactionId: transactions.sourceTransactionId,
+              })
+              .from(transactions)
+              .where(
+                and(
+                  eq(transactions.id, input.refundClaimId),
+                  eq(transactions.method, 'stripe'),
+                  eq(transactions.tenantId, input.targetTenantId),
+                  eq(transactions.type, 'refund'),
                 ),
-              );
-              const transferBeforeRows = yield* transaction
-                .select({
-                  id: registrationTransfers.id,
-                  status: registrationTransfers.status,
-                })
-                .from(registrationTransfers)
-                .where(
-                  and(
-                    eq(
-                      registrationTransfers.refundTransactionId,
-                      recovery.refundClaimId,
-                    ),
-                    eq(registrationTransfers.tenantId, input.targetTenantId),
-                  ),
-                )
-                .for('update')
-                .pipe(Effect.orDie);
-              if (transferBeforeRows.length > 1) {
-                return yield* new RpcBadRequestError({
-                  message:
-                    'Refund claim is linked to more than one registration transfer',
-                  reason: 'ambiguousRefundTransfer',
-                });
-              }
-              const transferBefore = transferBeforeRows[0] ?? null;
-              const transferRecovery =
-                yield* markRegistrationTransferRefundRequeued(transaction, {
-                  reason: recovery.reason,
-                  refundTransactionId: recovery.refundClaimId,
-                  tenantId: input.targetTenantId,
-                });
-              const transferRows = yield* transaction
-                .select({
-                  id: registrationTransfers.id,
-                  status: registrationTransfers.status,
-                })
-                .from(registrationTransfers)
-                .where(
-                  and(
-                    eq(
-                      registrationTransfers.refundTransactionId,
-                      recovery.refundClaimId,
-                    ),
-                    eq(registrationTransfers.tenantId, input.targetTenantId),
-                  ),
-                )
-                .for('share')
-                .pipe(Effect.orDie);
-              if (transferRows.length > 1) {
-                return yield* new RpcBadRequestError({
-                  message:
-                    'Refund claim is linked to more than one registration transfer',
-                  reason: 'ambiguousRefundTransfer',
-                });
-              }
-              const transfer = transferRows[0] ?? null;
-              if (
-                transferBefore?.id !== transfer?.id ||
-                (transfer && transferRecovery === 'notTransfer') ||
-                (!transfer && transferRecovery !== 'notTransfer')
-              ) {
-                return yield* new RpcBadRequestError({
-                  message:
-                    'Registration transfer recovery state changed before the refund could be requeued',
-                  reason: 'refundTransferRecoveryPreconditionFailed',
-                });
-              }
-              const transferStatusAfter = transfer?.status ?? null;
-
-              yield* writePlatformAudit(transaction, {
-                action: 'refundClaim.requeue',
-                after: refundRecoveryAuditSnapshot({
-                  amount: Math.abs(identity.amount),
-                  currency: identity.currency,
-                  eventId: identity.eventId,
-                  eventRegistrationId: identity.eventRegistrationId,
-                  hasLastError: false,
-                  maxAttempts: identity.maxAttempts,
-                  mode: recovery.mode,
-                  refundClaimId: recovery.refundClaimId,
-                  sourceTransactionId: identity.sourceTransactionId,
-                  state: recovery.after,
-                  transferId: transfer?.id ?? null,
-                  transferStatus: transferStatusAfter,
-                }),
-                before: refundRecoveryAuditSnapshot({
-                  amount: Math.abs(identity.amount),
-                  currency: identity.currency,
-                  eventId: identity.eventId,
-                  eventRegistrationId: identity.eventRegistrationId,
-                  hasLastError: identity.lastError !== null,
-                  maxAttempts: identity.maxAttempts,
-                  mode: recovery.mode,
-                  refundClaimId: recovery.refundClaimId,
-                  sourceTransactionId: identity.sourceTransactionId,
-                  state: recovery.before,
-                  transferId: transferBefore?.id ?? null,
-                  transferStatus: transferBefore?.status ?? null,
-                }),
+              )
+              .for('update')
+              .pipe(Effect.orDie);
+            const identity = identityRows[0];
+            if (
+              !identity?.eventRegistrationId ||
+              !identity.sourceTransactionId
+            ) {
+              return yield* new RpcBadRequestError({
+                message:
+                  'Refund claim is missing its registration or source transaction identity',
+                reason: 'invalidRefundClaimIdentity',
               });
+            }
 
-              return {
+            const recovery = yield* requeueRegistrationRefundClaim(
+              transaction,
+              {
+                reason: input.reason,
+                refundClaimId: input.refundClaimId,
+                tenantId: input.targetTenantId,
+              },
+            ).pipe(Effect.catch(mapPlatformRefundRequeueError));
+            const transferLookup =
+              yield* lockRegistrationTransferRefundForRecovery(transaction, {
+                refundTransactionId: recovery.refundClaimId,
+                tenantId: input.targetTenantId,
+              }).pipe(Effect.orDie);
+            if (transferLookup.status === 'ambiguous') {
+              return yield* new RpcBadRequestError({
+                message:
+                  'Refund claim is linked to more than one registration transfer',
+                reason: 'ambiguousRefundTransfer',
+              });
+            }
+            const transferBefore =
+              transferLookup.status === 'matched'
+                ? transferLookup.transfer
+                : null;
+            const transferRecovery: RegistrationTransferRefundRequeueStatus =
+              yield* markRegistrationTransferRefundRequeued(transaction, {
+                reason: recovery.reason,
+                refundTransactionId: recovery.refundClaimId,
+                tenantId: input.targetTenantId,
+              });
+            const transferRows = transferBefore
+              ? yield* transaction
+                  .select({
+                    id: registrationTransfers.id,
+                    status: registrationTransfers.status,
+                  })
+                  .from(registrationTransfers)
+                  .where(
+                    and(
+                      eq(registrationTransfers.id, transferBefore.id),
+                      eq(registrationTransfers.tenantId, input.targetTenantId),
+                    ),
+                  )
+                  .pipe(Effect.orDie)
+              : [];
+            const transfer = transferRows[0] ?? null;
+            if (
+              transferBefore?.id !== transfer?.id ||
+              (transfer && transferRecovery === 'notTransfer') ||
+              (!transfer && transferRecovery !== 'notTransfer')
+            ) {
+              return yield* new RpcBadRequestError({
+                message:
+                  'Registration transfer recovery state changed before the refund could be requeued',
+                reason: 'refundTransferRecoveryPreconditionFailed',
+              });
+            }
+            const transferStatusAfter = transfer?.status ?? null;
+
+            yield* writePlatformAudit(transaction, {
+              action: 'refundClaim.requeue',
+              after: refundRecoveryAuditSnapshot({
+                amount: Math.abs(identity.amount),
+                currency: identity.currency,
+                eventId: identity.eventId,
+                eventRegistrationId: identity.eventRegistrationId,
+                hasLastError: false,
+                maxAttempts: identity.maxAttempts,
                 mode: recovery.mode,
                 refundClaimId: recovery.refundClaimId,
-                transferRecovery,
-              };
-            }),
-          ),
-        );
-      }),
-      operation,
-      ['finance:refundReceipts'],
-    );
-  });
+                sourceTransactionId: identity.sourceTransactionId,
+                state: recovery.after,
+                transferId: transfer?.id ?? null,
+                transferStatus: transferStatusAfter,
+              }),
+              before: refundRecoveryAuditSnapshot({
+                amount: Math.abs(identity.amount),
+                currency: identity.currency,
+                eventId: identity.eventId,
+                eventRegistrationId: identity.eventRegistrationId,
+                hasLastError: identity.lastError !== null,
+                maxAttempts: identity.maxAttempts,
+                mode: recovery.mode,
+                refundClaimId: recovery.refundClaimId,
+                sourceTransactionId: identity.sourceTransactionId,
+                state: recovery.before,
+                transferId: transferBefore?.id ?? null,
+                transferStatus: transferBefore?.status ?? null,
+              }),
+            });
 
-const recordReimbursement = (input: PlatformFinanceRecordReimbursementInput) =>
-  Effect.gen(function* () {
-    const operation = yield* resolvePlatformMutation(input);
+            return {
+              mode: recovery.mode,
+              refundClaimId: recovery.refundClaimId,
+              transferRecovery,
+            };
+          }),
+        ),
+      );
+    }),
+    operation,
+    ['finance:refundReceipts'],
+  );
+});
 
-    return yield* providePlatformOperation(
-      Effect.gen(function* () {
-        yield* RpcAccess.ensurePermission('finance:refundReceipts');
+const recordReimbursement = Effect.fn(
+  'PlatformTenantFinance.recordReimbursement',
+)(function* (input: PlatformFinanceRecordReimbursementInput) {
+  const operation = yield* resolvePlatformMutation(input);
 
-        return yield* databaseEffect((database) =>
-          database.transaction((transaction) =>
-            Effect.gen(function* () {
-              yield* loadLockedTargetTenant(transaction, input.targetTenantId);
-              const receiptIds = [...new Set(input.receiptIds)];
-              if (receiptIds.length !== input.receiptIds.length) {
-                return yield* new RpcBadRequestError({
-                  message: 'Duplicate receipt ids are not allowed',
-                  reason: 'duplicateReceiptIds',
-                });
-              }
+  return yield* providePlatformOperation(
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('finance:refundReceipts');
 
-              const lockedReceipts = yield* transaction
-                .select({
-                  currency: financeReceipts.currency,
-                  eventId: financeReceipts.eventId,
-                  id: financeReceipts.id,
-                  submittedByUserId: financeReceipts.submittedByUserId,
-                  totalAmount: financeReceipts.totalAmount,
-                })
-                .from(financeReceipts)
-                .where(
-                  and(
-                    eq(financeReceipts.tenantId, input.targetTenantId),
-                    inArray(financeReceipts.id, receiptIds),
-                    eq(financeReceipts.status, 'approved'),
-                  ),
-                )
-                .orderBy(financeReceipts.id)
-                .for('update')
-                .pipe(Effect.orDie);
-              if (lockedReceipts.length !== receiptIds.length) {
-                return yield* new RpcBadRequestError({
-                  message: 'Some receipts are missing or not reimbursable',
-                  reason: 'receiptCountMismatch',
-                });
-              }
+      return yield* databaseEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            yield* loadLockedTargetTenant(transaction, input.targetTenantId);
+            const receiptIds = [...new Set(input.receiptIds)];
+            if (receiptIds.length !== input.receiptIds.length) {
+              return yield* new RpcBadRequestError({
+                message: 'Duplicate receipt ids are not allowed',
+                reason: 'duplicateReceiptIds',
+              });
+            }
 
-              const targetUserId = lockedReceipts[0]?.submittedByUserId;
-              if (!targetUserId) {
-                return yield* new RpcBadRequestError({
-                  message: 'Reimbursement recipient is missing',
-                  reason: 'missingTargetUser',
-                });
-              }
-              if (
-                lockedReceipts.some(
-                  (receipt) => receipt.submittedByUserId !== targetUserId,
-                )
-              ) {
-                return yield* new RpcBadRequestError({
-                  message: 'Receipts must belong to the same submitter',
-                  reason: 'mismatchedSubmitter',
-                });
-              }
+            const lockedReceipts = yield* transaction
+              .select({
+                currency: financeReceipts.currency,
+                eventId: financeReceipts.eventId,
+                id: financeReceipts.id,
+                submittedByUserId: financeReceipts.submittedByUserId,
+                totalAmount: financeReceipts.totalAmount,
+              })
+              .from(financeReceipts)
+              .where(
+                and(
+                  eq(financeReceipts.tenantId, input.targetTenantId),
+                  inArray(financeReceipts.id, receiptIds),
+                  eq(financeReceipts.status, 'approved'),
+                ),
+              )
+              .orderBy(financeReceipts.id)
+              .for('update')
+              .pipe(Effect.orDie);
+            if (lockedReceipts.length !== receiptIds.length) {
+              return yield* new RpcBadRequestError({
+                message: 'Some receipts are missing or not reimbursable',
+                reason: 'receiptCountMismatch',
+              });
+            }
 
-              const receiptCurrency =
-                yield* resolvePlatformReimbursementCurrency(lockedReceipts);
+            const targetUserId = lockedReceipts[0]?.submittedByUserId;
+            if (!targetUserId) {
+              return yield* new RpcBadRequestError({
+                message: 'Reimbursement recipient is missing',
+                reason: 'missingTargetUser',
+              });
+            }
+            if (
+              lockedReceipts.some(
+                (receipt) => receipt.submittedByUserId !== targetUserId,
+              )
+            ) {
+              return yield* new RpcBadRequestError({
+                message: 'Receipts must belong to the same submitter',
+                reason: 'mismatchedSubmitter',
+              });
+            }
 
-              const payoutUsers = yield* transaction
-                .select({
-                  iban: users.iban,
-                  id: users.id,
-                  paypalEmail: users.paypalEmail,
-                })
-                .from(users)
-                .where(eq(users.id, targetUserId))
-                .for('share')
-                .pipe(Effect.orDie);
-              const payoutUser = payoutUsers[0];
-              if (!payoutUser) {
-                return yield* new RpcBadRequestError({
-                  message: 'Reimbursement recipient not found',
-                  reason: 'payoutUserNotFound',
-                });
-              }
-              const payoutReference =
-                input.payoutType === 'paypal'
-                  ? payoutUser.paypalEmail
-                  : payoutUser.iban;
-              if (!payoutReference?.trim()) {
-                return yield* new RpcBadRequestError({
-                  message:
-                    input.payoutType === 'paypal'
-                      ? 'Reimbursement recipient is missing a PayPal address'
-                      : 'Reimbursement recipient is missing an IBAN',
-                  reason:
-                    input.payoutType === 'paypal'
-                      ? 'missingPaypal'
-                      : 'missingIban',
-                });
-              }
-              if (
-                payoutDetailsVersion(input.payoutType, payoutReference) !==
-                input.payoutVersion
-              ) {
-                return yield* new RpcBadRequestError({
-                  message:
-                    'The recipient payout details changed. Refresh the queue and verify the current destination before recording the reimbursement.',
-                  reason: 'payoutDetailsChanged',
-                });
-              }
+            const receiptCurrency =
+              yield* resolvePlatformReimbursementCurrency(lockedReceipts);
 
-              const totalAmount = lockedReceipts.reduce(
-                (sum, receipt) => sum + receipt.totalAmount,
-                0,
-              );
-              if (totalAmount <= 0) {
-                return yield* new RpcBadRequestError({
-                  message: 'Reimbursement total must be positive',
-                  reason: 'invalidReimbursementTotal',
-                });
-              }
-              const eventIds = [
-                ...new Set(lockedReceipts.map((receipt) => receipt.eventId)),
-              ];
-              const eventId = eventIds.length === 1 ? eventIds[0] : null;
-              const refundedAt = yield* DateTime.nowAsDate;
-              const insertedTransactions = yield* transaction
-                .insert(transactions)
-                .values(
-                  platformReimbursementTransactionInsert({
-                    currency: receiptCurrency,
-                    eventCount: eventIds.length,
-                    eventId,
-                    payoutType: input.payoutType,
-                    receiptCount: receiptIds.length,
-                    targetTenantId: input.targetTenantId,
-                    targetUserId,
-                    totalAmount,
-                  }),
-                )
-                .returning({ id: transactions.id })
-                .pipe(Effect.orDie);
-              const createdTransaction = insertedTransactions[0];
-              if (!createdTransaction) {
-                return yield* Effect.die(
-                  new Error('Reimbursement transaction insert returned no row'),
-                );
-              }
+            const payoutUsers = yield* transaction
+              .select({
+                iban: users.iban,
+                id: users.id,
+                paypalEmail: users.paypalEmail,
+              })
+              .from(users)
+              .where(eq(users.id, targetUserId))
+              .for('share')
+              .pipe(Effect.orDie);
+            const payoutUser = payoutUsers[0];
+            if (!payoutUser) {
+              return yield* new RpcBadRequestError({
+                message: 'Reimbursement recipient not found',
+                reason: 'payoutUserNotFound',
+              });
+            }
+            const payoutReference =
+              input.payoutType === 'paypal'
+                ? payoutUser.paypalEmail
+                : payoutUser.iban;
+            if (!payoutReference?.trim()) {
+              return yield* new RpcBadRequestError({
+                message:
+                  input.payoutType === 'paypal'
+                    ? 'Reimbursement recipient is missing a PayPal address'
+                    : 'Reimbursement recipient is missing an IBAN',
+                reason:
+                  input.payoutType === 'paypal'
+                    ? 'missingPaypal'
+                    : 'missingIban',
+              });
+            }
+            if (
+              payoutDetailsVersion(input.payoutType, payoutReference) !==
+              input.payoutVersion
+            ) {
+              return yield* new RpcBadRequestError({
+                message:
+                  'The recipient payout details changed. Refresh the queue and verify the current destination before recording the reimbursement.',
+                reason: 'payoutDetailsChanged',
+              });
+            }
 
-              const updatedReceipts = yield* transaction
-                .update(financeReceipts)
-                .set(
-                  platformReimbursementReceiptUpdate({
-                    refundedAt,
-                    transactionId: createdTransaction.id,
-                  }),
-                )
-                .where(
-                  and(
-                    eq(financeReceipts.tenantId, input.targetTenantId),
-                    inArray(financeReceipts.id, receiptIds),
-                    eq(financeReceipts.status, 'approved'),
-                    eq(financeReceipts.submittedByUserId, targetUserId),
-                  ),
-                )
-                .returning({ id: financeReceipts.id })
-                .pipe(Effect.orDie);
-              if (updatedReceipts.length !== receiptIds.length) {
-                return yield* new RpcBadRequestError({
-                  message: 'Receipt reimbursement preconditions changed',
-                  reason: 'receiptReimbursementPreconditionFailed',
-                });
-              }
-
-              yield* writePlatformAudit(transaction, {
-                action: 'receipt.reimburse',
-                after: reimbursementAuditSnapshot({
+            const totalAmount = lockedReceipts.reduce(
+              (sum, receipt) => sum + receipt.totalAmount,
+              0,
+            );
+            if (totalAmount <= 0) {
+              return yield* new RpcBadRequestError({
+                message: 'Reimbursement total must be positive',
+                reason: 'invalidReimbursementTotal',
+              });
+            }
+            const eventIds = [
+              ...new Set(lockedReceipts.map((receipt) => receipt.eventId)),
+            ];
+            const eventId = eventIds.length === 1 ? eventIds[0] : null;
+            const refundedAt = yield* DateTime.nowAsDate;
+            const insertedTransactions = yield* transaction
+              .insert(transactions)
+              .values(
+                platformReimbursementTransactionInsert({
                   currency: receiptCurrency,
+                  eventCount: eventIds.length,
+                  eventId,
                   payoutType: input.payoutType,
-                  receiptIds,
-                  refundedAt,
-                  status: 'refunded',
+                  receiptCount: receiptIds.length,
+                  targetTenantId: input.targetTenantId,
+                  targetUserId,
                   totalAmount,
+                }),
+              )
+              .returning({ id: transactions.id })
+              .pipe(Effect.orDie);
+            const createdTransaction = insertedTransactions[0];
+            if (!createdTransaction) {
+              return yield* Effect.die(
+                new Error('Reimbursement transaction insert returned no row'),
+              );
+            }
+
+            const updatedReceipts = yield* transaction
+              .update(financeReceipts)
+              .set(
+                platformReimbursementReceiptUpdate({
+                  refundedAt,
                   transactionId: createdTransaction.id,
                 }),
-                before: reimbursementAuditSnapshot({
-                  currency: receiptCurrency,
-                  payoutType: input.payoutType,
-                  receiptIds,
-                  refundedAt: null,
-                  status: 'approved',
-                  totalAmount,
-                  transactionId: null,
-                }),
+              )
+              .where(
+                and(
+                  eq(financeReceipts.tenantId, input.targetTenantId),
+                  inArray(financeReceipts.id, receiptIds),
+                  eq(financeReceipts.status, 'approved'),
+                  eq(financeReceipts.submittedByUserId, targetUserId),
+                ),
+              )
+              .returning({ id: financeReceipts.id })
+              .pipe(Effect.orDie);
+            if (updatedReceipts.length !== receiptIds.length) {
+              return yield* new RpcBadRequestError({
+                message: 'Receipt reimbursement preconditions changed',
+                reason: 'receiptReimbursementPreconditionFailed',
               });
+            }
 
-              return {
-                receiptCount: receiptIds.length,
+            yield* writePlatformAudit(transaction, {
+              action: 'receipt.reimburse',
+              after: reimbursementAuditSnapshot({
+                currency: receiptCurrency,
+                payoutType: input.payoutType,
+                receiptIds,
+                refundedAt,
+                status: 'refunded',
                 totalAmount,
                 transactionId: createdTransaction.id,
-              };
-            }),
-          ),
-        );
-      }),
-      operation,
-      ['finance:refundReceipts'],
-    );
-  });
+              }),
+              before: reimbursementAuditSnapshot({
+                currency: receiptCurrency,
+                payoutType: input.payoutType,
+                receiptIds,
+                refundedAt: null,
+                status: 'approved',
+                totalAmount,
+                transactionId: null,
+              }),
+            });
+
+            return {
+              receiptCount: receiptIds.length,
+              totalAmount,
+              transactionId: createdTransaction.id,
+            };
+          }),
+        ),
+      );
+    }),
+    operation,
+    ['finance:refundReceipts'],
+  );
+});
 
 export const platformTenantFinanceHandlers = {
   'platform.finance.receipts.approvalDetail': (input, _options) =>
@@ -1463,9 +1604,31 @@ export const platformTenantFinanceHandlers = {
             })
             .from(transactions)
             .leftJoin(
+              registrationTransferRefundPlanItems,
+              and(
+                eq(
+                  registrationTransferRefundPlanItems.refundTransactionId,
+                  transactions.id,
+                ),
+                eq(
+                  registrationTransferRefundPlanItems.tenantId,
+                  input.targetTenantId,
+                ),
+              ),
+            )
+            .leftJoin(
               registrationTransfers,
               and(
-                eq(registrationTransfers.refundTransactionId, transactions.id),
+                or(
+                  eq(
+                    registrationTransfers.compensationRefundTransactionId,
+                    transactions.id,
+                  ),
+                  eq(
+                    registrationTransfers.id,
+                    registrationTransferRefundPlanItems.transferId,
+                  ),
+                ),
                 eq(registrationTransfers.tenantId, input.targetTenantId),
               ),
             )
@@ -1477,7 +1640,13 @@ export const platformTenantFinanceHandlers = {
                 eq(transactions.type, 'refund'),
                 isNull(transactions.stripeRefundClaimLeaseExpiresAt),
                 isNull(transactions.stripeRefundClaimLeaseId),
-                isNull(transactions.stripeRefundNextAttemptAt),
+                or(
+                  isNull(transactions.stripeRefundNextAttemptAt),
+                  gte(
+                    transactions.stripeRefundAttempts,
+                    transactions.stripeRefundMaxAttempts,
+                  ),
+                ),
               ),
             )
             .orderBy(desc(transactions.updatedAt))
@@ -1525,10 +1694,24 @@ export const platformTenantFinanceHandlers = {
                 comment: transactions.comment,
                 createdAt: transactions.createdAt,
                 currency: transactions.currency,
+                eventRegistrationId: transactions.eventRegistrationId,
                 id: transactions.id,
+                manuallyCreated: transactions.manuallyCreated,
                 method: transactions.method,
+                sourceTransactionId: transactions.sourceTransactionId,
                 status: transactions.status,
                 stripeFee: transactions.stripeFee,
+                stripeRefundAttempts: transactions.stripeRefundAttempts,
+                stripeRefundClaimLeaseExpiresAt:
+                  transactions.stripeRefundClaimLeaseExpiresAt,
+                stripeRefundClaimLeaseId: transactions.stripeRefundClaimLeaseId,
+                stripeRefundId: transactions.stripeRefundId,
+                stripeRefundMaxAttempts: transactions.stripeRefundMaxAttempts,
+                stripeRefundNextAttemptAt:
+                  transactions.stripeRefundNextAttemptAt,
+                stripeRefundRequeuedAt: transactions.stripeRefundRequeuedAt,
+                stripeRefundStatus: transactions.stripeRefundStatus,
+                type: transactions.type,
               })
               .from(transactions)
               .where(
@@ -1544,7 +1727,7 @@ export const platformTenantFinanceHandlers = {
 
           return {
             data: transactionRows.map((transaction) =>
-              normalizeFinanceTransactionRecord(transaction),
+              toPlatformFinanceTransactionRecord(transaction),
             ),
             tenantContext: toTenantContext(tenant),
             total: transactionCountRows[0]?.total ?? 0,

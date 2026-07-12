@@ -27,6 +27,9 @@
     <mat-slide-toggle [formField]="form.isPaid"
       >Enable payment</mat-slide-toggle
     >
+    <p class="text-on-surface-variant text-sm">
+      Paid add-ons require a connected Stripe account.
+    </p>
 
     @if (!form.price().hidden()) {
       <div class="grid gap-4 md:grid-cols-2">

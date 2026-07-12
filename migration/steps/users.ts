@@ -1,5 +1,5 @@
 import consola from 'consola';
-import { count, InferSelectModel } from 'drizzle-orm';
+import { count } from 'drizzle-orm';
 
 import * as oldSchema from '../../old/drizzle';
 import { database } from '../../src/db';

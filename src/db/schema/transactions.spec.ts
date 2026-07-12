@@ -2,6 +2,7 @@ import { describe, expect, it } from '@effect/vitest';
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 
 import {
+  paidEventTransactionMethodCheckName,
   pendingRegistrationTransactionUniqueIndexName,
   type RegistrationCheckoutSnapshot,
   registrationRefundOperationUniqueIndexName,
@@ -9,6 +10,22 @@ import {
 } from './transactions';
 
 describe('transaction schema', () => {
+  it('requires registration and add-on transactions to use Stripe', () => {
+    const tableConfig = getTableConfig(transactions);
+    const paidEventMethodCheck = tableConfig.checks.find(
+      (check) => check.name === paidEventTransactionMethodCheckName,
+    );
+
+    expect(paidEventMethodCheck).toBeDefined();
+    if (!paidEventMethodCheck) {
+      throw new Error('Expected paid event transaction method check');
+    }
+
+    expect(new PgDialect().sqlToQuery(paidEventMethodCheck.value).sql).toBe(
+      `"transactions"."type" NOT IN ('registration', 'addon') OR "transactions"."method" = 'stripe'`,
+    );
+  });
+
   it('enforces one pending registration payment per registration', () => {
     const tableConfig = getTableConfig(transactions);
     const pendingRegistrationIndex = tableConfig.indexes.find(

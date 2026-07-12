@@ -21,6 +21,9 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  registrationAcquisitionComponents,
+  registrationAcquisitionPayments,
+  registrationAcquisitions,
   tenants,
   transactions,
   users,
@@ -77,7 +80,26 @@ const paidFixtureIdentity = (fixture: Fixture) => ({
 
 const fakeStripe = {
   charges: {
-    retrieve: () => Promise.reject(new Error('Fee snapshot not ready in test')),
+    retrieve: (chargeId: string) => {
+      const orderId = chargeId.replace(/^ch_/, '');
+      return Promise.resolve({
+        amount: 100,
+        balance_transaction: {
+          amount: 100,
+          currency: 'eur',
+          fee_details: [
+            { amount: 4, type: 'application_fee' },
+            { amount: 3, type: 'stripe_fee' },
+          ],
+          net: 93,
+        },
+        captured: true,
+        currency: 'eur',
+        id: chargeId,
+        paid: true,
+        payment_intent: `pi_${orderId}`,
+      });
+    },
   },
 } as unknown as Stripe;
 
@@ -208,6 +230,40 @@ const seedFixture = async (
       userId: requireValue(userIds[index], 'registration user'),
     })),
   );
+  const acquisitionIds = registrationIds.map(() => createId());
+  await database.insert(registrationAcquisitions).values(
+    registrationIds.map((registrationId, index) => ({
+      acquiredAt: new Date(now),
+      eventId,
+      id: requireValue(acquisitionIds[index], 'initial acquisition'),
+      kind: 'initial' as const,
+      operationKey: `registration-initial:${registrationId}`,
+      ordinal: 0,
+      ownerUserId: requireValue(userIds[index], 'acquisition owner'),
+      registrationId,
+      spotCount: 1,
+      tenantId,
+    })),
+  );
+  await database.insert(registrationAcquisitionComponents).values(
+    registrationIds.map((registrationId, index) => ({
+      acquiredAt: new Date(now),
+      acquisitionId: requireValue(acquisitionIds[index], 'initial acquisition'),
+      allocationKey: `registration-initial:${registrationId}`,
+      applicationFeeAmount: 0,
+      baseAmount: 0,
+      currency: 'EUR' as const,
+      eventId,
+      grossAmount: 0,
+      kind: 'registration' as const,
+      netAmount: 0,
+      quantity: 1,
+      registrationId,
+      stripeFeeAmount: 0,
+      taxAmount: 0,
+      tenantId,
+    })),
+  );
 
   if (!input.paid) {
     return {
@@ -304,6 +360,15 @@ const seedFixture = async (
 };
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
+  await database
+    .delete(registrationAcquisitionComponents)
+    .where(eq(registrationAcquisitionComponents.eventId, fixture.eventId));
+  await database
+    .delete(registrationAcquisitionPayments)
+    .where(eq(registrationAcquisitionPayments.eventId, fixture.eventId));
+  await database
+    .delete(registrationAcquisitions)
+    .where(eq(registrationAcquisitions.eventId, fixture.eventId));
   await database
     .delete(eventRegistrationAddonPurchaseLots)
     .where(eq(eventRegistrationAddonPurchaseLots.eventId, fixture.eventId));
@@ -440,6 +505,23 @@ describe('post-registration add-on purchase concurrency', () => {
         where: { registrationId },
       }),
     ).toHaveLength(1);
+    expect(
+      await database.query.registrationAcquisitionPayments.findMany({
+        where: { registrationId },
+      }),
+    ).toHaveLength(1);
+    const components =
+      await database.query.registrationAcquisitionComponents.findMany({
+        where: { registrationId },
+      });
+    expect(components).toHaveLength(2);
+    expect(components.find(({ kind }) => kind === 'addon_lot')).toMatchObject({
+      applicationFeeAmount: 4,
+      grossAmount: 100,
+      netAmount: 93,
+      purchaseLotId: fixture.purchaseLotId,
+      stripeFeeAmount: 3,
+    });
   });
 
   it('makes a free operation retry idempotent and serializes the last stock unit', async () => {
@@ -475,6 +557,16 @@ describe('post-registration add-on purchase concurrency', () => {
     const replay = await purchase(0, operationKey);
     expect(first.type).toBe('success');
     expect(replay).toEqual(first);
+    expect(
+      await database.query.registrationAcquisitionComponents.findMany({
+        where: {
+          registrationId: requireValue(
+            fixture.registrationIds[0],
+            'free acquisition registration',
+          ),
+        },
+      }),
+    ).toHaveLength(2);
 
     const raceFixture = await seedFixture(database, {
       paid: false,

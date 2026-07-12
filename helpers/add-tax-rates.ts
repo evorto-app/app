@@ -10,7 +10,7 @@ import * as schema from '../src/db/schema';
  */
 export const addTaxRates = async (
   database: NodePgDatabase<typeof relations>,
-  tenant: { id: string },
+  tenant: { id: string; stripeAccountId: null | string },
 ) => {
   const seedRates: Array<{
     stripeTaxRateId: string;
@@ -50,6 +50,7 @@ export const addTaxRates = async (
           inclusive: true,
           percentage: r.percentage,
           state: null,
+          stripeAccountId: tenant.stripeAccountId,
           stripeTaxRateId: r.stripeTaxRateId,
           tenantId: tenant.id,
         }) satisfies Omit<
@@ -59,7 +60,7 @@ export const addTaxRates = async (
     );
 
   if (toInsert.length > 0) {
-    await database.insert(schema.tenantStripeTaxRates).values(toInsert as any);
+    await database.insert(schema.tenantStripeTaxRates).values(toInsert);
     consola.success(
       `Imported ${toInsert.length} default tax rates for tenant ${tenant.id}`,
     );

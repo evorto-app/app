@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { TransactionRollbackError } from 'drizzle-orm';
 import { Effect, Layer } from 'effect';
 import { vi } from 'vitest';
 
@@ -137,10 +138,40 @@ const withTransaction = <DatabaseMock extends object>(
 ) => {
   const originalSelect = Reflect.get(database, 'select') as
     ((selection: Record<string, unknown>) => unknown) | undefined;
+  const originalQuery = Reflect.get(database, 'query');
   const transactionalDatabase = {
     ...database,
     execute: vi.fn(() => Effect.void),
+    query: Object.assign(
+      {},
+      typeof originalQuery === 'object' && originalQuery !== null
+        ? originalQuery
+        : {},
+      {
+        tenants: {
+          findFirst: vi.fn(() =>
+            Effect.succeed({
+              stripeAccountId: Reflect.has(database, 'stripeAccountId')
+                ? Reflect.get(database, 'stripeAccountId')
+                : 'acct_connected',
+            }),
+          ),
+        },
+      },
+    ),
     select: vi.fn((selection: Record<string, unknown>) => {
+      if (Reflect.has(selection, 'stripeAccountId')) {
+        const stripeAccountId = Reflect.has(database, 'stripeAccountId')
+          ? Reflect.get(database, 'stripeAccountId')
+          : 'acct_connected';
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(() => Effect.succeed([{ stripeAccountId }])),
+            })),
+          })),
+        };
+      }
       if (
         selection.simpleModeEnabled !== undefined &&
         selection.unlisted !== undefined
@@ -280,6 +311,37 @@ describe('eventLifecycleHandlers', () => {
   );
 
   it.effect(
+    'events.create rejects paid registration options when Stripe is not connected',
+    () =>
+      Effect.gen(function* () {
+        const database = withTransaction({ stripeAccountId: null });
+        const layer = Layer.mergeAll(
+          requestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        const error = yield* eventLifecycleHandlers['events.create'](
+          {
+            ...createInput,
+            registrationOptions: [
+              {
+                ...createInput.registrationOptions[0],
+                isPaid: true,
+                price: 1000,
+              },
+            ],
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.flip, Effect.provide(layer));
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'stripeRequiredForPaidEventConfiguration',
+        });
+      }),
+  );
+
+  it.effect(
     'events.update rejects an event end before its start before loading the event',
     () =>
       Effect.gen(function* () {
@@ -359,6 +421,118 @@ describe('eventLifecycleHandlers', () => {
           _tag: 'RpcBadRequestError',
           reason: 'invalidSimpleEventConfiguration',
         });
+      }),
+  );
+
+  it.effect(
+    'events.update rejects a tax rate that belongs to the account replaced before the write lock',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const update = vi.fn(() =>
+          Effect.die(
+            new Error('Event write must not run after tax-rate drift'),
+          ),
+        );
+        const transactionDatabase = {
+          query: {
+            tenants: {
+              findFirst: vi.fn(() => {
+                operationOrder.push('locked-tenant');
+                return Effect.succeed({
+                  stripeAccountId: 'acct_replacement',
+                });
+              }),
+            },
+            tenantStripeTaxRates: {
+              findFirst: vi.fn(() => {
+                operationOrder.push('locked-tax-rate');
+                return Effect.succeed(undefined);
+              }),
+            },
+          },
+          rollback: vi.fn(() => {
+            operationOrder.push('rollback');
+            return Effect.die(new TransactionRollbackError());
+          }),
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                for: vi.fn(() => {
+                  operationOrder.push('lock-account');
+                  return Effect.succeed([
+                    { stripeAccountId: 'acct_replacement' },
+                  ]);
+                }),
+              })),
+            })),
+          })),
+          update,
+        };
+        const database = {
+          $client: {},
+          query: {
+            eventInstances: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  creatorId: user.id,
+                  simpleModeEnabled: false,
+                  status: 'DRAFT' as const,
+                }),
+              ),
+            },
+            tenants: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({ stripeAccountId: 'acct_original' }),
+              ),
+            },
+            tenantStripeTaxRates: {
+              findFirst: vi.fn(() => {
+                operationOrder.push('preflight-tax-rate');
+                return Effect.succeed({ active: true, inclusive: true });
+              }),
+            },
+          },
+          transaction: vi.fn(
+            (
+              run: (
+                transaction: typeof transactionDatabase,
+              ) => Effect.Effect<unknown>,
+            ) => run(transactionDatabase),
+          ),
+        };
+        const layer = Layer.mergeAll(
+          requestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        const error = yield* eventLifecycleHandlers['events.update'](
+          {
+            ...updateInput,
+            registrationOptions: [
+              {
+                ...updateInput.registrationOptions[0],
+                isPaid: true,
+                price: 1000,
+                stripeTaxRateId: 'txr_original',
+              },
+            ],
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.flip, Effect.provide(layer));
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'invalidRegistrationOptionTaxRate',
+        });
+        expect(operationOrder).toEqual([
+          'preflight-tax-rate',
+          'lock-account',
+          'locked-tenant',
+          'locked-tax-rate',
+          'rollback',
+        ]);
+        expect(update).not.toHaveBeenCalled();
       }),
   );
 

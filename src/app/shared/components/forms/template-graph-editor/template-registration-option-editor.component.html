@@ -138,6 +138,9 @@
   </div>
 
   <mat-checkbox [formField]="option.isPaid">Enable payment</mat-checkbox>
+  <p class="text-on-surface-variant text-sm">
+    Paid options require a connected Stripe account.
+  </p>
   @if (!option.price().hidden()) {
     <div class="grid gap-4 @sm:grid-cols-2">
       <mat-form-field>

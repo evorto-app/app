@@ -3,7 +3,6 @@ import { Effect } from 'effect';
 
 import {
   ensureRegistrationTransferTransition,
-  registrationTransferCapacityDelta,
   resolveRegistrationCancellationDeadline,
   resolveRegistrationFeeRefund,
   resolveRegistrationTransferDeadline,
@@ -169,21 +168,4 @@ describe('registration transfer state', () => {
       assert.include(error.message, 'Stripe fee reconciliation');
     }),
   );
-
-  it('reserves only capacity above the source registration and swaps the confirmed delta', () => {
-    assert.deepStrictEqual(
-      registrationTransferCapacityDelta({
-        recipientSpotCount: 3,
-        sourceSpotCount: 2,
-      }),
-      { additionalReservation: 1, confirmedDelta: 1 },
-    );
-    assert.deepStrictEqual(
-      registrationTransferCapacityDelta({
-        recipientSpotCount: 1,
-        sourceSpotCount: 2,
-      }),
-      { additionalReservation: 0, confirmedDelta: -1 },
-    );
-  });
 });

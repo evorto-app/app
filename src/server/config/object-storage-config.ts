@@ -5,14 +5,7 @@ import { optionalTrimmedString } from './config-string';
 
 export const objectStorageStateConfig = Config.all({
   S3_ACCESS_KEY_ID: optionalTrimmedString('S3_ACCESS_KEY_ID'),
-  S3_BUCKET: optionalTrimmedString('S3_BUCKET').pipe(
-    Config.map((value) =>
-      Option.match(value, {
-        onNone: () => 'testing',
-        onSome: (bucket) => bucket,
-      }),
-    ),
-  ),
+  S3_BUCKET: optionalTrimmedString('S3_BUCKET'),
   S3_ENDPOINT: optionalTrimmedString('S3_ENDPOINT'),
   S3_PUBLIC_ENDPOINT: optionalTrimmedString('S3_PUBLIC_ENDPOINT'),
   S3_REGION: optionalTrimmedString('S3_REGION').pipe(
@@ -64,6 +57,7 @@ export const objectStorageConfig = Effect.gen(function* () {
   const state = yield* objectStorageStateConfig;
   if (
     Option.isNone(state.S3_ENDPOINT) ||
+    Option.isNone(state.S3_BUCKET) ||
     Option.isNone(state.S3_ACCESS_KEY_ID) ||
     Option.isNone(state.S3_SECRET_ACCESS_KEY)
   ) {
@@ -71,6 +65,9 @@ export const objectStorageConfig = Effect.gen(function* () {
       Option.isSome(state.S3_ENDPOINT)
         ? undefined
         : missingFieldError('S3_ENDPOINT'),
+      Option.isSome(state.S3_BUCKET)
+        ? undefined
+        : missingFieldError('S3_BUCKET'),
       Option.isSome(state.S3_ACCESS_KEY_ID)
         ? undefined
         : missingFieldError('S3_ACCESS_KEY_ID'),
@@ -96,6 +93,10 @@ export const objectStorageConfig = Effect.gen(function* () {
     state.S3_ENDPOINT,
     'Expected validated object storage endpoint',
   );
+  const bucket = yield* getRequiredConfigValue(
+    state.S3_BUCKET,
+    'Expected validated object storage bucket',
+  );
   const secretAccessKey = yield* getRequiredConfigValue(
     state.S3_SECRET_ACCESS_KEY,
     'Expected validated object storage secret access key',
@@ -103,7 +104,7 @@ export const objectStorageConfig = Effect.gen(function* () {
 
   return {
     accessKeyId,
-    bucket: state.S3_BUCKET,
+    bucket,
     endpoint,
     publicEndpoint: Option.getOrElse(state.S3_PUBLIC_ENDPOINT, () => endpoint),
     region: state.S3_REGION,

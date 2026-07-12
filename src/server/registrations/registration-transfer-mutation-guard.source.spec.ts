@@ -10,13 +10,13 @@ const source = readFileSync(
 );
 
 describe('registration transfer mutation guard source', () => {
-  it('locks every active source state but only a pending recipient checkout', () => {
-    expect(source).toContain('activeRegistrationTransferStatuses');
+  it('locks only offers and recipient checkouts before ownership moves', () => {
+    expect(source).toContain('registrationTransferMutationBlockingStatuses');
     expect(source).toContain('registrationTransfers.sourceRegistrationId');
-    expect(source).toContain('registrationTransfers.recipientRegistrationId');
-    expect(source).toContain(
-      "eq(registrationTransfers.status, 'checkout_pending')",
+    expect(source).not.toContain(
+      'registrationTransfers.recipientRegistrationId',
     );
+    expect(source).toContain("'checkout_pending',");
     expect(source).toContain(".for('update')");
     expect(source).toContain('RegistrationTransferMutationConflict');
   });
@@ -30,15 +30,11 @@ describe('registration transfer mutation guard source', () => {
     );
 
     expect(query.sql).toContain('"source_registration_id" =');
-    expect(query.sql).toContain('"recipient_registration_id" =');
+    expect(query.sql).not.toContain('"recipient_registration_id" =');
     expect(query.params).toEqual([
       'tenant-1',
       'registration-1',
       'open',
-      'checkout_pending',
-      'refund_pending',
-      'refund_failed',
-      'registration-1',
       'checkout_pending',
     ]);
   });

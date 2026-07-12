@@ -1,9 +1,8 @@
-import type Stripe from 'stripe';
-
 import { describe, expect, it } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../db';
 import * as dbSchema from '../../db/schema';
@@ -11,6 +10,7 @@ import { StripeClient } from '../stripe-client';
 import {
   asyncCheckoutFailureAction,
   checkoutSessionBindingsMatch,
+  decodeStripeRefundWebhookObject,
   handleStripeWebhookWebRequest,
   isSupportedStripeWebhookEventType,
   MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES,
@@ -63,9 +63,10 @@ const registrationCheckoutCompletionSource = readFileSync(
   'utf8',
 );
 
+const stripeWebhookSecret = 'whsec_test';
 const stripeWebhookConfigLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
-    env: { STRIPE_WEBHOOK_SECRET: 'whsec_test' },
+    env: { STRIPE_WEBHOOK_SECRET: stripeWebhookSecret },
   }),
 );
 
@@ -325,6 +326,90 @@ describe('validateCheckoutSessionBinding', () => {
       }),
     ).toEqual({ type: 'state-conflict' });
   });
+});
+
+describe('Stripe refund webhook payloads', () => {
+  it.effect('decodes the refund fields used for ownership reconciliation', () =>
+    Effect.gen(function* () {
+      const refund = yield* decodeStripeRefundWebhookObject({
+        amount: 1900,
+        charge: 'ch_source',
+        currency: 'eur',
+        id: 're_valid',
+        metadata: {
+          refundClaimId: 'refund-claim-1',
+          refundGeneration: '0',
+          registrationId: 'registration-1',
+          sourceTransactionId: 'transaction-1',
+          tenantId: 'tenant-1',
+        },
+        object: 'refund',
+        payment_intent: 'pi_source',
+        status: 'pending',
+      });
+
+      expect(refund).toMatchObject({
+        amount: 1900,
+        id: 're_valid',
+        object: 'refund',
+        status: 'pending',
+      });
+    }),
+  );
+
+  it.effect(
+    'rejects a signed refund event carrying the wrong object shape',
+    () =>
+      Effect.gen(function* () {
+        const payload = JSON.stringify({
+          account: 'acct_tenant',
+          api_version: '2026-06-24.dahlia',
+          created: 1_700_000_000,
+          data: {
+            object: {
+              amount: 1900,
+              charge: 'ch_source',
+              currency: 'eur',
+              id: 're_invalid',
+              metadata: { refundClaimId: 'refund-claim-1' },
+              object: 'charge',
+              payment_intent: 'pi_source',
+              status: 'pending',
+            },
+          },
+          id: 'evt_invalid_refund',
+          livemode: false,
+          object: 'event',
+          pending_webhooks: 1,
+          request: null,
+          type: 'refund.updated',
+        });
+        const signature = Stripe.webhooks.generateTestHeaderString({
+          payload,
+          secret: stripeWebhookSecret,
+        });
+        const response = yield* handleStripeWebhookWebRequest(
+          new Request('https://tenant.example.com/webhooks/stripe', {
+            body: payload,
+            headers: { 'stripe-signature': signature },
+            method: 'POST',
+          }),
+        ).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Layer.mock(Database)({}),
+              Layer.succeed(StripeClient, new Stripe('sk_test_webhook_shape')),
+              stripeWebhookConfigLayer,
+            ),
+          ),
+        );
+
+        expect(response.status).toBe(400);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Invalid refund payload',
+        );
+      }),
+  );
 });
 
 describe('checkout expiry replay', () => {

@@ -16,6 +16,26 @@ import {
 } from './registration-transfers.rpcs';
 
 const validClaimRecord = {
+  bundle: {
+    addOns: [
+      {
+        cancelledQuantity: 1,
+        currentUnitPrice: 500,
+        description: 'Includes equipment rental.',
+        id: 'addon-1',
+        includedQuantity: 1,
+        purchasedQuantity: 3,
+        quantity: 4,
+        redeemedQuantity: 1,
+        remainingQuantity: 2,
+        title: 'Workshop kit',
+      },
+    ],
+    checkedInGuestCount: 1,
+    checkInTime: '2026-08-20T18:15:00.000Z',
+    guestCount: 1,
+    guestUnitPrice: 3000,
+  },
   event: {
     end: '2026-08-20T22:00:00.000Z',
     id: 'event-1',
@@ -23,24 +43,11 @@ const validClaimRecord = {
     title: 'Welcome event',
   },
   expiresAt: '2026-08-20T18:00:00.000Z',
+  refundLifecycle: null,
   registrationOption: {
-    addOns: [
-      {
-        allowMultiple: true,
-        availableQuantity: 12,
-        description: 'Includes equipment rental.',
-        id: 'addon-1',
-        maxQuantityPerUser: 2,
-        title: 'Workshop kit',
-        unitPrice: 500,
-      },
-    ],
     currency: 'EUR',
     currentPrice: 2500,
     description: 'Participant admission',
-    guestAllowance: {
-      allowed: true,
-    },
     id: 'option-1',
     isPaid: true,
     questions: [
@@ -129,7 +136,7 @@ describe('registration transfer claim record schema', () => {
     ).toEqual(validClaimRecord);
   });
 
-  it('decodes current event, option, price, questions, add-ons, guest allowance, and state', () => {
+  it('decodes the event, recipient price, questions, fixed bundle, and state', () => {
     const decoded = Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
       ...validClaimRecord,
       credential: 'must-not-be-returned',
@@ -139,6 +146,36 @@ describe('registration transfer claim record schema', () => {
     expect(decoded).toMatchObject(validClaimRecord);
     expect(decoded).not.toHaveProperty('credential');
     expect(decoded).not.toHaveProperty('sourceUserId');
+  });
+
+  it('preserves registration check-in and add-on fulfillment history', () => {
+    const decoded = Schema.decodeUnknownSync(RegistrationTransferClaimRecord)(
+      validClaimRecord,
+    );
+
+    expect(decoded.bundle).toMatchObject({
+      checkedInGuestCount: 1,
+      checkInTime: '2026-08-20T18:15:00.000Z',
+    });
+    expect(decoded.bundle.addOns[0]).toMatchObject({
+      cancelledQuantity: 1,
+      redeemedQuantity: 1,
+      remainingQuantity: 2,
+    });
+  });
+
+  it('exposes only participant-safe refund lifecycle states', () => {
+    const decoded = Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+      ...validClaimRecord,
+      refundLifecycle: { state: 'actionRequired' },
+      status: 'refund_pending',
+      stripeRefundId: 'must-not-be-returned',
+      stripeRefundLastError: 'must-not-be-returned',
+    });
+
+    expect(decoded.refundLifecycle?.state).toBe('actionRequired');
+    expect(decoded).not.toHaveProperty('stripeRefundId');
+    expect(decoded).not.toHaveProperty('stripeRefundLastError');
   });
 
   it('accepts every durable transfer status', () => {
@@ -163,7 +200,7 @@ describe('registration transfer claim record schema', () => {
     }
   });
 
-  it('rejects invalid current prices and add-on quantities', () => {
+  it('rejects invalid current prices and fixed bundle quantities', () => {
     expect(() =>
       Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
         ...validClaimRecord,
@@ -177,14 +214,49 @@ describe('registration transfer claim record schema', () => {
     expect(() =>
       Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
         ...validClaimRecord,
-        registrationOption: {
-          ...validClaimRecord.registrationOption,
+        bundle: {
+          ...validClaimRecord.bundle,
           addOns: [
             {
-              ...validClaimRecord.registrationOption.addOns[0],
-              availableQuantity: -1,
+              ...validClaimRecord.bundle.addOns[0],
+              quantity: 0,
             },
           ],
+        },
+      }),
+    ).toThrow();
+
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+        ...validClaimRecord,
+        bundle: {
+          ...validClaimRecord.bundle,
+          guestCount: 0.5,
+        },
+      }),
+    ).toThrow();
+
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+        ...validClaimRecord,
+        bundle: {
+          ...validClaimRecord.bundle,
+          addOns: [
+            {
+              ...validClaimRecord.bundle.addOns[0],
+              remainingQuantity: -1,
+            },
+          ],
+        },
+      }),
+    ).toThrow();
+
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+        ...validClaimRecord,
+        bundle: {
+          ...validClaimRecord.bundle,
+          checkedInGuestCount: -1,
         },
       }),
     ).toThrow();
@@ -193,13 +265,11 @@ describe('registration transfer claim record schema', () => {
 
 describe('registration transfer claim input schema', () => {
   const validClaimInput = {
-    addOns: [{ addOnId: 'addon-1', quantity: 2 }],
     answers: [{ answer: 'No accessibility needs', questionId: 'question-1' }],
     credential: 'claim-token',
-    guestCount: 1,
   };
 
-  it('requires complete answers and add-on selections', () => {
+  it('requires recipient answers and the claim credential', () => {
     expect(() =>
       Schema.decodeUnknownSync(RegistrationTransferClaimInput)(validClaimInput),
     ).not.toThrow();
@@ -207,32 +277,20 @@ describe('registration transfer claim input schema', () => {
     expect(() =>
       Schema.decodeUnknownSync(RegistrationTransferClaimInput)({
         credential: 'claim-token',
-        guestCount: 0,
       }),
     ).toThrow();
   });
 
-  it.each([
-    {
+  it('does not accept caller-selected bundle quantities', () => {
+    const decoded = Schema.decodeUnknownSync(RegistrationTransferClaimInput)({
       ...validClaimInput,
-      guestCount: -1,
-    },
-    {
-      ...validClaimInput,
-      guestCount: 0.5,
-    },
-    {
-      ...validClaimInput,
-      addOns: [{ addOnId: 'addon-1', quantity: -1 }],
-    },
-    {
-      ...validClaimInput,
-      addOns: [{ addOnId: 'addon-1', quantity: 0.5 }],
-    },
-  ])('rejects negative or fractional quantities', (input) => {
-    expect(() =>
-      Schema.decodeUnknownSync(RegistrationTransferClaimInput)(input),
-    ).toThrow();
+      addOns: [{ addOnId: 'addon-1', quantity: 0 }],
+      guestCount: 0,
+    });
+
+    expect(decoded).toEqual(validClaimInput);
+    expect(decoded).not.toHaveProperty('addOns');
+    expect(decoded).not.toHaveProperty('guestCount');
   });
 });
 

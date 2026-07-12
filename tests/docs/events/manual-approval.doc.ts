@@ -516,6 +516,7 @@ Stripe Checkout opens on Stripe's website, and the available payment methods can
 
       await deliverCompletedRegistrationCheckoutWebhook({
         amount: pendingTransaction.amount,
+        applicationFeeAmount: pendingTransaction.appFee,
         currency: pendingTransaction.currency,
         paymentIntentId: pendingTransaction.stripePaymentIntentId,
         registrationId: registration.id,

@@ -1,15 +1,13 @@
 import consola from 'consola';
-import { count, eq, InferSelectModel, sql } from 'drizzle-orm';
-import { DateTime } from 'luxon';
+import { count, eq, InferSelectModel } from 'drizzle-orm';
 
 import * as oldSchema from '../../old/drizzle';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
-import { resolveIcon, transformAuthId } from '../config';
+import { resolveIcon } from '../config';
 import { oldDatabase } from '../migrator-database';
 import { maybeInsertIcons } from './icons';
 
-const migrationStepSize = 1000;
 const numberFormat = new Intl.NumberFormat();
 
 export const migrateTemplateCategories = async (

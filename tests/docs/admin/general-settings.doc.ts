@@ -25,7 +25,12 @@ test('Manage tenant general settings @admin', async ({
   expect(tenantRecord.domain).toBe(tenant.domain);
   const documentedEmailSenderName = 'Documentation Operations';
   const documentedEmailSenderEmail = `operations+${tenant.id}@example.org`;
-  const documentedStripeAccountId = `acct_docs_${tenant.id}`;
+  const documentedStripeAccountId = tenantRecord.stripeAccountId;
+  if (!documentedStripeAccountId) {
+    throw new Error(
+      'Expected generated general-settings docs tenant to have a connected Stripe account',
+    );
+  }
   const documentedRegistrationLimit = 4;
   const documentedTransferDeadlineHours = 24;
   const documentedCancellationDeadlineHours = 96;
@@ -148,13 +153,13 @@ Use **Upload favicon** the same way. Favicons additionally accept ICO files. If 
 In **Operations settings**:
 
 1. **Email reply-to name** and **Email reply-to email** control where replies to tenant emails go. Evorto keeps the actual From address on the ESN.WORLD notification domain.
-2. **Stripe account ID** is the connected-account identifier used for tenant payment operations. This text field does not create or verify a Stripe account, so confirm the account id outside Evorto before changing it.
+2. **Stripe account ID** is the connected-account identifier used for tenant payment operations. This text field does not create or verify a Stripe account, so confirm the account id outside Evorto before changing it. Without a connected account, every event registration option and add-on must be free. Remove an account only after all paid event and add-on configuration has been converted to free.
 3. **Active registration limit** caps how many active registrations one person may have across this tenant. Enter **0** for no tenant-wide limit.
 4. **Transfer deadline before event (hours)** says how long before an event starts participants stop being able to transfer a registration. Enter **0** to allow transfers until the event starts.
 5. **Cancellation deadline before event (hours)** says how long before an event starts participant cancellations close. The default **120** is five days.
 6. **Refund fees on cancellation** controls whether eligible cancellation refunds include refundable payment fees.
 
-The generated journey below changes all seven fields and the uploaded brand assets on its disposable tenant, saves them, checks the stored tenant row, reloads the page, and checks that the same values are read back.
+The generated journey below updates the editable operations values and uploaded brand assets on its disposable tenant while preserving the connected Stripe account. It saves the form, checks the stored tenant row, reloads the page, and checks that the same values are read back.
 `,
     });
 
@@ -285,7 +290,7 @@ The current general settings page supports:
 - **Formatting locale** is read-only and fixed to **de-DE** so dates and numbers are consistent across tenants; the page does not expose a Locale combobox.
 - **Logo URL** and **Favicon URL** for tenant brand assets. Admins can upload PNG, JPEG, WebP, or GIF logos; favicons also support ICO files. Externally hosted URLs are still supported. The configured favicon updates the browser tab icon.
 - **SEO title** and **SEO description** for tenant-level page metadata.
-- **Legal pages** for tenant imprint/legal notice, privacy policy, and terms. Admins can use external URLs or hosted text. External URLs appear in the public footer as off-site links; hosted text appears at \`/legal/imprint\`, \`/legal/privacy\`, and \`/legal/terms\`.
+- **Legal pages** for tenant imprint/legal notice, privacy policy, and terms. Admins can save hosted text, an external URL, or both for the same page. The public footer gives a saved external URL precedence and opens it off-site. Without an external URL, saved hosted text appears at \`/legal/imprint\`, \`/legal/privacy\`, or \`/legal/terms\`.
 - **Allowed receipt countries** and **Allow other** for receipt submission.
 - **ESN Card discounts** and optional **Buy ESNcard URL** when the tenant uses ESNcard validation.
 
@@ -296,5 +301,179 @@ Tax rates are managed on the separate **Tax Rates** page.
 One-domain-per-tenant remains the current relaunch scope in the application schema. The page exposes the active primary domain for operator review and explains that the secure HTTPS origin is derived from its normalized value. Tenant admins can maintain supported currency, timezone, email reply-to settings, Stripe account id, registration limits, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, while an in-app deferred-settings summary keeps custom-domain verification visible and the formatting locale remains read-only. Currency and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
 `,
     });
+  });
+});
+
+test('Publish hosted legal pages and verify the signed-out footer @admin', async ({
+  browser,
+  database,
+  page,
+  tenant,
+}, testInfo) => {
+  const legalNoticeText = `Imprint for ${tenant.name}: contact the tenant board for legal notices.`;
+  const privacyPolicyText = `Privacy policy for ${tenant.name}: event registration data is used to operate this tenant's events.`;
+  const termsText = `Terms for ${tenant.name}: follow the event rules shown before registration.`;
+
+  await page.goto('.');
+
+  await testInfo.attach('markdown', {
+    body: `
+{% callout type="note" title="Before you begin" %}
+Sign in as a tenant administrator with **admin:changeSettings**. Prepare approved imprint, privacy-policy, and terms text before publishing it. A privacy-policy change creates a new policy version, so every tenant member, including the administrator making the change, must accept that version before returning to protected tenant work.
+{% /callout %}
+
+# Publish hosted legal pages
+
+Start from **Events**, open **Admin Tools**, then choose **General settings**. Legal content belongs to the tenant currently named in Evorto; publishing it does not change another tenant.
+`,
+  });
+
+  await page.getByRole('link', { name: 'Admin Tools' }).click();
+  await page.getByRole('link', { name: 'General settings' }).click();
+  await expect(page).toHaveURL(/\/admin\/settings$/);
+  const generalSettings = page.locator('app-general-settings');
+  await expect(generalSettings).not.toHaveAttribute('ngh', /.*/);
+  const legalSection = generalSettings.locator('form').filter({
+    has: page.getByRole('heading', {
+      level: 3,
+      name: 'Legal pages',
+    }),
+  });
+
+  await testInfo.attach('markdown', {
+    body: `
+## Choose hosted text, an external page, or both
+
+Each legal page supports three configurations:
+
+- Enter only approved **Hosted ... text** when Evorto should publish the page locally. The public footer then opens the tenant's \`/legal/imprint\`, \`/legal/privacy\`, or \`/legal/terms\` route.
+- Enter only an approved external **URL** when another website owns the page. The public footer opens that external address in a new tab.
+- Save both when the hosted text and external page belong to the same legal configuration. For privacy, Evorto stores the text and URL together as one policy version that a member accepts once.
+
+When both fields are saved, the public footer gives the external URL precedence. The local legal route does not expose the stored hosted text while that URL remains configured. Clear the URL and save again when the footer should return to the hosted route. Review the privacy-policy warning before saving because any changed privacy text or link publishes a new version and requires member reacceptance.
+`,
+  });
+
+  await expect(
+    legalSection.getByRole('note').filter({
+      hasText:
+        'Changing the privacy policy text or link publishes a new policy version',
+    }),
+  ).toBeVisible();
+  await legalSection
+    .getByRole('textbox', { name: 'Imprint / legal notice URL' })
+    .fill('');
+  await legalSection
+    .getByRole('textbox', { name: 'Hosted imprint / legal notice text' })
+    .fill(legalNoticeText);
+  await legalSection
+    .getByRole('textbox', { name: 'Privacy policy URL' })
+    .fill('');
+  await legalSection
+    .getByRole('textbox', { name: 'Hosted privacy policy text' })
+    .fill(privacyPolicyText);
+  await legalSection.getByRole('textbox', { name: 'Terms URL' }).fill('');
+  await legalSection
+    .getByRole('textbox', { name: 'Hosted terms text' })
+    .fill(termsText);
+  await takeScreenshot(
+    testInfo,
+    legalSection,
+    page,
+    'Hosted legal pages ready to publish',
+  );
+
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Tenant settings updated')).toBeVisible();
+
+  await expect
+    .poll(async () => {
+      const persistedTenant = await database.query.tenants.findFirst({
+        columns: {
+          legalNoticeText: true,
+          legalNoticeUrl: true,
+          privacyPolicyText: true,
+          privacyPolicyUrl: true,
+          termsText: true,
+          termsUrl: true,
+        },
+        where: { id: tenant.id },
+      });
+      return persistedTenant;
+    })
+    .toEqual({
+      legalNoticeText,
+      legalNoticeUrl: null,
+      privacyPolicyText,
+      privacyPolicyUrl: null,
+      termsText,
+      termsUrl: null,
+    });
+
+  const tenantUrl = new URL(page.url());
+  const publicContext = await browser.newContext({
+    storageState: { cookies: [], origins: [] },
+  });
+  await publicContext.addCookies([
+    {
+      domain: tenantUrl.hostname,
+      expires: -1,
+      name: 'evorto-tenant',
+      path: '/',
+      value: tenant.domain,
+    },
+  ]);
+  const publicPage = await publicContext.newPage();
+  await publicPage.goto(`${tenantUrl.origin}/events`);
+  await expect(
+    publicPage.getByRole('link', { name: 'Login', exact: true }),
+  ).toBeVisible();
+  const publicFooter = publicPage.getByRole('contentinfo');
+  await expect(
+    publicFooter.getByRole('link', { name: 'Imprint', exact: true }),
+  ).toBeVisible();
+  await publicFooter
+    .getByRole('link', { name: 'Imprint', exact: true })
+    .click();
+  await expect(
+    publicPage.getByRole('heading', { level: 1, name: 'Imprint' }),
+  ).toBeVisible();
+  await expect(
+    publicPage.getByText(legalNoticeText, { exact: true }),
+  ).toBeVisible();
+
+  await publicPage.getByRole('link', { name: 'Back to events' }).click();
+  await publicFooter
+    .getByRole('link', { name: 'Privacy', exact: true })
+    .click();
+  await expect(
+    publicPage.getByRole('heading', { level: 1, name: 'Privacy policy' }),
+  ).toBeVisible();
+  await expect(
+    publicPage.getByText(privacyPolicyText, { exact: true }),
+  ).toBeVisible();
+
+  await publicPage.getByRole('link', { name: 'Back to events' }).click();
+  await publicFooter.getByRole('link', { name: 'Terms', exact: true }).click();
+  await expect(
+    publicPage.getByRole('heading', { level: 1, name: 'Terms' }),
+  ).toBeVisible();
+  await expect(publicPage.getByText(termsText, { exact: true })).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    publicPage.locator('main'),
+    publicPage,
+    'Signed-out hosted terms page',
+  );
+  await publicContext.close();
+
+  await testInfo.attach('markdown', {
+    body: `
+## Completion and recovery
+
+**Tenant settings updated** confirms the publication write. A second, signed-out browser must then be able to start at **Events**, follow each footer link, and read the saved text. That public readback proves the content is not visible only inside the administrator form.
+
+If Save reports an invalid URL, correct it to an absolute HTTP(S) address or remove it and use hosted text. If a footer link is missing, return to **Admin Tools** -> **General settings** and confirm that its URL or hosted text was saved. If the footer opens an external page while hosted text is also stored, that is the expected URL precedence; clear the URL and save when the hosted route should become public. Publishing a privacy-policy change deliberately blocks protected tenant tasks until the current user accepts the new version; this is expected, not a failed publication.
+`,
   });
 });

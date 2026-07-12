@@ -1,5 +1,6 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
+import { RegistrationTransferRefundLifecycle } from '@shared/registration-transfer';
 import {
   literalUnion,
   nonNegativeNumber,
@@ -28,6 +29,7 @@ import {
   EventsUpdateListingRpcError,
   EventsUpdateRpcError,
 } from './events.errors';
+import { RegistrationTransferBundleRecord } from './registration-transfers.rpcs';
 
 const TransferTargetEmail = Schema.NonEmptyString.check(
   Schema.isPattern(notificationEmailPattern),
@@ -151,6 +153,7 @@ export const EventsTransferEventRegistration = asRpcMutation(
     error: EventsCheckInRegistrationError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
+      previewVersion: Schema.NonEmptyString,
       registrationId: Schema.NonEmptyString,
       targetUserId: Schema.NonEmptyString,
     }),
@@ -433,7 +436,6 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
   paymentSetupRequired: Schema.Boolean,
   registrationId: Schema.NonEmptyString,
   status: EventsRegistrationStatus,
-  transferAvailable: Schema.Boolean,
   userId: Schema.NonEmptyString,
 });
 
@@ -482,6 +484,45 @@ export const EventsFindTransferTargets = asRpcQuery(
       search: Schema.optional(Schema.String),
     }),
     success: Schema.Array(EventsTransferTargetRecord),
+  }),
+);
+
+const EventsOrganizerDirectTransferPreviewParticipant = Schema.Struct({
+  email: Schema.NonEmptyString,
+  firstName: Schema.NonEmptyString,
+  id: Schema.NonEmptyString,
+  lastName: Schema.NonEmptyString,
+});
+
+export const EventsPreviewEventRegistrationTransfer = asRpcQuery(
+  Rpc.make('events.previewEventRegistrationTransfer', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+      targetUserId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      bundle: RegistrationTransferBundleRecord,
+      completionMode: Schema.Literal('databaseOnly'),
+      currency: Schema.NonEmptyString,
+      previewVersion: Schema.NonEmptyString,
+      pricing: Schema.Struct({
+        appliedDiscountedPrice: Schema.NullOr(nonNegativeNumber),
+        appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+        discountAmount: Schema.NullOr(nonNegativeNumber),
+        recipientBundlePrice: Schema.Literal(0),
+        recipientRegistrationPrice: nonNegativeNumber,
+        sourceRefundAmountDue: Schema.Literal(0),
+      }),
+      recipient: EventsOrganizerDirectTransferPreviewParticipant,
+      registrationOption: Schema.Struct({
+        currentPrice: nonNegativeNumber,
+        id: Schema.NonEmptyString,
+        title: Schema.NonEmptyString,
+      }),
+      source: EventsOrganizerDirectTransferPreviewParticipant,
+    }),
   }),
 );
 
@@ -546,13 +587,9 @@ export type EventsRegistrationAddonRecord = Schema.Schema.Type<
 export const EventsRegistrationTransferBlockedReason = Schema.Literals([
   'none',
   'registrationStatus',
-  'checkedIn',
   'eventUnavailable',
   'activeTransfer',
   'addonPaymentPending',
-  'addonFulfillmentState',
-  'unsupportedPaymentMethod',
-  'paidAddon',
   'deadlinePassed',
 ]);
 
@@ -567,6 +604,7 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
   activeTransfer: Schema.NullOr(
     Schema.Struct({
       expiresAt: Schema.NonEmptyString,
+      refundLifecycle: Schema.NullOr(RegistrationTransferRefundLifecycle),
       registrationSide: Schema.Literals(['recipient', 'source']),
       status: Schema.Literals([
         'checkout_pending',
@@ -745,6 +783,7 @@ export const EventsRegistrationScanned = asRpcQuery(
       registrationOption: Schema.Struct({
         title: Schema.NonEmptyString,
       }),
+      registrationStatus: EventsRegistrationStatus,
       registrationStatusIssue: Schema.Boolean,
       remainingGuestCount: Schema.Number,
       sameUserIssue: Schema.Boolean,
@@ -757,6 +796,7 @@ export const EventsRegistrationScanned = asRpcQuery(
 );
 
 export const EventsRegistrationAddonRefundStatus = literalUnion(
+  'actionRequired',
   'notApplicable',
   'notRequested',
   'pending',
@@ -1097,6 +1137,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsFindOneForEdit,
   EventsFindGraphForEdit,
   EventsFindTransferTargets,
+  EventsPreviewEventRegistrationTransfer,
   EventsGetRegistrationAddonFulfillment,
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,

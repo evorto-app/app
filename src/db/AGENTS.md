@@ -7,6 +7,10 @@
 - Prefer inferred Drizzle types across callers; avoid duplicate handwritten DB model types.
 - Keep migrations explicit and committed when schema changes.
 - Avoid `any`/unchecked casts in query helpers.
+- Server-side Effect authorization is authoritative; no PostgreSQL RLS layer is
+  planned.
+- Composite tenant foreign keys, `NO ACTION` relationships, and database
+  constraints are integrity safeguards, not authorization mechanisms.
 - When changing schema or constraints, document required local reset/setup steps in track/handoff docs.
 - After every DB file edit, run `bun run lint` and `bun run format:write`.
 - Before calling WebStorm `get_file_problems` on edited DB files, run `bun run lint` first.

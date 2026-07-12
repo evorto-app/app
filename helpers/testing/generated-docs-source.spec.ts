@@ -37,14 +37,16 @@ describe('generated docs source current behavior', () => {
       'tests/docs/events/registration-cancellation.doc.ts',
     );
     const scenarioStart = source.indexOf(
-      "test('Cancel a confirmed paid registration and understand its refund'",
+      "test('Cancel a confirmed free registration and release its capacity'",
     );
-    const transactionStart = source.indexOf(
-      'await database.insert(schema.transactions)',
+    const scenarioEnd = source.indexOf(
+      "test('Cancel a Stripe-backed registration with settled add-ons and recover its refund'",
       scenarioStart,
     );
-    const scenarioSeed = source.slice(scenarioStart, transactionStart);
+    const scenarioSeed = source.slice(scenarioStart, scenarioEnd);
 
+    expect(scenarioStart).toBeGreaterThanOrEqual(0);
+    expect(scenarioEnd).toBeGreaterThan(scenarioStart);
     expect(
       scenarioSeed.match(
         /database\.insert\(schema\.eventRegistrations\)\.values\(\{/gu,
@@ -54,6 +56,354 @@ describe('generated docs source current behavior', () => {
       'database.insert(schema.eventRegistrations).values([',
     );
     expect(scenarioSeed).not.toContain('.transaction(');
+  });
+
+  it('keeps Stripe add-on cancellation docs backed by allocation and refund-recovery evidence', () => {
+    const source = readSource(
+      'tests/docs/events/registration-cancellation.doc.ts',
+    );
+    const addOnScenarioSource = readSource(
+      'tests/support/utils/post-registration-addon-purchase-scenario.ts',
+    );
+    const webhookSource = readSource(
+      'tests/support/utils/registration-checkout-webhook.ts',
+    );
+    const journeyTitle =
+      "test('Cancel a Stripe-backed registration with settled add-ons and recover its refund'";
+    const journeyStart = source.indexOf(journeyTitle);
+    const nextJourneyStart = source.indexOf(
+      "test('Understand a participant cancellation deadline block'",
+      journeyStart,
+    );
+
+    expect(journeyStart).toBeGreaterThanOrEqual(0);
+    expect(nextJourneyStart).toBeGreaterThan(journeyStart);
+    const journey = source.slice(journeyStart, nextJourneyStart);
+
+    expect(journey).toContain('paidIncludedQuantity: 1');
+    expect(journey).toContain('scenario.beginPaidCheckout(2)');
+    expect(journey).toContain('scenario.completeCheckout()');
+    expect(journey.match(/scenario\.redeemPaidAddon\(/gu)).toHaveLength(2);
+    expect(addOnScenarioSource).toContain('redeemRegistrationAddon({');
+    expect(addOnScenarioSource).toContain('Effect.provide(scenarioLayer)');
+    const scenarioCleanupStart = addOnScenarioSource.indexOf(
+      'const cleanup = async () => {',
+    );
+    const scenarioCleanupEnd = addOnScenarioSource.indexOf(
+      '\n  return {',
+      scenarioCleanupStart,
+    );
+    expect(scenarioCleanupStart).toBeGreaterThanOrEqual(0);
+    expect(scenarioCleanupEnd).toBeGreaterThan(scenarioCleanupStart);
+    const scenarioCleanup = addOnScenarioSource.slice(
+      scenarioCleanupStart,
+      scenarioCleanupEnd,
+    );
+    const acquisitionRefundCleanup = scenarioCleanup.indexOf(
+      '.delete(schema.registrationAcquisitionRefundAllocations)',
+    );
+    const acquisitionComponentCleanup = scenarioCleanup.indexOf(
+      '.delete(schema.registrationAcquisitionComponents)',
+    );
+    const acquisitionPaymentCleanup = scenarioCleanup.indexOf(
+      '.delete(schema.registrationAcquisitionPayments)',
+    );
+    const acquisitionCleanup = scenarioCleanup.indexOf(
+      '.delete(schema.registrationAcquisitions)',
+    );
+    const fulfillmentCleanup = scenarioCleanup.indexOf(
+      '.delete(schema.eventRegistrationAddonFulfillmentEvents)',
+    );
+    const refundCleanup = scenarioCleanup.indexOf(
+      '.delete(schema.transactions)',
+      fulfillmentCleanup,
+    );
+    const purchaseLotCleanup = scenarioCleanup.indexOf(
+      '.delete(schema.eventRegistrationAddonPurchaseLots)',
+    );
+    expect(acquisitionRefundCleanup).toBeGreaterThanOrEqual(0);
+    expect(acquisitionComponentCleanup).toBeGreaterThan(
+      acquisitionRefundCleanup,
+    );
+    expect(acquisitionPaymentCleanup).toBeGreaterThan(acquisitionRefundCleanup);
+    expect(acquisitionCleanup).toBeGreaterThan(acquisitionRefundCleanup);
+    expect(fulfillmentCleanup).toBeGreaterThan(acquisitionRefundCleanup);
+    expect(refundCleanup).toBeGreaterThan(fulfillmentCleanup);
+    expect(purchaseLotCleanup).toBeGreaterThan(refundCleanup);
+    expect(scenarioCleanup).toContain(
+      'schema.eventRegistrationAddonFulfillmentEvents.registrationId,\n            registrationId',
+    );
+    expect(scenarioCleanup).toContain(
+      'schema.eventRegistrationAddonFulfillmentEvents.tenantId,\n            input.tenant.id',
+    );
+    expect(scenarioCleanup).toContain(
+      'eq(schema.transactions.eventRegistrationId, registrationId)',
+    );
+    expect(scenarioCleanup).toContain(
+      'eq(schema.transactions.tenantId, input.tenant.id)',
+    );
+    expect(scenarioCleanup).toContain("eq(schema.transactions.type, 'refund')");
+
+    expect(journey).toContain("name: 'Cancel registration'");
+    expect(journey).toContain("name: 'Confirm cancellation'");
+    expect(journey).toContain('eventRegistrationAddonFulfillmentAllocations');
+    expect(journey).toContain('registrationAcquisitions.findFirst');
+    expect(journey).toContain("orderBy: { ordinal: 'desc' }");
+    expect(journey).toContain('registrationAcquisitionPayments.findMany');
+    expect(journey).toContain('registrationAcquisitionComponents.findMany');
+    expect(journey).toContain('registrationAcquisitionRefundAllocations');
+    expect(journey).not.toContain('eventRegistrationAddonRefundAllocations');
+    expect(journey).toContain('expect(cancellationAllocations).toEqual([');
+    expect(journey).toContain('expect(refundAllocations).toEqual([');
+    const refundAllocationAssertion = journey.slice(
+      journey.indexOf('expect(refundAllocations).toEqual(['),
+      journey.indexOf('expect(refundClaim).toMatchObject({'),
+    );
+    expect(refundAllocationAssertion).toContain(
+      'acquisitionId: currentAcquisition.id',
+    );
+    expect(refundAllocationAssertion).toContain(
+      'acquisitionPaymentId: acquisitionPayment.id',
+    );
+    expect(refundAllocationAssertion).toContain(
+      'componentId: paidAcquisitionComponent.id',
+    );
+    expect(refundAllocationAssertion).toContain(
+      'refundAmount: expectedRefundAmounts.grossAmount',
+    );
+    expect(refundAllocationAssertion).toContain(
+      'stripeFeeAmount: expectedRefundAmounts.stripeFeeAmount',
+    );
+    expect(journey).toContain('allocateAcquisitionComponentQuantity({');
+    expect(journey).toContain('expect(expectedRefundAmounts).toMatchObject({');
+    expect(journey).toContain('grossAmount: 500');
+    expect(journey).toContain('netAmount: 468');
+    expect(journey).toContain(').toBe(expectedRefundAmounts.grossAmount);');
+    expect(journey).toContain('currency: tenant.currency');
+    expect(journey).toContain(
+      'expect(refundClaim.stripeAccountId).toBe(sourceTransaction.stripeAccountId)',
+    );
+    expect(journey).toContain("source: 'included'");
+    expect(journey).toContain("source: 'purchased'");
+    expect(journey).toContain('refundAllocatedPurchasedQuantity: 0');
+    expect(journey).not.toContain('refundAllocatedPurchasedQuantity: 1');
+    expect(journey).not.toContain('refundAllocatedQuantity: 1');
+    expect(journey).toContain("refundDisposition: 'claims_created'");
+    expect(journey).toContain('amount: -expectedRefundAmounts.grossAmount');
+    expect(journey).toContain('stripeRefundApplicationFee: true');
+    expect(journey).toContain('database.query.transactions.findMany({');
+    expect(journey).toContain('expect(refundClaims).toHaveLength(1)');
+    expect(journey).toContain(
+      'expect(stockBeforeCancellation).toEqual({ totalAvailableQuantity: 3 })',
+    );
+    expect(journey).toContain(
+      'expect(stockAfterCancellation).toEqual({ totalAvailableQuantity: 4 })',
+    );
+
+    const refundWebhookStart = webhookSource.indexOf(
+      'export const deliverRegistrationRefundWebhook',
+    );
+    expect(refundWebhookStart).toBeGreaterThanOrEqual(0);
+    const refundWebhookSource = webhookSource.slice(refundWebhookStart);
+    expect(refundWebhookSource).toContain(
+      'Stripe.webhooks.generateTestHeaderString',
+    );
+    expect(refundWebhookSource).toContain("request.fetch('/webhooks/stripe'");
+    expect(refundWebhookSource).toContain("'stripe-signature': signature");
+    expect(refundWebhookSource).toContain(
+      'refundGeneration: String(refundGeneration)',
+    );
+    expect(refundWebhookSource).toContain(
+      "status: 'failed' | 'requires_action' | 'succeeded'",
+    );
+    expect(refundWebhookSource).toContain(
+      "type: status === 'failed' ? 'refund.failed' : 'refund.updated'",
+    );
+    const refundWebhookCalls = [
+      ...journey.matchAll(
+        /await deliverRegistrationRefundWebhook\(\{[\s\S]*?^\s*\}\);/gmu,
+      ),
+    ].map(([call]) => call);
+    expect(refundWebhookCalls).toHaveLength(3);
+    const [
+      actionRequiredRefundWebhook,
+      failedRefundWebhook,
+      succeededRefundWebhook,
+    ] = refundWebhookCalls;
+    if (
+      !actionRequiredRefundWebhook ||
+      !failedRefundWebhook ||
+      !succeededRefundWebhook
+    ) {
+      throw new Error(
+        'Expected requires-action, failed, and succeeded refund webhook calls',
+      );
+    }
+    expect(actionRequiredRefundWebhook).toMatch(
+      /amount:\s*expectedRefundAmounts\.grossAmount,/u,
+    );
+    expect(actionRequiredRefundWebhook).toMatch(
+      /currency:\s*tenant\.currency,/u,
+    );
+    expect(actionRequiredRefundWebhook).toMatch(/refundGeneration:\s*0,/u);
+    expect(actionRequiredRefundWebhook).toMatch(
+      /refundId:\s*generationZeroRefundId,/u,
+    );
+    expect(actionRequiredRefundWebhook).toMatch(
+      /status:\s*'requires_action',/u,
+    );
+    expect(failedRefundWebhook).toMatch(
+      /amount:\s*expectedRefundAmounts\.grossAmount,/u,
+    );
+    expect(failedRefundWebhook).toMatch(/currency:\s*tenant\.currency,/u);
+    expect(failedRefundWebhook).toMatch(/refundGeneration:\s*0,/u);
+    expect(failedRefundWebhook).toMatch(/refundId:\s*generationZeroRefundId,/u);
+    expect(failedRefundWebhook).toMatch(/status:\s*'failed',/u);
+    expect(succeededRefundWebhook).toMatch(
+      /amount:\s*expectedRefundAmounts\.grossAmount,/u,
+    );
+    expect(succeededRefundWebhook).toMatch(/currency:\s*tenant\.currency,/u);
+    expect(succeededRefundWebhook).toMatch(/refundGeneration:\s*1,/u);
+    expect(succeededRefundWebhook).toMatch(/status:\s*'succeeded',/u);
+    expect(journey).toContain("new Intl.NumberFormat('de-DE', {");
+    expect(journey).toContain('currency: tenant.currency');
+    expect(journey).toContain('**${refundAmountLabel}**');
+
+    expect(journey).toContain('waitForScannerAddonFulfillment');
+    expect(journey).toContain(
+      '`/scan/registration/${scenario.registrationId}`',
+    );
+    expect(journey).toContain('const cancelledScannerAlert');
+    expect(journey).toContain(
+      'Do not ask the attendee to pay or register again',
+    );
+    expect(journey).toMatch(
+      /await expect\(\s*scannerAddOn\.getByText\('Refund processing', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
+    );
+    expect(journey).toMatch(
+      /await expect\(\s*scannerAddOn\.getByText\('Provider action required', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
+    );
+    expect(journey).toMatch(
+      /await expect\(\s*scannerAddOn\.getByText\('Refund needs attention', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
+    );
+    expect(journey).toMatch(
+      /await expect\(\s*scannerAddOn\.getByText\('Refunded', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
+    );
+    expect(journey).toContain('openProfileEventCard(page, scenario.title)');
+    expect(journey).toMatch(
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund retrying\//u,
+    );
+    expect(journey).toMatch(
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Provider action required\//u,
+    );
+    expect(journey).toMatch(
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund needs attention\//u,
+    );
+    expect(journey).toMatch(
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund completed\//u,
+    );
+
+    expect(journey).toContain('storageState: gaStateFile');
+    expect(journey).toContain("name: 'Review finance'");
+    expect(journey).toContain('const providerActionTransactionRow');
+    expect(journey).toContain("hasText: 'Provider action required'");
+    expect(journey).toContain("name: 'Refund recovery'");
+    expect(journey).toContain("name: 'Review recovery'");
+    expect(journey).toContain("name: 'Resume stopped refund'");
+    expect(journey).toContain("name: 'Retry terminal refund'");
+    expect(journey).toContain('stripeRefundAttempts: true');
+    expect(journey).toContain('stripeRefundMaxAttempts: true');
+    expect(journey).toContain(
+      '`attempts ${terminalRefundClaim.stripeRefundAttempts}/${terminalRefundClaim.stripeRefundMaxAttempts}`',
+    );
+    expect(journey).toContain(
+      '`generation ${terminalRefundClaim.stripeRefundGeneration}`',
+    );
+    expect(journey).toContain('getByText(refundClaim.id, { exact: true })');
+    expect(journey).toContain(
+      'getByText(scenario.registrationId, { exact: true })',
+    );
+    expect(journey).toContain("getByLabel('Operational recovery reason')");
+    expect(journey).toContain("name: 'Schedule new refund generation'");
+    expect(journey.match(/mode: 'resumeGeneration'/gu)).toHaveLength(2);
+    expect(journey.match(/mode: 'newGeneration'/gu)).toHaveLength(2);
+    expect(journey).toContain('stripeRefundId: generationZeroRefundId');
+    expect(journey).toContain("status: 'requires_action'");
+    expect(journey).toContain('requiresActionWebhookEventId');
+    expect(journey).toContain('stripeRefundGeneration: 1');
+    expect(journey).toContain('stripeRefundHistory: [');
+    expect(journey).toContain("action: 'refundClaim.requeue'");
+    expect(journey).toContain("status: 'successful'");
+    expect(journey).toContain("toEqual({ status: 'CANCELLED' })");
+    expect(journey).toContain('Money has not necessarily been returned yet');
+    expect(journey).toContain(
+      'It does not certify live bank or card-network settlement',
+    );
+    expect(addOnScenarioSource).toContain(
+      'paidIncludedQuantity > initialStock - paidPurchaseQuantity',
+    );
+
+    expect(journey).toContain(
+      'registerDatabaseCleanup(() => scenario.cleanup())',
+    );
+    const journeyCleanupStart = journey.indexOf(
+      'registerDatabaseCleanup(async (cleanupDatabase) => {',
+    );
+    const journeyCleanupEnd = journey.indexOf(
+      'registerDatabaseCleanup(async () => {',
+      journeyCleanupStart,
+    );
+    expect(journeyCleanupStart).toBeGreaterThanOrEqual(0);
+    expect(journeyCleanupEnd).toBeGreaterThan(journeyCleanupStart);
+    const journeyCleanup = journey.slice(
+      journeyCleanupStart,
+      journeyCleanupEnd,
+    );
+    expect(journeyCleanup).toContain('.delete(schema.platformAuditEntries)');
+    expect(journeyCleanup).toContain('.delete(schema.stripeWebhookEvents)');
+    const journeyAcquisitionRefundCleanup = journeyCleanup.indexOf(
+      '.delete(schema.registrationAcquisitionRefundAllocations)',
+    );
+    const journeyFulfillmentCleanup = journeyCleanup.indexOf(
+      '.delete(schema.eventRegistrationAddonFulfillmentEvents)',
+    );
+    const journeyRefundCleanup = journeyCleanup.indexOf(
+      '.delete(schema.transactions)',
+      journeyFulfillmentCleanup,
+    );
+    expect(journeyAcquisitionRefundCleanup).toBeGreaterThanOrEqual(0);
+    expect(journeyFulfillmentCleanup).toBeGreaterThan(
+      journeyAcquisitionRefundCleanup,
+    );
+    expect(journeyRefundCleanup).toBeGreaterThan(
+      journeyAcquisitionRefundCleanup,
+    );
+    expect(journeyCleanup).toContain(
+      '.delete(schema.eventRegistrationAddonFulfillmentEvents)',
+    );
+    expect(journeyCleanup).toContain(
+      'schema.eventRegistrationAddonFulfillmentEvents.registrationId,\n              scenario.registrationId',
+    );
+    expect(journeyCleanup).toContain(
+      'schema.eventRegistrationAddonFulfillmentEvents.tenantId,\n              tenant.id',
+    );
+    expect(journeyCleanup).toMatch(
+      /eq\(\s*schema\.transactions\.eventRegistrationId,\s*scenario\.registrationId/u,
+    );
+    expect(journeyCleanup).toMatch(
+      /eq\(\s*schema\.transactions\.tenantId,\s*tenant\.id/u,
+    );
+
+    const freeJourneyStart = source.indexOf(
+      "test('Cancel a confirmed free registration and release its capacity'",
+    );
+    expect(freeJourneyStart).toBeGreaterThanOrEqual(0);
+    const freeJourney = source.slice(freeJourneyStart, journeyStart);
+    expect(freeJourney).toContain('expect(refunds).toEqual([])');
+    expect(freeJourney).not.toContain("method: 'cash'");
+    expect(freeJourney).not.toContain('Manual refund pending');
+    expect(source).not.toContain("method: 'cash'");
+    expect(source).not.toContain('A supported non-Stripe source');
   });
 
   it('keeps tenant general-settings docs aligned with implemented branding and legal routes', () => {
@@ -103,7 +453,7 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('} finally {');
     expect(source).not.toContain('.update(schema.tenants)');
     expect(source).toContain(
-      'The generated journey below changes all seven fields and the uploaded brand assets on its disposable tenant, saves them, checks the stored tenant row, reloads the page, and checks that the same values are read back.',
+      'The generated journey below updates the editable operations values and uploaded brand assets on its disposable tenant while preserving the connected Stripe account. It saves the form, checks the stored tenant row, reloads the page, and checks that the same values are read back.',
     );
     expect(source).toContain("getByLabel('Upload tenant logo file')");
     expect(source).toContain("getByLabel('Upload tenant favicon file')");
@@ -116,8 +466,21 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Cancellation deadline before event (hours)');
     expect(source).toContain('Refund fees on cancellation');
     expect(source).toContain(
-      'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',
+      'The public footer gives a saved external URL precedence and opens it off-site.',
     );
+    expect(source).toContain(
+      'For privacy, Evorto stores the text and URL together as one policy version that a member accepts once.',
+    );
+    expect(source).not.toContain('Do not fill both alternatives');
+    expect(source).toContain(
+      "test('Publish hosted legal pages and verify the signed-out footer @admin'",
+    );
+    expect(source).toContain(
+      "getByRole('textbox', { name: 'Hosted privacy policy text' })",
+    );
+    expect(source).toContain('storageState: { cookies: [], origins: [] }');
+    expect(source).toContain("name: 'Privacy policy'");
+    expect(source).toContain('privacyPolicyUrl: null');
     expect(source).toContain(
       '**Allowed receipt countries** and **Allow other** for receipt submission.',
     );
@@ -135,6 +498,27 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain('Tax rates are configured here');
     expect(source).not.toContain('Stripe account management gaps');
+  });
+
+  it('keeps unknown-domain recovery public, non-mutating, and beginner-readable', () => {
+    const source = readSource('tests/docs/users/unknown-tenant-domain.doc.ts');
+    const responseSource = readSource(
+      'src/server/http/unknown-tenant-response.ts',
+    );
+
+    expect(source).toContain('No account is required');
+    expect(source).toContain("unknownTenantUrl.hostname = 'unknown.localhost'");
+    expect(source).toContain(
+      "'/scan/registration/example-registration-from-qr'",
+    );
+    expect(source).toContain('expect(response?.status()).toBe(404)');
+    expect(source).toContain(
+      'Your account and registrations have not been changed',
+    );
+    expect(source).toContain('do not create a replacement registration');
+    expect(responseSource).toContain('status: 404');
+    expect(responseSource).toContain("'Cache-Control': 'no-store'");
+    expect(responseSource).toContain("'X-Robots-Tag': 'noindex, nofollow'");
   });
 
   it('keeps global-admin docs aligned with the relaunch tenant-administration scope', () => {
@@ -166,6 +550,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'Tenant create/edit manages the one active primary domain, name, theme, currency, timezone, and connected Stripe account id.',
+    );
+    expect(source).toContain(
+      'the server blocks removing a connected account while any paid template/event option or add-on still exists',
     );
     expect(source).toContain(
       'The formatting locale remains fixed to **de-DE**.',
@@ -253,6 +640,13 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Optional IBAN and PayPal fields store global reimbursement details for finance teams.',
     );
+    expect(source).toContain('## Claiming a private registration transfer');
+    expect(source).toContain(
+      'review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it',
+    );
+    expect(source).toContain(
+      "getByRole('link', { exact: true, name: 'Claim transfer' })",
+    );
     expect(source).toContain('documentedIban');
     expect(source).toContain('documentedPaypalEmail');
     expect(source).toContain("getByRole('textbox', { name: 'IBAN' })");
@@ -262,7 +656,7 @@ describe('generated docs source current behavior', () => {
       'updatedProfileUser.paypalEmail).toBe(documentedPaypalEmail)',
     );
     expect(source).toContain(
-      'Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, expose waitlist routing back to the event page, and stop advertising cancellation or transfer once a registration is checked in',
+      'Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/transfer details back to the event page, expose waitlist routing back to the event page, and explain that cancellation stops after check-in while a transfer preserves the attendee and guest check-in history',
     );
     expect(source).toContain(
       'Continue payment from this card, or open the event page for registration details.',
@@ -284,7 +678,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('pendingCheckoutRegistration');
     expect(source).toContain('checkedInAddonPurchase');
     expect(source).toContain(
-      'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
+      'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
     );
     expect(source).toContain('Submitted receipts');
     expect(source).toContain('profile-docs-receipt-');
@@ -340,6 +734,20 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('tenantPrivacyPolicyAcceptances.findFirst');
     expect(source).toContain('tenantOnboardingQuestionAnswers.findFirst');
     expect(source).toContain('Make this my home tenant');
+    expect(source).toContain(
+      'Text and URL saved together form one policy version with one publication time and author.',
+    );
+    expect(source).toContain(
+      'while a URL is saved, **Privacy** opens that external URL',
+    );
+    expect(source).toContain("name: 'Privacy policy URL'");
+    expect(source).toContain('.fill(privacyPolicyUrl)');
+    expect(source).toContain('privacyPolicyText,\n    privacyPolicyUrl,');
+    expect(source).toContain("name: 'Open the full privacy policy'");
+    expect(source).toContain("toHaveAttribute('href', privacyPolicyUrl)");
+    expect(source).toContain(
+      'Hosted text plus an external URL is still one accepted policy version, not two separate acceptances.',
+    );
   });
 
   it('keeps receipt-submission cleanup deterministic and database-only', () => {
@@ -452,6 +860,63 @@ describe('generated docs source current behavior', () => {
       'receipt approval access includes transactions',
     );
     expect(source).not.toContain('single finance permission');
+  });
+
+  it('keeps tax-rate documentation backed by account-scoped import and saved template/event assignments', () => {
+    const source = readSource('tests/docs/finance/inclusive-tax-rates.doc.ts');
+
+    expect(source).toContain("test('Import a Stripe tax rate and verify it'");
+    expect(source).toContain('Expected the tax-rate docs tenant to use Stripe');
+    expect(source).toContain('await rateCheckbox.check()');
+    expect(source).toContain(
+      "page.getByRole('button', { name: 'Import selected' }).click()",
+    );
+    expect(source).toContain('stripeAccountId: tenantRecord.stripeAccountId');
+    expect(source).toContain('documentedRate.stripeTaxRateId');
+    expect(source).toContain('const reopenedDialog');
+    expect(source).toContain(
+      'await expect(importedRateCheckbox).toBeDisabled()',
+    );
+    expect(source).toContain(
+      "importedRateRow.getByText('imported', { exact: true })",
+    );
+    expect(source).toContain('Failed to load rates from Stripe');
+    expect(source).toContain('imports nothing');
+    expect(source).toContain("test.describe.configure({ mode: 'default' })");
+    expect(source).toContain(
+      'This journey needs **View templates**, **Edit all templates**, and **Create events** access.',
+    );
+    expect(source).toContain('Free options hide the price and tax-rate fields');
+    expect(source).not.toContain('free registrations keep the field disabled');
+    expect(source).toContain('No active inclusive tax rates');
+    expect(source).toContain('Keep the option free until a compatible rate');
+    expect(source).toContain('await templateTaxRateSelect.click()');
+    expect(source).toContain("name: 'Update template'");
+    expect(source).toContain(
+      'database.query.templateRegistrationOptions.findFirst',
+    );
+    expect(source).toContain('.toBe(templateTaxRate.stripeTaxRateId)');
+    expect(source).toContain('await eventEditTax.click()');
+    expect(source).toContain("name: 'Save changes'");
+    expect(source).toContain(
+      'database.query.eventRegistrationOptions.findFirst',
+    );
+    expect(source).toContain('.toBe(eventTaxRate.stripeTaxRateId)');
+    expect(source).toContain('registerDatabaseCleanup');
+    expect(source).toContain('} finally {');
+    expect(source).toContain('originalTemplateTaxRateId');
+    expect(source).toContain(
+      '.delete(schema.eventRegistrationOptionDiscounts)',
+    );
+    expect(source).toContain('.delete(schema.eventRegistrationQuestions)');
+    expect(source).toContain('.delete(schema.addonToEventRegistrationOptions)');
+    expect(source).toContain('.delete(schema.eventAddons)');
+    expect(source).toContain('.delete(schema.eventRegistrationOptions)');
+    expect(source).toContain('.delete(schema.eventInstances)');
+    expect(source).toContain('.update(schema.templateRegistrationOptions)');
+    expect(source).toContain(
+      '.set({ stripeTaxRateId: originalTemplateTaxRateId })',
+    );
   });
 
   it('keeps template docs aligned with simple and advanced graph authoring', () => {
@@ -577,6 +1042,15 @@ describe('generated docs source current behavior', () => {
     const transferSource = readSource(
       'tests/docs/events/registration-transfer.doc.ts',
     );
+    const paidTransferJourneyStart = transferSource.indexOf(
+      "test('Complete a paid transfer and recover one failed source refund claim'",
+    );
+    expect(paidTransferJourneyStart).toBeGreaterThan(0);
+    const freeTransferSource = transferSource.slice(
+      0,
+      paidTransferJourneyStart,
+    );
+    const paidTransferSource = transferSource.slice(paidTransferJourneyStart);
     const paidTransferScenarioSource = readSource(
       'tests/support/utils/paid-registration-transfer-scenario.ts',
     );
@@ -684,17 +1158,86 @@ describe('generated docs source current behavior', () => {
       'This guide uses two signed-in participant accounts that belong to the same tenant:',
     );
     expect(transferSource).toContain(
-      '/docs/complete-a-paid-transfer-and-recover-its-source-refund',
+      '/docs/complete-a-paid-transfer-and-recover-one-failed-source-refund-claim',
     );
     expect(transferSource).toContain(
-      '/docs/transfer-a-registration-with-a-private-link',
+      '/docs/transfer-a-registration-with-a-private-offer',
     );
     expect(transferSource).toContain(
       'The transfer link and manual code are bearer credentials.',
     );
+    expect(freeTransferSource).toContain(
+      "getByRole('link', { exact: true, name: 'Profile' })",
+    );
+    expect(freeTransferSource).toContain(
+      "getByRole('link', { exact: true, name: 'Claim transfer' })",
+    );
+    expect(freeTransferSource).toContain("getByLabel('Manual claim code')");
+    expect(freeTransferSource).toContain(
+      "getByRole('button', { name: 'Cancel transfer offer' })",
+    );
+    expect(freeTransferSource).toContain(".toBe('cancelled')");
+    expect(freeTransferSource).toContain(
+      'Cancelling the offer invalidates its private link and manual code; it does not cancel or transfer the registration.',
+    );
+    expect(freeTransferSource).toContain("getByLabel('Claim code')");
+    expect(freeTransferSource).toContain('NOT-A-VALID-TRANSFER-CODE');
+    expect(freeTransferSource).toContain(
+      "getByRole('link', { name: 'Enter another code' })",
+    );
+    expect(freeTransferSource).toContain(
+      'If Evorto says the transfer could not be opened, select **Enter another code**',
+    );
+    expect(freeTransferSource).toContain("name: 'Enter a private claim code'");
+    expect(freeTransferSource).toContain(
+      "getByLabel('What should the organizer know?')",
+    );
+    expect(freeTransferSource).toContain(
+      'schema.eventRegistrationQuestionAnswers.answer',
+    );
+    expect(freeTransferSource).toContain(
+      'The source participant entered this answer.',
+    );
+    expect(freeTransferSource).toContain(
+      'Previous answers do not transfer: answer every currently required question for the recipient',
+    );
     expect(transferSource).toContain('current role eligibility');
+    expect(transferSource).toContain('one inseparable bundle');
     expect(transferSource).toContain(
-      'The source registration stays confirmed while the offer is open.',
+      "The previous owner's answers and discounts do not transfer.",
+    );
+    expect(transferSource).toContain(
+      'Guest quantity, every included/free/purchased add-on quantity, check-in state, and fulfillment history transfer unchanged',
+    );
+    expect(transferSource).toContain(
+      'the recipient cannot omit or re-quantity them',
+    );
+    expect(transferSource).toContain(
+      'every add-on quantity, and existing check-in/fulfillment history',
+    );
+    expect(transferSource).toContain(
+      'prices the fixed bundle from current base prices',
+    );
+    expect(transferSource).toContain(
+      "applies only the recipient's current eligible discounts",
+    );
+    expect(transferSource).toContain(
+      'a separate claim for each remaining source refund',
+    );
+    expect(transferSource).toContain(
+      'the prior and new refunds add up to each original Stripe payment exactly',
+    );
+    expect(transferSource).toContain(
+      'completes database-only only when the entire bundle is free and no source refund claim is required',
+    );
+    expect(transferSource).not.toContain(
+      'a successful separately paid add-on currently blocks',
+    );
+    expect(transferSource).not.toContain(
+      'Non-Stripe and multi-source paid tickets stay blocked',
+    );
+    expect(transferSource).toContain(
+      "The registration stays confirmed under the source owner's ownership while the offer is open.",
     );
     expect(transferSource).toContain(
       "Stripe Checkout on the tenant's connected account and includes the platform application fee.",
@@ -706,7 +1249,7 @@ describe('generated docs source current behavior', () => {
       '**Transfer complete — refund needs attention**',
     );
     expect(transferSource).toContain(
-      'must use the recovery action to requeue the existing refund',
+      'must use the recovery action to requeue the existing failed refund claim',
     );
     expect(transferSource).toContain(
       'A platform administrator must use the recovery action',
@@ -722,7 +1265,7 @@ describe('generated docs source current behavior', () => {
       'the recipient does not own the ticket and must not pay or claim again',
     );
     expect(transferSource).toContain(
-      "test('Complete a paid transfer and recover its source refund'",
+      "test('Complete a paid transfer and recover one failed source refund claim'",
     );
     expect(transferSource).toContain('seedPaidRegistrationTransferScenario');
     expect(transferSource).toContain('await scenario.completeCheckout()');
@@ -734,9 +1277,8 @@ describe('generated docs source current behavior', () => {
     expect(transferSource).toContain(
       "getByRole('tab', { name: 'Refund recovery' })",
     );
-    expect(transferSource).toContain(
-      "getByLabel('Operational recovery reason')",
-    );
+    expect(transferSource).toContain('refundRecoveryForm.getByLabel(');
+    expect(transferSource).toContain("'Operational recovery reason'");
     expect(transferSource).toContain("name: 'Schedule new refund generation'");
     expect(transferSource).toContain("name: 'Payment still required'");
     expect(transferSource).toContain(
@@ -746,14 +1288,11 @@ describe('generated docs source current behavior', () => {
       "name: 'Transfer complete — refund needs attention'",
     );
     expect(transferSource).toContain(
-      "expect(recipientRegistration).toEqual({ status: 'CONFIRMED' })",
+      'expect(transferredRegistration).toMatchObject({',
     );
-    expect(transferSource).toContain(
-      "expect(sourceRegistration).toEqual({ status: 'CANCELLED' })",
-    );
-    expect(transferSource).toContain(
-      "expect(sourceRegistration?.status).toBe('CANCELLED')",
-    );
+    expect(transferSource).toContain('id: sourceRegistrationId,');
+    expect(transferSource).toContain('userId: recipient.id,');
+    expect(freeTransferSource).not.toContain("status: 'CANCELLED'");
     expect(transferSource).toContain(
       'toEqual({ confirmedSpots: 1, reservedSpots: 0 })',
     );
@@ -763,10 +1302,146 @@ describe('generated docs source current behavior', () => {
     );
     expect(transferSource).toContain(').toHaveLength(2)');
     expect(paidTransferScenarioSource).toContain('isPaid: true');
+    expect(paidTransferScenarioSource).toContain(
+      'const recipientRegistrationId = sourceRegistrationId',
+    );
+    expect(
+      paidTransferScenarioSource.match(/insert\(schema\.eventRegistrations\)/g),
+    ).toHaveLength(1);
+    expect(paidTransferScenarioSource).toContain('checkedInGuestCount: 1');
+    expect(paidTransferScenarioSource).toContain('guestCount: 1');
+    expect(paidTransferScenarioSource).toContain(
+      'appliedDiscountedPrice: sourceDiscountedUnitPrice',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      "appliedDiscountType: 'esnCard'",
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'registrationTransferBundleAddonPurchases',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'registrationTransferRefundPlanItems',
+    );
+    expect(paidTransferScenarioSource).toContain('registrationAcquisitions');
+    expect(paidTransferScenarioSource).toContain(
+      'registrationAcquisitionPayments',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'registrationAcquisitionComponents',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'registrationAcquisitionRefundAllocations',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'registrationTransferRefundPlanAcquisitionLinks',
+    );
+    expect(paidTransferScenarioSource).not.toContain(
+      'registrationTransferRecipientAddonPayments',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'sourceTransactionIds: [sourceTransactionId, sourceAddonTransactionId]',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'recipientRegistrationId: sourceRegistrationId',
+    );
+    expect(paidTransferScenarioSource).toContain('recipientSpotCount: 2');
+    expect(paidTransferScenarioSource).toContain('sourceSpotCount: 2');
+    expect(paidTransferScenarioSource).toContain('reservedAdditionalSpots: 0');
+    expect(paidTransferScenarioSource).not.toContain(
+      'sourcePaymentTransactionId',
+    );
+    expect(paidTransferScenarioSource).not.toContain('sourceRefundAmount');
+    expect(paidTransferScenarioSource).not.toContain(
+      'sourceRefundApplicationFee',
+    );
+    expect(paidTransferSource).toContain(
+      'expect(transferredRegistration).toEqual({',
+    );
+    expect(paidTransferSource).toContain('...registrationBefore,');
+    expect(paidTransferSource).toContain('appliedDiscountedPrice: null');
+    expect(paidTransferSource).toContain('appliedDiscountType: null');
+    expect(paidTransferSource).toContain('basePriceAtRegistration: 2100');
+    expect(paidTransferSource).toContain('discountAmount: 0');
+    expect(paidTransferSource).toContain('toEqual(purchasesBefore)');
+    expect(paidTransferSource).toContain('toEqual(lotsBefore)');
+    expect(paidTransferSource).toContain('toEqual(fulfillmentEventsBefore)');
+    expect(paidTransferSource).toContain('toEqual(refundAllocationsBefore)');
+    expect(paidTransferSource).toContain('toEqual(addonStockBefore)');
+    expect(paidTransferSource).toContain('toEqual(optionCapacityBefore)');
+    expect(paidTransferSource).toContain(
+      "getByText('Registration check-in', { exact: true })",
+    );
+    expect(paidTransferSource).toContain(
+      "getByText('Guests checked in', { exact: true })",
+    );
+    expect(paidTransferSource).toContain(
+      "getByText('Transfer workshop kit', { exact: true })",
+    );
+    expect(paidTransferSource).toContain(
+      "getByText('Transfer checklist item', { exact: true })",
+    );
+    expect(paidTransferSource).toContain(
+      String.raw`toContainText(/Redeemed\s*1/)`,
+    );
+    expect(paidTransferSource).toContain(
+      String.raw`toContainText(/Cancelled\s*1/)`,
+    );
+    expect(paidTransferSource).toContain('amount: 5500');
+    expect(paidTransferSource).toContain(
+      'expect(acquisitionsAfter).toHaveLength(2)',
+    );
+    expect(paidTransferSource).toContain("kind: 'claim_transfer'");
+    expect(paidTransferSource).toContain(
+      'previousAcquisitionId: scenario.sourceAcquisitionId',
+    );
+    expect(paidTransferSource).toContain(
+      'toEqual(sourceAcquisitionPaymentsBefore)',
+    );
+    expect(paidTransferSource).toContain(
+      'toEqual(sourceAcquisitionComponentsBefore)',
+    );
+    expect(paidTransferSource).toContain(
+      'toEqual(sourceAcquisitionRefundAllocationsBefore)',
+    );
+    expect(paidTransferSource).toContain('baseAmount: 4200');
+    expect(paidTransferSource).toContain('baseAmount: 1300');
+    expect(paidTransferSource).toContain(
+      'registrationTransferRefundPlanAcquisitionLinks',
+    );
+    expect(paidTransferSource).toContain(
+      'sourceAcquisitionPaymentId: sourcePayment.id',
+    );
+    expect(paidTransferSource).toContain(
+      'stripeAccountId: scenario.sourceStripeAccountId',
+    );
+    expect(paidTransferSource).not.toContain(
+      'registrationTransferRecipientAddonPayments',
+    );
+    expect(paidTransferSource).toContain(
+      'database.query.registrationTransferRefundPlanItems.findMany',
+    );
+    expect(paidTransferSource).toContain('originalAmount: 3300');
+    expect(paidTransferSource).toContain('refundAmountDue: 3300');
+    expect(paidTransferSource).toContain('originalAmount: 1000');
+    expect(paidTransferSource).toContain('priorRefundedAmount: 500');
+    expect(paidTransferSource).toContain('refundAmountDue: 500');
+    expect(paidTransferSource).toContain(
+      "expect(transferEventTypes).toContain('ownership_transferred')",
+    );
+    expect(paidTransferSource).not.toContain("status: 'CANCELLED'");
     expect(paidTransferScenarioSource).toContain('futureServerEventWindow()');
     expect(paidTransferScenarioSource).toContain('latestServerOrWallNow()');
     expect(paidTransferScenarioSource).toContain(
       'completePaidRegistrationCheckout(',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'Stripe.webhooks.constructEvent(',
+    );
+    expect(paidTransferScenarioSource).toContain(
+      'Layer.succeed(StripeClient, deterministicStripe)',
+    );
+    expect(paidTransferScenarioSource).not.toContain(
+      'as Stripe.Checkout.Session',
     );
     expect(paidTransferScenarioSource).toContain(
       'reconcileRegistrationTransferRefund(tx',
@@ -917,7 +1592,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'page.goto(`/events/${scenario.event.id}/organize`)',
     );
-    expect(source).toContain('page).toHaveURL(/\\/403$/)');
+    expect(source).toContain(String.raw`page).toHaveURL(/\/403$/)`);
     expect(source).toContain(
       '# Apply for an advanced organizer or helper category',
     );
@@ -1007,13 +1682,20 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('.update(eventRegistrationOptions)');
     expect(source).toContain('.set({ checkedInSpots: initialCheckedInSpots })');
     expect(source).toContain(
-      "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits a Stripe refund when the paid registration has a stored Stripe payment reference.",
+      "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event sources.",
     );
     expect(source).toContain(
-      'Older or manually seeded payment records still create a pending manual refund record for organizer follow-up.',
+      'Event registration and add-on payments are Stripe-only',
     );
     expect(source).toContain(
-      'A successful separately paid add-on or a non-Stripe registration payment currently blocks private transfer because Evorto cannot yet reconcile every source refund safely.',
+      'Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged.',
+    );
+    expect(source).toContain(
+      'The source receives exact refunds for every original Stripe payment',
+    );
+    expect(source).not.toContain('pending manual refund record');
+    expect(source).not.toContain(
+      'separately paid add-on or a non-Stripe registration payment currently blocks',
     );
     expect(source).toContain(
       'It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning',
@@ -1053,6 +1735,8 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("installMockCamera(page, 'allowed')");
     expect(source).toContain('camera=(self)');
     expect(source).toContain('If the camera does not start');
+    expect(source).toContain('**Invalid QR code**');
+    expect(source).toContain("getByRole('link', { name: 'Back to scanner' })");
     expect(source).toContain('Verify the registration');
     expect(source).toContain('Check in guests who arrive later');
     expect(source).toContain("page.getByText('Already checked in')");

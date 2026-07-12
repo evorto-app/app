@@ -10,19 +10,22 @@ import {
   PlatformFinanceReimbursementQueue,
   PlatformFinanceReimbursementReceipt,
   PlatformFinanceTenantContext,
+  PlatformFinanceTransactionsFindMany,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-finance.rpcs';
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
-import { Effect, Layer, Schema } from 'effect';
+import { Cause, Effect, Exit, Layer, Schema } from 'effect';
 import { readFileSync } from 'node:fs';
 
 import { Database } from '../../../../../db';
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
+import { RegistrationRefundRequeueError } from '../../../../payments/registration-refund';
 import { ReceiptMediaServiceUnavailableError } from '../finance/finance.errors';
 import { ReceiptMediaService } from '../finance/receipt-media.service';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   canPlatformReviewReceipt,
+  mapPlatformRefundRequeueError,
   payoutDetailsVersion,
   platformReceiptReviewUpdate,
   platformReimbursementReceiptUpdate,
@@ -31,6 +34,7 @@ import {
   refundRecoveryAuditSnapshot,
   reimbursementAuditSnapshot,
   resolvePlatformReimbursementCurrency,
+  toPlatformFinanceTransactionRecord,
   toRefundRecoveryRecord,
 } from './platform-tenant-finance.handlers';
 
@@ -142,6 +146,37 @@ const submittedReceiptEvidence = {
   updatedAt: new Date('2026-07-10T08:00:00.000Z'),
 };
 
+type PlatformTransactionRow = Parameters<
+  typeof toPlatformFinanceTransactionRecord
+>[0];
+
+const platformTransactionRow = (
+  overrides: Partial<PlatformTransactionRow> = {},
+): PlatformTransactionRow => ({
+  amount: -1200,
+  appFee: null,
+  comment: 'Registration refund',
+  createdAt: new Date('2026-07-10T10:00:00.000Z'),
+  currency: 'EUR',
+  eventRegistrationId: 'registration-1',
+  id: 'refund-claim-1',
+  manuallyCreated: false,
+  method: 'stripe',
+  sourceTransactionId: 'source-transaction-1',
+  status: 'pending',
+  stripeFee: null,
+  stripeRefundAttempts: 0,
+  stripeRefundClaimLeaseExpiresAt: null,
+  stripeRefundClaimLeaseId: null,
+  stripeRefundId: null,
+  stripeRefundMaxAttempts: 8,
+  stripeRefundNextAttemptAt: new Date('2026-07-10T10:01:00.000Z'),
+  stripeRefundRequeuedAt: null,
+  stripeRefundStatus: null,
+  type: 'refund',
+  ...overrides,
+});
+
 describe('platform tenant finance handlers', () => {
   it('exports only the dedicated target-scoped finance methods', () => {
     expect(Object.keys(platformTenantFinanceHandlers).toSorted()).toEqual([
@@ -156,6 +191,53 @@ describe('platform tenant finance handlers', () => {
     ]);
   });
 
+  it('keeps reusable finance workflows on named Effect boundaries', () => {
+    const source = readFileSync(
+      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
+      'utf8',
+    );
+
+    for (const operationName of [
+      'PlatformTenantFinance.recordReimbursement',
+      'PlatformTenantFinance.requeueRefundClaim',
+      'PlatformTenantFinance.reviewReceipt',
+      'PlatformTenantFinance.runPlatformRead',
+      'PlatformTenantFinance.validateReceiptReviewInput',
+    ]) {
+      expect(source).toContain(`'${operationName}'`);
+    }
+  });
+
+  it.effect('maps refund requeue domain errors to a bad request', () =>
+    Effect.gen(function* () {
+      const error = yield* mapPlatformRefundRequeueError(
+        new RegistrationRefundRequeueError({
+          message: 'An active refund claim cannot be requeued',
+          refundClaimId: 'refund-claim-1',
+        }),
+      ).pipe(Effect.flip);
+
+      expect(error).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        reason: 'refundRequeueNotAllowed',
+      });
+    }),
+  );
+
+  it.effect('preserves unexpected refund requeue failures as defects', () =>
+    Effect.gen(function* () {
+      const unexpected = new Error('database unavailable');
+      const exit = yield* mapPlatformRefundRequeueError(unexpected).pipe(
+        Effect.exit,
+      );
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        expect(Cause.squash(exit.cause)).toBe(unexpected);
+      }
+    }),
+  );
+
   it('joins the scoped upload for every platform receipt media read', () => {
     const source = readFileSync(
       new URL('platform-tenant-finance.handlers.ts', import.meta.url),
@@ -168,6 +250,17 @@ describe('platform tenant finance handlers', () => {
       ).length - 1;
 
     expect(scopedUploadJoinCount).toBe(5);
+  });
+
+  it('keeps exhausted stale-schedule refunds visible to recovery', () => {
+    const source = readFileSync(
+      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(source).toMatch(
+      /or\(\s*isNull\(transactions\.stripeRefundNextAttemptAt\),\s*gte\(\s*transactions\.stripeRefundAttempts,\s*transactions\.stripeRefundMaxAttempts/u,
+    );
   });
 
   it('checks evidence only for approval and revalidates it under the mutation lock', () => {
@@ -540,6 +633,263 @@ describe('platform tenant finance handlers', () => {
         targetTenantId: 'tenant-1',
       },
     });
+
+    const orphaned = toRefundRecoveryRecord({
+      amount: -1800,
+      attempts: 1,
+      createdAt: new Date('2026-07-10T10:00:00.000Z'),
+      currency: 'EUR',
+      eventId: 'event-1',
+      eventRegistrationId: 'source-registration-1',
+      generation: 0,
+      lastError: 'Worker stopped before scheduling the next attempt',
+      leaseExpiresAt: null,
+      leaseId: null,
+      maxAttempts: 8,
+      nextAttemptAt: null,
+      refundClaimId: 'orphaned-refund-claim-1',
+      refundId: null,
+      sourceTransactionId: 'source-transaction-1',
+      status: 'pending',
+      stripeRefundStatus: null,
+      transferEventId: null,
+      transferId: null,
+      transferRecipientRegistrationId: null,
+      transferSourceRegistrationId: null,
+      transferStatus: null,
+      updatedAt: new Date('2026-07-10T11:00:00.000Z'),
+    });
+
+    expect(orphaned).toBeNull();
+  });
+
+  it('derives safe platform refund lifecycle states at the handler boundary', () => {
+    const pending = toPlatformFinanceTransactionRecord(
+      platformTransactionRow(),
+    );
+    const retrying = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 2,
+        stripeRefundNextAttemptAt: new Date('2026-07-10T10:05:00.000Z'),
+      }),
+    );
+    const succeeded = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        status: 'successful',
+        stripeRefundAttempts: 1,
+        stripeRefundNextAttemptAt: null,
+        stripeRefundStatus: 'succeeded',
+      }),
+    );
+    const unsupportedManual = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        manuallyCreated: true,
+        method: 'transfer',
+        stripeRefundNextAttemptAt: null,
+      }),
+    );
+    const exhausted = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 8,
+        stripeRefundNextAttemptAt: null,
+      }),
+    );
+    const recoverableStopped = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 8,
+        stripeRefundId: 're_stopped-refund-1',
+        stripeRefundNextAttemptAt: null,
+        stripeRefundStatus: 'pending',
+      }),
+    );
+    const orphaned = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 1,
+        stripeRefundNextAttemptAt: null,
+      }),
+    );
+    const untouchedOrphan = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 0,
+        stripeRefundNextAttemptAt: null,
+      }),
+    );
+    const exhaustedWithStaleSchedule = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 8,
+        stripeRefundNextAttemptAt: new Date('2026-07-10T10:05:00.000Z'),
+        stripeRefundStatus: 'pending',
+      }),
+    );
+    const requeued = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 0,
+        stripeRefundRequeuedAt: new Date('2026-07-10T10:04:00.000Z'),
+      }),
+    );
+    const actionRequired = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 1,
+        stripeRefundStatus: 'requires_action',
+      }),
+    );
+    const recoverableActionRequired = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 8,
+        stripeRefundId: 're_action-required-1',
+        stripeRefundNextAttemptAt: null,
+        stripeRefundStatus: 'requires_action',
+      }),
+    );
+    const stillLeased = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 8,
+        stripeRefundClaimLeaseExpiresAt: new Date('2026-07-10T10:10:00.000Z'),
+        stripeRefundClaimLeaseId: 'lease-1',
+        stripeRefundNextAttemptAt: null,
+      }),
+    );
+    const ambiguousLease = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 1,
+        stripeRefundClaimLeaseId: 'partial-lease',
+        stripeRefundNextAttemptAt: null,
+        stripeRefundStatus: 'requires_action',
+      }),
+    );
+    const terminal = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 1,
+        stripeRefundNextAttemptAt: null,
+        stripeRefundStatus: 'failed',
+      }),
+    );
+    const recoverableTerminal = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        stripeRefundAttempts: 1,
+        stripeRefundId: 're_refund-1',
+        stripeRefundNextAttemptAt: null,
+        stripeRefundStatus: 'failed',
+      }),
+    );
+    const missingSource = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        sourceTransactionId: null,
+        stripeRefundAttempts: 8,
+        stripeRefundNextAttemptAt: null,
+      }),
+    );
+    const cancelled = toPlatformFinanceTransactionRecord(
+      platformTransactionRow({
+        manuallyCreated: true,
+        method: 'transfer',
+        status: 'cancelled',
+        stripeRefundNextAttemptAt: null,
+      }),
+    );
+
+    expect(pending.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'pending',
+    });
+    expect(retrying.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'retrying',
+    });
+    expect(succeeded.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'succeeded',
+    });
+    expect(unsupportedManual.refundLifecycle).toMatchObject({
+      attempts: null,
+      maxAttempts: null,
+      recoveryMode: null,
+      status: 'needs-attention',
+    });
+    expect(exhausted.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'needs-attention',
+    });
+    expect(recoverableStopped.refundLifecycle).toMatchObject({
+      recoveryMode: 'resumeGeneration',
+      status: 'needs-attention',
+    });
+    expect(orphaned.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'needs-attention',
+    });
+    expect(untouchedOrphan.refundLifecycle).toMatchObject({
+      recoveryMode: 'resumeGeneration',
+      status: 'needs-attention',
+    });
+    expect(exhaustedWithStaleSchedule.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'needs-attention',
+    });
+    expect(requeued.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'retrying',
+    });
+    expect(actionRequired.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'action-required',
+    });
+    expect(recoverableActionRequired.refundLifecycle).toMatchObject({
+      recoveryMode: 'resumeGeneration',
+      status: 'action-required',
+    });
+    expect(stillLeased.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'retrying',
+    });
+    expect(ambiguousLease.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'needs-attention',
+    });
+    expect(terminal.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'needs-attention',
+    });
+    expect(recoverableTerminal.refundLifecycle).toMatchObject({
+      recoveryMode: 'newGeneration',
+      status: 'needs-attention',
+    });
+    expect(missingSource.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'needs-attention',
+    });
+    expect(cancelled.refundLifecycle).toMatchObject({
+      recoveryMode: null,
+      status: 'needs-attention',
+    });
+
+    const encoded = Schema.encodeUnknownSync(
+      PlatformFinanceTransactionsFindMany.successSchema,
+    )({
+      data: [
+        pending,
+        retrying,
+        succeeded,
+        unsupportedManual,
+        exhausted,
+        recoverableStopped,
+        orphaned,
+        untouchedOrphan,
+        exhaustedWithStaleSchedule,
+        requeued,
+        actionRequired,
+        recoverableActionRequired,
+        terminal,
+        recoverableTerminal,
+        ambiguousLease,
+        missingSource,
+        cancelled,
+      ],
+      tenantContext: tenantContext(),
+      total: 17,
+    });
+    expect(JSON.stringify(encoded)).not.toContain('LastError');
+    expect(JSON.stringify(encoded)).not.toContain('provider');
   });
 
   it('encodes an approval detail record through the RPC success schema', () => {
