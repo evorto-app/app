@@ -169,7 +169,7 @@ test.describe('Register for events', () => {
     );
     await testInfo.attach('markdown', {
       body: `
-  Free registration cards can also offer registration-time add-ons and required questions. Choose the quantity you want, answer any required questions, and then register. After registration, selected add-ons are shown with the active registration so participants can review what they picked. Question answers are stored with the registration for organizers.`,
+  Free registration cards can also offer guests, registration-time add-ons, and required questions. In **Guests**, enter only the people attending with you; guests do not need separate accounts, but each guest uses one available event spot and stays attached to your registration. The total beside the field includes you. Then choose any add-on quantity, answer every required question, and register. After registration, the ticket shows the guest count and selected add-ons, while question answers are stored for organizers.`,
     });
     const participantRegistrationCard = page
       .locator('app-event-registration-option')
@@ -181,6 +181,18 @@ test.describe('Register for events', () => {
     ).toBeVisible();
     await expect(
       participantRegistrationCard.getByLabel(registrationQuestion.title),
+    ).toBeVisible();
+    const guestCountInput = participantRegistrationCard.getByLabel('Guests');
+    await expect(guestCountInput).toBeEnabled({ timeout: 15_000 });
+    await expect(
+      participantRegistrationCard.getByText(
+        'Guests do not need separate accounts. Each guest uses one available spot and shares your registration.',
+      ),
+    ).toBeVisible();
+    await guestCountInput.fill('1');
+    await expect(guestCountInput).toHaveValue('1');
+    await expect(
+      participantRegistrationCard.getByText('+ you = 2 spots'),
     ).toBeVisible();
     await expect(
       participantRegistrationCard.getByRole('button', { name: 'Register' }),
@@ -196,6 +208,9 @@ test.describe('Register for events', () => {
     const activeRegistration = page.locator('app-event-active-registration');
     await expect(
       activeRegistration.getByText('You are registered', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      activeRegistration.getByText('Includes 1 guest plus you.'),
     ).toBeVisible();
     const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
     await expect(
@@ -230,12 +245,22 @@ test.describe('Register for events', () => {
         'Expected registration docs flow to persist the confirmed registration',
       );
     }
+    expect(registration.guestCount).toBe(1);
     expect(registration.questionAnswers).toEqual([
       expect.objectContaining({
         answer: 'Vegetarian snack, please.',
         questionId: registrationQuestion.questionId,
       }),
     ]);
+    const freeOptionAfterRegistration =
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: freeOptionId },
+      });
+    expect(freeOptionAfterRegistration).toEqual({
+      confirmedSpots: 2,
+      reservedSpots: 0,
+    });
     const registrationEmail = await database.query.emailOutbox.findFirst({
       where: {
         idempotencyKey: `registration-confirmed/${tenant.id}/${registration.id}`,
@@ -252,7 +277,7 @@ test.describe('Register for events', () => {
   ### Successful registration
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
-  Participant registrations can include guests, registration-time add-ons, and registration-question answers. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
+  This example shows **Includes 1 guest plus you.** The guest remains attached to the signed-in buyer's registration, and the two people consume two confirmed spots. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
   Show this ticket QR code when attending the event. Evorto also queues a confirmation email with a link back to this authenticated ticket page. The link is not a bearer credential: the participant must still sign in as the ticket owner.
   You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
     });
@@ -969,17 +994,38 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
       page.getByRole('heading', { level: 2, name: 'Registration' }),
       page,
     );
-    const payButton = page.getByRole('button', { name: /Pay/i }).first();
+    const paidRegistrationCard = page
+      .locator('app-event-registration-option')
+      .filter({ hasText: paidOption.title });
+    await expect(paidRegistrationCard).toHaveCount(1);
+    await expect(paidRegistrationCard).toBeVisible({ timeout: 20_000 });
+    const paidGuestCountInput = paidRegistrationCard.getByLabel('Guests');
+    await expect(paidGuestCountInput).toBeEnabled({ timeout: 15_000 });
     await testInfo.attach('markdown', {
       body: `
-  By clicking the **Pay and register** button, you are starting the payment process.
-  Paid guest spots are included in the Stripe Checkout quantity and reserve the matching capacity while payment is pending.
+  In **Guests**, enter the number of people attending with you before starting payment. This guide selects one guest, so the field shows **+ you = 2 spots**. The amount on **Pay and register** includes the signed-in participant and the guest; each person reserves one event spot while payment is pending.
+
+  Check the guest count and total carefully, then select **Pay and register** to start the payment process.
   Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind. Cancelling a pending payment registration releases every selected buyer and guest spot and expires the pending checkout when possible.`,
     });
+    await expect(
+      paidRegistrationCard.getByText(
+        'Guests do not need separate accounts. Each guest uses one available spot and shares your registration.',
+      ),
+    ).toBeVisible();
+    await paidGuestCountInput.fill('1');
+    await expect(paidGuestCountInput).toHaveValue('1');
+    await expect(
+      paidRegistrationCard.getByText('+ you = 2 spots'),
+    ).toBeVisible();
+    const payButton = paidRegistrationCard.getByRole('button');
+    await expect(payButton).toHaveCount(1);
+    await expect(payButton).toContainText('and register');
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      paidRegistrationCard,
       page,
+      'Paid registration with one guest selected',
     );
     const payNowLink = page.getByRole('link', { name: 'Pay now' }).first();
     let checkoutUrl: null | string = null;
@@ -1051,6 +1097,25 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
     }
     expect(pendingTransaction.stripeCheckoutUrl).toBe(checkoutUrl);
     expect(new URL(checkoutUrl).hostname).toBe('checkout.stripe.com');
+    expect(pendingTransaction.amount).toBe(paidOption.price * 2);
+    const pendingRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: pendingTransaction.eventRegistrationId,
+          tenantId: tenant.id,
+        },
+      });
+    expect(pendingRegistration?.guestCount).toBe(1);
+    expect(pendingRegistration?.status).toBe('PENDING');
+    const paidOptionDuringCheckout =
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: paidOptionId },
+      });
+    expect(paidOptionDuringCheckout).toEqual({
+      confirmedSpots: 0,
+      reservedSpots: 2,
+    });
 
     await testInfo.attach('markdown', {
       body: `
@@ -1118,11 +1183,21 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
     await waitForRegistrationStatus(page);
     const registeredMessage = page.getByText('You are registered');
     await expect(registeredMessage).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Includes 1 guest plus you.')).toBeVisible();
+    const paidOptionAfterCheckout =
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: paidOptionId },
+      });
+    expect(paidOptionAfterCheckout).toEqual({
+      confirmedSpots: 2,
+      reservedSpots: 0,
+    });
     await testInfo.attach('markdown', {
       body: `
   ### Successful paid registration
   After Stripe accepts the payment, return to the event page to see your registration confirmation.
-  Your ticket details and QR code are now available.`,
+  Your ticket details and QR code are now available. **Includes 1 guest plus you** confirms that both paid spots belong to this registration.`,
     });
     await takeScreenshot(
       testInfo,

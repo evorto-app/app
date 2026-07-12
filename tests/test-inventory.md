@@ -722,12 +722,25 @@ and the release-gated live ESNcard provider credential path.
   - `docs/events/register.doc.ts` now includes generated documentation
     journeys for closed registration windows, full participant options with a
     waitlist action, and role-ineligible direct links, in addition to free and
-    paid registration walkthroughs. Its **Buy add-ons after registration**
+    paid registration walkthroughs. The free and paid journeys select one guest,
+    verify the two-spot capacity transition, persist `guestCount`, and prove the
+    undiscounted paid transaction charges two base-price spots. Its
+    **Buy add-ons after registration**
     journey starts from the ordinary event list, documents before/during sales
     windows, immediate free fulfillment, the durable paid pending state and
     same Checkout link after reload, and settled entitlement readback. The
     dedicated
     `docs/events/registration-transfer.doc.ts` owns transfer guidance.
+  - `docs/events/unlisted-user.doc.ts` now changes one approved event to
+    unlisted in an isolated tenant, proves it is absent from the participant
+    list, opens its direct link while signed in, then preserves the tenant
+    routing cookie while proving the same detail page remains readable when
+    signed out with **Log in now**. Cleanup restores the original visibility.
+  - `specs/resilience/core-load-recovery.spec.ts` aborts one `events.create`
+    request, proves the create-from-template form retains the title and renders
+    an accessible retry state, scans that state with Axe, then retries through
+    successful event-detail navigation. Component and generated-doc coverage
+    distinguish transient retry from stale-template restart guidance.
 
 ## Current Notes
 

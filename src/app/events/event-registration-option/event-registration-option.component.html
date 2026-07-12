@@ -82,6 +82,8 @@
                   matInput
                   type="number"
                   min="0"
+                  step="1"
+                  inputmode="numeric"
                   [disabled]="!controlsInteractive()"
                   [max]="addonMaxQuantity(addOn)"
                   [value]="addonQuantity(addOn.id)"
@@ -160,20 +162,27 @@
             }
           } @else {
             @if (maxGuestCount() > 0) {
-              <mat-form-field appearance="outline">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
                 <mat-label>Guests</mat-label>
                 <input
                   matInput
                   type="number"
                   min="0"
+                  step="1"
+                  inputmode="numeric"
                   [disabled]="!controlsInteractive()"
                   [max]="maxGuestCount()"
                   [value]="selectedGuestCount()"
                   (input)="updateGuestCount($event)"
                 />
-                <span matTextSuffix>
-                  + you = {{ selectedSpotCount() }} spots
+                <span aria-live="polite" matTextSuffix>
+                  + you = {{ selectedSpotCount() }}
+                  {{ selectedSpotCount() === 1 ? "spot" : "spots" }}
                 </span>
+                <mat-hint>
+                  Guests do not need separate accounts. Each guest uses one
+                  available spot and shares your registration.
+                </mat-hint>
               </mat-form-field>
             }
             @if (paymentDueDuringRegistration()) {

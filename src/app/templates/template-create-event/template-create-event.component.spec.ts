@@ -10,10 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Tenant } from '../../../types/custom/tenant';
 
 import { ConfigService } from '../../core/config.service';
+import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   legacyRandomTemplateEventMessage,
   templateAddOnCopyNotice,
   TemplateCreateEventComponent,
+  templateCreateEventErrorMessage,
   TemplateCreateEventOperations,
   templateCreateEventSubmitDisabled,
   templateHasLegacyRandomRegistration,
@@ -100,6 +102,22 @@ describe('templateAddOnCopyNotice', () => {
   });
 });
 
+describe('templateCreateEventErrorMessage', () => {
+  it('preserves actionable failures and falls back for unknown errors', () => {
+    expect(
+      templateCreateEventErrorMessage(
+        new Error(
+          'Registration option does not belong to the selected template',
+        ),
+      ),
+    ).toBe('Registration option does not belong to the selected template');
+    expect(templateCreateEventErrorMessage({})).toBe(
+      'The event could not be created. Review the form and try again.',
+    );
+  });
+});
+
+const createEvent = vi.fn();
 const findTemplate = vi.fn();
 
 const normalizeText = (
@@ -110,6 +128,8 @@ describe('TemplateCreateEventComponent load recovery', () => {
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    createEvent.mockReset();
+    createEvent.mockResolvedValue({ id: 'event-1' });
     findTemplate.mockReset();
     queryClient = new QueryClient({
       defaultOptions: {
@@ -117,6 +137,12 @@ describe('TemplateCreateEventComponent load recovery', () => {
           gcTime: 0,
           retry: false,
         },
+      },
+    });
+
+    TestBed.overrideComponent(EventGeneralForm, {
+      set: {
+        template: `<input data-testid="event-title" [formField]="generalForm().title" />`,
       },
     });
 
@@ -135,7 +161,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
           provide: TemplateCreateEventOperations,
           useValue: {
             createEvent: () => ({
-              mutationFn: async () => ({ id: 'event-1' }),
+              mutationFn: createEvent,
               mutationKey: ['create-event'],
             }),
             discountProviders: () => ({
@@ -193,5 +219,78 @@ describe('TemplateCreateEventComponent load recovery', () => {
       fixture.detectChanges();
       expect(findTemplate).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('announces a failed submission while retaining entries and enabling retry', async () => {
+    findTemplate.mockResolvedValue({
+      addOns: [],
+      categoryId: 'category-1',
+      description: '<p>Template</p>',
+      icon: {
+        iconColor: 2,
+        iconName: 'calendar:fas',
+      },
+      id: 'template-1',
+      location: null,
+      planningTips: null,
+      questions: [],
+      registrationOptions: [],
+      title: 'Weekly meetup',
+    });
+    createEvent.mockRejectedValueOnce(
+      new Error('Registration option does not belong to the selected template'),
+    );
+
+    const fixture = TestBed.createComponent(TemplateCreateEventComponent);
+    fixture.componentRef.setInput('templateId', 'template-1');
+    fixture.detectChanges();
+
+    const root: HTMLElement = fixture.nativeElement;
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        root.querySelector<HTMLInputElement>(
+          ':scope [data-testid="event-title"]',
+        ),
+      ).not.toBeNull();
+    });
+    const titleInput = root.querySelector<HTMLInputElement>(
+      ':scope [data-testid="event-title"]',
+    );
+    if (!titleInput) {
+      throw new Error('Expected the event title input to render.');
+    }
+    titleInput.value = 'Retained workshop';
+    titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+
+    const form = root.querySelector<HTMLFormElement>('form');
+    expect(form).not.toBeNull();
+    form?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(createEvent).toHaveBeenCalledOnce();
+      expect(root.querySelector('[role="alert"]')).not.toBeNull();
+    });
+
+    const alert = root.querySelector<HTMLElement>('[role="alert"]');
+    expect(alert?.textContent).toContain('Event could not be created');
+    expect(alert?.textContent).toContain(
+      'Registration option does not belong to the selected template',
+    );
+    expect(alert?.textContent).toContain('Your entries are still here.');
+    expect(alert?.textContent).toContain(
+      'Legacy random allocation must be changed on the template before trying again.',
+    );
+    expect(titleInput.value).toBe('Retained workshop');
+
+    const retryButton = root.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+    expect(retryButton?.textContent?.trim()).toBe('Create event');
+    expect(retryButton?.disabled).toBe(false);
   });
 });

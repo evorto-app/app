@@ -31,6 +31,7 @@ import { DateTime } from 'luxon';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import {
   resolveTenantRuntimeTimezone,
   toTenantDateTime,
@@ -90,6 +91,12 @@ export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
     ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards for registration-time purchase.`
     : null;
+
+export const templateCreateEventErrorMessage = (error: unknown): string =>
+  getErrorMessage(
+    error,
+    'The event could not be created. Review the form and try again.',
+  );
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -290,6 +297,10 @@ export class TemplateCreateEventComponent {
         },
       );
     });
+  }
+
+  protected createEventErrorMessage(): string {
+    return templateCreateEventErrorMessage(this.createEventMutation.error());
   }
 
   private toDateTime(value: Date | DateTime): DateTime {

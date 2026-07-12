@@ -480,6 +480,18 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Expected template docs flow to persist the reusable add-on',
     );
+    expect(source).toContain(
+      'If **Event could not be created** appears, your entries remain in the form.',
+    );
+    expect(source).toContain(
+      'If the reason says a registration option no longer belongs to the selected template',
+    );
+    expect(source).toContain(
+      'If it mentions legacy random allocation, return to the template, change every option to **First come, first served** or **Manual approval**',
+    );
+    expect(source).toContain(
+      'Do not assume the event exists until its detail page opens and shows the event title.',
+    );
     expect(source).not.toContain('app-template-registration-option-form');
     expect(source).not.toContain('app-template-addon-form');
     expect(source).not.toContain('app-template-question-form');
@@ -551,6 +563,24 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Show this ticket QR code when attending the event.',
     );
+    expect(source).toContain(
+      'guests do not need separate accounts, but each guest uses one available event spot and stays attached to your registration.',
+    );
+    expect(source).toContain(
+      "const guestCountInput = participantRegistrationCard.getByLabel('Guests')",
+    );
+    expect(source).toContain("await guestCountInput.fill('1')");
+    expect(source).toContain("getByText('+ you = 2 spots')");
+    expect(source).toContain('expect(registration.guestCount).toBe(1)');
+    expect(source).toContain('confirmedSpots: 2');
+    expect(source).toContain(
+      'expect(pendingTransaction.amount).toBe(paidOption.price * 2)',
+    );
+    expect(source).toContain('expect(pendingRegistration?.guestCount).toBe(1)');
+    expect(source).toContain('const paidOptionDuringCheckout');
+    expect(source).toContain('reservedSpots: 2');
+    expect(source).toContain('const paidOptionAfterCheckout');
+    expect(source).toContain('Includes 1 guest plus you.');
     expect(source).not.toContain('not logged it');
     expect(source).not.toContain(
       'This code is needed when attending the event.',
@@ -745,11 +775,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('seedRequiredRegistrationQuestion');
     expect(source).toContain(
-      'Free registration cards can also offer registration-time add-ons and required questions.',
+      'Free registration cards can also offer guests, registration-time add-ons, and required questions.',
     );
-    expect(source).toContain(
-      'Question answers are stored with the registration for organizers.',
-    );
+    expect(source).toContain('question answers are stored for organizers.');
     expect(source).toContain(
       'participantRegistrationCard.getByLabel(registrationQuestion.title)',
     );
@@ -767,6 +795,27 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('paid transfers are automatic');
     expect(source).not.toContain('resale is automatic');
     expect(source).not.toContain('ticket QR code by email');
+  });
+
+  it('keeps participant unlisted-event guidance page-backed', () => {
+    const source = readSource('tests/docs/events/unlisted-user.doc.ts');
+
+    expect(source).toContain('.set({ unlisted: true })');
+    expect(source).toContain("page.getByRole('link', { name: target.title })");
+    expect(source).toContain('toHaveCount(0)');
+    expect(source).toContain('await page.goto(`/events/${target.id}`);');
+    expect(source).toContain('waitForRegistrationPage(page)');
+    expect(source).toContain(
+      'Being unlisted does not bypass role, registration-window, capacity, or sign-in requirements.',
+    );
+    expect(source).toContain('Unlisted event opened from its direct link');
+    expect(source).toContain('page.context().clearCookies()');
+    expect(source).toContain('page.context().addCookies([tenantCookie])');
+    expect(source).toContain("name: 'Log in now'");
+    expect(source).toContain(
+      'Anyone with the exact link can open the approved event details.',
+    );
+    expect(source).toContain('.set({ unlisted: target.unlisted })');
   });
 
   it('keeps manual approval docs beginner-readable and behavior-backed', () => {

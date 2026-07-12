@@ -50,6 +50,21 @@ describe('unsupported registration mode template', () => {
   });
 });
 
+describe('guest selection template', () => {
+  it('explains account ownership and capacity in the Material field', () => {
+    const template = readSource(
+      'src/app/events/event-registration-option/event-registration-option.component.html',
+    );
+
+    expect(template).toContain(
+      'Guests do not need separate accounts. Each guest uses one',
+    );
+    expect(template).toContain('available spot and shares your registration.');
+    expect(template).toContain('subscriptSizing="dynamic"');
+    expect(template).toContain('selectedSpotCount() === 1 ? "spot" : "spots"');
+  });
+});
+
 describe('registrationOptionAudienceCopy', () => {
   it('keeps participant options on registration copy', () => {
     expect(
