@@ -310,7 +310,7 @@ test.describe('Negative registration states', () => {
       }
     });
 
-    test('does not expose a waitlist action for a full random stored mode', async ({
+    test('does not expose registration actions for an unsupported random stored mode', async ({
       database,
       page,
       seeded,
@@ -366,9 +366,9 @@ test.describe('Negative registration states', () => {
         const optionCard = page
           .locator('app-event-registration-option')
           .filter({ hasText: targetOption.title });
-        await expect(
-          optionCard.getByText('This option is full.'),
-        ).toBeVisible();
+        await expect(optionCard.getByRole('alert')).toHaveText(
+          'This option uses a registration mode that is no longer supported. Ask an organizer to update the event before trying again.',
+        );
         await expect(
           optionCard.getByRole('button', { name: 'Join waitlist' }),
         ).toHaveCount(0);

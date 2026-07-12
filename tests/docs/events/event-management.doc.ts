@@ -446,7 +446,7 @@ If the organizer overview request fails, Evorto hides every registration count a
 1. Do not cancel, transfer, or approve a registration based on an empty-looking page.
 2. Check that your network connection is available.
 3. Select **Try again** in the warning.
-4. Wait for the **Overview** and **Participants** sections to return before continuing.
+4. Wait for the **Overview** and **Participant registrations** sections to return before continuing.
 
 Receipt history has its own warning and **Try again** action. A receipt-loading warning means existing receipts may still be present; it is not a verified empty list. **Add receipt** stays unavailable until that history loads, preventing a duplicate submission based on incomplete information.
 `,
@@ -558,7 +558,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       });
     await page.goto(`/events/${scannerEventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
-      new RegExp(`^${initialCheckedInSpots + 3}\\s*Checked In$`),
+      String(initialCheckedInSpots + 3),
       { timeout: 15_000 },
     );
   } finally {

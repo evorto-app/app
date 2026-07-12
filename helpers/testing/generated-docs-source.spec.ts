@@ -223,7 +223,7 @@ describe('generated docs source current behavior', () => {
       'Continue payment from this card, or open the event page for registration details.',
     );
     expect(source).toContain(
-      'Open the event page for waitlist details and the leave-waitlist action.',
+      'Open the event page for waitlist details and current cancellation status.',
     );
     expect(source).toContain(
       '`/events/${profileEventCards.confirmed.eventId}`',

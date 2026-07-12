@@ -421,8 +421,6 @@ The participant page does not currently expose refund controls or manual-refund 
       ) + 24,
     );
     const cancellationEmailKey = `registration-cancelled/${tenant.id}/${registrationId}`;
-    const deadlineMessage =
-      'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.';
 
     try {
       await database.insert(schema.eventInstances).values({
@@ -482,31 +480,22 @@ The participant page does not currently expose refund controls or manual-refund 
 
 The registration option can override the tenant's default cancellation deadline. In this example, the option's deadline is deliberately set before the current server time, so participant cancellation has already closed.
 
-Open **Events**, select the event, and review the confirmed ticket. Select **Cancel registration**, review the impact, then select **Confirm cancellation**. The server rechecks the current deadline only after that confirmation and rejects the request without changing the ticket.
+Open **Events**, select the event, and review the confirmed ticket. Evorto loads the server-derived cancellation status, explains that the deadline has passed, and does not offer a cancellation action. The server still rechecks the deadline if a stale or direct request reaches the mutation.
 `,
       });
       await openEventFromNormalNavigation(page, eventTitle);
       const activeRegistration = page.locator('app-event-active-registration');
-      const cancelRegistration = activeRegistration.getByRole('button', {
-        exact: true,
-        name: 'Cancel registration',
-      });
-      await expect(cancelRegistration).toBeVisible();
-      await expect(cancelRegistration).not.toHaveAttribute(
-        'jsaction',
-        /click/,
-        { timeout: 20_000 },
+      const deadlineExplanation = activeRegistration.getByText(
+        'The cancellation deadline has passed. No cancellation, refund, or spot release has been made.',
+        { exact: true },
       );
-      await cancelRegistration.click();
-      await page
-        .getByRole('dialog')
-        .getByRole('button', { name: 'Confirm cancellation' })
-        .click();
-
-      const deadlineAlert = page.getByRole('alert').filter({
-        hasText: deadlineMessage,
-      });
-      await expect(deadlineAlert).toBeVisible();
+      await expect(deadlineExplanation).toBeVisible();
+      await expect(
+        activeRegistration.getByRole('button', {
+          exact: true,
+          name: 'Cancel registration',
+        }),
+      ).toHaveCount(0);
       await expect(activeRegistration).toBeVisible();
       await expect(
         activeRegistration.getByText('Your registration is confirmed'),
@@ -543,7 +532,7 @@ Open **Events**, select the event, and review the confirmed ticket. Select **Can
       await testInfo.attach('markdown', {
         body: `
 {% callout type="warning" title="Nothing was partially changed" %}
-The deadline alert means the ticket remains confirmed, the occupied spot remains counted, no refund record exists, and no cancellation email was queued. Refreshing or repeatedly selecting the same action does not override the policy.
+The deadline explanation and missing cancellation action mean the ticket remains confirmed, the occupied spot remains counted, no refund record exists, and no cancellation email was queued. Refreshing does not override the policy, and the server rechecks it for stale or direct mutation requests.
 {% /callout %}
 
 Contact an event organizer if the registration still needs operational handling. An organizer who can organize this event and has **Cancel registrations and add-ons** access may cancel an unchecked registration before the event starts; participant deadline expiry alone does not grant the participant an override.
@@ -555,7 +544,7 @@ Self-service cancellation is always scoped to the signed-in user's own registrat
       });
       await takeScreenshot(
         testInfo,
-        deadlineAlert,
+        deadlineExplanation,
         page,
         'Participant cancellation blocked after the deadline',
       );
@@ -678,7 +667,7 @@ The target registration must belong to this event and tenant, remain unchecked, 
 1. Open **Events** from the main navigation.
 2. Select the event.
 3. Select **Organize this event**.
-4. Under **Participants**, find the correct person and registration option.
+4. Under **Participant registrations**, find the correct person and registration option.
 5. Verify that the attendee has not checked in, then select **Cancel registration**.
 `,
       });
@@ -808,7 +797,7 @@ An active transfer, pending add-on Checkout, checked-in attendee, started event,
         page.locator('section').filter({
           has: page.getByRole('heading', {
             level: 2,
-            name: 'Participants',
+            name: 'Participant registrations',
           }),
         }),
         page,

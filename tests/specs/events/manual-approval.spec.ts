@@ -56,7 +56,7 @@ const openOrganizerView = async ({
   await expect(
     organizer.page.getByRole('heading', {
       level: 2,
-      name: 'Participants',
+      name: 'Participant registrations',
     }),
   ).toBeVisible({ timeout: 20_000 });
 

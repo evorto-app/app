@@ -616,7 +616,7 @@ test('keeps a paid add-on pending across reload and settles through the producti
     const activeRegistration = page.locator('app-event-active-registration');
     await expect(
       activeRegistration.getByText(
-        'Finish or let the pending add-on checkout expire before cancelling this registration.',
+        'The event has started, so this registration can no longer be cancelled.',
         { exact: true },
       ),
     ).toBeVisible();
@@ -625,7 +625,7 @@ test('keeps a paid add-on pending across reload and settles through the producti
         exact: true,
         name: 'Cancel registration',
       }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect(
       activeRegistration.getByText(
         'Finish or let the pending add-on checkout expire before transferring this ticket.',

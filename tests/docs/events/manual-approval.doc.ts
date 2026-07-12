@@ -59,7 +59,10 @@ const openOrganizerView = async ({
   await expect(organizeLink).toBeVisible();
   await organizeLink.click();
   await expect(
-    organizer.page.getByRole('heading', { level: 2, name: 'Participants' }),
+    organizer.page.getByRole('heading', {
+      level: 2,
+      name: 'Participant registrations',
+    }),
   ).toBeVisible({ timeout: 20_000 });
   return organizer;
 };
@@ -243,7 +246,7 @@ Select **Apply for approval** only after reviewing the option. The application i
 1. Sign in with the event-manager or organizer account.
 2. Open **Events**, then open the same event.
 3. Select **Organize this event**.
-4. In **Participants**, verify the participant and the **Awaiting approval** status.
+4. In **Participant registrations**, verify the participant and the **Awaiting approval** status.
 5. Select **Approve application**.
 
 For a free option, this decision immediately confirms one spot. Evorto also queues a single approval email to the participant's notification address.

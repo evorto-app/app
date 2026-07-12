@@ -2,7 +2,10 @@ import { eq } from 'drizzle-orm';
 
 import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
-import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
+import {
+  defaultStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -11,7 +14,7 @@ import {
   type SeededProfileEventCards,
 } from '../../support/utils/profile-event-cards';
 
-test.use({ storageState: userStateFile });
+test.use({ storageState: defaultStateFile });
 
 test('Manage user profile', async ({
   database,
@@ -19,17 +22,17 @@ test('Manage user profile', async ({
   seedDate,
   seeded,
 }, testInfo) => {
-  const regularUser = usersToAuthenticate.find(
-    (user) => user.stateFile === userStateFile,
+  const profileUser = usersToAuthenticate.find(
+    (user) => user.stateFile === defaultStateFile,
   );
-  if (!regularUser) {
-    throw new Error('Expected regular profile user fixture');
+  if (!profileUser) {
+    throw new Error('Expected dedicated profile user fixture');
   }
   const originalUser = await database.query.users.findFirst({
-    where: { id: regularUser.id },
+    where: { id: profileUser.id },
   });
   if (!originalUser) {
-    throw new Error('Expected regular profile user to exist');
+    throw new Error('Expected dedicated profile user to exist');
   }
   const documentedNotificationEmail = `profile-docs-${seedDate.getTime()}@evorto.app`;
   const documentedIban = 'DE89370400440532013000';
@@ -51,7 +54,7 @@ test('Manage user profile', async ({
       database,
       seedDate,
       seeded,
-      userId: regularUser.id,
+      userId: profileUser.id,
     });
     profileReceiptUploadId = await addConsumedFinanceReceiptUpload(database, {
       eventId: profileEventId,
@@ -59,7 +62,7 @@ test('Manage user profile', async ({
       mimeType: 'application/pdf',
       sizeBytes: 2048,
       tenantId: seeded.tenant.id,
-      uploadedByUserId: regularUser.id,
+      uploadedByUserId: profileUser.id,
     });
     await database.insert(schema.financeReceipts).values({
       attachmentFileName: profileReceiptFileName,
@@ -72,7 +75,7 @@ test('Manage user profile', async ({
       purchaseCountry: 'DE',
       receiptDate: seedDate,
       status: 'submitted',
-      submittedByUserId: regularUser.id,
+      submittedByUserId: profileUser.id,
       taxAmount: 300,
       tenantId: seeded.tenant.id,
       totalAmount: 1875,
@@ -185,7 +188,7 @@ The notification email is user-managed and may differ from the Auth0 login email
     ).toBeVisible();
     await expect(page.getByText(`Login: ${originalUser.email}`)).toBeVisible();
     const updatedProfileUser = await database.query.users.findFirst({
-      where: { id: regularUser.id },
+      where: { id: profileUser.id },
     });
     if (!updatedProfileUser) {
       throw new Error('Expected generated profile docs user after update');
@@ -289,7 +292,7 @@ The user profile now uses a two-column layout:
     await expect(waitlistCard.getByText('No payment required')).toBeVisible();
     await expect(
       waitlistCard.getByText(
-        'Open the event page for waitlist details and the leave-waitlist action.',
+        'Open the event page for waitlist details and current cancellation status.',
       ),
     ).toBeVisible();
     await expect(
@@ -334,7 +337,7 @@ The user profile now uses a two-column layout:
         where: {
           id: profileEventCards.confirmed.registrationId,
           status: 'CONFIRMED',
-          userId: regularUser.id,
+          userId: profileUser.id,
         },
       });
     expect(confirmedRegistration).toEqual(
@@ -376,7 +379,7 @@ The user profile now uses a two-column layout:
         where: {
           id: profileEventCards.pendingCheckout.registrationId,
           status: 'PENDING',
-          userId: regularUser.id,
+          userId: profileUser.id,
         },
       });
     expect(pendingCheckoutRegistration).toEqual(
@@ -391,7 +394,7 @@ The user profile now uses a two-column layout:
         where: {
           id: profileEventCards.waitlist.registrationId,
           status: 'WAITLIST',
-          userId: regularUser.id,
+          userId: profileUser.id,
         },
       });
     expect(waitlistRegistration).toEqual(
@@ -406,7 +409,7 @@ The user profile now uses a two-column layout:
         where: {
           id: profileEventCards.checkedIn.registrationId,
           status: 'CONFIRMED',
-          userId: regularUser.id,
+          userId: profileUser.id,
         },
       });
     expect(checkedInRegistration).toEqual(
@@ -451,7 +454,7 @@ The user profile now uses a two-column layout:
     const profileReceipt = await database.query.financeReceipts.findFirst({
       where: {
         id: profileReceiptId,
-        submittedByUserId: regularUser.id,
+        submittedByUserId: profileUser.id,
         tenantId: seeded.tenant.id,
       },
     });
@@ -481,7 +484,7 @@ The user profile now uses a two-column layout:
         lastName: originalUser.lastName,
         paypalEmail: originalUser.paypalEmail,
       })
-      .where(eq(schema.users.id, regularUser.id));
+      .where(eq(schema.users.id, profileUser.id));
     await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, profileReceiptId));

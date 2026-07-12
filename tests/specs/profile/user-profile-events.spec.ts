@@ -89,7 +89,7 @@ test('profile event cards show implemented registration actions', async ({
     ).toBeVisible();
     await expect(
       waitlistCard.getByText(
-        'Open the event page for waitlist details and the leave-waitlist action.',
+        'Open the event page for waitlist details and current cancellation status.',
       ),
     ).toBeVisible();
     await expect(
