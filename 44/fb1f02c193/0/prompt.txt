@@ -1,0 +1,28 @@
+Add to our docs as a general guideline, tests HAVE TO pass ENTIRELY locally before a CI run is even attempted.
+
+---
+
+Small hint, please put these in the right places
+
+Binding product decisions:
+Paid event transactions are Stripe-only; without Stripe, events and add-ons must be free.
+A registration and all included, free, and purchased add-ons form one inseparable transfer bundle.
+All quantities and fulfillment history transfer unchanged; the recipient cannot omit add-ons.
+Transfer pricing uses current base prices for the fixed bundle, then applies the recipient’s current eligible discounts. Source-user discounts do not transfer.
+The source receives exact refunds for original Stripe payments; the recipient’s payment is independently recalculated.
+A transfer is database-only only when the entire bundle is free and no refund is required.
+Exhausted emails remain stored/read-only; no recovery action is required for now.
+Google Maps is required production functionality. Cloudflare Images is being removed and is not a release gate.
+Remove the paid-cash cancellation documentation because it conflicts with the Stripe-only rule.
+
+---
+
+Side-conversation handoff:
+
+- Ignore Fly-related work; a separate change is planned there.
+- Active ESNcard identifier: 2254268ZBWZ
+  Use it as E2E_LIVE_ESN_CARD_IDENTIFIER for local live-provider certification.
+- Permanently expired ESNcard identifier: 1995822SFGS
+  Use it for negative/expired-provider coverage if useful.
+- Keep both identifiers out of tracked files; use local .env or protected CI secrets.
+- The focused Google Maps rerun passed 8/8 with zero skips/flakes after the hydration wait. The full 11-test provider suite still needs a clean rerun.
