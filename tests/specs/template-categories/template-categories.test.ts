@@ -26,7 +26,16 @@ test('create template category', async ({
   await expect(page).toHaveURL(/\/templates\/categories/);
   const categoriesTable = page.getByRole('table');
   await expect(categoriesTable).toBeVisible();
-  await page.getByRole('button', { name: 'Create category' }).click();
+  const createCategoryButton = page.getByRole('button', {
+    name: 'Create category',
+  });
+  // Event replay removes `jsaction` once Angular has attached the click
+  // listener. Clicking the server-rendered button before then is a no-op.
+  await expect(createCategoryButton).not.toHaveAttribute('jsaction', /click/, {
+    timeout: 15_000,
+  });
+  await expect(createCategoryButton).toBeEnabled();
+  await createCategoryButton.click();
   await expect(page.getByLabel('Category title')).toBeVisible();
   await page.getByLabel('Category title').fill(categoryTitle);
   await page.getByRole('button', { name: 'Save' }).click();
@@ -81,7 +90,14 @@ test('edit template category', async ({
   const categoryRow = categoriesTable
     .getByRole('row')
     .filter({ hasText: category.title });
-  await categoryRow.getByRole('button', { name: 'Edit' }).click();
+  const editCategoryButton = categoryRow.getByRole('button', { name: 'Edit' });
+  // Event replay removes `jsaction` once Angular has attached the click
+  // listener. Clicking the server-rendered button before then is a no-op.
+  await expect(editCategoryButton).not.toHaveAttribute('jsaction', /click/, {
+    timeout: 15_000,
+  });
+  await expect(editCategoryButton).toBeEnabled();
+  await editCategoryButton.click();
   await expect(page.getByLabel('Category title')).toBeVisible();
   await expect(page.getByLabel('Category title')).toHaveValue(category.title);
   await page.getByLabel('Category title').fill(updatedTitle);
