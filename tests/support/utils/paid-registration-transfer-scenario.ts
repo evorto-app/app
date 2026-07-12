@@ -305,7 +305,11 @@ export const seedPaidRegistrationTransferScenario = async (
     await input.database
       .update(schema.transactions)
       .set({
+        status: 'pending',
         stripeRefundAttempts: 8,
+        // Mirror terminal webhook handling so an in-flight worker loses its lease.
+        stripeRefundClaimLeaseExpiresAt: null,
+        stripeRefundClaimLeaseId: null,
         stripeRefundId: terminalRefundId,
         stripeRefundLastError: 'Deterministic terminal Stripe refund failure',
         stripeRefundNextAttemptAt: null,
