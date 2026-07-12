@@ -48,17 +48,22 @@ const makeDatabaseServiceLayer = (url: string) =>
     ),
   );
 
-const waitForBlockedReceiptLock = async (pool: Pool) => {
+const waitForBlockedReceiptLock = async (pool: Pool, blockingPid: number) => {
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
-    const blocked = await pool.query<{ count: string }>(`
+    const blocked = await pool.query<{ count: string }>(
+      `
       SELECT count(*)::text AS count
-      FROM pg_stat_activity
-      WHERE datname = current_database()
-        AND pid <> pg_backend_pid()
-        AND wait_event_type = 'Lock'
-        AND query ILIKE '%finance_receipts%FOR UPDATE%'
-    `);
+      FROM pg_stat_activity AS activity
+      WHERE activity.datname = current_database()
+        AND activity.pid <> pg_backend_pid()
+        AND activity.state = 'active'
+        AND activity.wait_event_type = 'Lock'
+        AND $1::int = ANY(pg_blocking_pids(activity.pid))
+        AND activity.query ILIKE '%finance_receipts%'
+    `,
+      [blockingPid],
+    );
     if (Number(blocked.rows[0]?.count ?? 0) >= 1) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
@@ -180,7 +185,7 @@ describe('receipt review and reimbursement serialization', () => {
         uploadId: receiptUploadId,
         userId,
       }),
-      storageUrl: 'local-unavailable://receipt',
+      storageUrl: 'https://storage.example.test/receipt.png',
       tenantId,
       uploadedAt: receiptUploadedAt,
       uploadedByUserId: userId,
@@ -253,6 +258,9 @@ describe('receipt review and reimbursement serialization', () => {
     const fixture = await seedReceipt('approved');
     const client = await pool.connect();
     try {
+      if (typeof client.processID !== 'number') {
+        throw new TypeError('PostgreSQL lock holder has no backend PID');
+      }
       await client.query('BEGIN');
       await client.query(
         'SELECT id FROM finance_receipts WHERE id = $1 FOR UPDATE',
@@ -274,7 +282,7 @@ describe('receipt review and reimbursement serialization', () => {
         ).pipe(Effect.provide(fixture.handlerLayer)),
       );
 
-      await waitForBlockedReceiptLock(pool);
+      await waitForBlockedReceiptLock(pool, client.processID);
       await client.query('COMMIT');
       const result = await refund;
       transactionIds.push(result.transactionId);
@@ -300,10 +308,13 @@ describe('receipt review and reimbursement serialization', () => {
     }
   }, 30_000);
 
-  it('rejects a review that waits behind a concurrent reimbursement status transition', async () => {
+  it('rejects a stale rejection that waits behind a concurrent reimbursement transition', async () => {
     const fixture = await seedReceipt('approved');
     const client = await pool.connect();
     try {
+      if (typeof client.processID !== 'number') {
+        throw new TypeError('PostgreSQL lock holder has no backend PID');
+      }
       await client.query('BEGIN');
       await client.query(
         'SELECT id FROM finance_receipts WHERE id = $1 FOR UPDATE',
@@ -324,8 +335,8 @@ describe('receipt review and reimbursement serialization', () => {
             id: fixture.receiptId,
             purchaseCountry: 'NL',
             receiptDate: '2026-07-31',
-            rejectionReason: null,
-            status: 'approved',
+            rejectionReason: 'The receipt should be rejected',
+            status: 'rejected',
             taxAmount: 20,
             totalAmount: 300,
           },
@@ -333,7 +344,7 @@ describe('receipt review and reimbursement serialization', () => {
         ).pipe(Effect.flip, Effect.provide(fixture.handlerLayer)),
       );
 
-      await waitForBlockedReceiptLock(pool);
+      await waitForBlockedReceiptLock(pool, client.processID);
       await client.query('COMMIT');
       const error = await review;
 
