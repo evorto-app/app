@@ -747,14 +747,15 @@ Focused next-candidate evidence is green but is not a release total:
 | ----------------------------------------------------------- | -----: | ------------------: |
 | Guest registration-option Angular                           |     29 |                   0 |
 | Create-from-template recovery Angular                       |      7 |                   0 |
-| Generated-documentation source guards                       |     21 |                   0 |
+| Generated-documentation source guards                       |     22 |                   0 |
 | Final-tree selected functional and documentation Playwright |     19 |                   0 |
 | Template-category hydration functional Playwright           |      9 |                   0 |
 | Template-category hydration documentation Playwright        |      8 |                   0 |
 | Cancellation/transfer deadlock documentation Playwright     |     12 |                   0 |
 | PostgreSQL 17 integration with inverse user-lock regression |     35 |                   0 |
+| Exact profile/receipt navigation documentation Playwright   |      9 |                   0 |
 
-The local gate stopped twice instead of delegating diagnosis to CI. The first
+The local gate stopped three times instead of delegating diagnosis to CI. The first
 functional pass exposed one server-rendered template-category action clicked
 before Angular hydration; deterministic event-replay readiness waits now cover
 both functional and documentation actions. The next documentation pass exposed
@@ -762,8 +763,18 @@ a PostgreSQL foreign-key deadlock between cancellation fixture setup and a
 concurrent registration transfer. Transfer notification-address reads no longer
 take global user-row write locks, the fixture does not hold two shared-user FK
 locks in one transaction, and a bounded PostgreSQL concurrency regression plus
-the exact conflicting guide pair both pass. Because these repairs changed the
-candidate, the complete exact-commit gate must still restart before any push.
+the exact conflicting guide pair both pass. The next exact-candidate
+documentation pass reached 45/46 before a broad `Profile` link locator also
+matched seeded event-card titles containing that word. Profile navigation in
+both affected guides now requires the exact accessible name, a source guard
+rejects the ambiguous locator, and the focused documentation project passes
+9/9. Because these repairs changed the candidate, the complete exact-commit gate
+must still restart before any push.
+
+The exact-candidate functional branch `br-bitter-night-a9j4mwqd`, the stopped
+documentation branch `br-patient-dream-a9sg2js9`, and the focused selector branch
+`br-cool-water-a9sfsm40` each returned HTTP 404 after teardown with zero live
+project-labeled containers or networks.
 
 The final-tree combined focused branch `br-shy-bread-a9zt800v` returned HTTP 404
 after teardown and left no project-labeled container. Earlier focused branches

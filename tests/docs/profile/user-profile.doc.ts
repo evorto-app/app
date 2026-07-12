@@ -95,7 +95,7 @@ To access your profile, click on the **Profile** link in the navigation bar at t
     });
 
     // Click on the Profile link in the navigation bar
-    await page.getByRole('link', { name: 'Profile' }).click();
+    await page.getByRole('link', { name: 'Profile', exact: true }).click();
     await takeScreenshot(
       testInfo,
       page.locator('.navigation'),

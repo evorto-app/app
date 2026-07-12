@@ -11,6 +11,27 @@ const readSource = (sourcePath: string): string =>
   readFileSync(path.join(repositoryRoot, sourcePath), 'utf8');
 
 describe('generated docs source current behavior', () => {
+  it('uses exact profile navigation links when event names contain Profile', () => {
+    const profileSource = readSource('tests/docs/profile/user-profile.doc.ts');
+    const receiptSource = readSource(
+      'tests/docs/finance/receipt-submission.doc.ts',
+    );
+
+    for (const [source, expectedCount] of [
+      [profileSource, 1],
+      [receiptSource, 2],
+    ] as const) {
+      const profileLinkLocators = source.match(
+        /getByRole\(\s*'link',\s*\{[^}]*name:\s*'Profile'[^}]*\},?\s*\)/gu,
+      );
+
+      expect(profileLinkLocators).toHaveLength(expectedCount);
+      for (const locator of profileLinkLocators ?? []) {
+        expect(locator).toMatch(/exact:\s*true/u);
+      }
+    }
+  });
+
   it('seeds cancellation users without a multi-user foreign-key lock cycle', () => {
     const source = readSource(
       'tests/docs/events/registration-cancellation.doc.ts',

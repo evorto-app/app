@@ -363,7 +363,7 @@ Use **Profile** in the main navigation, then choose **Receipts**. This personal 
 `,
   });
 
-  await page.getByRole('link', { name: 'Profile' }).click();
+  await page.getByRole('link', { name: 'Profile', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Receipts' })).toBeVisible();
   await page.getByRole('button', { name: 'Receipts' }).click();
   await expect(
@@ -440,7 +440,9 @@ Tenant membership by itself is not organizer access. A regular member in the sam
   );
 
   await sameTenantViewer.page.goto('.');
-  await sameTenantViewer.page.getByRole('link', { name: 'Profile' }).click();
+  await sameTenantViewer.page
+    .getByRole('link', { name: 'Profile', exact: true })
+    .click();
   await sameTenantViewer.page.getByRole('button', { name: 'Receipts' }).click();
   await expect(
     sameTenantViewer.page.getByRole('heading', {
