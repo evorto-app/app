@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "c7c52b06a8cd",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/docs/admin/email-outbox.doc.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c7/c52b06a8cd/0/metadata.json",
+      "transcript": "/c7/c52b06a8cd/0/full.jsonl",
+      "content_hash": "/c7/c52b06a8cd/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 155900,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 7754752,
+    "output_tokens": 8467,
+    "api_call_count": 69
+  }
+}
