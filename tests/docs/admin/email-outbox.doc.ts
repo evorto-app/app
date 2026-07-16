@@ -10,6 +10,11 @@ import {
 
 test.use({ storageState: gaStateFile });
 
+// Parallel documentation runs can spend most of the default project timeout in
+// tenant seeding before Playwright creates this page. Keep the release gate
+// deterministic on slower local Docker runtimes.
+test.setTimeout(120_000);
+
 const outboxRow = (page: Page, item: EmailOutboxScenarioItem) =>
   page
     .getByRole('heading', { name: 'Delivery details' })
