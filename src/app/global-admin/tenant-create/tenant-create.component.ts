@@ -18,10 +18,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faCircleInfo,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   QueryClient,
@@ -37,7 +34,6 @@ import { NotificationService } from '../../core/notification.service';
 import {
   createGlobalAdminTenantFormModel,
   globalAdminTenantPayloadFromForm,
-  globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
 } from '../tenant-form/tenant-form.model';
 
@@ -62,7 +58,6 @@ export class TenantCreateComponent {
   );
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faCircleInfo = faCircleInfo;
   protected readonly initialPrivacyPolicyModel = signal({
     privacyPolicyText: '',
     privacyPolicyUrl: '',
@@ -77,7 +72,6 @@ export class TenantCreateComponent {
   protected readonly initialPrivacyPolicyForm = form(
     this.initialPrivacyPolicyModel,
   );
-  protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   protected readonly tenantModel = signal(createGlobalAdminTenantFormModel());
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
     required(schema.domain);
@@ -120,7 +114,7 @@ export class TenantCreateComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to create tenant'),
+            getErrorMessage(error, 'Failed to create organization'),
           );
           return null;
         }
@@ -138,14 +132,14 @@ export class TenantCreateComponent {
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to create tenant'),
+              getErrorMessage(error, 'Failed to create organization'),
             );
           },
           onSuccess: async (tenant) => {
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
             );
-            this.notifications.showSuccess('Tenant created');
+            this.notifications.showSuccess('Organization created');
             await this.router.navigate(['/global-admin/tenants', tenant.id]);
           },
         },

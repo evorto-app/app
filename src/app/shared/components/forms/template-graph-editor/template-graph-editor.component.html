@@ -7,8 +7,8 @@
       </h2>
       <p class="body-small text-on-surface-variant mt-1">
         Simple configuration keeps one organizing and one non-organizing option.
-        Advanced configuration supports an arbitrary option list and reusable
-        add-on mappings.
+        Advanced configuration lets you add registration options and choose
+        which registration options can use each reusable add-on.
       </p>
     </div>
     <div
@@ -75,6 +75,7 @@
         let index = $index
       ) {
         <app-template-registration-option-editor
+          [currencyCode]="tenantCurrency()"
           [esnEnabled]="esnEnabled()"
           [optionForm]="option"
           [referenceCount]="registrationReferenceCount(option.key().value())"
@@ -103,7 +104,7 @@
             Reusable add-ons
           </h3>
           <p class="body-small text-on-surface-variant mt-1">
-            Each option mapping keeps included units separate from optional
+            Each registration option has its own included units and optional
             purchases.
           </p>
         </div>
@@ -116,6 +117,7 @@
         @for (addOn of form.addOns; track addOn; let index = $index) {
           <app-template-addon-editor
             [addOnForm]="addOn"
+            [currencyCode]="tenantCurrency()"
             [optionChoices]="optionChoices()"
             [taxRates]="taxRates()"
             [taxRateState]="taxRateState()"

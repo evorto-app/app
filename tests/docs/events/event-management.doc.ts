@@ -1,4 +1,4 @@
-import type { Route } from '@playwright/test';
+import type { Locator, Page, Route } from '@playwright/test';
 
 import { and, eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
@@ -10,6 +10,7 @@ import {
   usersToAuthenticate,
 } from '../../../helpers/user-data';
 import {
+  eventInstances,
   eventRegistrationOptions,
   eventRegistrations,
 } from '../../../src/db/schema';
@@ -18,6 +19,41 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { fillScannerGuestCheckInCount } from '../../support/utils/scanner-result-page';
 
 test.use({ storageState: adminStateFile });
+
+const eventOptionEditorByTitle = async (
+  page: Page,
+  title: string,
+): Promise<Locator> => {
+  const editors = page.locator('app-event-registration-option-editor');
+  const titleInputs = editors.getByRole('textbox', {
+    exact: true,
+    name: 'Option name',
+  });
+  let matchingIndex = -1;
+
+  await expect
+    .poll(
+      async () => {
+        const titles = await titleInputs.evaluateAll((elements) =>
+          elements.map((element) => {
+            if (!(element instanceof HTMLInputElement)) {
+              throw new Error('Expected an event option title input');
+            }
+            return element.value;
+          }),
+        );
+        matchingIndex = titles.indexOf(title);
+        return matchingIndex;
+      },
+      {
+        message: `Expected event registration option "${title}"`,
+        timeout: 15_000,
+      },
+    )
+    .toBeGreaterThanOrEqual(0);
+
+  return editors.nth(matchingIndex);
+};
 
 test('Create and manage events', async ({
   database,
@@ -34,15 +70,21 @@ test('Create and manage events', async ({
       'Seeded freeOpen scenario event was not found for event-management docs',
     );
   }
+  const sourceEvent = await database.query.eventInstances.findFirst({
+    where: { id: target.id, tenantId: target.tenantId },
+  });
+  if (!sourceEvent) {
+    throw new Error(
+      'Seeded freeOpen event row was not found for event-management docs',
+    );
+  }
 
   await page.goto('.');
   await expect(page.getByRole('link', { name: 'Admin Tools' })).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
-{% callout type="note" title="User permissions" %}
-For this guide, we assume you have an account with the required permissions. These are:
-- **events:create**: This permission is required to create new events.
-- **events:editAll**: This permission is required to manage and edit events.
+{% callout type="note" title="Before you begin" %}
+Use an account that can create events and manage all events.
 {% /callout %}
 
 # Event Management
@@ -149,7 +191,7 @@ The event details page has several sections:
 
 - **Basic Information**: Title, description, date, location
 - **Registration**: Available registration options or your active registration
-- **Review and listing actions**: Status, submit/review actions, edit link, and listing controls when your permissions allow them
+- **Review and listing actions**: Status, submit/review actions, edit link, and listing controls when your account has access
 - **Organize this event**: A link to the organizer surface when you are allowed to organize the event
 
 Let's look at each section in detail.
@@ -161,11 +203,11 @@ Let's look at each section in detail.
 ## Registration Options
 
 Registration options determine how people can sign up for your event. Templates can create one or more registration options that are then shown on the event details page.
-Reusable add-ons copied from the source template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached registration options.
+Reusable add-ons copied from the template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached registration options.
 
-Each draft event owns its registration configuration independently from the source template. **Simple** mode keeps exactly one organizing and one non-organizing option. **Advanced** mode supports any number of named options and reveals reusable add-on mappings with separate included and optional quantities. Missing organizer or participant categories are warnings, not save blockers.
+Each draft event has its own registration configuration, independent of the template. **Simple** mode keeps exactly one organizing and one non-organizing option. **Advanced** mode supports any number of named options and lets you choose which registration options can use each reusable add-on, with separate included and optional quantities. Missing organizer or participant categories are warnings, not save blockers.
 
-Every mode change asks for confirmation. Before returning an advanced event to simple mode, save the advanced graph with exactly one option of each kind, reopen the editor, and then confirm the separate mode change. Existing option IDs and hidden add-ons are preserved.
+Every mode change asks for confirmation. Before returning an advanced event to simple mode, save the advanced setup with exactly one option of each kind, reopen the editor, and then confirm the separate mode change. Existing saved options and hidden add-ons are preserved.
 
 When editing a draft event, registration options can include:
 
@@ -307,7 +349,7 @@ Note: The event created from the template already has registration options confi
 
   await testInfo.attach('markdown', {
     body: `
-Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries. The event edit form uses lookup-only role labels for this authoring flow rather than exposing role-management permission details.
+Already selected roles are hidden from suggestions so the same eligibility role cannot be added twice.
 `,
   });
   await takeScreenshot(
@@ -316,6 +358,265 @@ Role picker behavior: already selected roles are hidden from suggestions to avoi
     page,
     'Event edit role picker duplicate prevention',
   );
+
+  const editableEventId = getId();
+  const editableParticipantOptionId = getId();
+  const initialEditableTitle = `Disposable draft ${getId().slice(0, 6)}`;
+  const savedEditableTitle = `${initialEditableTitle} updated`;
+  const savedEditableDescription =
+    'Meet beside the information desk fifteen minutes before departure.';
+  const initialParticipantOptionTitle = 'Disposable participants';
+  const savedParticipantOptionTitle = 'Participants with manual approval';
+  const editableStart = DateTime.now().plus({ days: 28 }).startOf('hour');
+  const editableEnd = editableStart.plus({ hours: 3 });
+
+  await database.insert(eventInstances).values({
+    creatorId: sourceEvent.creatorId,
+    description: '<p>Disposable event before editing.</p>',
+    end: editableEnd.toJSDate(),
+    icon: sourceEvent.icon,
+    id: editableEventId,
+    simpleModeEnabled: true,
+    start: editableStart.toJSDate(),
+    status: 'DRAFT',
+    templateId: sourceEvent.templateId,
+    tenantId: target.tenantId,
+    title: initialEditableTitle,
+    unlisted: true,
+  });
+
+  try {
+    await database.insert(eventRegistrationOptions).values([
+      {
+        closeRegistrationTime: editableStart.minus({ hours: 1 }).toJSDate(),
+        description: 'Help run this disposable event.',
+        eventId: editableEventId,
+        isPaid: false,
+        openRegistrationTime: editableStart.minus({ days: 7 }).toJSDate(),
+        organizingRegistration: true,
+        price: 0,
+        registeredDescription: 'Organizer place confirmed.',
+        registrationMode: 'fcfs',
+        roleIds: [],
+        spots: 4,
+        title: 'Disposable organizers',
+      },
+      {
+        closeRegistrationTime: editableStart.minus({ hours: 1 }).toJSDate(),
+        description: 'Join this disposable event.',
+        eventId: editableEventId,
+        id: editableParticipantOptionId,
+        isPaid: false,
+        openRegistrationTime: editableStart.minus({ days: 7 }).toJSDate(),
+        organizingRegistration: false,
+        price: 0,
+        registeredDescription: 'Participant place confirmed.',
+        registrationMode: 'fcfs',
+        roleIds: [],
+        spots: 20,
+        title: initialParticipantOptionTitle,
+      },
+    ]);
+
+    await page.goto(`/events/${editableEventId}`);
+    await expect(
+      page.getByRole('heading', {
+        exact: true,
+        level: 1,
+        name: initialEditableTitle,
+      }),
+    ).toBeVisible({ timeout: 20_000 });
+    const openEditor = page.getByRole('link', {
+      exact: true,
+      name: 'Edit Event',
+    });
+    await expect(openEditor).toBeVisible();
+
+    await testInfo.attach('markdown', {
+      body: `
+## Edit an existing draft event
+
+Only **Draft** events can be changed with the normal event editor. Open the draft from **Events**, then select **Edit Event**. Pending-review and published events deliberately do not offer this action.
+
+This walkthrough uses a disposable draft so every saved field can be read back without changing a shared event. It updates both general information and the event-owned registration configuration.
+`,
+    });
+
+    await openEditor.click();
+    await expect(page).toHaveURL(`/events/${editableEventId}/edit`);
+    const eventDetailsEditor = page
+      .getByRole('heading', { exact: true, name: 'Event details' })
+      .locator('xpath=ancestor::section')
+      .first();
+    const editableTitle = eventDetailsEditor.getByLabel('Event title');
+    await expect(editableTitle).toHaveValue(initialEditableTitle, {
+      timeout: 20_000,
+    });
+    const descriptionEditor = eventDetailsEditor.locator('app-editor');
+    const descriptionPlaceholder = descriptionEditor.getByTestId(
+      'rich-editor-placeholder',
+    );
+    await expect(descriptionPlaceholder).not.toHaveAttribute(
+      'jsaction',
+      /click/u,
+      { timeout: 20_000 },
+    );
+
+    await editableTitle.fill(savedEditableTitle);
+    await descriptionPlaceholder.click();
+    const descriptionContent = descriptionEditor.getByTestId(
+      'rich-editor-content',
+    );
+    await expect(descriptionContent).toBeEditable({ timeout: 20_000 });
+    await descriptionContent.fill(savedEditableDescription);
+
+    const simpleModeButton = page.getByTestId('event-mode-simple');
+    const advancedModeButton = page.getByTestId('event-mode-advanced');
+    await expect(simpleModeButton).toHaveAttribute('aria-pressed', 'true');
+    await advancedModeButton.click();
+    const modeDialog = page.getByRole('dialog').filter({
+      has: page.getByRole('heading', {
+        exact: true,
+        name: 'Change registration configuration?',
+      }),
+    });
+    await expect(modeDialog).toContainText(
+      'Advanced mode keeps both current options',
+    );
+    await expect(modeDialog).toContainText(
+      'This change remains reversible until you save',
+    );
+    await takeScreenshot(
+      testInfo,
+      modeDialog,
+      page,
+      'Confirm a draft event registration mode change',
+    );
+
+    await modeDialog
+      .getByRole('button', { exact: true, name: 'Keep current mode' })
+      .click();
+    await expect(simpleModeButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(editableTitle).toHaveValue(savedEditableTitle);
+
+    await testInfo.attach('markdown', {
+      body: `
+### Choose simple or advanced registration configuration
+
+- **Simple** keeps exactly one organizer/helper option and one participant option. Use it when those two choices are enough.
+- **Advanced** keeps the existing options but allows any number of named options and exposes add-ons.
+
+Selecting a mode first opens a confirmation. Choose **Keep current mode** if you clicked by mistake or need to review the form; this closes the dialog without changing the mode or discarding the other unsaved fields. To return an advanced event to simple later, first reduce and save the advanced setup so it has exactly one organizer/helper and one participant option. Reopen the editor and confirm the separate mode change. Evorto does not silently delete extra options, questions, add-ons, or the registration options chosen for each add-on.
+`,
+    });
+
+    await advancedModeButton.click();
+    await page
+      .getByRole('button', { exact: true, name: 'Use advanced mode' })
+      .click();
+    await expect(advancedModeButton).toHaveAttribute('aria-pressed', 'true');
+
+    const participantEditor = await eventOptionEditorByTitle(
+      page,
+      initialParticipantOptionTitle,
+    );
+    await participantEditor
+      .getByLabel('Option name')
+      .fill(savedParticipantOptionTitle);
+    await participantEditor.getByLabel('Capacity').fill('37');
+    await participantEditor.getByLabel('Registration mode').click();
+    await page
+      .getByRole('option', { exact: true, name: 'Manual approval' })
+      .click();
+    await takeScreenshot(
+      testInfo,
+      participantEditor,
+      page,
+      'Edited draft event registration option',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+### Update the draft and save it
+
+Change the general event fields you need, such as **Event title** and **Description**. Registration configuration is saved with the same form. In this example, the participant option receives a clearer name, capacity **37**, and **Manual approval** mode.
+
+Select **Save changes** once. A successful save returns to the event details page. If an error remains on the editor, the event has not been confirmed as updated: read the validation or error message, correct the problem, and select **Save changes** again. Do not assume an unsaved mode or registration change is live merely because it is visible in the form.
+`,
+    });
+
+    const saveChanges = page.getByTestId('save-event-graph');
+    await expect(saveChanges).toBeEnabled();
+    await saveChanges.click();
+    await expect(page).toHaveURL(`/events/${editableEventId}`, {
+      timeout: 20_000,
+    });
+    await page.reload();
+    await expect(
+      page.getByRole('heading', {
+        exact: true,
+        level: 1,
+        name: savedEditableTitle,
+      }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(savedEditableDescription)).toBeVisible();
+
+    const persistedEvent = await database.query.eventInstances.findFirst({
+      where: { id: editableEventId, tenantId: target.tenantId },
+    });
+    const persistedParticipantOption =
+      await database.query.eventRegistrationOptions.findFirst({
+        where: {
+          eventId: editableEventId,
+          id: editableParticipantOptionId,
+        },
+      });
+    expect(persistedEvent?.title).toBe(savedEditableTitle);
+    expect(persistedEvent?.description).toContain(savedEditableDescription);
+    expect(persistedEvent?.simpleModeEnabled).toBe(false);
+    expect(persistedParticipantOption?.title).toBe(savedParticipantOptionTitle);
+    expect(persistedParticipantOption?.spots).toBe(37);
+    expect(persistedParticipantOption?.registrationMode).toBe('application');
+
+    await page.getByRole('link', { exact: true, name: 'Edit Event' }).click();
+    await expect(page).toHaveURL(`/events/${editableEventId}/edit`);
+    await expect(page.getByLabel('Event title')).toHaveValue(
+      savedEditableTitle,
+      { timeout: 20_000 },
+    );
+    await expect(advancedModeButton).toHaveAttribute('aria-pressed', 'true');
+    const reloadedParticipantEditor = await eventOptionEditorByTitle(
+      page,
+      savedParticipantOptionTitle,
+    );
+    await expect(reloadedParticipantEditor.getByLabel('Capacity')).toHaveValue(
+      '37',
+    );
+    await expect(
+      reloadedParticipantEditor.getByLabel('Registration mode'),
+    ).toContainText('Manual approval');
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-event-edit'),
+      page,
+      'Reloaded draft event with saved changes',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+### Confirm the saved result
+
+Reload the event details page and check the new title and description. Open **Edit Event** again and verify that **Advanced**, the option name, capacity, and **Manual approval** selection are still present. This confirms that the saved event differs from any unsaved changes still in the browser.
+`,
+    });
+  } finally {
+    await database
+      .delete(eventRegistrationOptions)
+      .where(eq(eventRegistrationOptions.eventId, editableEventId));
+    await database
+      .delete(eventInstances)
+      .where(eq(eventInstances.id, editableEventId));
+  }
 
   await testInfo.attach('markdown', {
     body: `
@@ -369,8 +670,8 @@ The organizer view currently includes:
 Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scan**. The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
 
 Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows a future-event warning before that window opens. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
-Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event sources. Event registration and add-on payments are Stripe-only; without a connected tenant Stripe account, registration options and add-ons must remain free.
-For free registrations, organizers can transfer a participant registration directly to another eligible tenant member. Paid registrations use the participant's private transfer link so the recipient can confirm current eligibility, answer current questions, review the fixed bundle, and pay the current base prices with only their own current discounts before ownership changes. Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged. Existing check-in or add-on redemption does not erase that history or let the recipient omit fulfilled items. The source receives exact refunds for every original Stripe payment; the organizer overview intentionally does not directly reassign a paid ticket.
+Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments. Event registration and add-on payments are Stripe-only; without a connected Stripe account for the organization, registration options and add-ons must remain free.
+Organizers can transfer a participant registration directly to another eligible organization member only when the entire fixed bundle is free, requires no refund, and has no participant questions. When participant questions exist, the organizer creates a private transfer offer instead so the recipient can confirm current eligibility and provide their own current answers before ownership changes. Paid registrations also use the private transfer flow so the recipient can review the fixed bundle and pay the current base prices with only their own current discounts. Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged. Existing check-in or add-on redemption does not erase that history or let the recipient omit fulfilled items. The previous owner receives exact refunds for every original Stripe payment; the organizer overview intentionally does not directly reassign a paid ticket.
 
 It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning. Participant cancellation and private free or paid transfer are covered in the dedicated Registration Cancellation and Registration Transfer guides.
 `,
@@ -584,8 +885,8 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
 
 ## Event Editing
 
-Draft events can be edited from the event details page when your permissions allow it. An event returned by a reviewer is a draft, with the review feedback shown on the details page.
-The edit form covers the same event details and the event-owned registration graph used during event creation. Simple and advanced modes require confirmation; advanced graphs may omit either option kind with a warning, and add-ons hidden by simple mode remain stored. Reducing an advanced graph and switching to simple are deliberately separate saves so no option is silently deleted or replaced.
+Draft events can be edited from the event details page when your account has access. An event returned by a reviewer is a draft, with the review feedback shown on the details page.
+The edit form covers the same event details and registration setup used during event creation. Simple and advanced modes require confirmation; advanced setups may omit either option kind with a warning, and add-ons hidden by simple mode remain saved. Reducing an advanced setup and switching to simple are deliberately separate saves so no option is silently deleted or replaced.
 Pending-review and published events are locked from normal editing.
 
 ## Current Scope

@@ -40,7 +40,6 @@ import { NotificationService } from '../../core/notification.service';
 import {
   type GlobalAdminTenantFormModel,
   globalAdminTenantPayloadFromForm,
-  globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
   globalAdminTenantUpdateErrorMessage,
   resolveGlobalAdminTenantEditFormModel,
@@ -65,7 +64,6 @@ export class TenantEditComponent {
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
-  protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   private readonly rpc = AppRpc.injectClient();
   protected readonly tenantQuery = injectQuery(() =>
     this.rpc.globalAdmin.tenants.findOne.queryOptions({
@@ -105,7 +103,7 @@ export class TenantEditComponent {
   private readonly router = inject(Router);
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to load tenant');
+    return getErrorMessage(error, 'Failed to load organization');
   }
 
   protected async updateTenant(event: Event): Promise<void> {
@@ -119,7 +117,7 @@ export class TenantEditComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to update tenant'),
+            getErrorMessage(error, 'Failed to update organization'),
           );
           return null;
         }
@@ -159,7 +157,7 @@ export class TenantEditComponent {
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
             );
-            this.notifications.showSuccess('Tenant updated');
+            this.notifications.showSuccess('Organization updated');
             await this.router.navigate([
               '/global-admin/tenants',
               this.tenantId(),

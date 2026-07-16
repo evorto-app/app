@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   registrationIdFromScannedTicketUrl,
   scannerCameraErrorMessage,
+  scannerNonTicketMessage,
 } from './scanner.component';
 
 describe('scannerCameraErrorMessage', () => {
@@ -63,5 +64,13 @@ describe('registrationIdFromScannedTicketUrl', () => {
         'https://tenant.example.com/not-scan/registration/registration-1',
       ),
     ).toBeUndefined();
+  });
+});
+
+describe('scanner ticket feedback', () => {
+  it('keeps non-ticket QR feedback separate from camera recovery', () => {
+    expect(scannerNonTicketMessage).toContain('not an Evorto ticket');
+    expect(scannerNonTicketMessage).toContain('Keep the camera open');
+    expect(scannerNonTicketMessage).not.toContain('camera could not');
   });
 });

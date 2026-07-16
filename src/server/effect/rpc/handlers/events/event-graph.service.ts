@@ -31,6 +31,9 @@ export type EventGraphUpdateInput = Parameters<
 const invalidGraph = (message: string, reason: string) =>
   new RpcBadRequestError({ message, reason });
 
+export const purchasedAddOnRegistrationOptionRemovalMessage =
+  'An add-on that has already been purchased must remain available with its existing registration option';
+
 const hasDuplicates = (values: readonly string[]): boolean =>
   new Set(values).size !== values.length;
 
@@ -155,6 +158,13 @@ export const validateEventGraphStructure = ({
   }
 
   for (const option of input.registrationOptions) {
+    if (option.isPaid && option.price <= 0) {
+      return invalidGraph(
+        'Paid event registration options require a positive price',
+        'paidEventRegistrationOptionRequiresPositivePrice',
+      );
+    }
+
     const open = new Date(option.openRegistrationTime);
     const close = new Date(option.closeRegistrationTime);
     if (
@@ -647,7 +657,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
         if (purchases.length > 0) {
           return yield* Effect.fail(
             invalidGraph(
-              'Purchased add-on mappings cannot be removed',
+              purchasedAddOnRegistrationOptionRemovalMessage,
               'eventAddonMappingInUse',
             ),
           );

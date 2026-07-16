@@ -79,9 +79,12 @@ export class RegistrationTransferQuestionRecord extends Schema.Class<Registratio
 export class RegistrationTransferOptionRecord extends Schema.Class<RegistrationTransferOptionRecord>(
   'RegistrationTransferOptionRecord',
 )({
+  appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+  basePrice: nonNegativeNumber,
   currency: Tenant.fields.currency,
   currentPrice: nonNegativeNumber,
   description: Schema.NullOr(Schema.String),
+  discountAmount: Schema.NullOr(nonNegativeNumber),
   id: Schema.NonEmptyString,
   isPaid: Schema.Boolean,
   questions: Schema.Array(RegistrationTransferQuestionRecord),
@@ -94,6 +97,7 @@ export class RegistrationTransferClaimRecord extends Schema.Class<RegistrationTr
   bundle: RegistrationTransferBundleRecord,
   event: RegistrationTransferEventRecord,
   expiresAt: Schema.NonEmptyString,
+  recipientBundlePrice: nonNegativeNumber.check(Schema.isInt()),
   refundLifecycle: Schema.NullOr(RegistrationTransferRefundLifecycle),
   registrationOption: RegistrationTransferOptionRecord,
   status: RegistrationTransferStatus,

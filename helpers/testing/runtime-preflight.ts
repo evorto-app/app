@@ -2,9 +2,11 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { e2eTestUserPasswordVariables } from '../user-data';
+
 // Runtime preflight runs before Docker commands so missing secrets, broken
 // Compose config, or missing browsers fail clearly before the app starts.
-export type RuntimeTarget = 'docker' | 'esncard-release';
+export type RuntimeTarget = 'docker' | 'esncard-release' | 'playwright';
 
 interface CommandResult {
   status: null | number;
@@ -33,6 +35,13 @@ interface RuntimePreflightOptions {
 }
 
 const commandTimeoutMs = 15_000;
+
+const e2eTestAccountPasswordVariables = e2eTestUserPasswordVariables.map(
+  (name) => ({
+    description: 'Auth0 password for an authenticated Playwright test account',
+    name,
+  }),
+) satisfies RequiredVariable[];
 
 const dockerRequiredVariables = [
   {
@@ -74,6 +83,11 @@ const dockerRequiredVariables = [
   },
 ] satisfies RequiredVariable[];
 
+const playwrightRequiredVariables = [
+  ...dockerRequiredVariables,
+  ...e2eTestAccountPasswordVariables,
+] satisfies RequiredVariable[];
+
 const liveEsncardReleaseVariable = {
   description:
     'Approved active non-production ESNcard identifier for mandatory release certification',
@@ -89,10 +103,11 @@ const expiredEsncardReleaseVariable = {
 export const requiredByTarget = {
   docker: dockerRequiredVariables,
   'esncard-release': [
-    ...dockerRequiredVariables,
+    ...playwrightRequiredVariables,
     liveEsncardReleaseVariable,
     expiredEsncardReleaseVariable,
   ],
+  playwright: playwrightRequiredVariables,
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
 export const optionalByTarget = {
@@ -108,9 +123,24 @@ export const optionalByTarget = {
     },
   ],
   'esncard-release': [],
+  playwright: [
+    {
+      ...liveEsncardReleaseVariable,
+      description: 'Optional local active-card esncard.org Playwright coverage',
+    },
+    {
+      ...expiredEsncardReleaseVariable,
+      description:
+        'Optional local expired-card esncard.org Playwright coverage',
+    },
+  ],
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
-const targets = new Set<RuntimeTarget>(['docker', 'esncard-release']);
+const targets = new Set<RuntimeTarget>([
+  'docker',
+  'esncard-release',
+  'playwright',
+]);
 
 const readTarget = (): RuntimeTarget => {
   const target = process.argv[2];

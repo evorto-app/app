@@ -59,6 +59,7 @@ test.describe('with users:assignRoles', () => {
         .toEqual([scenario.role.id]);
 
       ({ roleSelect } = await openUserAssignment(page, scenario));
+      await expect(roleSelect).toBeEnabled();
       await expect(roleSelect).toContainText(scenario.role.name);
       await roleSelect.press('Enter');
       roleOption = page.getByRole('option', {
@@ -71,6 +72,7 @@ test.describe('with users:assignRoles', () => {
       await expect.poll(scenario.readAssignedRoleIds).toEqual([]);
 
       ({ roleSelect } = await openUserAssignment(page, scenario));
+      await expect(roleSelect).toBeEnabled();
       await expect(roleSelect).not.toContainText(scenario.role.name);
       await roleSelect.press('Enter');
       await expect(

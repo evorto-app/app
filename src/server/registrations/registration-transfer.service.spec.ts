@@ -5,7 +5,55 @@ import Stripe from 'stripe';
 import { Database } from '../../db';
 import { RegistrationTransferInternalError } from '../../shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import { StripeClient } from '../stripe-client';
-import { resumeRegistrationTransferCheckout } from './registration-transfer.service';
+import {
+  registrationTransferGuestCheckoutLine,
+  resumeRegistrationTransferCheckout,
+} from './registration-transfer.service';
+
+describe('registrationTransferGuestCheckoutLine', () => {
+  it('omits a zero-value guest line when a paid add-on still requires Checkout', () => {
+    const addOnLine = {
+      addonId: 'addon-1',
+      allocationKey: 'transfer-addon:purchase-1',
+      kind: 'addon' as const,
+      name: 'Paid add-on',
+      quantity: 1,
+      unitAmount: 500,
+    };
+    const guestLine = registrationTransferGuestCheckoutLine({
+      eventTitle: 'Free event',
+      guestCount: 2,
+      guestUnitPrice: 0,
+      stripeTaxRateId: null,
+    });
+    const lineItems = guestLine ? [addOnLine, guestLine] : [addOnLine];
+
+    expect(lineItems).toEqual([
+      expect.objectContaining({
+        addonId: 'addon-1',
+        quantity: 1,
+        unitAmount: 500,
+      }),
+    ]);
+    expect(lineItems.every(({ unitAmount }) => unitAmount > 0)).toBe(true);
+  });
+
+  it('retains a positive guest line and its tax rate', () => {
+    expect(
+      registrationTransferGuestCheckoutLine({
+        eventTitle: 'Paid event',
+        guestCount: 2,
+        guestUnitPrice: 1000,
+        stripeTaxRateId: 'txr_guest',
+      }),
+    ).toEqual({
+      name: 'Guest registration fee for Paid event',
+      quantity: 2,
+      taxRateId: 'txr_guest',
+      unitAmount: 1000,
+    });
+  });
+});
 
 describe('resumeRegistrationTransferCheckout', () => {
   it.effect(

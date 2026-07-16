@@ -14,9 +14,10 @@ import {
   eventTemplateCategories,
   eventTemplates,
   tenants,
+  tenantStripeTaxRates,
   users,
 } from '../../db/schema';
-import { tenantHasPaidEventConfiguration } from './paid-event-configuration';
+import { tenantHasStripeTaxRateConfiguration } from './paid-event-configuration';
 import { lockTenantStripeAccount } from './pending-stripe-obligations';
 
 const databaseUrl = process.env['DATABASE_URL'];
@@ -65,6 +66,7 @@ describe('event-create Stripe account serialization', () => {
     categoryId: string;
     eventId: string;
     optionId: string;
+    taxRateRowId: string;
     templateId: string;
     tenantId: string;
     userId: string;
@@ -87,6 +89,9 @@ describe('event-create Stripe account serialization', () => {
         .delete(eventTemplates)
         .where(eq(eventTemplates.id, fixture.templateId));
       await database
+        .delete(tenantStripeTaxRates)
+        .where(eq(tenantStripeTaxRates.id, fixture.taxRateRowId));
+      await database
         .delete(eventTemplateCategories)
         .where(eq(eventTemplateCategories.id, fixture.categoryId));
       await database.delete(users).where(eq(users.id, fixture.userId));
@@ -95,7 +100,7 @@ describe('event-create Stripe account serialization', () => {
     await pool.end();
   });
 
-  it('makes a concurrent disconnect wait for and observe the committed paid graph', async () => {
+  it('makes concurrent account-change planning observe the committed tax binding', async () => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 7);
     const tenantId = `t-${suffix}`;
     const userId = `u-${suffix}`;
@@ -103,11 +108,14 @@ describe('event-create Stripe account serialization', () => {
     const templateId = `tpl-${suffix}`;
     const eventId = `e-${suffix}`;
     const optionId = `o-${suffix}`;
+    const taxRateRowId = `r-${suffix}`;
     const stripeAccountId = `acct_${suffix}`;
+    const nextStripeAccountId = `acct_next_${suffix}`;
     cleanup.push({
       categoryId,
       eventId,
       optionId,
+      taxRateRowId,
       templateId,
       tenantId,
       userId,
@@ -141,6 +149,16 @@ describe('event-create Stripe account serialization', () => {
       id: templateId,
       tenantId,
       title: 'Template',
+    });
+    await database.insert(tenantStripeTaxRates).values({
+      active: true,
+      displayName: 'VAT',
+      id: taxRateRowId,
+      inclusive: true,
+      percentage: '19',
+      stripeAccountId,
+      stripeTaxRateId: `txr_${suffix}`,
+      tenantId,
     });
 
     const { promise: createReleaseSignal, resolve: allowCreateCommit } =
@@ -176,6 +194,7 @@ describe('event-create Stripe account serialization', () => {
               price: 1000,
               registrationMode: 'fcfs',
               spots: 10,
+              stripeTaxRateId: `txr_${suffix}`,
               title: 'Participant',
             });
             markGraphWritten(undefined);
@@ -186,19 +205,19 @@ describe('event-create Stripe account serialization', () => {
     );
     await graphWritten;
 
-    const disconnect = Effect.runPromise(
+    const rotation = Effect.runPromise(
       Database.use((effectDatabase) =>
         effectDatabase.transaction((tx) =>
           Effect.gen(function* () {
             yield* lockTenantStripeAccount(tx, tenantId);
-            if (yield* tenantHasPaidEventConfiguration(tx, tenantId)) {
+            if (yield* tenantHasStripeTaxRateConfiguration(tx, tenantId)) {
               return 'blocked' as const;
             }
             yield* tx
               .update(tenants)
-              .set({ stripeAccountId: null })
+              .set({ stripeAccountId: nextStripeAccountId })
               .where(eq(tenants.id, tenantId));
-            return 'disconnected' as const;
+            return 'rotated' as const;
           }),
         ),
       ).pipe(Effect.provide(makeDatabaseServiceLayer(databaseUrl))),
@@ -214,7 +233,7 @@ describe('event-create Stripe account serialization', () => {
       await waitForBlockedTenantLock(pool);
       releaseCreate();
       await eventCreate;
-      expect(await disconnect).toBe('blocked');
+      expect(await rotation).toBe('blocked');
       expect(
         await database.query.tenants.findFirst({ where: { id: tenantId } }),
       ).toMatchObject({ stripeAccountId });
@@ -222,7 +241,7 @@ describe('event-create Stripe account serialization', () => {
       releaseCreate();
       await Promise.all([
         eventCreate.catch(() => null),
-        disconnect.catch(() => null),
+        rotation.catch(() => null),
       ]);
     }
   }, 30_000);

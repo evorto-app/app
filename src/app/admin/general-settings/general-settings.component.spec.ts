@@ -1,10 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { Injector, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { form } from '@angular/forms/signals';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  createGeneralSettingsFormModel,
   generalSettingsBrandAssetUploadDisabled,
+  generalSettingsFormSchema,
   generalSettingsSaveDisabled,
   tenantTimezoneValidationError,
 } from './general-settings.component';
+
+beforeEach(() => {
+  TestBed.configureTestingModule({});
+});
 
 describe('generalSettingsSaveDisabled', () => {
   it('blocks tenant settings saves while invalid, submitting, or mutation-pending', () => {
@@ -63,11 +72,35 @@ describe('generalSettingsBrandAssetUploadDisabled', () => {
 });
 
 describe('tenantTimezoneValidationError', () => {
-  it('accepts IANA names and rejects browser-local abbreviations', () => {
+  it('accepts city or region timezones and rejects browser-local abbreviations', () => {
     expect(tenantTimezoneValidationError('America/New_York')).toBeUndefined();
     expect(tenantTimezoneValidationError('PST')).toEqual({
       kind: 'ianaTimezone',
-      message: 'Enter a valid IANA timezone name.',
+      message: 'Enter a recognized city or region timezone.',
     });
+  });
+});
+
+describe('tenant policy deadline validation', () => {
+  it('requires both deadline values before settings can be saved', () => {
+    const model = createGeneralSettingsFormModel();
+    Reflect.set(model, 'cancellationDeadlineHoursBeforeStart', null);
+    Reflect.set(model, 'transferDeadlineHoursBeforeStart', null);
+    const settings = form(signal(model), generalSettingsFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(
+      settings
+        .cancellationDeadlineHoursBeforeStart()
+        .errors()
+        .map((error) => error.message),
+    ).toContain('Enter a cancellation deadline.');
+    expect(
+      settings
+        .transferDeadlineHoursBeforeStart()
+        .errors()
+        .map((error) => error.message),
+    ).toContain('Enter a transfer deadline.');
   });
 });

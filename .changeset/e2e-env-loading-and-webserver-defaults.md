@@ -1,9 +1,9 @@
 ---
-evorto: patch
+default: patch
 ---
 
-Improve local E2E test ergonomics and deterministic config loading:
+# Make local E2E configuration deterministic
 
-- Automatically load `.env.development` whenever the file exists (no `LOAD_ENV_DEVELOPMENT=true` flag required).
-- Remove `LOAD_ENV_DEVELOPMENT=true` from Playwright npm scripts.
-- Default `NO_WEBSERVER` to `false` in Playwright environment validation when it is unset.
+- refresh the supported worktree-local `.env.dev` override before canonical Playwright commands,
+- load developer secrets from `.env` without introducing alternate dotenv filenames, and
+- default `NO_WEBSERVER` to `false` when it is unset so local commands start the tested application stack.

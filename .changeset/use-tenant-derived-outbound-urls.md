@@ -1,5 +1,5 @@
 ---
-"evorto": minor
+default: minor
 ---
 
 Derive each tenant's secure public origin from its normalized primary domain,

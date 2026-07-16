@@ -171,7 +171,7 @@ describe('RegistrationTransferDialogComponent', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Transfer reviewed bundle');
+      expect(normalizeText(fixture)).toContain('Transfer registration');
     });
   };
 
@@ -195,7 +195,9 @@ describe('RegistrationTransferDialogComponent', () => {
     );
     expect(text).toContain("Recipient's current ESNcard discount applied");
     expect(text).toContain('recipient cannot omit anything');
-    expect(text).toContain('confirmation is rejected');
+    expect(text).toContain('ask you to review the updated details');
+    expect(text).toContain('Refund to current owner');
+    expect(text).not.toContain('Source refund due');
   });
 
   it('keeps cancel focused and returns the reviewed version only after confirmation', async () => {
@@ -217,9 +219,9 @@ describe('RegistrationTransferDialogComponent', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(findButton(fixture, 'Transfer reviewed bundle')).toBeDefined();
+      expect(findButton(fixture, 'Transfer registration')).toBeDefined();
     });
-    findButton(fixture, 'Transfer reviewed bundle')?.click();
+    findButton(fixture, 'Transfer registration')?.click();
 
     expect(close).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledWith({
@@ -228,8 +230,8 @@ describe('RegistrationTransferDialogComponent', () => {
     });
   });
 
-  it('shows preview failures inline and never enables confirmation', async () => {
-    previewTransfer.mockRejectedValue(
+  it('shows preview failures inline and retries before enabling confirmation', async () => {
+    previewTransfer.mockRejectedValueOnce(
       new Error('A private transfer offer is required for this recipient.'),
     );
     const fixture = await render();
@@ -239,12 +241,49 @@ describe('RegistrationTransferDialogComponent', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'A private transfer offer is required for this recipient.',
+        'Nothing changed. Refresh the details and try again.',
       );
     });
 
-    expect(normalizeText(fixture)).toContain('Direct transfer is unavailable');
-    expect(findButton(fixture, 'Transfer reviewed bundle')).toBeUndefined();
+    expect(normalizeText(fixture)).toContain(
+      'Transfer details could not be checked',
+    );
+    expect(normalizeText(fixture)).not.toContain(
+      'A private transfer offer is required for this recipient.',
+    );
+    expect(findButton(fixture, 'Transfer registration')).toBeUndefined();
+    expect(close).not.toHaveBeenCalled();
+
+    findButton(fixture, 'Retry transfer review')?.click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findButton(fixture, 'Transfer registration')).toBeDefined();
+    });
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed recipient search without closing the dialog', async () => {
+    findTransferTargets.mockRejectedValueOnce(
+      new Error('Temporary member lookup failure'),
+    );
+    const fixture = TestBed.createComponent(
+      RegistrationTransferDialogComponent,
+    );
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Eligible members could not be loaded',
+      );
+    });
+    expect(findButton(fixture, 'Retry member search')).toBeDefined();
+
+    findButton(fixture, 'Retry member search')?.click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Riley Recipient');
+    });
     expect(close).not.toHaveBeenCalled();
   });
 

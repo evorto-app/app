@@ -46,6 +46,20 @@ describe('registrationTransferSourceRefundAggregate', () => {
   });
 
   it.each([
+    { status: 'successful' as const, stripeRefundStatus: 'pending' as const },
+    { status: 'pending' as const, stripeRefundStatus: 'succeeded' as const },
+  ])(
+    'does not complete for inconsistent success state %#',
+    ({ status, stripeRefundStatus }) => {
+      expect(
+        registrationTransferSourceRefundAggregate([
+          sourceRefund({ status, stripeRefundStatus }),
+        ]),
+      ).toBe('pending');
+    },
+  );
+
+  it.each([
     sourceRefund({ refundTransactionId: null, status: null }),
     sourceRefund({ status: 'cancelled' }),
     sourceRefund({ stripeRefundStatus: 'canceled' }),
@@ -102,6 +116,26 @@ describe('registration transfer refund reconciliation source', () => {
     );
     expect(recoveryLock).toContain(".for('update')");
     expect(recoveryLock).not.toContain('.leftJoin(');
+  });
+
+  it('requires the requeue mutation to retain the locked transfer identity', () => {
+    const source = readFileSync(
+      new URL(
+        'registration-transfer-refund-reconciliation.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const requeueMutation = source.slice(
+      source.indexOf('export const markRegistrationTransferRefundRequeued'),
+      source.indexOf('const reconcileCompensationRefund'),
+    );
+
+    expect(requeueMutation).toContain('input.expectedTransfer.kind');
+    expect(requeueMutation).toContain('input.expectedTransfer.transferId');
+    expect(requeueMutation).toContain(
+      'mapping.transfer.id !== input.expectedTransfer.transferId',
+    );
   });
 
   it('keeps compensation singular and tenant scoped on the parent transfer', () => {

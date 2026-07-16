@@ -313,6 +313,27 @@ describe('TemplateGraphService structural validation', () => {
     });
   });
 
+  it('rejects a paid registration option with a zero price as a typed bad request', () => {
+    const source = validGraph();
+    const input: TemplateGraphInput = {
+      ...source,
+      registrationOptions: source.registrationOptions.map((option, index) =>
+        index === 1 ? { ...option, isPaid: true, price: 0 } : option,
+      ),
+    };
+
+    const error = validateTemplateGraphStructure({
+      esnCardEnabled: false,
+      input,
+    });
+
+    expect(error).toBeInstanceOf(RpcBadRequestError);
+    expect(error).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'paidTemplateRegistrationOptionRequiresPositivePrice',
+    });
+  });
+
   it('rejects a paid add-on with a zero price as a typed bad request', () => {
     const source = validGraph();
     const input: TemplateGraphInput = {

@@ -13,6 +13,7 @@ import {
   ensureStripeForStoredEventConfiguration,
   eventConfigurationHasPaidItems,
   tenantHasPaidEventConfiguration,
+  tenantHasStripeTaxRateConfiguration,
 } from './paid-event-configuration';
 
 const selectResult = (rows: readonly Record<string, unknown>[]) => {
@@ -27,7 +28,7 @@ const selectResult = (rows: readonly Record<string, unknown>[]) => {
 };
 
 describe('paid event configuration', () => {
-  it('treats both paid flags and positive stored prices as paid configuration', () => {
+  it('uses the paid flag for incoming configuration', () => {
     expect(
       eventConfigurationHasPaidItems({
         addOns: [],
@@ -39,7 +40,7 @@ describe('paid event configuration', () => {
         addOns: [{ isPaid: false, price: 1 }],
         registrationOptions: [],
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       eventConfigurationHasPaidItems({
         addOns: [{ isPaid: false, price: 0 }],
@@ -173,5 +174,66 @@ describe('paid event configuration', () => {
       expect(hasPaidConfiguration).toBe(false);
       expect(select).toHaveBeenCalledTimes(4);
     }),
+  );
+
+  it.effect(
+    'detects tax-rate bindings on every mutable event and template item shape',
+    () =>
+      Effect.gen(function* () {
+        const scenarios = [
+          {
+            expectedSelectCount: 1,
+            selectedTaxRateId: eventRegistrationOptions.stripeTaxRateId,
+          },
+          {
+            expectedSelectCount: 2,
+            selectedTaxRateId: eventAddons.stripeTaxRateId,
+          },
+          {
+            expectedSelectCount: 3,
+            selectedTaxRateId: templateRegistrationOptions.stripeTaxRateId,
+          },
+          {
+            expectedSelectCount: 4,
+            selectedTaxRateId: templateEventAddons.stripeTaxRateId,
+          },
+        ] as const;
+
+        for (const scenario of scenarios) {
+          const select = vi.fn((selection: Record<string, unknown>) =>
+            selectResult(
+              selection['stripeTaxRateId'] === scenario.selectedTaxRateId
+                ? [{ stripeTaxRateId: 'txr_assigned' }]
+                : [],
+            ),
+          );
+
+          const hasTaxRateConfiguration =
+            yield* tenantHasStripeTaxRateConfiguration(
+              { select } as never,
+              'tenant-1',
+            );
+
+          expect(hasTaxRateConfiguration).toBe(true);
+          expect(select).toHaveBeenCalledTimes(scenario.expectedSelectCount);
+        }
+      }),
+  );
+
+  it.effect(
+    'allows account changes after every tax-rate binding is clear',
+    () =>
+      Effect.gen(function* () {
+        const select = vi.fn(() => selectResult([]));
+
+        const hasTaxRateConfiguration =
+          yield* tenantHasStripeTaxRateConfiguration(
+            { select } as never,
+            'tenant-1',
+          );
+
+        expect(hasTaxRateConfiguration).toBe(false);
+        expect(select).toHaveBeenCalledTimes(4);
+      }),
   );
 });

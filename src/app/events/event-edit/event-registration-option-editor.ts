@@ -21,12 +21,14 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import type { EventGraphRegistrationOptionFormModel } from './event-graph-form.model';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
 import { RoleSelectComponent } from '../../shared/components/controls/role-select/role-select.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CurrencyAmountInputComponent,
     EditorComponent,
     FormField,
     MatButtonModule,
@@ -42,6 +44,7 @@ import { RoleSelectComponent } from '../../shared/components/controls/role-selec
   templateUrl: './event-registration-option-editor.html',
 })
 export class EventRegistrationOptionEditor {
+  readonly currencyCode = input.required<string>();
   readonly esnEnabled = input.required<boolean>();
   readonly optionForm =
     input.required<FieldTree<EventGraphRegistrationOptionFormModel>>();

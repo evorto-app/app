@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Enforce tenant identity across role assignments and registrations

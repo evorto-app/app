@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Complete transactional registration notifications

@@ -227,6 +227,7 @@ export interface PaidRegistrationTransferScenario {
   completeCheckout: () => Promise<
     'alreadyCompleted' | 'alreadyFinalized' | 'compensationQueued' | 'finalized'
   >;
+  completeSourceRefunds: () => Promise<readonly string[]>;
   failSourceRefund: () => Promise<string>;
   requeueSourceRefund: () => Promise<{
     readonly refundAfter: RegistrationRefundRequeueState;
@@ -1146,6 +1147,7 @@ export const seedPaidRegistrationTransferScenario = async (
             });
             const transferStatus =
               yield* markRegistrationTransferRefundRequeued(tx, {
+                expectedTransfer: { kind: 'source', transferId },
                 reason: recovery.reason,
                 refundTransactionId,
                 tenantId: input.tenant.id,
@@ -1159,6 +1161,60 @@ export const seedPaidRegistrationTransferScenario = async (
         ),
       ),
     );
+  };
+
+  const completeSourceRefunds = async () => {
+    const plans =
+      await input.database.query.registrationTransferRefundPlanItems.findMany({
+        columns: { refundTransactionId: true },
+        orderBy: { sourceTransactionId: 'asc' },
+        where: {
+          tenantId: input.tenant.id,
+          transferId,
+        },
+      });
+    const refundTransactionIds = plans.flatMap((plan) =>
+      plan.refundTransactionId ? [plan.refundTransactionId] : [],
+    );
+    if (
+      refundTransactionIds.length === 0 ||
+      refundTransactionIds.length !== plans.length
+    ) {
+      throw new Error('Expected every source refund claim before completion');
+    }
+
+    for (const refundTransactionId of refundTransactionIds) {
+      await input.database
+        .update(schema.transactions)
+        .set({
+          status: 'successful',
+          stripeRefundClaimLeaseExpiresAt: null,
+          stripeRefundClaimLeaseId: null,
+          stripeRefundId: `re_transfer_complete_${refundTransactionId}`,
+          stripeRefundLastError: null,
+          stripeRefundNextAttemptAt: null,
+          stripeRefundStatus: 'succeeded',
+        })
+        .where(
+          and(
+            eq(schema.transactions.id, refundTransactionId),
+            eq(schema.transactions.tenantId, input.tenant.id),
+            eq(schema.transactions.type, 'refund'),
+          ),
+        );
+      await runDatabaseEffect(
+        Database.use((database) =>
+          database.transaction((tx) =>
+            reconcileRegistrationTransferRefund(tx, {
+              refundTransactionId,
+              stripeRefundStatus: 'succeeded',
+            }),
+          ),
+        ),
+      );
+    }
+
+    return refundTransactionIds;
   };
 
   const cleanup = async () => {
@@ -1310,6 +1366,7 @@ export const seedPaidRegistrationTransferScenario = async (
     claimPath: `/registration-transfers/${credentials.claimToken}`,
     cleanup,
     completeCheckout,
+    completeSourceRefunds,
     eventId,
     failSourceRefund,
     optionId,

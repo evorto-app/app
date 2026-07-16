@@ -13,7 +13,7 @@ const onePixelPng = Buffer.from(
   'base64',
 );
 
-test('tenant admin updates relaunch general settings @admin', async ({
+test('tenant admin updates general settings @admin', async ({
   database,
   page,
   seedDate,
@@ -53,21 +53,15 @@ test('tenant admin updates relaunch general settings @admin', async ({
       generalSettings.getByRole('heading', { name: 'General settings' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Deferred settings' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Tenant identity' }),
+      page.getByRole('heading', { name: 'Organization' }),
     ).toBeVisible();
     await expect(generalSettings).not.toHaveAttribute('ngh', /.*/);
     await expect(
-      generalSettings.getByText('Formatting locale', { exact: true }),
+      generalSettings.getByText('Organization name', { exact: true }),
     ).toBeVisible();
     await expect(
-      generalSettings.getByText('de-DE', { exact: true }),
+      generalSettings.getByText('Public domain', { exact: true }),
     ).toBeVisible();
-    await expect(
-      generalSettings.getByRole('combobox', { name: 'Locale' }),
-    ).toHaveCount(0);
     const currencySelect = generalSettings.getByRole('combobox', {
       name: 'Currency',
     });
@@ -112,11 +106,13 @@ test('tenant admin updates relaunch general settings @admin', async ({
     const logoUrlInput = generalSettings.getByRole('textbox', {
       name: 'Logo URL',
     });
-    await generalSettings.getByLabel('Upload tenant logo file').setInputFiles({
-      buffer: onePixelPng,
-      mimeType: 'image/png',
-      name: `tenant-logo-${suffix}.png`,
-    });
+    await generalSettings
+      .getByLabel('Upload organization logo file')
+      .setInputFiles({
+        buffer: onePixelPng,
+        mimeType: 'image/png',
+        name: `tenant-logo-${suffix}.png`,
+      });
     await expect(
       page.getByText('Logo uploaded. Save settings to publish it.'),
     ).toBeVisible();
@@ -129,7 +125,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
       name: 'Favicon URL',
     });
     await generalSettings
-      .getByLabel('Upload tenant favicon file')
+      .getByLabel('Upload organization favicon file')
       .setInputFiles({
         buffer: onePixelPng,
         mimeType: 'image/png',
@@ -143,7 +139,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
     );
     const faviconUrl = await faviconUrlInput.inputValue();
     await page
-      .getByPlaceholder('Tenant name or public site title')
+      .getByPlaceholder('Organization name or public site title')
       .fill(` ${seoTitle} `);
     await page
       .getByPlaceholder('Short description for search results and previews')
@@ -166,7 +162,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
       .fill(` ${buyEsnCardUrl} `);
 
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('Tenant settings updated')).toBeVisible();
+    await expect(page.getByText('Organization settings updated')).toBeVisible();
 
     await expect
       .poll(async () => {

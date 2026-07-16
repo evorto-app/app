@@ -4,7 +4,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { tenantStripeTaxRates } from './tenant-stripe-tax-rates';
 
 describe('tenant Stripe tax-rate schema', () => {
-  it('persists nullable account ownership while retaining old-app uniqueness', () => {
+  it('requires account ownership with tenant-scoped provider IDs', () => {
     const tableConfig = getTableConfig(tenantStripeTaxRates);
 
     const indexes = tableConfig.indexes.map((candidate) => ({
@@ -25,6 +25,6 @@ describe('tenant Stripe tax-rate schema', () => {
     );
     expect(
       tableConfig.columns.find((column) => column.name === 'stripeAccountId'),
-    ).toMatchObject({ notNull: false });
+    ).toMatchObject({ notNull: true });
   });
 });

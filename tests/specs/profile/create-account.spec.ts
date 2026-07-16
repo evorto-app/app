@@ -5,6 +5,7 @@ import { expect } from '@playwright/test';
 import * as schema from '../../../src/db/schema';
 import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
 import { test } from '../../support/fixtures/base-test';
+import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 
 const hasManagementEnvironment = Effect.runSync(
   hasAuth0ManagementEnvironment.pipe(
@@ -14,6 +15,8 @@ const hasManagementEnvironment = Effect.runSync(
     ),
   ),
 );
+
+test.use({ screenshot: 'off', trace: 'off', video: 'off' });
 
 test('creates tenant account for a new Auth0 user @needs-auth0-management', async ({
   database,
@@ -49,9 +52,10 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     await page.getByRole('link', { name: 'Login' }).click();
     await page.getByLabel('Email address').waitFor({ state: 'visible' });
     await page.getByLabel('Email address').fill(newUser.email);
-    await page
-      .getByRole('textbox', { name: 'Password' })
-      .fill(newUser.password);
+    await fillProtectedValue(
+      page.getByRole('textbox', { name: 'Password' }),
+      'E2E_TRANSIENT_AUTH0_USER_PASSWORD',
+    );
     await page.getByRole('button', { exact: true, name: 'Continue' }).click();
 
     const acceptButton = page.getByRole('button', {
@@ -60,7 +64,7 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     });
     const joinTenantButton = page.getByRole('button', {
       exact: true,
-      name: 'Join tenant',
+      name: 'Join organization',
     });
     await expect(acceptButton.or(joinTenantButton).first()).toBeVisible({
       timeout: 15_000,

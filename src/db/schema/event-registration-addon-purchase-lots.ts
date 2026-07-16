@@ -95,12 +95,12 @@ export const eventRegistrationAddonPurchaseLots = pgTable(
       sql`(
         (${table.sourceTransactionId} IS NULL AND ${table.paymentAllocationFinalizedAt} IS NULL AND ${table.taxAmount} IS NULL AND ${table.grossAmount} IS NULL AND ${table.netAmount} IS NULL AND ${table.stripeFeeAmount} IS NULL AND ${table.applicationFeeAmount} IS NULL)
         OR
-        (${table.sourceTransactionId} IS NULL AND ${table.paymentAllocationFinalizedAt} IS NOT NULL AND ${table.baseAmount} = 0 AND ${table.taxAmount} = 0 AND ${table.grossAmount} = 0 AND ${table.netAmount} = 0 AND ${table.stripeFeeAmount} = 0 AND ${table.applicationFeeAmount} = 0)
+        (${table.sourceTransactionId} IS NULL AND ${table.paymentAllocationFinalizedAt} IS NOT NULL AND ${table.baseAmount} = 0 AND ${table.taxAmount} IS NOT NULL AND ${table.taxAmount} = 0 AND ${table.grossAmount} IS NOT NULL AND ${table.grossAmount} = 0 AND ${table.netAmount} IS NOT NULL AND ${table.netAmount} = 0 AND ${table.stripeFeeAmount} IS NOT NULL AND ${table.stripeFeeAmount} = 0 AND ${table.applicationFeeAmount} IS NOT NULL AND ${table.applicationFeeAmount} = 0)
         OR
         (${table.sourceTransactionId} IS NOT NULL AND (
           (${table.paymentAllocationFinalizedAt} IS NULL AND ${table.taxAmount} IS NULL AND ${table.grossAmount} IS NULL AND ${table.netAmount} IS NULL AND ${table.stripeFeeAmount} IS NULL AND ${table.applicationFeeAmount} IS NULL)
           OR
-          (${table.paymentAllocationFinalizedAt} IS NOT NULL AND ${table.taxAmount} >= 0 AND ${table.grossAmount} >= ${table.baseAmount} AND ${table.netAmount} >= 0 AND ${table.stripeFeeAmount} >= 0 AND ${table.applicationFeeAmount} >= 0 AND ${table.netAmount} + ${table.stripeFeeAmount} + ${table.applicationFeeAmount} = ${table.grossAmount})
+          (${table.paymentAllocationFinalizedAt} IS NOT NULL AND ${table.taxAmount} IS NOT NULL AND ${table.taxAmount} >= 0 AND ${table.grossAmount} IS NOT NULL AND ${table.grossAmount} >= ${table.baseAmount} AND ${table.netAmount} IS NOT NULL AND ${table.netAmount} >= 0 AND ${table.stripeFeeAmount} IS NOT NULL AND ${table.stripeFeeAmount} >= 0 AND ${table.applicationFeeAmount} IS NOT NULL AND ${table.applicationFeeAmount} >= 0 AND ${table.netAmount} + ${table.stripeFeeAmount} + ${table.applicationFeeAmount} = ${table.grossAmount})
         ))
       )`,
     ),

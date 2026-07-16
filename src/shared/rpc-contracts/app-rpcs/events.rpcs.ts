@@ -600,6 +600,24 @@ export const EventsRegistrationCancellationBlockedReason = Schema.Literals([
   'deadlinePassed',
 ]);
 
+export const EventsOutgoingRegistrationTransferRecord = Schema.Struct({
+  currency: Schema.NonEmptyString,
+  refundAmount: NonNegativeInteger,
+  refundStatus: Schema.Literals([
+    'completed',
+    'needsAttention',
+    'notRequired',
+    'processing',
+  ]),
+  registrationOptionTitle: Schema.NonEmptyString,
+  transferId: Schema.NonEmptyString,
+  transferredAt: Schema.NonEmptyString,
+});
+
+export type EventsOutgoingRegistrationTransferRecord = Schema.Schema.Type<
+  typeof EventsOutgoingRegistrationTransferRecord
+>;
+
 export const EventsRegistrationStatusRecord = Schema.Struct({
   activeTransfer: Schema.NullOr(
     Schema.Struct({
@@ -655,6 +673,7 @@ export const EventsGetRegistrationStatus = asRpcQuery(
     }),
     success: Schema.Struct({
       isRegistered: Schema.Boolean,
+      outgoingTransfers: Schema.Array(EventsOutgoingRegistrationTransferRecord),
       registrations: Schema.Array(EventsRegistrationStatusRecord),
     }),
   }),

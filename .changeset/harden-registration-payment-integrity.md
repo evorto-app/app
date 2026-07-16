@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Make registration refunds and Stripe ownership durable

@@ -121,34 +121,21 @@
       </p>
       @if (!option.price().hidden()) {
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <mat-form-field>
-            <mat-label>Price in cents</mat-label>
-            <input matInput type="number" [formField]="option.price" />
-            @if (
-              option.price().touched() && option.price().errors()[0];
-              as error
-            ) {
-              <mat-error>{{ error.message }}</mat-error>
-            }
-          </mat-form-field>
+          <app-currency-amount-input
+            label="Price"
+            [currencyCode]="currencyCode()"
+            [formField]="option.price"
+            [minimumMinorUnits]="1"
+          />
 
           @if (esnEnabled()) {
-            <mat-form-field>
-              <mat-label>ESNcard price in cents</mat-label>
-              <input
-                matInput
-                type="number"
-                [formField]="option.esnCardDiscountedPrice"
-                placeholder="Optional"
-              />
-              @if (
-                option.esnCardDiscountedPrice().touched() &&
-                  option.esnCardDiscountedPrice().errors()[0];
-                as error
-              ) {
-                <mat-error>{{ error.message }}</mat-error>
-              }
-            </mat-form-field>
+            <app-currency-amount-input
+              hint="Leave blank to disable the discount."
+              label="ESNcard price"
+              [allowEmpty]="true"
+              [currencyCode]="currencyCode()"
+              [formField]="option.esnCardDiscountedPrice"
+            />
           }
 
           <mat-form-field>
@@ -187,7 +174,7 @@
           matInput
           type="number"
           [formField]="option.cancellationDeadlineHoursBeforeStart"
-          placeholder="Tenant default"
+          placeholder="Organization default"
         />
       </mat-form-field>
       <mat-form-field>
@@ -196,13 +183,13 @@
           matInput
           type="number"
           [formField]="option.transferDeadlineHoursBeforeStart"
-          placeholder="Tenant default"
+          placeholder="Organization default"
         />
       </mat-form-field>
       <mat-form-field>
         <mat-label>Refund payment fees</mat-label>
         <mat-select [formField]="option.refundFeesOnCancellation">
-          <mat-option [value]="null">Tenant default</mat-option>
+          <mat-option [value]="null">Organization default</mat-option>
           <mat-option [value]="true">Refund fees</mat-option>
           <mat-option [value]="false">Keep fees</mat-option>
         </mat-select>

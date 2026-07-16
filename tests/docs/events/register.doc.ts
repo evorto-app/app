@@ -137,9 +137,9 @@ test.describe('Register for events', () => {
     await testInfo.attach('markdown', {
       body: `
   {% callout type="note" title="Before you start" %}
-  This guide is for a signed-in participant whose account belongs to the same tenant as the event. Use the account that should own the ticket. The account must match any participant-role restrictions shown on the registration option; no organizer or administrator permission is required for an ordinary participant registration.
+  This guide is for a signed-in participant whose account belongs to the same organization as the event. Use the account that should own the ticket. The account must match any participant-role restrictions shown on the registration option; no organizer or administrator permission is required for an ordinary participant registration.
 
-  A paid registration also requires the tenant's Stripe payments to be available and a payment method accepted by Stripe.
+  A paid registration also requires the organization's Stripe payments to be available and a payment method accepted by Stripe.
   {% /callout %}
 
   Open **Events** from the main navigation and browse the events available to you. Select an event to read its details and registration options.`,
@@ -270,7 +270,9 @@ test.describe('Register for events', () => {
     });
     expect(registrationEmail).toBeTruthy();
     expect(registrationEmail?.html).toContain(`/events/${freeEventId}`);
-    expect(registrationEmail?.text).toContain('not a bearer credential');
+    expect(registrationEmail?.text).toContain(
+      'The ticket owner must sign in to Evorto',
+    );
 
     await testInfo.attach('markdown', {
       body: `
@@ -278,7 +280,7 @@ test.describe('Register for events', () => {
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
   This example shows **Includes 1 guest plus you.** The guest remains attached to the signed-in buyer's registration, and the two people consume two confirmed spots. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
-  Show this ticket QR code when attending the event. Evorto also queues a confirmation email with a link back to this authenticated ticket page. The link is not a bearer credential: the participant must still sign in as the ticket owner.
+  Show this ticket QR code when attending the event. Evorto also queues a confirmation email with a link back to this authenticated ticket page. The ticket owner must still sign in to open the link.
   You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. Paid event registrations and add-ons are Stripe-only, so Evorto submits the applicable refunds against their original Stripe payment sources.`,
     });
 
@@ -597,7 +599,7 @@ test.describe('Register for events', () => {
     );
     await testInfo.attach('markdown', {
       body: `
-  After settlement, the pending state disappears and the paid quantity becomes available to use. The order, successful transaction, aggregate purchase, and immutable purchase lot provide the matching server-side record. During-event restrictions continue to be explained explicitly.`,
+  After Stripe confirms payment, the pending state disappears and the purchased quantity becomes available to use. During-event restrictions remain in effect and are shown with the add-on.`,
     });
     await takeScreenshot(
       testInfo,
@@ -896,7 +898,7 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
 
         await testInfo.attach('markdown', {
           body: `
-  Direct event links remain readable for signed-in users without eligible tenant roles. The registration area states that the current account is not eligible instead of hiding the event or rendering an empty registration section.
+  Direct event links remain readable for signed-in users without eligible organization roles. The registration area states that the current account is not eligible instead of hiding the event or rendering an empty registration section.
 `,
         });
       } finally {

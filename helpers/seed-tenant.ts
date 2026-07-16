@@ -125,6 +125,7 @@ export interface SeedTenantResult {
     domain: string;
     id: string;
     name: string;
+    stripeAccountId: null | string;
   };
 }
 
@@ -333,6 +334,7 @@ export async function seedTenant(
       domain: tenant.domain,
       id: tenant.id,
       name: tenant.name,
+      stripeAccountId: tenant.stripeAccountId,
     },
   } satisfies SeedTenantResult;
 }

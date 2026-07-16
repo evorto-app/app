@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Add tenant registration policy settings

@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 import {
   readRequestBody,
+  registerPrebufferedRequestBody,
   RequestBodyInvalidContentLengthError,
   RequestBodyReadError,
   RequestBodyTooLargeError,
@@ -58,6 +59,58 @@ describe('readRequestBody', () => {
 
       expect(decoder.decode(body)).toBe('abcd');
     }),
+  );
+
+  it.effect(
+    'reuses a registered prebuffered body without reading its stream',
+    () =>
+      Effect.gen(function* () {
+        let pullCount = 0;
+        const sourceBody = new ReadableStream<Uint8Array>(
+          {
+            pull() {
+              pullCount += 1;
+              throw new Error(
+                'Prebuffered request stream must not be read again',
+              );
+            },
+          },
+          { highWaterMark: 0 },
+        );
+        const init = {
+          body: sourceBody,
+          duplex: 'half',
+          method: 'POST',
+        } satisfies RequestInit & { duplex: 'half' };
+        const request = new Request(
+          'https://tenant.example.com/request-body',
+          init,
+        );
+        const prebufferedBody = encoder.encode('abcd').buffer;
+        registerPrebufferedRequestBody(request, prebufferedBody);
+
+        const body = yield* readRequestBody(request, 4);
+
+        expect(body).toBe(prebufferedBody);
+        expect(pullCount).toBe(0);
+      }),
+  );
+
+  it.effect(
+    'does not let a prebuffered body bypass a tighter route limit',
+    () =>
+      Effect.gen(function* () {
+        const request = new Request('https://tenant.example.com/request-body', {
+          body: 'abcde',
+          method: 'POST',
+        });
+        registerPrebufferedRequestBody(request, encoder.encode('abcde').buffer);
+
+        const error = yield* readRequestBody(request, 4).pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(RequestBodyTooLargeError);
+        expect(error.maxBytes).toBe(4);
+      }),
   );
 
   it.effect(

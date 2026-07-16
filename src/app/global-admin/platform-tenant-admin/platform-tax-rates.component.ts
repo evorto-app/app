@@ -1,10 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  effect,
   inject,
   Injectable,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import {
   form,
@@ -96,8 +98,21 @@ export class PlatformTaxRatesComponent {
   protected readonly ratesQuery = injectQuery(() =>
     this.operations.list(this.tenantId()),
   );
+  private readonly initializedTenantId = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
+
+  constructor() {
+    effect(() => {
+      const tenantId = this.tenantId();
+      if (this.initializedTenantId() === tenantId) return;
+      untracked(() => {
+        this.importModel.set({ ids: [], reason: '' });
+        this.importForm().reset();
+        this.initializedTenantId.set(tenantId);
+      });
+    });
+  }
 
   protected importRates(event: Event): void {
     event.preventDefault();

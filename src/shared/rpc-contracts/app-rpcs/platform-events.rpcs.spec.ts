@@ -3,17 +3,69 @@ import { Effect, Schema } from 'effect';
 
 import {
   PlatformEventDetailRecord,
+  PlatformEventFormOptionsRecord,
   PlatformEventRegistrationOptionRecord,
   PlatformEventsCreateInput,
   PlatformEventsReviewInput,
   PlatformEventsUpdateInput,
   PlatformRegistrationsCheckInInput,
+  PlatformTemplateFormOptionsRecord,
   PlatformTemplatesCreateInput,
   PlatformTemplatesUpdateInput,
 } from './platform-events.rpcs';
 import { TemplateGraphRecord } from './templates.rpcs';
 
 describe('platform event administration RPC schemas', () => {
+  it.effect('requires a valid target-tenant timezone in form options', () =>
+    Effect.gen(function* () {
+      const options = {
+        creators: [],
+        esnCardEnabled: false,
+        roles: [],
+        taxRates: [],
+        templates: [],
+        timezone: 'Australia/Brisbane',
+      };
+
+      expect(
+        (yield* Schema.decodeUnknownEffect(PlatformEventFormOptionsRecord)(
+          options,
+        )).timezone,
+      ).toBe('Australia/Brisbane');
+
+      const invalid = yield* Schema.decodeUnknownEffect(
+        PlatformEventFormOptionsRecord,
+      )({ ...options, timezone: 'not/a-timezone' }).pipe(Effect.flip);
+      expect(invalid['_tag']).toBe('SchemaError');
+    }),
+  );
+
+  it.effect('returns target-organization icon choices for template forms', () =>
+    Effect.gen(function* () {
+      const options = yield* Schema.decodeUnknownEffect(
+        PlatformTemplateFormOptionsRecord,
+      )({
+        categories: [{ id: 'category-1', title: 'Trips' }],
+        esnCardEnabled: false,
+        iconChoices: [
+          {
+            commonName: 'calendar:fas',
+            friendlyName: 'Calendar',
+            id: 'icon-1',
+            sourceColor: 42,
+          },
+        ],
+      });
+
+      expect(options.iconChoices[0]).toEqual({
+        commonName: 'calendar:fas',
+        friendlyName: 'Calendar',
+        id: 'icon-1',
+        sourceColor: 42,
+      });
+    }),
+  );
+
   it.effect(
     'requires explicit creator, target tenant, template, and reason',
     () =>

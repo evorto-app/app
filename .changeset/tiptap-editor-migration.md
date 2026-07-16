@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Migrate rich text editor from TinyMCE to Tiptap core (MIT-only)

@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Move templates grouped-by-category reads from tRPC to Effect RPC

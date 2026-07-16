@@ -6,10 +6,9 @@
   class="bg-surface text-on-surface rounded-lg p-4"
   [attr.aria-busy]="cameraStarting()"
 >
-  <p class="mb-4">
-    Please allow access to your camera in case your browser asks for it.
-    <br />
-    If you encounter any problems, use your phone's camera to scan the QR code.
+  <p class="text-on-surface-variant mb-4">
+    Allow camera access, then hold the attendee's ticket QR code inside the
+    frame. If this device cannot use the camera, scan the ticket with a phone.
   </p>
   <video
     #videoElement
@@ -25,7 +24,7 @@
       Starting camera ...
     </div>
   }
-  @if (cameraReady()) {
+  @if (cameraReady() && !cameraErrorMessage()) {
     <div
       class="bg-surface-container text-on-surface mt-2 rounded p-2"
       aria-live="polite"
@@ -34,15 +33,25 @@
       Camera ready. Hold the attendee's ticket QR code inside the frame.
     </div>
   }
-  @if (errorMessage()) {
+  @if (ticketFeedbackMessage()) {
+    <div
+      class="bg-tertiary-container text-on-tertiary-container mt-2 rounded p-2"
+      aria-live="polite"
+      role="status"
+    >
+      <p class="title-small">Not an Evorto ticket</p>
+      <p>{{ ticketFeedbackMessage() }}</p>
+    </div>
+  }
+  @if (cameraErrorMessage()) {
     <div
       class="bg-error text-on-error mt-2 rounded p-2"
       aria-live="assertive"
       role="alert"
     >
-      <p class="title-small">Scanning error</p>
+      <p class="title-small">Camera unavailable</p>
       <p>
-        {{ errorMessage() }}
+        {{ cameraErrorMessage() }}
       </p>
       <button
         mat-stroked-button

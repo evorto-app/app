@@ -1,57 +1,10 @@
 import type { APIRequestContext } from '@playwright/test';
 
 import Stripe from 'stripe';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 
 import { getId } from '../../../helpers/get-id';
+import { resolveStripeWebhookSecret } from '../../../helpers/testing/stripe-webhook-secret';
 import { createSettledStripeTestPayment } from './settled-stripe-test-payment';
-
-const execFileAsync = promisify(execFile);
-let resolvedWebhookSecret: Promise<string> | undefined;
-
-const readDockerWebhookSecret = async (): Promise<string | undefined> => {
-  const composeProject = process.env['COMPOSE_PROJECT_NAME']?.trim();
-  if (!composeProject) return;
-
-  try {
-    const { stdout: containerOutput } = await execFileAsync('docker', [
-      'ps',
-      '--quiet',
-      '--filter',
-      `label=com.docker.compose.project=${composeProject}`,
-      '--filter',
-      'label=com.docker.compose.service=evorto',
-    ]);
-    const containerId = containerOutput.trim().split(/\s+/u)[0];
-    if (!containerId || !/^[a-f0-9]+$/u.test(containerId)) return;
-
-    const { stdout: secretOutput } = await execFileAsync('docker', [
-      'exec',
-      containerId,
-      'cat',
-      '/run/stripe-webhook/signing-secret',
-    ]);
-    return secretOutput.trim() || undefined;
-  } catch {
-    return;
-  }
-};
-
-const resolveWebhookSecret = (): Promise<string> => {
-  resolvedWebhookSecret ??= (async () => {
-    const dockerSecret = await readDockerWebhookSecret();
-    const staticSecret = process.env['STRIPE_WEBHOOK_SECRET']?.trim();
-    const secret = dockerSecret || staticSecret;
-    if (!secret) {
-      throw new Error(
-        'A Docker runtime or STRIPE_WEBHOOK_SECRET is required for registration payment tests',
-      );
-    }
-    return secret;
-  })();
-  return resolvedWebhookSecret;
-};
 
 export const deliverCompletedRegistrationCheckoutWebhook = async ({
   amount,
@@ -76,7 +29,7 @@ export const deliverCompletedRegistrationCheckoutWebhook = async ({
   tenantId: string;
   transactionId: string;
 }): Promise<void> => {
-  const webhookSecret = await resolveWebhookSecret();
+  const webhookSecret = await resolveStripeWebhookSecret();
   if (paymentIntentId !== null) {
     throw new Error(
       'Expected the deterministic completion helper to own an unbound payment intent',
@@ -174,7 +127,7 @@ export const deliverRegistrationRefundWebhook = async ({
   stripeEventId: string;
   tenantId: string;
 }): Promise<void> => {
-  const webhookSecret = await resolveWebhookSecret();
+  const webhookSecret = await resolveStripeWebhookSecret();
   const payload = JSON.stringify({
     account: stripeAccountId,
     api_version: '2024-11-20.acacia',

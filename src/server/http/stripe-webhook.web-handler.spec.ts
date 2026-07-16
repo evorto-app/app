@@ -410,6 +410,284 @@ describe('Stripe refund webhook payloads', () => {
         );
       }),
   );
+
+  it.effect(
+    'persists a signed provider refund despite unrelated claim-like metadata',
+    () =>
+      Effect.gen(function* () {
+        let persistedRefund: Record<string, unknown> | undefined;
+        const source = {
+          amount: 2500,
+          currency: 'EUR' as const,
+          eventId: 'event-1',
+          eventRegistrationId: 'registration-1',
+          id: 'transaction-1',
+          status: 'successful' as const,
+          stripeAccountId: 'acct_tenant',
+          stripeChargeId: 'ch_source',
+          stripePaymentIntentId: 'pi_source',
+          targetUserId: 'attendee-1',
+          tenantId: 'tenant-1',
+        };
+        const tx = {
+          insert: () => ({
+            values: (values: Record<string, unknown>) => ({
+              onConflictDoNothing: () => ({
+                returning: () => {
+                  persistedRefund = values;
+                  return Effect.succeed([{ id: values['id'] }]);
+                },
+              }),
+            }),
+          }),
+          select: (selection: Record<string, unknown>) => ({
+            from: () => ({
+              where: () => {
+                const rows =
+                  'stripeRefundAttempts' in selection
+                    ? []
+                    : 'refundOperationKey' in selection
+                      ? persistedRefund
+                        ? [persistedRefund]
+                        : []
+                      : [source];
+                return {
+                  for: () => Effect.succeed(rows),
+                  orderBy: () => ({ for: () => Effect.succeed(rows) }),
+                };
+              },
+            }),
+          }),
+          update: () => ({
+            set: (values: Record<string, unknown>) => ({
+              where: () => ({
+                returning: () => {
+                  persistedRefund = { ...persistedRefund, ...values };
+                  return Effect.succeed([{ id: persistedRefund['id'] }]);
+                },
+              }),
+            }),
+          }),
+        };
+        const database = {
+          delete: () => ({ where: () => Effect.succeed([]) }),
+          insert: (table: unknown) => ({
+            values: () => ({
+              onConflictDoNothing: () => ({
+                returning: () =>
+                  table === dbSchema.stripeWebhookEvents
+                    ? Effect.succeed([
+                        {
+                          status: 'processing',
+                          stripeEventId: 'evt_provider_refund',
+                        },
+                      ])
+                    : Effect.succeed([]),
+              }),
+            }),
+          }),
+          transaction: (run: (transaction: typeof tx) => unknown) => run(tx),
+          update: () => ({
+            set: () => ({ where: () => Effect.succeed([]) }),
+          }),
+        };
+        const payload = JSON.stringify({
+          account: 'acct_tenant',
+          api_version: '2026-06-24.dahlia',
+          created: 1_700_000_000,
+          data: {
+            object: {
+              amount: 900,
+              charge: 'ch_source',
+              currency: 'eur',
+              id: 're_provider',
+              metadata: { refundClaimId: 'copied-unrelated-claim' },
+              object: 'refund',
+              payment_intent: 'pi_source',
+              status: 'succeeded',
+            },
+          },
+          id: 'evt_provider_refund',
+          livemode: false,
+          object: 'event',
+          pending_webhooks: 1,
+          request: null,
+          type: 'refund.created',
+        });
+        const signature = Stripe.webhooks.generateTestHeaderString({
+          payload,
+          secret: stripeWebhookSecret,
+        });
+
+        const response = yield* handleStripeWebhookWebRequest(
+          new Request('https://tenant.example.com/webhooks/stripe', {
+            body: payload,
+            headers: { 'stripe-signature': signature },
+            method: 'POST',
+          }),
+        ).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Layer.succeed(Database, database as never),
+              Layer.succeed(
+                StripeClient,
+                new Stripe('sk_test_provider_refund'),
+              ),
+              stripeWebhookConfigLayer,
+            ),
+          ),
+        );
+
+        expect(response.status).toBe(200);
+        expect(yield* Effect.promise(() => response.text())).toBe('Success');
+        expect(persistedRefund).toMatchObject({
+          amount: -900,
+          sourceTransactionId: 'transaction-1',
+          status: 'successful',
+          stripeAccountId: 'acct_tenant',
+          stripeRefundId: 're_provider',
+          stripeRefundStatus: 'succeeded',
+          tenantId: 'tenant-1',
+        });
+      }),
+  );
+
+  it.effect(
+    'releases the webhook claim while the matching source checkout is still pending',
+    () =>
+      Effect.gen(function* () {
+        const deletedTables: unknown[] = [];
+        const updatedTables: unknown[] = [];
+        let providerInsertCount = 0;
+        const source = {
+          amount: 2500,
+          currency: 'EUR' as const,
+          eventId: 'event-1',
+          eventRegistrationId: 'registration-1',
+          id: 'transaction-1',
+          status: 'pending' as const,
+          stripeAccountId: 'acct_tenant',
+          stripeChargeId: 'ch_source',
+          stripePaymentIntentId: 'pi_source',
+          targetUserId: 'attendee-1',
+          tenantId: 'tenant-1',
+        };
+        const tx = {
+          insert: () => ({
+            values: () => ({
+              onConflictDoNothing: () => ({
+                returning: () => {
+                  providerInsertCount += 1;
+                  return Effect.succeed([{ id: 'unexpected-provider-refund' }]);
+                },
+              }),
+            }),
+          }),
+          select: (selection: Record<string, unknown>) => ({
+            from: () => ({
+              where: () => {
+                const rows =
+                  'stripeRefundAttempts' in selection
+                    ? []
+                    : 'stripeChargeId' in selection
+                      ? [source]
+                      : [];
+                return {
+                  for: () => Effect.succeed(rows),
+                  orderBy: () => ({ for: () => Effect.succeed(rows) }),
+                };
+              },
+            }),
+          }),
+        };
+        const database = {
+          delete: (table: unknown) => ({
+            where: () => {
+              deletedTables.push(table);
+              return Effect.succeed([]);
+            },
+          }),
+          insert: (table: unknown) => ({
+            values: () => ({
+              onConflictDoNothing: () => ({
+                returning: () =>
+                  table === dbSchema.stripeWebhookEvents
+                    ? Effect.succeed([
+                        {
+                          status: 'processing',
+                          stripeEventId: 'evt_provider_pending_source',
+                        },
+                      ])
+                    : Effect.succeed([]),
+              }),
+            }),
+          }),
+          transaction: (run: (transaction: typeof tx) => unknown) => run(tx),
+          update: (table: unknown) => ({
+            set: () => ({
+              where: () => {
+                updatedTables.push(table);
+                return Effect.succeed([]);
+              },
+            }),
+          }),
+        };
+        const payload = JSON.stringify({
+          account: 'acct_tenant',
+          api_version: '2026-06-24.dahlia',
+          created: 1_700_000_000,
+          data: {
+            object: {
+              amount: 900,
+              charge: 'ch_source',
+              currency: 'eur',
+              id: 're_provider_pending_source',
+              metadata: {},
+              object: 'refund',
+              payment_intent: 'pi_source',
+              status: 'succeeded',
+            },
+          },
+          id: 'evt_provider_pending_source',
+          livemode: false,
+          object: 'event',
+          pending_webhooks: 1,
+          request: null,
+          type: 'refund.created',
+        });
+        const signature = Stripe.webhooks.generateTestHeaderString({
+          payload,
+          secret: stripeWebhookSecret,
+        });
+
+        const response = yield* handleStripeWebhookWebRequest(
+          new Request('https://tenant.example.com/webhooks/stripe', {
+            body: payload,
+            headers: { 'stripe-signature': signature },
+            method: 'POST',
+          }),
+        ).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Layer.succeed(Database, database as never),
+              Layer.succeed(
+                StripeClient,
+                new Stripe('sk_test_provider_pending_source'),
+              ),
+              stripeWebhookConfigLayer,
+            ),
+          ),
+        );
+
+        expect(response.status).toBe(409);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Refund source payment is not finalized',
+        );
+        expect(providerInsertCount).toBe(0);
+        expect(deletedTables).toEqual([dbSchema.stripeWebhookEvents]);
+        expect(updatedTables).toEqual([]);
+      }),
+  );
 });
 
 describe('checkout expiry replay', () => {

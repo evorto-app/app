@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Complete organizer and helper signup

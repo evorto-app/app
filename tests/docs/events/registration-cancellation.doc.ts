@@ -16,13 +16,14 @@ import { openAuthenticatedTestPage } from '../../support/utils/authenticated-tes
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 import { seedPostRegistrationAddonPurchaseScenario } from '../../support/utils/post-registration-addon-purchase-scenario';
 import { deliverRegistrationRefundWebhook } from '../../support/utils/registration-checkout-webhook';
+import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { waitForScannerAddonFulfillment } from '../../support/utils/scanner-result-page';
 import {
   earliestServerOrWallNow,
   futureServerEventWindow,
 } from '../../support/utils/server-test-clock';
 
-test.use({ trace: 'retain-on-failure' });
+test.use({ trace: 'off' });
 
 const requireUserFixture = (
   role: (typeof usersToAuthenticate)[number]['roles'],
@@ -80,10 +81,12 @@ test.describe('Participant registration cancellation', () => {
   test.use({ storageState: userStateFile });
 
   test('Cancel a confirmed free registration and release its capacity', async ({
+    browser,
     database,
     page,
     seeded,
     tenant,
+    testClock,
   }, testInfo) => {
     const participant = requireUserFixture('user');
     const eventCreator = requireUserFixture('organizer');
@@ -114,6 +117,10 @@ test.describe('Participant registration cancellation', () => {
     const eventWindow = futureServerEventWindow();
     const cancellationEmailKey = `registration-cancelled/${tenant.id}/${registrationId}`;
     const waitlistEmailKey = `waitlist-spot-available/${tenant.id}/${waitlistRegistrationId}/cancellation-${registrationId}`;
+    let waitlistRecipientPage:
+      Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+    let followUpRegistrationId: string | undefined;
+    let followUpConfirmationEmailKey: string | undefined;
 
     try {
       await database.insert(schema.eventInstances).values({
@@ -199,9 +206,9 @@ test.describe('Participant registration cancellation', () => {
       await testInfo.attach('markdown', {
         body: `
 {% callout type="note" title="Before you start" %}
-This guide is for a signed-in participant cancelling their own confirmed free registration. The account, event, and registration must all belong to the same tenant. Ordinary self-service cancellation needs no organizer permission, but it is available only before the event and before the participant cancellation deadline configured on the registration option or tenant.
+This guide is for a signed-in participant cancelling their own confirmed free registration. The account, event, and registration must all belong to the same organization. Ordinary self-service cancellation needs no organizer access, but it is available only before the event and before the participant cancellation deadline configured for the registration option or organization.
 
-This example has one guest, so cancelling releases two occupied spots. The registration is free and creates no refund. The later Stripe add-on example covers the separate fail-closed refund and audited recovery path without claiming live bank or card-network settlement.
+This example has one guest, so cancelling releases two occupied spots. The registration is free and creates no refund. The later Stripe add-on example shows that Evorto leaves the ticket, inventory, and refund unchanged when payment safety cannot be confirmed, together with the audited recovery path, without claiming live bank or card-network settlement.
 {% /callout %}
 
 ### Cancel a confirmed registration
@@ -238,7 +245,7 @@ This example has one guest, so cancelling releases two occupied spots. The regis
 Selecting **Cancel registration** opens a confirmation that explains the capacity and refund impact. **Keep registration** is focused by default so an accidental Enter key does not cancel the ticket. Continue only when you intend to give up the participant and guest spots and start the applicable refund process.
 {% /callout %}
 
-This free registration has no refund obligation. Paid tickets and paid add-ons use Stripe and remain deliberately fail-closed: if payment ownership, fee allocation, an add-on payment, an active transfer, or Checkout state cannot be proven safe, Evorto leaves the registration, refund records, and capacity unchanged and shows a recovery message instead. The confirmed status and payment state are also checked again under the server lock; if either changed while this dialog was open, refresh the event and review the new consequences before confirming again.
+This free registration has no refund obligation. Paid tickets and paid add-ons use Stripe. If Evorto cannot safely confirm the payments, refunds, an active transfer, or Checkout state, it leaves the registration, refund status, and capacity unchanged and shows a recovery message instead. Evorto checks the confirmed and payment state again when cancellation is submitted; if either changed while this dialog was open, refresh the event and review the new consequences before confirming again.
 `,
       });
       await takeScreenshot(
@@ -264,7 +271,7 @@ This free registration has no refund obligation. Paid tickets and paid add-ons u
         }),
       ).toBeVisible();
       await expect(cancellationDialog).toContainText(
-        'If a payment exists, Evorto starts the applicable refund workflow',
+        'If a refund applies, Evorto starts it automatically; it may take time to appear.',
       );
       const keepRegistration = cancellationDialog.getByRole('button', {
         name: 'Keep registration',
@@ -354,7 +361,7 @@ This free registration has no refund obligation. Paid tickets and paid add-ons u
 
 The confirmed ticket disappears and the event offers registration again because the cancellation committed. The durable readback proves that Evorto:
 
-- marks the registration **CANCELLED**;
+- marks the registration **Cancelled**;
 - releases both the participant and guest spots;
 - creates no refund because the registration is free;
 - queues a cancellation email for the former ticket owner; and
@@ -377,15 +384,205 @@ The waitlist message is not a reservation or automatic promotion. A waitlisted p
         page,
         'Registration options after confirmed cancellation',
       );
+
+      const eventPath = waitlistEmail?.text.match(/\/events\/[\w-]+/u)?.[0];
+      expect(eventPath).toBe(`/events/${eventId}`);
+      if (!eventPath) {
+        throw new Error(
+          'Expected the waitlist availability email to contain the event path',
+        );
+      }
+
+      await testInfo.attach('markdown', {
+        body: `
+### Follow the waitlist message as its recipient
+
+The availability message sends the waitlisted participant back to this event. It does **not** reserve capacity and it does not silently promote the waitlist registration. Other eligible participants can still take the open spot first.
+
+1. Sign in as the account that received the message.
+2. Open the event link from that message. The link opens the signed-in event page; it does not grant access to a ticket.
+3. Confirm that the page still shows **You are currently on the waitlist**.
+4. Select **Leave waitlist**, review the warning, and confirm only if registration is still available.
+5. Select **Register** immediately. If the option became full before this step, do not expect the email to override capacity; remain on or rejoin the waitlist instead.
+`,
+      });
+
+      waitlistRecipientPage = await openAuthenticatedTestPage({
+        baseUrl: new URL(page.url()).origin,
+        browser,
+        storageState: adminStateFile,
+        tenantDomain: tenant.domain,
+        testClock,
+      });
+      const recipientPage = waitlistRecipientPage.page;
+      await recipientPage.goto(eventPath);
+      await waitForRegistrationPage(recipientPage);
+      await expect(
+        recipientPage.getByText('You are currently on the waitlist'),
+      ).toBeVisible();
+      await takeScreenshot(
+        testInfo,
+        recipientPage.locator('app-event-active-registration'),
+        recipientPage,
+        'Waitlist recipient opens the availability message link',
+      );
+
+      await recipientPage
+        .getByRole('button', { name: 'Leave waitlist' })
+        .click();
+      const leaveWaitlistDialog = recipientPage.getByRole('dialog');
+      await expect(
+        leaveWaitlistDialog.getByRole('heading', {
+          name: 'Leave the waitlist?',
+        }),
+      ).toBeVisible();
+      await expect(
+        leaveWaitlistDialog.getByRole('button', {
+          name: 'Keep registration',
+        }),
+      ).toBeFocused();
+      await takeScreenshot(
+        testInfo,
+        leaveWaitlistDialog,
+        recipientPage,
+        'Waitlist recipient confirms giving up their old position',
+      );
+      await leaveWaitlistDialog
+        .getByRole('button', { name: 'Leave waitlist' })
+        .click();
+
+      const recipientRegisterButton = recipientPage
+        .getByRole('button', { exact: true, name: 'Register' })
+        .first();
+      await expect(recipientRegisterButton).toBeEnabled({ timeout: 20_000 });
+      await takeScreenshot(
+        testInfo,
+        recipientPage
+          .locator('section')
+          .filter({
+            has: recipientPage.getByRole('heading', {
+              level: 2,
+              name: 'Registration',
+            }),
+          })
+          .first(),
+        recipientPage,
+        'Capacity remains available after leaving the waitlist',
+      );
+      await recipientRegisterButton.click();
+      await expect(
+        recipientPage
+          .locator('app-event-active-registration')
+          .getByText('Your registration is confirmed'),
+      ).toBeVisible({ timeout: 20_000 });
+
+      const followUpRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: {
+            eventId,
+            registrationOptionId: optionId,
+            status: 'CONFIRMED',
+            tenantId: tenant.id,
+            userId: waitlistedParticipant.id,
+          },
+        });
+      if (!followUpRegistration) {
+        throw new Error(
+          'Expected the waitlist recipient to persist a new confirmed registration',
+        );
+      }
+      followUpRegistrationId = followUpRegistration.id;
+      followUpConfirmationEmailKey = `registration-confirmed/${tenant.id}/${followUpRegistration.id}`;
+
+      const cancelledWaitlistRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: {
+            id: waitlistRegistrationId,
+            tenantId: tenant.id,
+          },
+        });
+      const optionAfterFollowUp =
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            waitlistSpots: true,
+          },
+          where: { id: optionId },
+        });
+      const followUpConfirmationEmail =
+        await database.query.emailOutbox.findFirst({
+          where: {
+            idempotencyKey: followUpConfirmationEmailKey,
+            kind: 'registrationConfirmed',
+            tenantId: tenant.id,
+          },
+        });
+
+      expect(cancelledWaitlistRegistration?.status).toBe('CANCELLED');
+      expect(followUpRegistration).toMatchObject({
+        guestCount: 0,
+        status: 'CONFIRMED',
+        userId: waitlistedParticipant.id,
+      });
+      expect(optionAfterFollowUp).toEqual({
+        confirmedSpots: 1,
+        waitlistSpots: 0,
+      });
+      expect(followUpConfirmationEmail).toMatchObject({
+        idempotencyKey: followUpConfirmationEmailKey,
+        kind: 'registrationConfirmed',
+        tenantId: tenant.id,
+        toEmail: waitlistedParticipantRecord.communicationEmail,
+      });
+      expect(followUpConfirmationEmail?.text).toContain(
+        `Your registration for ${eventTitle} is confirmed.`,
+      );
+      expect(followUpConfirmationEmail?.text).toContain(eventPath);
+
+      await testInfo.attach('markdown', {
+        body: `
+### What the recipient should see after registering
+
+The old waitlist entry is now **Cancelled** and a separate **Confirmed** registration owns one spot. The option counters move from one waitlisted participant to one confirmed participant, and Evorto queues a confirmation email linking back to the authenticated ticket page.
+
+This completes only the in-app follow-up. The earlier email still promised no reservation: success depends on capacity remaining when Evorto confirms **Register**.
+`,
+      });
+      await takeScreenshot(
+        testInfo,
+        recipientPage.locator('app-event-active-registration'),
+        recipientPage,
+        'Waitlist recipient completes a confirmed registration',
+      );
     } finally {
+      await waitlistRecipientPage?.context.close();
+      const persistedRegistrationIds = (
+        await database.query.eventRegistrations.findMany({
+          columns: { id: true },
+          where: { eventId, tenantId: tenant.id },
+        })
+      ).map(({ id }) => id);
+      const registrationIds = [
+        ...new Set([
+          registrationId,
+          waitlistRegistrationId,
+          ...persistedRegistrationIds,
+          ...(followUpRegistrationId ? [followUpRegistrationId] : []),
+        ]),
+      ];
+      const emailKeys = [
+        cancellationEmailKey,
+        waitlistEmailKey,
+        ...registrationIds.map(
+          (id) => `registration-confirmed/${tenant.id}/${id}`,
+        ),
+      ];
+      if (followUpConfirmationEmailKey) {
+        emailKeys.push(followUpConfirmationEmailKey);
+      }
       await database
         .delete(schema.emailOutbox)
-        .where(
-          inArray(schema.emailOutbox.idempotencyKey, [
-            cancellationEmailKey,
-            waitlistEmailKey,
-          ]),
-        );
+        .where(inArray(schema.emailOutbox.idempotencyKey, emailKeys));
       await database
         .delete(schema.transactions)
         .where(
@@ -395,27 +592,14 @@ The waitlist message is not a reservation or automatic promotion. A waitlisted p
             eq(schema.transactions.type, 'refund'),
           ),
         );
-      await database
-        .delete(schema.registrationAcquisitionComponents)
-        .where(
-          eq(
-            schema.registrationAcquisitionComponents.acquisitionId,
-            registrationAcquisitionId,
-          ),
-        );
-      await database
-        .delete(schema.registrationAcquisitions)
-        .where(
-          eq(schema.registrationAcquisitions.id, registrationAcquisitionId),
-        );
+      await deleteRegistrationAcquisitionLedger({
+        database,
+        registrationIds,
+        tenantId: tenant.id,
+      });
       await database
         .delete(schema.eventRegistrations)
-        .where(
-          inArray(schema.eventRegistrations.id, [
-            registrationId,
-            waitlistRegistrationId,
-          ]),
-        );
+        .where(inArray(schema.eventRegistrations.id, registrationIds));
       await database
         .delete(schema.eventRegistrationOptions)
         .where(eq(schema.eventRegistrationOptions.id, optionId));
@@ -463,9 +647,9 @@ The waitlist message is not a reservation or automatic promotion. A waitlisted p
     const recoveredRefundId = `re_test_recovered_${createId()}`;
     const recoveredWebhookEventId = `evt_test_${createId()}`;
     const resumeReason =
-      'Verified the persisted provider refund before resuming status checks';
+      'Verified the Stripe refund before resuming status checks';
     const newGenerationReason =
-      'Verified the terminal provider failure before scheduling recovery';
+      'Verified the failed Stripe refund before scheduling recovery';
     let scannerPage:
       Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
     let recoveryPage:
@@ -637,21 +821,21 @@ The waitlist message is not a reservation or automatic promotion. A waitlisted p
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Before you start" %}
-This guide follows a signed-in participant who owns a confirmed free registration with one included **Paid workshop kit** and two optional kits settled through Stripe. An organizer has already recorded two redemptions: the included unit first, then one purchased unit. The event, registration, add-on entitlement, payment, and connected Stripe account all belong to the same tenant.
+This guide follows a signed-in participant who owns a confirmed free registration with one included **Paid workshop kit** and two purchased kits settled through Stripe. An organizer has already recorded two handouts: the included unit first, then one purchased unit. The event, registration, add-on entitlement, payment, and connected Stripe account all belong to the same organization.
 
-Only the one remaining unredeemed purchased unit is refundable. Redeemed units stay fulfilled, included units never create a monetary refund, and cancellation must preserve every settled source allocation exactly.
+Only the one remaining purchased unit that has not been handed out is refundable. Handed-out units stay fulfilled, included units never create a monetary refund, and cancellation preserves every quantity and fulfillment result.
 
-The journey begins in the participant account, then explicitly switches to an organizer account for the direct scanner result and to a platform administrator account for refund recovery. Each account needs the permissions described at that transition.
+The journey begins in the participant account, then explicitly switches to an organizer account for the direct scanner result and to a platform administrator account for refund recovery. Each account needs the access described at that transition.
 {% /callout %}
 
 ### Cancel a registration with a settled Stripe add-on
 
 1. Open **Events** from the main navigation.
 2. Select **${scenario.title}**.
-3. Review the included, purchased, redeemed, and available quantities.
+3. Review the included, purchased, handed-out, and ready-to-hand-out quantities.
 4. Select **Cancel registration**, read the confirmation, then choose **Confirm cancellation**.
 
-Cancellation is fail-closed. Missing payment ownership, an incomplete fee allocation, a pending add-on Checkout, or a changed registration state leaves the ticket, inventory, and refund records unchanged.
+If payment safety cannot be confirmed, an add-on Checkout is pending, or the registration changed, Evorto leaves the ticket, inventory, and refund status unchanged.
 `,
     });
 
@@ -1010,11 +1194,11 @@ Cancellation is fail-closed. Missing payment ownership, an incomplete fee alloca
     }).format(expectedRefundAmounts.grossAmount / 100);
     await testInfo.attach('markdown', {
       body: `
-### Read the cancellation and queued refund
+### Read the cancellation and refund status
 
-The ticket is now **Cancelled** and cannot be used again. Evorto preserved both redeemed units, cancelled and restocked only the one remaining purchased unit, and allocated exactly **${refundAmountLabel}** of the settled Stripe source to one durable refund claim.
+The ticket is now **Cancelled** and cannot be used again. Evorto preserved both redeemed units, cancelled and restocked only the one remaining purchased unit, and started a Stripe refund of exactly **${refundAmountLabel}**.
 
-Open **Profile**, select **Events**, and find the cancelled event. **Refund retrying** means the claim is queued or retrying after its immediate provider attempt; it does not mean money has already been returned. Do not register or pay again to retry a refund.
+Open **Profile**, select **Events**, and find the cancelled event. Evorto started a Stripe refund. **Refund retrying** means it is still being processed; the money may not have arrived yet. Do not register or pay again to retry a refund.
 `,
     });
     await page.getByRole('link', { exact: true, name: 'Profile' }).click();
@@ -1040,7 +1224,7 @@ Open **Profile**, select **Events**, and find the cancelled event. **Refund retr
       body: `
 ### Switch to the organizer scanner
 
-Switch to an organizer account with access to check-in and add-on fulfillment for this event. Open the attendee's direct scanner-result URL. The result keeps the cancelled ticket unusable while showing the preserved redemptions, cancelled quantity, and current refund state. This deterministic result route reviews the camera integration's destination without claiming physical-device camera certification.
+Switch to an organizer account with access to check-in and add-on fulfillment for this event. Open the attendee's ticket link in the scanner result flow. The result keeps the cancelled ticket unusable while showing the preserved redemptions, cancelled quantity, and current refund state.
 `,
     });
 
@@ -1071,11 +1255,14 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
     const scannerAddOn = scannerPage.page
       .locator('article')
       .filter({ hasText: scenario.addOns.paid.title });
-    await expect(scannerAddOn).toContainText(
-      '1 included (0 unredeemed) · 2 optional (0 unredeemed)',
-    );
+    await expect(scannerAddOn).toContainText('1 included · 2 purchased');
     await expect(
-      scannerAddOn.getByText('Redeemed', { exact: true }).locator('..'),
+      scannerAddOn
+        .getByText('Ready to hand out', { exact: true })
+        .locator('..'),
+    ).toContainText('0');
+    await expect(
+      scannerAddOn.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('2');
     await expect(
       scannerAddOn.getByText('Cancelled', { exact: true }).locator('..'),
@@ -1138,27 +1325,30 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
     await scannerPage.page.reload();
     await waitForScannerAddonFulfillment(scannerPage.page);
     await expect(
-      scannerAddOn.getByText('Provider action required', { exact: true }),
+      scannerAddOn.getByText('Refund needs review', { exact: true }),
     ).toBeVisible();
     await page.reload();
     profileCard = await openProfileEventCard(page, scenario.title);
     await expect(profileCard).toContainText(
-      /Add-on payment:\s*Provider action required/,
+      /Add-on payment:\s*Contact organizer for refund update/,
     );
     await expect(profileCard).toContainText(refundAmountLabel);
     await expect(profileCard).toContainText(
-      'at least one Stripe refund requires provider-side action',
+      'at least one refund needs organizer follow-up',
+    );
+    await expect(profileCard).toContainText(
+      'Contact the organizer for an update',
     );
     await expect(profileCard).toContainText(
       'Do not pay or register again to retry it',
     );
     await testInfo.attach('markdown', {
       body: `
-### Complete provider action and resume the same refund
+### Complete the required Stripe action and resume the same refund
 
-A correctly signed Stripe **requires action** update keeps the registration cancelled and binds the provider refund id to generation 0 of the existing durable claim. Profile and the organizer scanner both show **Provider action required**. Do not register, pay, or cancel again: complete the provider-side action in the connected Stripe account, then ask a platform administrator to resume status checks for this exact refund.
+A Stripe **requires action** update keeps the registration cancelled and links the update to the same Stripe refund. The profile asks the participant to **Contact organizer for refund update**, while the organizer scanner shows **Refund needs review**. The participant should not register, pay, or cancel again. The organizer can explain that the connected Stripe account needs action before a platform administrator resumes status checks for this exact refund.
 
-When the safe automatic checks have stopped, open the tenant's **Review finance** page. The **Transactions** tab shows **Provider action required**. In **Refund recovery**, **Resume stopped refund** keeps the same claim, generation, provider refund id, and idempotency generation. It does not create a replacement refund.
+When the safe automatic checks have stopped, open the organization's **Review finance** page. The **Transactions** tab shows **Action required in Stripe**. In **Refund recovery**, match the event and refund amount, then choose **Review recovery**. The review shows the safe next step without exposing internal payment identifiers or raw Stripe errors. **Resume refund checks** continues checking the same Stripe refund; it does not issue another refund.
 `,
     });
 
@@ -1176,16 +1366,16 @@ When the safe automatic checks have stopped, open the tenant's **Review finance*
     await expect(
       recoveryPage.page.getByRole('heading', {
         level: 1,
-        name: 'Tenant finance',
+        name: 'Organization finance',
       }),
     ).toBeVisible();
     const providerActionTransactionRow = recoveryPage.page
       .getByRole('row')
       .filter({ hasText: refundAmountLabel })
-      .filter({ hasText: 'Provider action required' });
+      .filter({ hasText: 'Action required in Stripe' });
     await expect(providerActionTransactionRow).toBeVisible({ timeout: 20_000 });
     await expect(providerActionTransactionRow).toContainText(
-      `${refundClaim.stripeRefundMaxAttempts} of ${refundClaim.stripeRefundMaxAttempts} attempts used`,
+      'Complete the required action in the connected Stripe account, then open Refund recovery to resume checks.',
     );
     await recoveryPage.page
       .getByRole('tab', { name: 'Refund recovery' })
@@ -1193,36 +1383,31 @@ When the safe automatic checks have stopped, open the tenant's **Review finance*
     const stoppedRecoveryRow = recoveryPage.page
       .locator('div.border-b')
       .filter({
-        hasText:
-          'Stripe refund remained requires_action after maximum processing attempts',
+        hasText: 'Automatic refund checks stopped before completion.',
       });
     await expect(stoppedRecoveryRow).toBeVisible({ timeout: 20_000 });
-    await expect(stoppedRecoveryRow).toContainText('Stopped refund processing');
+    await expect(stoppedRecoveryRow).toContainText(scenario.title);
     await expect(stoppedRecoveryRow).toContainText(refundAmountLabel);
-    await expect(stoppedRecoveryRow).toContainText(
-      `attempts ${refundClaim.stripeRefundMaxAttempts}/${refundClaim.stripeRefundMaxAttempts}`,
-    );
-    await expect(stoppedRecoveryRow).toContainText('generation 0');
     await stoppedRecoveryRow
       .getByRole('button', { name: 'Review recovery' })
       .click();
-    await expect(
-      recoveryPage.page.getByRole('heading', {
+    const resumeRecoveryForm = recoveryPage.page
+      .getByRole('heading', {
         level: 2,
-        name: 'Resume stopped refund',
-      }),
-    ).toBeVisible();
-    await expect(
-      recoveryPage.page.getByText(refundClaim.id, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      recoveryPage.page.getByText(scenario.registrationId, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      recoveryPage.page.getByText(settledCheckout.transactionId, {
-        exact: true,
-      }),
-    ).toBeVisible();
+        name: 'Resume refund checks',
+      })
+      .locator('..');
+    await expect(resumeRecoveryForm).toBeVisible();
+    await expect(resumeRecoveryForm).toContainText(scenario.title);
+    await expect(resumeRecoveryForm).toContainText(refundAmountLabel);
+    await expect(resumeRecoveryForm).toContainText(
+      'Resume checks for this refund',
+    );
+    await expect(resumeRecoveryForm).not.toContainText(refundClaim.id);
+    await expect(resumeRecoveryForm).not.toContainText(scenario.registrationId);
+    await expect(resumeRecoveryForm).not.toContainText(
+      settledCheckout.transactionId,
+    );
     await recoveryPage.page
       .getByLabel('Operational recovery reason')
       .fill(resumeReason);
@@ -1233,10 +1418,10 @@ When the safe automatic checks have stopped, open the tenant's **Review finance*
       'Review and resume the exact stopped Stripe refund',
     );
     await recoveryPage.page
-      .getByRole('button', { name: 'Resume stopped refund' })
+      .getByRole('button', { name: 'Resume refund checks' })
       .click();
     await expect(
-      recoveryPage.page.getByText('Stopped refund processing resumed', {
+      recoveryPage.page.getByText('Refund checks resumed', {
         exact: true,
       }),
     ).toBeVisible({ timeout: 20_000 });
@@ -1314,15 +1499,19 @@ When the safe automatic checks have stopped, open the tenant's **Review finance*
     });
     const terminalRefundClaim = await database.query.transactions.findFirst({
       columns: {
-        stripeRefundAttempts: true,
+        status: true,
         stripeRefundGeneration: true,
-        stripeRefundMaxAttempts: true,
+        stripeRefundId: true,
+        stripeRefundStatus: true,
       },
       where: { id: refundClaim.id, tenantId: tenant.id },
     });
-    if (!terminalRefundClaim) {
-      throw new Error('Expected the terminal refund claim');
-    }
+    expect(terminalRefundClaim).toMatchObject({
+      status: 'pending',
+      stripeRefundGeneration: 0,
+      stripeRefundId: generationZeroRefundId,
+      stripeRefundStatus: 'failed',
+    });
     await scannerPage.page.reload();
     await waitForScannerAddonFulfillment(scannerPage.page);
     await expect(
@@ -1331,19 +1520,22 @@ When the safe automatic checks have stopped, open the tenant's **Review finance*
     await page.reload();
     profileCard = await openProfileEventCard(page, scenario.title);
     await expect(profileCard).toContainText(
-      /Add-on payment:\s*Refund needs attention/,
+      /Add-on payment:\s*Contact organizer for refund update/,
     );
     await expect(profileCard).toContainText(refundAmountLabel);
     await expect(profileCard).toContainText(
-      "at least one refund needs a platform administrator's attention",
+      'at least one refund needs organizer follow-up',
+    );
+    await expect(profileCard).toContainText(
+      'Contact the organizer for an update',
     );
     await testInfo.attach('markdown', {
       body: `
-### Recover a terminal provider failure
+### Retry a failed refund
 
-After status checks resume, a correctly signed Stripe **failed** update for the same provider refund id and generation 0 records a terminal outcome. That terminal provider state changes both Profile and the organizer result to **Refund needs attention**. It still does not create a second claim or refund obligation.
+After status checks resume, a Stripe **failed** update for the same refund asks the participant to **Contact organizer for refund update** and changes the organizer result to **Refund needs attention**. It does not create a second refund.
 
-Switch to a platform administrator account backed by verified Auth0 platform authority; a tenant Admin role is not sufficient. Open the affected tenant, select **Review finance**, open **Refund recovery**, and review the claim identifiers, amount, attempts, generation, and terminal error. Enter a specific **Operational recovery reason**, then choose **Schedule new refund generation**. Evorto archives the failed provider refund, increments the generation, and writes an append-only platform audit entry. It does not create a second refund obligation.
+Switch to a platform administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Review finance**, open **Refund recovery**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and raw Stripe errors remain hidden. Enter a specific **Operational recovery reason**, then choose **Retry failed refund**. Evorto keeps the failed Stripe refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
 `,
     });
     await takeScreenshot(
@@ -1356,7 +1548,7 @@ Switch to a platform administrator account backed by verified Auth0 platform aut
     await expect(
       recoveryPage.page.getByRole('heading', {
         level: 1,
-        name: 'Tenant finance',
+        name: 'Organization finance',
       }),
     ).toBeVisible();
     await recoveryPage.page
@@ -1364,38 +1556,28 @@ Switch to a platform administrator account backed by verified Auth0 platform aut
       .click();
     const terminalRecoveryRow = recoveryPage.page
       .locator('div.border-b')
-      .filter({ hasText: 'Stripe refund reached terminal status failed' });
+      .filter({ hasText: 'Stripe marked the previous refund as failed.' });
     await expect(terminalRecoveryRow).toBeVisible({ timeout: 20_000 });
+    await expect(terminalRecoveryRow).toContainText(scenario.title);
     await expect(terminalRecoveryRow).toContainText(refundAmountLabel);
-    await expect(terminalRecoveryRow).toContainText(
-      `attempts ${terminalRefundClaim.stripeRefundAttempts}/${terminalRefundClaim.stripeRefundMaxAttempts}`,
-    );
-    await expect(terminalRecoveryRow).toContainText(
-      `generation ${terminalRefundClaim.stripeRefundGeneration}`,
-    );
-    await expect(terminalRecoveryRow).toContainText(
-      'Stripe refund reached terminal status failed',
-    );
     await terminalRecoveryRow
       .getByRole('button', { name: 'Review recovery' })
       .click();
-    await expect(
-      recoveryPage.page.getByRole('heading', {
+    const retryRecoveryForm = recoveryPage.page
+      .getByRole('heading', {
         level: 2,
-        name: 'Retry terminal refund',
-      }),
-    ).toBeVisible();
-    await expect(
-      recoveryPage.page.getByText(refundClaim.id, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      recoveryPage.page.getByText(scenario.registrationId, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      recoveryPage.page.getByText(settledCheckout.transactionId, {
-        exact: true,
-      }),
-    ).toBeVisible();
+        name: 'Retry failed refund',
+      })
+      .locator('..');
+    await expect(retryRecoveryForm).toBeVisible();
+    await expect(retryRecoveryForm).toContainText(scenario.title);
+    await expect(retryRecoveryForm).toContainText(refundAmountLabel);
+    await expect(retryRecoveryForm).toContainText('Retry this failed refund');
+    await expect(retryRecoveryForm).not.toContainText(refundClaim.id);
+    await expect(retryRecoveryForm).not.toContainText(scenario.registrationId);
+    await expect(retryRecoveryForm).not.toContainText(
+      settledCheckout.transactionId,
+    );
     await recoveryPage.page
       .getByLabel('Operational recovery reason')
       .fill(newGenerationReason);
@@ -1406,13 +1588,12 @@ Switch to a platform administrator account backed by verified Auth0 platform aut
       'Review and schedule the terminal add-on refund',
     );
     await recoveryPage.page
-      .getByRole('button', { name: 'Schedule new refund generation' })
+      .getByRole('button', { name: 'Retry failed refund' })
       .click();
     await expect(
-      recoveryPage.page.getByText(
-        'Terminal refund scheduled as a new safe generation',
-        { exact: true },
-      ),
+      recoveryPage.page.getByText('Failed refund scheduled for retry', {
+        exact: true,
+      }),
     ).toBeVisible({ timeout: 20_000 });
     await expect(terminalRecoveryRow).toHaveCount(0);
 
@@ -1572,9 +1753,9 @@ Switch to a platform administrator account backed by verified Auth0 platform aut
       body: `
 ### Completion
 
-The signed generation-1 provider update changes the organizer result to **Refunded**. Switch back to the participant account, open **Profile**, select **Events**, and find the cancelled event; its refund state is now **Refund completed**. The registration remains cancelled throughout. The original failed refund remains in immutable history, while the same durable claim records the successful replacement generation.
+After Stripe confirms the retry, the organizer view shows **Refunded** and the participant view shows **Refund completed**. The registration stays cancelled, and the earlier failed attempt remains in payment history.
 
-This local journey exercises the production Checkout finalizer, cancellation transaction, signed webhook handler, status projections, and audited recovery UI with deterministic Stripe-shaped responses. It does not certify live bank or card-network settlement; only the provider's succeeded status supports the statement that Evorto completed its refund workflow.
+This local walkthrough verifies Evorto's refund workflow but not settlement by the card network or bank. Treat a refund as complete only after Stripe reports it succeeded.
 `,
     });
     await takeScreenshot(
@@ -1656,9 +1837,9 @@ This local journey exercises the production Checkout finalizer, cancellation tra
         body: `
 ### When self-service cancellation is closed
 
-The registration option can override the tenant's default cancellation deadline. In this example, the option's deadline is deliberately set before the current server time, so participant cancellation has already closed.
+The registration option can override the organization's default cancellation deadline. In this example, the option's deadline is deliberately set before the current time, so participant cancellation has already closed.
 
-Open **Events**, select the event, and review the confirmed ticket. Evorto loads the server-derived cancellation status, explains that the deadline has passed, and does not offer a cancellation action. The server still rechecks the deadline if a stale or direct request reaches the mutation.
+Open **Events**, select the event, and review the confirmed ticket. Evorto explains that the deadline has passed and does not offer a cancellation action. Evorto checks the deadline again if an outdated page tries to submit a cancellation.
 `,
       });
       await openEventFromNormalNavigation(page, eventTitle);
@@ -1710,14 +1891,14 @@ Open **Events**, select the event, and review the confirmed ticket. Evorto loads
       await testInfo.attach('markdown', {
         body: `
 {% callout type="warning" title="Nothing was partially changed" %}
-The deadline explanation and missing cancellation action mean the ticket remains confirmed, the occupied spot remains counted, no refund record exists, and no cancellation email was queued. Refreshing does not override the policy, and the server rechecks it for stale or direct mutation requests.
+The deadline explanation and missing cancellation action mean the ticket remains confirmed, the occupied spot remains counted, no refund was started, and no cancellation email was scheduled. Refreshing does not override the policy, and Evorto checks the deadline again before accepting a cancellation.
 {% /callout %}
 
 Contact an event organizer if the registration still needs operational handling. An organizer who can organize this event and has **Cancel registrations and add-ons** access may cancel an unchecked registration before the event starts; participant deadline expiry alone does not grant the participant an override.
 
 Other recoverable messages are equally literal: when payment fees are still reconciling, retry later; when pending Stripe Checkout cancellation cannot be confirmed, refresh before retrying; and when an add-on payment or transfer is active, finish or resolve that workflow first. Evorto keeps the registration and capacity intact until the prerequisite is proven.
 
-Self-service cancellation is always scoped to the signed-in user's own registration and current tenant. Changing a URL or registration identifier does not grant access to another participant's ticket. Organizer cancellation is rechecked on the server for the event, tenant, organizer relationship, and explicit cancellation permission.
+Self-service cancellation applies only to the signed-in person's own registration in the current organization. A registration link does not grant access to another participant's ticket. For organizer cancellation, Evorto verifies the event, organization, organizer relationship, and cancellation access again.
 `,
       });
       await takeScreenshot(
@@ -1864,9 +2045,9 @@ test.describe('Organizer registration cancellation', () => {
       await testInfo.attach('markdown', {
         body: `
 {% callout type="note" title="Organizer prerequisites" %}
-Use an account that can organize this exact event and has **Cancel registrations and add-ons** access. Route access by itself is insufficient: Evorto checks the current tenant, event-organizer relationship, and cancellation permission again for the mutation.
+Use an account that can organize this exact event and has **Cancel registrations and add-ons** access. Opening the page is not enough: Evorto checks the current organization, event-organizer relationship, and cancellation access again before completing the action.
 
-The target registration must belong to this event and tenant, remain unchecked, and precede the event start. This example is free and includes one guest. A participant cancellation deadline has already passed, but that participant deadline does not prevent an authorized organizer from handling the registration.
+The target registration must belong to this event and organization, remain unchecked, and precede the event start. This example is free and includes one guest. A participant cancellation deadline has already passed, but that participant deadline does not prevent an authorized organizer from handling the registration.
 {% /callout %}
 
 ### Cancel from the organizer overview
@@ -1904,7 +2085,7 @@ The target registration must belong to this event and tenant, remain unchecked, 
 
       await testInfo.attach('markdown', {
         body: `
-The participant name and registration option are the first review context. Selecting the organizer action opens a second confirmation naming the participant and explaining that capacity is released and a payment may require refund follow-up. **Keep registration** is focused by default. Checked-in registrations show cancellation as disabled and are rejected by the server as well.
+The participant name and registration option are the first review context. Selecting the organizer action opens a second confirmation naming the participant and explaining that capacity is released and a payment may require refund follow-up. **Keep registration** is focused by default. Checked-in registrations show cancellation as disabled, and Evorto rejects the action as well.
 `,
       });
       await takeScreenshot(
@@ -1927,7 +2108,7 @@ The participant name and registration option are the first review context. Selec
         }),
       ).toBeVisible();
       await expect(cancellationDialog).toContainText(
-        'If a payment exists, Evorto starts the applicable refund workflow',
+        'If a refund applies, Evorto starts it automatically; it may take time to appear.',
       );
       await expect(
         cancellationDialog.getByRole('button', {
@@ -1990,13 +2171,13 @@ The participant name and registration option are the first review context. Selec
         body: `
 ### Organizer completion and recovery
 
-The success message and disappearing participant row show the organizer write completed. The persisted registration is **CANCELLED**, both participant and guest spots are released, and the participant receives an email that identifies the organizer cancellation. This free registration creates no refund.
+The success message and disappearing participant row show that the cancellation completed. The registration is **Cancelled**, both participant and guest spots are released, and the participant receives an email that identifies the organizer cancellation. This free registration creates no refund.
 
-Paid registrations and paid add-ons are Stripe-only. Evorto must first prove the original payment and add-on allocations. A valid Stripe source creates a durable refund claim and attempts it immediately; if that attempt fails, the existing claim remains pending for the retry worker rather than cancelling the ticket twice. Ambiguous or legacy unsupported payment ownership or amounts block the entire cancellation, leaving the ticket and inventory unchanged for reconciliation.
+Paid registrations and paid add-ons are Stripe-only. Evorto must first confirm the original payment and add-on amounts. If payment safety cannot be confirmed, nothing changes: the ticket and inventory remain intact. If an immediate refund attempt fails, the ticket remains cancelled and Evorto shows the refund status so an administrator can retry it safely.
 
-This organizer example is free and does not certify a live Stripe refund. Use the persisted refund status and the environment's provider-certification evidence before telling a participant that money has been returned.
+This registration is free, so cancellation creates no refund. For a paid registration, check the refund status shown in Evorto before telling a participant that money has been returned.
 
-An active transfer, pending add-on Checkout, checked-in attendee, started event, cross-tenant identifier, or missing cancellation permission also blocks the operation. The server also rejects a status or payment-state change that happened while the confirmation was open, so the organizer must refresh and review the updated participant state. Resolve the specific state shown by Evorto; do not work around it by editing identifiers or creating a duplicate refund.
+An active transfer, pending add-on Checkout, checked-in attendee, started event, ticket from another organization, or missing cancellation access also blocks the operation. If the status or payment state changes while the confirmation is open, Evorto asks the organizer to refresh and review the updated participant state. Resolve the specific state shown by Evorto before retrying.
 `,
       });
       await takeScreenshot(

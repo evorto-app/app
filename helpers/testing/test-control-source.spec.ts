@@ -837,12 +837,13 @@ test('name', options, handler);
     expect(angularConfig).toContain('complete-vitest-run-reporter.ts');
     expect(angularConfig).toContain('vitest.angular.config.ts');
     expect(angularVitestConfig).toMatch(/allowOnly:\s*false/u);
-    expect(playwrightConfig).toContain('complete-playwright-run-reporter.ts');
+    expect(playwrightConfig).toContain('resolvePlaywrightReporters');
+    expect(playwrightConfig).toContain('reporter: reporters');
     expect(packageJson).toContain(
-      '--reporter=github,dot,./tests/support/reporters/complete-playwright-run-reporter.ts',
+      '--reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/complete-playwright-run-reporter.ts',
     );
     expect(e2eWorkflow).toContain(
-      './tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts',
+      '--reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts',
     );
   });
 });

@@ -111,6 +111,7 @@ const registrationRecord = {
   checkedInGuestCount: 0,
   checkInTime: null,
   checkInTimingIssue: false,
+  currency: 'EUR' as const,
   event: {
     id: 'event-1',
     start: '2026-07-10T12:00:00.000Z',
@@ -390,6 +391,122 @@ describe('platform event, template, and registration handlers', () => {
     ).toBeNull();
   });
 
+  it('rejects zero-price paid platform registration options before persistence', () => {
+    const participant = eventRecord.registrationOptions[0];
+    if (!participant) throw new Error('Expected participant fixture');
+
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: false },
+        input: {
+          addOns: [],
+          registrationOptions: [
+            {
+              ...participant,
+              isPaid: true,
+              price: 0,
+            },
+          ],
+        },
+      }),
+    ).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
+    });
+  });
+
+  it('accepts optional-only platform add-on mappings but rejects impossible quantities', () => {
+    const participant = eventRecord.registrationOptions[0];
+    if (!participant) throw new Error('Expected participant fixture');
+    const addOn = {
+      allowMultiple: false,
+      allowPurchaseBeforeEvent: false,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: null,
+      isPaid: false,
+      maxQuantityPerUser: 2,
+      price: 0,
+      registrationOptions: [
+        {
+          includedQuantity: 0,
+          optionalPurchaseQuantity: 2,
+          registrationOptionId: participant.id,
+        },
+      ],
+      stripeTaxRateId: null,
+      title: 'Optional add-on',
+      totalAvailableQuantity: 10,
+    };
+
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: false },
+        input: {
+          addOns: [addOn],
+          registrationOptions: eventRecord.registrationOptions,
+        },
+      }),
+    ).toBeNull();
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: false },
+        input: {
+          addOns: [
+            {
+              ...addOn,
+              registrationOptions: [
+                {
+                  ...addOn.registrationOptions[0],
+                  optionalPurchaseQuantity: 0,
+                },
+              ],
+            },
+          ],
+          registrationOptions: eventRecord.registrationOptions,
+        },
+      }),
+    ).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'invalidEventAddon',
+    });
+
+    for (const invalidAddOn of [
+      { ...addOn, maxQuantityPerUser: 11 },
+      {
+        ...addOn,
+        registrationOptions: [
+          {
+            ...addOn.registrationOptions[0],
+            includedQuantity: 9,
+          },
+        ],
+      },
+      {
+        ...addOn,
+        registrationOptions: [
+          {
+            ...addOn.registrationOptions[0],
+            optionalPurchaseQuantity: 3,
+          },
+        ],
+      },
+    ]) {
+      expect(
+        platformEventGraphCompatibilityError({
+          before: { simpleModeEnabled: false },
+          input: {
+            addOns: [invalidAddOn],
+            registrationOptions: eventRecord.registrationOptions,
+          },
+        }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        reason: 'invalidEventAddon',
+      });
+    }
+  });
+
   it('diffs event add-on mappings without deleting retained purchased associations', () => {
     const existing = [
       {
@@ -424,6 +541,8 @@ describe('platform event, template, and registration handlers', () => {
     expect(platformEventAddonMappingRemovalError(false)).toBeNull();
     expect(platformEventAddonMappingRemovalError(true)).toMatchObject({
       _tag: 'RpcBadRequestError',
+      message:
+        'An add-on that has already been purchased must remain available with its existing registration option',
       reason: 'eventAddonMappingInUse',
     });
   });

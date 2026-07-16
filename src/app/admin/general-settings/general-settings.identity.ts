@@ -1,31 +1,8 @@
-import {
-  type Tenant,
-  TENANT_FORMATTING_LOCALE,
-} from '../../../types/custom/tenant';
+import type { Tenant } from '../../../types/custom/tenant';
 
-export type TenantIdentity = Pick<
-  Tenant,
-  'currency' | 'domain' | 'name' | 'stripeAccountId' | 'timezone'
->;
+export type TenantIdentity = Pick<Tenant, 'domain' | 'name'>;
 
 export const tenantIdentityRows = (tenant: TenantIdentity) => [
-  { label: 'Tenant name', value: tenant.name },
-  { label: 'Primary domain', value: tenant.domain },
-  { label: 'Currency', value: tenant.currency },
-  { label: 'Formatting locale', value: TENANT_FORMATTING_LOCALE },
-  { label: 'Timezone', value: tenant.timezone },
-  {
-    label: 'Stripe account',
-    value: tenant.stripeAccountId
-      ? `Connected (${tenant.stripeAccountId})`
-      : 'Not connected',
-  },
+  { label: 'Organization name', value: tenant.name },
+  { label: 'Public domain', value: tenant.domain },
 ];
-
-export const deferredTenantSettingsRows = [
-  {
-    label: 'Domain onboarding',
-    value:
-      'Custom-domain verification and multiple domains are not managed here yet.',
-  },
-] as const;

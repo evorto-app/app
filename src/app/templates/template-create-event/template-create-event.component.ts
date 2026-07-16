@@ -86,7 +86,7 @@ export const templateHasLegacyRandomRegistration = (
   registrationOptions.some((option) => option.registrationMode === 'random');
 
 export const legacyRandomTemplateEventMessage =
-  'This template uses legacy random allocation. It remains readable, but an event cannot be created from it until the registration configuration is explicitly migrated to a supported mode.';
+  'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.';
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0

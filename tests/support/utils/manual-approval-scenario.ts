@@ -1,6 +1,6 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { and, eq, inArray, like } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
 
@@ -171,6 +171,34 @@ export const seedManualApprovalScenario = async ({
       .filter((registrationId) => !originalRegistrationIds.has(registrationId));
 
     if (createdRegistrationIds.length > 0) {
+      const exactOutboxKeys = createdRegistrationIds.flatMap(
+        (registrationId) => [
+          `registration-cancelled/${tenant.id}/${registrationId}`,
+          `registration-confirmed/${tenant.id}/${registrationId}`,
+        ],
+      );
+      const relatedOutboxRows = await database.query.emailOutbox.findMany({
+        columns: {
+          id: true,
+          idempotencyKey: true,
+        },
+        where: { tenantId: tenant.id },
+      });
+      const relatedOutboxIds = relatedOutboxRows
+        .filter(
+          (row) =>
+            exactOutboxKeys.includes(row.idempotencyKey) ||
+            createdRegistrationIds.some((registrationId) =>
+              row.idempotencyKey.includes(`/${registrationId}/`),
+            ),
+        )
+        .map((row) => row.id);
+
+      if (relatedOutboxIds.length > 0) {
+        await database
+          .delete(schema.emailOutbox)
+          .where(inArray(schema.emailOutbox.id, relatedOutboxIds));
+      }
       await deleteRegistrationAcquisitionLedger({
         database,
         registrationIds: createdRegistrationIds,
@@ -191,17 +219,6 @@ export const seedManualApprovalScenario = async ({
         .delete(schema.eventRegistrations)
         .where(inArray(schema.eventRegistrations.id, createdRegistrationIds));
     }
-    await database
-      .delete(schema.emailOutbox)
-      .where(
-        and(
-          eq(schema.emailOutbox.tenantId, tenant.id),
-          like(
-            schema.emailOutbox.idempotencyKey,
-            `manual-approval/${tenant.id}/%`,
-          ),
-        ),
-      );
 
     for (const registration of originalRegistrations) {
       await database

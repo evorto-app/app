@@ -6,16 +6,34 @@ import { expect, test } from '../../support/fixtures/permissions-test';
 
 test.use({ storageState: adminStateFile });
 
-const buildTaxRate = (displayName: string, tenantId: string) => ({
+const buildTaxRate = (
+  displayName: string,
+  stripeAccountId: string,
+  tenantId: string,
+) => ({
   active: true,
   country: 'DE',
   displayName,
   inclusive: true,
   percentage: '19',
   state: 'BY',
+  stripeAccountId,
   stripeTaxRateId: `txr_${getId()}`,
   tenantId,
 });
+
+const requireStripeAccountId = ({
+  id,
+  stripeAccountId,
+}: {
+  id: string;
+  stripeAccountId: null | string;
+}): string => {
+  if (!stripeAccountId) {
+    throw new Error(`Expected Stripe account for seeded tenant "${id}"`);
+  }
+  return stripeAccountId;
+};
 
 test.describe('Tax Rates Tenant Isolation', () => {
   test('tax rates stay isolated between tenant contexts @permissions @taxRates @isolation', async ({
@@ -36,8 +54,16 @@ test.describe('Tax Rates Tenant Isolation', () => {
     await database
       .insert(schema.tenantStripeTaxRates)
       .values([
-        buildTaxRate(primaryRateName, tenant.id),
-        buildTaxRate(secondaryRateName, secondaryTenant.tenant.id),
+        buildTaxRate(
+          primaryRateName,
+          requireStripeAccountId(tenant),
+          tenant.id,
+        ),
+        buildTaxRate(
+          secondaryRateName,
+          requireStripeAccountId(secondaryTenant.tenant),
+          secondaryTenant.tenant.id,
+        ),
       ]);
 
     const primaryTenantRates =
@@ -90,8 +116,16 @@ test.describe('Tax Rates Tenant Isolation', () => {
     await database
       .insert(schema.tenantStripeTaxRates)
       .values([
-        buildTaxRate(primaryRateName, tenant.id),
-        buildTaxRate(secondaryRateName, secondaryTenant.tenant.id),
+        buildTaxRate(
+          primaryRateName,
+          requireStripeAccountId(tenant),
+          tenant.id,
+        ),
+        buildTaxRate(
+          secondaryRateName,
+          requireStripeAccountId(secondaryTenant.tenant),
+          secondaryTenant.tenant.id,
+        ),
       ]);
 
     const primaryTenantRates =

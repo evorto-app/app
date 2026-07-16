@@ -106,8 +106,9 @@ describe('LocationSelectorDialog', () => {
       );
     });
     expect(fixture.nativeElement.textContent).toContain(
-      'A site administrator needs to configure the Google Maps API key',
+      'Ask a site administrator to enable Google Maps',
     );
+    expect(fixture.nativeElement.textContent).not.toContain('API key');
     expect(fixture.nativeElement.textContent).not.toContain(
       'No locations found',
     );
@@ -128,7 +129,7 @@ describe('LocationSelectorDialog', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        'The location provider is unavailable right now.',
+        'Google Maps is unavailable right now.',
       );
     });
 
@@ -194,7 +195,7 @@ describe('LocationSelectorDialog', () => {
 
     expect(close).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain(
-      'The location provider could not load this place.',
+      'Google Maps could not load this place.',
     );
 
     const location: GoogleLocationType = {

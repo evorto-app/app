@@ -88,7 +88,7 @@ An organizer can hide an approved event from event lists without disabling its d
 
     await testInfo.attach('markdown', {
       body: `
-The shared link opens the normal event page and registration area. If the link fails, confirm that it is complete, that you are on the organizer's tenant domain, and that the event has not been removed or changed back to draft. If registration is unavailable, read the explanation on the page; an unlisted link does not make an ineligible account eligible.
+The shared link opens the normal event page and registration area. If the link fails, confirm that it is complete, that you are on the organizer's organization address, and that the event has not been removed or changed back to draft. If registration is unavailable, read the explanation on the page; an unlisted link does not make an ineligible account eligible.
 `,
     });
     await takeScreenshot(

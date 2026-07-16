@@ -42,6 +42,11 @@ export type RegistrationTransferRefundRecoveryLookup =
   | { readonly status: 'ambiguous' }
   | { readonly status: 'notTransfer' };
 
+export interface RegistrationTransferRefundRecoveryTarget {
+  readonly kind: 'compensation' | 'source';
+  readonly transferId: string;
+}
+
 export type RegistrationTransferSourceRefundAggregate =
   'failed' | 'pending' | 'succeeded';
 
@@ -66,7 +71,7 @@ type RegistrationTransferTransaction = Pick<
 const sourceRefundClaimSucceeded = (
   item: RegistrationTransferSourceRefundPlanItemState,
 ): boolean =>
-  item.status === 'successful' || item.stripeRefundStatus === 'succeeded';
+  item.status === 'successful' && item.stripeRefundStatus === 'succeeded';
 
 const sourceRefundClaimFailed = (
   item: RegistrationTransferSourceRefundPlanItemState,
@@ -328,18 +333,25 @@ export const markRegistrationTransferRefundRequeued = Effect.fn(
 )(function* (
   tx: RegistrationTransferTransaction,
   input: {
+    readonly expectedTransfer: null | RegistrationTransferRefundRecoveryTarget;
     readonly reason: string;
     readonly refundTransactionId: string;
     readonly tenantId: string;
   },
 ) {
   const reason = input.reason.trim();
-  if (!reason) return refundNotTransfer;
+  if (!reason || !input.expectedTransfer) return refundNotTransfer;
   const mapping = yield* loadRegistrationTransferRefundMapping(tx, {
     refundTransactionId: input.refundTransactionId,
     tenantId: input.tenantId,
   });
-  if (!mapping) return refundNotTransfer;
+  if (
+    !mapping ||
+    mapping.kind !== input.expectedTransfer.kind ||
+    mapping.transfer.id !== input.expectedTransfer.transferId
+  ) {
+    return refundNotTransfer;
+  }
 
   const transfer = mapping.transfer;
   if (mapping.kind === 'compensation') {

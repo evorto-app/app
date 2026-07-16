@@ -120,7 +120,7 @@ export const resetEventGraphPayments = (
 };
 
 export const legacyRandomEventEditMessage =
-  'This event uses legacy random allocation. It remains readable, but its registration configuration cannot be edited until it is explicitly migrated.';
+  'Random allocation is unavailable. An authorized event editor must choose First come, first served or Manual approval before anyone can edit this registration setup.';
 
 const createGraphKey = (): string => globalThis.crypto.randomUUID();
 
@@ -141,7 +141,7 @@ export const simpleEventGraphIssue = (
   ) {
     return null;
   }
-  return 'Simple mode requires exactly one organizing and one non-organizing registration option. Reduce the advanced list without deleting referenced data, then try again.';
+  return 'Simple mode requires exactly one organizing and one non-organizing registration option. Add a missing option or move questions and add-ons before removing extra options, then try again.';
 };
 
 export const advancedEventGraphWarnings = (
@@ -191,7 +191,7 @@ export const eventGraphRecordToFormModel = (
   if (hasInvalidReference) {
     return {
       error:
-        'This event contains a question or add-on mapping that points outside its registration options. The graph is read-only until that reference is repaired.',
+        'A registration question or add-on is assigned to an option that no longer exists. Editing is unavailable until a platform administrator repairs the event.',
     };
   }
 
@@ -199,7 +199,7 @@ export const eventGraphRecordToFormModel = (
     const issue = simpleEventGraphIssue(event.registrationOptions);
     if (issue) {
       return {
-        error: `This event is marked as simple, but its option graph is incompatible. ${issue}`,
+        error: `This event is set to simple mode, but its registration options do not match that mode. ${issue}`,
       };
     }
   }

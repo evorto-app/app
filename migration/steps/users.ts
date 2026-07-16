@@ -2,15 +2,16 @@ import consola from 'consola';
 import { count } from 'drizzle-orm';
 
 import * as oldSchema from '../../old/drizzle';
-import { database } from '../../src/db';
+import type { ScriptDatabaseClient } from '../../src/db/database-client';
 import * as schema from '../../src/db/schema';
 import { transformAuthId } from '../config';
+import { legacyTimestamp } from '../legacy-timestamp';
 import { oldDatabase } from '../migrator-database';
 
 const migrationStepSize = 1000;
 const numberFormat = new Intl.NumberFormat();
 
-export const migrateUsers = async () => {
+export const migrateUsers = async (database: ScriptDatabaseClient) => {
   consola.start('Migrating users');
   const userCountResult = await oldDatabase
     .select({ count: count() })
@@ -24,6 +25,7 @@ export const migrateUsers = async () => {
     const oldUsers = await oldDatabase.query.user.findMany({
       limit: migrationStepSize,
       offset: index,
+      orderBy: { id: 'asc' },
     });
     await database
       .insert(schema.users)
@@ -31,7 +33,10 @@ export const migrateUsers = async () => {
         oldUsers.map((user) => ({
           auth0Id: transformAuthId(user.authId),
           communicationEmail: user.communicationEmail ?? user.email,
-          createdAt: new Date(user.createdAt),
+          createdAt: legacyTimestamp(
+            user.createdAt,
+            `Legacy user ${user.id} createdAt`,
+          ),
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,

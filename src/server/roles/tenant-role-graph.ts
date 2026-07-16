@@ -91,7 +91,8 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
     .limit(1);
   if (roleAssignments.length > 0) {
     return yield* new RpcBadRequestError({
-      message: 'Role cannot be deleted while it is assigned to tenant users',
+      message:
+        'Role cannot be deleted while it is assigned to organization members',
       reason: 'roleInUseByUserAssignments',
     });
   }

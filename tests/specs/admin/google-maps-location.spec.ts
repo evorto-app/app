@@ -36,7 +36,7 @@ test('selects and persists a live Google Maps place @needs-google-maps', async (
     hasText: 'Location search is not configured',
   });
   const providerError = dialog.getByRole('alert').filter({
-    hasText: 'The location provider is unavailable',
+    hasText: 'Google Maps is unavailable',
   });
   const emptyResult = dialog.getByText('No locations found');
   await expect(
@@ -64,7 +64,7 @@ test('selects and persists a live Google Maps place @needs-google-maps', async (
   await expect(locationField).not.toContainText('No location selected');
 
   await settings.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Tenant settings updated')).toBeVisible();
+  await expect(page.getByText('Organization settings updated')).toBeVisible();
 
   await expect
     .poll(async () => {

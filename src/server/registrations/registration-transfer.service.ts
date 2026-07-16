@@ -92,9 +92,12 @@ import {
 } from './registration-transfer-credentials';
 import { expireRegistrationTransferCheckout } from './registration-transfer-finalization';
 import {
+  registrationTransferBasePrice,
   registrationTransferTotalPrice,
+  resolveRegistrationTransferClaimPricing,
   resolveRegistrationTransferPrice,
 } from './registration-transfer-pricing';
+import { resolveRegistrationTransferPriorRefunds } from './registration-transfer-prior-refunds';
 import { resolveRegistrationTransferRefundLifecycle } from './registration-transfer-refund-lifecycle';
 import { refundPlansExactlyCoverCurrentAcquisitionPayments } from './registration-transfer-refund-plan-coverage';
 import { resolveRegistrationTransferDeadline } from './registration-transfer-state';
@@ -131,6 +134,23 @@ interface RegistrationTransferPaymentClaim {
   readonly request: RegistrationCheckoutSnapshot;
   readonly stripeAccountId: string;
 }
+
+export const registrationTransferGuestCheckoutLine = (input: {
+  readonly eventTitle: string;
+  readonly guestCount: number;
+  readonly guestUnitPrice: number;
+  readonly stripeTaxRateId: null | string;
+}): RegistrationCheckoutSnapshot['lineItems'][number] | undefined =>
+  input.guestCount > 0 && input.guestUnitPrice > 0
+    ? {
+        name: `Guest registration fee for ${input.eventTitle}`,
+        quantity: input.guestCount,
+        ...(input.stripeTaxRateId && {
+          taxRateId: input.stripeTaxRateId,
+        }),
+        unitAmount: input.guestUnitPrice,
+      }
+    : undefined;
 
 interface RetryRegistrationTransferCheckoutInput {
   readonly tenant: TransferTenant;
@@ -350,7 +370,7 @@ const resolveCurrentRegistrationTransferPrice = Effect.fn(
     [
       databaseEffect((database) =>
         database.query.userDiscountCards.findMany({
-          columns: { type: true, validTo: true },
+          columns: { type: true, validFrom: true, validTo: true },
           where: {
             status: 'verified',
             tenantId,
@@ -830,6 +850,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
                 appFee: transactions.appFee,
                 currency: transactions.currency,
                 eventId: transactions.eventId,
+                eventRegistrationId: transactions.eventRegistrationId,
                 id: transactions.id,
                 method: transactions.method,
                 status: transactions.status,
@@ -933,10 +954,17 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
                 : yield* tx
                     .select({
                       amount: transactions.amount,
+                      currency: transactions.currency,
+                      eventId: transactions.eventId,
+                      eventRegistrationId: transactions.eventRegistrationId,
+                      manuallyCreated: transactions.manuallyCreated,
                       method: transactions.method,
                       sourceTransactionId: transactions.sourceTransactionId,
                       status: transactions.status,
+                      stripeAccountId: transactions.stripeAccountId,
+                      stripeRefundId: transactions.stripeRefundId,
                       stripeRefundStatus: transactions.stripeRefundStatus,
+                      targetUserId: transactions.targetUserId,
                     })
                     .from(transactions)
                     .where(
@@ -951,21 +979,6 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
                     )
                     .orderBy(transactions.id)
                     .for('update');
-            if (
-              existingRefunds.some(
-                (refund) =>
-                  refund.method !== 'stripe' ||
-                  refund.status !== 'successful' ||
-                  refund.stripeRefundStatus !== 'succeeded' ||
-                  !refund.sourceTransactionId,
-              )
-            ) {
-              return yield* new RegistrationTransferConflictError({
-                message:
-                  'An earlier source refund is unresolved, so the fixed bundle cannot transfer without risking a duplicate refund.',
-              });
-            }
-
             const lockedTenants = yield* tx
               .select({
                 currency: tenants.currency,
@@ -999,20 +1012,30 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               });
             }
 
-            const priorRefundedBySource = new Map<string, number>();
-            for (const refund of existingRefunds) {
-              const sourceTransactionId = refund.sourceTransactionId;
-              if (!sourceTransactionId || refund.amount >= 0) {
-                return yield* new RegistrationTransferInternalError({
-                  message: 'Source refund history has an invalid amount',
-                });
-              }
-              priorRefundedBySource.set(
-                sourceTransactionId,
-                (priorRefundedBySource.get(sourceTransactionId) ?? 0) -
-                  refund.amount,
-              );
+            const priorRefundResolution =
+              resolveRegistrationTransferPriorRefunds({
+                refunds: existingRefunds,
+                sourcePayments,
+              });
+            if (priorRefundResolution._tag === 'Unresolved') {
+              return yield* new RegistrationTransferConflictError({
+                message:
+                  'An earlier source refund is unresolved, so the fixed bundle cannot transfer without risking a duplicate refund.',
+              });
             }
+            if (priorRefundResolution._tag === 'InvalidProvenance') {
+              return yield* new RegistrationTransferConflictError({
+                message:
+                  'Source refund ownership is inconsistent, so the fixed bundle cannot transfer safely.',
+              });
+            }
+            if (priorRefundResolution._tag === 'InvalidAmount') {
+              return yield* new RegistrationTransferInternalError({
+                message: 'Source refund history has an invalid amount',
+              });
+            }
+            const priorRefundedBySource =
+              priorRefundResolution.refundedBySourceTransactionId;
 
             const claimUrl = yield* tenantOutboundUrl(
               lockedTenant,
@@ -1251,6 +1274,12 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
         optionIsPaid: eventRegistrationOptions.isPaid,
         optionPrice: eventRegistrationOptions.price,
         optionTitle: eventRegistrationOptions.title,
+        recipientAppliedDiscountedPrice:
+          registrationTransfers.recipientAppliedDiscountedPrice,
+        recipientAppliedDiscountType:
+          registrationTransfers.recipientAppliedDiscountType,
+        recipientBasePrice: registrationTransfers.recipientBasePrice,
+        recipientDiscountAmount: registrationTransfers.recipientDiscountAmount,
         recipientUserId: registrationTransfers.recipientUserId,
         sourceCheckedInGuestCount: eventRegistrations.checkedInGuestCount,
         sourceCheckInTime: eventRegistrations.checkInTime,
@@ -1312,10 +1341,25 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
   }
   const compensationRefundTransactionId =
     transfer.compensationRefundTransactionId;
+  const optionBasePrice = registrationTransferBasePrice({
+    isPaid: transfer.optionIsPaid,
+    price: transfer.optionPrice,
+  });
+  if (
+    status !== 'open' &&
+    transfer.recipientUserId !== null &&
+    transfer.recipientBasePrice === null
+  ) {
+    return yield* new RegistrationTransferInternalError({
+      message: 'Claimed transfer pricing snapshot is incomplete',
+    });
+  }
+  const useSealedRecipientPricing =
+    status !== 'open' && transfer.recipientBasePrice !== null;
   const [
     questions,
     bundleAddOns,
-    currentPrice,
+    claimPricing,
     sourceRefundPlans,
     compensationRefunds,
   ] = yield* Effect.all(
@@ -1349,6 +1393,8 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
             purchasedQuantity:
               registrationTransferBundleAddonPurchases.purchasedQuantity,
             quantity: registrationTransferBundleAddonPurchases.quantity,
+            recipientUnitPrice:
+              registrationTransferBundleAddonPurchases.recipientUnitPrice,
             redeemedQuantity:
               registrationTransferBundleAddonPurchases.redeemedQuantity,
             title: eventAddons.title,
@@ -1377,13 +1423,31 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
             ),
           ),
       ),
-      resolveCurrentRegistrationTransferPrice({
-        basePrice: transfer.optionPrice,
-        eventStart: transfer.eventStart,
-        registrationOptionId: transfer.optionId,
-        tenantId: tenant.id,
-        userId: user.id,
-      }).pipe(Effect.map((price) => price.effectivePrice)),
+      useSealedRecipientPricing && transfer.recipientBasePrice !== null
+        ? Effect.succeed(
+            resolveRegistrationTransferClaimPricing({
+              appliedDiscountedPrice: transfer.recipientAppliedDiscountedPrice,
+              appliedDiscountType: transfer.recipientAppliedDiscountType,
+              basePrice: transfer.recipientBasePrice,
+              discountAmount: transfer.recipientDiscountAmount,
+              mode: 'sealed',
+            }),
+          )
+        : resolveCurrentRegistrationTransferPrice({
+            basePrice: optionBasePrice,
+            eventStart: transfer.eventStart,
+            registrationOptionId: transfer.optionId,
+            tenantId: tenant.id,
+            userId: user.id,
+          }).pipe(
+            Effect.map((pricing) =>
+              resolveRegistrationTransferClaimPricing({
+                basePrice: optionBasePrice,
+                mode: 'current',
+                pricing,
+              }),
+            ),
+          ),
       databaseEffect((database) =>
         database
           .select({
@@ -1467,10 +1531,50 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
       : sourceRefundPlans.flatMap(({ refund, refundAmountDue }) =>
           refundAmountDue > 0 ? [refund] : [],
         );
+  const pricedBundleAddOns = bundleAddOns.map((addOn) => {
+    const currentUnitPrice = claimPricing.sealed
+      ? addOn.recipientUnitPrice
+      : addOn.currentUnitPrice;
+    if (currentUnitPrice === null) return;
+    return {
+      cancelledQuantity: addOn.cancelledQuantity,
+      currentUnitPrice,
+      description: addOn.description,
+      id: addOn.id,
+      includedQuantity: addOn.includedQuantity,
+      purchasedQuantity: addOn.purchasedQuantity,
+      quantity: addOn.quantity,
+      redeemedQuantity: addOn.redeemedQuantity,
+      title: addOn.title,
+    };
+  });
+  if (pricedBundleAddOns.includes(undefined)) {
+    return yield* new RegistrationTransferInternalError({
+      message: 'Claimed transfer add-on pricing snapshot is incomplete',
+    });
+  }
+  const claimBundleAddOns = pricedBundleAddOns.filter(
+    (addOn) => addOn !== undefined,
+  );
+  const recipientBundlePrice = yield* registrationTransferTotalPrice({
+    addOns: claimBundleAddOns.map((addOn) => ({
+      quantity: addOn.purchasedQuantity,
+      unitPrice: addOn.currentUnitPrice,
+    })),
+    effectivePrice: claimPricing.effectivePrice,
+    guestCount: transfer.sourceSpotCount - 1,
+    guestUnitPrice: claimPricing.basePrice,
+  }).pipe(
+    Effect.mapError((error) =>
+      RegistrationTransferInternalError.make({
+        message: error.message,
+      }),
+    ),
+  );
 
   return RegistrationTransferClaimRecord.make({
     bundle: {
-      addOns: bundleAddOns.map((addOn) => ({
+      addOns: claimBundleAddOns.map((addOn) => ({
         ...addOn,
         remainingQuantity:
           addOn.quantity - addOn.redeemedQuantity - addOn.cancelledQuantity,
@@ -1478,7 +1582,7 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
       checkedInGuestCount: transfer.sourceCheckedInGuestCount,
       checkInTime: transfer.sourceCheckInTime?.toISOString() ?? null,
       guestCount: transfer.sourceSpotCount - 1,
-      guestUnitPrice: transfer.optionPrice,
+      guestUnitPrice: claimPricing.basePrice,
     },
     event: {
       end: transfer.eventEnd.toISOString(),
@@ -1487,14 +1591,18 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
       title: transfer.eventTitle,
     },
     expiresAt: transfer.expiresAt.toISOString(),
+    recipientBundlePrice,
     refundLifecycle: resolveRegistrationTransferRefundLifecycle({
       refunds: refundClaims,
       transferStatus: status,
     }),
     registrationOption: {
+      appliedDiscountType: claimPricing.appliedDiscountType,
+      basePrice: claimPricing.basePrice,
       currency: tenant.currency,
-      currentPrice,
+      currentPrice: claimPricing.effectivePrice,
       description: transfer.optionDescription,
+      discountAmount: claimPricing.discountAmount,
       id: transfer.optionId,
       isPaid: transfer.optionIsPaid,
       questions,
@@ -2347,6 +2455,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               eventStatus: eventInstances.status,
               eventTitle: eventInstances.title,
               optionEventId: eventRegistrationOptions.eventId,
+              optionIsPaid: eventRegistrationOptions.isPaid,
               optionPrice: eventRegistrationOptions.price,
               optionRoleIds: eventRegistrationOptions.roleIds,
               optionStripeTaxRateId: eventRegistrationOptions.stripeTaxRateId,
@@ -2374,6 +2483,10 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           ) {
             return { _tag: 'Unavailable' as const };
           }
+          const optionBasePrice = registrationTransferBasePrice({
+            isPaid: lockedOption.optionIsPaid,
+            price: lockedOption.optionPrice,
+          });
           if (
             !isUserEligibleForRegistrationOption({
               optionRoleIds: lockedOption.optionRoleIds,
@@ -2508,6 +2621,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           const lockedDiscountCards = yield* tx
             .select({
               type: userDiscountCards.type,
+              validFrom: userDiscountCards.validFrom,
               validTo: userDiscountCards.validTo,
             })
             .from(userDiscountCards)
@@ -2541,22 +2655,28 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               .map(([key]) => key),
           );
           const discountResolution = resolveRegistrationTransferPrice({
-            basePrice: lockedOption.optionPrice,
+            basePrice: optionBasePrice,
             cards: lockedDiscountCards,
             discounts: lockedDiscounts,
             enabledDiscountTypes,
             eventStart: lockedOption.eventStart,
           });
-          const selectedAddonTotal = bundleAddOns.reduce(
-            (total, addOn) => total + addOn.price * addOn.purchasedQuantity,
-            0,
-          );
-          const totalPrice = registrationTransferTotalPrice({
-            addOnTotal: selectedAddonTotal,
+          const totalPrice = yield* registrationTransferTotalPrice({
+            addOns: bundleAddOns.map((addOn) => ({
+              quantity: addOn.purchasedQuantity,
+              unitPrice: addOn.price,
+            })),
             effectivePrice: discountResolution.effectivePrice,
             guestCount,
-            guestUnitPrice: lockedOption.optionPrice,
-          });
+            guestUnitPrice: optionBasePrice,
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new RegistrationTransferConflictError({
+                  message: error.message,
+                }),
+            ),
+          );
           const requiresCheckout = totalPrice > 0;
           if (requiresCheckout && !lockedStripeAccountId) {
             return { _tag: 'StripeUnavailable' as const };
@@ -2589,16 +2709,13 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               unitAmount: discountResolution.effectivePrice,
             });
           }
-          if (guestCount > 0) {
-            checkoutLineItems.push({
-              name: `Guest registration fee for ${lockedOption.eventTitle}`,
-              quantity: guestCount,
-              ...(lockedOption.optionStripeTaxRateId && {
-                taxRateId: lockedOption.optionStripeTaxRateId,
-              }),
-              unitAmount: lockedOption.optionPrice,
-            });
-          }
+          const guestCheckoutLine = registrationTransferGuestCheckoutLine({
+            eventTitle: lockedOption.eventTitle,
+            guestCount,
+            guestUnitPrice: optionBasePrice,
+            stripeTaxRateId: lockedOption.optionStripeTaxRateId,
+          });
+          if (guestCheckoutLine) checkoutLineItems.push(guestCheckoutLine);
           for (const addOn of bundleAddOns) {
             if (addOn.price <= 0 || addOn.purchasedQuantity <= 0) continue;
             checkoutLineItems.push({
@@ -2688,7 +2805,9 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             yield* tx.insert(registrationTransferAnswers).values(
               answerInserts.map((answer) => ({
                 answer: answer.answer,
+                eventId: transfer.eventId,
                 questionId: answer.questionId,
+                registrationOptionId: transfer.optionId,
                 tenantId: tenant.id,
                 transferId: transfer.transferId,
               })),
@@ -2774,7 +2893,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                   discountResolution.appliedDiscountedPrice,
                 recipientAppliedDiscountType:
                   discountResolution.appliedDiscountType,
-                recipientBasePrice: lockedOption.optionPrice,
+                recipientBasePrice: optionBasePrice,
                 recipientCheckoutTransactionId: paymentClaim.id,
                 recipientDiscountAmount: discountResolution.discountAmount,
                 recipientRegistrationId,
@@ -2858,6 +2977,8 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 registrationTransferRefundPlanAcquisitionLinks.sourceAcquisitionPaymentId,
               sourceAmount: transactions.amount,
               sourceCurrency: transactions.currency,
+              sourceEventId: transactions.eventId,
+              sourceEventRegistrationId: transactions.eventRegistrationId,
               sourceMethod: transactions.method,
               sourceStatus: transactions.status,
               sourceStripeAccountId: transactions.stripeAccountId,
@@ -2942,10 +3063,17 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               : yield* tx
                   .select({
                     amount: transactions.amount,
+                    currency: transactions.currency,
+                    eventId: transactions.eventId,
+                    eventRegistrationId: transactions.eventRegistrationId,
+                    manuallyCreated: transactions.manuallyCreated,
                     method: transactions.method,
                     sourceTransactionId: transactions.sourceTransactionId,
                     status: transactions.status,
+                    stripeAccountId: transactions.stripeAccountId,
+                    stripeRefundId: transactions.stripeRefundId,
                     stripeRefundStatus: transactions.stripeRefundStatus,
+                    targetUserId: transactions.targetUserId,
                   })
                   .from(transactions)
                   .where(
@@ -2960,23 +3088,25 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                   )
                   .orderBy(transactions.id)
                   .for('update');
-          const priorRefundedBySource = new Map<string, number>();
-          for (const refund of priorRefunds) {
-            if (
-              !refund.sourceTransactionId ||
-              refund.amount >= 0 ||
-              refund.method !== 'stripe' ||
-              refund.status !== 'successful' ||
-              refund.stripeRefundStatus !== 'succeeded'
-            ) {
-              return { _tag: 'Unavailable' as const };
-            }
-            priorRefundedBySource.set(
-              refund.sourceTransactionId,
-              (priorRefundedBySource.get(refund.sourceTransactionId) ?? 0) -
-                refund.amount,
-            );
+          const priorRefundResolution = resolveRegistrationTransferPriorRefunds(
+            {
+              refunds: priorRefunds,
+              sourcePayments: refundPlans.map((plan) => ({
+                amount: plan.sourceAmount,
+                currency: plan.sourceCurrency,
+                eventId: plan.sourceEventId,
+                eventRegistrationId: plan.sourceEventRegistrationId,
+                id: plan.sourceTransactionId,
+                stripeAccountId: plan.sourceStripeAccountId,
+                targetUserId: plan.sourceTargetUserId,
+              })),
+            },
+          );
+          if (priorRefundResolution._tag !== 'Valid') {
+            return { _tag: 'Unavailable' as const };
           }
+          const priorRefundedBySource =
+            priorRefundResolution.refundedBySourceTransactionId;
           if (
             !refundPlansExactlyCoverCurrentAcquisitionPayments({
               currentAcquisitionId: currentAcquisition.id,
@@ -3060,7 +3190,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             .set({
               appliedDiscountedPrice: discountResolution.appliedDiscountedPrice,
               appliedDiscountType: discountResolution.appliedDiscountType,
-              basePriceAtRegistration: lockedOption.optionPrice,
+              basePriceAtRegistration: optionBasePrice,
               discountAmount: discountResolution.discountAmount,
               stripeTaxRateId: lockedOption.optionStripeTaxRateId,
               taxRateDisplayName: selectedTaxRate?.displayName,
@@ -3080,13 +3210,14 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           if (transferredRegistrations.length !== 1) {
             return { _tag: 'Unavailable' as const };
           }
+          const transferOperationId = `registration-transfer:${transfer.transferId}`;
           yield* establishRegistrationAcquisition(tx, {
             acquiredAt: completedAt,
             components: recipientAcquisitionComponents,
             currency: lockedTenant.currency,
             eventId: transfer.eventId,
             kind: 'claim_transfer',
-            operationKey: `registration-transfer:${transfer.transferId}`,
+            operationKey: transferOperationId,
             ownerUserId: user.id,
             registrationId: recipientRegistrationId,
             spotCount: recipientSpotCount,
@@ -3184,6 +3315,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             registrationId: recipientRegistrationId,
             tenant: lockedTenant,
             to: sourceUser.communicationEmail?.trim() || sourceUser.email,
+            transferOperationId,
           });
           yield* enqueueRegistrationTransferredEmail(tx, {
             eventTitle: lockedOption.eventTitle,
@@ -3193,6 +3325,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             registrationId: recipientRegistrationId,
             tenant: lockedTenant,
             to: recipientUser.communicationEmail?.trim() || recipientUser.email,
+            transferOperationId,
           });
           const nextStatus =
             refundClaimIds.length > 0 ? 'refund_pending' : 'completed';
@@ -3205,7 +3338,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 discountResolution.appliedDiscountedPrice,
               recipientAppliedDiscountType:
                 discountResolution.appliedDiscountType,
-              recipientBasePrice: lockedOption.optionPrice,
+              recipientBasePrice: optionBasePrice,
               recipientConfirmedAt: completedAt,
               recipientDiscountAmount: discountResolution.discountAmount,
               recipientRegistrationId,

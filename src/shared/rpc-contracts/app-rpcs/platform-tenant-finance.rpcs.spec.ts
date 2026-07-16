@@ -96,10 +96,13 @@ describe('platform tenant finance RPC schemas', () => {
     expect(
       Schema.decodeUnknownSync(PlatformFinanceRefundRecoveryRecord)({
         amount: 1200,
+        attendeeFirstName: 'Pat',
+        attendeeLastName: 'Example',
         createdAt: '2026-07-10T10:00:00.000Z',
         currency: 'EUR',
         eventId: 'event-1',
         eventRegistrationId: 'registration-1',
+        eventTitle: 'Welcome dinner',
         id: 'refund-claim-1',
         lastError: 'Stripe refund reached terminal status failed',
         mode: 'newGeneration',
@@ -111,7 +114,13 @@ describe('platform tenant finance RPC schemas', () => {
         transfer: null,
         updatedAt: '2026-07-10T10:05:00.000Z',
       }),
-    ).toMatchObject({ id: 'refund-claim-1', mode: 'newGeneration' });
+    ).toMatchObject({
+      attendeeFirstName: 'Pat',
+      attendeeLastName: 'Example',
+      eventTitle: 'Welcome dinner',
+      id: 'refund-claim-1',
+      mode: 'newGeneration',
+    });
 
     expect(
       Schema.decodeUnknownSync(PlatformFinanceRequeueRefundClaimInput)({
@@ -166,7 +175,7 @@ describe('platform tenant finance RPC schemas', () => {
     ).toBe('action-required');
   });
 
-  it('returns target currency and receipt-country configuration explicitly', () => {
+  it('returns target currency, timezone, and receipt-country configuration explicitly', () => {
     expect(
       Schema.decodeUnknownSync(PlatformFinanceTenantContext)({
         currency: 'CZK',
@@ -175,6 +184,7 @@ describe('platform tenant finance RPC schemas', () => {
           receiptCountries: ['CZ', 'DE'],
         },
         targetTenantId: 'tenant-1',
+        timezone: 'Australia/Brisbane',
       }),
     ).toMatchObject({
       currency: 'CZK',
@@ -182,6 +192,7 @@ describe('platform tenant finance RPC schemas', () => {
         allowOther: true,
         receiptCountries: ['CZ', 'DE'],
       },
+      timezone: 'Australia/Brisbane',
     });
   });
 

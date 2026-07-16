@@ -10,7 +10,7 @@ test.setTimeout(120_000);
 
 test.use({ storageState: gaStateFile });
 
-const tenantSearchLabel = 'Search tenants';
+const tenantSearchLabel = 'Search organizations';
 const expectedStripeAccountId =
   process.env['STRIPE_TEST_ACCOUNT_ID'] ?? 'acct_playwright_list';
 
@@ -25,7 +25,6 @@ const fillTenantSearch = async (page: Page, value: string) => {
 
 const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
-  await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
   await expect(page.getByText('Locale').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
@@ -46,25 +45,12 @@ const expectTenantFormScope = async (
 ) => {
   const form = page.locator('form');
 
-  await expect(
-    page.getByRole('heading', { name: 'Relaunch tenant scope' }),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      'Custom-domain verification and multi-domain automation are deferred.',
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      'Tenant-admin impersonation is not available in the current relaunch surface.',
-    ),
-  ).toBeVisible();
-  await expect(form.locator('input').first()).toBeVisible();
+  await expect(form.getByLabel('Organization name')).toBeVisible();
+  await expect(form.getByLabel('Primary domain')).toBeVisible();
+  await expect(form.getByLabel('Theme')).toBeVisible();
+  await expect(form.getByLabel('Stripe account ID')).toBeVisible();
+  await expect(form.getByLabel('Currency')).toBeVisible();
+  await expect(form.getByLabel('Timezone')).toBeVisible();
   if (options.expectCreatePlaceholders) {
     await expect(
       form.getByRole('textbox', { name: 'Primary domain', exact: true }),
@@ -79,16 +65,16 @@ const expectTenantFormScope = async (
   }
   if (options.expectPublicUrlMigrationGuidance) {
     await expect(
-      page.getByRole('heading', { name: 'Public URL migration' }),
+      page.getByRole('heading', { name: 'Changing the public domain' }),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Domain changes are rejected while Stripe Checkouts, refunds, or registration transfers still depend on issued links.',
+        'Finish pending payments, refunds, and registration transfers before changing this domain.',
       ),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Keep HTTPS redirects from the old domain to the new domain for already-issued QR codes; their encoded URLs cannot be rewritten.',
+        'Keep the old domain redirecting here so existing links and QR codes continue to work.',
       ),
     ).toBeVisible();
   }
@@ -155,17 +141,17 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await page.goto('/global-admin/tenants');
 
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Tenants' }),
+    page.getByRole('heading', { level: 1, name: 'Organizations' }),
   ).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'Create tenant' }),
+    page.getByRole('link', { name: 'Create organization' }),
   ).toHaveAttribute('href', '/global-admin/tenants/create');
   await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
   await expectTenantRows(page);
 
   await fillTenantSearch(page, 'no-such-tenant');
   await expect(
-    page.getByRole('heading', { name: 'No tenants match this search' }),
+    page.getByRole('heading', { name: 'No organizations match this search' }),
   ).toBeVisible();
   await fillTenantSearch(page, 'localhost');
   await expect(page.getByText('localhost').first()).toBeVisible();
@@ -174,13 +160,13 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     page.getByText(`Connected (${expectedStripeAccountId})`).first(),
   ).toBeVisible();
 
-  await page.getByRole('link', { name: 'Create tenant' }).click();
+  await page.getByRole('link', { name: 'Create organization' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Create tenant' }),
+    page.getByRole('heading', { name: 'Create organization' }),
   ).toBeVisible();
   await expectTenantFormScope(page, { expectCreatePlaceholders: true });
   await expect(
-    page.getByRole('button', { name: 'Create tenant' }),
+    page.getByRole('button', { name: 'Create organization' }),
   ).toBeDisabled();
   const createTenantInputs = page.locator('form input');
   await createTenantInputs.first().fill(createdTenantName);
@@ -190,22 +176,24 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     .fill('Privacy policy for the new section.');
   await page.getByLabel('Reason for platform change').fill(createAuditReason);
   await expect(
-    page.getByRole('button', { name: 'Create tenant' }),
+    page.getByRole('button', { name: 'Create organization' }),
   ).toBeEnabled();
-  await page.getByRole('button', { name: 'Create tenant' }).click();
+  await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(
     page.getByText('Domain must be a single host name'),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
   await createTenantInputs.nth(1).fill(originalTenant.domain);
-  await page.getByRole('button', { name: 'Create tenant' }).click();
-  await expect(page.getByText('Tenant domain already exists')).toBeVisible();
+  await page.getByRole('button', { name: 'Create organization' }).click();
+  await expect(
+    page.getByText('Organization domain already exists'),
+  ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
   await createTenantInputs.nth(1).fill(createdTenantDomain);
   await expect(
-    page.getByRole('button', { name: 'Create tenant' }),
+    page.getByRole('button', { name: 'Create organization' }),
   ).toBeEnabled();
-  await page.getByRole('button', { name: 'Create tenant' }).click();
+  await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
   await expect(
     page.getByRole('heading', { level: 1, name: createdTenantName }),
@@ -268,19 +256,19 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     tenantId: createdTenant.id,
     type: 'registration',
   });
-  await page.getByRole('link', { name: 'Edit tenant' }).click();
+  await page.getByRole('link', { name: 'Edit organization' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Public URL migration' }),
+    page.getByRole('heading', { name: 'Changing the public domain' }),
   ).toBeVisible();
   const blockedDomain = `blocked-${getId().slice(0, 8)}.example.test`;
   await page.getByLabel('Primary domain').fill(blockedDomain);
   await page
     .getByLabel('Reason for platform change')
     .fill('Verify active-link migration protection');
-  await page.getByRole('button', { name: 'Save tenant' }).click();
+  await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(
     page.getByText(
-      'Tenant public URL cannot change while issued links are active. Complete or cancel every pending Stripe Checkout or refund before changing the tenant public URL.',
+      "Organization public URL cannot change while issued links are active. Complete or cancel every pending Stripe Checkout or refund before changing the organization's public URL.",
     ),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
@@ -300,25 +288,26 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await fillTenantSearch(page, 'localhost');
   const reviewTenantHref = `/global-admin/tenants/${originalTenant.id}`;
   const reviewTenantLink = page.locator(`a[href="${reviewTenantHref}"]`, {
-    hasText: 'Review tenant',
+    hasText: 'Review organization',
   });
   await expect(reviewTenantLink).toBeVisible();
   await reviewTenantLink.click();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
   await expect(
-    page.getByText('Read-only operational tenant review'),
+    page.getByText("Review this organization's settings and platform tools."),
   ).toBeVisible();
   await expectTenantRows(page);
-  await expect(page.getByRole('link', { name: 'Open tenant' })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Edit tenant' })).toHaveAttribute(
-    'href',
-    `${reviewTenantHref}/edit`,
-  );
+  await expect(
+    page.getByRole('link', { name: 'Open organization' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('link', { name: 'Edit organization' }),
+  ).toHaveAttribute('href', `${reviewTenantHref}/edit`);
 
-  await page.getByRole('link', { name: 'Edit tenant' }).click();
+  await page.getByRole('link', { name: 'Edit organization' }).click();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
   await expect(
-    page.getByRole('heading', { name: 'Edit tenant' }),
+    page.getByRole('heading', { name: 'Edit organization' }),
   ).toBeVisible();
   await expectTenantFormScope(page, {
     expectPublicUrlMigrationGuidance: true,
@@ -327,15 +316,17 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await expect(tenantFormInputs.first()).toHaveValue(/.+/);
   await expect(tenantFormInputs.nth(1)).toHaveValue('localhost');
   await expect(
-    page.getByRole('button', { name: 'Save tenant' }),
+    page.getByRole('button', { name: 'Save organization' }),
   ).toBeDisabled();
   await expect(page.getByText('Cancel', { exact: true })).toBeVisible();
 
   const updatedTenantName = `${originalTenant.name} reviewed`;
   await tenantFormInputs.first().fill(updatedTenantName);
   await page.getByLabel('Reason for platform change').fill(updateAuditReason);
-  await expect(page.getByRole('button', { name: 'Save tenant' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Save tenant' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Save organization' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(page).toHaveURL(reviewTenantHref);
   await expect(
     page.getByRole('heading', { level: 1, name: updatedTenantName }),

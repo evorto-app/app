@@ -9,7 +9,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: gaStateFile });
 
-const tenantSearchLabel = 'Search tenants';
+const tenantSearchLabel = 'Search organizations';
 
 const fillTenantSearch = async (page: Page, value: string) => {
   const tenantList = page.locator('app-tenant-list');
@@ -40,14 +40,12 @@ const expectGlobalAdminTenantRows = async (
   tenant: GlobalAdminTenantDocRow,
 ) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
-  await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
   await expect(page.getByText('Locale').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText(tenant.domain).first()).toBeVisible();
-  await expect(page.getByText(tenant.id).first()).toBeVisible();
   await expect(page.getByText(tenant.theme).first()).toBeVisible();
   await expect(page.getByText(tenant.locale).first()).toBeVisible();
   await expect(page.getByText(tenant.currency).first()).toBeVisible();
@@ -77,31 +75,12 @@ const expectGlobalAdminTenantFormSurface = async (
   page: Page,
   options: { create?: boolean; publicUrlMigrationGuidance?: boolean } = {},
 ) => {
-  await expect(
-    page.getByRole('heading', { name: 'Relaunch tenant scope' }),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      'Custom-domain verification and multi-domain automation are deferred.',
-    ),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      'Tenant-admin impersonation is not available in the current relaunch surface.',
-    ),
-  ).toBeVisible();
-  await expect(tenantNameInput(page)).toBeVisible();
-  await expect(tenantPrimaryDomainInput(page)).toBeVisible();
-  await expect(
-    page.getByText(
-      'Checkout returns and transactional links use the secure HTTPS origin derived from this normalized domain.',
-    ),
-  ).toBeVisible();
+  await expect(page.getByLabel('Organization name')).toBeVisible();
+  await expect(page.getByLabel('Primary domain')).toBeVisible();
+  await expect(page.getByLabel('Theme')).toBeVisible();
+  await expect(page.getByLabel('Stripe account ID')).toBeVisible();
+  await expect(page.getByLabel('Currency')).toBeVisible();
+  await expect(page.getByLabel('Timezone')).toBeVisible();
   await expect(tenantForm(page).getByRole('combobox')).toHaveCount(3);
   await expect(tenantStripeAccountInput(page)).toBeVisible();
   await expect(page.getByLabel('Reason for platform change')).toBeVisible();
@@ -111,22 +90,22 @@ const expectGlobalAdminTenantFormSurface = async (
   }
   if (options.publicUrlMigrationGuidance) {
     await expect(
-      page.getByRole('heading', { name: 'Public URL migration' }),
+      page.getByRole('heading', { name: 'Changing the public domain' }),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Domain changes are rejected while Stripe Checkouts, refunds, or registration transfers still depend on issued links.',
+        'Finish pending payments, refunds, and registration transfers before changing this domain.',
       ),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Keep HTTPS redirects from the old domain to the new domain for already-issued QR codes; their encoded URLs cannot be rewritten.',
+        'Keep the old domain redirecting here so existing links and QR codes continue to work.',
       ),
     ).toBeVisible();
   }
 };
 
-test('Review platform tenant administration @admin @globalAdmin', async ({
+test('Review platform organization administration @admin @globalAdmin', async ({
   database,
   page,
 }, testInfo) => {
@@ -148,12 +127,12 @@ test('Review platform tenant administration @admin @globalAdmin', async ({
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Platform authority" %}
-For this guide, we assume you are signed in with explicit platform administrator authority from verified Auth0 app metadata. Tenant roles do not grant this authority.
+For this guide, we assume you are signed in as a platform administrator. An organization role does not grant this access.
 {% /callout %}
 
-# Global Tenant Administration
+# Organization Administration
 
-Platform administrators can review, create, and edit tenants from the **Platform administration** area without a tenant membership. This authority is separate from tenant roles and does not grant ordinary tenant-user actions. Every tenant change requires a reason and records an application/API append-only before/after audit entry. Authorization is enforced in the Effect server layer, not by database RLS.
+Platform administrators can review, create, and edit organizations from **Platform administration** without becoming an organization member. Every change requires a reason and appears in the platform audit log.
 `,
     });
 
@@ -161,10 +140,10 @@ Platform administrators can review, create, and edit tenants from the **Platform
       page.getByRole('heading', { name: 'Platform administration' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Tenants' }),
+      page.getByRole('heading', { level: 1, name: 'Organizations' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('link', { name: 'Create tenant' }),
+      page.getByRole('link', { name: 'Create organization' }),
     ).toHaveAttribute('href', '/global-admin/tenants/create');
     const primaryDomain = documentedTenant.domain;
     await fillTenantSearch(page, primaryDomain);
@@ -172,7 +151,7 @@ Platform administrators can review, create, and edit tenants from the **Platform
     await expect(firstTenantPrimaryDomain(page)).toHaveText(primaryDomain);
     await fillTenantSearch(page, 'no-such-tenant');
     await expect(
-      page.getByRole('heading', { name: 'No tenants match this search' }),
+      page.getByRole('heading', { name: 'No organizations match this search' }),
     ).toBeVisible();
     await fillTenantSearch(page, primaryDomain);
     await expect(page.getByText(primaryDomain).first()).toBeVisible();
@@ -186,15 +165,15 @@ Platform administrators can review, create, and edit tenants from the **Platform
       testInfo,
       page.locator('app-tenant-list'),
       page,
-      'Global admin tenant list',
+      'Platform organization list',
     );
-    await page.getByRole('link', { name: 'Create tenant' }).click();
+    await page.getByRole('link', { name: 'Create organization' }).click();
     await expect(
-      page.getByRole('heading', { name: 'Create tenant' }),
+      page.getByRole('heading', { name: 'Create organization' }),
     ).toBeVisible();
     await expectGlobalAdminTenantFormSurface(page, { create: true });
     await expect(
-      page.getByRole('button', { name: 'Create tenant' }),
+      page.getByRole('button', { name: 'Create organization' }),
     ).toBeDisabled();
     await tenantNameInput(page).fill(createdTenantName);
     await tenantPrimaryDomainInput(page).fill('section.example.org/path');
@@ -206,25 +185,27 @@ Platform administrators can review, create, and edit tenants from the **Platform
       testInfo,
       page.locator('app-tenant-create'),
       page,
-      'Create a tenant with an initial privacy policy and audit reason',
+      'Create an organization with an initial privacy policy and change reason',
     );
     await expect(
-      page.getByRole('button', { name: 'Create tenant' }),
+      page.getByRole('button', { name: 'Create organization' }),
     ).toBeEnabled();
-    await page.getByRole('button', { name: 'Create tenant' }).click();
+    await page.getByRole('button', { name: 'Create organization' }).click();
     await expect(
       page.getByText('Domain must be a single host name'),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await tenantPrimaryDomainInput(page).fill(documentedTenant.domain);
-    await page.getByRole('button', { name: 'Create tenant' }).click();
-    await expect(page.getByText('Tenant domain already exists')).toBeVisible();
+    await page.getByRole('button', { name: 'Create organization' }).click();
+    await expect(
+      page.getByText('Organization domain already exists'),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await tenantPrimaryDomainInput(page).fill(createdTenantDomain);
     await expect(
-      page.getByRole('button', { name: 'Create tenant' }),
+      page.getByRole('button', { name: 'Create organization' }),
     ).toBeEnabled();
-    await page.getByRole('button', { name: 'Create tenant' }).click();
+    await page.getByRole('button', { name: 'Create organization' }).click();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
     await expect(
       page.getByRole('heading', { level: 1, name: createdTenantName }),
@@ -264,7 +245,7 @@ Platform administrators can review, create, and edit tenants from the **Platform
 
     await page.goto('/global-admin/tenants');
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Tenants' }),
+      page.getByRole('heading', { level: 1, name: 'Organizations' }),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants$/);
     await fillTenantSearch(page, createdTenantDomain);
@@ -272,7 +253,7 @@ Platform administrators can review, create, and edit tenants from the **Platform
     const reviewTenantLink = page
       .locator('app-tenant-list > div')
       .filter({ hasText: createdTenantDomain })
-      .getByRole('link', { name: 'Review tenant' });
+      .getByRole('link', { name: 'Review organization' });
     const reviewTenantHref = await reviewTenantLink.getAttribute('href');
     if (!reviewTenantHref) {
       throw new Error('Expected documented tenant review link href');
@@ -281,25 +262,25 @@ Platform administrators can review, create, and edit tenants from the **Platform
     await reviewTenantLink.click();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
     await expect(
-      page.getByText('Read-only operational tenant review'),
+      page.getByText("Review this organization's settings and platform tools."),
     ).toBeVisible();
     await expectGlobalAdminTenantRows(page, createdTenant);
     await expect(
-      page.getByRole('link', { name: 'Open tenant' }),
+      page.getByRole('link', { name: 'Open organization' }),
     ).toHaveAttribute('href', `https://${createdTenantDomain}`);
     await expect(
-      page.getByRole('link', { name: 'Edit tenant' }),
+      page.getByRole('link', { name: 'Edit organization' }),
     ).toHaveAttribute('href', `${reviewTenantHref}/edit`);
     await takeScreenshot(
       testInfo,
       page.locator('app-tenant-detail'),
       page,
-      'Global admin tenant detail',
+      'Organization detail and platform tools',
     );
-    await page.getByRole('link', { name: 'Edit tenant' }).click();
+    await page.getByRole('link', { name: 'Edit organization' }).click();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
     await expect(
-      page.getByRole('heading', { name: 'Edit tenant' }),
+      page.getByRole('heading', { name: 'Edit organization' }),
     ).toBeVisible();
     await expectGlobalAdminTenantFormSurface(page, {
       publicUrlMigrationGuidance: true,
@@ -312,7 +293,7 @@ Platform administrators can review, create, and edit tenants from the **Platform
       createdTenant.stripeAccountId ?? '',
     );
     await expect(
-      page.getByRole('button', { name: 'Save tenant' }),
+      page.getByRole('button', { name: 'Save organization' }),
     ).toBeDisabled();
 
     const updatedTenantName = `${createdTenant.name} documentation review`;
@@ -322,12 +303,12 @@ Platform administrators can review, create, and edit tenants from the **Platform
       testInfo,
       page.locator('app-tenant-edit'),
       page,
-      'Edit tenant settings with an audit reason',
+      'Edit organization settings with a change reason',
     );
     await expect(
-      page.getByRole('button', { name: 'Save tenant' }),
+      page.getByRole('button', { name: 'Save organization' }),
     ).toBeEnabled();
-    await page.getByRole('button', { name: 'Save tenant' }).click();
+    await page.getByRole('button', { name: 'Save organization' }).click();
     await expect(page).toHaveURL(reviewTenantHref);
     await expect(
       page.getByRole('heading', { level: 1, name: updatedTenantName }),
@@ -352,22 +333,22 @@ Platform administrators can review, create, and edit tenants from the **Platform
       testInfo,
       page.locator('app-platform-audit'),
       page,
-      'Application append-only platform audit log',
+      'Platform change history',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Current relaunch surface
+## Organization settings and safeguards
 
-The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, primary domain, tenant id, theme, locale, currency, timezone, and Stripe account state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the tenant at the secure HTTPS origin derived from its normalized primary domain.
+The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, locale, currency, timezone, and Stripe connection. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
 
-Tenant create/edit manages the one active primary domain, name, theme, currency, timezone, and connected Stripe account id. Paid event registrations and add-ons are Stripe-only, and the server blocks removing a connected account while any paid template/event option or add-on still exists; convert those configurations to free first. The formatting locale remains fixed to **de-DE**. The server normalizes primary domains to a single-host value and rejects duplicates, paths, queries, fragments, credentials, and non-default ports. Transactional links and Stripe return URLs use the secure HTTPS origin derived from this normalized domain rather than request headers. The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here and its HTTPS origin is derived, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
+Create and edit manage the primary domain, name, theme, currency, timezone, and connected Stripe account. Paid event registrations and add-ons are Stripe-only, so a connected Stripe account cannot be removed while a paid template, event option, or add-on still exists. Convert those configurations to free first. Domains must be unique host names without paths, queries, fragments, credentials, or custom ports.
 
-A public-URL migration is rejected while pending Stripe Checkouts or refunds, or active registration transfers, still depend on issued links. During that migration, operators must keep HTTPS redirects from the old domain to the new domain for already-issued QR codes because their encoded URLs cannot be rewritten.
+A public-domain change is rejected while pending payments, refunds, or registration transfers still depend on existing links. Keep the old domain redirecting to the new one so issued links and QR codes continue to work.
 
-Each allowed platform mutation requires an operator reason. The tenant change and its audit row commit together; the audit log shows the actor, target tenant, action, before and after snapshots, reason, and timestamp. Platform authority stays distinct from tenant membership and ordinary tenant capabilities.
+Each platform change requires an operator reason. The audit log shows who made the change, the organization, the action, the reason, and when it happened. Platform authority remains separate from organization membership.
 
-The create journey also checks the one-domain guardrails before saving: domains with paths are rejected in the form before mutation, the normalized domain is read back from the database, and duplicate primary domains return a visible error while keeping the admin on the create page.
+The create journey also checks domain safeguards before saving: domains with paths are rejected, and duplicate primary domains return a visible error while keeping the form intact.
 `,
     });
   } finally {

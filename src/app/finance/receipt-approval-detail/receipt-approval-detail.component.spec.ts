@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   receiptApprovalDisabled,
   receiptEvidenceUnavailableNotice,
+  receiptRejectionDisabled,
   receiptReviewActionDisabled,
   receiptReviewNotificationNotice,
   receiptReviewSuccessMessage,
@@ -66,7 +67,7 @@ describe('receiptReviewActionDisabled', () => {
     ).toBe(true);
   });
 
-  it('blocks only approval when receipt evidence is unavailable', () => {
+  it('blocks approval but still permits a reasoned rejection when receipt evidence is unavailable', () => {
     const reviewState = {
       formInvalid: false,
       mutationPending: false,
@@ -79,12 +80,50 @@ describe('receiptReviewActionDisabled', () => {
         ...reviewState,
       }),
     ).toBe(true);
-    expect(receiptReviewActionDisabled(reviewState)).toBe(false);
+    expect(
+      receiptRejectionDisabled({
+        rejectionReason: 'The uploaded file cannot be verified.',
+        ...reviewState,
+      }),
+    ).toBe(false);
     expect(
       receiptApprovalDisabled({
         evidenceAvailable: true,
         ...reviewState,
       }),
     ).toBe(false);
+  });
+});
+
+describe('receiptRejectionDisabled', () => {
+  it('requires a nonblank reason before a receipt can be rejected', () => {
+    const reviewState = {
+      formInvalid: false,
+      mutationPending: false,
+      receiptPending: false,
+    };
+
+    expect(
+      receiptRejectionDisabled({ rejectionReason: '', ...reviewState }),
+    ).toBe(true);
+    expect(
+      receiptRejectionDisabled({
+        rejectionReason: ' '.repeat(3),
+        ...reviewState,
+      }),
+    ).toBe(true);
+    expect(
+      receiptRejectionDisabled({
+        rejectionReason: 'The receipt date is unreadable.',
+        ...reviewState,
+      }),
+    ).toBe(false);
+    expect(
+      receiptRejectionDisabled({
+        rejectionReason: 'The receipt date is unreadable.',
+        ...reviewState,
+        mutationPending: true,
+      }),
+    ).toBe(true);
   });
 });

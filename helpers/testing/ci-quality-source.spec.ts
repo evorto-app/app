@@ -105,10 +105,39 @@ describe('CI quality source', () => {
   });
 
   it('starts Docker and Playwright with the same deterministic clock', () => {
-    const source = readSource('.github/workflows/e2e-baseline.yml');
+    for (const sourcePath of [
+      '.github/workflows/e2e-baseline.yml',
+      '.github/workflows/esncard-release-certification.yml',
+    ]) {
+      const source = readSource(sourcePath);
+      expect(source, sourcePath).toContain(
+        `E2E_NOW_ISO: "${DEFAULT_E2E_NOW_ISO}"`,
+      );
+      expect(source, sourcePath).toContain(
+        `E2E_SEED_KEY: ${DEFAULT_E2E_SEED_KEY}`,
+      );
+    }
+  });
 
-    expect(source).toContain(`E2E_NOW_ISO: "${DEFAULT_E2E_NOW_ISO}"`);
-    expect(source).toContain(`E2E_SEED_KEY: ${DEFAULT_E2E_SEED_KEY}`);
+  it('enables the Playwright-only runtime mode only in E2E launch paths', () => {
+    const composeSource = readSource('docker-compose.yml');
+    const webserverSource = readSource('helpers/testing/docker-webserver.sh');
+    const ciDockerStartSource = readSource(
+      'helpers/testing/ci-start-docker-stack.sh',
+    );
+
+    expect(composeSource).toContain('E2E_RUNTIME_MODE:');
+    expect(composeSource).not.toContain('E2E_RUNTIME_MODE: "playwright"');
+    expect(webserverSource).toContain('export E2E_RUNTIME_MODE=playwright');
+    expect(ciDockerStartSource).toContain('export E2E_RUNTIME_MODE=playwright');
+    for (const sourcePath of [
+      '.github/workflows/e2e-baseline.yml',
+      '.github/workflows/esncard-release-certification.yml',
+    ]) {
+      expect(readSource(sourcePath), sourcePath).toContain(
+        'E2E_RUNTIME_MODE: playwright',
+      );
+    }
   });
 
   it('uses a redirect-safe SSR application readiness endpoint', () => {
@@ -171,6 +200,44 @@ describe('CI quality source', () => {
 
     expect(source).toContain('bunx playwright test --project=docs-baseline');
     expect(source).not.toMatch(/--grep-invert\s+["']?@finance/u);
+  });
+
+  it('avoids completeness-neutral Playwright and artifact overhead', () => {
+    const playwrightConfig = readSource('playwright.config.ts');
+    const baselineWorkflow = readSource('.github/workflows/e2e-baseline.yml');
+    const copilotWorkflow = readSource(
+      '.github/workflows/copilot-setup-steps.yml',
+    );
+
+    expect(playwrightConfig).toContain('retries: 0');
+    expect(playwrightConfig).not.toContain('environment.CI ? 1 : 0');
+    expect(baselineWorkflow).toContain(
+      'bunx playwright install --with-deps chromium',
+    );
+    expect(copilotWorkflow).toContain(
+      'bunx playwright install --with-deps chromium',
+    );
+    expect(copilotWorkflow).toContain('push:\n    branches: [main]');
+    expect(baselineWorkflow).toContain('!test-results/docs/**');
+  });
+
+  it('does not retain or upload authenticated Playwright traces', () => {
+    const baselineWorkflow = readSource('.github/workflows/e2e-baseline.yml');
+    const cancellationDocumentation = readSource(
+      'tests/docs/events/registration-cancellation.doc.ts',
+    );
+
+    expect(baselineWorkflow).toContain('bun run test:e2e -- --trace=off');
+    expect(baselineWorkflow).toContain(
+      'bunx playwright test --project=docs-baseline \\\n            --trace=off',
+    );
+    expect(baselineWorkflow).toContain('!test-results/**/trace.zip');
+    expect(baselineWorkflow).toContain('!test-results/docs/**/trace.zip');
+    expect(baselineWorkflow).not.toContain('playwright-report/**');
+    expect(cancellationDocumentation).toContain("test.use({ trace: 'off' })");
+    expect(cancellationDocumentation).not.toContain(
+      "trace: 'retain-on-failure'",
+    );
   });
 
   it('keeps repository-owned pull request quality gates complete', () => {

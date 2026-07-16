@@ -22,7 +22,7 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
   await expect(
     page.getByText(
-      'Manage tenant role assignments for existing users. Role changes apply only to this tenant.',
+      'Manage role assignments for existing members. Role changes apply only to this organization.',
     ),
   ).toBeVisible();
   const userSearchInput = page.getByPlaceholder('Name or email');

@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 
 const liveEsnCardIdentifier =
   process.env['E2E_LIVE_ESN_CARD_IDENTIFIER']?.trim();
@@ -14,7 +15,12 @@ test.setTimeout(120_000);
 
 // The identifier is an approved non-production credential. Keep it out of
 // traces and value-bearing assertions even though GitHub masks secret logs.
-test.use({ storageState: userStateFile, trace: 'off' });
+test.use({
+  screenshot: 'off',
+  storageState: userStateFile,
+  trace: 'off',
+  video: 'off',
+});
 
 test('verifies active and expired ESN cards through the live provider @needs-live-esncard', async ({
   database,
@@ -91,9 +97,11 @@ test('verifies active and expired ESN cards through the live provider @needs-liv
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('No discount cards on file.')).toBeVisible();
 
-    await page
-      .getByRole('textbox', { name: 'ESN card number' })
-      .fill(liveEsnCardIdentifier);
+    await fillProtectedValue(
+      page.getByRole('textbox', { name: 'ESN card number' }),
+      'E2E_LIVE_ESN_CARD_IDENTIFIER',
+      { trim: true },
+    );
     await page.getByRole('button', { name: 'Save ESN card' }).click();
 
     await expect(page.getByText(/Status: Verified/)).toBeVisible({
@@ -155,9 +163,11 @@ test('verifies active and expired ESN cards through the live provider @needs-liv
     });
     expect(removedCard).toBeUndefined();
 
-    await page
-      .getByRole('textbox', { name: 'ESN card number' })
-      .fill(expiredEsnCardIdentifier);
+    await fillProtectedValue(
+      page.getByRole('textbox', { name: 'ESN card number' }),
+      'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER',
+      { trim: true },
+    );
     await page.getByRole('button', { name: 'Save ESN card' }).click();
 
     await expect(page.getByText(/Status: Expired/)).toBeVisible({

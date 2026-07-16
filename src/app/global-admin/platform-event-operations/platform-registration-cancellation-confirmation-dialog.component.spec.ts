@@ -25,6 +25,7 @@ const registration = (
   checkedInGuestCount: 0,
   checkInTime: null,
   checkInTimingIssue: false,
+  currency: 'EUR',
   event: {
     id: 'event-1',
     start: '2030-01-02T00:00:00.000Z',
@@ -62,10 +63,10 @@ describe('platformRegistrationCancellationConfirmationCopy', () => {
       'every remaining included, free, or purchased add-on unit',
     );
     expect(copy.impact).toContain(
-      'Existing check-in and fulfillment history stays recorded',
+      'Existing check-in and add-on handout history stays recorded',
     );
-    expect(copy.refund).toContain('1250 minor currency units');
-    expect(copy.refund).toContain('immutable original Stripe payment records');
+    expect(copy.refund).toContain('12,50');
+    expect(copy.refund).toContain('original Stripe payment');
     expect(copy.refund).toContain('excludes payment fees');
   });
 
@@ -81,7 +82,7 @@ describe('platformRegistrationCancellationConfirmationCopy', () => {
         }),
       }).refund,
     ).toBe(
-      'No successful paid acquisition is recorded, so no refund is required.',
+      'No successful event payment is recorded, so no refund is required.',
     );
   });
 

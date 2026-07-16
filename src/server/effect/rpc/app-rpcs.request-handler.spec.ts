@@ -1,8 +1,12 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Schema } from 'effect';
+import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 
 import { Context as RequestContext } from '../../../types/custom/context';
-import { RequestBodyTooLargeError } from '../../http/request-body';
+import {
+  registerPrebufferedRequestBody,
+  RequestBodyTooLargeError,
+} from '../../http/request-body';
 import {
   MAX_RPC_BODY_SIZE_BYTES,
   toRpcHttpServerRequest,
@@ -55,6 +59,51 @@ describe('toRpcHttpServerRequest', () => {
       );
       expect(rpcRequest.headers[RPC_CONTEXT_HEADERS.TENANT]).toBeTruthy();
     }),
+  );
+
+  it.effect(
+    'reuses a Node-prebuffered body through the Web request bridge',
+    () =>
+      Effect.gen(function* () {
+        let sourcePullCount = 0;
+        const sourceBody = new ReadableStream<Uint8Array>(
+          {
+            pull() {
+              sourcePullCount += 1;
+              throw new Error(
+                'Node-prebuffered request stream must not be read again',
+              );
+            },
+          },
+          { highWaterMark: 0 },
+        );
+        const init = {
+          body: sourceBody,
+          duplex: 'half',
+          method: 'POST',
+        } satisfies RequestInit & { duplex: 'half' };
+        const request = new Request('https://tenant.example.com/rpc', init);
+        const bodyText = JSON.stringify({ _tag: 'PrebufferedRpc' });
+        registerPrebufferedRequestBody(
+          request,
+          new TextEncoder().encode(bodyText).buffer,
+        );
+        const bridgedRequest = yield* HttpServerRequest.toWeb(
+          HttpServerRequest.fromWeb(request),
+        );
+
+        const rpcRequest = yield* toRpcHttpServerRequest(
+          bridgedRequest,
+          requestContext,
+          {},
+        );
+
+        expect(bridgedRequest).toBe(request);
+        expect(sourcePullCount).toBe(0);
+        expect(yield* rpcRequest.text).toBe(bodyText);
+        expect(sourcePullCount).toBe(0);
+        expect(rpcRequest.headers[RPC_CONTEXT_HEADERS.TENANT]).toBeTruthy();
+      }),
   );
 
   it.effect('rejects an RPC body declared above the route limit', () =>

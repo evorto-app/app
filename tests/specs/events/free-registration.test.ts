@@ -160,7 +160,9 @@ test('register for a free event as regular user', async ({
       toEmail: registrationUser?.communicationEmail,
     });
     expect(registrationEmail?.html).toContain(`/events/${targetEventId}`);
-    expect(registrationEmail?.text).toContain('not a bearer credential');
+    expect(registrationEmail?.text).toContain(
+      'The ticket owner must sign in to Evorto',
+    );
 
     const [after] = await database
       .select()

@@ -17,7 +17,7 @@ const productionTypeScriptFiles = (directory: string): string[] =>
       : [];
   });
 
-describe('event-create Stripe serialization source guards', () => {
+describe('paid configuration Stripe serialization source guards', () => {
   it('runs the standard event graph inside one database transaction', () => {
     const source = readSource(
       '../effect/rpc/handlers/events/events-lifecycle.handlers.ts',
@@ -108,6 +108,78 @@ describe('event-create Stripe serialization source guards', () => {
       expect(source.slice(call, handlerEnd)).toContain(
         'Effect.provideService(Database, transactionalDatabase)',
       );
+    }
+  });
+
+  it('locks the tenant before every standard and platform template write', () => {
+    const paidConfiguration = readSource('./paid-event-configuration.ts');
+    const ensureStart = paidConfiguration.indexOf(
+      'export const ensureStripeForPaidEventConfiguration',
+    );
+    const ensureEnd = paidConfiguration.indexOf(
+      'const eventHasPaidConfiguration',
+      ensureStart,
+    );
+    expect(paidConfiguration.slice(ensureStart, ensureEnd)).toContain(
+      'lockTenantStripeAccount(',
+    );
+
+    const standard = readSource('../effect/rpc/handlers/templates.handlers.ts');
+    const platform = readSource(
+      '../effect/rpc/handlers/platform/platform-templates.handlers.ts',
+    );
+    for (const [source, startMarker, endMarker, writeMarker] of [
+      [
+        standard,
+        "'templates.create':",
+        "'templates.createSimpleTemplate':",
+        'TemplateGraphService.createTemplate(',
+      ],
+      [
+        standard,
+        "'templates.createSimpleTemplate':",
+        "'templates.findOne':",
+        'SimpleTemplateService.createSimpleTemplate(',
+      ],
+      [
+        standard,
+        "'templates.update':",
+        "'templates.updateSimpleTemplate':",
+        'TemplateGraphService.updateTemplate(',
+      ],
+      [
+        standard,
+        "'templates.updateSimpleTemplate':",
+        'satisfies Partial<AppRpcHandlers>',
+        'SimpleTemplateService.updateSimpleTemplate(',
+      ],
+      [
+        platform,
+        "'platform.templates.create':",
+        "'platform.templates.findOne':",
+        'TemplateGraphService.createTemplate(',
+      ],
+      [
+        platform,
+        "'platform.templates.update':",
+        '\n};',
+        'TemplateGraphService.updateTemplate(',
+      ],
+    ] as const) {
+      const start = source.indexOf(startMarker);
+      const end = source.indexOf(endMarker, start);
+      const handler = source.slice(start, end);
+      const transaction = handler.indexOf('.transaction((transaction)');
+      const accountLock = handler.indexOf(
+        'ensureStripeForPaidEventConfiguration(',
+      );
+      const write = handler.indexOf(writeMarker);
+
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(end).toBeGreaterThan(start);
+      expect(transaction).toBeGreaterThanOrEqual(0);
+      expect(accountLock).toBeGreaterThan(transaction);
+      expect(write).toBeGreaterThan(accountLock);
     }
   });
 });

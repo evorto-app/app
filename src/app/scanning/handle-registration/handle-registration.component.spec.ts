@@ -4,6 +4,7 @@ import {
   registrationAddonCancellationBlockedMessage,
   registrationAddonCancellationSuccessMessage,
   registrationAddonOperationKey,
+  registrationAddonQuantitySummary,
   RegistrationAddonRedeemIntentStore,
   registrationAddonRefundStatusLabel,
   scanCheckInActionDisabled,
@@ -138,7 +139,7 @@ describe('registration add-on fulfillment copy', () => {
 
   it('keeps every durable refund state explicit', () => {
     expect(registrationAddonRefundStatusLabel('actionRequired')).toBe(
-      'Provider action required',
+      'Refund needs review',
     );
     expect(registrationAddonRefundStatusLabel('notApplicable')).toBe(
       'Not applicable',
@@ -166,7 +167,7 @@ describe('registration add-on fulfillment copy', () => {
 
   it('explains every cancellation outcome without suggesting a duplicate action', () => {
     expect(registrationAddonCancellationSuccessMessage('actionRequired')).toBe(
-      'Cancellation recorded. The Stripe refund requires provider-side action. Do not cancel or charge again; review the existing refund.',
+      'Cancellation recorded, but the refund needs a platform administrator to review it. Do not cancel or charge again.',
     );
     expect(
       registrationAddonCancellationSuccessMessage('cancelledWithoutRefund'),
@@ -195,6 +196,27 @@ describe('registration add-on fulfillment copy', () => {
       'Cancellation recorded. The refund completed.',
     );
   });
+
+  it('summarizes settled add-on sources without repeating remaining counts', () => {
+    expect(
+      registrationAddonQuantitySummary({
+        includedQuantity: 2,
+        purchasedQuantity: 1,
+      }),
+    ).toBe('2 included · 1 purchased');
+    expect(
+      registrationAddonQuantitySummary({
+        includedQuantity: 0,
+        purchasedQuantity: 1,
+      }),
+    ).toBe('1 purchased');
+    expect(
+      registrationAddonQuantitySummary({
+        includedQuantity: 0,
+        purchasedQuantity: 0,
+      }),
+    ).toBe('No units');
+  });
 });
 
 describe('scan registration status copy', () => {
@@ -212,9 +234,9 @@ describe('scan registration status copy', () => {
     expect(copy?.body).not.toContain('check if they paid');
   });
 
-  it('distinguishes pending approval or Checkout from a duplicate payment', () => {
+  it('distinguishes pending approval or payment from a duplicate payment', () => {
     expect(scanRegistrationStatusIssueCopy('PENDING')).toEqual({
-      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.',
+      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
       title: 'Registration pending',
     });
   });

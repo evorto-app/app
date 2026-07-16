@@ -33,6 +33,7 @@ import {
   tenants,
   transactions,
   users,
+  usersToTenants,
 } from '../../db/schema';
 import { registrationTransferAddonAllocationKey } from '../../shared/registration-transfer';
 import { cancelRegistrationAddon } from './addon-fulfillment.service';
@@ -42,7 +43,10 @@ import {
   settleAcquisitionComponentTerms,
 } from './registration-acquisition-write';
 import { finalizeRegistrationTransferCheckout } from './registration-transfer-finalization';
-import { lockRegistrationTransferRefundForRecovery } from './registration-transfer-refund-reconciliation';
+import {
+  lockRegistrationTransferRefundForRecovery,
+  markRegistrationTransferRefundRequeued,
+} from './registration-transfer-refund-reconciliation';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -148,6 +152,14 @@ const seedAcquisitionFixture = async (
         firstName: 'Acquisition',
         id: userId,
         lastName: `Owner ${index}`,
+      }),
+    ),
+  );
+  await database.insert(usersToTenants).values(
+    [sourceUserId, firstRecipientUserId, secondRecipientUserId].map(
+      (userId) => ({
+        tenantId,
+        userId,
       }),
     ),
   );
@@ -918,6 +930,9 @@ const cleanFixture = async (
   await database
     .delete(eventTemplateCategories)
     .where(eq(eventTemplateCategories.id, fixture.categoryId));
+  await database
+    .delete(usersToTenants)
+    .where(eq(usersToTenants.tenantId, fixture.tenantId));
   await database.delete(users).where(eq(users.id, fixture.ownerUserIds[0]));
   await database.delete(users).where(eq(users.id, fixture.ownerUserIds[1]));
   await database.delete(users).where(eq(users.id, fixture.ownerUserIds[2]));
@@ -1130,6 +1145,29 @@ describe('registration acquisition ledger', () => {
         tenantId: fixture.tenantId,
       },
     });
+
+    await database
+      .update(registrationTransfers)
+      .set({ status: 'refund_failed' })
+      .where(
+        and(
+          eq(registrationTransfers.id, transferId),
+          eq(registrationTransfers.tenantId, fixture.tenantId),
+        ),
+      );
+    const mismatchedRecovery = await Effect.runPromise(
+      Database.use((effectDatabase) =>
+        effectDatabase.transaction((tx) =>
+          markRegistrationTransferRefundRequeued(tx, {
+            expectedTransfer: { kind: 'compensation', transferId },
+            reason: 'Prove the locked transfer kind remains authoritative',
+            refundTransactionId,
+            tenantId: fixture.tenantId,
+          }),
+        ),
+      ).pipe(Effect.provide(layer)),
+    );
+    expect(mismatchedRecovery).toBe('notTransfer');
 
     await database
       .update(registrationTransfers)

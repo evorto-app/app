@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-07-12
+Updated: 2026-07-13
 
 ## How to Use This Inventory
 
@@ -34,6 +34,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/admin/google-maps-location.doc.ts [admin, @needs-google-maps]
   - docs/admin/platform-tenant-operations.doc.ts [admin, globalAdmin]
   - docs/events/event-approval.doc.ts
+  - docs/events/event-discovery.doc.ts
   - docs/events/manual-approval.doc.ts [stripe]
   - docs/events/organizer-signup.doc.ts
   - docs/events/event-management.doc.ts
@@ -46,7 +47,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/finance/inclusive-tax-rates.doc.ts [finance]
   - docs/finance/receipt-review-reimbursement.doc.ts [finance]
   - docs/finance/receipt-submission.doc.ts [finance]
-  - docs/profile/discounts.doc.ts [finance]
+  - docs/profile/discounts.doc.ts [finance, @needs-live-esncard]
   - docs/profile/user-profile.doc.ts
   - docs/roles/about-permissions.doc.ts
   - docs/roles/roles.doc.ts [admin, permissions]
@@ -165,15 +166,20 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     boundary under `@needs-google-maps`
 - Roles and permissions:
   - `docs/roles/about-permissions.doc.ts`
-  - `docs/roles/roles.doc.ts`
+  - `docs/roles/roles.doc.ts` creates an organization role through the real form,
+    edits its description, hub visibility, and Members Hub permission,
+    reloads the persisted result, assigns it to the regular member, and opens
+    **Members Hub** in that member's authenticated session. A
+    same-named hub role and member in a neighboring tenant prove that the hub
+    does not combine cross-tenant membership.
   - `specs/admin/user-role-assignment.spec.ts` assigns and removes a disposable
     role through the real tenant user list, reads both changes back from the
     database and a fresh UI query, and cleans up its temporary user, membership,
     role, and assignment. A second page-backed case proves users with
     `users:viewAll` but without `users:assignRoles` see read-only role chips.
   - `specs/permissions/**`
-  - `specs/permissions/override.test.ts` grants a regular user the internal
-    page permission and verifies the Members Hub route renders a hub-visible
+  - `specs/permissions/override.test.ts` grants a regular user the Members Hub
+    permission and verifies the Members Hub route renders a hub-visible
     role through the real page.
   - shared permission-guard denial coverage in `src/app/core/guards`
   - app Members Hub loading, success, and error state coverage in
@@ -185,10 +191,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/admin/global-admin.doc.ts`
   - `docs/admin/general-settings.doc.ts`
   - `docs/admin/platform-tenant-operations.doc.ts` documents explicit tenant
-    targeting, attributed ownership, full event/template graph operations,
-    refund recovery modes, and bounded registration approval, cancellation,
-    check-in, deterministic result paths without camera emulation, and the
-    migration block for legacy random-allocation records.
+    targeting and performs a draft-event title edit, template title edit,
+    existing-user role assignment and removal, unverifiable-receipt rejection,
+    and attendee-plus-guest check-in through the platform pages. Each action has
+    a distinct operator reason, PostgreSQL state readback, visible platform
+    audit-log readback, and deterministic cleanup. The guide does not claim to
+    execute adjacent lifecycle, tax-import, refund-recovery, registration
+    approval/cancellation, or reimbursement operations.
   - `specs/admin/platform-tenant-operations.spec.ts` follows the discoverable
     target-operation links, opens the refund-recovery tab, and resolves an
     attendee ticket URL through the target-scoped platform scanner route.
@@ -238,8 +247,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   handlers share the same lifecycle write boundaries.
 - Event approval docs create a deterministic approval-flow event, assert the
   persisted draft/pending/published lifecycle states, verify review feedback
-  and reviewer audit fields on a returned draft, and clean up the generated
-  event rows.
+  and reviewer audit fields on a returned draft, then prove that a published
+  event exposes no edit action and redirects a direct edit URL with the
+  `event-locked` reason. The journey cleans up the generated event rows.
+- Event-management docs create a disposable draft with a simple registration
+  graph, edit its title and description, cancel and then confirm the explicit
+  advanced-mode dialog, update a participant option's name, capacity, and
+  approval mode, and save. Page reload, editor reopen, and database readback
+  prove that every demonstrated value persisted before the generated graph is
+  deleted.
 - Event registration option component coverage pins participant registration and
   waitlist action disabling while a register or waitlist mutation is pending.
 - `specs/events/free-registration.test.ts` covers the seeded free-registration
@@ -303,7 +319,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   transfer-link guide, including bearer-credential handling, recipient review,
   persisted in-place ownership transition, and page-backed paid-transfer states
   for pending Checkout, successful ownership transfer with refund processing,
-  terminal source-refund failure, and safe operator requeue. Its paid fixture
+  terminal source-refund failure, safe operator requeue, and completed refunds.
+  The source participant's event page shows the exact aggregate refund through
+  processing, failure, retry, and completion while keeping the transferred
+  ticket and all management actions unavailable. Its paid fixture
   includes guest/check-in state, paid and free add-ons with redemption and
   cancellation history, an earlier partial add-on refund, and two original
   Stripe sources. Before/after database assertions keep registration identity,
@@ -352,22 +371,25 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   new Auth0-backed tenant account, verifying profile arrival, tenant assignment,
   default role assignment, and cleanup.
 - `specs/profile/user-profile-live-esncard.spec.ts` is collected by
-  the dedicated `local-chrome-live-esncard` project and fails its explicit
+  the dedicated `local-chrome-live-esncard` project. The matching live
+  add/refresh/remove walkthrough in `docs/profile/discounts.doc.ts` is collected
+  by `docs-live-esncard`. Both fail their explicit
   precondition without both `E2E_LIVE_ESN_CARD_IDENTIFIER` and
   `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`. It is the functional integration path
   for live external active-card add/refresh/remove and expired-card status
   outcomes. Use
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard`
-  to run only this provider path locally. The protected release-certification
+  to run both provider paths locally. The protected release-certification
   environment must supply both approved non-production identities; the Release
   workflow cannot continue when either credential is absent or the live path
   fails. The release command disables traces and value-bearing assertions so
   neither identifier is copied into artifacts.
-- `specs/finance/stripe-webhook-replay.spec.ts` fails its `beforeAll`
-  precondition when `STRIPE_WEBHOOK_SECRET` is absent. That credential gate is
-  not a substitute for product coverage. This is separate from the Docker stack's Compose-managed Stripe
-  listener, which shares its generated signing secret with the app through
-  `STRIPE_WEBHOOK_SECRET_FILE`.
+- `specs/finance/stripe-webhook-replay.spec.ts` resolves the running Compose
+  app's file-backed webhook secret without logging or persisting it. It waits
+  for that source and fails closed instead of signing with a stale static
+  value; `STRIPE_WEBHOOK_SECRET` is the host-runtime fallback when no Compose
+  app container is running. That credential gate is not a substitute for
+  product coverage.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
   permission override fixture; no mobile project currently runs this spec.
 - `specs/permissions/global-admin-route-guard.spec.ts` covers direct
@@ -440,7 +462,9 @@ and the release-gated live ESNcard provider credential path.
     provider-error UI coverage. The dedicated ESNcard project itself needs no
     ESNcard API key or unrelated Auth0 Management/Google Maps provider
     credentials.
-    Generated discounts docs now include a helper-backed baseline note for
+    Generated discounts docs now include a credential-gated, secret-safe live
+    walkthrough for the active add/refresh/remove and permanently expired
+    add/refresh/remove lifecycles. The same file also includes a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable
     retry copy. The page-backed discounts doc asserts direct `#discounts`
@@ -478,17 +502,20 @@ and the release-gated live ESNcard provider credential path.
     persisted global user, tenant assignment, default role assignment, and
     cleans up the generated database rows when Auth0 Management credentials are
     available.
-    `specs/profile/tenant-onboarding.spec.ts` deterministically covers an
-    existing user joining a second tenant only after accepting the exact policy
-    and answering short-text and selection questions. It reads back membership,
-    acceptance, answers, and unchanged home tenant, then proves the explicit
-    profile action changes the home tenant. Its admin path publishes a new
-    policy/question set, proves the publishing administrator is immediately
-    returned to setup, and reads back reacceptance.
-    `docs/users/tenant-onboarding.doc.ts` generates the matching page-backed
-    administrator guide with screenshots, immutable-version warnings, required
-    question configuration, forced reacceptance, persisted-record checks, and
-    home-tenant guidance. `docs/users/create-account.doc.ts` retains the
+    `docs/users/tenant-onboarding.doc.ts` promotes the existing functional
+    cross-tenant journey into a generated, page-backed member guide. It captures
+    the required setup form, unchanged-home warning, and explicit home-tenant
+    action; reads back the membership, default role, policy acceptance,
+    question answers, and persisted home tenant; then refreshes the profile and
+    cleans up every created row. The same file's administrator guide retains
+    screenshots, immutable-version warnings, required question configuration,
+    forced reacceptance, and persisted-record checks.
+    `specs/profile/tenant-onboarding.spec.ts` keeps the independent admin path:
+    it publishes a new policy/question set, proves the publishing administrator
+    is immediately returned to setup, and reads back reacceptance. Keeping the
+    shared-user home mutation in one Playwright project avoids a parallel
+    cross-project write race.
+    `docs/users/create-account.doc.ts` retains the
     credential-gated first-login guide and now includes current privacy-policy
     acceptance and first-home-tenant persistence.
     Shared RPC schema coverage proves account-creation and profile-update
@@ -744,7 +771,13 @@ and the release-gated live ESNcard provider credential path.
   - `docs/events/registration-cancellation.doc.ts` covers ordinary free
     participant cancellation, organizer cancellation, guest-capacity release,
     zero-refund readback, cancellation and waitlist emails, deadline denial, and
-    confirmation safety. Its Stripe add-on journey settles two optional
+    confirmation safety. The free-cancellation journey now follows the queued
+    waitlist message as its authenticated recipient, proves that the email did
+    not reserve capacity, leaves the old waitlist entry through its confirmation,
+    creates a separate confirmed registration while capacity remains, and reads
+    back the cancelled/confirmed registrations, option counters, and confirmation
+    email. Live provider delivery to a real inbox remains external evidence. Its
+    Stripe add-on journey settles two optional
     units beside one included unit, redeems the included and one purchased unit
     through the production service, then proves participant cancellation
     preserves redeemed units, restocks only the remaining purchased unit, and
@@ -783,6 +816,14 @@ and the release-gated live ESNcard provider credential path.
     list, opens its direct link while signed in, then preserves the tenant
     routing cookie while proving the same detail page remains readable when
     signed out with **Log in now**. Cleanup restores the original visibility.
+  - `docs/events/event-discovery.doc.ts` is the first source in the published
+    **Find an event** guide. It uses two disposable approved/listed events to
+    explain main navigation, tenant-timezone date groups, start times, and the
+    signed-in registration outline. It opens event details in the desktop
+    list/detail layout and the compact full-width layout with **Back to events**,
+    then executes and screenshots the distinct **No events found** and RPC error
+    states. Cleanup deletes its registration, options, and events and restores
+    every isolated-tenant event time even after a failed journey.
   - `specs/resilience/core-load-recovery.spec.ts` aborts one `events.create`
     request, proves the create-from-template form retains the title and renders
     an accessible retry state, scans that state with Axe, then retries through
@@ -837,9 +878,10 @@ and the release-gated live ESNcard provider credential path.
 - Playwright list/discovery output is intentionally readable:
   `helpers/testing/playwright-skip-inventory.spec.ts` guards that real spec/doc
   titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
-- Integration-tagged Playwright paths now include both generated docs and
+- Credential-gated Playwright paths now include both generated docs and
   non-doc specs: `docs/users/create-account.doc.ts`,
   `specs/profile/create-account.spec.ts`, and
-  `specs/profile/user-profile-live-esncard.spec.ts`.
+  `specs/profile/user-profile-live-esncard.spec.ts`, plus the live section in
+  `docs/profile/discounts.doc.ts`.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.

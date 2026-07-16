@@ -1,5 +1,3 @@
-import type { DatePipeConfig } from '@angular/common';
-
 import { DateTime } from 'luxon';
 
 import {
@@ -19,11 +17,10 @@ export const resolveTenantRuntimeTimezone = (
   configuredTimezone: null | string | undefined,
 ): SupportedTenantTimezone => configuredTimezone ?? DEFAULT_TENANT_TIMEZONE;
 
-export const tenantDatePipeConfig = (
+export const tenantDatePipeTimezone = (
   config: TenantRuntimeConfig,
-): DatePipeConfig => ({
-  timezone: resolveTenantRuntimeTimezone(config.tenantSignal()?.timezone),
-});
+): SupportedTenantTimezone =>
+  resolveTenantRuntimeTimezone(config.tenantSignal()?.timezone);
 
 export const tenantCurrencyCode = (
   config: TenantRuntimeConfig,

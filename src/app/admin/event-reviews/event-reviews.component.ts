@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -25,6 +24,7 @@ import { firstValueFrom, interval } from 'rxjs';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
 
 export const eventReviewQueueActionDisabled = ({
@@ -37,7 +37,7 @@ export const eventReviewQueueActionDisabled = ({
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, RouterLink, FontAwesomeModule, DatePipe],
+  imports: [MatButtonModule, RouterLink, FontAwesomeModule, TenantDatePipe],
   selector: 'app-event-reviews',
   standalone: true,
   template: `

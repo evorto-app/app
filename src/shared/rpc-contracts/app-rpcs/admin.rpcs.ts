@@ -244,8 +244,6 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   legalNoticeUrl: Schema.optional(UrlString),
   logoUrl: Schema.optional(TenantBrandAssetUrlString),
   maxActiveRegistrationsPerUser: nonNegativeNumber,
-  privacyPolicyText: Schema.optional(Schema.String),
-  privacyPolicyUrl: Schema.optional(UrlString),
   receiptCountries: Schema.Array(Schema.NonEmptyString),
   refundFeesOnCancellation: Schema.Boolean,
   seoDescription: Schema.optional(Schema.String),

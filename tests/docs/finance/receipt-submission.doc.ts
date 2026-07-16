@@ -109,15 +109,15 @@ test('Submit an event receipt @finance', async ({
 Use this guide when you bought something for an event and need the finance team to review the receipt before reimbursement.
 
 {% callout type="note" title="What you need before you start" %}
-- Sign in to the tenant that owns the event.
-- You must have a **confirmed organizer/helper registration** for this event, **Organize all events** access (\`events:organizeAll\`), or **Manage receipts** access (\`finance:manageReceipts\`). This walkthrough uses an administrator with **Organize all events** access.
-- Have one image or PDF containing the receipt. The app's object-storage service must be available; Stripe and an email provider are not needed to submit.
-- Know the purchase date, total, included tax, purchase country, and any deposit or alcohol amounts. Amounts are recorded in the tenant currency shown beside each field.
+- Sign in to the organization that owns the event.
+- You must have a **confirmed organizer/helper registration** for this event, **Organize all events** access, or **Manage receipts** access.
+- Have one image or PDF containing the receipt.
+- Know the purchase date, total, included tax, purchase country, and any deposit or alcohol amounts. Amounts are recorded in the organization currency shown beside each field.
 {% /callout %}
 
 ## Open the event from normal navigation
 
-Start on Evorto's normal landing page and choose **Events** in the main navigation. Find the event you organized and open it. Do not start from a copied organizer URL: navigating this way lets you confirm that you are in the intended tenant and event.
+Start on Evorto's normal landing page and choose **Events** in the main navigation. Find the event you organized and open it. Do not start from a copied organizer link: navigating this way lets you confirm that you are in the intended organization and event.
 `,
   });
 
@@ -142,7 +142,7 @@ On the event details page, choose **Organize this event**. In the **Receipts** s
 Choose **Add receipt**. The form contains:
 
 - **Receipt date**: when the purchase happened.
-- **Purchase country**: one of the countries configured for this tenant. Some tenants also allow an **Other** choice.
+- **Purchase country**: one of the countries configured for this organization. Some organizations also allow an **Other** choice.
 - **Total amount** and **Tax amount**: enter currency amounts, not minor-unit cents.
 - **Deposit involved** and **Alcohol purchased**: leave these clear when they do not apply. Selecting either choice reveals its amount field.
 - **Receipt name**: an optional recognizable label for receipt and reimbursement lists. If you leave it unchanged, the uploaded filename is used.
@@ -237,7 +237,7 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
     .filter({ hasText: receiptName });
   await expect(receiptCard).toBeVisible({ timeout: 20_000 });
   await expect(
-    receiptCard.getByText('submitted', { exact: true }),
+    receiptCard.getByText('Submitted', { exact: true }),
   ).toBeVisible();
   await expect(
     receiptCard.getByText(
@@ -353,9 +353,9 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
 
   await testInfo.attach('markdown', {
     body: `
-The new card confirms the filename, **submitted** status, total, tax, and receipt date. Evorto also binds the uploaded object to this tenant, event, and submitter, consumes that upload exactly once, and stores the entered breakdown in the tenant's current currency.
+The new card confirms the filename, **submitted** status, total, tax, and receipt date. The receipt belongs to this organization, event, and submitter, and keeps the organization's current currency.
 
-Submission does **not** send a confirmation email. A finance user with **Approve receipts** access (\`finance:approveReceipts\`) must still review the item. Only a later approve or reject decision queues the submitter's receipt-reviewed email. Reimbursement is another separate, manual money-transfer workflow described in **Review and reimburse receipts**.
+Submission does **not** send a confirmation email. A finance user with **Approve receipts** access must still review the item. Only a later approve or reject decision notifies the submitter. Reimbursement is another separate, manual money-transfer workflow described in **Review and reimburse receipts**.
 
 ## Find the submission in your profile
 
@@ -387,9 +387,9 @@ Use **Profile** in the main navigation, then choose **Receipts**. This personal 
 
   await testInfo.attach('markdown', {
     body: `
-## Permission and tenant boundary
+## Access and organization boundary
 
-Tenant membership by itself is not organizer access. A regular member in the same tenant can open this public event but does not see **Organize this event**, is sent to **Access not allowed** if they try the organizer route, and cannot see another user's receipt in **Profile → Receipts**. The upload handler also rejects accounts without receipt-submit access, so a copied organizer URL does not grant upload access.
+Organization membership by itself is not organizer access. A regular member in the same organization can open this public event but does not see **Organize this event**, is sent to **Access not allowed** if they try the organizer route, and cannot see another user's receipt in **Profile → Receipts**. A copied organizer link does not grant receipt-submission access.
 `,
   });
 
@@ -436,7 +436,7 @@ Tenant membership by itself is not organizer access. A regular member in the sam
       name: 'Access not allowed',
     }),
     sameTenantViewer.page,
-    'Same-tenant member without organizer access',
+    'Same-organization member without organizer access',
   );
 
   await sameTenantViewer.page.goto('.');

@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   TransactionListComponent,
   TransactionListQueries,
+  transactionMethodLabel,
+  transactionStatusLabel,
 } from './transaction-list.component';
 
 const transactionListTemplate = () =>
@@ -33,6 +35,28 @@ describe('TransactionListComponent template', () => {
     const template = transactionListTemplate();
 
     expect(template.match(/currency: element\.currency/g)).toHaveLength(4);
+  });
+
+  it('labels the paginator for transactions rather than users', () => {
+    expect(transactionListTemplate()).toContain(
+      'aria-label="Select page of transactions"',
+    );
+  });
+});
+
+describe('transaction labels', () => {
+  it('uses readable payment method and transaction status labels', () => {
+    expect(transactionMethodLabel).toEqual({
+      cash: 'Cash',
+      paypal: 'PayPal',
+      stripe: 'Stripe',
+      transfer: 'Bank transfer',
+    });
+    expect(transactionStatusLabel).toEqual({
+      cancelled: 'Cancelled',
+      pending: 'Pending',
+      successful: 'Completed',
+    });
   });
 });
 
@@ -86,11 +110,11 @@ describe('TransactionListComponent load recovery', () => {
             amount: 2500,
             appFee: 0,
             comment: 'Event registration',
-            createdAt: new Date('2026-07-10T10:00:00.000Z'),
+            createdAt: '2026-07-10T10:00:00.000Z',
             currency: 'CZK',
             id: 'transaction-1',
             method: 'transfer',
-            status: 'completed',
+            status: 'successful',
             stripeFee: 0,
           },
         ],
@@ -124,5 +148,51 @@ describe('TransactionListComponent load recovery', () => {
     });
     expect(findTransactions).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('shows readable method, status, and fee details in the table', async () => {
+    findTransactions.mockResolvedValue({
+      data: [
+        {
+          amount: 5000,
+          appFee: 250,
+          comment: 'Event registration',
+          createdAt: '2026-07-10T10:00:00.000Z',
+          currency: 'EUR',
+          id: 'transaction-1',
+          method: 'stripe',
+          status: 'successful',
+          stripeFee: 120,
+        },
+      ],
+      total: 1,
+    });
+
+    const fixture = TestBed.createComponent(TransactionListComponent);
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const text = normalizeText(fixture);
+      expect(text).toContain('Stripe');
+      expect(text).toContain('Completed');
+      expect(text).toContain('Fees:');
+      expect(text).toContain('Platform fee:');
+      expect(text).toContain('Stripe fee:');
+    });
+  });
+
+  it('explains when no transactions have been recorded', async () => {
+    findTransactions.mockResolvedValue({ data: [], total: 0 });
+
+    const fixture = TestBed.createComponent(TransactionListComponent);
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('No transactions recorded yet');
+    });
+    expect(fixture.nativeElement.querySelector('table')).toBeNull();
+    expect(fixture.nativeElement.querySelector('mat-paginator')).toBeNull();
   });
 });

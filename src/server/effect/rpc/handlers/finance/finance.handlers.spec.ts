@@ -1045,6 +1045,39 @@ describe('finance receipt reimbursement', () => {
   );
 
   it.effect(
+    'rejects zero-value reimbursements before recording a refund transaction',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-1'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceipts([
+                {
+                  currency: 'EUR',
+                  eventId: 'event-1',
+                  id: 'receipt-1',
+                  submittedByUserId: 'user-1',
+                  totalAmount: 0,
+                },
+              ]),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('invalidReimbursementTotal');
+      }),
+  );
+
+  it.effect(
     'rejects iban reimbursement records when the submitter has no iban',
     () =>
       Effect.gen(function* () {

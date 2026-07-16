@@ -1,8 +1,12 @@
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
+import { describe, expect, it } from 'vitest';
+
 import {
   classifyTemplateGraphRecord,
   legacyRandomTemplateEditMessage,
+  templateGraphLocationFormModelToValue,
+  templateGraphLocationValueToFormModel,
   templateGraphRecordToFormModel,
 } from './template-graph-form.mapper';
 
@@ -176,5 +180,43 @@ describe('template graph edit classification', () => {
     expect(templateGraphRecordToFormModel(legacyRandom)).toEqual({
       error: legacyRandomTemplateEditMessage,
     });
+  });
+});
+
+describe('template graph location mapping', () => {
+  it('round-trips domain locations without exposing storage fields', () => {
+    const locations: readonly Parameters<
+      typeof templateGraphLocationValueToFormModel
+    >[0][] = [
+      null,
+      {
+        address: 'Main Street 1',
+        coordinates: { lat: 52.1, lng: 4.3 },
+        name: 'Student Center',
+        type: 'coordinate',
+      },
+      {
+        address: 'Main Street 1',
+        coordinates: { lat: 52.1, lng: 4.3 },
+        name: 'Student Center',
+        placeId: 'google-place-1',
+        type: 'google',
+      },
+      {
+        meetingInstructions: 'Use your organization account',
+        meetingProvider: 'googleMeet',
+        meetingUrl: 'https://meet.google.com/example',
+        name: 'Online briefing',
+        type: 'online',
+      },
+    ];
+
+    for (const location of locations) {
+      expect(
+        templateGraphLocationFormModelToValue(
+          templateGraphLocationValueToFormModel(location),
+        ),
+      ).toEqual(location);
+    }
   });
 });

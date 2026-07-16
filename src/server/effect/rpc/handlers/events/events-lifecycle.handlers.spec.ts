@@ -989,6 +989,8 @@ describe('eventLifecycleHandlers', () => {
         expect(error).toBeInstanceOf(RpcBadRequestError);
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
+          message:
+            'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
           reason: 'unsupportedTemplateRegistrationMode',
         });
         expect(findTemplateAddons).not.toHaveBeenCalled();

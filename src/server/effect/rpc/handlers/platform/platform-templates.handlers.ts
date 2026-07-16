@@ -12,6 +12,7 @@ import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventTemplateCategories,
   eventTemplates,
+  icons,
 } from '../../../../../db/schema';
 import { ensureStripeForPaidEventConfiguration } from '../../../../payments/paid-event-configuration';
 import { lockTenantRoleGraph } from '../../../../roles/tenant-role-graph';
@@ -101,6 +102,9 @@ const databaseEffect = <A, R>(
       ),
     ),
   );
+
+export const platformTemplateIconTenantScope = (targetTenantId: string) =>
+  eq(icons.tenantId, targetTenantId);
 
 export const platformTemplateAuditSnapshot = (
   template: TemplateGraphRecord,
@@ -239,23 +243,37 @@ export const platformTemplateHandlers = {
   ) =>
     Effect.gen(function* () {
       const operation = yield* resolvePlatformRead(input.targetTenantId);
-      const categories = yield* providePlatformOperation(
+      const formOptions = yield* providePlatformOperation(
         databaseEffect((database) =>
-          database
-            .select({
-              id: eventTemplateCategories.id,
-              title: eventTemplateCategories.title,
-            })
-            .from(eventTemplateCategories)
-            .where(eq(eventTemplateCategories.tenantId, input.targetTenantId))
-            .orderBy(asc(eventTemplateCategories.title)),
+          Effect.gen(function* () {
+            const categories = yield* database
+              .select({
+                id: eventTemplateCategories.id,
+                title: eventTemplateCategories.title,
+              })
+              .from(eventTemplateCategories)
+              .where(eq(eventTemplateCategories.tenantId, input.targetTenantId))
+              .orderBy(asc(eventTemplateCategories.title));
+            const iconChoices = yield* database
+              .select({
+                commonName: icons.commonName,
+                friendlyName: icons.friendlyName,
+                id: icons.id,
+                sourceColor: icons.sourceColor,
+              })
+              .from(icons)
+              .where(platformTemplateIconTenantScope(input.targetTenantId))
+              .orderBy(asc(icons.friendlyName), asc(icons.commonName));
+
+            return { categories, iconChoices };
+          }),
         ),
         operation,
         [],
       );
 
       return {
-        categories,
+        ...formOptions,
         esnCardEnabled:
           operation.targetTenant.discountProviders?.esnCard?.status ===
           'enabled',

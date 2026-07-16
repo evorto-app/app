@@ -244,6 +244,17 @@ export const financeReceiptsHandlers = {
               });
             }
 
+            const totalAmount = receipts.reduce(
+              (sum, receipt) => sum + receipt.totalAmount,
+              0,
+            );
+            if (totalAmount <= 0) {
+              return yield* new RpcBadRequestError({
+                message: 'Reimbursement total must be positive',
+                reason: 'invalidReimbursementTotal',
+              });
+            }
+
             const payoutUsers = yield* tx
               .select({
                 iban: users.iban,
@@ -290,10 +301,6 @@ export const financeReceiptsHandlers = {
               });
             }
 
-            const totalAmount = receipts.reduce(
-              (sum, receipt) => sum + receipt.totalAmount,
-              0,
-            );
             const uniqueEventIds = [
               ...new Set(receipts.map((receipt) => receipt.eventId)),
             ];

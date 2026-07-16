@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveTenantRuntimeTimezone,
   tenantCurrencyCode,
-  tenantDatePipeConfig,
+  tenantDatePipeTimezone,
   tenantNow,
   toTenantDateTime,
 } from './tenant-runtime';
@@ -13,21 +13,21 @@ import {
 describe('tenant runtime time configuration', () => {
   it('uses Europe/Berlin until tenant context is available', () => {
     expect(resolveTenantRuntimeTimezone(undefined)).toBe('Europe/Berlin');
-    expect(tenantDatePipeConfig({ tenantSignal: signal(null) })).toEqual({
-      timezone: 'Europe/Berlin',
-    });
+    expect(tenantDatePipeTimezone({ tenantSignal: signal(null) })).toBe(
+      'Europe/Berlin',
+    );
     expect(tenantCurrencyCode({ tenantSignal: signal(null) })).toBe('EUR');
   });
 
-  it('provides the tenant IANA timezone to Angular DatePipe', () => {
+  it('provides the tenant IANA timezone to tenant date formatting', () => {
     expect(
-      tenantDatePipeConfig({
+      tenantDatePipeTimezone({
         tenantSignal: signal({
           currency: 'AUD',
           timezone: 'America/New_York',
         }),
       }),
-    ).toEqual({ timezone: 'America/New_York' });
+    ).toBe('America/New_York');
     expect(
       tenantCurrencyCode({
         tenantSignal: signal({

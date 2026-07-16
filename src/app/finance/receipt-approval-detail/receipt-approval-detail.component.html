@@ -78,7 +78,7 @@
         />
 
         <mat-form-field class="mt-4 w-full">
-          <mat-label>Rejection reason</mat-label>
+          <mat-label>Reason shown to the submitter</mat-label>
           <textarea
             #reasonInput
             matInput
@@ -86,6 +86,7 @@
             [value]="rejectionReason()"
             (input)="updateRejectionReason(reasonInput.value)"
           ></textarea>
+          <mat-hint>Required when rejecting this receipt.</mat-hint>
         </mat-form-field>
 
         <div class="mt-4 flex flex-wrap justify-end gap-2">
@@ -94,9 +95,10 @@
             color="warn"
             (click)="reject()"
             [disabled]="
-              receiptReviewActionDisabled({
+              receiptRejectionDisabled({
                 formInvalid: form.invalid,
                 mutationPending: reviewMutation.isPending(),
+                rejectionReason: rejectionReason(),
                 receiptPending: receiptQuery.isPending(),
               })
             "

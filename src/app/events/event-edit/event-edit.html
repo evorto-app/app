@@ -47,7 +47,7 @@
       <p class="mt-2">{{ message }}</p>
       <p class="mt-2 text-sm">
         Nothing has been converted or removed. Contact a platform administrator
-        to repair or explicitly migrate this event graph.
+        to review this event's registration setup.
       </p>
     </section>
   } @else {
@@ -180,13 +180,14 @@
           }
           @if (!stripeConnectionKnown()) {
             <p class="text-on-surface-variant mt-3 text-sm" role="status">
-              Paid controls are unavailable while the tenant's Stripe status is
-              loading.
+              Paid controls are unavailable while the organization's Stripe
+              status is loading.
             </p>
           } @else if (paidControlsUnavailable()) {
             <p class="text-on-surface-variant mt-3 text-sm" role="status">
-              Paid controls are unavailable because this tenant has no connected
-              Stripe account. Saving keeps event registrations and add-ons free.
+              Paid controls are unavailable because this organization has no
+              connected Stripe account. Saving keeps event registrations and
+              add-ons free.
             </p>
           }
           @if (graphActionMessage(); as message) {
@@ -247,6 +248,7 @@
               track option.key().value()
             ) {
               <app-event-registration-option-editor
+                [currencyCode]="tenantCurrency()"
                 [esnEnabled]="esnEnabled()"
                 [optionForm]="option"
                 [removable]="!eventModel().simpleModeEnabled"
@@ -369,8 +371,8 @@
               <div>
                 <h2 id="event-addons-heading" class="title-large">Add-ons</h2>
                 <p class="text-on-surface-variant mt-1 text-sm">
-                  Reuse one add-on across several options. Each mapping has its
-                  own included and optional quantities.
+                  Reuse one add-on across several options. Each registration
+                  option has its own included and optional quantities.
                 </p>
               </div>
               <button type="button" mat-button (click)="addAddOn()">
@@ -386,6 +388,7 @@
               ) {
                 <app-event-addon-editor
                   [addOnForm]="addOn"
+                  [currencyCode]="tenantCurrency()"
                   [optionChoices]="optionChoices()"
                   (addMappingRequested)="addAddOnMapping(addOnIndex)"
                   (removeMappingRequested)="
@@ -395,7 +398,7 @@
                 />
               } @empty {
                 <p class="text-on-surface-variant text-sm">
-                  Add-ons are disabled for this event.
+                  No add-ons yet. Add one to offer extras with registration.
                 </p>
               }
             </div>
@@ -406,12 +409,32 @@
           @if (saveError(); as message) {
             <p class="text-error text-sm" role="alert">{{ message }}</p>
           }
+          @if (discountProvidersQuery.isFetching()) {
+            <p class="text-on-surface-variant text-sm" role="status">
+              Loading discount settings. Saving is available when they finish
+              loading.
+            </p>
+          } @else if (discountProvidersQuery.isError()) {
+            <p class="text-error text-sm" role="alert">
+              Discount settings could not be loaded. No changes can be saved
+              until they are available, so existing discount prices stay
+              unchanged.
+            </p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="discountProvidersQuery.refetch()"
+            >
+              Try again
+            </button>
+          }
           <button
             type="submit"
             mat-flat-button
             data-testid="save-event-graph"
             [disabled]="
               eventEditSubmitDisabled({
+                discountProvidersReady: discountProvidersReady(),
                 formInvalid: eventForm().invalid(),
                 formSubmitting: eventForm().submitting(),
                 graphReadOnly: loadBlock() !== null,

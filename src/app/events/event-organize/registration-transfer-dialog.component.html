@@ -6,7 +6,7 @@
     </p>
 
     <mat-form-field class="w-full">
-      <mat-label>Search eligible tenant members</mat-label>
+      <mat-label>Search eligible organization members</mat-label>
       <input
         matInput
         autocomplete="off"
@@ -16,9 +16,10 @@
     </mat-form-field>
 
     <p class="text-on-surface-variant text-sm">
-      Choose a recipient to calculate a server-authoritative transfer preview.
-      Direct transfer is available only when that recipient's complete fixed
-      bundle is free and no original Stripe payment needs a refund.
+      Choose a recipient. Evorto will review the complete ticket, current prices
+      and discounts, and any refund before anything changes. Direct transfer is
+      available only when the recipient owes nothing and the current owner needs
+      no refund.
     </p>
 
     @if (transferTargetsQuery.isPending()) {
@@ -27,14 +28,28 @@
       </div>
     } @else if (transferTargetsQuery.isError()) {
       <div
-        class="bg-error-container text-on-error-container rounded-lg p-4"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-lg p-4"
         role="alert"
       >
-        Eligible members could not be loaded.
+        <p>Eligible members could not be loaded. Nothing has changed.</p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          (click)="transferTargetsQuery.refetch()"
+          [disabled]="transferTargetsQuery.isFetching()"
+        >
+          {{
+            transferTargetsQuery.isFetching()
+              ? "Trying again…"
+              : "Retry member search"
+          }}
+        </button>
       </div>
     } @else if (transferTargetsQuery.data()?.length === 0) {
       <div class="bg-surface-container rounded-lg p-4 text-sm" role="status">
-        No eligible transfer target found.
+        No eligible organization member matched this search. Try another name or
+        email.
       </div>
     } @else {
       <div
@@ -64,28 +79,36 @@
   <mat-dialog-content class="@container grid gap-5">
     @if (transferPreviewQuery.isPending()) {
       <div class="bg-surface-container rounded-lg p-4 text-sm" role="status">
-        Calculating the current fixed bundle, recipient price, and source refund
-        requirements...
+        Checking the complete bundle, recipient price, and refund for the
+        current owner...
       </div>
     } @else if (transferPreviewQuery.isError()) {
       <section
         class="bg-error-container text-on-error-container grid gap-2 rounded-lg p-4"
         role="alert"
       >
-        <h3 class="title-medium">Direct transfer is unavailable</h3>
+        <h3 class="title-medium">Transfer details could not be checked</h3>
         <p class="text-sm">
-          {{
-            getErrorMessage(
-              transferPreviewQuery.error(),
-              "The transfer preview could not be calculated. Nothing has changed."
-            )
-          }}
+          Nothing changed. Refresh the details and try again.
         </p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          (click)="transferPreviewQuery.refetch()"
+          [disabled]="transferPreviewQuery.isFetching()"
+        >
+          {{
+            transferPreviewQuery.isFetching()
+              ? "Checking again…"
+              : "Retry transfer review"
+          }}
+        </button>
       </section>
     } @else if (transferPreviewQuery.data(); as preview) {
       <p class="text-on-surface-variant text-sm">
-        This preview was calculated from the current locked registration,
-        fulfillment, pricing, discount, and refund state.
+        Nothing changes until you confirm. Prices and ticket history are checked
+        again at that point.
       </p>
 
       <section
@@ -221,7 +244,9 @@
             </dd>
           </div>
           <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
-            <dt class="text-on-surface-variant text-sm">Source refund due</dt>
+            <dt class="text-on-surface-variant text-sm">
+              Refund to current owner
+            </dt>
             <dd class="text-sm">
               {{
                 preview.pricing.sourceRefundAmountDue
@@ -246,14 +271,14 @@
         </p>
         <p class="text-sm">
           Current base prices and only the recipient's currently eligible
-          discounts produced a free bundle. The source participant's discounts
-          did not transfer, and no source refund is required.
+          discounts produced a free bundle. The current owner's discounts did
+          not transfer, and no refund to them is required.
         </p>
         <p class="text-sm">
-          Ownership changes immediately without Checkout or a refund. If any
-          reviewed bundle, pricing, discount, role, payment, refund, or
-          fulfillment state changes first, confirmation is rejected and must be
-          reviewed again. There is no automatic undo.
+          Because the recipient owes nothing and the current owner needs no
+          refund, the transfer completes immediately when you confirm. If
+          anything changes first, Evorto will stop and ask you to review the
+          updated details. This cannot be undone automatically.
         </p>
       </section>
     }
@@ -277,7 +302,7 @@
   </button>
   @if (transferPreviewQuery.isSuccess() && transferPreviewQuery.data()) {
     <button mat-flat-button type="button" (click)="confirmTransfer()">
-      Transfer reviewed bundle
+      Transfer registration
     </button>
   }
 </mat-dialog-actions>

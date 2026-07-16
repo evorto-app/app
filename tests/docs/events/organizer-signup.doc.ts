@@ -121,7 +121,7 @@ test.describe('Organizer and helper signup', () => {
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Before you start" %}
-This guide is for a signed-in tenant member who wants to help run an event. The event must be published, its registration window must be open, the organizer/helper category must have capacity, and your tenant role must be eligible for that category.
+This guide is for a signed-in organization member who wants to help run an event. The event must be published, its registration window must be open, the organizer/helper category must have capacity, and your organization role must be eligible for that category.
 
 Organizer/helper registrations never include guests or a waitlist. If you are attending instead of helping, use a **Participant registration option**. Evorto allows one active registration per person and event, so cancel an existing participant registration before choosing an organizer/helper category, or cancel the organizer/helper registration before registering as a participant.
 {% /callout %}
@@ -174,7 +174,7 @@ The separate **Participant registration options** group is for people attending 
 
 Select **Sign up as organizer/helper**. A free first-come, first-served category confirms immediately when you remain eligible and capacity is still available. The event page then shows **Organizer/helper registration confirmed**, your organizer/helper pass, and **Organize this event**.
 
-The pass identifies this as an organizer/helper registration. Event-management access is derived from the confirmed registration; copying an organizer URL does not bypass that server-side check.
+The pass identifies this as an organizer/helper registration. Event-management access begins only after the registration is confirmed; copying an organizer link does not grant access.
 `,
     });
 
@@ -265,7 +265,7 @@ The card identifies the registration **Type** as **Organizer/helper**, labels th
       body: `
 ## Use the organizer overview
 
-Select **Organize this event** to open the event-scoped overview. **Organizer/helper team** and **Participant registrations** are separate groups. Buttons appear only for operations your account is authorized to perform; the server repeats every permission check when an action is submitted.
+Select **Organize this event** to open the event-scoped overview. **Organizer/helper team** and **Participant registrations** are separate groups. Buttons appear only for operations your account is authorized to perform. If your access changes before you submit, Evorto blocks the action.
 
 {% callout type="warning" title="Access ends when the registration ends" %}
 Cancelling a confirmed organizer/helper registration immediately releases its capacity and removes its event-scoped organizer access. A saved or copied organizer URL then opens **Access not allowed**. Other independent permissions, such as an administrator's broad event permission, are not removed.
@@ -341,9 +341,9 @@ After cancellation, the event offers the eligible signup choices again and the c
       await testInfo.attach('markdown', {
         body: `
 {% callout type="note" title="Before you start" %}
-Advanced events can have several organizer/helper categories, each with its own tenant-role eligibility, capacity, dates, questions, price, and approval mode. Evorto shows only the categories your account is eligible to use.
+Advanced events can have several organizer/helper categories, each with its own role eligibility, capacity, dates, questions, price, and approval mode. Evorto shows only the categories your account is eligible to use.
 
-An application does not confirm organizer access, reserve capacity, or create a pass. An authorized organizer must approve it first. This guide uses a free category and does not demonstrate paid organizer/helper application checkout.
+An application does not confirm organizer access, reserve capacity, or create a pass. An authorized organizer must approve it first. This example uses a free category, so approval can confirm it immediately. For a paid category, approval prepares Stripe Checkout and organizer access starts only after Stripe reports successful payment.
 {% /callout %}
 
 # Apply for an advanced organizer or helper category
@@ -352,7 +352,7 @@ An application does not confirm organizer access, reserve capacity, or create a 
 2. In **Organizer/helper opportunities**, choose the category that matches the work you will do.
 3. Read the application explanation, then select **Apply as organizer/helper**.
 
-In this example, the signed-in member is eligible for **Lead organizer application**. **Event helper application** is hidden because it requires a different tenant role. **Attendee** remains a separate participant choice.
+The signed-in member is eligible for **Lead organizer application**. **Event helper application** is hidden because it requires a different organization role. **Attendee** remains a separate participant choice.
 `,
       });
 
@@ -421,11 +421,225 @@ In this example, the signed-in member is eligible for **Lead organizer applicati
         'Organizer application awaiting review',
       );
 
+      const [firstApplication] =
+        await database.query.eventRegistrations.findMany({
+          where: {
+            eventId: scenario.event.id,
+            registrationOptionId: scenario.organizerOption.id,
+            status: 'PENDING',
+            tenantId: scenario.tenant.id,
+            userId: scenario.applicant.id,
+          },
+        });
+      if (!firstApplication) {
+        throw new Error('Expected a pending organizer/helper application');
+      }
+      expect(
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            reservedSpots: true,
+            waitlistSpots: true,
+          },
+          where: { id: scenario.organizerOption.id },
+        }),
+      ).toEqual({
+        confirmedSpots: 0,
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      });
+      expect(
+        await database.query.transactions.findMany({
+          where: { eventRegistrationId: firstApplication.id },
+        }),
+      ).toHaveLength(0);
+
       await testInfo.attach('markdown', {
         body: `
-## Wait for an organizer to review the application
+## Withdraw before approval
 
-The event page shows **Organizer/helper application pending**. You cannot open the organizer overview, and no QR pass is available yet. This guide continues to approval without demonstrating withdrawal of the pending application.
+The event page shows **Organizer/helper application pending**. You cannot open the organizer overview, and no QR pass is available yet.
+
+To withdraw while the application is pending:
+
+1. Select **Cancel registration** on the pending application.
+2. Read **Cancel your pending registration?**. The confirmation explains that no confirmed capacity is released and no refund starts.
+3. Select **Keep registration** to leave the pending application unchanged, or **Confirm cancellation** to withdraw it. **Keep registration** receives focus when the dialog opens to protect against an accidental Enter key.
+
+Withdrawal keeps the first application in the history as **Cancelled**. Because a pending application never granted organizer/helper access, the organizer overview and pass remain unavailable. Capacity and payment state remain unchanged.
+`,
+      });
+
+      await expect(
+        pendingApplication.getByText(
+          'This withdraws your pending application before organizer approval.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      const cancelApplication = pendingApplication.getByRole('button', {
+        exact: true,
+        name: 'Cancel registration',
+      });
+      await waitForHydratedAction(cancelApplication);
+      await cancelApplication.click();
+      const cancellationDialog = page.getByRole('dialog', {
+        name: 'Cancel your pending registration?',
+      });
+      await expect(cancellationDialog).toBeVisible();
+      await expect(
+        cancellationDialog.getByText(
+          'This immediately withdraws your pending application. It does not release confirmed capacity or start a refund. This action cannot be undone.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(
+        cancellationDialog.getByRole('button', {
+          exact: true,
+          name: 'Keep registration',
+        }),
+      ).toBeFocused();
+      await takeScreenshot(
+        testInfo,
+        cancellationDialog,
+        page,
+        'Confirm withdrawal of the organizer application',
+      );
+      await cancellationDialog
+        .getByRole('button', { exact: true, name: 'Confirm cancellation' })
+        .click();
+      await expect(pendingApplication).toHaveCount(0, { timeout: 20_000 });
+      await expect(
+        applicationCard.getByRole('button', {
+          exact: true,
+          name: 'Apply as organizer/helper',
+        }),
+      ).toBeVisible({ timeout: 20_000 });
+      await expect
+        .poll(async () => {
+          const persistedApplication =
+            await database.query.eventRegistrations.findFirst({
+              where: { id: firstApplication.id },
+            });
+          const option =
+            await database.query.eventRegistrationOptions.findFirst({
+              columns: {
+                confirmedSpots: true,
+                reservedSpots: true,
+                waitlistSpots: true,
+              },
+              where: { id: scenario.organizerOption.id },
+            });
+          const transactions = await database.query.transactions.findMany({
+            where: { eventRegistrationId: firstApplication.id },
+          });
+          return {
+            option,
+            paymentCount: transactions.length,
+            status: persistedApplication?.status,
+          };
+        })
+        .toEqual({
+          option: {
+            confirmedSpots: 0,
+            reservedSpots: 0,
+            waitlistSpots: 0,
+          },
+          paymentCount: 0,
+          status: 'CANCELLED',
+        });
+
+      await page.goto(`/events/${scenario.event.id}/organize`);
+      await expect(page).toHaveURL(/\/403$/);
+      await expect(
+        page.getByRole('heading', {
+          exact: true,
+          name: 'Access not allowed',
+        }),
+      ).toBeVisible();
+      await takeScreenshot(
+        testInfo,
+        page.locator('app-not-allowed'),
+        page,
+        'Pending application withdrawal leaves organizer access unavailable',
+      );
+
+      await testInfo.attach('markdown', {
+        body: `
+## Apply again
+
+If you withdrew by mistake or your plans change again, return through **Events**, open the event, and select **Apply as organizer/helper**. Registration must still be open and your role must still be eligible.
+
+Evorto creates a new pending application for review. The earlier **Cancelled** application remains in the audit history; it is not restored or silently overwritten. The new application still reserves no capacity, starts no payment, and grants no organizer/helper access before approval.
+`,
+      });
+
+      await openEventFromNavigation(page, scenario);
+      const reapplyAction = registrationCard(
+        page,
+        scenario.organizerOption.title,
+      ).getByRole('button', {
+        exact: true,
+        name: 'Apply as organizer/helper',
+      });
+      await waitForHydratedAction(reapplyAction);
+      await reapplyAction.click();
+      const reappliedCard = page.locator('app-event-active-registration');
+      await expect(reappliedCard).toContainText(
+        'Organizer/helper application pending',
+        { timeout: 20_000 },
+      );
+      const applicantRegistrations =
+        await database.query.eventRegistrations.findMany({
+          where: {
+            eventId: scenario.event.id,
+            registrationOptionId: scenario.organizerOption.id,
+            tenantId: scenario.tenant.id,
+            userId: scenario.applicant.id,
+          },
+        });
+      expect(applicantRegistrations).toHaveLength(2);
+      expect(
+        applicantRegistrations.find(
+          (registration) => registration.id === firstApplication.id,
+        ),
+      ).toEqual(expect.objectContaining({ status: 'CANCELLED' }));
+      const reappliedApplication = applicantRegistrations.find(
+        (registration) =>
+          registration.id !== firstApplication.id &&
+          registration.status === 'PENDING',
+      );
+      if (!reappliedApplication) {
+        throw new Error('Expected a new pending organizer/helper application');
+      }
+      expect(
+        await database.query.transactions.findMany({
+          where: { eventRegistrationId: reappliedApplication.id },
+        }),
+      ).toHaveLength(0);
+      expect(
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            reservedSpots: true,
+            waitlistSpots: true,
+          },
+          where: { id: scenario.organizerOption.id },
+        }),
+      ).toEqual({
+        confirmedSpots: 0,
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      });
+      await takeScreenshot(
+        testInfo,
+        reappliedCard,
+        page,
+        'New organizer application after withdrawal',
+      );
+
+      await testInfo.attach('markdown', {
+        body: `
+## Wait for an organizer to review the new application
 
 An authorized reviewer follows this path:
 
@@ -463,6 +677,9 @@ Receipt-only or otherwise limited overview users do not see approval, transfer, 
       await expect(
         optionPanel.getByText('Awaiting approval', { exact: true }),
       ).toBeVisible();
+      await expect(
+        optionPanel.getByText('Awaiting approval', { exact: true }),
+      ).toHaveCount(1);
       await takeScreenshot(
         testInfo,
         organizerTeam,
@@ -490,9 +707,36 @@ Receipt-only or otherwise limited overview users do not see approval, transfer, 
         body: `
 ## Confirm access after approval
 
-Reload the applicant's event page after approval. This free application now shows **Organizer/helper registration confirmed**, the organizer/helper pass, and **Organize this event**. Paid organizer/helper categories are outside this guide.
+Reload the applicant's event page after approval. This free application now shows **Organizer/helper registration confirmed**, the organizer/helper pass, and **Organize this event**. A paid category remains pending until Stripe payment succeeds; the pass and organizer access do not appear before that success.
 `,
       });
+
+      await expect
+        .poll(async () => {
+          const persistedFirstApplication =
+            await database.query.eventRegistrations.findFirst({
+              where: { id: firstApplication.id },
+            });
+          const persistedReapplication =
+            await database.query.eventRegistrations.findFirst({
+              where: { id: reappliedApplication.id },
+            });
+          const option =
+            await database.query.eventRegistrationOptions.findFirst({
+              columns: { confirmedSpots: true, reservedSpots: true },
+              where: { id: scenario.organizerOption.id },
+            });
+          return {
+            firstStatus: persistedFirstApplication?.status,
+            option,
+            reappliedStatus: persistedReapplication?.status,
+          };
+        })
+        .toEqual({
+          firstStatus: 'CANCELLED',
+          option: { confirmedSpots: 1, reservedSpots: 0 },
+          reappliedStatus: 'CONFIRMED',
+        });
 
       await page.reload();
       await waitForRegistrationPage(page);

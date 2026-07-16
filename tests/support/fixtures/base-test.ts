@@ -14,10 +14,12 @@ import { Pool } from 'pg';
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
 import { formatConfigError } from '../../../src/server/config/config-error';
+import { readProtectedEnvironmentValue } from '../protected-values';
 import {
   auth0ManagementEnvironment,
   playwrightEnvironmentConfig,
 } from '../config/environment';
+import { withProtectedValueCaptureOptions } from '../utils/fill-protected-value';
 
 const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
@@ -64,6 +66,7 @@ interface BaseFixtures {
   registerDatabaseCleanup: (
     cleanup: (database: NodePgDatabase<typeof relations>) => Promise<void>,
   ) => void;
+  protectedValueCapturePolicy: void;
   seedDate: Date;
   testClock: DateTime;
   tenantDomain?: string;
@@ -108,7 +111,9 @@ export const test = base.extend<BaseFixtures>({
       domain: 'tumi-dev.eu.auth0.com',
     });
     const email = `test-${createDedupeId()}@evorto.app`;
-    const password = `notsecure-${createDedupeId()}1!`;
+    const password = readProtectedEnvironmentValue(
+      'E2E_TRANSIENT_AUTH0_USER_PASSWORD',
+    );
     const firstName = randFirstName();
     const lastName = randLastName();
 
@@ -188,6 +193,20 @@ export const test = base.extend<BaseFixtures>({
     });
     await use(page);
   },
+  protectedValueCapturePolicy: [
+    async ({ contextOptions, screenshot, trace, video }, use) => {
+      await withProtectedValueCaptureOptions(
+        {
+          contextOptions,
+          screenshot,
+          trace,
+          video,
+        },
+        () => use(),
+      );
+    },
+    { auto: true },
+  ],
   registerDatabaseCleanup: [
     async ({ database }, use) => {
       const cleanups: Array<

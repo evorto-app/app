@@ -1,6 +1,6 @@
 import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { DatePipe, PercentPipe } from '@angular/common';
+import { PercentPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -30,7 +30,9 @@ import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
+import { receiptStatusLabel } from '../../finance/shared/receipt-status-label';
 import {
   type RegistrationCancellationConfirmationData,
   RegistrationCancellationConfirmationDialogComponent,
@@ -195,7 +197,7 @@ export const receiptSubmissionActionDisabled = ({
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    TenantDatePipe,
     FontAwesomeModule,
     MatButtonModule,
     PercentPipe,
@@ -241,6 +243,7 @@ export class EventOrganize {
       eventId: this.eventId(),
     }),
   );
+  protected readonly receiptStatusLabel = receiptStatusLabel;
 
   protected readonly receiptSubmissionActionDisabled =
     receiptSubmissionActionDisabled;

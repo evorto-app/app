@@ -29,12 +29,20 @@ describe('template event add-on schema', () => {
     expect(eventAddonSource).toContain("'addon_to_event_registration_options'");
     expect(eventAddonSource).toContain('includedQuantity');
     expect(eventAddonSource).toContain('optionalPurchaseQuantity');
+    expect(eventAddonSource).toContain(
+      'addon_to_event_registration_options_quantity_present',
+    );
+    expect(eventAddonSource).not.toContain('quantity: integer().notNull()');
     expect(eventAddonSource).toContain('eventId: varchar');
     expect(templateOptionSource).toContain(
       "'addon_to_template_registration_options'",
     );
     expect(templateOptionSource).toContain('includedQuantity');
     expect(templateOptionSource).toContain('optionalPurchaseQuantity');
+    expect(templateOptionSource).toContain(
+      'addon_to_template_options_quantity_present',
+    );
+    expect(templateOptionSource).not.toContain('quantity: integer().notNull()');
     expect(templateOptionSource).toContain('templateId: varchar');
     expect(addonPurchaseSource).toContain(
       "'event_registration_addon_purchases'",

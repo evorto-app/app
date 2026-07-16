@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Stabilize Bun local runtime around Neon and Effect RPC SSR transport

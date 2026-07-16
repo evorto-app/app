@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Recover email delivery after worker crashes

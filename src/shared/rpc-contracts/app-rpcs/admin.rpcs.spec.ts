@@ -65,8 +65,6 @@ const currentTenantSettingsInput = {
   legalNoticeUrl: 'https://section.example.org/imprint',
   logoUrl: 'https://cdn.example.org/logo.svg',
   maxActiveRegistrationsPerUser: 4,
-  privacyPolicyText: 'Tenant privacy text',
-  privacyPolicyUrl: 'https://section.example.org/privacy',
   receiptCountries: ['DE', 'NL'],
   refundFeesOnCancellation: true,
   seoDescription: 'Public tenant description',

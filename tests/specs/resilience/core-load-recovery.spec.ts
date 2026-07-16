@@ -74,7 +74,9 @@ test('transaction history explains a first-load failure and recovers on retry @f
   await alert.getByRole('button', { name: 'Try again' }).click();
 
   await expect(alert).toHaveCount(0);
-  await expect(page.getByRole('table')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'No transactions recorded yet' }),
+  ).toBeVisible();
 });
 
 test('template event creation explains a first-load failure and recovers on retry @templates @resilience', async ({

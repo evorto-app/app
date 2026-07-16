@@ -39,7 +39,13 @@ export const templateGraphRegistrationOptionFormSchema =
           }
         : undefined,
     );
+    required(registration.closeRegistrationOffset, {
+      message: 'Enter a closing offset.',
+    });
     min(registration.closeRegistrationOffset, 0);
+    required(registration.openRegistrationOffset, {
+      message: 'Enter an opening offset.',
+    });
     min(registration.openRegistrationOffset, 0);
     validate(registration.closeRegistrationOffset, ({ value, valueOf }) =>
       value() > valueOf(registration.openRegistrationOffset)
@@ -49,7 +55,14 @@ export const templateGraphRegistrationOptionFormSchema =
           }
         : undefined,
     );
-    min(registration.price, 0);
+    required(registration.price, {
+      message: 'Enter a price.',
+      when: ({ valueOf }) => valueOf(registration.isPaid),
+    });
+    min(registration.price, 1, {
+      message: 'Paid registrations must cost at least 0.01.',
+    });
+    required(registration.spots, { message: 'Enter available spots.' });
     min(registration.spots, 1);
     minLength(registration.roleIds, 1, {
       message: 'Select at least one eligible role.',

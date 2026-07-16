@@ -71,6 +71,7 @@ export interface EnqueueRegistrationTransferredEmailInput {
   registrationId: string;
   tenant: TenantEmailContext;
   to: string;
+  transferOperationId: string;
 }
 
 export interface EnqueueWaitlistSpotAvailableEmailInput {
@@ -320,7 +321,7 @@ export const enqueueRegistrationTransferredEmail = (
   input: EnqueueRegistrationTransferredEmailInput,
 ) =>
   enqueueTenantEmail(database, {
-    idempotencyKey: `registration-transferred/${input.tenant.id}/${input.registrationId}/${input.recipientRole}/${input.recipientUserId}`,
+    idempotencyKey: `registration-transferred/${input.tenant.id}/${input.registrationId}/${input.transferOperationId}/${input.recipientRole}/${input.recipientUserId}`,
     kind: 'registrationTransferred',
     subject:
       input.recipientRole === 'newOwner'

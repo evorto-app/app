@@ -31,20 +31,24 @@ import {
 } from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
-import { User } from '../../../../types/custom/user';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
-  normalizeTenantPrivacyPolicy,
-  publishPrivacyPolicyVersionIfChanged,
-} from '../../../onboarding/tenant-onboarding.service';
-import {
   stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+  stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
   tenantHasPaidEventConfiguration,
+  tenantHasStripeTaxRateConfiguration,
 } from '../../../payments/paid-event-configuration';
 import {
   lockTenantStripeAccount,
   tenantHasPendingStripeObligations,
 } from '../../../payments/pending-stripe-obligations';
+import {
+  applyStripeTaxRateAccountRotation,
+  fetchStripeTaxRateAccountRotationTargetRates,
+  planStripeTaxRateAccountRotation,
+  type StripeTaxRateAccountRotationPlan,
+  type StripeTaxRateAccountRotationTargetRate,
+} from '../../../payments/stripe-tax-rate-account-rotation';
 import {
   ensureTenantRetainsAnotherDefaultUserRole,
   ensureTenantRoleIsUnreferenced,
@@ -200,18 +204,11 @@ const normalizeOptionalBrandAssetUrl = (
 const normalizeTenantLegalLinks = (input: {
   legalNoticeText?: string | undefined;
   legalNoticeUrl?: string | undefined;
-  privacyPolicyText?: string | undefined;
-  privacyPolicyUrl?: string | undefined;
   termsText?: string | undefined;
   termsUrl?: string | undefined;
 }) => ({
   legalNoticeText: input.legalNoticeText?.trim() || null,
   legalNoticeUrl: normalizeOptionalUrl(input.legalNoticeUrl, 'legalNoticeUrl'),
-  privacyPolicyText: input.privacyPolicyText?.trim() || null,
-  privacyPolicyUrl: normalizeOptionalUrl(
-    input.privacyPolicyUrl,
-    'privacyPolicyUrl',
-  ),
   termsText: input.termsText?.trim() || null,
   termsUrl: normalizeOptionalUrl(input.termsUrl, 'termsUrl'),
 });
@@ -702,7 +699,7 @@ export const adminHandlers = {
                       },
                     });
                   if (
-                    existingRate?.stripeAccountId &&
+                    existingRate &&
                     existingRate.stripeAccountId !== stripeAccount
                   ) {
                     return yield* new RpcBadRequestError({
@@ -845,22 +842,6 @@ export const adminHandlers = {
           }),
         try: () => normalizeTenantLegalLinks(input),
       });
-      const privacyPolicy = yield* normalizeTenantPrivacyPolicy({
-        privacyPolicyText: legalLinks.privacyPolicyText ?? '',
-        privacyPolicyUrl: legalLinks.privacyPolicyUrl ?? '',
-      }).pipe(
-        Effect.mapError(
-          (error) =>
-            new RpcBadRequestError({
-              message: 'Invalid tenant privacy policy',
-              reason: error.message,
-            }),
-        ),
-      );
-      const currentUser = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.USER],
-        Schema.NullOr(User),
-      );
       const brandAssets = yield* Effect.try({
         catch: (error) =>
           new RpcBadRequestError({
@@ -932,6 +913,20 @@ export const adminHandlers = {
         transferDeadlineHoursBeforeStart:
           input.transferDeadlineHoursBeforeStart,
       };
+      let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
+        [];
+      if (
+        tenant.stripeAccountId &&
+        tenantUpdate.stripeAccountId &&
+        tenant.stripeAccountId !== tenantUpdate.stripeAccountId
+      ) {
+        const stripe = yield* StripeClient;
+        stripeTaxRateRotationTargets =
+          yield* fetchStripeTaxRateAccountRotationTargetRates(
+            stripe,
+            tenantUpdate.stripeAccountId,
+          );
+      }
       const updatedTenants = yield* Database.use((database) =>
         database
           .transaction((tx) =>
@@ -952,6 +947,7 @@ export const adminHandlers = {
                 return [];
               }
 
+              let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
               if (
                 lockedTenant.stripeAccountId !== tenantUpdate.stripeAccountId
               ) {
@@ -966,12 +962,36 @@ export const adminHandlers = {
                   });
                 }
 
-                const hasPaidEventConfiguration =
-                  yield* tenantHasPaidEventConfiguration(tx, tenant.id);
-                if (hasPaidEventConfiguration) {
-                  return yield* new RpcBadRequestError(
-                    stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-                  );
+                if (tenantUpdate.stripeAccountId === null) {
+                  const hasPaidEventConfiguration =
+                    yield* tenantHasPaidEventConfiguration(tx, tenant.id);
+                  if (hasPaidEventConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+                    );
+                  }
+                  const hasStripeTaxRateConfiguration =
+                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
+                  if (hasStripeTaxRateConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                    );
+                  }
+                } else if (lockedTenant.stripeAccountId) {
+                  rotationPlan = yield* planStripeTaxRateAccountRotation(tx, {
+                    sourceStripeAccountId: lockedTenant.stripeAccountId,
+                    targetRates: stripeTaxRateRotationTargets,
+                    targetStripeAccountId: tenantUpdate.stripeAccountId,
+                    tenantId: tenant.id,
+                  });
+                } else {
+                  const hasStripeTaxRateConfiguration =
+                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
+                  if (hasStripeTaxRateConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                    );
+                  }
                 }
 
                 yield* tx
@@ -999,19 +1019,19 @@ export const adminHandlers = {
                 }
               }
 
-              yield* publishPrivacyPolicyVersionIfChanged(tx, {
-                actorUserId: currentUser?.id ?? null,
-                policy: privacyPolicy,
-                tenantId: tenant.id,
-              });
-
-              return yield* tx
+              const updatedRows = yield* tx
                 .update(tenants)
                 .set(tenantUpdate)
                 .where(eq(tenants.id, tenant.id))
                 .returning({
                   id: tenants.id,
                 });
+              if (rotationPlan) {
+                // Source metadata was removed with the old account; restore
+                // only the provider-verified target-account matches.
+                yield* applyStripeTaxRateAccountRotation(tx, rotationPlan);
+              }
+              return updatedRows;
             }),
           )
           .pipe(

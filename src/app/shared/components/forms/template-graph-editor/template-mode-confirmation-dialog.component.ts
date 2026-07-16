@@ -30,14 +30,15 @@ export interface TemplateModeConfirmationData {
       @if (data.targetMode === 'advanced') {
         <p>
           Advanced configuration keeps both current options and lets you add,
-          remove, rename, and reclassify options. It also reveals reusable
-          add-on mappings.
+          remove, rename, and reclassify registration options. You can also
+          choose which registration options can use each reusable add-on.
         </p>
       } @else {
         <p>
           Simple configuration shows one organizing and one non-organizing
-          option. Questions and add-ons stay saved; add-on controls are hidden
-          until you switch back to advanced configuration.
+          option. Questions, add-ons, and the registration options that can use
+          each add-on stay saved. Those controls are hidden until you switch
+          back to advanced configuration.
         </p>
       }
       <p class="mt-3">

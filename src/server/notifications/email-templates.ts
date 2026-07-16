@@ -266,7 +266,7 @@ export const RegistrationConfirmedEmail = ({
       ),
       paragraph(
         'ticket-access',
-        'Sign in to Evorto to open your ticket. The ticket link is not a bearer credential and cannot be used without your authenticated account.',
+        'The ticket owner must sign in to Evorto before this link opens the ticket.',
       ),
     ],
     preview: `Your registration for ${eventTitle} is confirmed.`,

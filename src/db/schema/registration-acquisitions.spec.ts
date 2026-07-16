@@ -129,6 +129,36 @@ const expectUniqueIndex = ({
 };
 
 describe('registration acquisition schema', () => {
+  it('requires complete non-null finalized add-on payment allocations', () => {
+    const constraint = getTableConfig(
+      eventRegistrationAddonPurchaseLots,
+    ).checks.find(
+      (candidate) =>
+        candidate.name ===
+        'event_registration_addon_purchase_lots_payment_allocation_shape',
+    );
+
+    expect(constraint).toBeDefined();
+    if (!constraint) {
+      throw new Error('Expected add-on payment allocation shape constraint');
+    }
+
+    const constraintSql = normalizeSql(
+      new PgDialect().sqlToQuery(constraint.value).sql,
+    );
+    for (const column of [
+      'tax_amount',
+      'gross_amount',
+      'net_amount',
+      'stripe_fee_amount',
+      'application_fee_amount',
+    ]) {
+      expect(constraintSql).toContain(
+        `"event_registration_addon_purchase_lots"."${column}" IS NOT NULL`,
+      );
+    }
+  });
+
   it('models one ordered and replay-safe ownership epoch chain', () => {
     expect(registrationAcquisitionKind.enumValues).toEqual([
       'initial',

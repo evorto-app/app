@@ -1,9 +1,9 @@
 <main class="mx-auto grid w-full max-w-3xl gap-4 p-4 lg:p-6">
   <header class="flex items-start justify-between gap-4">
     <div>
-      <h1 class="title-large">Complete tenant setup</h1>
+      <h1 class="title-large">Complete organization setup</h1>
       <p class="body-medium text-on-surface-variant mt-1">
-        Review the current tenant requirements before using protected features.
+        Review this organization's current requirements before continuing.
       </p>
     </div>
     <a href="/logout" mat-stroked-button>Log out</a>
@@ -15,7 +15,7 @@
       aria-live="polite"
       class="bg-surface-container text-on-surface grid gap-2 rounded-xl p-4"
     >
-      <h2 class="title-medium">Loading tenant requirements...</h2>
+      <h2 class="title-medium">Loading organization requirements...</h2>
     </section>
   } @else if (
     authDataQuery.isError() || onboardingRequirementsQuery.isError()
@@ -25,11 +25,11 @@
       class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-4"
     >
       <div>
-        <h2 class="title-medium">Tenant setup could not be loaded</h2>
+        <h2 class="title-medium">Organization setup could not be loaded</h2>
         <p class="body-medium mt-1">
-          Your verified login details or this tenant's current requirements are
-          unavailable. Try again, or log out and sign in again if the problem
-          continues.
+          Your verified login details or this organization's current
+          requirements are unavailable. Try again, or log out and sign in again
+          if the problem continues.
         </p>
       </div>
       <button
@@ -55,22 +55,33 @@
     @if (!isAuthEmailVerifiedForAccountCreation(authDataQuery.data())) {
       <section
         role="alert"
-        class="bg-error-container text-on-error-container rounded-xl p-4"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-4"
       >
-        <h2 class="title-medium">Your email is not verified</h2>
-        <p class="body-medium mt-1">
-          Verify your login email, then return here and retry tenant setup.
-        </p>
+        <div>
+          <h2 class="title-medium">Your email is not verified</h2>
+          <p class="body-medium mt-1">
+            Verify your login email, then check again to continue setup.
+          </p>
+        </div>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          [disabled]="authDataQuery.isFetching()"
+          (click)="authDataQuery.refetch()"
+        >
+          {{ authDataQuery.isFetching() ? "Checking..." : "Check again" }}
+        </button>
       </section>
     } @else if (!requirements.policy) {
       <section
         role="alert"
         class="bg-error-container text-on-error-container rounded-xl p-4"
       >
-        <h2 class="title-medium">Tenant setup is not configured</h2>
+        <h2 class="title-medium">Organization setup is not configured</h2>
         <p class="body-medium mt-1">
           {{ requirements.tenantName }} has not published a privacy policy yet.
-          Contact a tenant administrator before continuing.
+          Contact an organization administrator before continuing.
         </p>
       </section>
     } @else {
@@ -113,9 +124,21 @@
               matInput
               type="email"
               autocomplete="email"
+              data-testid="communication-email"
               [formField]="accountForm.communicationEmail"
             />
             <mat-hint>Address where you receive notifications</mat-hint>
+            @if (
+              accountForm.communicationEmail().touched() &&
+              accountForm.communicationEmail().invalid()
+            ) {
+              @for (
+                error of accountForm.communicationEmail().errors();
+                track error
+              ) {
+                <mat-error>{{ error.message }}</mat-error>
+              }
+            }
           </mat-form-field>
         </section>
 
@@ -130,7 +153,7 @@
               </h2>
               <p class="body-medium text-on-surface-variant mt-1">
                 Every question is required and your submitted answers are kept
-                in the tenant's onboarding history.
+                in the organization's onboarding history.
               </p>
             </div>
 
@@ -149,12 +172,38 @@
                         <mat-option [value]="option">{{ option }}</mat-option>
                       }
                     </mat-select>
+                    @if (
+                      answerField.value().touched() &&
+                      answerField.value().invalid()
+                    ) {
+                      @for (
+                        error of answerField.value().errors();
+                        track error
+                      ) {
+                        <mat-error>{{ error.message }}</mat-error>
+                      }
+                    }
                   </mat-form-field>
                 } @else {
                   <mat-form-field>
                     <mat-label>{{ question.prompt }}</mat-label>
-                    <input matInput [formField]="answerField.value" />
+                    <input
+                      matInput
+                      [attr.data-question-id]="question.id"
+                      [formField]="answerField.value"
+                    />
                     <mat-hint>Maximum 250 characters</mat-hint>
+                    @if (
+                      answerField.value().touched() &&
+                      answerField.value().invalid()
+                    ) {
+                      @for (
+                        error of answerField.value().errors();
+                        track error
+                      ) {
+                        <mat-error>{{ error.message }}</mat-error>
+                      }
+                    }
                   </mat-form-field>
                 }
               }
@@ -190,8 +239,8 @@
             I accept {{ requirements.tenantName }}'s current privacy policy.
           </mat-checkbox>
           <p class="body-small text-on-surface-variant">
-            A future policy version will require a new acceptance before you can
-            continue using protected tenant features.
+            You must accept a future policy version before you can continue in
+            this organization.
           </p>
         </section>
 
@@ -218,7 +267,7 @@
               ? "Saving..."
               : requirements.hasMembership
                 ? "Confirm and continue"
-                : "Join tenant"
+                : "Join organization"
           }}
         </button>
       </form>

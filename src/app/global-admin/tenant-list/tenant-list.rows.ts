@@ -3,12 +3,11 @@ import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/glo
 import { getErrorMessage } from '../../core/error-message';
 
 export const globalAdminTenantListErrorMessage = (error: unknown): string =>
-  getErrorMessage(error, 'Failed to load tenants');
+  getErrorMessage(error, 'Failed to load organizations');
 
 const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
   tenant.currency,
   tenant.domain,
-  tenant.id,
   tenant.locale,
   tenant.name,
   tenant.stripeAccountId ?? '',
@@ -47,7 +46,6 @@ export const filterGlobalAdminTenants = (
 
 export const globalAdminTenantRows = (tenant: GlobalAdminTenantRecord) => [
   { label: 'Primary domain', value: tenant.domain },
-  { label: 'Tenant ID', monospace: true, value: tenant.id },
   { label: 'Theme', value: tenant.theme },
   { label: 'Locale', value: tenant.locale },
   { label: 'Currency', value: tenant.currency },

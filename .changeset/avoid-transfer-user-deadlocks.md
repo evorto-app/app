@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 Avoid cross-tenant registration-transfer deadlocks by reading notification

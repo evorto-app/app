@@ -11,7 +11,7 @@ const onePixelPng = Buffer.from(
   'base64',
 );
 
-test('Manage tenant general settings @admin', async ({
+test('Manage organization general settings @admin', async ({
   database,
   page,
   tenant,
@@ -41,13 +41,13 @@ test('Manage tenant general settings @admin', async ({
 
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="Account and permission" %}
-This guide uses a signed-in tenant administrator in the tenant being changed. The account needs **admin:changeSettings**. A platform-level global administrator does not receive this tenant permission automatically.
+{% callout type="note" title="Before you begin" %}
+Sign in as an organization administrator with access to change organization settings.
 {% /callout %}
 
-# Tenant General Settings
+# Organization General Settings
 
-Use **Admin Tools** -> **General settings** to review and change settings for the tenant currently shown in Evorto. Settings are tenant-bound: saving here must not change another section's configuration.
+Use **Admin Tools** -> **General settings** to review and change the organization currently shown in Evorto. These changes do not affect another organization.
 `,
     });
 
@@ -60,14 +60,11 @@ Use **Admin Tools** -> **General settings** to review and change settings for th
     const generalSettings = page.locator('app-general-settings');
     await expect(generalSettings).toBeVisible();
     await expect(
-      generalSettings.getByText('Formatting locale', { exact: true }),
+      generalSettings.getByText('Organization name', { exact: true }),
     ).toBeVisible();
     await expect(
-      generalSettings.getByText('de-DE', { exact: true }),
+      generalSettings.getByText('Public domain', { exact: true }),
     ).toBeVisible();
-    await expect(
-      generalSettings.getByRole('combobox', { name: 'Locale' }),
-    ).toHaveCount(0);
     const currencySelect = generalSettings.getByRole('combobox', {
       name: 'Currency',
     });
@@ -87,33 +84,35 @@ Use **Admin Tools** -> **General settings** to review and change settings for th
       testInfo,
       generalSettings,
       page,
-      'Tenant general settings',
+      'Organization general settings',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Upload tenant branding
+## Upload organization branding
 
 The **Brand assets** section supports uploaded files and externally hosted HTTP(S) URLs.
 
 To upload a logo:
 
 1. Select **Upload logo** and choose a PNG, JPEG, WebP, or GIF file no larger than 5 MB.
-2. Wait for **Logo uploaded. Save settings to publish it.** Evorto stores the file under a path belonging to the current tenant and puts that path in **Logo URL**.
-3. Review the generated URL, then select **Save** with the rest of the settings. Uploading the file alone does not publish it as the tenant logo.
+2. Wait for **Logo uploaded. Save settings to publish it.** The new logo appears in **Logo URL**.
+3. Review the generated URL, then select **Save** with the rest of the settings. Uploading the file alone does not publish it as the organization logo.
 
-Use **Upload favicon** the same way. Favicons additionally accept ICO files. If an upload is rejected, choose a supported, non-empty file within the size limit and try again. You can instead paste an externally hosted HTTP(S) URL into either URL field; uploaded paths from a different tenant are rejected.
+Use **Upload favicon** the same way. Favicons additionally accept ICO files. If an upload is rejected, choose a supported, non-empty file within the size limit and try again. You can instead paste an externally hosted HTTP(S) URL into either URL field. Use uploaded assets that belong to this organization.
 `,
     });
 
     const logoUrlInput = generalSettings.getByRole('textbox', {
       name: 'Logo URL',
     });
-    await generalSettings.getByLabel('Upload tenant logo file').setInputFiles({
-      buffer: onePixelPng,
-      mimeType: 'image/png',
-      name: `documentation-logo-${tenant.id}.png`,
-    });
+    await generalSettings
+      .getByLabel('Upload organization logo file')
+      .setInputFiles({
+        buffer: onePixelPng,
+        mimeType: 'image/png',
+        name: `documentation-logo-${tenant.id}.png`,
+      });
     await expect(
       page.getByText('Logo uploaded. Save settings to publish it.'),
     ).toBeVisible();
@@ -126,7 +125,7 @@ Use **Upload favicon** the same way. Favicons additionally accept ICO files. If 
       name: 'Favicon URL',
     });
     await generalSettings
-      .getByLabel('Upload tenant favicon file')
+      .getByLabel('Upload organization favicon file')
       .setInputFiles({
         buffer: onePixelPng,
         mimeType: 'image/png',
@@ -143,7 +142,7 @@ Use **Upload favicon** the same way. Favicons additionally accept ICO files. If 
       testInfo,
       generalSettings,
       page,
-      'Uploaded tenant brand assets awaiting save',
+      'Uploaded organization brand assets awaiting save',
     );
 
     await testInfo.attach('markdown', {
@@ -152,14 +151,14 @@ Use **Upload favicon** the same way. Favicons additionally accept ICO files. If 
 
 In **Operations settings**:
 
-1. **Email reply-to name** and **Email reply-to email** control where replies to tenant emails go. Evorto keeps the actual From address on the ESN.WORLD notification domain.
-2. **Stripe account ID** is the connected-account identifier used for tenant payment operations. This text field does not create or verify a Stripe account, so confirm the account id outside Evorto before changing it. Without a connected account, every event registration option and add-on must be free. Remove an account only after all paid event and add-on configuration has been converted to free.
-3. **Active registration limit** caps how many active registrations one person may have across this tenant. Enter **0** for no tenant-wide limit.
+1. **Email reply-to name** and **Email reply-to email** control where replies to organization emails go. Evorto keeps the actual From address on the ESN.WORLD notification domain.
+2. **Stripe account ID** identifies the Stripe account used for organization payments. Confirm the account in Stripe before changing it. Without a connected account, every event registration option and add-on must be free. Remove an account only after all paid event and add-on configuration has been converted to free.
+3. **Active registration limit** caps how many active registrations one person may have across this organization. Enter **0** for no organization-wide limit.
 4. **Transfer deadline before event (hours)** says how long before an event starts participants stop being able to transfer a registration. Enter **0** to allow transfers until the event starts.
 5. **Cancellation deadline before event (hours)** says how long before an event starts participant cancellations close. The default **120** is five days.
 6. **Refund fees on cancellation** controls whether eligible cancellation refunds include refundable payment fees.
 
-The generated journey below updates the editable operations values and uploaded brand assets on its disposable tenant while preserving the connected Stripe account. It saves the form, checks the stored tenant row, reloads the page, and checks that the same values are read back.
+The walkthrough below updates these values and the uploaded brand assets while preserving the connected Stripe account. It saves the form, reloads the page, and confirms that the same values remain.
 `,
     });
 
@@ -193,7 +192,7 @@ The generated journey below updates the editable operations values and uploaded 
       await refundFeesToggle.click();
     }
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('Tenant settings updated')).toBeVisible();
+    await expect(page.getByText('Organization settings updated')).toBeVisible();
 
     await expect
       .poll(async () => {
@@ -266,39 +265,33 @@ The generated journey below updates the editable operations values and uploaded 
       testInfo,
       generalSettings,
       page,
-      'Persisted tenant operations settings',
+      'Saved organization operations settings',
     );
 
     await testInfo.attach('markdown', {
       body: `
 ## Completion and recovery
 
-The **Tenant settings updated** message confirms that the write completed. Reload the page when you need an operator readback: the saved reply-to identity, Stripe account id, registration limit, transfer deadline, cancellation deadline, and fee-refund choice must still be present.
+The **Organization settings updated** message confirms that the changes were saved. Reload the page when you want to confirm the saved reply-to identity, Stripe account ID, registration limit, transfer deadline, cancellation deadline, and fee-refund choice.
 
-The Save action remains unavailable while the form is invalid or another save is running. If the server rejects a change, Evorto shows the error and does not present the success message; correct the value and retry. Currency and timezone changes have an additional safety rule: once the tenant has event or payment data, those changes require a migration plan outside this page.
+The Save action remains unavailable while the form is invalid or another save is running. If Evorto cannot save a change, it explains what needs attention; correct the value and try again. Evorto prevents currency and timezone changes after event or payment data exists.
 
 ## Current settings surface
 
 The current general settings page supports:
 
-- A **Deferred settings** summary that keeps custom-domain automation visible as a deferred scope item.
-- A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state. The secure HTTPS origin used for outbound links is derived from the normalized primary domain.
-- **Operations settings** for tenant email reply-to name/email, Stripe account id, the tenant-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior. Event review remains a simple capability policy: users with **events:review** can review events.
+- A read-only **Organization** summary with its name and public domain.
+- **Operations settings** for email reply-to name/email, Stripe account id, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior. Users with event-review access can review submitted events.
 - **Default Location** for event location search bias.
-- **Site theme** for the tenant theme.
-- A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field that accepts an IANA timezone such as Europe/Berlin. Currency and timezone can be changed before the tenant has event or payment data; after that, the server rejects changes unless a migration plan is handled outside this page.
-- **Formatting locale** is read-only and fixed to **de-DE** so dates and numbers are consistent across tenants; the page does not expose a Locale combobox.
-- **Logo URL** and **Favicon URL** for tenant brand assets. Admins can upload PNG, JPEG, WebP, or GIF logos; favicons also support ICO files. Externally hosted URLs are still supported. The configured favicon updates the browser tab icon.
-- **SEO title** and **SEO description** for tenant-level page metadata.
-- **Legal pages** for tenant imprint/legal notice, privacy policy, and terms. Admins can save hosted text, an external URL, or both for the same page. The public footer gives a saved external URL precedence and opens it off-site. Without an external URL, saved hosted text appears at \`/legal/imprint\`, \`/legal/privacy\`, or \`/legal/terms\`.
+- **Site theme** for the organization's theme.
+- A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field for the city or region used for event times. Currency and timezone can be changed before the organization has event or payment data; after that, Evorto prevents the change.
+- **Logo URL** and **Favicon URL** for organization brand assets. Admins can upload PNG, JPEG, WebP, or GIF logos; favicons also support ICO files. Externally hosted URLs are still supported. The configured favicon updates the browser tab icon.
+- **SEO title** and **SEO description** for public-page previews.
+- **Legal pages** for the imprint/legal notice and terms. Admins can save hosted text, an external URL, or both. The privacy policy is managed with required questions on **Member onboarding**, so a policy cannot be changed without the member-acceptance warning.
 - **Allowed receipt countries** and **Allow other** for receipt submission.
-- **ESN Card discounts** and optional **Buy ESNcard URL** when the tenant uses ESNcard validation.
+- **ESN Card discounts** and optional **Buy ESNcard URL** when the organization uses ESNcard validation.
 
 Tax rates are managed on the separate **Tax Rates** page.
-
-## Relaunch scope notes
-
-One-domain-per-tenant remains the current relaunch scope in the application schema. The page exposes the active primary domain for operator review and explains that the secure HTTPS origin is derived from its normalized value. Tenant admins can maintain supported currency, timezone, email reply-to settings, Stripe account id, registration limits, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, while an in-app deferred-settings summary keeps custom-domain verification visible and the formatting locale remains read-only. Currency and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
 `,
     });
   });
@@ -310,8 +303,8 @@ test('Publish hosted legal pages and verify the signed-out footer @admin', async
   page,
   tenant,
 }, testInfo) => {
-  const legalNoticeText = `Imprint for ${tenant.name}: contact the tenant board for legal notices.`;
-  const privacyPolicyText = `Privacy policy for ${tenant.name}: event registration data is used to operate this tenant's events.`;
+  const legalNoticeText = `Imprint for ${tenant.name}: contact the organization board for legal notices.`;
+  const privacyPolicyText = `Privacy policy for ${tenant.name}: event registration data is used to operate this organization's events.`;
   const termsText = `Terms for ${tenant.name}: follow the event rules shown before registration.`;
 
   await page.goto('.');
@@ -319,12 +312,12 @@ test('Publish hosted legal pages and verify the signed-out footer @admin', async
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="Before you begin" %}
-Sign in as a tenant administrator with **admin:changeSettings**. Prepare approved imprint, privacy-policy, and terms text before publishing it. A privacy-policy change creates a new policy version, so every tenant member, including the administrator making the change, must accept that version before returning to protected tenant work.
+Sign in as an organization administrator with access to change organization settings. Prepare approved imprint, privacy-policy, and terms text before publishing it. General settings owns the imprint and terms; **Member onboarding** owns the privacy policy and required member questions. A privacy-policy change creates a new policy version, so every member, including the administrator making the change, must accept that version before returning to protected organization work.
 {% /callout %}
 
 # Publish hosted legal pages
 
-Start from **Events**, open **Admin Tools**, then choose **General settings**. Legal content belongs to the tenant currently named in Evorto; publishing it does not change another tenant.
+Start from **Events**, open **Admin Tools**, then choose **General settings**. Legal content belongs to the organization currently named in Evorto; publishing it does not change another organization.
 `,
   });
 
@@ -342,36 +335,27 @@ Start from **Events**, open **Admin Tools**, then choose **General settings**. L
 
   await testInfo.attach('markdown', {
     body: `
-## Choose hosted text, an external page, or both
+## Publish the imprint and terms
 
-Each legal page supports three configurations:
+The imprint and terms each support three configurations:
 
-- Enter only approved **Hosted ... text** when Evorto should publish the page locally. The public footer then opens the tenant's \`/legal/imprint\`, \`/legal/privacy\`, or \`/legal/terms\` route.
+- Enter only approved **Hosted ... text** when Evorto should publish the page. The public footer then opens that hosted legal page.
 - Enter only an approved external **URL** when another website owns the page. The public footer opens that external address in a new tab.
-- Save both when the hosted text and external page belong to the same legal configuration. For privacy, Evorto stores the text and URL together as one policy version that a member accepts once.
+- Save both when the hosted text and external page belong to the same legal configuration.
 
-When both fields are saved, the public footer gives the external URL precedence. The local legal route does not expose the stored hosted text while that URL remains configured. Clear the URL and save again when the footer should return to the hosted route. Review the privacy-policy warning before saving because any changed privacy text or link publishes a new version and requires member reacceptance.
+When both fields are saved, the public footer gives the external URL precedence and does not show the hosted text. Clear the URL and save again when the footer should return to the hosted legal page. The privacy-policy note links to **Member onboarding**, where its version and acceptance impact are shown together.
 `,
   });
 
-  await expect(
-    legalSection.getByRole('note').filter({
-      hasText:
-        'Changing the privacy policy text or link publishes a new policy version',
-    }),
-  ).toBeVisible();
   await legalSection
     .getByRole('textbox', { name: 'Imprint / legal notice URL' })
     .fill('');
   await legalSection
     .getByRole('textbox', { name: 'Hosted imprint / legal notice text' })
     .fill(legalNoticeText);
-  await legalSection
-    .getByRole('textbox', { name: 'Privacy policy URL' })
-    .fill('');
-  await legalSection
-    .getByRole('textbox', { name: 'Hosted privacy policy text' })
-    .fill(privacyPolicyText);
+  await expect(
+    legalSection.getByRole('link', { name: 'Member onboarding' }),
+  ).toBeVisible();
   await legalSection.getByRole('textbox', { name: 'Terms URL' }).fill('');
   await legalSection
     .getByRole('textbox', { name: 'Hosted terms text' })
@@ -380,11 +364,33 @@ When both fields are saved, the public footer gives the external URL precedence.
     testInfo,
     legalSection,
     page,
-    'Hosted legal pages ready to publish',
+    'Hosted imprint and terms ready to publish',
   );
 
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Tenant settings updated')).toBeVisible();
+  await expect(page.getByText('Organization settings updated')).toBeVisible();
+
+  await legalSection.getByRole('link', { name: 'Member onboarding' }).click();
+  await expect(page).toHaveURL(/\/admin\/onboarding$/);
+  const onboardingSettings = page.locator('app-onboarding-settings');
+  await onboardingSettings
+    .getByRole('textbox', { name: 'Privacy policy URL' })
+    .fill('');
+  await onboardingSettings
+    .getByRole('textbox', { name: 'Privacy policy text' })
+    .fill(privacyPolicyText);
+  await takeScreenshot(
+    testInfo,
+    onboardingSettings,
+    page,
+    'Hosted privacy policy ready to publish',
+  );
+  await onboardingSettings
+    .getByRole('button', { name: 'Publish settings' })
+    .click();
+  await expect(
+    page.getByText(/members must accept it before continuing/i),
+  ).toBeVisible();
 
   await expect
     .poll(async () => {
@@ -471,9 +477,9 @@ When both fields are saved, the public footer gives the external URL precedence.
     body: `
 ## Completion and recovery
 
-**Tenant settings updated** confirms the publication write. A second, signed-out browser must then be able to start at **Events**, follow each footer link, and read the saved text. That public readback proves the content is not visible only inside the administrator form.
+**Organization settings updated** confirms publication. A signed-out visitor must then be able to start at **Events**, follow each footer link, and read the saved text. This confirms that the content is publicly available, not only visible in the administrator form.
 
-If Save reports an invalid URL, correct it to an absolute HTTP(S) address or remove it and use hosted text. If a footer link is missing, return to **Admin Tools** -> **General settings** and confirm that its URL or hosted text was saved. If the footer opens an external page while hosted text is also stored, that is the expected URL precedence; clear the URL and save when the hosted route should become public. Publishing a privacy-policy change deliberately blocks protected tenant tasks until the current user accepts the new version; this is expected, not a failed publication.
+If Save reports an invalid URL, correct it to an absolute HTTP(S) address or remove it and use hosted text. If the imprint or terms link is missing, return to **Admin Tools** -> **General settings**. If the privacy link is missing, return to **Admin Tools** -> **Member onboarding**. Confirm that the relevant URL or hosted text was published. If the footer opens an external page while hosted text is also stored, that is the expected URL precedence; clear the URL and publish again when the hosted page should become public. Publishing a privacy-policy change deliberately blocks protected organization tasks until the current user accepts the new version; this is expected, not a failed publication.
 `,
   });
 });

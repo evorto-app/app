@@ -1,7 +1,9 @@
 # Test Guidelines
 
 - Playwright e2e/docs tests in `tests/**` are the active end-to-end suite.
-- Runtime baseline is Docker test stack (`bun run docker:start:foreground`) with `reuseExistingServer: true`.
+- The canonical runtime baseline is the disposable `bun run docker:webserver`
+  stack. Playwright may reuse an already-ready, explicitly verified local
+  server, but it must never claim or delete a stopped persistent stack.
 - Testing/runtime context lives in `tests/README.md`. Seed/reset details that tests depend on live in `helpers/README.md`.
 - If UI/runtime changes are not reflected, restart containers before rerunning e2e.
 - Ensure DB is reset/seeded for deterministic auth/setup flows.

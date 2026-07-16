@@ -25,6 +25,10 @@
     <mat-form-field>
       <mat-label>Sort order</mat-label>
       <input matInput type="number" [formField]="question.sortOrder" />
+      <mat-hint>Lower numbers appear first.</mat-hint>
+      @for (error of question.sortOrder().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
     </mat-form-field>
     <button
       mat-icon-button

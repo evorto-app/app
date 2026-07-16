@@ -226,7 +226,7 @@ export const onboardingHandlers = {
               if (!currentPolicy) {
                 return yield* new TenantOnboardingConfigurationError({
                   message:
-                    'This tenant has not published a privacy policy yet. Contact a tenant administrator.',
+                    'This organization has not published a privacy policy yet. Contact an organization administrator.',
                 });
               }
               if (currentPolicy.id !== input.policyVersionId) {
@@ -354,29 +354,17 @@ export const onboardingHandlers = {
                 );
               }
 
-              const memberships = yield* tx
-                .select({ id: usersToTenants.id })
-                .from(usersToTenants)
-                .where(
-                  and(
-                    eq(usersToTenants.tenantId, context.tenant.id),
-                    eq(usersToTenants.userId, userId),
-                  ),
-                )
-                .limit(1);
-              let membershipId = memberships[0]?.id;
-              if (!membershipId) {
-                const insertedMemberships = yield* tx
-                  .insert(usersToTenants)
-                  .values({ tenantId: context.tenant.id, userId })
-                  .onConflictDoNothing({
-                    target: [usersToTenants.userId, usersToTenants.tenantId],
-                  })
-                  .returning({ id: usersToTenants.id });
-                membershipId = insertedMemberships[0]?.id;
-              }
-              if (!membershipId) {
-                const concurrentMemberships = yield* tx
+              const insertedMemberships = yield* tx
+                .insert(usersToTenants)
+                .values({ tenantId: context.tenant.id, userId })
+                .onConflictDoNothing({
+                  target: [usersToTenants.userId, usersToTenants.tenantId],
+                })
+                .returning({ id: usersToTenants.id });
+              const insertedMembershipId = insertedMemberships[0]?.id;
+              const membershipId =
+                insertedMembershipId ??
+                (yield* tx
                   .select({ id: usersToTenants.id })
                   .from(usersToTenants)
                   .where(
@@ -385,21 +373,14 @@ export const onboardingHandlers = {
                       eq(usersToTenants.userId, userId),
                     ),
                   )
-                  .limit(1);
-                membershipId = concurrentMemberships[0]?.id;
-              }
+                  .limit(1))[0]?.id;
               if (!membershipId) {
                 return yield* Effect.die(
                   new Error('Unable to create tenant membership'),
                 );
               }
 
-              const existingRoleAssignments = yield* tx
-                .select({ roleId: rolesToTenantUsers.roleId })
-                .from(rolesToTenantUsers)
-                .where(eq(rolesToTenantUsers.userTenantId, membershipId))
-                .limit(1);
-              if (existingRoleAssignments.length === 0) {
+              if (insertedMembershipId) {
                 const defaultRoles = yield* tx
                   .select({ id: roles.id })
                   .from(roles)

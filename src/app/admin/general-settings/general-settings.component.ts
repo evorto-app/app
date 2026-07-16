@@ -13,6 +13,7 @@ import {
   form,
   FormField,
   min,
+  required,
   schema,
   submit,
   validate,
@@ -45,10 +46,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
-import {
-  tenantIdentityRows as buildTenantIdentityRows,
-  deferredTenantSettingsRows,
-} from './general-settings.identity';
+import { tenantIdentityRows as buildTenantIdentityRows } from './general-settings.identity';
 import {
   GeneralSettingsModel,
   generalSettingsPayloadFromModel,
@@ -78,19 +76,53 @@ export const tenantTimezoneValidationError = (timezone: string) =>
     ? undefined
     : {
         kind: 'ianaTimezone',
-        message: 'Enter a valid IANA timezone name.',
+        message: 'Enter a recognized city or region timezone.',
       };
 
-const generalSettingsFormSchema = schema<GeneralSettingsModel>((settings) => {
-  min(settings.cancellationDeadlineHoursBeforeStart, 0, {
-    message: 'Enter zero or more hours.',
-  });
-  min(settings.transferDeadlineHoursBeforeStart, 0, {
-    message: 'Enter zero or more hours.',
-  });
-  validate(settings.timezone, ({ value }) =>
-    tenantTimezoneValidationError(value()),
-  );
+export const generalSettingsFormSchema = schema<GeneralSettingsModel>(
+  (settings) => {
+    required(settings.cancellationDeadlineHoursBeforeStart, {
+      message: 'Enter a cancellation deadline.',
+    });
+    min(settings.cancellationDeadlineHoursBeforeStart, 0, {
+      message: 'Enter zero or more hours.',
+    });
+    required(settings.transferDeadlineHoursBeforeStart, {
+      message: 'Enter a transfer deadline.',
+    });
+    min(settings.transferDeadlineHoursBeforeStart, 0, {
+      message: 'Enter zero or more hours.',
+    });
+    validate(settings.timezone, ({ value }) =>
+      tenantTimezoneValidationError(value()),
+    );
+  },
+);
+
+export const createGeneralSettingsFormModel = (): GeneralSettingsModel => ({
+  allowOther: false,
+  buyEsnCardUrl: '',
+  cancellationDeadlineHoursBeforeStart: 120,
+  currency: 'EUR',
+  defaultLocation: null,
+  emailSenderEmail: '',
+  emailSenderName: '',
+  esnCardEnabled: false,
+  faviconUrl: '',
+  legalNoticeText: '',
+  legalNoticeUrl: '',
+  logoUrl: '',
+  maxActiveRegistrationsPerUser: 0,
+  receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
+  refundFeesOnCancellation: true,
+  seoDescription: '',
+  seoTitle: '',
+  stripeAccountId: '',
+  termsText: '',
+  termsUrl: '',
+  theme: 'evorto',
+  timezone: 'Europe/Berlin',
+  transferDeadlineHoursBeforeStart: 0,
 });
 
 const tenantBrandAssetClientMaxSizeBytes = 5 * 1024 * 1024;
@@ -143,38 +175,11 @@ export class GeneralSettingsComponent {
     }),
   );
   protected readonly currencyOptions = supportedTenantCurrencies;
-  protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faUpload = faUpload;
   protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
-  protected readonly settingsModel = signal<GeneralSettingsModel>({
-    allowOther: false,
-    buyEsnCardUrl: '',
-    cancellationDeadlineHoursBeforeStart: 120,
-    currency: 'EUR',
-    defaultLocation: null,
-    emailSenderEmail: '',
-    emailSenderName: '',
-    esnCardEnabled: false,
-    faviconUrl: '',
-    legalNoticeText: '',
-    legalNoticeUrl: '',
-    logoUrl: '',
-    maxActiveRegistrationsPerUser: 0,
-    privacyPolicyText: '',
-    privacyPolicyUrl: '',
-    receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
-    refundFeesOnCancellation: true,
-    seoDescription: '',
-    seoTitle: '',
-    stripeAccountId: '',
-    termsText: '',
-    termsUrl: '',
-    theme: 'evorto',
-    timezone: 'Europe/Berlin',
-    transferDeadlineHoursBeforeStart: 0,
-  });
+  protected readonly settingsModel = signal(createGeneralSettingsFormModel());
   protected readonly settingsForm = form(
     this.settingsModel,
     generalSettingsFormSchema,
@@ -218,8 +223,6 @@ export class GeneralSettingsComponent {
           logoUrl: currentTenant.logoUrl ?? '',
           maxActiveRegistrationsPerUser:
             currentTenant.maxActiveRegistrationsPerUser ?? 0,
-          privacyPolicyText: currentTenant.privacyPolicyText ?? '',
-          privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
           refundFeesOnCancellation: currentTenant.refundFeesOnCancellation,
           seoDescription: currentTenant.seoDescription ?? '',
@@ -270,15 +273,15 @@ export class GeneralSettingsComponent {
         );
         this.notifications.showSuccess(
           reloadRequired
-            ? 'Tenant settings updated. Reloading to apply currency and timezone settings.'
-            : 'Tenant settings updated',
+            ? 'Organization settings updated. Reloading to apply currency and timezone settings.'
+            : 'Organization settings updated',
         );
         if (reloadRequired) {
           this.document.defaultView?.location.reload();
         }
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update tenant settings'),
+          getErrorMessage(error, 'Failed to update organization settings'),
         );
       }
     });

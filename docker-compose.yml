@@ -124,6 +124,8 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      stripe:
+        condition: service_healthy
     develop:
       watch:
         - action: rebuild
@@ -137,7 +139,7 @@ services:
       DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
       E2E_GLOBAL_ADMIN_AUTH0_IDS:
       E2E_NOW_ISO:
-      E2E_RUNTIME_MODE: "playwright"
+      E2E_RUNTIME_MODE:
       E2E_SEED_KEY:
       ISSUER_BASE_URL:
       NEON_LOCAL_PROXY: "true"
@@ -166,9 +168,40 @@ services:
         mkfifo "$$log_pipe"
         tee -a /app/logs/server.log < "$$log_pipe" &
         tee_pid="$!"
-        bun --preload ./instrument.mjs dist/evorto/server/server.mjs > "$$log_pipe" 2>&1
+        server_pid=""
+        finish_tee() {
+          (
+            sleep 2
+            kill -TERM "$$tee_pid" 2>/dev/null || true
+          ) &
+          tee_watchdog_pid="$$!"
+          wait "$$tee_pid" 2>/dev/null || true
+          kill -TERM "$$tee_watchdog_pid" 2>/dev/null || true
+          wait "$$tee_watchdog_pid" 2>/dev/null || true
+        }
+        cleanup_server() {
+          signal="$$1"
+          status="$$2"
+          trap - HUP INT TERM
+          if [ -n "$$server_pid" ]; then
+            kill -"$$signal" "$$server_pid" 2>/dev/null || true
+            wait "$$server_pid" 2>/dev/null || true
+          fi
+          finish_tee
+          rm -f "$$log_pipe"
+          exit "$$status"
+        }
+        trap 'cleanup_server HUP 129' HUP
+        trap 'cleanup_server INT 130' INT
+        trap 'cleanup_server TERM 143' TERM
+        bun --preload ./instrument.mjs dist/evorto/server/server.mjs > "$$log_pipe" 2>&1 &
+        server_pid="$!"
+        set +e
+        wait "$$server_pid"
         server_status="$?"
-        wait "$$tee_pid"
+        server_pid=""
+        set -e
+        finish_tee
         rm -f "$$log_pipe"
         exit "$$server_status"
     ports:
@@ -184,6 +217,12 @@ services:
       STRIPE_DEVICE_NAME: integration-tests
     entrypoint: /bin/sh
     command: /usr/local/bin/stripe-listen-docker
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /run/stripe-webhook/signing-secret"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
     volumes:
       - ./helpers/testing/stripe-listen-docker.sh:/usr/local/bin/stripe-listen-docker:ro
       - stripe-webhook:/run/stripe-webhook

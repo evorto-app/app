@@ -1,6 +1,9 @@
 import type { TenantOnboardingRequirementsRecord } from '@shared/rpc-contracts/app-rpcs/onboarding.rpcs';
 import type { UsersAuthData } from '@shared/rpc-contracts/app-rpcs/users.rpcs';
 
+import { TenantOnboardingRequirementsChangedError } from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
+import { Schema } from 'effect';
+
 import { getErrorMessage } from '../error-message';
 
 export interface CreateAccountModel {
@@ -42,6 +45,33 @@ export const createAccountModelFromRequirements = (
   policyVersionId: requirements.policy?.id ?? '',
 });
 
+export const mergeCreateAccountModelWithChangedRequirements = (
+  current: CreateAccountModel,
+  requirements: TenantOnboardingRequirementsRecord,
+): CreateAccountModel => {
+  const currentAnswers = new Map(
+    current.answers.map((answer) => [answer.questionId, answer.value]),
+  );
+  const policyVersionId = requirements.policy?.id ?? '';
+
+  return {
+    ...current,
+    acceptedPrivacyPolicy:
+      current.policyVersionId === policyVersionId
+        ? current.acceptedPrivacyPolicy
+        : false,
+    answers: requirements.questions.map((question) => ({
+      questionId: question.id,
+      value: currentAnswers.get(question.id) ?? question.answer ?? '',
+    })),
+    policyVersionId,
+  };
+};
+
+export const isTenantOnboardingRequirementsChangedError = Schema.is(
+  TenantOnboardingRequirementsChangedError,
+);
+
 export const isAuthEmailVerifiedForAccountCreation = (
   authData: UsersAuthData,
 ): boolean => authData.email_verified === true;
@@ -71,4 +101,4 @@ export const createAccountSubmitDisabled = ({
 }): boolean => formInvalid || formSubmitting || mutationPending;
 
 export const createAccountErrorMessage = (error: unknown): string =>
-  getErrorMessage(error, 'Failed to complete tenant setup');
+  getErrorMessage(error, 'Failed to complete organization setup');

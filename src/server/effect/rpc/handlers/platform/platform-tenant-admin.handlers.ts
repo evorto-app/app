@@ -794,9 +794,7 @@ export const platformTenantAdminHandlers = {
                 );
               if (
                 existingRateAccounts.some(
-                  (rate) =>
-                    rate.stripeAccountId !== null &&
-                    rate.stripeAccountId !== stripeAccount,
+                  (rate) => rate.stripeAccountId !== stripeAccount,
                 )
               ) {
                 return yield* new RpcBadRequestError({

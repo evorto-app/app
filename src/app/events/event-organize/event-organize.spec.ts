@@ -276,6 +276,9 @@ describe('event organizer approval template', () => {
     expect(template).toContain(
       '@if (registrationOption.canCancelRegistrations)',
     );
+    expect(template.replaceAll(/\s+/g, ' ')).toContain(
+      'Only confirmed registrations can be transferred.',
+    );
   });
 });
 

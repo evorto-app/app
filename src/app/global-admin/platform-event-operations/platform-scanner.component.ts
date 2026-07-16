@@ -1,14 +1,16 @@
 import type { PlatformRegistrationDetailRecord } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 
-import { DatePipe } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  computed,
+  effect,
   inject,
   Injectable,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -23,10 +25,11 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
+import { platformEventInstantToDisplayDateTime } from './platform-event-date-time';
 import {
+  formatPlatformRegistrationRefundAmount,
   PlatformRegistrationCancellationConfirmationData,
   PlatformRegistrationCancellationConfirmationDialogComponent,
 } from './platform-registration-cancellation-confirmation-dialog.component';
@@ -65,7 +68,7 @@ export const platformRegistrationStatusIssueCopy = (
     }
     case 'PENDING': {
       return {
-        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.',
+        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
         title: 'Registration pending',
       };
     }
@@ -76,6 +79,69 @@ export const platformRegistrationStatusIssueCopy = (
       };
     }
   }
+};
+
+export const platformRegistrationStatusLabel = (
+  status: PlatformRegistrationDetailRecord['status'],
+): string => {
+  switch (status) {
+    case 'CANCELLED': {
+      return 'Cancelled';
+    }
+    case 'CONFIRMED': {
+      return 'Confirmed';
+    }
+    case 'PENDING': {
+      return 'Pending';
+    }
+    case 'WAITLIST': {
+      return 'On waitlist';
+    }
+  }
+};
+
+export interface PlatformGuestCheckInSelection {
+  readonly count: number;
+  readonly error: string;
+}
+
+export const platformGuestCheckInSelection = ({
+  inputValue,
+  remainingGuestCount,
+}: {
+  inputValue: string;
+  remainingGuestCount: number;
+}): PlatformGuestCheckInSelection => {
+  const maximum = Math.max(0, remainingGuestCount);
+  const count = Number(inputValue);
+  if (
+    inputValue.trim().length === 0 ||
+    !Number.isInteger(count) ||
+    count < 0 ||
+    count > maximum
+  ) {
+    return {
+      count: 0,
+      error: `Enter a whole number from 0 to ${maximum}.`,
+    };
+  }
+
+  return { count, error: '' };
+};
+
+export const platformGuestCheckInIssue = ({
+  attendeeCheckedIn,
+  selection,
+}: {
+  attendeeCheckedIn: boolean;
+  selection: PlatformGuestCheckInSelection;
+}): string => {
+  if (selection.error) {
+    return selection.error;
+  }
+  return attendeeCheckedIn && selection.count === 0
+    ? 'Choose at least one guest to check in.'
+    : '';
 };
 
 @Injectable({ providedIn: 'root' })
@@ -101,6 +167,12 @@ export class PlatformScannerOperations {
     });
   }
 
+  formOptions(targetTenantId: string) {
+    return this.rpc.platform.events.formOptions.queryOptions({
+      targetTenantId,
+    });
+  }
+
   list(targetTenantId: string, eventId: string | undefined) {
     return this.rpc.platform.registrations.list.queryOptions({
       eventId,
@@ -118,7 +190,6 @@ export class PlatformScannerOperations {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
@@ -143,13 +214,7 @@ export class PlatformScannerComponent {
   protected readonly checkInMutation = injectMutation(() =>
     this.operations.checkIn(),
   );
-  protected readonly guestCheckInCount = signal(0);
-  protected readonly lookupError = signal('');
-  protected readonly lookupInteractive = signal(false);
-  protected readonly lookupValue = signal('');
-  protected readonly platformRegistrationStatusIssueCopy =
-    platformRegistrationStatusIssueCopy;
-  protected readonly reason = signal('');
+  protected readonly guestCheckInValue = signal('0');
   protected readonly registrationQuery = injectQuery(() => ({
     ...this.operations.findOne(
       this.tenantId(),
@@ -157,8 +222,34 @@ export class PlatformScannerComponent {
     ),
     enabled: Boolean(this.registrationId()),
   }));
+  protected readonly guestCheckInSelection = computed(() =>
+    platformGuestCheckInSelection({
+      inputValue: this.guestCheckInValue(),
+      remainingGuestCount:
+        this.registrationQuery.data()?.remainingGuestCount ?? 0,
+    }),
+  );
+  protected readonly guestCheckInIssue = computed(() => {
+    const registration = this.registrationQuery.data();
+    if (!registration) return '';
+    return platformGuestCheckInIssue({
+      attendeeCheckedIn: registration.attendeeCheckedIn,
+      selection: this.guestCheckInSelection(),
+    });
+  });
+  protected readonly lookupError = signal('');
+  protected readonly lookupInteractive = signal(false);
+  protected readonly lookupValue = signal('');
+  protected readonly platformRegistrationStatusIssueCopy =
+    platformRegistrationStatusIssueCopy;
+  protected readonly platformRegistrationStatusLabel =
+    platformRegistrationStatusLabel;
+  protected readonly reason = signal('');
   protected readonly registrationsQuery = injectQuery(() =>
     this.operations.list(this.tenantId(), this.eventId()),
+  );
+  protected readonly targetTenantOptionsQuery = injectQuery(() =>
+    this.operations.formOptions(this.tenantId()),
   );
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
@@ -167,6 +258,10 @@ export class PlatformScannerComponent {
 
   constructor() {
     afterNextRender(() => this.lookupInteractive.set(true));
+    effect(() => {
+      this.registrationId();
+      untracked(() => this.resetActionState());
+    });
   }
 
   protected anyActionPending(): boolean {
@@ -190,11 +285,11 @@ export class PlatformScannerComponent {
           targetTenantId: this.tenantId(),
         });
         await this.refreshRegistration();
-        this.reason.set('');
+        this.resetActionState();
         this.notifications.showSuccess('Registration approved');
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to approve registration'),
+          'The registration could not be approved. Try again.',
         );
       }
     })();
@@ -235,11 +330,11 @@ export class PlatformScannerComponent {
           targetTenantId: this.tenantId(),
         });
         await this.refreshRegistration();
-        this.reason.set('');
+        this.resetActionState();
         this.notifications.showSuccess('Registration cancelled');
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to cancel registration'),
+          'The registration could not be cancelled. Try again.',
         );
       }
     })();
@@ -248,29 +343,49 @@ export class PlatformScannerComponent {
   protected checkIn(): void {
     const registrationId = this.registrationId();
     const reason = this.reason().trim();
-    if (!registrationId || !reason || this.anyActionPending()) return;
+    if (
+      !registrationId ||
+      !reason ||
+      this.anyActionPending() ||
+      this.guestCheckInIssue()
+    )
+      return;
 
     void (async () => {
       try {
         await this.checkInMutation.mutateAsync({
-          guestCheckInCount: this.guestCheckInCount(),
+          guestCheckInCount: this.guestCheckInSelection().count,
           reason,
           registrationId,
           targetTenantId: this.tenantId(),
         });
         await this.refreshRegistration();
-        this.reason.set('');
+        this.resetActionState();
         this.notifications.showSuccess('Registration checked in');
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to check in registration'),
+          'The registration could not be checked in. Try again.',
         );
       }
     })();
   }
 
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to inspect registration');
+  protected displayDateTime(value: string): string {
+    return this.targetTenantOptionsQuery.isSuccess()
+      ? platformEventInstantToDisplayDateTime(
+          value,
+          this.targetTenantOptionsQuery.data().timezone,
+        )
+      : '';
+  }
+
+  protected formatRefundAmount(
+    registration: PlatformRegistrationDetailRecord,
+  ): string {
+    const amount = registration.cancellation.refund.amount;
+    return amount === null
+      ? ''
+      : formatPlatformRegistrationRefundAmount(amount, registration.currency);
   }
 
   protected openLookup(event?: Event): void {
@@ -280,7 +395,7 @@ export class PlatformScannerComponent {
     );
     if (!registrationId) {
       this.lookupError.set(
-        'Enter a registration ID or a ticket URL ending in /scan/registration/{id}.',
+        'Paste the complete attendee ticket link or enter a registration ID.',
       );
       return;
     }
@@ -295,7 +410,7 @@ export class PlatformScannerComponent {
 
   protected setGuestCount(event: Event): void {
     if (event.target instanceof HTMLInputElement) {
-      this.guestCheckInCount.set(Number(event.target.value));
+      this.guestCheckInValue.set(event.target.value);
     }
   }
 
@@ -316,5 +431,10 @@ export class PlatformScannerComponent {
       this.operations.registrationFilter(),
     );
     await this.registrationQuery.refetch();
+  }
+
+  private resetActionState(): void {
+    this.guestCheckInValue.set('0');
+    this.reason.set('');
   }
 }

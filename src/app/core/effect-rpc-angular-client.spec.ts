@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { resolveServerRpcOrigin } from './effect-rpc-angular-client';
+import {
+  resolveServerRpcOrigin,
+  resolveTrustedServerRpcOrigin,
+} from './effect-rpc-angular-client';
 
 describe('effect-rpc-angular-client', () => {
   const originalSsrRpcOrigin = process.env['SSR_RPC_ORIGIN'];
@@ -11,6 +14,12 @@ describe('effect-rpc-angular-client', () => {
     } else {
       process.env['SSR_RPC_ORIGIN'] = originalSsrRpcOrigin;
     }
+  });
+
+  it('does not treat request-derived origins as trusted internal origins', () => {
+    delete process.env['SSR_RPC_ORIGIN'];
+
+    expect(resolveTrustedServerRpcOrigin()).toBeUndefined();
   });
 
   it('uses the configured server-side RPC origin before the browser-facing request origin', () => {

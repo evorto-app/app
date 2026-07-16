@@ -4,9 +4,11 @@ import { Effect, Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { Tenant, TenantTimezone } from '../../../types/custom/tenant';
 import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
 import { EventReviewStatus, EventsRegistrationStatus } from './events.rpcs';
+import { IconRecord } from './icons.rpcs';
 import {
   PlatformOperationRpcError,
   PlatformTenantMutationContext,
@@ -170,6 +172,7 @@ export const PlatformEventFormOptionsRecord = Schema.Struct({
       title: Schema.NonEmptyString,
     }),
   ),
+  timezone: TenantTimezone,
 });
 
 export const PlatformEventsFormOptions = asRpcQuery(
@@ -305,6 +308,7 @@ export const PlatformTemplateFormOptionsRecord = Schema.Struct({
     }),
   ),
   esnCardEnabled: Schema.Boolean,
+  iconChoices: Schema.Array(IconRecord),
 });
 
 export const PlatformTemplatesList = asRpcQuery(
@@ -407,6 +411,7 @@ export const PlatformRegistrationDetailRecord = Schema.Struct({
   }),
   checkedInGuestCount: nonNegativeInteger,
   checkInTimingIssue: Schema.Boolean,
+  currency: Tenant.fields.currency,
   guestCount: nonNegativeInteger,
   manualApprovalAvailable: Schema.Boolean,
   paymentPending: Schema.Boolean,

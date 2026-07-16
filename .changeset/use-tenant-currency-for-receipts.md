@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Preserve recorded currency throughout receipt workflows

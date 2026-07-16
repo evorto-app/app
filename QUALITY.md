@@ -257,16 +257,12 @@ is not the whole provider gate. Both commands must finish locally with
 every collected test passing and zero incomplete outcomes before CI is
 attempted. Cloudflare Images is being removed and is not a release gate.
 
-Account-scoped Stripe tax-rate releases require the verified, idempotent
-`db:backfill-stripe-tax-rate-accounts` command after the nullable schema
-expansion and before application versions that require account-owned rates are
-released. The command must finish with every stored rate assigned to its
-tenant's current non-null account and with both temporary rolling-release
-integrity triggers installed. A provider lookup, stale account, invalid row, or
-guard failure blocks the rollout; do not replace this gate with a direct
-account-ID copy. Deployment automation for this prerequisite is intentionally
-owned by a separate change. The exact rollout and recovery contract is
-documented in `STRIPE_TAX_RATE_ACCOUNT_ROLLOUT.md`.
+Stripe tax-rate metadata has non-null account ownership in the fresh target
+schema. Event, template, tax-rate import, and account-rotation writers must take
+the same tenant-row lock before changing paid or tax-rate configuration. Legacy
+data transfer must fail closed unless provider verification can assign exact
+account ownership; nullable staging rows and production backfills are not a
+supported release path.
 
 Repository-owned workflows pin every external action to a reviewed full commit
 SHA and retain a readable release/tag comment. Workflow- and job-level

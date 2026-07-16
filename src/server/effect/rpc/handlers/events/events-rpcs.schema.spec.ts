@@ -15,6 +15,7 @@ import {
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
   EventsJoinWaitlistPayload,
+  EventsOutgoingRegistrationTransferRecord,
   EventsPreviewEventRegistrationTransfer,
   EventsPurchaseRegistrationAddonPayload,
   EventsPurchaseRegistrationAddonResult,
@@ -54,6 +55,26 @@ describe('events RPC location schema', () => {
 });
 
 describe('events RPC registration status schema', () => {
+  it('represents source-owner refund progress after ticket ownership moves', () => {
+    for (const refundStatus of [
+      'completed',
+      'needsAttention',
+      'notRequired',
+      'processing',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsOutgoingRegistrationTransferRecord)({
+          currency: 'EUR',
+          refundAmount: refundStatus === 'notRequired' ? 0 : 1200,
+          refundStatus,
+          registrationOptionTitle: 'Participant',
+          transferId: 'transfer-1',
+          transferredAt: '2026-08-01T17:00:00.000Z',
+        }),
+      ).not.toThrow();
+    }
+  });
+
   it('accepts every persisted registration status', () => {
     for (const status of ['CANCELLED', 'CONFIRMED', 'PENDING', 'WAITLIST']) {
       expect(() =>

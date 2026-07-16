@@ -11,9 +11,15 @@ import {
   eventRegistrationEventTenantForeignKeyName,
   eventRegistrationOptionEventForeignKeyName,
   eventRegistrationOptions,
+  eventRegistrationQuestions,
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  registrationTransferAnswerQuestionOwnerForeignKeyName,
+  registrationTransferAnswers,
+  registrationTransferAnswerTransferOwnerForeignKeyName,
+  registrationTransfers,
+  registrationTransferSourceRegistrationOwnerForeignKeyName,
   roleAssignmentMembershipTenantForeignKeyName,
   roleAssignmentRoleTenantForeignKeyName,
   roles,
@@ -150,6 +156,15 @@ const cleanFixture = async (
   fixture: TenantBoundaryFixture,
 ) => {
   await database
+    .delete(registrationTransferAnswers)
+    .where(inArray(registrationTransferAnswers.tenantId, fixture.tenantIds));
+  await database
+    .delete(registrationTransfers)
+    .where(inArray(registrationTransfers.tenantId, fixture.tenantIds));
+  await database
+    .delete(eventRegistrationQuestions)
+    .where(inArray(eventRegistrationQuestions.eventId, fixture.eventIds));
+  await database
     .delete(eventRegistrations)
     .where(inArray(eventRegistrations.tenantId, fixture.tenantIds));
   await database
@@ -270,6 +285,111 @@ describe('tenant boundary constraints in PostgreSQL', () => {
         status: 'PENDING',
         tenantId: fixture.tenantIds[0],
         userId: fixture.userIds[0],
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('rejects a transfer whose source registration belongs to another event option', async () => {
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 6);
+    const sourceRegistrationId = `reg-owner-${suffix}`;
+    await database.insert(eventRegistrations).values({
+      eventId: fixture.eventIds[0],
+      id: sourceRegistrationId,
+      registrationOptionId: fixture.optionIds[0],
+      status: 'CANCELLED',
+      tenantId: fixture.tenantIds[0],
+      userId: fixture.userIds[0],
+    });
+
+    await expectForeignKeyViolation(
+      database.insert(registrationTransfers).values({
+        claimCodeHash: `code-owner-${suffix}`,
+        claimTokenHash: `token-owner-${suffix}`,
+        eventId: fixture.eventIds[1],
+        expiresAt: new Date(Date.now() + 60_000),
+        registrationOptionId: fixture.optionIds[1],
+        sourceRegistrationId,
+        sourceSpotCount: 1,
+        sourceUserId: fixture.userIds[0],
+        tenantId: fixture.tenantIds[0],
+      }),
+      registrationTransferSourceRegistrationOwnerForeignKeyName,
+    );
+  });
+
+  it('rejects transfer answers outside the transfer question owner tuple', async () => {
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 6);
+    const sourceRegistrationId = `reg-answer-${suffix}`;
+    const transferId = `tx-answer-${suffix}`;
+    const questionIds = [
+      `question-a-${suffix}`,
+      `question-b-${suffix}`,
+    ] as const;
+    await database.insert(eventRegistrations).values({
+      eventId: fixture.eventIds[0],
+      id: sourceRegistrationId,
+      registrationOptionId: fixture.optionIds[0],
+      status: 'CANCELLED',
+      tenantId: fixture.tenantIds[0],
+      userId: fixture.userIds[0],
+    });
+    await database.insert(registrationTransfers).values({
+      claimCodeHash: `code-answer-${suffix}`,
+      claimTokenHash: `token-answer-${suffix}`,
+      eventId: fixture.eventIds[0],
+      expiresAt: new Date(Date.now() + 60_000),
+      id: transferId,
+      registrationOptionId: fixture.optionIds[0],
+      sourceRegistrationId,
+      sourceSpotCount: 1,
+      sourceUserId: fixture.userIds[0],
+      tenantId: fixture.tenantIds[0],
+    });
+    await database.insert(eventRegistrationQuestions).values([
+      {
+        eventId: fixture.eventIds[0],
+        id: questionIds[0],
+        registrationOptionId: fixture.optionIds[0],
+        title: 'Matching transfer question',
+      },
+      {
+        eventId: fixture.eventIds[1],
+        id: questionIds[1],
+        registrationOptionId: fixture.optionIds[1],
+        title: 'Foreign transfer question',
+      },
+    ]);
+
+    await expectForeignKeyViolation(
+      database.insert(registrationTransferAnswers).values({
+        answer: 'Foreign question with matching transfer scope',
+        eventId: fixture.eventIds[0],
+        questionId: questionIds[1],
+        registrationOptionId: fixture.optionIds[0],
+        tenantId: fixture.tenantIds[0],
+        transferId,
+      }),
+      registrationTransferAnswerQuestionOwnerForeignKeyName,
+    );
+    await expectForeignKeyViolation(
+      database.insert(registrationTransferAnswers).values({
+        answer: 'Foreign transfer with matching question scope',
+        eventId: fixture.eventIds[1],
+        questionId: questionIds[1],
+        registrationOptionId: fixture.optionIds[1],
+        tenantId: fixture.tenantIds[0],
+        transferId,
+      }),
+      registrationTransferAnswerTransferOwnerForeignKeyName,
+    );
+    await expect(
+      database.insert(registrationTransferAnswers).values({
+        answer: 'Matching question and transfer scope',
+        eventId: fixture.eventIds[0],
+        questionId: questionIds[0],
+        registrationOptionId: fixture.optionIds[0],
+        tenantId: fixture.tenantIds[0],
+        transferId,
       }),
     ).resolves.toBeDefined();
   });

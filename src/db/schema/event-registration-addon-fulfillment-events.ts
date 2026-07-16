@@ -70,7 +70,7 @@ export const eventRegistrationAddonFulfillmentEvents = pgTable(
     ),
     check(
       'event_registration_addon_fulfillment_event_actor_shape',
-      sql`(${table.actorKind} = 'user' AND ${table.actorUserId} IS NOT NULL AND ${table.actorSubject} IS NULL) OR (${table.actorKind} <> 'user' AND ${table.actorUserId} IS NULL AND length(trim(${table.actorSubject})) BETWEEN 1 AND 100)`,
+      sql`(${table.actorKind} = 'user' AND ${table.actorUserId} IS NOT NULL AND ${table.actorSubject} IS NULL) OR (${table.actorKind} <> 'user' AND ${table.actorUserId} IS NULL AND ${table.actorSubject} IS NOT NULL AND length(trim(${table.actorSubject})) BETWEEN 1 AND 100)`,
     ),
     check(
       'event_registration_addon_fulfillment_event_shape',
@@ -79,7 +79,7 @@ export const eventRegistrationAddonFulfillmentEvents = pgTable(
         OR
         (${table.type} = 'redemption_undone' AND ${table.reversesEventId} IS NOT NULL AND ${table.reason} IS NULL AND NOT ${table.refundRequested} AND ${table.refundDisposition} = 'not_requested')
         OR
-        (${table.type} = 'cancelled' AND ${table.reversesEventId} IS NULL AND length(trim(${table.reason})) BETWEEN 1 AND 500 AND ((${table.refundRequested} AND ${table.refundDisposition} IN ('claims_created', 'no_monetary_refund_required')) OR (NOT ${table.refundRequested} AND ${table.refundDisposition} = 'not_requested')))
+        (${table.type} = 'cancelled' AND ${table.reversesEventId} IS NULL AND ${table.reason} IS NOT NULL AND length(trim(${table.reason})) BETWEEN 1 AND 500 AND ((${table.refundRequested} AND ${table.refundDisposition} IN ('claims_created', 'no_monetary_refund_required')) OR (NOT ${table.refundRequested} AND ${table.refundDisposition} = 'not_requested')))
       )`,
     ),
     foreignKey({

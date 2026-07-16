@@ -84,13 +84,31 @@ describe('PERMISSION_GROUPS', () => {
       expect.arrayContaining([
         expect.objectContaining({
           description: expect.stringContaining(
-            'full tenant-administrator authority',
+            'full organization-administrator authority',
           ),
           key: 'users:assignRoles',
-          label: 'Assign all user roles (tenant admin)',
+          label: 'Assign all user roles (organization admin)',
         }),
       ]),
     );
+  });
+
+  it('describes Members Hub access in product language', () => {
+    const membersHubGroup = PERMISSION_GROUPS.find(
+      (group) => group.key === 'internal',
+    );
+
+    expect(membersHubGroup).toMatchObject({
+      label: 'Members Hub',
+      permissions: [
+        {
+          description:
+            'Open Members Hub to see organization roles and members that are marked for display there.',
+          key: 'internal:viewInternalPages',
+          label: 'View Members Hub',
+        },
+      ],
+    });
   });
 });
 
@@ -98,6 +116,9 @@ describe('permissionLabel', () => {
   it('returns admin-facing labels for dependency copy', () => {
     expect(permissionLabel('templates:view')).toBe('View templates');
     expect(permissionLabel('events:seeDrafts')).toBe('See draft events');
+    expect(permissionLabel('internal:viewInternalPages')).toBe(
+      'View Members Hub',
+    );
   });
 
   it('falls back to the key for technical permissions that are not role-form entries', () => {

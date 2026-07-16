@@ -4,25 +4,35 @@ import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 import {
   paidEventTransactionMethodCheckName,
   pendingRegistrationTransactionUniqueIndexName,
+  refundOperationShapeCheckName,
   type RegistrationCheckoutSnapshot,
   registrationRefundOperationUniqueIndexName,
   transactions,
 } from './transactions';
 
 describe('transaction schema', () => {
-  it('requires registration and add-on transactions to use Stripe', () => {
+  it('enforces Stripe-only event payments and explicit automatic refund operation keys', () => {
     const tableConfig = getTableConfig(transactions);
-    const paidEventMethodCheck = tableConfig.checks.find(
+    const paidEventMethod = tableConfig.checks.find(
       (check) => check.name === paidEventTransactionMethodCheckName,
     );
+    const refundOperationShape = tableConfig.checks.find(
+      (check) => check.name === refundOperationShapeCheckName,
+    );
 
-    expect(paidEventMethodCheck).toBeDefined();
-    if (!paidEventMethodCheck) {
-      throw new Error('Expected paid event transaction method check');
+    expect(paidEventMethod).toBeDefined();
+    expect(refundOperationShape).toBeDefined();
+    if (!paidEventMethod || !refundOperationShape) {
+      throw new Error('Expected transaction integrity checks');
     }
 
-    expect(new PgDialect().sqlToQuery(paidEventMethodCheck.value).sql).toBe(
-      `"transactions"."type" NOT IN ('registration', 'addon') OR "transactions"."method" = 'stripe'`,
+    expect(new PgDialect().sqlToQuery(paidEventMethod.value).sql).toBe(
+      `"transactions"."type"::text NOT IN ('registration', 'addon') OR ("transactions"."method"::text = 'stripe' AND "transactions"."amount" > 0)`,
+    );
+    expect(
+      new PgDialect().sqlToQuery(refundOperationShape.value).sql,
+    ).toContain(
+      '"transactions"."refund_operation_key" IS NOT NULL AND length(trim("transactions"."refund_operation_key")) BETWEEN 1 AND 100',
     );
   });
 

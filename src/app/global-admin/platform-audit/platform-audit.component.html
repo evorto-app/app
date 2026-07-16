@@ -17,7 +17,9 @@
     role="alert"
   >
     <h2 class="title-medium">Platform audit log unavailable</h2>
-    <p class="body-medium">{{ errorMessage(auditQuery.error()) }}</p>
+    <p class="body-medium">
+      Recent platform changes could not be loaded. Try again.
+    </p>
     <div>
       <button mat-button type="button" (click)="auditQuery.refetch()">
         Try again
@@ -30,8 +32,8 @@
     <section class="border-outline-variant border-t py-6">
       <h2 class="title-medium">No platform changes recorded</h2>
       <p class="body-medium text-on-surface-variant">
-        Platform changes will appear here with their target tenant, before and
-        after state, and operator reason.
+        Platform changes will appear here with their target organization, before
+        and after state, and operator reason.
       </p>
     </section>
   } @else {
@@ -52,12 +54,12 @@
             <div>
               <dt class="label-medium text-on-surface-variant">Actor</dt>
               <dd class="body-medium break-all">
-                {{ entry.actorEmail || entry.actorId }}
+                {{ entry.actorEmail || "Administrator email unavailable" }}
               </dd>
             </div>
             <div>
               <dt class="label-medium text-on-surface-variant">
-                Target tenant
+                Target organization
               </dt>
               <dd class="body-medium break-all">
                 {{ targetLabel(entry) }}
@@ -76,15 +78,33 @@
             <div class="mt-3 grid gap-3 lg:grid-cols-2">
               <section>
                 <h3 class="title-small mb-1">Before</h3>
-                <pre
-                  class="bg-surface-container-low body-small overflow-auto rounded-lg p-3"
-                ><code>{{ entry.before | json }}</code></pre>
+                @for (row of snapshotRows(entry.before); track row.label) {
+                  <dl
+                    class="grid grid-cols-[minmax(8rem,auto)_1fr] gap-x-3 border-b border-outline-variant py-2 text-sm"
+                  >
+                    <dt class="text-on-surface-variant">{{ row.label }}</dt>
+                    <dd class="break-words">{{ row.value }}</dd>
+                  </dl>
+                } @empty {
+                  <p class="body-small text-on-surface-variant">
+                    No previous state.
+                  </p>
+                }
               </section>
               <section>
                 <h3 class="title-small mb-1">After</h3>
-                <pre
-                  class="bg-surface-container-low body-small overflow-auto rounded-lg p-3"
-                ><code>{{ entry.after | json }}</code></pre>
+                @for (row of snapshotRows(entry.after); track row.label) {
+                  <dl
+                    class="grid grid-cols-[minmax(8rem,auto)_1fr] gap-x-3 border-b border-outline-variant py-2 text-sm"
+                  >
+                    <dt class="text-on-surface-variant">{{ row.label }}</dt>
+                    <dd class="break-words">{{ row.value }}</dd>
+                  </dl>
+                } @empty {
+                  <p class="body-small text-on-surface-variant">
+                    No current state.
+                  </p>
+                }
               </section>
             </div>
           </details>

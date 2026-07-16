@@ -91,12 +91,12 @@ This guide explains the complete check-in flow, including camera access, attende
 
 ## Open the scanner
 
-1. Sign in to the tenant that owns the event.
+1. Sign in to the organization that owns the event.
 2. Select **Scanner** in the main navigation.
 3. If the browser asks for camera access, choose **Allow**.
 4. Ask the attendee to open the confirmed ticket from their event registration page and hold its QR code inside the camera frame.
 
-The ticket identifies a registration; it is not permission to check someone in by itself. Evorto still verifies your organizer access, the tenant, the event, and the registration status.
+The ticket identifies a registration; it is not permission to check someone in by itself. Evorto still verifies your organizer access, the organization, the event, and the registration status.
 `,
     });
 
@@ -137,7 +137,7 @@ The ticket identifies a registration; it is not permission to check someone in b
 
 After a valid ticket is scanned, check the attendee name, event, registration option, registration status, and any ESNcard notice before confirming. Evorto gives a specific explanation instead of treating every unusable ticket as an unpaid ticket:
 
-- **Registration pending** means the attendee must open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.
+- **Registration pending** means the attendee must open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.
 - **Registration on waitlist** means the attendee has no confirmed spot. Ask an organizer to review the waitlist and capacity; do not take payment or create another registration from the scanner.
 - **Registration cancelled** means the existing ticket cannot be checked in. Do not ask the attendee to pay or register again. Ask an organizer to review the existing cancellation or refund if it looks wrong.
 
@@ -155,7 +155,7 @@ The scanner also warns when the ticket belongs to the signed-in organizer, the e
       .filter({ hasText: 'Registration pending' });
     await expect(pendingRegistrationAlert).toBeVisible();
     await expect(pendingRegistrationAlert).toContainText(
-      'organizer approval or their existing Stripe Checkout',
+      'organizer approval or their existing payment',
     );
     await expect(pendingRegistrationAlert).toContainText(
       'Do not start a second registration or payment from the scanner',
@@ -292,7 +292,7 @@ The first confirmation above checks in the attendee and one guest. If another gu
 
 The organizer overview increases by the attendee plus the guests actually checked in. Re-scanning a fully checked-in ticket does not add to the count again; Evorto shows **Already checked in** instead.
 
-Never bypass a warning by changing the URL or using another tenant. Ask a tenant administrator to review your organizer access or the attendee's registration when the displayed details are not correct.
+Never bypass a warning by changing the link or using another organization. Ask an organization administrator to review your organizer access or the attendee's registration when the displayed details are not correct.
 `,
     });
   } finally {

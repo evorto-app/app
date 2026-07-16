@@ -35,8 +35,8 @@
   </div>
   @if (!simpleMode() && referenceCount() > 0) {
     <p class="body-small text-on-surface-variant">
-      Reassign or remove this option's {{ referenceCount() }} question or add-on
-      {{ referenceCount() === 1 ? "reference" : "references" }} first.
+      Reassign this option's questions and remove it from any add-ons before
+      removing the option.
     </p>
   }
 
@@ -110,7 +110,7 @@
       <input
         matInput
         type="number"
-        placeholder="Use tenant default"
+        placeholder="Use organization default"
         [formField]="option.cancellationDeadlineHoursBeforeStart"
       />
       @for (
@@ -125,7 +125,7 @@
       <input
         matInput
         type="number"
-        placeholder="Use tenant default"
+        placeholder="Use organization default"
         [formField]="option.transferDeadlineHoursBeforeStart"
       />
       @for (
@@ -143,10 +143,12 @@
   </p>
   @if (!option.price().hidden()) {
     <div class="grid gap-4 @sm:grid-cols-2">
-      <mat-form-field>
-        <mat-label>Price (in cents)</mat-label>
-        <input matInput type="number" [formField]="option.price" />
-      </mat-form-field>
+      <app-currency-amount-input
+        label="Price"
+        [currencyCode]="currencyCode()"
+        [formField]="option.price"
+        [minimumMinorUnits]="1"
+      />
       <mat-form-field>
         <mat-label>Inclusive tax rate</mat-label>
         <mat-select [formField]="option.stripeTaxRateId">
@@ -171,23 +173,18 @@
       </mat-form-field>
     </div>
     @if (esnEnabled()) {
-      <mat-form-field>
-        <mat-label>ESNcard discounted price (in cents)</mat-label>
-        <input
-          matInput
-          type="number"
-          placeholder="Optional"
-          [formField]="option.esnCardDiscountedPrice"
-        />
-        @for (error of option.esnCardDiscountedPrice().errors(); track error) {
-          <mat-error>{{ error.message }}</mat-error>
-        }
-      </mat-form-field>
+      <app-currency-amount-input
+        hint="Leave blank to disable the discount."
+        label="ESNcard price"
+        [allowEmpty]="true"
+        [currencyCode]="currencyCode()"
+        [formField]="option.esnCardDiscountedPrice"
+      />
     }
     <mat-form-field>
       <mat-label>Payment fees after cancellation</mat-label>
       <mat-select [formField]="option.refundFeesOnCancellation">
-        <mat-option value="default">Use tenant default</mat-option>
+        <mat-option value="default">Use organization default</mat-option>
         <mat-option value="refund">Refund payment fees</mat-option>
         <mat-option value="doNotRefund">Do not refund payment fees</mat-option>
       </mat-select>

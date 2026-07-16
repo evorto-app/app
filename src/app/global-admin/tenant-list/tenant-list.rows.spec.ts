@@ -22,10 +22,9 @@ const tenant = {
 } as const satisfies GlobalAdminTenantRecord;
 
 describe('globalAdminTenantRows', () => {
-  it('summarizes tenant operational state for global admin review', () => {
+  it('summarizes organization settings for platform review', () => {
     expect(globalAdminTenantRows(tenant)).toEqual([
       { label: 'Primary domain', value: 'tenant.example.com' },
-      { label: 'Tenant ID', monospace: true, value: 'tenant-1' },
       { label: 'Theme', value: 'esn' },
       { label: 'Locale', value: 'de-DE' },
       { label: 'Currency', value: 'EUR' },
@@ -34,10 +33,9 @@ describe('globalAdminTenantRows', () => {
     ]);
   });
 
-  it('reuses the operational rows for tenant detail review', () => {
+  it('reuses the settings rows for organization detail review', () => {
     expect(globalAdminTenantRows(tenant).map((row) => row.label)).toEqual([
       'Primary domain',
-      'Tenant ID',
       'Theme',
       'Locale',
       'Currency',
@@ -122,16 +120,13 @@ describe('filterGlobalAdminTenants', () => {
     expect(
       filterGlobalAdminTenants([tenant, secondTenant], 'acct_123'),
     ).toEqual([tenant]);
-    expect(
-      filterGlobalAdminTenants([tenant, secondTenant], 'tenant-1'),
-    ).toEqual([tenant]);
   });
 });
 
 describe('globalAdminTenantListErrorMessage', () => {
   it('keeps tenant-list load failures readable', () => {
     expect(globalAdminTenantListErrorMessage(null)).toBe(
-      'Failed to load tenants',
+      'Failed to load organizations',
     );
     expect(
       globalAdminTenantListErrorMessage({

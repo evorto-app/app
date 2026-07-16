@@ -1,9 +1,29 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices, type Project } from '@playwright/test';
 import { formatConfigError } from '@server/config/config-error';
 import { APPLICATION_READINESS_PATH } from '@server/http/application-readiness';
 import { ConfigError, ConfigProvider, Effect } from 'effect';
+import { randomBytes } from 'node:crypto';
 
 import { playwrightEnvironmentConfig } from './tests/support/config/environment';
+import { resolvePlaywrightProjectPolicy } from './tests/support/config/playwright-project-policy';
+import {
+  resolvePlaywrightReporters,
+  resolveProtectedValueSanitizerState,
+} from './tests/support/config/protected-value-reporters';
+
+// Suppress Playwright's optional prompt snapshot and mark the mandatory
+// sanitizer below as active. Matcher-generated ARIA context is removed by the
+// sanitizer reporter before any persistent reporter or artifact upload sees it.
+process.env['PLAYWRIGHT_NO_COPY_PROMPT'] = '1';
+process.env['E2E_TRANSIENT_AUTH0_USER_PASSWORD'] ??=
+  `${randomBytes(24).toString('base64url')}aA1!`;
+
+process.env['PLAYWRIGHT_PROTECTED_VALUE_SANITIZER'] =
+  resolveProtectedValueSanitizerState({
+    argv: process.argv,
+    currentState: process.env['PLAYWRIGHT_PROTECTED_VALUE_SANITIZER'],
+    environmentOverride: process.env['PW_TEST_REPORTER'],
+  });
 
 const environment = Effect.runSync(
   playwrightEnvironmentConfig.pipe(
@@ -28,27 +48,32 @@ const integrationOnlyTestTagPattern = /@needs-(auth0-management|google-maps)\b/;
 const externalServiceTestTagPattern =
   /@needs-(auth0-management|google-maps|live-esncard)\b/;
 const liveEsncardTestTagPattern = /@needs-live-esncard\b/;
+const safeUiBaseline = process.env['PLAYWRIGHT_SAFE_UI_BASELINE'] === '1';
+const projectPolicy = resolvePlaywrightProjectPolicy(safeUiBaseline);
 
 const createModeProject = (
   name: string,
   options: {
-    dependencies: readonly string[];
     integrationOnly: boolean;
     testIgnore?: RegExp;
     testMatch?: RegExp;
     timeout?: number;
   },
-) => ({
-  dependencies: [...options.dependencies],
-  grep: options.integrationOnly ? integrationOnlyTestTagPattern : undefined,
-  grepInvert: options.integrationOnly
-    ? undefined
-    : externalServiceTestTagPattern,
+): Project => ({
+  dependencies: [...projectPolicy.modeDependencies],
+  ...(options.integrationOnly
+    ? { grep: integrationOnlyTestTagPattern }
+    : { grepInvert: externalServiceTestTagPattern }),
   name,
   ...(options.testIgnore && { testIgnore: options.testIgnore }),
   ...(options.testMatch && { testMatch: options.testMatch }),
   ...(options.timeout && { timeout: options.timeout }),
-  use: desktopChrome,
+  use: {
+    ...desktopChrome,
+    screenshot: 'off',
+    trace: 'off',
+    video: 'off',
+  },
 });
 
 /**
@@ -72,30 +97,25 @@ const webServer = (() => {
     command,
     gracefulShutdown: {
       signal: 'SIGTERM',
-      timeout: 90_000,
+      timeout: 300_000,
     },
     reuseExistingServer: environment.NEON_LOCAL_PROXY,
-    timeout: 240_000,
+    // Match CI's 12-minute build plus 5-minute startup bounds so a cold local
+    // run can finish building, initialize its services, and reach readiness.
+    timeout: 1_020_000,
     url: readinessUrl,
   } as const;
 })();
 
 const listOnly = process.argv.includes('--list');
-const completeRunReporter = [
-  './tests/support/reporters/complete-playwright-run-reporter.ts',
-];
 
-// Configure reporters: avoid blocking HTML server opening; prefer terminal output
-const reporters = environment.CI
-  ? [['github'], ['dot'], completeRunReporter]
-  : listOnly
-    ? [['dot'], completeRunReporter]
-    : [
-        ['html', { open: 'never' }],
-        ['dot'],
-        ['./tests/support/reporters/documentation-reporter.ts'],
-        completeRunReporter,
-      ];
+// Playwright API step titles can contain entered values. Keep the default
+// reporter set non-persistent so Auth0 passwords and protected provider
+// identifiers are not serialized to a local HTML report.
+const reporters = resolvePlaywrightReporters({
+  ci: environment.CI,
+  listOnly,
+});
 
 export default defineConfig({
   /* Focused or flaky tests are never an acceptable local or CI result. */
@@ -104,55 +124,86 @@ export default defineConfig({
   ...(environment.CI && { maxFailures: 1 }),
   /* Run tests in files in parallel */
   fullyParallel: true,
+  // Downstream reporters must never print raw worker stdout/stderr. The first
+  // reporter emits the same chunks after exact protected-value redaction.
+  quiet: true,
+  // Avoid launching enough macOS browser app bundles at once to deadlock
+  // LaunchServices before Playwright can connect to Chromium's debug pipe.
+  workers: environment.CI ? 1 : 4,
   /* Configure projects for major browsers */
   projects: [
     {
       name: 'database-setup',
-      retries: environment.CI ? 1 : 0,
       testDir: './tests/setup',
       testMatch: /database\.setup\.ts$/,
       timeout: 120_000,
       use: desktopChrome,
     },
-    {
-      dependencies: ['database-setup'],
-      name: 'setup',
-      retries: environment.CI ? 1 : 0,
-      testDir: './tests/setup',
-      testMatch: /authentication\.setup\.ts$/,
-      timeout: 20_000,
-      use: desktopChrome,
-    },
-    {
-      dependencies: ['setup'],
-      grep: liveEsncardTestTagPattern,
-      name: 'local-chrome-live-esncard',
-      testMatch: /specs\/profile\/user-profile-live-esncard\.spec\.ts$/,
-      timeout: 120_000,
-      use: desktopChrome,
-    },
+    ...(projectPolicy.includeAuthenticatedProjects
+      ? [
+          {
+            dependencies: ['database-setup'],
+            name: 'setup',
+            testDir: './tests/setup',
+            testMatch: /authentication\.setup\.ts$/,
+            timeout: 20_000,
+            use: {
+              ...desktopChrome,
+              screenshot: 'off',
+              trace: 'off',
+              video: 'off',
+            },
+          },
+          {
+            dependencies: ['setup'],
+            grep: liveEsncardTestTagPattern,
+            name: 'local-chrome-live-esncard',
+            testMatch: /specs\/profile\/user-profile-live-esncard\.spec\.ts$/,
+            timeout: 120_000,
+            use: {
+              ...desktopChrome,
+              screenshot: 'off',
+              trace: 'off',
+              video: 'off',
+            },
+          },
+          {
+            dependencies: ['setup'],
+            grep: liveEsncardTestTagPattern,
+            name: 'docs-live-esncard',
+            testMatch: /docs\/profile\/discounts\.doc\.ts$/,
+            timeout: 120_000,
+            use: {
+              ...desktopChrome,
+              screenshot: 'off',
+              trace: 'off',
+              video: 'off',
+            },
+          },
+        ]
+      : []),
     createModeProject('docs-baseline', {
-      dependencies: ['setup'],
       integrationOnly: false,
       testMatch: /docs\/.*\.doc\.ts$/,
       timeout: 60_000,
     }),
     createModeProject('local-chrome-baseline', {
-      dependencies: ['setup'],
       integrationOnly: false,
       testIgnore: /docs\/.*\.doc\.ts$/,
     }),
-    createModeProject('local-chrome-integration', {
-      dependencies: ['setup'],
-      integrationOnly: true,
-      testIgnore: /docs\/.*\.doc\.ts$/,
-    }),
-    createModeProject('docs-integration', {
-      dependencies: ['setup'],
-      integrationOnly: true,
-      testMatch: /docs\/.*\.doc\.ts$/,
-      timeout: 60_000,
-    }),
+    ...(projectPolicy.includeAuthenticatedProjects
+      ? [
+          createModeProject('local-chrome-integration', {
+            integrationOnly: true,
+            testIgnore: /docs\/.*\.doc\.ts$/,
+          }),
+          createModeProject('docs-integration', {
+            integrationOnly: true,
+            testMatch: /docs\/.*\.doc\.ts$/,
+            timeout: 60_000,
+          }),
+        ]
+      : []),
     // {
     //   dependencies: ['setup'],
     //   name: 'chromium',
@@ -195,8 +246,8 @@ export default defineConfig({
   ],
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: reporters,
-  /* Keep a single retry in CI for flakiness while still failing fast. */
-  retries: environment.CI ? 1 : 0,
+  /* A passing run must not depend on retries. */
+  retries: 0,
   testDir: './tests',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
@@ -206,13 +257,10 @@ export default defineConfig({
 
     /* Ignore SSL errors when connecting to Auth0 and other external services */
     ignoreHTTPSErrors: true,
-
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
+    screenshot: 'off',
+    trace: 'off',
+    video: 'off',
   },
 
   ...(webServer && { webServer }),
-
-  /* Opt out of parallel tests on CI. */
-  // ...(process.env['CI'] ? { workers: 1 } : {}),
 });

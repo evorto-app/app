@@ -32,7 +32,7 @@ describe('PostgreSQL integration source', () => {
       path.join(repositoryRoot, 'vitest.postgres.config.ts'),
     );
 
-    expect(postgresSpecs).toHaveLength(13);
+    expect(postgresSpecs).toHaveLength(14);
     expect(unitConfig).toContain("'**/*.postgres.spec.ts'");
     expect(postgresConfig).toContain("'helpers/**/*.postgres.spec.ts'");
     expect(postgresConfig).toContain("'src/**/*.postgres.spec.ts'");

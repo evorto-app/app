@@ -5,6 +5,7 @@ import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 
 import {
   type EventGraphUpdateInput,
+  purchasedAddOnRegistrationOptionRemovalMessage,
   validateEventGraphStructure,
 } from './event-graph.service';
 
@@ -128,6 +129,12 @@ const validInput = (): EventGraphUpdateInput => ({
 });
 
 describe('event graph structural validation', () => {
+  it('explains why a purchased add-on must keep its registration option', () => {
+    expect(purchasedAddOnRegistrationOptionRemovalMessage).toBe(
+      'An add-on that has already been purchased must remain available with its existing registration option',
+    );
+  });
+
   it('accepts simple mode with exactly one option of each kind', () => {
     expect(
       validateEventGraphStructure({
@@ -265,6 +272,25 @@ describe('event graph structural validation', () => {
     expect(
       validateEventGraphStructure({ before: beforeGraph(), input }),
     ).toBeNull();
+  });
+
+  it('rejects a paid registration option with a zero price as a typed bad request', () => {
+    const input = validInput();
+    const participantOption = input.registrationOptions[1];
+    if (!participantOption) throw new Error('Missing participant fixture');
+    input.registrationOptions[1] = {
+      ...participantOption,
+      isPaid: true,
+      price: 0,
+    };
+
+    const error = validateEventGraphStructure({ before: beforeGraph(), input });
+
+    expect(error).toBeInstanceOf(RpcBadRequestError);
+    expect(error).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
+    });
   });
 
   it('rejects a paid add-on with a zero price as a typed bad request', () => {

@@ -19,6 +19,7 @@ import {
   writableRegistrationModes,
 } from '@shared/registration-modes';
 
+import { CurrencyAmountInputComponent } from '../../controls/currency-amount-input/currency-amount-input.component';
 import { DurationSelectorComponent } from '../../controls/duration-selector/duration-selector.component';
 import { EditorComponent } from '../../controls/editor/editor.component';
 import { RoleSelectComponent } from '../../controls/role-select/role-select.component';
@@ -30,6 +31,7 @@ export type TemplateTaxRateLoadState = 'error' | 'loading' | 'ready';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: '@container block' },
   imports: [
+    CurrencyAmountInputComponent,
     DurationSelectorComponent,
     EditorComponent,
     FontAwesomeModule,
@@ -45,6 +47,7 @@ export type TemplateTaxRateLoadState = 'error' | 'loading' | 'ready';
   templateUrl: './template-registration-option-editor.component.html',
 })
 export class TemplateRegistrationOptionEditorComponent {
+  readonly currencyCode = input.required<string>();
   readonly esnEnabled = input(false);
   readonly optionForm =
     input.required<FieldTree<TemplateGraphRegistrationOptionFormModel>>();

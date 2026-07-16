@@ -166,7 +166,14 @@ test('transfers a free registration through a private claim URL', async ({
     const claimRegistration = recipientPage.page.getByRole('button', {
       name: 'Claim registration',
     });
-    await expect(claimRegistration).not.toHaveAttribute('jsaction', /click/);
+    const claimRegistrationForm = recipientPage.page.locator('form').filter({
+      has: claimRegistration,
+    });
+    await expect(claimRegistrationForm).not.toHaveAttribute(
+      'jsaction',
+      /submit/,
+      { timeout: 20_000 },
+    );
     await claimRegistration.click();
     await expect(
       recipientPage.page.getByRole('heading', { name: 'Transfer complete' }),
@@ -502,12 +509,31 @@ test('offers a paid registration privately while rejecting a source self-claim',
     const claimRegistration = page.getByRole('button', {
       name: 'Claim registration',
     });
-    await expect(claimRegistration).not.toHaveAttribute('jsaction', /click/);
+    const claimRegistrationForm = page.locator('form').filter({
+      has: claimRegistration,
+    });
+    await expect(claimRegistrationForm).not.toHaveAttribute(
+      'jsaction',
+      /submit/,
+      { timeout: 20_000 },
+    );
     await claimRegistration.click();
     await expect(
       page.getByRole('heading', { name: 'Claim did not complete' }),
     ).toBeVisible();
-    await expect(page.getByText(/cannot claim your own/i)).toBeVisible();
+    await expect(
+      page.getByText('We could not complete the transfer. Nothing changed.', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        database.query.registrationTransfers.findFirst({
+          columns: { recipientRegistrationId: true, status: true },
+          where: { id: transfer.id, tenantId: tenant.id },
+        }),
+      )
+      .toEqual({ recipientRegistrationId: null, status: 'open' });
 
     recipientPage = await openAuthenticatedTestPage({
       baseUrl: new URL(page.url()).origin,
@@ -525,11 +551,12 @@ test('offers a paid registration privately while rejecting a source self-claim',
     await expect(
       recipientPage.page.getByText('Paid private transfer scenario'),
     ).toBeVisible();
-    await expect(
-      recipientPage.page
-        .getByText('Your current registration price')
-        .locator('..'),
-    ).toContainText(/18[,.]00/);
+    const currentRegistrationPrice = recipientPage.page
+      .locator('dt', { hasText: 'Your current registration price' })
+      .locator('..');
+    await expect(currentRegistrationPrice.locator('dd')).toContainText(
+      /18[,.]00/,
+    );
     await expect(
       recipientPage.page.getByRole('button', { name: 'Claim registration' }),
     ).toBeVisible();

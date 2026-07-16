@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -16,6 +15,7 @@ import {
   maxLength,
   required,
   submit,
+  validate,
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -35,13 +35,24 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import {
+  majorCurrencyInputToMinorUnits,
+  minorUnitsToMajorCurrencyInput,
+} from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
+import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import {
   resetAddOnPayment,
   resetRegistrationPayment,
 } from '../../shared/components/forms/payment-configuration';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
+import {
+  platformEventInstantRangeHasValidOrder,
+  platformEventInstantToDisplayDateTime,
+  platformEventInstantToLocalDateTime,
+  platformEventLocalDateTimeRangeHasValidOrder,
+  platformEventLocalDateTimeToInstant,
+} from './platform-event-date-time';
 
 export interface PlatformEventAddonEdit {
   allowMultiple: boolean;
@@ -69,6 +80,209 @@ export interface PlatformEventGraphEditModel {
   registrationOptions: PlatformEventRegistrationOptionEdit[];
 }
 
+export const platformEventIntegerIssue = (
+  value: number,
+  minimum: 0 | 1,
+): null | string => {
+  if (Number.isInteger(value) && value >= minimum) return null;
+  return minimum === 0
+    ? 'Enter a whole number of zero or more.'
+    : 'Enter a whole number of at least one.';
+};
+
+export const platformEventPaidRegistrationPriceIssue = (
+  isPaid: boolean,
+  price: number,
+): null | string =>
+  !isPaid || (Number.isInteger(price) && price >= 1)
+    ? null
+    : 'Paid registrations must cost at least 0.01.';
+
+export const platformEventPaidAddOnPriceIssue = (
+  isPaid: boolean,
+  price: number,
+): null | string =>
+  !isPaid || (Number.isInteger(price) && price >= 1)
+    ? null
+    : 'Paid add-ons must cost at least 0.01.';
+
+export const platformEventPaidTaxRateIssue = (
+  isPaid: boolean,
+  stripeTaxRateId: null | string,
+  availableTaxRateIds: ReadonlySet<string>,
+): null | string => {
+  if (!isPaid) return null;
+  if (!stripeTaxRateId) {
+    return 'Select an inclusive tax rate for this paid item.';
+  }
+  return availableTaxRateIds.has(stripeTaxRateId)
+    ? null
+    : 'This tax rate is no longer available. Choose another inclusive tax rate.';
+};
+
+type PlatformEventTitledItem = 'add-on' | 'question' | 'registration option';
+
+export const platformEventTitleIssue = (
+  title: string,
+  item: PlatformEventTitledItem,
+): null | string => (title.trim() ? null : `Enter a ${item} title.`);
+
+export const platformEventQuestionOptionIssue = (
+  registrationOptionId: string,
+  registrationOptionIds: ReadonlySet<string>,
+): null | string =>
+  registrationOptionIds.has(registrationOptionId)
+    ? null
+    : 'Select a registration option for this question.';
+
+export const platformEventSimpleModeIssue = (
+  simpleModeEnabled: boolean,
+  options: readonly { organizingRegistration: boolean }[],
+): null | string =>
+  !simpleModeEnabled ||
+  (options.length === 2 &&
+    options.filter((option) => option.organizingRegistration).length === 1)
+    ? null
+    : 'Simple events need one organizer registration and one participant registration.';
+
+export const platformEventAddOnAvailabilityIssue = (
+  addOn: Pick<
+    PlatformEventAddonEdit,
+    | 'allowPurchaseBeforeEvent'
+    | 'allowPurchaseDuringEvent'
+    | 'allowPurchaseDuringRegistration'
+  >,
+): null | string =>
+  addOn.allowPurchaseBeforeEvent ||
+  addOn.allowPurchaseDuringEvent ||
+  addOn.allowPurchaseDuringRegistration
+    ? null
+    : 'Choose when this add-on is available.';
+
+export const platformEventAddOnStockIssue = (
+  addOn: Pick<
+    PlatformEventAddonEdit,
+    'maxQuantityPerUser' | 'totalAvailableQuantity'
+  >,
+): null | string =>
+  addOn.maxQuantityPerUser > addOn.totalAvailableQuantity
+    ? 'Maximum per attendee cannot exceed available stock.'
+    : null;
+
+export const platformEventAddOnMappingIssue = (
+  addOn: Pick<
+    PlatformEventAddonEdit,
+    'maxQuantityPerUser' | 'totalAvailableQuantity'
+  >,
+  includedQuantity: number,
+  optionalPurchaseQuantity: number,
+): null | string => {
+  const total = includedQuantity + optionalPurchaseQuantity;
+  if (total === 0) return 'Include or offer at least one unit.';
+  if (total > addOn.totalAvailableQuantity) {
+    return 'Included and optional quantities cannot exceed available stock.';
+  }
+  return optionalPurchaseQuantity > addOn.maxQuantityPerUser
+    ? 'Optional quantity cannot exceed the maximum per attendee.'
+    : null;
+};
+
+export const platformEventDiscountedPriceIssue = (
+  isPaid: boolean,
+  price: number,
+  discountedPrice: null | number,
+  esnCardEnabled: boolean,
+): null | string => {
+  if (discountedPrice === null) return null;
+  if (!esnCardEnabled) {
+    return 'Remove the ESNcard price because ESNcard discounts are disabled for this organization.';
+  }
+  if (!isPaid)
+    return 'ESNcard prices are only available for paid registrations.';
+  if (!Number.isInteger(discountedPrice) || discountedPrice < 0) {
+    return 'Discounted price must be a whole number of zero or more.';
+  }
+  return discountedPrice > price
+    ? 'Discounted price cannot exceed the base price.'
+    : null;
+};
+
+export const platformEventGraphHasIssues = (
+  graph: PlatformEventGraphEditModel,
+  options: {
+    esnCardEnabled: boolean;
+    taxRateIds: ReadonlySet<string>;
+  },
+): boolean => {
+  const registrationOptionIds = new Set(
+    graph.registrationOptions.map((option) => option.id),
+  );
+  return (
+    graph.registrationOptions.some(
+      (option) =>
+        platformEventTitleIssue(option.title, 'registration option') !== null ||
+        platformEventPaidRegistrationPriceIssue(option.isPaid, option.price) !==
+          null ||
+        platformEventPaidTaxRateIssue(
+          option.isPaid,
+          option.stripeTaxRateId,
+          options.taxRateIds,
+        ) !== null ||
+        platformEventDiscountedPriceIssue(
+          option.isPaid,
+          option.price,
+          option.esnCardDiscountedPrice,
+          options.esnCardEnabled,
+        ) !== null ||
+        platformEventIntegerIssue(option.spots, 0) !== null ||
+        (option.cancellationDeadlineHoursBeforeStart !== null &&
+          platformEventIntegerIssue(
+            option.cancellationDeadlineHoursBeforeStart,
+            0,
+          ) !== null) ||
+        (option.transferDeadlineHoursBeforeStart !== null &&
+          platformEventIntegerIssue(
+            option.transferDeadlineHoursBeforeStart,
+            0,
+          ) !== null),
+    ) ||
+    graph.addOns.some(
+      (addOn) =>
+        platformEventTitleIssue(addOn.title, 'add-on') !== null ||
+        platformEventPaidAddOnPriceIssue(addOn.isPaid, addOn.price) !== null ||
+        platformEventPaidTaxRateIssue(
+          addOn.isPaid,
+          addOn.stripeTaxRateId,
+          options.taxRateIds,
+        ) !== null ||
+        platformEventAddOnAvailabilityIssue(addOn) !== null ||
+        platformEventAddOnStockIssue(addOn) !== null ||
+        platformEventIntegerIssue(addOn.totalAvailableQuantity, 0) !== null ||
+        platformEventIntegerIssue(addOn.maxQuantityPerUser, 1) !== null ||
+        addOn.registrationOptions.some(
+          (mapping) =>
+            platformEventIntegerIssue(mapping.includedQuantity, 0) !== null ||
+            platformEventIntegerIssue(mapping.optionalPurchaseQuantity, 0) !==
+              null ||
+            platformEventAddOnMappingIssue(
+              addOn,
+              mapping.includedQuantity,
+              mapping.optionalPurchaseQuantity,
+            ) !== null,
+        ),
+    ) ||
+    graph.questions.some(
+      (question) =>
+        platformEventTitleIssue(question.title, 'question') !== null ||
+        platformEventQuestionOptionIssue(
+          question.registrationOptionId,
+          registrationOptionIds,
+        ) !== null ||
+        platformEventIntegerIssue(question.sortOrder, 0) !== null,
+    )
+  );
+};
+
 interface PlatformEventEditFormModel {
   description: string;
   end: string;
@@ -88,6 +302,25 @@ interface PlatformEventQuestionEdit {
 
 type PlatformEventRegistrationOption =
   PlatformEventDetailRecord['registrationOptions'][number];
+
+export const platformEventEditorIsReadOnly = (
+  status: PlatformEventDetailRecord['status'],
+): boolean => status !== 'DRAFT';
+
+export const platformEventRegistrationWindowHasValidOrder = (
+  option: Pick<
+    PlatformEventRegistrationOption,
+    'closeRegistrationTime' | 'openRegistrationTime'
+  >,
+): boolean =>
+  platformEventInstantRangeHasValidOrder(
+    option.openRegistrationTime,
+    option.closeRegistrationTime,
+    true,
+  );
+
+type PlatformEventRegistrationWindowField =
+  'closeRegistrationTime' | 'openRegistrationTime';
 
 export const unsupportedPlatformEventRegistrationOptions = <
   Option extends Pick<PlatformEventRegistrationOption, 'registrationMode'>,
@@ -136,12 +369,6 @@ export const resetPlatformEventGraphPayments = <
   return unchanged ? model : { ...model, addOns, registrationOptions };
 };
 
-const localDateTimeValue = (value: string): string => {
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-};
-
 const textInputValue = (event: Event): string | undefined =>
   event.target instanceof HTMLInputElement ||
   event.target instanceof HTMLTextAreaElement
@@ -154,6 +381,11 @@ const numberInputValue = (event: Event): null | number | undefined => {
   if (value.trim() === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const requiredNumberInputValue = (event: Event): number | undefined => {
+  const value = numberInputValue(event);
+  return value === null ? NaN : value;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -203,8 +435,8 @@ export class PlatformEventDetailOperations {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
     FormField,
+    EventStatusComponent,
     MatButtonModule,
     MatCheckboxModule,
     MatExpansionModule,
@@ -222,6 +454,17 @@ export class PlatformEventDetailComponent {
   readonly tenantId = input.required<string>();
 
   protected readonly actionReason = signal('');
+  protected readonly addOnAvailabilityIssue =
+    platformEventAddOnAvailabilityIssue;
+  protected readonly addOnMappingIssue = platformEventAddOnMappingIssue;
+  protected readonly addOnStockIssue = platformEventAddOnStockIssue;
+  protected readonly currencyAmountErrors = signal<ReadonlyMap<string, string>>(
+    new Map(),
+  );
+  private readonly operations = inject(PlatformEventDetailOperations);
+  protected readonly formOptionsQuery = injectQuery(() =>
+    this.operations.formOptions(this.tenantId()),
+  );
   private readonly editModel = signal<PlatformEventEditFormModel>({
     description: '',
     end: '',
@@ -230,34 +473,96 @@ export class PlatformEventDetailComponent {
     title: '',
   });
   protected readonly editForm = form(this.editModel, (event) => {
-    required(event.title, { message: 'Enter an event title.' });
-    required(event.description, { message: 'Enter an event description.' });
+    validate(event.title, ({ value }) =>
+      value().trim()
+        ? undefined
+        : { kind: 'required', message: 'Enter an event title.' },
+    );
+    validate(event.description, ({ value }) =>
+      value().trim()
+        ? undefined
+        : { kind: 'required', message: 'Enter an event description.' },
+    );
     required(event.start, { message: 'Enter a start date and time.' });
     required(event.end, { message: 'Enter an end date and time.' });
-    required(event.reason, { message: 'Enter an operational reason.' });
+    validate(event.end, ({ value, valueOf }) => {
+      if (!this.formOptionsQuery.isSuccess()) return;
+      return platformEventLocalDateTimeRangeHasValidOrder(
+        valueOf(event.start),
+        value(),
+        this.formOptionsQuery.data().timezone,
+      ) === false
+        ? {
+            kind: 'dateOrder',
+            message: 'The event must end after it starts.',
+          }
+        : undefined;
+    });
+    validate(event.reason, ({ value }) =>
+      value().trim()
+        ? undefined
+        : { kind: 'required', message: 'Enter an operational reason.' },
+    );
     maxLength(event.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
   });
-  private readonly operations = inject(PlatformEventDetailOperations);
+  protected readonly eventEditorIsReadOnly = platformEventEditorIsReadOnly;
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findOne(this.tenantId(), this.eventId()),
   );
-  protected readonly formOptionsQuery = injectQuery(() =>
-    this.operations.formOptions(this.tenantId()),
+  protected readonly formOptionsReady = computed(
+    () =>
+      this.formOptionsQuery.isSuccess() && !this.formOptionsQuery.isFetching(),
   );
   protected readonly graphModel = signal<PlatformEventGraphEditModel>({
     addOns: [],
     questions: [],
     registrationOptions: [],
   });
+  private readonly availableTaxRateIds = computed(
+    () =>
+      new Set(
+        this.formOptionsQuery
+          .data()
+          ?.taxRates.map((rate) => rate.stripeTaxRateId),
+      ),
+  );
+  protected readonly graphHasIssues = computed(
+    () =>
+      this.formOptionsReady() &&
+      platformEventGraphHasIssues(this.graphModel(), {
+        esnCardEnabled: this.formOptionsQuery.data()?.esnCardEnabled === true,
+        taxRateIds: this.availableTaxRateIds(),
+      }),
+  );
+  protected readonly hasInvalidRegistrationWindowOrder = computed(() =>
+    this.graphModel().registrationOptions.some(
+      (option) => !platformEventRegistrationWindowHasValidOrder(option),
+    ),
+  );
+  protected readonly integerIssue = platformEventIntegerIssue;
+  protected readonly invalidRegistrationWindowFields = signal<
+    ReadonlySet<string>
+  >(new Set());
   protected readonly listingMutation = injectMutation(() =>
     this.operations.updateListing(),
   );
-  protected readonly localDateTime = localDateTimeValue;
+  protected readonly minorUnitsToMajorCurrencyInput =
+    minorUnitsToMajorCurrencyInput;
+  protected readonly registrationOptionIds = computed(
+    () =>
+      new Set(this.graphModel().registrationOptions.map((option) => option.id)),
+  );
   protected readonly reviewFeedback = signal('');
   protected readonly reviewMutation = injectMutation(() =>
     this.operations.review(),
+  );
+  protected readonly simpleModeIssue = computed(() =>
+    platformEventSimpleModeIssue(
+      this.eventQuery.data()?.simpleModeEnabled ?? false,
+      this.graphModel().registrationOptions,
+    ),
   );
   protected readonly targetTenantQuery = injectQuery(() =>
     this.operations.tenant(this.tenantId()),
@@ -275,6 +580,12 @@ export class PlatformEventDetailComponent {
   protected readonly submitMutation = injectMutation(() =>
     this.operations.submitForReview(),
   );
+  protected readonly targetTenantCurrency = computed(() =>
+    this.targetTenantQuery.isSuccess()
+      ? (this.targetTenantQuery.data()?.currency ?? '')
+      : '',
+  );
+  protected readonly titleIssue = platformEventTitleIssue;
   protected readonly unsupportedRegistrationOptions = computed(() =>
     unsupportedPlatformEventRegistrationOptions(
       this.graphModel().registrationOptions,
@@ -283,21 +594,30 @@ export class PlatformEventDetailComponent {
   protected readonly updateMutation = injectMutation(() =>
     this.operations.update(),
   );
-  private readonly initializedEventId = signal<null | string>(null);
+  private readonly initializedEventKey = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
+
   private readonly queryClient = inject(QueryClient);
 
   constructor() {
     effect(() => {
-      if (!this.eventQuery.isSuccess()) return;
+      if (!this.eventQuery.isSuccess() || !this.formOptionsReady()) {
+        return;
+      }
       const event = this.eventQuery.data();
-      if (this.initializedEventId() === event.id) return;
+      const formOptions = this.formOptionsQuery.data();
+      if (!formOptions) return;
+      const eventKey = `${this.tenantId()}:${event.id}`;
+      if (this.initializedEventKey() === eventKey) return;
+      const timezone = formOptions.timezone;
       untracked(() => {
+        this.actionReason.set('');
+        this.reviewFeedback.set('');
         this.editModel.set({
           description: event.description,
-          end: localDateTimeValue(event.end),
+          end: platformEventInstantToLocalDateTime(event.end, timezone),
           reason: '',
-          start: localDateTimeValue(event.start),
+          start: platformEventInstantToLocalDateTime(event.start, timezone),
           title: event.title,
         });
         const graph: PlatformEventGraphEditModel = {
@@ -318,8 +638,10 @@ export class PlatformEventDetailComponent {
             ? resetPlatformEventGraphPayments(graph)
             : graph,
         );
+        this.invalidRegistrationWindowFields.set(new Set());
+        this.currencyAmountErrors.set(new Map());
         this.editForm().reset();
-        this.initializedEventId.set(event.id);
+        this.initializedEventKey.set(eventKey);
       });
     });
     effect(() => {
@@ -327,7 +649,10 @@ export class PlatformEventDetailComponent {
       const graph = this.graphModel();
       const resetGraph = resetPlatformEventGraphPayments(graph);
       if (resetGraph === graph) return;
-      untracked(() => this.graphModel.set(resetGraph));
+      untracked(() => {
+        this.graphModel.set(resetGraph);
+        this.currencyAmountErrors.set(new Map());
+      });
     });
   }
 
@@ -363,6 +688,15 @@ export class PlatformEventDetailComponent {
         (option) => option.registrationOptionId === registrationOptionId,
       )?.optionalPurchaseQuantity ?? 0
     );
+  }
+
+  protected addOnPriceError(index: number): null | string {
+    const parseError = this.currencyAmountErrors().get(`addOn:${index}:price`);
+    if (parseError) return parseError;
+    const addOn = this.graphModel().addOns[index];
+    return addOn
+      ? platformEventPaidAddOnPriceIssue(addOn.isPaid, addOn.price)
+      : null;
   }
 
   protected addonQuantity(
@@ -412,16 +746,30 @@ export class PlatformEventDetailComponent {
         await this.refresh();
         this.actionReason.set('');
         this.notifications.showSuccess('Event listing updated');
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update event listing'),
+          'The event listing could not be updated. Try again.',
         );
       }
     })();
   }
 
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to load the target-tenant event');
+  protected displayDateTime(value: string): string {
+    return this.formOptionsQuery.isSuccess()
+      ? platformEventInstantToDisplayDateTime(
+          value,
+          this.formOptionsQuery.data().timezone,
+        )
+      : '';
+  }
+
+  protected localDateTime(value: string): string {
+    return this.formOptionsQuery.isSuccess()
+      ? platformEventInstantToLocalDateTime(
+          value,
+          this.formOptionsQuery.data().timezone,
+        )
+      : '';
   }
 
   protected mutationPending(): boolean {
@@ -433,7 +781,61 @@ export class PlatformEventDetailComponent {
     );
   }
 
+  protected optionPriceError(
+    index: number,
+    field: 'esnCardDiscountedPrice' | 'price',
+  ): null | string {
+    const parseError = this.currencyAmountErrors().get(
+      `option:${index}:${field}`,
+    );
+    if (parseError) return parseError;
+    const option = this.graphModel().registrationOptions[index];
+    if (!option) return null;
+    return field === 'esnCardDiscountedPrice'
+      ? platformEventDiscountedPriceIssue(
+          option.isPaid,
+          option.price,
+          option.esnCardDiscountedPrice,
+          this.formOptionsQuery.data()?.esnCardEnabled ?? true,
+        )
+      : platformEventPaidRegistrationPriceIssue(option.isPaid, option.price);
+  }
+
+  protected paidTaxRateIssue(
+    isPaid: boolean,
+    stripeTaxRateId: null | string,
+  ): null | string {
+    return this.formOptionsReady()
+      ? platformEventPaidTaxRateIssue(
+          isPaid,
+          stripeTaxRateId,
+          this.availableTaxRateIds(),
+        )
+      : null;
+  }
+
+  protected questionOptionIssue(registrationOptionId: string): null | string {
+    return platformEventQuestionOptionIssue(
+      registrationOptionId,
+      this.registrationOptionIds(),
+    );
+  }
+
+  protected registrationWindowFieldInvalid(
+    index: number,
+    field: PlatformEventRegistrationWindowField,
+  ): boolean {
+    return this.invalidRegistrationWindowFields().has(`${index}:${field}`);
+  }
+
+  protected registrationWindowOrderInvalid(
+    option: PlatformEventRegistrationOptionEdit,
+  ): boolean {
+    return !platformEventRegistrationWindowHasValidOrder(option);
+  }
+
   protected removeAddOn(index: number): void {
+    this.clearCurrencyAmountErrors('addOn:');
     this.graphModel.update((graph) => ({
       ...graph,
       addOns: graph.addOns.filter((_, candidate) => candidate !== index),
@@ -456,15 +858,32 @@ export class PlatformEventDetailComponent {
     if (
       this.mutationPending() ||
       !this.eventQuery.isSuccess() ||
+      !this.formOptionsReady() ||
+      this.currencyAmountErrors().size > 0 ||
+      this.graphHasIssues() ||
+      this.invalidRegistrationWindowFields().size > 0 ||
+      this.hasInvalidRegistrationWindowOrder() ||
+      this.simpleModeIssue() !== null ||
       this.unsupportedRegistrationOptions().length > 0
     ) {
       return;
     }
     const current = this.eventQuery.data();
-    if (!current) return;
-
+    if (!current || platformEventEditorIsReadOnly(current.status)) return;
     void submit(this.editForm, async () => {
+      if (!this.formOptionsReady()) return;
+      const formOptions = this.formOptionsQuery.data();
+      if (!formOptions) return;
+      const timezone = formOptions.timezone;
       const value = this.editModel();
+      const end = platformEventLocalDateTimeToInstant(value.end, timezone);
+      const start = platformEventLocalDateTimeToInstant(value.start, timezone);
+      if (!end || !start) {
+        this.notifications.showError(
+          "Enter valid event times in the organization's time zone, including daylight-saving transitions.",
+        );
+        return;
+      }
       const graph = this.stripeDisconnected()
         ? resetPlatformEventGraphPayments(this.graphModel())
         : this.graphModel();
@@ -476,22 +895,22 @@ export class PlatformEventDetailComponent {
         await this.updateMutation.mutateAsync({
           addOns: graph.addOns,
           description: value.description,
-          end: new Date(value.end).toISOString(),
+          end,
           eventId: this.eventId(),
           icon: current.icon,
           location: current.location,
           questions: graph.questions,
           reason: value.reason,
           registrationOptions,
-          start: new Date(value.start).toISOString(),
+          start,
           targetTenantId: this.tenantId(),
           title: value.title,
         });
         await this.refresh();
         this.notifications.showSuccess('Event updated');
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update event'),
+          'The event could not be updated. Review the details and try again.',
         );
       }
     });
@@ -515,6 +934,7 @@ export class PlatformEventDetailComponent {
   ): void {
     if (field === 'isPaid') {
       if (value && !this.stripeConnected()) return;
+      if (!value) this.clearCurrencyAmountErrors(`addOn:${index}:`);
       this.updateAddOn(index, (addOn) =>
         value ? { ...addOn, isPaid: true } : resetAddOnPayment(addOn, null),
       );
@@ -525,12 +945,11 @@ export class PlatformEventDetailComponent {
 
   protected setAddOnNumber(
     index: number,
-    field: 'maxQuantityPerUser' | 'price' | 'totalAvailableQuantity',
+    field: 'maxQuantityPerUser' | 'totalAvailableQuantity',
     event: Event,
   ): void {
-    if (field === 'price' && !this.stripeConnected()) return;
-    const value = numberInputValue(event);
-    if (value === null || value === undefined) return;
+    const value = requiredNumberInputValue(event);
+    if (value === undefined) return;
     this.updateAddOn(index, (addOn) => ({ ...addOn, [field]: value }));
   }
 
@@ -561,8 +980,8 @@ export class PlatformEventDetailComponent {
     registrationOptionId: string,
     event: Event,
   ): void {
-    const quantity = numberInputValue(event);
-    if (quantity === null || quantity === undefined) return;
+    const quantity = requiredNumberInputValue(event);
+    if (quantity === undefined) return;
     this.updateAddOn(index, (addOn) => ({
       ...addOn,
       registrationOptions: addOn.registrationOptions.map((option) =>
@@ -578,8 +997,8 @@ export class PlatformEventDetailComponent {
     registrationOptionId: string,
     event: Event,
   ): void {
-    const quantity = numberInputValue(event);
-    if (quantity === null || quantity === undefined) return;
+    const quantity = requiredNumberInputValue(event);
+    if (quantity === undefined) return;
     this.updateAddOn(index, (addOn) => ({
       ...addOn,
       registrationOptions: addOn.registrationOptions.map((option) =>
@@ -588,6 +1007,17 @@ export class PlatformEventDetailComponent {
           : option,
       ),
     }));
+  }
+
+  protected setAddOnPrice(index: number, event: Event): void {
+    if (!this.stripeConnected()) return;
+    const value = this.currencyAmountInputValue(
+      `addOn:${index}:price`,
+      event,
+      false,
+    );
+    if (typeof value !== 'number') return;
+    this.updateAddOn(index, (addOn) => ({ ...addOn, price: value }));
   }
 
   protected setAddOnTaxRate(index: number, event: MatSelectChange): void {
@@ -625,6 +1055,7 @@ export class PlatformEventDetailComponent {
   ): void {
     if (field === 'isPaid') {
       if (value && !this.stripeConnected()) return;
+      if (!value) this.clearCurrencyAmountErrors(`option:${index}:`);
       this.updateRegistrationOption(index, (option) =>
         value
           ? { ...option, isPaid: true }
@@ -640,16 +1071,31 @@ export class PlatformEventDetailComponent {
 
   protected setOptionDate(
     index: number,
-    field: 'closeRegistrationTime' | 'openRegistrationTime',
+    field: PlatformEventRegistrationWindowField,
     event: Event,
   ): void {
     const value = textInputValue(event);
-    if (!value) return;
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return;
+    const fieldKey = `${index}:${field}`;
+    const formOptions = this.formOptionsQuery.data();
+    const instant =
+      value && this.formOptionsReady() && formOptions
+        ? platformEventLocalDateTimeToInstant(value, formOptions.timezone)
+        : null;
+    if (!instant) {
+      this.invalidRegistrationWindowFields.update(
+        (fields) => new Set([...fields, fieldKey]),
+      );
+      return;
+    }
+    this.invalidRegistrationWindowFields.update((fields) => {
+      if (!fields.has(fieldKey)) return fields;
+      const next = new Set(fields);
+      next.delete(fieldKey);
+      return next;
+    });
     this.updateRegistrationOption(index, (option) => ({
       ...option,
-      [field]: date.toISOString(),
+      [field]: instant,
     }));
   }
 
@@ -668,26 +1114,44 @@ export class PlatformEventDetailComponent {
     index: number,
     field:
       | 'cancellationDeadlineHoursBeforeStart'
-      | 'esnCardDiscountedPrice'
-      | 'price'
       | 'spots'
       | 'transferDeadlineHoursBeforeStart',
     event: Event,
   ): void {
-    if (
-      (field === 'price' || field === 'esnCardDiscountedPrice') &&
-      !this.stripeConnected()
-    ) {
+    if (field === 'spots') {
+      const value = requiredNumberInputValue(event);
+      if (value === undefined) return;
+      this.updateRegistrationOption(index, (option) => ({
+        ...option,
+        spots: value,
+      }));
       return;
     }
+
     const value = numberInputValue(event);
     if (value === undefined) return;
-    this.updateRegistrationOption(index, (option) => {
-      if (field === 'price' || field === 'spots') {
-        return value === null ? option : { ...option, [field]: value };
-      }
-      return { ...option, [field]: value };
-    });
+    this.updateRegistrationOption(index, (option) => ({
+      ...option,
+      [field]: value,
+    }));
+  }
+
+  protected setOptionPrice(
+    index: number,
+    field: 'esnCardDiscountedPrice' | 'price',
+    event: Event,
+  ): void {
+    if (!this.stripeConnected()) return;
+    const value = this.currencyAmountInputValue(
+      `option:${index}:${field}`,
+      event,
+      field === 'esnCardDiscountedPrice',
+    );
+    if (value === undefined) return;
+    this.updateRegistrationOption(index, (option) => ({
+      ...option,
+      [field]: value === '' ? null : value,
+    }));
   }
 
   protected setOptionRefundPolicy(index: number, event: MatSelectChange): void {
@@ -710,22 +1174,6 @@ export class PlatformEventDetailComponent {
       roleIds: enabled
         ? [...new Set([...option.roleIds, roleId])]
         : option.roleIds.filter((candidate) => candidate !== roleId),
-    }));
-  }
-
-  protected setOptionRoleIds(index: number, event: Event): void {
-    const value = textInputValue(event);
-    if (value === undefined) return;
-    this.updateRegistrationOption(index, (option) => ({
-      ...option,
-      roleIds: [
-        ...new Set(
-          value
-            .split(',')
-            .map((roleId) => roleId.trim())
-            .filter(Boolean),
-        ),
-      ],
     }));
   }
 
@@ -758,8 +1206,8 @@ export class PlatformEventDetailComponent {
   }
 
   protected setQuestionNumber(index: number, event: Event): void {
-    const sortOrder = numberInputValue(event);
-    if (sortOrder === null || sortOrder === undefined) return;
+    const sortOrder = requiredNumberInputValue(event);
+    if (sortOrder === undefined) return;
     this.updateQuestion(index, (question) => ({ ...question, sortOrder }));
   }
 
@@ -807,12 +1255,47 @@ export class PlatformEventDetailComponent {
         await this.refresh();
         this.actionReason.set('');
         this.notifications.showSuccess('Event submitted for review');
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to submit event for review'),
+          'The event could not be submitted for review. Try again.',
         );
       }
     })();
+  }
+
+  private clearCurrencyAmountErrors(prefix: string): void {
+    this.currencyAmountErrors.update((current) => {
+      const next = new Map(
+        [...current].filter(([key]) => !key.startsWith(prefix)),
+      );
+      return next.size === current.size ? current : next;
+    });
+  }
+
+  private currencyAmountInputValue(
+    key: string,
+    event: Event,
+    allowEmpty: boolean,
+  ): '' | number | undefined {
+    const rawValue = textInputValue(event);
+    if (rawValue === undefined) return undefined;
+    const result = majorCurrencyInputToMinorUnits(rawValue, allowEmpty);
+    if ('error' in result) {
+      this.currencyAmountErrors.update((current) => {
+        const next = new Map(current);
+        next.set(key, result.error.message);
+        return next;
+      });
+      return undefined;
+    }
+
+    this.currencyAmountErrors.update((current) => {
+      if (!current.has(key)) return current;
+      const next = new Map(current);
+      next.delete(key);
+      return next;
+    });
+    return result.value;
   }
 
   private async refresh(): Promise<void> {
@@ -839,9 +1322,9 @@ export class PlatformEventDetailComponent {
         this.notifications.showSuccess(
           approved ? 'Event approved' : 'Event returned to draft',
         );
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to review event'),
+          'The event review could not be saved. Try again.',
         );
       }
     })();

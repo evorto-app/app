@@ -2,7 +2,10 @@ import { Effect } from 'effect';
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 
 import { type Context as RequestContext } from '../../../types/custom/context';
-import { readRequestBody } from '../../http/request-body';
+import {
+  readRequestBody,
+  requestBodyStreamFromBuffer,
+} from '../../http/request-body';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -74,7 +77,7 @@ const withRpcContextHeaders = (
 const toRequestWithHeaders = (
   request: Request,
   headers: Headers,
-  body?: BodyInit,
+  body?: ArrayBuffer,
 ): Request => {
   const init: RequestInit = {
     headers,
@@ -85,7 +88,13 @@ const toRequestWithHeaders = (
     return new Request(request.url, init);
   }
 
-  return new Request(request.url, { ...init, body });
+  const bodyInit = {
+    ...init,
+    body: requestBodyStreamFromBuffer(body),
+    duplex: 'half',
+  } satisfies RequestInit & { duplex: 'half' };
+
+  return new Request(request.url, bodyInit);
 };
 
 export const toRpcHttpServerRequest = (

@@ -106,8 +106,10 @@ describe('platform authority source', () => {
       /\b(?:grant|revoke)\b[^;]*\bplatform_audit_entries\b/iu,
     );
     expect(createTemplate).toContain('Reason for platform change');
-    expect(createTemplate).toContain('Initial tenant privacy policy');
-    expect(createTemplate).toContain('application append-only');
+    expect(createTemplate).toContain('Initial privacy policy');
+    expect(createTemplate).toContain("organization's change");
+    expect(createTemplate).toContain('history');
+    expect(createTemplate).not.toContain('application append-only');
   });
 
   it('uses typed resource audit envelopes and tenant-scoped tax uniqueness', () => {
@@ -157,7 +159,10 @@ describe('platform authority source', () => {
       createHandler.indexOf('const creatorMemberships'),
     );
     expect(eventHandlers).toContain('updatePlatformEventGraph(');
-    expect(eventEditor).toContain('Draft event editor');
+    expect(eventEditor).toContain('Event editor');
+    expect(eventEditor).toContain(
+      'Return this event to draft before editing it.',
+    );
     expect(eventEditor).toContain('<mat-panel-title>Add-ons</mat-panel-title>');
     expect(eventEditor).toContain(
       '<mat-panel-title>Registration questions</mat-panel-title>',

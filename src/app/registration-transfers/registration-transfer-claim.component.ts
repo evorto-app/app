@@ -3,19 +3,22 @@ import type {
   RegistrationTransferStatus,
 } from '@shared/registration-transfer';
 
-import { CurrencyPipe, DatePipe, DOCUMENT } from '@angular/common';
+import { CurrencyPipe, DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   effect,
   inject,
+  Injectable,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import {
   applyEach,
   form,
   FormField,
+  required,
   schema,
   submit,
   validate,
@@ -31,7 +34,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../core/error-message';
+import { TenantDatePipe } from '../core/tenant-date.pipe';
 
 interface TransferClaimAnswerModel {
   answer: string;
@@ -43,17 +46,38 @@ interface TransferClaimFormModel {
   answers: TransferClaimAnswerModel[];
 }
 
+export const reconcileTransferClaimAnswers = ({
+  answers,
+  questions,
+}: {
+  answers: readonly TransferClaimAnswerModel[];
+  questions: readonly { id: string; required: boolean }[];
+}): TransferClaimAnswerModel[] =>
+  questions.map((question) => ({
+    answer:
+      answers.find((answer) => answer.questionId === question.id)?.answer ?? '',
+    questionId: question.id,
+    required: question.required,
+  }));
+
 const answerSchema = schema<TransferClaimAnswerModel>((answer) => {
-  validate(answer.answer, ({ value, valueOf }) =>
-    valueOf(answer.required) && !value().trim()
+  required(answer.answer, {
+    message: 'Answer this required question.',
+    when: ({ valueOf }) => valueOf(answer.required),
+  });
+  validate(answer.answer, ({ value, valueOf }) => {
+    const answerValue = value();
+    return valueOf(answer.required) && answerValue && !answerValue.trim()
       ? { kind: 'required', message: 'Answer this required question.' }
-      : undefined,
-  );
+      : undefined;
+  });
 });
 
-const transferClaimFormSchema = schema<TransferClaimFormModel>((claim) => {
-  applyEach(claim.answers, answerSchema);
-});
+export const transferClaimFormSchema = schema<TransferClaimFormModel>(
+  (claim) => {
+    applyEach(claim.answers, answerSchema);
+  },
+);
 
 export const registrationTransferClaimPayload = ({
   answers,
@@ -81,6 +105,35 @@ export const registrationTransferCheckoutUrl = (
   } catch {
     return;
   }
+};
+
+export const registrationTransferLookupErrorCopy = (
+  error: unknown,
+): {
+  body: string;
+  retryable: boolean;
+  title: string;
+} => {
+  const tag =
+    typeof error === 'object' && error !== null && '_tag' in error
+      ? error._tag
+      : null;
+  if (
+    tag === 'RegistrationTransferNotFoundError' ||
+    tag === 'RegistrationTransferUnauthorizedError'
+  ) {
+    return {
+      body: 'We could not open a transfer with this code. Check the complete code and try again, or ask the sender for the current code.',
+      retryable: false,
+      title: 'Transfer could not be opened',
+    };
+  }
+
+  return {
+    body: 'We could not load the latest transfer details. Nothing changed. Try again, or enter another code.',
+    retryable: true,
+    title: 'Transfer is temporarily unavailable',
+  };
 };
 
 export const registrationTransferStatusCopy = (
@@ -115,7 +168,7 @@ export const registrationTransferStatusCopy = (
     }
     case 'compensation_failed': {
       return {
-        body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs operator attention. Do not pay or claim again; a platform administrator must requeue the existing refund.',
+        body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs follow-up and may not have reached you. Do not pay or claim again; contact the organizer for an update.',
         title: 'Transfer stopped — refund needs attention',
         tone: 'error',
       };
@@ -123,8 +176,8 @@ export const registrationTransferStatusCopy = (
     case 'compensation_pending': {
       if (refundLifecycle?.state === 'actionRequired') {
         return {
-          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund, including the platform fee, requires provider-side action. Do not pay or claim again; contact the organizer for an update.',
-          title: 'Transfer stopped — refund action required',
+          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund, including the platform fee, needs follow-up. Do not pay or claim again; contact the organizer for an update.',
+          title: 'Transfer stopped — refund needs attention',
           tone: 'error',
         };
       }
@@ -137,7 +190,7 @@ export const registrationTransferStatusCopy = (
       }
       if (refundLifecycle?.state !== 'processing') {
         return {
-          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs platform-administrator attention. Do not pay or claim again; a platform administrator must review the existing refund before it can continue.',
+          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs follow-up and may not have reached you. Do not pay or claim again; contact the organizer for an update.',
           title: 'Transfer stopped — refund needs attention',
           tone: 'error',
         };
@@ -167,7 +220,7 @@ export const registrationTransferStatusCopy = (
     }
     case 'refund_failed': {
       return {
-        body: 'The fixed registration bundle now belongs to you, but the previous owner refund needs operator attention. You do not need to pay or claim again; a platform administrator must safely requeue the existing refund.',
+        body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
         title: 'Transfer complete — refund needs attention',
         tone: 'error',
       };
@@ -175,8 +228,8 @@ export const registrationTransferStatusCopy = (
     case 'refund_pending': {
       if (refundLifecycle?.state === 'actionRequired') {
         return {
-          body: 'The fixed registration bundle now belongs to you. The previous owner refund requires provider-side action. You do not need to pay or claim again.',
-          title: 'Transfer complete — refund action required',
+          body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
+          title: 'Transfer complete — refund needs attention',
           tone: 'error',
         };
       }
@@ -189,13 +242,13 @@ export const registrationTransferStatusCopy = (
       }
       if (refundLifecycle?.state !== 'processing') {
         return {
-          body: 'The fixed registration bundle now belongs to you, but the previous owner refund processing stopped and needs platform-administrator attention. You do not need to pay or claim again.',
+          body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
           title: 'Transfer complete — refund needs attention',
           tone: 'error',
         };
       }
       return {
-        body: 'The fixed registration bundle now belongs to you. The previous owner refund is queued and may finish asynchronously.',
+        body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund is still being processed; you do not need to do anything.',
         title: 'Transfer complete — refund processing',
         tone: 'success',
       };
@@ -203,11 +256,28 @@ export const registrationTransferStatusCopy = (
   }
 };
 
+@Injectable({ providedIn: 'root' })
+export class RegistrationTransferClaimOperations {
+  private readonly rpc = AppRpc.injectClient();
+
+  claim() {
+    return this.rpc.registrationTransfers.claim.mutationOptions();
+  }
+
+  getClaim(credential: string) {
+    return this.rpc.registrationTransfers.getClaim.queryOptions({ credential });
+  }
+
+  retryCheckout() {
+    return this.rpc.registrationTransfers.retryCheckout.mutationOptions();
+  }
+}
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CurrencyPipe,
-    DatePipe,
+    TenantDatePipe,
     FormField,
     MatButtonModule,
     MatFormFieldModule,
@@ -224,46 +294,59 @@ export class RegistrationTransferClaimComponent {
     answers: [],
   });
   protected readonly claimForm = form(this.claimModel, transferClaimFormSchema);
-  private readonly rpc = AppRpc.injectClient();
+  private readonly operations = inject(RegistrationTransferClaimOperations);
   protected readonly claimMutation = injectMutation(() =>
-    this.rpc.registrationTransfers.claim.mutationOptions(),
+    this.operations.claim(),
   );
   protected readonly claimQuery = injectQuery(() =>
-    this.rpc.registrationTransfers.getClaim.queryOptions({
-      credential: this.credential(),
-    }),
+    this.operations.getClaim(this.credential()),
   );
-  protected readonly errorMessage = getErrorMessage;
+  protected readonly lookupErrorCopy = registrationTransferLookupErrorCopy;
   protected readonly retryMutation = injectMutation(() =>
-    this.rpc.registrationTransfers.retryCheckout.mutationOptions(),
+    this.operations.retryCheckout(),
   );
   protected readonly statusCopy = registrationTransferStatusCopy;
   protected readonly unsafeCheckout = signal(false);
   private readonly document = inject(DOCUMENT);
+  private readonly initializedQuestionsKey = signal<null | string>(null);
   private readonly initializedTransferId = signal<null | string>(null);
 
   constructor() {
     effect(() => {
+      this.credential();
+      this.unsafeCheckout.set(false);
+    });
+    effect(() => {
       const claim = this.claimQuery.data();
-      if (
-        !claim ||
-        this.claimForm().touched() ||
-        this.initializedTransferId() === claim.transferId
-      ) {
+      if (claim?.status !== 'checkout_pending') {
+        this.unsafeCheckout.set(false);
+      }
+      if (!claim) return;
+      const questionsKey = JSON.stringify(
+        claim.registrationOption.questions.map((question) => [
+          question.id,
+          question.required,
+        ]),
+      );
+      const sameTransfer = this.initializedTransferId() === claim.transferId;
+      if (sameTransfer && this.initializedQuestionsKey() === questionsKey) {
         return;
       }
-      this.claimModel.set({
-        answers: claim.registrationOption.questions.map((question) => ({
-          answer: '',
-          questionId: question.id,
-          required: question.required,
-        })),
+      untracked(() => {
+        this.claimForm().reset({
+          answers: reconcileTransferClaimAnswers({
+            answers: sameTransfer ? this.claimModel().answers : [],
+            questions: claim.registrationOption.questions,
+          }),
+        });
+        this.initializedTransferId.set(claim.transferId);
+        this.initializedQuestionsKey.set(questionsKey);
       });
-      this.initializedTransferId.set(claim.transferId);
     });
   }
 
   protected async retryCheckout(): Promise<void> {
+    this.unsafeCheckout.set(false);
     const claim = this.claimQuery.data();
     if (!claim || this.retryMutation.isPending()) return;
     try {
@@ -280,6 +363,7 @@ export class RegistrationTransferClaimComponent {
 
   protected async submitClaim(event: Event): Promise<void> {
     event.preventDefault();
+    this.unsafeCheckout.set(false);
     if (
       this.claimForm().invalid() ||
       this.claimForm().submitting() ||
@@ -300,12 +384,15 @@ export class RegistrationTransferClaimComponent {
           await this.claimQuery.refetch();
         }
       } catch {
-        // The mutation retains the typed error and the persisted offer is safe to retry.
+        // A concurrent claim, cancellation, or terms change can make the cached
+        // offer stale, so recovery must render the server's current state.
+        await this.claimQuery.refetch();
       }
     });
   }
 
   private openCheckout(checkoutUrl: string | undefined): boolean {
+    this.unsafeCheckout.set(false);
     if (!checkoutUrl) return false;
     const safeUrl = registrationTransferCheckoutUrl(checkoutUrl);
     if (!safeUrl) {

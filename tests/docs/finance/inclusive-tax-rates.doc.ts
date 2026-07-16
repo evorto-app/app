@@ -42,8 +42,8 @@ test.describe('Inclusive tax rates documentation (admin)', () => {
 
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="User permissions" %}
-To manage tax rates you need the **admin:tax** permission. Sign in as a tenant administrator for the tenant you intend to change. The tenant must have a connected Stripe account, and the inclusive tax rate must already exist in that connected account. Importing never copies a rate from another tenant or Stripe account.
+{% callout type="note" title="Before you begin" %}
+Sign in as an organization administrator with **Manage tax rates** access. The organization must have a connected Stripe account, and the inclusive tax rate must already exist in that connected account. Importing never copies a rate from another organization or Stripe account.
 {% /callout %}
 
 # Manage Inclusive Tax Rates
@@ -59,7 +59,7 @@ Inclusive (VAT-style) tax rates are configured under **Admin Tools** → **Tax R
 
     await testInfo.attach('markdown', {
       body: `
-The admin overview links to all configuration areas. Select **Tax Rates** to manage the rates imported from your payment provider.
+The admin overview links to all configuration areas. Select **Tax Rates** to manage the rates imported from Stripe.
 `,
     });
 
@@ -106,7 +106,7 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
 
     await testInfo.attach('markdown', {
       body: `
-The import dialog loads tax rates directly from the tenant's connected Stripe account:
+The import dialog loads tax rates directly from the organization's connected Stripe account:
 
 - Inclusive & active rates are selectable.
 - Exclusive or archived rates remain blocked with clear chips.
@@ -215,9 +215,11 @@ Select the rates you need and choose **Import selected**. Review the name, perce
       body: `
 ## Completion and recovery
 
-The dialog closes after Stripe and Evorto accept the import. The rate must then appear under **Compatible Tax Rates** with the same provider id; that readback proves it is available to this tenant. Opening **Import Tax Rates** again shows it as **imported** and prevents a duplicate selection.
+The dialog closes after Stripe and Evorto accept the import. The rate must appear under **Compatible Tax Rates**, confirming that it is available to the organization. Opening **Import Tax Rates** again shows it as **imported** and prevents a duplicate selection.
 
-If Stripe cannot be reached, Evorto shows **Failed to load rates from Stripe** and imports nothing. Retry after the provider or connection recovers. If a rate is exclusive or archived, manage or replace it in Stripe; Evorto deliberately keeps it unavailable for new paid event configuration. If the connected Stripe account changes while the dialog is open, reload the page and import only from the current account.
+If Stripe cannot be reached, Evorto shows **Failed to load rates from Stripe** and imports nothing. Retry when Stripe is available again. If a rate is exclusive or archived, manage or replace it in Stripe; Evorto deliberately keeps it unavailable for new paid event configuration. If the connected Stripe account changes while the dialog is open, reload the page and import only from the current account.
+
+Stripe tax rates belong to the connected account. Before switching accounts, create one active inclusive replacement for every rate used by an event or template, matching its percentage, name, country, and state. Evorto updates every use together. If a rate is missing or matches more than once, nothing changes; correct the replacement account and try again.
 `,
     });
   });
@@ -376,15 +378,15 @@ test.describe('Inclusive tax rates documentation (creators)', () => {
 
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="Account, permissions, and payment prerequisites" %}
-Sign in to the tenant you intend to edit. This journey needs **View templates**, **Edit all templates**, and **Create events** access. The tenant must have a connected Stripe account and at least one active, inclusive rate imported under **Admin Tools** → **Tax Rates**.
+{% callout type="note" title="Account, access, and payment prerequisites" %}
+Sign in to the organization you intend to edit. This journey needs **View templates**, **Edit all templates**, and **Create events** access. The organization must have a connected Stripe account and at least one active, inclusive rate imported under **Admin Tools** → **Tax Rates**.
 {% /callout %}
 
 # Require and assign a tax rate for paid registration options
 
 Paid event and template registration options must reference a compatible inclusive tax rate. Free options hide the price and tax-rate fields; select **Enable payment** or **Paid option** to reveal them.
 
-Navigate to **Templates** and open an existing paid template. If the selector says **No active inclusive tax rates**, ask a tenant administrator with **Manage tax rates** access to import one from the tenant's connected Stripe account, then reload the editor. If loading failed, retry after the provider or connection recovers. Keep the option free until a compatible rate is available.
+Navigate to **Templates** and open an existing paid template. If the selector says **No active inclusive tax rates**, ask an organization administrator with **Manage tax rates** access to import one from the organization's connected Stripe account, then reload the editor. If loading failed, retry when Stripe is available again. Keep the option free until a compatible rate is available.
 `,
     });
 
@@ -613,7 +615,7 @@ Open **Edit Event** on a draft event to adjust tax rates if regulations or prici
 
     await testInfo.attach('markdown', {
       body: `
-Existing paid registration options keep their inclusive tax requirement. Select the intended compatible imported rate and choose **Save changes**. The event keeps its own selection independently from the source template.
+Existing paid registration options keep their inclusive tax requirement. Select the intended compatible imported rate and choose **Save changes**. The event keeps its own selection independently from the original template.
 `,
     });
 
@@ -645,9 +647,9 @@ Existing paid registration options keep their inclusive tax requirement. Select 
       body: `
 ## Completion and recovery
 
-Returning to the event detail page confirms that **Save changes** completed. The persisted registration option now references the selected imported rate, while the reusable template keeps its separately saved rate. Existing registrations retain their recorded monetary and tax data.
+Returning to the event detail page confirms that **Save changes** completed. The saved registration option now uses the selected imported rate, while the reusable template keeps its separately saved rate. Existing registrations retain their original monetary and tax details.
 
-If saving reports that the rate is missing, inactive, exclusive, or belongs to another Stripe account, leave the option unchanged. Return to **Admin Tools** → **Tax Rates**, import a compatible rate from the tenant's current connected account, reload the editor, and select it deliberately before retrying.
+If saving reports that the rate is missing, inactive, exclusive, or belongs to another Stripe account, leave the option unchanged. Return to **Admin Tools** → **Tax Rates**, import a compatible rate from the organization's current connected account, reload the editor, and select it deliberately before retrying.
 `,
     });
     const eventDetail = page.locator(

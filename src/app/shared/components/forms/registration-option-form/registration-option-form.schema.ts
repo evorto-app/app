@@ -81,6 +81,13 @@ export const registrationOptionFormSchema = schema<RegistrationOptionFormModel>(
     hidden(form.price, ({ valueOf }) => !valueOf(form.isPaid));
     hidden(form.esnCardDiscountedPrice, ({ valueOf }) => !valueOf(form.isPaid));
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
+    required(form.price, {
+      message: 'Enter a price.',
+      when: ({ valueOf }) => valueOf(form.isPaid),
+    });
+    min(form.price, 1, {
+      message: 'Paid registrations must cost at least 0.01.',
+    });
     min(form.spots, 1);
     required(form.stripeTaxRateId);
     validate(form.esnCardDiscountedPrice, ({ value, valueOf }) => {

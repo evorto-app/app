@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 Require explicit confirmation before participant or organizer registration cancellation, keep the safe action focused by default, and document cancellation, refund, capacity, waitlist, and recovery behavior.

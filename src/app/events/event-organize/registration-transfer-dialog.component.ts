@@ -25,7 +25,6 @@ import { MatInputModule } from '@angular/material/input';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
 
 export interface RegistrationTransferDialogData {
@@ -103,7 +102,6 @@ export class RegistrationTransferDialogComponent {
   protected readonly currentParticipantLabel = computed(() =>
     transferParticipantLabel(this.data.currentUser),
   );
-  protected readonly getErrorMessage = getErrorMessage;
   protected readonly searchModel = signal({ query: '' });
   protected readonly searchForm = form(this.searchModel, (schema) => {
     debounce(schema, 300);

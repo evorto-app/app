@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Apply tenant runtime settings consistently

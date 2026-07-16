@@ -11,7 +11,10 @@ const INTEGRATION_PROJECT_NAMES = [
   'docs-integration',
   'local-chrome-integration',
 ] as const;
-const LIVE_PROVIDER_PROJECT_NAMES = ['local-chrome-live-esncard'] as const;
+const LIVE_PROVIDER_PROJECT_NAMES = [
+  'docs-live-esncard',
+  'local-chrome-live-esncard',
+] as const;
 const PLAYWRIGHT_PROJECT_NAMES = [
   'setup',
   'local-chrome-baseline',

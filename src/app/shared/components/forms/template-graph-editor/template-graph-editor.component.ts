@@ -16,6 +16,8 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus } from '@fortawesome/duotone-regular-svg-icons';
 import { firstValueFrom } from 'rxjs';
 
+import { ConfigService } from '../../../../core/config.service';
+import { tenantCurrencyCode } from '../../../../core/tenant-runtime';
 import { persistedAdvancedToSimpleModeIssue } from '../registration-mode-transition';
 import { OrdinaryTemplateGraphFormModel } from './ordinary-template-graph-form';
 import { TemplateAddonEditorComponent } from './template-addon-editor.component';
@@ -83,6 +85,10 @@ export class TemplateGraphEditorComponent {
     return warnings;
   });
 
+  private readonly config = inject(ConfigService);
+  protected readonly tenantCurrency = computed(() =>
+    tenantCurrencyCode(this.config),
+  );
   private readonly dialog = inject(MatDialog);
 
   protected addAddOn(): void {

@@ -1,4 +1,6 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import type { FinanceTransactionRecord } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
+
+import { CurrencyPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -9,21 +11,28 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTableModule } from '@angular/material/table';
-import {
-  FaDuotoneIconComponent,
-  FaIconComponent,
-} from '@fortawesome/angular-fontawesome';
-import { faMoneyBillTransfer } from '@fortawesome/duotone-regular-svg-icons';
-import { faCcPaypal, faStripe } from '@fortawesome/free-brands-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
-import consola from 'consola/browser';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 
 interface TransactionListFilter {
   readonly limit: number;
   readonly offset: number;
 }
+
+export const transactionMethodLabel = {
+  cash: 'Cash',
+  paypal: 'PayPal',
+  stripe: 'Stripe',
+  transfer: 'Bank transfer',
+} as const satisfies Record<FinanceTransactionRecord['method'], string>;
+
+export const transactionStatusLabel = {
+  cancelled: 'Cancelled',
+  pending: 'Pending',
+  successful: 'Completed',
+} as const satisfies Record<FinanceTransactionRecord['status'], string>;
 
 @Injectable({ providedIn: 'root' })
 export class TransactionListQueries {
@@ -37,35 +46,27 @@ export class TransactionListQueries {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FaDuotoneIconComponent,
     MatButtonModule,
     MatTableModule,
     MatPaginatorModule,
     CurrencyPipe,
-    FaIconComponent,
-    DatePipe,
+    TenantDatePipe,
   ],
   selector: 'app-transaction-list',
-  styles: ``,
   templateUrl: './transaction-list.component.html',
 })
 export class TransactionListComponent {
-  protected readonly columnsToDisplay = signal([
+  protected readonly columnsToDisplay = [
     'created',
     'amount',
     'status',
     'method',
     'comment',
-  ]);
-  protected readonly faCcPaypal = faCcPaypal;
-  protected readonly faMoneyBillTransfer = faMoneyBillTransfer;
-  protected readonly faStripe = faStripe;
-
+  ];
   private readonly filterInput = signal<TransactionListFilter>({
     limit: 100,
     offset: 0,
   });
-
   private readonly queries = inject(TransactionListQueries);
 
   protected readonly transactionsQuery = injectQuery(() =>
@@ -78,6 +79,13 @@ export class TransactionListComponent {
       limit: event.pageSize,
       offset: event.pageIndex * event.pageSize,
     }));
-    consola.info('Page event', event);
   }
+
+  protected readonly methodLabel = (
+    method: FinanceTransactionRecord['method'],
+  ): string => transactionMethodLabel[method];
+
+  protected readonly statusLabel = (
+    status: FinanceTransactionRecord['status'],
+  ): string => transactionStatusLabel[status];
 }

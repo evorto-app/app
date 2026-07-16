@@ -79,16 +79,28 @@ docker start "${db_container_id}" "${minio_container_id}" >/dev/null
 wait_for_healthy_container() {
   local service="$1"
   local container_id="$2"
+  local require_healthcheck="${3:-false}"
+  local inspect_format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}'
   local state=''
+
+  if [[ "${require_healthcheck}" == 'true' ]]; then
+    inspect_format='{{if .State.Health}}{{.State.Health.Status}}{{else}}missing-healthcheck{{end}}'
+  fi
 
   for _ in $(seq 1 120); do
     state="$(
       docker inspect \
-        --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+        --format "${inspect_format}" \
         "${container_id}"
     )"
     case "${state}" in
       healthy | running) return 0 ;;
+      missing-healthcheck)
+        printf '%s\n' \
+          "Refusing to continue the resume because the existing ${service} container has no healthcheck. Start a fresh stack with bun run docker:start." \
+          >&2
+        return 1
+        ;;
       dead | exited | unhealthy)
         printf '%s\n' \
           "Refusing to continue the resume because ${service} entered state ${state}. Inspect the existing container and use bun run docker:start for a fresh stack." \
@@ -108,4 +120,7 @@ wait_for_healthy_container() {
 wait_for_healthy_container db "${db_container_id}"
 wait_for_healthy_container minio "${minio_container_id}"
 
-exec docker start "${stripe_container_id}" "${evorto_container_id}"
+docker start "${stripe_container_id}" >/dev/null
+wait_for_healthy_container stripe "${stripe_container_id}" true
+
+exec docker start "${evorto_container_id}"

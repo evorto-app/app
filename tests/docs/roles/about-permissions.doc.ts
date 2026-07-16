@@ -14,12 +14,9 @@ const permissionLines = () =>
       return [
         `### ${permission.label}`,
         '',
-        `- Key: \`${permission.key}\``,
         `- What it allows: ${permission.description}`,
         ...(dependencies.length > 0
-          ? [
-              `- Also includes: ${dependencies.map((key) => `${permissionLabel(key)} (\`${key}\`)`).join(', ')}`,
-            ]
+          ? [`- Also includes: ${dependencies.map(permissionLabel).join(', ')}`]
           : []),
         '',
       ];
@@ -33,11 +30,11 @@ test('About permissions', async ({}, testInfo) => {
     body: `
 # About permissions
 
-Permissions are tenant-scoped capabilities assigned through roles. A user has any permission that appears on at least one of their current-tenant roles.
+Permissions belong to an organization and are assigned through roles. A user has any permission that appears on at least one of their roles in the current organization.
 
-Wildcard permissions such as \`events:*\` grant the permissions in that group. Some permissions also include dependent permissions so the user can reach the screens needed to use the parent capability.
+Some permissions include related access so the user can reach the screens needed to use them. The reference below names those included permissions with the same labels shown in the role editor.
 
-Global admin access is separate from tenant roles. It comes from Auth0 app metadata and is used for platform tenant administration instead of tenant role management.
+Platform administrator access is separate from organization roles and cannot be granted in the role editor.
 
 ${permissionLines().join('\n')}
 `,

@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Align tax rates track behavior with specification

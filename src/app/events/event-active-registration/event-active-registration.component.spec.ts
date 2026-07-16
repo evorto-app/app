@@ -133,7 +133,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: 'Cancel registration',
       helperText:
-        'This cancels your confirmed registration and releases your spot. Paid refunds start only when Stripe payment ownership, fee allocation, and add-on amounts reconcile safely. Refunds then process asynchronously.',
+        'This cancels your confirmed registration and releases your spot. If a refund applies, Evorto starts it automatically after cancellation. It may take time to appear; do not pay or register again to retry it.',
     });
   });
 
@@ -256,16 +256,18 @@ describe('registration transfer copy', () => {
       cancelLabel: null,
       showExpiry: false,
       title: 'Transfer refund is processing',
+      tone: 'success',
     });
     expect(refundFailed).toMatchObject({
       cancelLabel: null,
       showExpiry: false,
       title: 'Transfer refund needs attention',
+      tone: 'error',
     });
-    expect(refundFailed.body).toContain('Your ticket remains confirmed');
+    expect(refundFailed.body).toContain('your ticket remains confirmed');
   });
 
-  it('does not describe provider action or stopped refunds as processing', () => {
+  it('does not describe refunds needing follow-up as processing', () => {
     const actionRequired = registrationActiveTransferStatusCopy({
       expiresAt: '2030-05-01T12:00:00.000Z',
       refundLifecycle: { state: 'actionRequired' },
@@ -281,12 +283,15 @@ describe('registration transfer copy', () => {
       transferId: 'transfer-1',
     });
 
-    expect(actionRequired.title).toBe(
-      'Transfer refund requires provider action',
-    );
+    expect(actionRequired.title).toBe('Transfer refund needs attention');
+    expect(actionRequired.tone).toBe('error');
     expect(actionRequired.body).not.toContain('being processed');
+    expect(actionRequired.body).toContain('contact an organizer');
+    expect(actionRequired.body).not.toContain('provider-side');
     expect(stopped.title).toBe('Transfer refund needs attention');
-    expect(stopped.body).toContain('processing stopped');
+    expect(stopped.tone).toBe('error');
+    expect(stopped.body).toContain('ticket remains confirmed');
+    expect(stopped.body).not.toContain('platform-administrator');
   });
 });
 
@@ -490,6 +495,9 @@ describe('active registration template source', () => {
 
     expect(template).toContain('transferStatus.cancelLabel');
     expect(template).toContain('registrationActiveTransferStatusCopy');
+    expect(template).toContain(
+      `[attr.role]="transferStatus.tone === 'error' ? 'alert' : 'status'"`,
+    );
   });
 });
 
@@ -816,6 +824,12 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain('Checkout unavailable');
+      expect(normalizeText(fixture)).toContain(
+        'Trying again will not create a duplicate purchase.',
+      );
+      expect(normalizeText(fixture)).toContain(
+        'If the checkout has expired, reload this page and start the add-on purchase again.',
+      );
     });
     findButton(fixture, 'Add to ticket')?.click();
 
@@ -1036,11 +1050,15 @@ describe('registration transfer offer dialog source', () => {
     const template = readSource(
       'src/app/events/event-active-registration/event-registration-transfer-dialog.component.html',
     );
+    const normalizedTemplate = template.replaceAll(/\s+/gu, ' ');
 
-    expect(template).toContain('Claim link');
-    expect(template).toContain('Manual claim code');
-    expect(template).toContain('do not post these credentials');
-    expect(template).toContain(
+    expect(normalizedTemplate).toContain('Claim link');
+    expect(normalizedTemplate).toContain('Manual claim code');
+    expect(normalizedTemplate).toContain(
+      'Send either the link or code to one person you trust.',
+    );
+    expect(normalizedTemplate).toContain('Keep both private.');
+    expect(normalizedTemplate).toContain(
       'stays active until the recipient is confirmed.',
     );
   });

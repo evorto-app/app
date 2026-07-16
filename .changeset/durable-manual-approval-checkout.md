@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Make manual registration approval concurrency-safe

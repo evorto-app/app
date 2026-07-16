@@ -4,6 +4,7 @@ import {
   eventInstances,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
+  eventRegistrationOptions,
   eventRegistrationQuestionAnswers,
   eventRegistrations,
   registrationAcquisitionPayments,
@@ -15,9 +16,11 @@ import {
   registrationTransferRefundPlanAcquisitionLinks,
   registrationTransferRefundPlanItems,
   registrationTransfers,
+  rolesToTenantUsers,
   tenants,
   transactions,
   users,
+  usersToTenants,
 } from '@db/schema';
 import { registrationTransferAddonAllocationKey } from '@shared/registration-transfer';
 import {
@@ -32,6 +35,7 @@ import {
 } from 'drizzle-orm';
 import { Effect } from 'effect';
 
+import { isUserEligibleForRegistrationOption } from '../effect/rpc/handlers/events/event-registration.service';
 import { enqueueRegistrationTransferredEmail } from '../notifications/email-delivery';
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import {
@@ -39,6 +43,7 @@ import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
 } from './registration-acquisition-write';
+import { resolveRegistrationTransferPriorRefunds } from './registration-transfer-prior-refunds';
 import { refundPlansExactlyCoverCurrentAcquisitionPayments } from './registration-transfer-refund-plan-coverage';
 
 export interface ExpiredRegistrationTransferCheckoutCandidate {
@@ -484,6 +489,95 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     );
   }
 
+  const recipientMemberships = yield* tx
+    .select({ id: usersToTenants.id })
+    .from(usersToTenants)
+    .where(
+      and(
+        eq(usersToTenants.tenantId, input.tenantId),
+        eq(usersToTenants.userId, recipientUserId),
+      ),
+    )
+    .for('update');
+  const recipientMembership = recipientMemberships[0];
+  if (recipientMemberships.length !== 1 || !recipientMembership) {
+    return yield* compensate(
+      'Recipient eligibility changed after payment; a full recipient refund was queued.',
+    );
+  }
+
+  const recipientRoleAssignments = yield* tx
+    .select({ roleId: rolesToTenantUsers.roleId })
+    .from(rolesToTenantUsers)
+    .where(
+      and(
+        eq(rolesToTenantUsers.tenantId, input.tenantId),
+        eq(rolesToTenantUsers.userTenantId, recipientMembership.id),
+      ),
+    )
+    .for('update');
+  const registrationOptions = yield* tx
+    .select({ roleIds: eventRegistrationOptions.roleIds })
+    .from(eventRegistrationOptions)
+    .where(
+      and(
+        eq(eventRegistrationOptions.id, transfer.registrationOptionId),
+        eq(eventRegistrationOptions.eventId, transfer.eventId),
+      ),
+    )
+    .for('update');
+  const registrationOption = registrationOptions[0];
+  if (
+    registrationOptions.length !== 1 ||
+    !registrationOption ||
+    !isUserEligibleForRegistrationOption({
+      optionRoleIds: registrationOption.roleIds,
+      userRoleIds: recipientRoleAssignments.map(
+        (assignment) => assignment.roleId,
+      ),
+    })
+  ) {
+    return yield* compensate(
+      'Recipient eligibility changed after payment; a full recipient refund was queued.',
+    );
+  }
+
+  const tenantSettings = yield* tx
+    .select({
+      maxActiveRegistrationsPerUser: tenants.maxActiveRegistrationsPerUser,
+    })
+    .from(tenants)
+    .where(eq(tenants.id, input.tenantId))
+    .limit(1);
+  const maxActiveRegistrationsPerUser = Math.max(
+    0,
+    Math.trunc(tenantSettings[0]?.maxActiveRegistrationsPerUser ?? 0),
+  );
+  if (maxActiveRegistrationsPerUser > 0) {
+    const eligibilityCheckedAt = new Date();
+    const activeFutureRegistrations = yield* tx
+      .select({ id: eventRegistrations.id })
+      .from(eventRegistrations)
+      .innerJoin(
+        eventInstances,
+        eq(eventInstances.id, eventRegistrations.eventId),
+      )
+      .where(
+        and(
+          eq(eventRegistrations.tenantId, input.tenantId),
+          eq(eventRegistrations.userId, recipientUserId),
+          not(eq(eventRegistrations.status, 'CANCELLED')),
+          sql`${eventInstances.start} > ${eligibilityCheckedAt}`,
+        ),
+      )
+      .limit(maxActiveRegistrationsPerUser);
+    if (activeFutureRegistrations.length >= maxActiveRegistrationsPerUser) {
+      return yield* compensate(
+        'Recipient eligibility changed after payment; a full recipient refund was queued.',
+      );
+    }
+  }
+
   const recipientConflicts = yield* tx
     .select({ id: eventRegistrations.id })
     .from(eventRegistrations)
@@ -817,6 +911,8 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
         registrationTransferRefundPlanAcquisitionLinks.sourceAcquisitionPaymentId,
       sourceAmount: transactions.amount,
       sourceCurrency: transactions.currency,
+      sourceEventId: transactions.eventId,
+      sourceEventRegistrationId: transactions.eventRegistrationId,
       sourceMethod: transactions.method,
       sourceStatus: transactions.status,
       sourceStripeAccountId: transactions.stripeAccountId,
@@ -905,10 +1001,17 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
       : yield* tx
           .select({
             amount: transactions.amount,
+            currency: transactions.currency,
+            eventId: transactions.eventId,
+            eventRegistrationId: transactions.eventRegistrationId,
+            manuallyCreated: transactions.manuallyCreated,
             method: transactions.method,
             sourceTransactionId: transactions.sourceTransactionId,
             status: transactions.status,
+            stripeAccountId: transactions.stripeAccountId,
+            stripeRefundId: transactions.stripeRefundId,
             stripeRefundStatus: transactions.stripeRefundStatus,
+            targetUserId: transactions.targetUserId,
           })
           .from(transactions)
           .where(
@@ -920,25 +1023,25 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
           )
           .orderBy(transactions.id)
           .for('update');
-  const priorRefundedBySource = new Map<string, number>();
-  for (const refund of priorRefunds) {
-    if (
-      !refund.sourceTransactionId ||
-      refund.amount >= 0 ||
-      refund.method !== 'stripe' ||
-      refund.status !== 'successful' ||
-      refund.stripeRefundStatus !== 'succeeded'
-    ) {
-      return yield* compensate(
-        'Source refund ownership changed after recipient payment; a full recipient refund was queued.',
-      );
-    }
-    priorRefundedBySource.set(
-      refund.sourceTransactionId,
-      (priorRefundedBySource.get(refund.sourceTransactionId) ?? 0) -
-        refund.amount,
+  const priorRefundResolution = resolveRegistrationTransferPriorRefunds({
+    refunds: priorRefunds,
+    sourcePayments: refundPlans.map((plan) => ({
+      amount: plan.sourceAmount,
+      currency: plan.sourceCurrency,
+      eventId: plan.sourceEventId,
+      eventRegistrationId: plan.sourceEventRegistrationId,
+      id: plan.sourceTransactionId,
+      stripeAccountId: plan.sourceStripeAccountId,
+      targetUserId: plan.sourceTargetUserId,
+    })),
+  });
+  if (priorRefundResolution._tag !== 'Valid') {
+    return yield* compensate(
+      'Source refund ownership changed after recipient payment; a full recipient refund was queued.',
     );
   }
+  const priorRefundedBySource =
+    priorRefundResolution.refundedBySourceTransactionId;
   if (
     refundPlans.some(
       (plan) =>
@@ -990,13 +1093,14 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
       'Transfer registration ownership could not be atomically reassigned',
     );
   }
+  const transferOperationId = `registration-transfer:${transfer.id}`;
   yield* establishRegistrationAcquisition(tx, {
     acquiredAt,
     components: settledTerms,
     currency: payment.currency,
     eventId: transfer.eventId,
     kind: 'claim_transfer',
-    operationKey: `registration-transfer:${transfer.id}`,
+    operationKey: transferOperationId,
     ownerUserId: recipientUserId,
     payment: {
       settlement: {
@@ -1025,6 +1129,11 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     .from(registrationTransferAnswers)
     .where(
       and(
+        eq(registrationTransferAnswers.eventId, transfer.eventId),
+        eq(
+          registrationTransferAnswers.registrationOptionId,
+          transfer.registrationOptionId,
+        ),
         eq(registrationTransferAnswers.transferId, transfer.id),
         eq(registrationTransferAnswers.tenantId, input.tenantId),
       ),
@@ -1134,6 +1243,7 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     registrationId: transfer.sourceRegistrationId,
     tenant,
     to: sourceUser.communicationEmail?.trim() || sourceUser.email,
+    transferOperationId,
   });
   yield* enqueueRegistrationTransferredEmail(tx, {
     eventTitle: event.title,
@@ -1143,6 +1253,7 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     registrationId: transfer.sourceRegistrationId,
     tenant,
     to: recipientUser.communicationEmail?.trim() || recipientUser.email,
+    transferOperationId,
   });
 
   const finalizedAt = acquiredAt;

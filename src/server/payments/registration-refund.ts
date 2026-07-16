@@ -7,6 +7,7 @@ import {
   and,
   asc,
   eq,
+  gt,
   inArray,
   isNotNull,
   isNull,
@@ -17,6 +18,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { Cause, Clock, Effect, Result, Schedule, Schema } from 'effect';
+import { createHash } from 'node:crypto';
 
 import type { RegistrationRefundWorkerRuntimeMode } from '../config/registration-refund-worker-config';
 
@@ -24,6 +26,10 @@ import { reconcileRegistrationTransferRefund } from '../registrations/registrati
 import { StripeClient } from '../stripe-client';
 
 const refundClaimLeaseMs = 10 * 60 * 1000;
+// Stripe can evict an idempotency result after 24 hours. Lease expiry follows
+// acquisition by 10 minutes and retry scheduling by at most 30 minutes, so this
+// cutoff preserves at least 1.5 hours for those offsets and clock differences.
+const idlessRefundRecoveryWindowMs = 22 * 60 * 60 * 1000;
 const refundWorkerInterval = Schedule.spaced('30 seconds');
 const defaultRefundBatchSize = 25;
 const maximumRefundBatchSize = 100;
@@ -159,6 +165,33 @@ export const registrationRefundIdempotencyKey = (
   generation === 0
     ? `registration-refund:${refundClaimId}`
     : `registration-refund:${refundClaimId}:generation:${generation}`;
+
+export const registrationProviderRefundOperationKey = (
+  stripeRefundId: string,
+): string =>
+  `stripe-provider-refund:${createHash('sha256').update(stripeRefundId).digest('hex')}`;
+
+const registrationProviderRefundOperationKeyPrefix = 'stripe-provider-refund:';
+const registrationProviderRefundHoldReasonPrefix =
+  'Waiting for Stripe provider refund ';
+
+const registrationProviderRefundHoldReason = (stripeRefundId: string): string =>
+  `${registrationProviderRefundHoldReasonPrefix}${stripeRefundId} to reach a terminal state`;
+
+const isRegistrationProviderRefundOperationKey = (
+  operationKey: null | string,
+): boolean =>
+  operationKey?.startsWith(registrationProviderRefundOperationKeyPrefix) ??
+  false;
+
+const registrationProviderRefundIdentityIsValid = (input: {
+  readonly operationKey: null | string;
+  readonly stripeRefundId: null | string;
+}): boolean =>
+  !isRegistrationProviderRefundOperationKey(input.operationKey) ||
+  (input.stripeRefundId !== null &&
+    input.operationKey ===
+      registrationProviderRefundOperationKey(input.stripeRefundId));
 
 export const normalizeRegistrationRefundBatchSize = (
   batchSize = defaultRefundBatchSize,
@@ -535,20 +568,34 @@ export const registrationRefundMatchesPersistedClaim = (
   },
 ): boolean => {
   const metadata = refund.metadata ?? {};
+
+  return (
+    registrationRefundMatchesPersistedProviderIdentity(refund, expected) &&
+    metadata['refundClaimId'] === expected.refundClaimId &&
+    metadata['refundGeneration'] === String(expected.refundGeneration) &&
+    metadata['registrationId'] === expected.registrationId &&
+    metadata['sourceTransactionId'] === expected.sourceTransactionId &&
+    metadata['tenantId'] === expected.tenantId
+  );
+};
+
+const registrationRefundMatchesPersistedProviderIdentity = (
+  refund: Stripe.Refund,
+  expected: {
+    readonly amount: number;
+    readonly currency: string;
+    readonly stripeReference:
+      { readonly charge: string } | { readonly paymentIntent: string };
+  },
+): boolean => {
   const referenceMatches =
     'charge' in expected.stripeReference
       ? stripeReferenceId(refund.charge) === expected.stripeReference.charge
       : stripeReferenceId(refund.payment_intent) ===
         expected.stripeReference.paymentIntent;
-
   return (
     refund.amount === expected.amount &&
     refund.currency.toUpperCase() === expected.currency.toUpperCase() &&
-    metadata['refundClaimId'] === expected.refundClaimId &&
-    metadata['refundGeneration'] === String(expected.refundGeneration) &&
-    metadata['registrationId'] === expected.registrationId &&
-    metadata['sourceTransactionId'] === expected.sourceTransactionId &&
-    metadata['tenantId'] === expected.tenantId &&
     referenceMatches
   );
 };
@@ -568,6 +615,70 @@ export const persistedRegistrationRefundStatus = (
       return 'pending';
     }
   }
+};
+
+interface RegistrationProviderRefundSource {
+  readonly amount: number;
+  readonly currency: typeof transactions.$inferSelect.currency;
+  readonly eventId: string;
+  readonly eventRegistrationId: string;
+  readonly id: string;
+  readonly stripeAccountId: string;
+  readonly targetUserId: string;
+  readonly tenantId: string;
+}
+
+const registrationProviderRefundStatusUpdate = (
+  refund: Pick<Stripe.Refund, 'id' | 'status'>,
+): Partial<typeof transactions.$inferInsert> &
+  Pick<typeof transactions.$inferInsert, 'status'> => {
+  const stripeRefundStatus = persistedRegistrationRefundStatus(refund.status);
+  const terminalWithoutRefund =
+    stripeRefundStatus === 'canceled' || stripeRefundStatus === 'failed';
+  return {
+    status:
+      stripeRefundStatus === 'succeeded'
+        ? 'successful'
+        : terminalWithoutRefund
+          ? 'cancelled'
+          : 'pending',
+    stripeRefundClaimLeaseExpiresAt: null,
+    stripeRefundClaimLeaseId: null,
+    stripeRefundId: refund.id,
+    stripeRefundLastError: terminalWithoutRefund
+      ? `Stripe provider-side refund reached terminal status ${stripeRefundStatus}`
+      : null,
+    // Provider-observed refunds are retrieved only on an explicit operator
+    // recovery. Never turn a dashboard-created failure into a new refund.
+    stripeRefundNextAttemptAt: null,
+    stripeRefundStatus,
+  };
+};
+
+export const registrationProviderRefundPersistence = (
+  refund: Pick<Stripe.Refund, 'amount' | 'id' | 'status'>,
+  source: RegistrationProviderRefundSource,
+  transactionId: string,
+): typeof transactions.$inferInsert => {
+  return {
+    amount: -refund.amount,
+    comment: 'Refund recorded by Stripe',
+    currency: source.currency,
+    eventId: source.eventId,
+    eventRegistrationId: source.eventRegistrationId,
+    executiveUserId: null,
+    id: transactionId,
+    manuallyCreated: false,
+    method: 'stripe',
+    refundOperationKey: registrationProviderRefundOperationKey(refund.id),
+    sourceTransactionId: source.id,
+    stripeAccountId: source.stripeAccountId,
+    stripeRefundApplicationFee: false,
+    ...registrationProviderRefundStatusUpdate(refund),
+    targetUserId: source.targetUserId,
+    tenantId: source.tenantId,
+    type: 'refund',
+  };
 };
 
 export const registrationRefundStatusCanAdvance = (
@@ -606,6 +717,75 @@ export const registrationRefundStatusUpdate = (
   };
 };
 
+const idlessRefundRecoveryCutoff = (now: Date): Date =>
+  new Date(now.getTime() - idlessRefundRecoveryWindowMs);
+
+const registrationRefundGenerationStartedAt = () =>
+  sql<Date>`coalesce(${transactions.stripeRefundRequeuedAt}, ${transactions.createdAt})`;
+
+const idlessRefundScheduledRetryIsRecent = (cutoff: Date) =>
+  or(
+    and(
+      eq(transactions.stripeRefundAttempts, 1),
+      gt(transactions.stripeRefundNextAttemptAt, cutoff),
+    ),
+    and(
+      gt(transactions.stripeRefundAttempts, 1),
+      gt(transactions.stripeRefundNextAttemptAt, cutoff),
+      // The latest retry timestamp alone is insufficient after repeated
+      // outages because every retry reuses the generation's original key.
+      gt(registrationRefundGenerationStartedAt(), cutoff),
+    ),
+  );
+
+const idlessRefundScheduledRetryIsAmbiguous = (cutoff: Date) =>
+  or(
+    and(
+      eq(transactions.stripeRefundAttempts, 1),
+      lte(transactions.stripeRefundNextAttemptAt, cutoff),
+    ),
+    and(
+      gt(transactions.stripeRefundAttempts, 1),
+      or(
+        lte(transactions.stripeRefundNextAttemptAt, cutoff),
+        lte(registrationRefundGenerationStartedAt(), cutoff),
+      ),
+    ),
+  );
+
+export const registrationRefundAmbiguousRecoveryPredicate = (now: Date) =>
+  and(
+    eq(transactions.method, 'stripe'),
+    eq(transactions.status, 'pending'),
+    eq(transactions.type, 'refund'),
+    isNull(transactions.stripeRefundId),
+    or(
+      and(
+        isNotNull(transactions.stripeRefundClaimLeaseId),
+        isNotNull(transactions.stripeRefundClaimLeaseExpiresAt),
+        lte(
+          transactions.stripeRefundClaimLeaseExpiresAt,
+          idlessRefundRecoveryCutoff(now),
+        ),
+      ),
+      and(
+        isNull(transactions.stripeRefundClaimLeaseId),
+        isNull(transactions.stripeRefundClaimLeaseExpiresAt),
+        isNotNull(transactions.stripeRefundNextAttemptAt),
+        idlessRefundScheduledRetryIsAmbiguous(idlessRefundRecoveryCutoff(now)),
+      ),
+    ),
+  );
+
+export const registrationRefundAmbiguousRecoveryUpdate = () =>
+  ({
+    stripeRefundClaimLeaseExpiresAt: null,
+    stripeRefundClaimLeaseId: null,
+    stripeRefundLastError:
+      'Automatic recovery stopped because the prior Stripe refund attempt is too old to retry safely without a persisted refund ID; reconcile the claim with Stripe manually',
+    stripeRefundNextAttemptAt: null,
+  }) satisfies Partial<typeof transactions.$inferInsert>;
+
 export const registrationRefundClaimablePredicate = (now: Date) =>
   and(
     eq(transactions.method, 'stripe'),
@@ -620,11 +800,26 @@ export const registrationRefundClaimablePredicate = (now: Date) =>
           transactions.stripeRefundMaxAttempts,
         ),
         lte(transactions.stripeRefundNextAttemptAt, now),
+        or(
+          isNotNull(transactions.stripeRefundId),
+          eq(transactions.stripeRefundAttempts, 0),
+          idlessRefundScheduledRetryIsRecent(idlessRefundRecoveryCutoff(now)),
+        ),
       ),
       and(
         isNotNull(transactions.stripeRefundClaimLeaseId),
         isNotNull(transactions.stripeRefundClaimLeaseExpiresAt),
         lte(transactions.stripeRefundClaimLeaseExpiresAt, now),
+        or(
+          isNotNull(transactions.stripeRefundId),
+          and(
+            isNull(transactions.stripeRefundId),
+            gt(
+              transactions.stripeRefundClaimLeaseExpiresAt,
+              idlessRefundRecoveryCutoff(now),
+            ),
+          ),
+        ),
       ),
     ),
   );
@@ -666,6 +861,7 @@ const claimRegistrationRefund = Effect.fn('claimRegistrationRefund')(function* (
             currency: transactions.currency,
             eventRegistrationId: transactions.eventRegistrationId,
             id: transactions.id,
+            refundOperationKey: transactions.refundOperationKey,
             sourceTransactionId: transactions.sourceTransactionId,
             stripeAccountId: transactions.stripeAccountId,
             stripeRefundApplicationFee: transactions.stripeRefundApplicationFee,
@@ -687,7 +883,11 @@ const claimRegistrationRefund = Effect.fn('claimRegistrationRefund')(function* (
           !eventRegistrationId ||
           !sourceTransactionId ||
           !stripeAccountId ||
-          stripeRefundApplicationFee === null
+          stripeRefundApplicationFee === null ||
+          !registrationProviderRefundIdentityIsValid({
+            operationKey: claim.refundOperationKey,
+            stripeRefundId: claim.stripeRefundId,
+          })
         ) {
           yield* tx
             .update(transactions)
@@ -876,18 +1076,27 @@ export const processRegistrationRefundClaim = Effect.fn(
   }
 
   const refund = result.success;
-  if (
-    !registrationRefundMatchesPersistedClaim(refund, {
-      amount: Math.abs(claim.amount),
-      currency: claim.currency,
-      refundClaimId: claim.id,
-      refundGeneration: claim.stripeRefundGeneration,
-      registrationId: claim.eventRegistrationId,
-      sourceTransactionId: source.id,
-      stripeReference: source.stripeReference,
-      tenantId: claim.tenantId,
-    })
-  ) {
+  const isProviderRefund = isRegistrationProviderRefundOperationKey(
+    claim.refundOperationKey,
+  );
+  const refundMatchesClaim = isProviderRefund
+    ? claim.stripeRefundId === refund.id &&
+      registrationRefundMatchesPersistedProviderIdentity(refund, {
+        amount: Math.abs(claim.amount),
+        currency: claim.currency,
+        stripeReference: source.stripeReference,
+      })
+    : registrationRefundMatchesPersistedClaim(refund, {
+        amount: Math.abs(claim.amount),
+        currency: claim.currency,
+        refundClaimId: claim.id,
+        refundGeneration: claim.stripeRefundGeneration,
+        registrationId: claim.eventRegistrationId,
+        sourceTransactionId: source.id,
+        stripeReference: source.stripeReference,
+        tenantId: claim.tenantId,
+      });
+  if (!refundMatchesClaim) {
     yield* releaseRefundClaimAfterFailure(
       {
         attempts: claim.stripeRefundMaxAttempts,
@@ -909,12 +1118,14 @@ export const processRegistrationRefundClaim = Effect.fn(
         const updatedClaims = yield* tx
           .update(transactions)
           .set(
-            registrationRefundStatusUpdate(
-              refund,
-              now,
-              claim.stripeRefundAttempts,
-              claim.stripeRefundMaxAttempts,
-            ),
+            isProviderRefund
+              ? registrationProviderRefundStatusUpdate(refund)
+              : registrationRefundStatusUpdate(
+                  refund,
+                  now,
+                  claim.stripeRefundAttempts,
+                  claim.stripeRefundMaxAttempts,
+                ),
           )
           .where(
             and(
@@ -937,6 +1148,471 @@ export const processRegistrationRefundClaim = Effect.fn(
   };
 });
 
+/**
+ * Persists refunds created directly in Stripe against the exact connected
+ * account and payment reference. This keeps provider-side refunds in the same
+ * source-payment ledger used by cancellation and transfer refund guards.
+ */
+export const reconcileProviderRegistrationRefundWebhook = Effect.fn(
+  'reconcileProviderRegistrationRefundWebhook',
+)(function* (refund: Stripe.Refund, eventAccount: null | string | undefined) {
+  const now = new Date(yield* Clock.currentTimeMillis);
+  const stripeChargeId = stripeReferenceId(refund.charge);
+  const stripePaymentIntentId = stripeReferenceId(refund.payment_intent);
+  if (
+    !eventAccount ||
+    (!stripeChargeId && !stripePaymentIntentId) ||
+    !Number.isSafeInteger(refund.amount) ||
+    refund.amount <= 0
+  ) {
+    return { status: 'ignored' as const };
+  }
+
+  return yield* Database.use((database) =>
+    database.transaction((tx) =>
+      Effect.gen(function* () {
+        const stripeReferencePredicate = stripeChargeId
+          ? stripePaymentIntentId
+            ? or(
+                eq(transactions.stripeChargeId, stripeChargeId),
+                eq(transactions.stripePaymentIntentId, stripePaymentIntentId),
+              )
+            : eq(transactions.stripeChargeId, stripeChargeId)
+          : stripePaymentIntentId
+            ? eq(transactions.stripePaymentIntentId, stripePaymentIntentId)
+            : undefined;
+        if (!stripeReferencePredicate) {
+          return { status: 'ignored' as const };
+        }
+        const sourceRows = yield* tx
+          .select({
+            amount: transactions.amount,
+            currency: transactions.currency,
+            eventId: transactions.eventId,
+            eventRegistrationId: transactions.eventRegistrationId,
+            id: transactions.id,
+            status: transactions.status,
+            stripeAccountId: transactions.stripeAccountId,
+            stripeChargeId: transactions.stripeChargeId,
+            stripePaymentIntentId: transactions.stripePaymentIntentId,
+            targetUserId: transactions.targetUserId,
+            tenantId: transactions.tenantId,
+          })
+          .from(transactions)
+          .where(
+            and(
+              stripeReferencePredicate,
+              eq(transactions.method, 'stripe'),
+              inArray(transactions.type, ['registration', 'addon']),
+            ),
+          )
+          .orderBy(transactions.id)
+          .for('update');
+        if (sourceRows.length === 0) {
+          return { status: 'ignored' as const };
+        }
+        const source = sourceRows[0];
+        if (
+          sourceRows.length !== 1 ||
+          !source ||
+          source.amount <= 0 ||
+          refund.amount > source.amount ||
+          refund.currency.toUpperCase() !== source.currency.toUpperCase() ||
+          !source.eventId ||
+          !source.eventRegistrationId ||
+          !source.stripeAccountId ||
+          source.stripeAccountId !== eventAccount ||
+          !source.targetUserId ||
+          (stripeChargeId &&
+            source.stripeChargeId &&
+            source.stripeChargeId !== stripeChargeId) ||
+          (stripePaymentIntentId &&
+            source.stripePaymentIntentId &&
+            source.stripePaymentIntentId !== stripePaymentIntentId) ||
+          !(
+            (stripeChargeId && source.stripeChargeId === stripeChargeId) ||
+            (stripePaymentIntentId &&
+              source.stripePaymentIntentId === stripePaymentIntentId)
+          )
+        ) {
+          return { status: 'rejected' as const };
+        }
+        if (source.status === 'pending') {
+          return { status: 'deferred' as const };
+        }
+        if (source.status !== 'successful') {
+          return { status: 'ignored' as const };
+        }
+
+        const providerSource = {
+          amount: source.amount,
+          currency: source.currency,
+          eventId: source.eventId,
+          eventRegistrationId: source.eventRegistrationId,
+          id: source.id,
+          stripeAccountId: source.stripeAccountId,
+          targetUserId: source.targetUserId,
+          tenantId: source.tenantId,
+        } satisfies RegistrationProviderRefundSource;
+        const operationKey = registrationProviderRefundOperationKey(refund.id);
+        const refundRows = yield* tx
+          .select({
+            amount: transactions.amount,
+            currency: transactions.currency,
+            eventId: transactions.eventId,
+            eventRegistrationId: transactions.eventRegistrationId,
+            id: transactions.id,
+            manuallyCreated: transactions.manuallyCreated,
+            method: transactions.method,
+            refundOperationKey: transactions.refundOperationKey,
+            sourceTransactionId: transactions.sourceTransactionId,
+            status: transactions.status,
+            stripeAccountId: transactions.stripeAccountId,
+            stripeRefundAttempts: transactions.stripeRefundAttempts,
+            stripeRefundClaimLeaseExpiresAt:
+              transactions.stripeRefundClaimLeaseExpiresAt,
+            stripeRefundClaimLeaseId: transactions.stripeRefundClaimLeaseId,
+            stripeRefundGeneration: transactions.stripeRefundGeneration,
+            stripeRefundHistory: transactions.stripeRefundHistory,
+            stripeRefundId: transactions.stripeRefundId,
+            stripeRefundLastError: transactions.stripeRefundLastError,
+            stripeRefundMaxAttempts: transactions.stripeRefundMaxAttempts,
+            stripeRefundNextAttemptAt: transactions.stripeRefundNextAttemptAt,
+            stripeRefundStatus: transactions.stripeRefundStatus,
+            targetUserId: transactions.targetUserId,
+            tenantId: transactions.tenantId,
+            type: transactions.type,
+          })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.sourceTransactionId, source.id),
+              eq(transactions.tenantId, source.tenantId),
+              eq(transactions.type, 'refund'),
+            ),
+          )
+          .orderBy(transactions.id)
+          .for('update');
+        const existingRows = refundRows.filter(
+          (candidate) => candidate.stripeRefundId === refund.id,
+        );
+        const existing = existingRows[0];
+        if (
+          existing &&
+          (existingRows.length !== 1 ||
+            existing.amount !== -refund.amount ||
+            existing.currency !== source.currency ||
+            existing.eventId !== source.eventId ||
+            existing.eventRegistrationId !== source.eventRegistrationId ||
+            existing.manuallyCreated !== false ||
+            existing.method !== 'stripe' ||
+            existing.refundOperationKey !== operationKey ||
+            existing.sourceTransactionId !== source.id ||
+            existing.stripeAccountId !== source.stripeAccountId ||
+            existing.targetUserId !== source.targetUserId ||
+            existing.tenantId !== source.tenantId ||
+            existing.type !== 'refund')
+        ) {
+          return { status: 'rejected' as const };
+        }
+
+        const persistence = registrationProviderRefundPersistence(
+          refund,
+          providerSource,
+          existing?.id ?? createId(),
+        );
+        const incomingStatus = persistence.stripeRefundStatus ?? 'pending';
+        const canAdvanceExisting = existing
+          ? registrationRefundStatusCanAdvance(
+              existing.stripeRefundStatus,
+              incomingStatus,
+            )
+          : true;
+        const effectiveStatus =
+          existing && !canAdvanceExisting
+            ? (existing.stripeRefundStatus ?? incomingStatus)
+            : incomingStatus;
+        const activeInternalClaims = refundRows.filter(
+          (candidate) =>
+            candidate.manuallyCreated === false &&
+            candidate.method === 'stripe' &&
+            candidate.refundOperationKey !== null &&
+            !isRegistrationProviderRefundOperationKey(
+              candidate.refundOperationKey,
+            ) &&
+            candidate.status === 'pending',
+        );
+        const activeClaim = activeInternalClaims[0];
+        const providerConsumesCapacity =
+          effectiveStatus !== 'canceled' && effectiveStatus !== 'failed';
+        if (activeInternalClaims.length > 1 && providerConsumesCapacity) {
+          return { status: 'deferred' as const };
+        }
+
+        let otherCommittedAmount = 0;
+        for (const candidate of refundRows) {
+          if (
+            candidate.id === activeClaim?.id ||
+            candidate.id === existing?.id ||
+            candidate.status === 'cancelled'
+          ) {
+            continue;
+          }
+          otherCommittedAmount += Math.abs(candidate.amount);
+        }
+        const currentClaimAmount = activeClaim
+          ? Math.abs(activeClaim.amount)
+          : 0;
+        const nextClaimAmount = activeClaim
+          ? Math.min(
+              currentClaimAmount,
+              Math.max(
+                0,
+                source.amount -
+                  otherCommittedAmount -
+                  (providerConsumesCapacity ? refund.amount : 0),
+              ),
+            )
+          : 0;
+        const overlapsActiveClaim =
+          activeClaim !== undefined && nextClaimAmount < currentClaimAmount;
+        const holdReason = registrationProviderRefundHoldReason(refund.id);
+        const heldForAnotherProviderRefund =
+          activeClaim?.stripeRefundLastError?.startsWith(
+            registrationProviderRefundHoldReasonPrefix,
+          ) === true && activeClaim.stripeRefundLastError !== holdReason;
+        const claimHasLease =
+          activeClaim !== undefined &&
+          (activeClaim.stripeRefundClaimLeaseId !== null ||
+            activeClaim.stripeRefundClaimLeaseExpiresAt !== null);
+        const claimHasUnresolvedRefund =
+          activeClaim?.stripeRefundId !== null &&
+          activeClaim?.stripeRefundId !== undefined &&
+          activeClaim.stripeRefundStatus !== 'canceled' &&
+          activeClaim.stripeRefundStatus !== 'failed';
+
+        if (
+          overlapsActiveClaim &&
+          (effectiveStatus === 'pending' ||
+            effectiveStatus === 'requires_action')
+        ) {
+          if (
+            claimHasLease ||
+            claimHasUnresolvedRefund ||
+            heldForAnotherProviderRefund ||
+            (activeClaim.stripeRefundNextAttemptAt === null &&
+              activeClaim.stripeRefundLastError !== holdReason)
+          ) {
+            return { status: 'deferred' as const };
+          }
+          const heldClaims = yield* tx
+            .update(transactions)
+            .set({
+              stripeRefundLastError: holdReason,
+              stripeRefundNextAttemptAt: null,
+            })
+            .where(
+              and(
+                eq(transactions.id, activeClaim.id),
+                eq(transactions.status, 'pending'),
+                isNull(transactions.stripeRefundClaimLeaseExpiresAt),
+                isNull(transactions.stripeRefundClaimLeaseId),
+              ),
+            )
+            .returning({ id: transactions.id });
+          return heldClaims.length === 1
+            ? { status: 'deferred' as const }
+            : { status: 'rejected' as const };
+        }
+
+        if (
+          overlapsActiveClaim &&
+          effectiveStatus === 'succeeded' &&
+          (claimHasLease ||
+            claimHasUnresolvedRefund ||
+            heldForAnotherProviderRefund)
+        ) {
+          return { status: 'deferred' as const };
+        }
+
+        if (
+          activeClaim &&
+          overlapsActiveClaim &&
+          effectiveStatus === 'succeeded' &&
+          nextClaimAmount === 0 &&
+          refund.amount === currentClaimAmount &&
+          !existing
+        ) {
+          const terminalHistory =
+            activeClaim.stripeRefundId &&
+            (activeClaim.stripeRefundStatus === 'canceled' ||
+              activeClaim.stripeRefundStatus === 'failed')
+              ? [
+                  ...activeClaim.stripeRefundHistory,
+                  {
+                    closedAt: now.toISOString(),
+                    generation: activeClaim.stripeRefundGeneration,
+                    reason:
+                      'Provider-side refund superseded the internal refund generation',
+                    refundId: activeClaim.stripeRefundId,
+                    status: activeClaim.stripeRefundStatus,
+                  },
+                ]
+              : activeClaim.stripeRefundHistory;
+          const advancesGeneration =
+            activeClaim.stripeRefundAttempts > 0 ||
+            activeClaim.stripeRefundId !== null;
+          const adoptedClaims = yield* tx
+            .update(transactions)
+            .set({
+              ...registrationRefundStatusUpdate(
+                refund,
+                now,
+                activeClaim.stripeRefundAttempts,
+                activeClaim.stripeRefundMaxAttempts,
+              ),
+              stripeRefundApplicationFee: false,
+              ...(advancesGeneration && {
+                stripeRefundGeneration: activeClaim.stripeRefundGeneration + 1,
+                stripeRefundLastRequeueReason:
+                  'Provider-side refund superseded the internal refund generation',
+                stripeRefundRequeuedAt: now,
+              }),
+              stripeRefundHistory: terminalHistory,
+            })
+            .where(
+              and(
+                eq(transactions.id, activeClaim.id),
+                eq(transactions.status, 'pending'),
+                isNull(transactions.stripeRefundClaimLeaseExpiresAt),
+                isNull(transactions.stripeRefundClaimLeaseId),
+              ),
+            )
+            .returning({ id: transactions.id });
+          if (adoptedClaims.length !== 1) {
+            return { status: 'rejected' as const };
+          }
+          yield* reconcileRegistrationTransferRefund(tx, {
+            refundTransactionId: activeClaim.id,
+            stripeRefundStatus: 'succeeded',
+          });
+          return { status: 'reconciled' as const };
+        }
+
+        const persistProviderRefund = Effect.gen(function* () {
+          if (existing) {
+            if (!canAdvanceExisting) return existing.id;
+            const updated = yield* tx
+              .update(transactions)
+              .set(registrationProviderRefundStatusUpdate(refund))
+              .where(
+                and(
+                  eq(transactions.id, existing.id),
+                  eq(transactions.stripeRefundId, refund.id),
+                ),
+              )
+              .returning({ id: transactions.id });
+            return updated[0]?.id;
+          }
+          const inserted = yield* tx
+            .insert(transactions)
+            .values(persistence)
+            .onConflictDoNothing()
+            .returning({ id: transactions.id });
+          return inserted[0]?.id;
+        });
+        const providerRefundTransactionId = yield* persistProviderRefund;
+        if (!providerRefundTransactionId) {
+          return { status: 'rejected' as const };
+        }
+
+        if (
+          activeClaim &&
+          overlapsActiveClaim &&
+          effectiveStatus === 'succeeded' &&
+          nextClaimAmount > 0
+        ) {
+          const terminalHistory =
+            activeClaim.stripeRefundId &&
+            (activeClaim.stripeRefundStatus === 'canceled' ||
+              activeClaim.stripeRefundStatus === 'failed')
+              ? [
+                  ...activeClaim.stripeRefundHistory,
+                  {
+                    closedAt: now.toISOString(),
+                    generation: activeClaim.stripeRefundGeneration,
+                    reason:
+                      'Provider-side refund reduced the remaining internal refund',
+                    refundId: activeClaim.stripeRefundId,
+                    status: activeClaim.stripeRefundStatus,
+                  },
+                ]
+              : activeClaim.stripeRefundHistory;
+          const advancesGeneration =
+            activeClaim.stripeRefundAttempts > 0 ||
+            activeClaim.stripeRefundId !== null;
+          const reducedClaims = yield* tx
+            .update(transactions)
+            .set({
+              amount: -nextClaimAmount,
+              status: 'pending',
+              stripeRefundAttempts: 0,
+              stripeRefundClaimLeaseExpiresAt: null,
+              stripeRefundClaimLeaseId: null,
+              stripeRefundGeneration:
+                activeClaim.stripeRefundGeneration +
+                (advancesGeneration ? 1 : 0),
+              stripeRefundHistory: terminalHistory,
+              stripeRefundId: null,
+              stripeRefundLastError: null,
+              stripeRefundNextAttemptAt: now,
+              stripeRefundStatus: null,
+              ...(advancesGeneration && {
+                stripeRefundLastRequeueReason:
+                  'Provider-side refund reduced the remaining internal refund',
+                stripeRefundRequeuedAt: now,
+              }),
+            })
+            .where(
+              and(
+                eq(transactions.id, activeClaim.id),
+                eq(transactions.status, 'pending'),
+                isNull(transactions.stripeRefundClaimLeaseExpiresAt),
+                isNull(transactions.stripeRefundClaimLeaseId),
+              ),
+            )
+            .returning({ id: transactions.id });
+          return reducedClaims.length === 1
+            ? { status: 'reconciled' as const }
+            : { status: 'rejected' as const };
+        }
+
+        if (
+          activeClaim &&
+          activeClaim.stripeRefundLastError === holdReason &&
+          (effectiveStatus === 'canceled' || effectiveStatus === 'failed')
+        ) {
+          yield* tx
+            .update(transactions)
+            .set({
+              stripeRefundLastError: null,
+              stripeRefundNextAttemptAt: now,
+            })
+            .where(
+              and(
+                eq(transactions.id, activeClaim.id),
+                eq(transactions.status, 'pending'),
+                isNull(transactions.stripeRefundClaimLeaseExpiresAt),
+                isNull(transactions.stripeRefundClaimLeaseId),
+              ),
+            );
+        }
+        return { status: 'reconciled' as const };
+      }),
+    ),
+  );
+});
+
 export const reconcileRegistrationRefundWebhook = Effect.fn(
   'reconcileRegistrationRefundWebhook',
 )(function* (refund: Stripe.Refund, eventAccount: null | string | undefined) {
@@ -947,30 +1623,31 @@ export const reconcileRegistrationRefundWebhook = Effect.fn(
   const registrationId = metadata['registrationId'];
   const sourceTransactionId = metadata['sourceTransactionId'];
   const tenantId = metadata['tenantId'];
-  if (
-    !eventAccount ||
-    !refundClaimId ||
-    !refundGeneration ||
-    !registrationId ||
-    !sourceTransactionId ||
-    !tenantId
-  ) {
+  if (!eventAccount) {
     return { status: 'rejected' as const };
   }
 
   return yield* Database.use((database) =>
     database.transaction((tx) =>
       Effect.gen(function* () {
+        const claimPredicate = refundClaimId
+          ? or(
+              eq(transactions.id, refundClaimId),
+              eq(transactions.stripeRefundId, refund.id),
+            )
+          : eq(transactions.stripeRefundId, refund.id);
         const claimRows = yield* tx
           .select({
             amount: transactions.amount,
             currency: transactions.currency,
             eventRegistrationId: transactions.eventRegistrationId,
             id: transactions.id,
+            refundOperationKey: transactions.refundOperationKey,
             sourceTransactionId: transactions.sourceTransactionId,
             stripeAccountId: transactions.stripeAccountId,
             stripeRefundAttempts: transactions.stripeRefundAttempts,
             stripeRefundGeneration: transactions.stripeRefundGeneration,
+            stripeRefundHistory: transactions.stripeRefundHistory,
             stripeRefundId: transactions.stripeRefundId,
             stripeRefundMaxAttempts: transactions.stripeRefundMaxAttempts,
             stripeRefundStatus: transactions.stripeRefundStatus,
@@ -979,21 +1656,54 @@ export const reconcileRegistrationRefundWebhook = Effect.fn(
           .from(transactions)
           .where(
             and(
-              eq(transactions.id, refundClaimId),
+              claimPredicate,
               eq(transactions.method, 'stripe'),
               eq(transactions.type, 'refund'),
             ),
           )
           .for('update');
-        const claim = claimRows[0];
+        if (claimRows.length === 0) {
+          return { status: 'notClaim' as const };
+        }
+        const persistedRefundClaims = claimRows.filter(
+          (candidate) => candidate.stripeRefundId === refund.id,
+        );
+        const metadataClaims = refundClaimId
+          ? claimRows.filter((candidate) => candidate.id === refundClaimId)
+          : [];
+        if (persistedRefundClaims.length > 1 || metadataClaims.length > 1) {
+          return { status: 'rejected' as const };
+        }
+        const claim = persistedRefundClaims[0] ?? metadataClaims[0];
+        if (!claim) {
+          return { status: 'notClaim' as const };
+        }
         if (
-          !claim ||
-          claim.tenantId !== tenantId ||
-          claim.eventRegistrationId !== registrationId ||
-          claim.sourceTransactionId !== sourceTransactionId ||
+          claim.refundOperationKey ===
+          registrationProviderRefundOperationKey(refund.id)
+        ) {
+          return { status: 'notClaim' as const };
+        }
+        const persistedRefundIdMatches = claim.stripeRefundId === refund.id;
+        const metadataIdentityMatches =
+          refundClaimId === claim.id &&
+          refundGeneration === String(claim.stripeRefundGeneration) &&
+          registrationId === claim.eventRegistrationId &&
+          sourceTransactionId === claim.sourceTransactionId &&
+          tenantId === claim.tenantId &&
+          (claim.stripeRefundId === null || persistedRefundIdMatches);
+        if (!persistedRefundIdMatches && !metadataIdentityMatches) {
+          return claim.stripeRefundHistory.some(
+            (attempt) => attempt.refundId === refund.id,
+          )
+            ? { status: 'rejected' as const }
+            : { status: 'notClaim' as const };
+        }
+        if (
+          !claim.eventRegistrationId ||
+          !claim.sourceTransactionId ||
+          !claim.tenantId ||
           claim.stripeAccountId !== eventAccount ||
-          String(claim.stripeRefundGeneration) !== refundGeneration ||
-          (claim.stripeRefundId && claim.stripeRefundId !== refund.id) ||
           Math.abs(claim.amount) !== refund.amount
         ) {
           return { status: 'rejected' as const };
@@ -1009,32 +1719,30 @@ export const reconcileRegistrationRefundWebhook = Effect.fn(
           .from(transactions)
           .where(
             registrationRefundSourcePaymentPredicate({
-              eventRegistrationId: registrationId,
-              sourceTransactionId,
+              eventRegistrationId: claim.eventRegistrationId,
+              sourceTransactionId: claim.sourceTransactionId,
               stripeAccountId: eventAccount,
-              tenantId,
+              tenantId: claim.tenantId,
             }),
           );
         const source = sourceRows[0];
-        const stripeReference = source?.stripeChargeId
-          ? ({ charge: source.stripeChargeId } as const)
+        const stripeReference:
+          | undefined
+          | { readonly charge: string }
+          | { readonly paymentIntent: string } = source?.stripeChargeId
+          ? { charge: source.stripeChargeId }
           : source?.stripePaymentIntentId
-            ? ({ paymentIntent: source.stripePaymentIntentId } as const)
+            ? { paymentIntent: source.stripePaymentIntentId }
             : undefined;
         if (
           !source ||
-          source.eventRegistrationId !== registrationId ||
+          source.eventRegistrationId !== claim.eventRegistrationId ||
           source.stripeAccountId !== eventAccount ||
           !stripeReference ||
-          !registrationRefundMatchesPersistedClaim(refund, {
+          !registrationRefundMatchesPersistedProviderIdentity(refund, {
             amount: Math.abs(claim.amount),
             currency: claim.currency,
-            refundClaimId,
-            refundGeneration: claim.stripeRefundGeneration,
-            registrationId,
-            sourceTransactionId,
             stripeReference,
-            tenantId,
           })
         ) {
           return { status: 'rejected' as const };
@@ -1059,11 +1767,11 @@ export const reconcileRegistrationRefundWebhook = Effect.fn(
                 claim.stripeRefundMaxAttempts,
               ),
             )
-            .where(eq(transactions.id, refundClaimId));
+            .where(eq(transactions.id, claim.id));
         }
 
         yield* reconcileRegistrationTransferRefund(tx, {
-          refundTransactionId: refundClaimId,
+          refundTransactionId: claim.id,
           stripeRefundStatus: reconciledStatus,
         });
         return { status: 'reconciled' as const };
@@ -1076,6 +1784,13 @@ export const processDueRegistrationRefundClaims = Effect.fn(
   'processDueRegistrationRefundClaims',
 )(function* (batchSize = defaultRefundBatchSize) {
   const now = new Date(yield* Clock.currentTimeMillis);
+  const ambiguousClaimIds = yield* Database.use((database) =>
+    database
+      .update(transactions)
+      .set(registrationRefundAmbiguousRecoveryUpdate())
+      .where(registrationRefundAmbiguousRecoveryPredicate(now))
+      .returning({ id: transactions.id }),
+  );
   const claimIds = yield* Database.use((database) =>
     database
       .select({ id: transactions.id })
@@ -1088,7 +1803,7 @@ export const processDueRegistrationRefundClaims = Effect.fn(
       .limit(normalizeRegistrationRefundBatchSize(batchSize)),
   );
 
-  let exhausted = 0;
+  let exhausted = ambiguousClaimIds.length;
   let failed = 0;
   let processed = 0;
   let skipped = 0;
@@ -1127,7 +1842,7 @@ export const processDueRegistrationRefundClaims = Effect.fn(
     exhausted,
     failed,
     processed,
-    scanned: claimIds.length,
+    scanned: ambiguousClaimIds.length + claimIds.length,
     skipped,
   } satisfies RegistrationRefundWorkerSummary;
 });

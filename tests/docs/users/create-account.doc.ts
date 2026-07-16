@@ -13,6 +13,7 @@ import {
 import { test } from '../../support/fixtures/base-test';
 import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 
 // test.use({ storageState: defaultStateFile });
 
@@ -27,7 +28,9 @@ const hasManagementEnvironment = Effect.runSync(
   ),
 );
 
-test('Understand tenant account creation', async ({}, testInfo) => {
+test.use({ screenshot: 'off', trace: 'off', video: 'off' });
+
+test('Understand organization account setup', async ({}, testInfo) => {
   expect(
     createAccountModelFromAuthData(
       {
@@ -92,15 +95,15 @@ test('Understand tenant account creation', async ({}, testInfo) => {
 
   await testInfo.attach('markdown', {
     body: `
-# Tenant Setup and Privacy Acceptance
+# Organization Setup and Privacy Acceptance
 
-Authenticated users who have not completed the current tenant requirements are sent to **Complete tenant setup** before protected tenant pages. This applies to a first tenant join, newly published privacy-policy versions, and newly required tenant questions. The form is shown only after the Auth0 email address is explicitly verified.
+Signed-in users who have not completed the current organization requirements are sent to **Complete organization setup** before protected pages. This applies to a first organization join, newly published privacy-policy versions, and newly required questions. The form is shown only after the sign-in email address is verified.
 
-The account form pre-fills first name, last name, and **Notification email** from Auth0 data when available. Evorto stores the notification email as the user-managed communication address for event and finance messages; it may differ from the Auth0 login email shown later on the profile page.
+The account form pre-fills first name, last name, and **Notification email** from the sign-in account when available. Evorto uses the notification email for event and finance messages; it may differ from the sign-in email shown later on the profile page.
 
-Before submitting, the form trims first name, last name, notification email, and question answers. It stays disabled while invalid, already submitting, waiting for the onboarding mutation, or until the current privacy policy is accepted, so slow tenant-join writes cannot be double-submitted. If setup fails or the requirements changed in another tab, the page shows a retryable server error instead of silently losing the submit attempt.
+Before submitting, the form trims first name, last name, notification email, and question answers. The button stays unavailable until every required field is valid and the current policy is accepted. If requirements change while the page is open, Evorto keeps matching answers and asks you to review the latest version.
 
-Completing setup records the exact privacy-policy version and the submitted answers before joining the current tenant and granting its default user roles. Existing global users with the same Auth0 id join the current tenant instead of creating a duplicate global user. A user's original home tenant stays unchanged when they join another tenant; they can deliberately change it from the profile page afterward.
+Completing setup records the accepted privacy-policy version and submitted answers, adds you to the current organization, and grants its standard member access. If your login already belongs to another organization, Evorto adds the same account here instead of creating a duplicate. Your original home organization stays unchanged until you deliberately change it from your profile.
 `,
   });
 });
@@ -126,7 +129,7 @@ test.describe('Auth0-backed account creation docs', () => {
       await testInfo.attach('markdown', {
         body: `
 {% callout type="note" title="For first time visits" %}
-This guide assumes that you are authenticated by Auth0 but have not completed setup for the current tenant. Completing setup records the current privacy-policy acceptance, connects your global login to this tenant, and grants the tenant's default user roles.
+This guide assumes that you are signed in but have not completed setup for the current organization. Completing setup records the current privacy-policy acceptance and adds your account to the organization with its standard member access.
 {% /callout %}
 ## Login
 Open the app page and click on the **Login** link.`,
@@ -154,16 +157,17 @@ Open the app page and click on the **Login** link.`,
       await page.getByRole('link', { name: 'Login' }).click();
       await testInfo.attach('markdown', {
         body: `
-After starting the login flow, sign in with the account you want to use for this tenant. This integration guide uses a generated demo user because Auth0 account creation requires Auth0 Management credentials.
+After starting the login flow, sign in with the account you want to use for this organization.
 
-If your Auth0 email address is not verified yet, Evorto asks you to verify it before the tenant account form is shown.`,
+If your login email address is not verified yet, Evorto asks you to verify it before the organization setup form is shown.`,
       });
       await page.getByLabel('Email address').waitFor({ state: 'visible' });
       await takeScreenshot(testInfo, page.getByLabel('Email address'), page);
       await page.getByLabel('Email address').fill(newUser.email);
-      await page
-        .getByRole('textbox', { name: 'Password' })
-        .fill(newUser.password);
+      await fillProtectedValue(
+        page.getByRole('textbox', { name: 'Password' }),
+        'E2E_TRANSIENT_AUTH0_USER_PASSWORD',
+      );
       await page.getByRole('button', { exact: true, name: 'Continue' }).click();
       const acceptButton = page.getByRole('button', {
         exact: true,
@@ -171,7 +175,7 @@ If your Auth0 email address is not verified yet, Evorto asks you to verify it be
       });
       const joinTenantButton = page.getByRole('button', {
         exact: true,
-        name: 'Join tenant',
+        name: 'Join organization',
       });
       await expect(acceptButton.or(joinTenantButton).first()).toBeVisible({
         timeout: 15000,
@@ -183,9 +187,9 @@ If your Auth0 email address is not verified yet, Evorto asks you to verify it be
 
       await testInfo.attach('markdown', {
         body: `
-Review the prefilled first name, last name, and **Notification email** address. Read the tenant's current privacy policy and accept it before clicking **Join tenant**. Evorto stores both the exact accepted policy version and the notification email as your editable communication address for event and finance messages.
+Review the prefilled first name, last name, and **Notification email** address. Read the organization's current privacy policy and accept it before clicking **Join organization**. Evorto stores both the exact accepted policy version and the notification email as your editable communication address for event and finance messages.
 
-If the tenant asks onboarding questions, every current question must be answered. If the same global login already exists for another tenant, this step joins the current tenant instead of creating a duplicate global user. If setup fails or the policy changes while the form is open, the form shows the server error and lets you review the current requirements before retrying.`,
+If the organization asks onboarding questions, every current question must be answered. If your login already belongs to another organization, this step adds the same account here. If setup fails or the policy changes while the form is open, Evorto explains what needs attention and lets you review the current requirements before retrying.`,
       });
       const createAccountForm = page
         .locator('form')
@@ -267,7 +271,7 @@ If the tenant asks onboarding questions, every current question must be answered
 
       await testInfo.attach('markdown', {
         body: `
-You should now be on your profile page for the current tenant. The tenant membership, default role assignment, exact policy acceptance, and first home-tenant selection are persisted together. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
+You should now be on your profile page for the current organization. Your membership, standard access, policy acceptance, and first home organization are saved together. From here you can review your profile, manage discount cards when the organization supports them, and register for events.`,
       });
     } finally {
       if (createdUserId) {

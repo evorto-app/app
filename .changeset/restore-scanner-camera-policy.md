@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Restore first-party QR scanner camera access

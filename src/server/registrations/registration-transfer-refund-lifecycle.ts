@@ -40,7 +40,7 @@ const refundLifecycleState = (
     return 'needsAttention';
   }
   if (
-    refund.status === 'successful' ||
+    refund.status === 'successful' &&
     refund.stripeRefundStatus === 'succeeded'
   ) {
     return 'succeeded';

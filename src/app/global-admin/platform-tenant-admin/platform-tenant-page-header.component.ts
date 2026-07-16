@@ -15,7 +15,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
     <header class="mb-6 flex items-start gap-3">
       <a
         mat-icon-button
-        aria-label="Back to tenant"
+        aria-label="Back to organization"
         [routerLink]="['/global-admin/tenants', tenantId()]"
       >
         <fa-duotone-icon [icon]="faArrowLeft" />
@@ -24,9 +24,11 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
         <h1 class="title-large">{{ title() }}</h1>
         <p class="body-medium text-on-surface-variant mt-1 break-words">
           @if (tenantQuery.isSuccess() && tenantQuery.data(); as tenant) {
-            {{ tenant.name }} · <span class="font-mono">{{ tenant.id }}</span>
+            {{ tenant.name }}
+          } @else if (tenantQuery.isPending()) {
+            Loading organization…
           } @else {
-            Tenant <span class="font-mono">{{ tenantId() }}</span>
+            Organization details unavailable
           }
         </p>
       </div>

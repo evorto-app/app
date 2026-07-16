@@ -11,7 +11,6 @@ import {
   profileEventGuestLabel,
   profileEventNextStepLabel,
   profileEventPassLabel,
-  profileReceiptStatusLabel,
   profileSectionFromFragment,
   profileTransferClaimPath,
   profileUserAfterEdit,
@@ -62,7 +61,7 @@ describe('profile event labels', () => {
         status: 'CONFIRMED',
       }),
     ).toBe(
-      'Open the event page for ticket access and the current availability of cancellation and unpaid self-service transfer.',
+      "Open the event page for ticket access and to see whether cancellation or transfer is currently available. A transfer may be free or require the recipient to pay, based on current prices and the recipient's eligible discounts.",
     );
     expect(
       profileEventActionNote({
@@ -280,18 +279,18 @@ describe('profile event labels', () => {
     expect(registrationStatusLabel('WAITLIST')).toBe('Waitlist');
   });
 
-  it('keeps participant refund sources and states literal', () => {
+  it('keeps participant refund sources and states actionable', () => {
     expect(registrationRefundSourceLabel('registration')).toBe(
       'Registration payment',
     );
     expect(registrationRefundSourceLabel('addon')).toBe('Add-on payment');
     expect(registrationRefundStateLabel('actionRequired')).toBe(
-      'Provider action required',
+      'Contact organizer for refund update',
     );
     expect(registrationRefundStateLabel('pending')).toBe('Refund queued');
     expect(registrationRefundStateLabel('retrying')).toBe('Refund retrying');
     expect(registrationRefundStateLabel('needsAttention')).toBe(
-      'Refund needs attention',
+      'Contact organizer for refund update',
     );
     expect(registrationRefundStateLabel('succeeded')).toBe('Refund completed');
   });
@@ -330,7 +329,7 @@ describe('profile event labels', () => {
         ],
       }),
     ).toBe(
-      "Your registration remains cancelled, but at least one refund needs a platform administrator's attention. Money has not necessarily been returned yet. Do not pay or register again to retry it. 1 of 2 refunds is complete.",
+      'Your registration remains cancelled, but at least one refund needs organizer follow-up. Money has not necessarily been returned yet. Contact the organizer for an update. Do not pay or register again to retry it. 1 of 2 refunds is complete.',
     );
     const mixedFollowUp = profileEventActionNote({
       ...cancelledEvent,
@@ -344,10 +343,7 @@ describe('profile event labels', () => {
       ],
     });
     expect(mixedFollowUp).toContain(
-      "at least one refund needs a platform administrator's attention",
-    );
-    expect(mixedFollowUp).toContain(
-      'at least one Stripe refund requires provider-side action',
+      'at least one refund needs organizer follow-up',
     );
     expect(mixedFollowUp).toContain('Contact the organizer for an update.');
   });
@@ -441,27 +437,59 @@ describe('profile ESN card messages', () => {
 
   it('uses readable fallback messages for save, refresh, and remove failures', () => {
     expect(esnCardMutationErrorMessage('save', null)).toBe(
-      'Could not validate ESN card',
+      "We couldn't check this ESN card. Check the number and try again.",
     );
     expect(esnCardMutationErrorMessage('refresh', null)).toBe(
-      'Could not refresh ESN card',
+      "We couldn't refresh this ESN card. Try again.",
     );
     expect(esnCardMutationErrorMessage('remove', null)).toBe(
-      'Could not remove ESN card',
+      "We couldn't remove this ESN card. Try again.",
     );
   });
 
-  it('prefers provider and RPC messages over generic fallback text', () => {
+  it('maps provider and RPC failures to product language', () => {
     expect(
       esnCardMutationErrorMessage('save', {
         message: 'ESNcard validation provider is unavailable',
       }),
-    ).toBe('ESNcard validation provider is unavailable');
+    ).toBe("We couldn't check this ESN card. Check the number and try again.");
     expect(
       esnCardMutationErrorMessage('refresh', {
         _tag: 'RpcBadRequestError',
+        reason: 'provider-timeout',
       }),
-    ).toBe('Bad Request');
+    ).toBe(
+      'ESN card verification is temporarily unavailable. Try again later.',
+    );
+    expect(
+      esnCardMutationErrorMessage('save', {
+        _tag: 'DiscountCardConflictError',
+      }),
+    ).toBe(
+      'This ESN card is already linked to another account in this organization.',
+    );
+    expect(
+      esnCardMutationErrorMessage('refresh', {
+        _tag: 'DiscountCardNotFoundError',
+      }),
+    ).toBe(
+      'This ESN card is no longer saved. Reload the page to see your current cards.',
+    );
+    expect(
+      esnCardMutationErrorMessage('save', { _tag: 'RpcForbiddenError' }),
+    ).toBe('ESN card discounts are not available for this organization.');
+    expect(
+      esnCardMutationErrorMessage('refresh', {
+        _tag: 'RpcInternalServerError',
+      }),
+    ).toBe(
+      'ESN card verification is temporarily unavailable. Try again later.',
+    );
+    expect(
+      esnCardMutationErrorMessage('remove', {
+        _tag: 'RpcUnauthorizedError',
+      }),
+    ).toBe('Your session expired. Sign in again to manage your ESN card.');
   });
 });
 
@@ -508,15 +536,6 @@ describe('profile edit actions', () => {
       lastName: 'Person',
       paypalEmail: null,
     });
-  });
-});
-
-describe('profile receipt labels', () => {
-  it('keeps submitted receipt statuses readable on profile cards', () => {
-    expect(profileReceiptStatusLabel('approved')).toBe('Approved');
-    expect(profileReceiptStatusLabel('refunded')).toBe('Reimbursed');
-    expect(profileReceiptStatusLabel('rejected')).toBe('Rejected');
-    expect(profileReceiptStatusLabel('submitted')).toBe('Submitted');
   });
 });
 

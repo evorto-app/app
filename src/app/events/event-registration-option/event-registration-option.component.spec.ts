@@ -3,9 +3,11 @@ import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  registrationAddonIsSoldOut,
   registrationAddonMaxSelectableQuantity,
   registrationAddonPurchasePayload,
   registrationAddonSelectedTotalPrice,
+  registrationAddonSoldOutLabel,
   registrationOptionAudienceCopy,
   registrationOptionAvailability,
   registrationOptionAvailableSpots,
@@ -62,6 +64,22 @@ describe('guest selection template', () => {
     expect(template).toContain('available spot and shares your registration.');
     expect(template).toContain('subscriptSizing="dynamic"');
     expect(template).toContain('selectedSpotCount() === 1 ? "spot" : "spots"');
+  });
+});
+
+describe('registration add-on template', () => {
+  it('distinguishes included prices from optional unit prices and names quantity controls', () => {
+    const template = readSource(
+      'src/app/events/event-registration-option/event-registration-option.component.html',
+    );
+
+    expect(template).toContain('Included in registration price');
+    expect(template).toContain('per extra item');
+    expect(template).toContain('@else if (soldOut)');
+    expect(template).toContain('addonSoldOutLabel(includedQuantity)');
+    expect(template).toContain(
+      `[attr.aria-label]="'Quantity for ' + addOn.title"`,
+    );
   });
 });
 
@@ -301,6 +319,7 @@ describe('registrationOptionSelectedTotalPrice', () => {
 describe('registration add-on selections', () => {
   const addOns = [
     {
+      allowPurchaseDuringRegistration: true,
       id: 'addon-1',
       price: 500,
       registrationOptions: [
@@ -312,6 +331,7 @@ describe('registration add-on selections', () => {
       ],
     },
     {
+      allowPurchaseDuringRegistration: true,
       id: 'addon-2',
       price: 0,
       registrationOptions: [
@@ -359,6 +379,7 @@ describe('registration add-on selections', () => {
     expect(
       registrationAddonMaxSelectableQuantity(
         {
+          allowPurchaseDuringRegistration: true,
           maxQuantityPerUser: 5,
           registrationOptions: [
             {
@@ -372,6 +393,89 @@ describe('registration add-on selections', () => {
         'option-1',
       ),
     ).toBe(2);
+  });
+
+  it('does not count included add-ons against the optional per-user limit', () => {
+    expect(
+      registrationAddonMaxSelectableQuantity(
+        {
+          allowPurchaseDuringRegistration: true,
+          maxQuantityPerUser: 3,
+          registrationOptions: [
+            {
+              includedQuantity: 2,
+              optionalPurchaseQuantity: 3,
+              registrationOptionId: 'option-1',
+            },
+          ],
+          totalAvailableQuantity: 10,
+        },
+        'option-1',
+      ),
+    ).toBe(3);
+  });
+
+  it('marks a configured optional add-on as sold out when no stock remains', () => {
+    const soldOutAddOn = {
+      allowPurchaseDuringRegistration: true,
+      maxQuantityPerUser: 3,
+      registrationOptions: [
+        {
+          includedQuantity: 0,
+          optionalPurchaseQuantity: 3,
+          registrationOptionId: 'option-1',
+        },
+      ],
+      totalAvailableQuantity: 0,
+    } as const;
+
+    expect(
+      registrationAddonMaxSelectableQuantity(soldOutAddOn, 'option-1'),
+    ).toBe(0);
+    expect(registrationAddonIsSoldOut(soldOutAddOn, 'option-1')).toBe(true);
+  });
+
+  it('clarifies whether the whole add-on or only extra items are sold out', () => {
+    expect(registrationAddonSoldOutLabel(0)).toBe('Sold out');
+    expect(registrationAddonSoldOutLabel(2)).toBe('Extra items sold out');
+  });
+
+  it('shows included add-ons without allowing optional selection outside the registration purchase window', () => {
+    const includedOnlyAddOn = {
+      allowPurchaseDuringRegistration: false,
+      id: 'included-only',
+      maxQuantityPerUser: 3,
+      price: 500,
+      registrationOptions: [
+        {
+          includedQuantity: 2,
+          optionalPurchaseQuantity: 3,
+          registrationOptionId: 'option-1',
+        },
+      ],
+      totalAvailableQuantity: 10,
+    } as const;
+
+    expect(
+      registrationAddonMaxSelectableQuantity(includedOnlyAddOn, 'option-1'),
+    ).toBe(0);
+    expect(
+      registrationAddonPurchasePayload(
+        [includedOnlyAddOn],
+        { 'included-only': 3 },
+        'option-1',
+      ),
+    ).toEqual([]);
+    expect(
+      registrationAddonSelectedTotalPrice(
+        [includedOnlyAddOn],
+        { 'included-only': 3 },
+        'option-1',
+      ),
+    ).toBe(0);
+    expect(registrationAddonIsSoldOut(includedOnlyAddOn, 'option-1')).toBe(
+      false,
+    );
   });
 });
 

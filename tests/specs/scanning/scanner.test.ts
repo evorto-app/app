@@ -135,7 +135,7 @@ test('scanner explains a denied camera and offers a retry', async ({
 
   await page.goto('/scan');
 
-  await expect(page.getByRole('alert')).toContainText('Scanning error');
+  await expect(page.getByRole('alert')).toContainText('Camera unavailable');
   await expect(page.getByRole('alert')).toContainText(
     'The camera could not be started.',
   );
@@ -144,7 +144,7 @@ test('scanner explains a denied camera and offers a retry', async ({
   ).toBeEnabled();
 });
 
-test('scanner redeems, immediately undoes, and cancels add-on quantities with explicit refund handling', async ({
+test('scanner hands out, immediately undoes, and cancels add-on quantities with explicit refund handling', async ({
   database,
   page,
   seeded,
@@ -236,24 +236,19 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
     const checklist = page
       .locator('article')
       .filter({ hasText: checklistTitle });
-    await expect(tote).toContainText(
-      '1 included (1 unredeemed) · 2 optional (2 unredeemed)',
-    );
+    await expect(tote).toContainText('1 included · 2 purchased');
     await expect(
-      tote.getByText('Total', { exact: true }).locator('..'),
-    ).toContainText('3');
-    await expect(
-      tote.getByText('Redeemed', { exact: true }).locator('..'),
+      tote.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('0');
     await expect(
       tote.getByText('Cancelled', { exact: true }).locator('..'),
     ).toContainText('0');
     await expect(
-      tote.getByText('Remaining', { exact: true }).locator('..'),
+      tote.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('3');
     await expect(tote.getByText('No refund requested')).toBeVisible();
 
-    await tote.getByRole('button', { name: 'Cancel unredeemed units' }).click();
+    await tote.getByRole('button', { name: 'Cancel remaining units' }).click();
     const allocationPreviewDialog = page.getByRole('dialog');
     await expect(allocationPreviewDialog).toContainText(
       'Selected cancellation: 1 optional, 0 included.',
@@ -278,32 +273,32 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       .getByRole('button', { name: 'Keep units' })
       .click();
 
-    await tote.getByRole('button', { name: 'Redeem 1' }).click();
+    await tote.getByRole('button', { name: 'Hand out 1' }).click();
     await expect(
-      tote.getByText('Redeemed', { exact: true }).locator('..'),
+      tote.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('1', { timeout: 15_000 });
-    await expect(page.getByText(`${toteTitle} redeemed.`)).toBeVisible();
-    await tote.getByRole('button', { name: 'Undo last redemption' }).click();
+    await expect(page.getByText(`${toteTitle} handed out.`)).toBeVisible();
+    await tote.getByRole('button', { name: 'Undo last handout' }).click();
     await expect(
-      tote.getByText('Redeemed', { exact: true }).locator('..'),
+      tote.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('0', { timeout: 15_000 });
     await expect(
-      page.getByText(`${toteTitle} redemption undone.`),
+      page.getByText(`Last ${toteTitle} handout undone.`),
     ).toBeVisible();
     await expect(
-      tote.getByRole('button', { name: 'Undo last redemption' }),
+      tote.getByRole('button', { name: 'Undo last handout' }),
     ).toHaveCount(0);
 
-    await tote.getByRole('button', { name: 'Redeem 1' }).click();
+    await tote.getByRole('button', { name: 'Hand out 1' }).click();
     await expect(
-      tote.getByText('Redeemed', { exact: true }).locator('..'),
+      tote.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('1', { timeout: 15_000 });
-    await tote.getByRole('button', { name: 'Redeem 1' }).click();
+    await tote.getByRole('button', { name: 'Hand out 1' }).click();
     await expect(
-      tote.getByText('Redeemed', { exact: true }).locator('..'),
+      tote.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('2', { timeout: 15_000 });
 
-    await tote.getByRole('button', { name: 'Cancel unredeemed units' }).click();
+    await tote.getByRole('button', { name: 'Cancel remaining units' }).click();
     const refundDialog = page.getByRole('dialog');
     await expect(refundDialog).toContainText('1 unredeemed unit available');
     await expect(refundDialog).toContainText(
@@ -325,16 +320,18 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       page.getByText('Cancellation recorded. No monetary refund was required.'),
     ).toBeVisible();
     await expect(
-      tote.getByText('Remaining', { exact: true }).locator('..'),
+      tote.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('0');
     await expect(tote.getByText('No monetary refund required')).toBeVisible();
-    await expect(tote.getByRole('button', { name: 'Redeem 1' })).toHaveCount(0);
+    await expect(tote.getByRole('button', { name: 'Hand out 1' })).toHaveCount(
+      0,
+    );
     await expect(
-      tote.getByRole('button', { name: 'Cancel unredeemed units' }),
+      tote.getByRole('button', { name: 'Cancel remaining units' }),
     ).toHaveCount(0);
 
     await voucher
-      .getByRole('button', { name: 'Cancel unredeemed units' })
+      .getByRole('button', { name: 'Cancel remaining units' })
       .click();
     const noRefundDialog = page.getByRole('dialog');
     await noRefundDialog
@@ -352,7 +349,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
     await expect(voucher.getByText('Cancelled without refund')).toBeVisible();
 
     await checklist
-      .getByRole('button', { name: 'Cancel unredeemed units' })
+      .getByRole('button', { name: 'Cancel remaining units' })
       .click();
     const includedDialog = page.getByRole('dialog');
     await expect(includedDialog).toContainText('1 unredeemed unit available');
@@ -373,7 +370,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       checklist.getByText('Cancelled', { exact: true }).locator('..'),
     ).toContainText('1', { timeout: 15_000 });
     await expect(
-      checklist.getByText('Remaining', { exact: true }).locator('..'),
+      checklist.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('0');
     await expect(
       checklist.getByText('No monetary refund required'),
@@ -639,7 +636,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
 test.describe('organizer add-on cancellation permissions', () => {
   test.use({ storageState: organizerStateFile });
 
-  test('keeps redemption available while explaining and enforcing separate cancellation access', async ({
+  test('keeps handout available while explaining and enforcing separate cancellation access', async ({
     database,
     page,
     permissionOverride,
@@ -697,22 +694,22 @@ test.describe('organizer add-on cancellation permissions', () => {
       await waitForScannerAddonFulfillment(page);
       const addOn = page.locator('article').filter({ hasText: title });
       await expect(
-        addOn.getByRole('button', { name: 'Redeem 1' }),
+        addOn.getByRole('button', { name: 'Hand out 1' }),
       ).toBeVisible();
       await expect(
-        addOn.getByRole('button', { name: 'Cancel unredeemed units' }),
+        addOn.getByRole('button', { name: 'Cancel remaining units' }),
       ).toHaveCount(0);
       await expect(addOn).toContainText(
         'Cancelling units requires Cancel registrations and add-ons access.',
       );
 
-      await addOn.getByRole('button', { name: 'Redeem 1' }).click();
+      await addOn.getByRole('button', { name: 'Hand out 1' }).click();
       await expect(
-        addOn.getByRole('button', { name: 'Undo last redemption' }),
+        addOn.getByRole('button', { name: 'Undo last handout' }),
       ).toBeVisible({ timeout: 15_000 });
-      await addOn.getByRole('button', { name: 'Undo last redemption' }).click();
+      await addOn.getByRole('button', { name: 'Undo last handout' }).click();
       await expect(
-        addOn.getByText('Redeemed', { exact: true }).locator('..'),
+        addOn.getByText('Handed out', { exact: true }).locator('..'),
       ).toContainText('0', { timeout: 15_000 });
 
       await permissionOverride({
@@ -722,7 +719,7 @@ test.describe('organizer add-on cancellation permissions', () => {
       await page.reload();
       await waitForScannerAddonFulfillment(page);
       await expect(
-        addOn.getByRole('button', { name: 'Cancel unredeemed units' }),
+        addOn.getByRole('button', { name: 'Cancel remaining units' }),
       ).toBeVisible();
       await expect(addOn).not.toContainText(
         'Cancelling units requires Cancel registrations and add-ons access.',

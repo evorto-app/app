@@ -5,7 +5,6 @@ import type {
   EventsRegistrationStatus,
 } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -29,6 +28,7 @@ import {
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import {
   RegistrationAddonCancellationDialogComponent,
   RegistrationAddonCancellationDialogResult,
@@ -129,7 +129,7 @@ export const registrationAddonRefundStatusLabel = (
 ): string => {
   switch (status) {
     case 'actionRequired': {
-      return 'Provider action required';
+      return 'Refund needs review';
     }
     case 'cancelledWithoutRefund': {
       return 'Cancelled without refund';
@@ -163,7 +163,7 @@ export const registrationAddonCancellationSuccessMessage = (
 ): string => {
   switch (status) {
     case 'actionRequired': {
-      return 'Cancellation recorded. The Stripe refund requires provider-side action. Do not cancel or charge again; review the existing refund.';
+      return 'Cancellation recorded, but the refund needs a platform administrator to review it. Do not cancel or charge again.';
     }
     case 'cancelledWithoutRefund': {
       return 'Cancellation recorded without a refund, as requested.';
@@ -212,7 +212,7 @@ export const scanRegistrationStatusIssueCopy = (
     }
     case 'PENDING': {
       return {
-        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.',
+        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
         title: 'Registration pending',
       };
     }
@@ -242,6 +242,21 @@ export const registrationAddonCancellationBlockedMessage = (
       return 'Add-on units can only be cancelled for a confirmed registration.';
     }
   }
+};
+
+export const registrationAddonQuantitySummary = ({
+  includedQuantity,
+  purchasedQuantity,
+}: Pick<
+  EventsRegistrationAddonFulfillmentRecord,
+  'includedQuantity' | 'purchasedQuantity'
+>): string => {
+  const quantities = [
+    includedQuantity > 0 ? `${includedQuantity} included` : '',
+    purchasedQuantity > 0 ? `${purchasedQuantity} purchased` : '',
+  ].filter((quantity) => quantity.length > 0);
+
+  return quantities.length > 0 ? quantities.join(' · ') : 'No units';
 };
 
 export const scanCheckInButtonLabel = ({
@@ -304,7 +319,7 @@ export const scanGuestCheckInCountFromInput = ({
     MatFormFieldModule,
     MatInputModule,
     RouterLink,
-    DatePipe,
+    TenantDatePipe,
   ],
   selector: 'app-handle-registration',
   styles: ``,
@@ -371,6 +386,8 @@ export class HandleRegistrationComponent {
   protected readonly pendingAddonId = signal<string | undefined>(undefined);
   protected readonly registrationAddonCancellationBlockedMessage =
     registrationAddonCancellationBlockedMessage;
+  protected readonly registrationAddonQuantitySummary =
+    registrationAddonQuantitySummary;
   protected readonly registrationAddonRefundStatusLabel =
     registrationAddonRefundStatusLabel;
   protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
@@ -512,10 +529,18 @@ export class HandleRegistrationComponent {
         onError: (error) => this.addonActionFailed(error),
         onSuccess: async () => {
           this.redeemIntentStore.complete(addOn.registrationAddonId);
-          await this.addonActionSucceeded(`${addOn.title} redeemed.`);
+          await this.addonActionSucceeded(`${addOn.title} handed out.`);
         },
       },
     );
+  }
+
+  protected retryAddonFulfillment(): void {
+    void this.addonFulfillmentQuery.refetch();
+  }
+
+  protected retryRegistration(): void {
+    void this.scanResultQuery.refetch();
   }
 
   protected undoAddonRedemption(
@@ -544,7 +569,9 @@ export class HandleRegistrationComponent {
       {
         onError: (error) => this.addonActionFailed(error),
         onSuccess: async () => {
-          await this.addonActionSucceeded(`${addOn.title} redemption undone.`);
+          await this.addonActionSucceeded(
+            `Last ${addOn.title} handout undone.`,
+          );
         },
       },
     );

@@ -1,5 +1,10 @@
 import { Effect, Schema } from 'effect';
 
+import {
+  isPersistableNonNegativeInteger,
+  maximumPersistedPaymentAmount,
+} from './payment-amount';
+
 export interface AddonPaymentLotTerms {
   readonly baseAmount: number;
   readonly id: string;
@@ -25,8 +30,8 @@ export class AddonPaymentAllocationError extends Schema.TaggedErrorClass<AddonPa
 const allocationError = (message: string) =>
   new AddonPaymentAllocationError({ message });
 
-const roundFraction = (numerator: number, denominator: number): number =>
-  Math.floor((numerator + Math.floor(denominator / 2)) / denominator);
+const roundFraction = (numerator: bigint, denominator: bigint): number =>
+  Number((numerator + denominator / 2n) / denominator);
 
 const percentageRatio = (
   percentage: null | string,
@@ -47,7 +52,7 @@ export const resolveAddonTaxAmounts = (
     'baseAmount' | 'taxRateInclusive' | 'taxRatePercentage'
   >,
 ): undefined | { expectedGrossAmount: number; taxAmount: number } => {
-  if (!Number.isSafeInteger(input.baseAmount) || input.baseAmount < 0) return;
+  if (!isPersistableNonNegativeInteger(input.baseAmount)) return;
   const ratio = percentageRatio(input.taxRatePercentage);
   if (!ratio) {
     return input.taxRatePercentage === null && input.taxRateInclusive === null
@@ -55,18 +60,20 @@ export const resolveAddonTaxAmounts = (
       : undefined;
   }
   if (input.taxRateInclusive === null) return;
-  const taxNumerator = input.baseAmount * ratio.numerator;
-  if (!Number.isSafeInteger(taxNumerator)) return;
+  const taxNumerator = BigInt(input.baseAmount) * BigInt(ratio.numerator);
   if (input.taxRateInclusive) {
     const taxAmount = roundFraction(
       taxNumerator,
-      100 * ratio.denominator + ratio.numerator,
+      100n * BigInt(ratio.denominator) + BigInt(ratio.numerator),
     );
     return { expectedGrossAmount: input.baseAmount, taxAmount };
   }
-  const taxAmount = roundFraction(taxNumerator, 100 * ratio.denominator);
+  const taxAmount = roundFraction(
+    taxNumerator,
+    100n * BigInt(ratio.denominator),
+  );
   const expectedGrossAmount = input.baseAmount + taxAmount;
-  if (!Number.isSafeInteger(expectedGrossAmount)) return;
+  if (!isPersistableNonNegativeInteger(expectedGrossAmount)) return;
   return {
     expectedGrossAmount,
     taxAmount,
@@ -80,39 +87,44 @@ export const allocateIntegerByWeight = (
     readonly weight: number;
   }[],
 ): ReadonlyMap<string, number> => {
-  if (!Number.isSafeInteger(total) || total < 0) {
+  if (!isPersistableNonNegativeInteger(total)) {
     throw new RangeError('Allocation total must be a nonnegative integer');
   }
   if (
-    weightedKeys.some(
-      ({ weight }) => !Number.isSafeInteger(weight) || weight < 0,
-    )
+    weightedKeys.some(({ weight }) => !isPersistableNonNegativeInteger(weight))
   ) {
     throw new RangeError('Allocation weights must be nonnegative integers');
   }
   const positiveWeights = weightedKeys.filter(({ weight }) => weight > 0);
   const weightTotal = positiveWeights.reduce(
-    (sum, allocation) => sum + allocation.weight,
-    0,
+    (sum, allocation) => sum + BigInt(allocation.weight),
+    0n,
   );
-  if (weightTotal === 0) {
+  if (weightTotal === 0n) {
     if (total !== 0) throw new RangeError('A positive total needs a weight');
     return new Map(weightedKeys.map(({ key }) => [key, 0]));
   }
+  if (weightTotal > BigInt(maximumPersistedPaymentAmount)) {
+    throw new RangeError('Allocation weight total exceeds the payment limit');
+  }
 
   const provisional = positiveWeights.map(({ key, weight }) => {
-    const numerator = total * weight;
+    const numerator = BigInt(total) * BigInt(weight);
     return {
       key,
       remainder: numerator % weightTotal,
-      value: Math.floor(numerator / weightTotal),
+      value: Number(numerator / weightTotal),
     };
   });
   let remainder =
     total - provisional.reduce((sum, allocation) => sum + allocation.value, 0);
   provisional.sort(
     (left, right) =>
-      right.remainder - left.remainder || left.key.localeCompare(right.key),
+      (left.remainder === right.remainder
+        ? 0
+        : left.remainder > right.remainder
+          ? -1
+          : 1) || left.key.localeCompare(right.key),
   );
   for (const allocation of provisional) {
     if (remainder === 0) break;
@@ -139,7 +151,7 @@ export const allocateCumulativeQuantityAmount = (input: {
     input.quantity,
     input.totalQuantity,
   ];
-  if (values.some((value) => !Number.isSafeInteger(value) || value < 0)) {
+  if (values.some((value) => !isPersistableNonNegativeInteger(value))) {
     throw new RangeError('Cumulative allocation inputs must be integers');
   }
   if (
@@ -151,12 +163,13 @@ export const allocateCumulativeQuantityAmount = (input: {
     );
   }
   const after = roundFraction(
-    input.amount * (input.alreadyAllocatedQuantity + input.quantity),
-    input.totalQuantity,
+    BigInt(input.amount) *
+      BigInt(input.alreadyAllocatedQuantity + input.quantity),
+    BigInt(input.totalQuantity),
   );
   const before = roundFraction(
-    input.amount * input.alreadyAllocatedQuantity,
-    input.totalQuantity,
+    BigInt(input.amount) * BigInt(input.alreadyAllocatedQuantity),
+    BigInt(input.totalQuantity),
   );
   return after - before;
 };
@@ -171,12 +184,10 @@ export const finalizeAddonPaymentAllocations = Effect.fn(
   readonly stripeFee: number;
 }) {
   if (
-    !Number.isSafeInteger(input.grossAmount) ||
-    input.grossAmount <= 0 ||
-    !Number.isSafeInteger(input.applicationFee) ||
-    input.applicationFee < 0 ||
-    !Number.isSafeInteger(input.stripeFee) ||
-    input.stripeFee < 0 ||
+    !isPersistableNonNegativeInteger(input.grossAmount) ||
+    input.grossAmount === 0 ||
+    !isPersistableNonNegativeInteger(input.applicationFee) ||
+    !isPersistableNonNegativeInteger(input.stripeFee) ||
     input.applicationFee + input.stripeFee > input.grossAmount
   ) {
     return yield* allocationError('Source payment amounts are inconsistent');
@@ -185,18 +196,18 @@ export const finalizeAddonPaymentAllocations = Effect.fn(
     return yield* allocationError('Purchase lot identifiers must be unique');
   }
 
-  const expectedLots = [] as {
+  const expectedLots: {
     expectedGrossAmount: number;
     id: string;
     taxAmount: number;
-  }[];
+  }[] = [];
   for (const lot of input.lots) {
     if (
       !lot.id.trim() ||
-      !Number.isSafeInteger(lot.baseAmount) ||
-      lot.baseAmount <= 0 ||
-      !Number.isSafeInteger(lot.quantity) ||
-      lot.quantity <= 0
+      !isPersistableNonNegativeInteger(lot.baseAmount) ||
+      lot.baseAmount === 0 ||
+      !isPersistableNonNegativeInteger(lot.quantity) ||
+      lot.quantity === 0
     ) {
       return yield* allocationError('Purchase lot terms are invalid');
     }
@@ -207,10 +218,18 @@ export const finalizeAddonPaymentAllocations = Effect.fn(
     expectedLots.push({ id: lot.id, ...tax });
   }
 
-  const expectedAddonGross = expectedLots.reduce(
-    (sum, lot) => sum + lot.expectedGrossAmount,
-    0,
-  );
+  let expectedAddonGross = 0;
+  for (const lot of expectedLots) {
+    if (
+      lot.expectedGrossAmount >
+      maximumPersistedPaymentAmount - expectedAddonGross
+    ) {
+      return yield* allocationError(
+        'Add-on line amounts exceed the payment limit',
+      );
+    }
+    expectedAddonGross += lot.expectedGrossAmount;
+  }
   if (expectedAddonGross > input.grossAmount) {
     return yield* allocationError(
       'Add-on line amounts exceed the successful source payment',

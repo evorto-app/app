@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Keep uploaded tenant branding tenant-bound

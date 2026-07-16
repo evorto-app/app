@@ -16,6 +16,12 @@ const requiredDockerEnvironment = Object.fromEntries(
     `${name.toLowerCase()}-value`,
   ]),
 );
+const requiredPlaywrightEnvironment = Object.fromEntries(
+  requiredByTarget.playwright.map(({ name }) => [
+    name,
+    `${name.toLowerCase()}-value`,
+  ]),
+);
 
 const successfulCommand = (command: string, args: readonly string[]) => {
   const joined = [command, ...args].join(' ');
@@ -84,6 +90,61 @@ const serviceBlock = (composeFile: string, service: string): string => {
 };
 
 describe('evaluateRuntimePreflight', () => {
+  it('requires every authenticated account before Playwright but not Docker startup', () => {
+    expect(
+      requiredByTarget.playwright
+        .map(({ name }) => name)
+        .filter((name) => name.endsWith('_USER_PASSWORD')),
+    ).toEqual([
+      'E2E_DEFAULT_USER_PASSWORD',
+      'E2E_ADMIN_USER_PASSWORD',
+      'E2E_GLOBAL_ADMIN_USER_PASSWORD',
+      'E2E_REGULAR_USER_PASSWORD',
+      'E2E_ORGANIZER_USER_PASSWORD',
+      'E2E_EMPTY_USER_PASSWORD',
+    ]);
+    expect(
+      requiredByTarget.docker
+        .map(({ name }) => name)
+        .filter((name) => name.endsWith('_USER_PASSWORD')),
+    ).toEqual([]);
+
+    const result = evaluateRuntimePreflight('playwright', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+    expect(result.failed).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'E2E_DEFAULT_USER_PASSWORD: Auth0 password for an authenticated Playwright test account',
+            'E2E_EMPTY_USER_PASSWORD: Auth0 password for an authenticated Playwright test account',
+          ]),
+          label: 'Required playwright runtime variables',
+          severity: 'failure',
+        }),
+      ]),
+    );
+  });
+
+  it('reports password variable names without exposing their values', () => {
+    const passwordSentinel = 'never-print-this-test-value';
+    const environment = Object.fromEntries(
+      requiredByTarget.playwright.map(({ name }) => [name, passwordSentinel]),
+    );
+    const result = evaluateRuntimePreflight('playwright', {
+      cwd: '/repo',
+      env: environment,
+      fileExists: () => true,
+      runCommand: successfulCommand,
+    });
+
+    expect(JSON.stringify(result)).not.toContain(passwordSentinel);
+  });
+
   it('keeps Font Awesome package installs on the private Bun registry scope', () => {
     const bunfig = fs.readFileSync(
       path.join(process.cwd(), 'bunfig.toml'),
@@ -159,16 +220,39 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['docker:webserver']).toBe(
       'bun run docker:check && dotenv -c dev -- bash helpers/testing/docker-webserver.sh',
     );
+    expect(packageJson.scripts['test:e2e:check']).toBe(
+      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts playwright',
+    );
+    for (const scriptName of [
+      'test:e2e',
+      'test:e2e:docs',
+      'test:e2e:integration',
+      'test:e2e:ui',
+    ]) {
+      expect(packageJson.scripts[scriptName]).toMatch(
+        /^bun run test:e2e:check && /,
+      );
+    }
 
-    const lifecycleSources = [
-      fs.readFileSync(
-        path.join(process.cwd(), 'helpers/testing/ci-start-docker-stack.sh'),
-        'utf8',
-      ),
-      fs.readFileSync(
-        path.join(process.cwd(), 'helpers/testing/docker-webserver.sh'),
-        'utf8',
-      ),
+    const disposableWebserverSource = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/docker-webserver.sh'),
+      'utf8',
+    );
+    expect(disposableWebserverSource).toMatch(
+      /docker compose down --timeout 60 --remove-orphans --volumes/,
+    );
+    expect(disposableWebserverSource).toContain(
+      'export E2E_RUNTIME_MODE=playwright',
+    );
+
+    const ciDockerStartSource = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/ci-start-docker-stack.sh'),
+      'utf8',
+    );
+    expect(ciDockerStartSource).toContain('export E2E_RUNTIME_MODE=playwright');
+
+    const persistentLifecycleSources = [
+      ciDockerStartSource,
       fs.readFileSync(
         path.join(process.cwd(), '.github/workflows/e2e-baseline.yml'),
         'utf8',
@@ -182,14 +266,16 @@ describe('evaluateRuntimePreflight', () => {
       ),
       ...Object.values(packageJson.scripts),
     ].join('\n');
-    for (const downCommand of lifecycleSources.matchAll(
+    for (const downCommand of persistentLifecycleSources.matchAll(
       /docker compose down[^\n"']*/g,
     )) {
       expect(downCommand[0]).toContain('--timeout 60');
       expect(downCommand[0]).toContain('--remove-orphans');
       expect(downCommand[0]).not.toContain('--volumes');
     }
-    expect(lifecycleSources).not.toMatch(/docker[^\n]*\bprune\b/);
+    expect(
+      `${persistentLifecycleSources}\n${disposableWebserverSource}`,
+    ).not.toMatch(/docker[^\n]*\bprune\b/);
 
     const playwrightConfig = fs.readFileSync(
       path.join(process.cwd(), 'playwright.config.ts'),
@@ -202,7 +288,7 @@ describe('evaluateRuntimePreflight', () => {
       'reuseExistingServer: environment.NEON_LOCAL_PROXY',
     );
     expect(playwrightConfig).toMatch(
-      /gracefulShutdown:\s*\{\s*signal:\s*'SIGTERM',\s*timeout:\s*90_000,?\s*\}/,
+      /gracefulShutdown:\s*\{\s*signal:\s*'SIGTERM',\s*timeout:\s*300_000,?\s*\}/,
     );
     expect(playwrightConfig).not.toContain(
       "command: 'bun run docker:start:foreground'",
@@ -234,7 +320,7 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'tests/AGENTS.md'),
       'utf8',
     );
-    expect(testsGuidance).toContain('`bun run docker:start:foreground`');
+    expect(testsGuidance).toContain('`bun run docker:webserver`');
   });
 
   it('keeps Angular SSR host validation aligned with local and seeded tenant hosts', () => {
@@ -286,15 +372,23 @@ describe('evaluateRuntimePreflight', () => {
     ) as { scripts: Record<string, string> };
 
     for (const scriptName of [
-      'test:e2e',
-      'test:e2e:ui',
-      'test:e2e:integration',
       'test:e2e:live-esncard',
       'test:e2e:live-esncard:release',
-      'test:e2e:docs',
       'test:e2e:docs:publish',
     ]) {
       expect(packageJson.scripts[scriptName]).toContain('bun run env:runtime');
+      expect(packageJson.scripts[scriptName]).toContain('dotenv -c dev --');
+    }
+
+    for (const scriptName of [
+      'test:e2e',
+      'test:e2e:ui',
+      'test:e2e:integration',
+      'test:e2e:docs',
+    ]) {
+      expect(packageJson.scripts[scriptName]).toContain(
+        'bun run test:e2e:check',
+      );
       expect(packageJson.scripts[scriptName]).toContain('dotenv -c dev --');
     }
 
@@ -306,6 +400,9 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
       '--project=local-chrome-live-esncard',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
+      '--project=docs-live-esncard',
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
       "--grep '@needs-live-esncard'",
@@ -320,24 +417,10 @@ describe('evaluateRuntimePreflight', () => {
       '--project=local-chrome-live-esncard',
     );
     expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
+      '--project=docs-live-esncard',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
       '--trace=off',
-    );
-  });
-
-  it('keeps Playwright list discovery away from file-writing reporters', () => {
-    const playwrightConfig = fs.readFileSync(
-      path.join(process.cwd(), 'playwright.config.ts'),
-      'utf8',
-    );
-
-    expect(playwrightConfig).toContain(
-      "const listOnly = process.argv.includes('--list');",
-    );
-    expect(playwrightConfig).toContain(': listOnly');
-    expect(playwrightConfig).toContain("? [['dot'], completeRunReporter]");
-    expect(playwrightConfig).toContain("['html', { open: 'never' }]");
-    expect(playwrightConfig).toContain(
-      "['./tests/support/reporters/documentation-reporter.ts']",
     );
   });
 
@@ -405,6 +488,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).toContain(
       'STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret',
     );
+    expect(evortoService).toContain(
+      'stripe:\n        condition: service_healthy',
+    );
     expect(evortoService).toContain('S3_ENDPOINT: http://minio:9000');
     expect(evortoService).toContain(
       'S3_PUBLIC_ENDPOINT: "http://localhost:${MINIO_HOST_PORT:-9000}"',
@@ -422,16 +508,41 @@ describe('evaluateRuntimePreflight', () => {
       'S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"',
     );
     expect(evortoService).toContain('NODE_ENV: "development"');
-    expect(evortoService).toContain('E2E_RUNTIME_MODE: "playwright"');
+    expect(evortoService).toContain('E2E_RUNTIME_MODE:');
+    expect(evortoService).not.toContain('E2E_RUNTIME_MODE: "playwright"');
     expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
+    );
+    expect(evortoService).toContain("trap 'cleanup_server TERM 143' TERM");
+    expect(evortoService).toContain(
+      'kill -"$$signal" "$$server_pid" 2>/dev/null || true',
+    );
+    expect(evortoService).toContain('finish_tee()');
+    expect(evortoService).toContain('sleep 2');
+    expect(evortoService).toContain(
+      'kill -TERM "$$tee_pid" 2>/dev/null || true',
     );
 
     expect(stripeService).toContain('STRIPE_API_KEY:');
     expect(stripeService).toContain(
       './helpers/testing/stripe-listen-docker.sh',
     );
+    expect(stripeService).toContain(
+      'test: ["CMD-SHELL", "test -s /run/stripe-webhook/signing-secret"]',
+    );
+    expect(stripeService).toContain('start_period: 5s');
+
+    const stripeListener = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/stripe-listen-docker.sh'),
+      'utf8',
+    );
+    expect(stripeListener).toContain("trap 'cleanup TERM 143' TERM");
+    expect(stripeListener).toContain(
+      'kill -"$signal" "$stripe_pid" 2>/dev/null || true',
+    );
+    expect(stripeListener).toContain('whsec_[REDACTED]');
+    expect(stripeListener).not.toContain('  echo "$line"');
 
     const runtimeEnvironment = fs.readFileSync(
       path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
@@ -442,6 +553,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(runtimeEnvironment).toContain('E2E_NOW_ISO: e2eNowIso');
     expect(runtimeEnvironment).toContain('E2E_SEED_KEY: e2eSeedKey');
     expect(runtimeEnvironment).toContain("NODE_ENV: 'development'");
+    expect(runtimeEnvironment).toContain('SSR_RPC_ORIGIN: baseUrl');
 
     const baseFixture = fs.readFileSync(
       path.join(process.cwd(), 'tests/support/fixtures/base-test.ts'),
@@ -573,7 +685,7 @@ describe('evaluateRuntimePreflight', () => {
   it('fails release certification closed when either approved ESNcard identifier is absent', () => {
     const result = evaluateRuntimePreflight('esncard-release', {
       cwd: '/repo',
-      env: requiredDockerEnvironment,
+      env: requiredPlaywrightEnvironment,
       fileExists: (filePath) => filePath === '/repo/.env.dev',
       runCommand: successfulCommand,
     });
@@ -599,7 +711,7 @@ describe('evaluateRuntimePreflight', () => {
     const result = evaluateRuntimePreflight('esncard-release', {
       cwd: '/repo',
       env: {
-        ...requiredDockerEnvironment,
+        ...requiredPlaywrightEnvironment,
         E2E_LIVE_ESN_CARD_IDENTIFIER: releaseIdentifier,
         E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: expiredReleaseIdentifier,
       },

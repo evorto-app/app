@@ -126,6 +126,12 @@ const validateRegistrationOption = (
       'unsupportedTemplateRegistrationMode',
     );
   }
+  if (option.isPaid && option.price <= 0) {
+    return invalidGraph(
+      'Paid template registration options require a positive price',
+      'paidTemplateRegistrationOptionRequiresPositivePrice',
+    );
+  }
   if (
     !option.title.trim() ||
     invalidInteger(option.closeRegistrationOffset) ||

@@ -26,11 +26,17 @@
   <mat-form-field>
     <mat-label>Description</mat-label>
     <textarea matInput rows="3" [formField]="addOn.description"></textarea>
+    @for (error of addOn.description().errors(); track error) {
+      <mat-error>{{ error.message }}</mat-error>
+    }
   </mat-form-field>
 
-  <section class="grid gap-3" aria-label="Registration option mappings">
+  <section
+    class="grid gap-3"
+    aria-label="Registration options available for this add-on"
+  >
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <h4 class="title-small">Registration option mappings</h4>
+      <h4 class="title-small">Available with registration options</h4>
       <button
         mat-button
         type="button"
@@ -38,7 +44,7 @@
         (click)="addMapping.emit()"
       >
         <fa-duotone-icon [icon]="faPlus" />
-        Add mapping
+        Add registration option
       </button>
     </div>
     @for (
@@ -92,8 +98,8 @@
         <button
           mat-icon-button
           type="button"
-          aria-label="Remove add-on mapping"
-          title="Remove add-on mapping"
+          aria-label="Remove registration option from add-on"
+          title="Remove registration option from add-on"
           (click)="removeMapping.emit(mappingIndex)"
         >
           <fa-duotone-icon [icon]="faTrashCan" />
@@ -101,8 +107,11 @@
       </div>
     } @empty {
       <p class="body-small text-on-surface-variant">
-        This add-on is not attached to a registration option.
+        This add-on is not available with any registration option.
       </p>
+    }
+    @for (error of addOn.registrationOptions().errors(); track error) {
+      <p class="body-small text-error" role="alert">{{ error.message }}</p>
     }
   </section>
 
@@ -114,10 +123,16 @@
         type="number"
         [formField]="addOn.totalAvailableQuantity"
       />
+      @for (error of addOn.totalAvailableQuantity().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
     </mat-form-field>
     <mat-form-field>
       <mat-label>Maximum per user</mat-label>
       <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+      @for (error of addOn.maxQuantityPerUser().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
     </mat-form-field>
   </div>
 
@@ -134,6 +149,14 @@
     <mat-checkbox [formField]="addOn.allowPurchaseDuringEvent">
       Available during the event
     </mat-checkbox>
+    @for (
+      error of addOn.allowPurchaseDuringRegistration().errors();
+      track error
+    ) {
+      <p class="body-small text-error @sm:col-span-2" role="alert">
+        {{ error.message }}
+      </p>
+    }
   </div>
 
   <mat-checkbox [formField]="addOn.isPaid">Enable payment</mat-checkbox>
@@ -142,13 +165,12 @@
   </p>
   @if (!addOn.price().hidden()) {
     <div class="grid gap-4 @sm:grid-cols-2">
-      <mat-form-field>
-        <mat-label>Price (in cents)</mat-label>
-        <input matInput type="number" [formField]="addOn.price" />
-        @for (error of addOn.price().errors(); track error) {
-          <mat-error>{{ error.message }}</mat-error>
-        }
-      </mat-form-field>
+      <app-currency-amount-input
+        label="Unit price"
+        [currencyCode]="currencyCode()"
+        [formField]="addOn.price"
+        [minimumMinorUnits]="1"
+      />
       <mat-form-field>
         <mat-label>Inclusive tax rate</mat-label>
         <mat-select [formField]="addOn.stripeTaxRateId">

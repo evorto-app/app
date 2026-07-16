@@ -28,12 +28,6 @@ interface PreviousGlobalAdminTenantEditFormModel {
   value: GlobalAdminTenantFormModel;
 }
 
-export const globalAdminTenantRelaunchScopeItems = [
-  'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
-  'Custom-domain verification and multi-domain automation are deferred.',
-  'Tenant-admin impersonation is not available in the current relaunch surface.',
-] as const;
-
 export const createGlobalAdminTenantFormModel =
   (): GlobalAdminTenantFormModel => ({
     currency: 'EUR',
@@ -84,7 +78,7 @@ export const normalizeGlobalAdminTenantDomain = (value: string): string =>
   normalizeTenantDomain(value);
 
 export const globalAdminTenantUpdateErrorMessage = (error: unknown): string => {
-  const message = getErrorMessage(error, 'Failed to update tenant');
+  const message = getErrorMessage(error, 'Failed to update organization');
   if (
     !error ||
     typeof error !== 'object' ||

@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Return reviewed events to draft

@@ -51,8 +51,8 @@
         <h2 class="title-medium">Event creation is blocked</h2>
         <p class="mt-2">{{ legacyRandomTemplateEventMessage }}</p>
         <p class="mt-2 text-sm">
-          No registration mode has been changed. Edit and migrate the template
-          before returning to event creation.
+          No registration mode has been changed. Return here after an authorized
+          template editor updates the template.
         </p>
       </section>
     } @else {
@@ -76,8 +76,9 @@
           <p class="body-medium mt-1">{{ createEventErrorMessage() }}</p>
           <p class="body-small mt-2">
             Your entries are still here. Retry temporary errors. If the template
-            changed, copy needed entries and restart from it. Legacy random
-            allocation must be changed on the template before trying again.
+            changed, copy needed entries and restart from it. If the template
+            uses Random allocation, an authorized template editor must choose
+            First come, first served or Manual approval before you try again.
           </p>
         </section>
       }
@@ -104,15 +105,15 @@
                 class="text-on-surface-variant mb-4 px-2 text-sm"
                 role="status"
               >
-                Paid controls are unavailable while the tenant's Stripe status
-                is loading.
+                Paid controls are unavailable while the organization's Stripe
+                status is loading.
               </p>
             } @else if (paidControlsUnavailable()) {
               <p
                 class="text-on-surface-variant mb-4 px-2 text-sm"
                 role="status"
               >
-                Paid controls are unavailable because this tenant has no
+                Paid controls are unavailable because this organization has no
                 connected Stripe account. The new event will use free
                 registration options.
               </p>

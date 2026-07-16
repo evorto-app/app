@@ -59,8 +59,10 @@ import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-ha
 import {
   discardNodeRequestBody,
   readNodeRequestBody,
+  registerPrebufferedRequestBody,
   RequestBodyInvalidContentLengthError,
   RequestBodyReadError,
+  requestBodyStreamFromBuffer,
   RequestBodyTooLargeError,
 } from './server/http/request-body';
 import { applySecurityHeaders } from './server/http/security-headers';
@@ -598,12 +600,18 @@ const toNodeWebRequest = async (request: IncomingMessage) => {
   const body = await Effect.runPromise(readNodeRequestBody(request, maxBytes));
   const metadata = createWebRequestFromNodeRequest(request);
 
-  return new Request(metadata.url, {
-    body,
+  const webRequestInit = {
+    body: requestBodyStreamFromBuffer(body),
+    duplex: 'half',
     headers: metadata.headers,
     method,
     signal: metadata.signal,
-  });
+  } satisfies RequestInit & { duplex: 'half' };
+
+  return registerPrebufferedRequestBody(
+    new Request(metadata.url, webRequestInit),
+    body,
+  );
 };
 
 const requestHandler = createNodeRequestHandler(

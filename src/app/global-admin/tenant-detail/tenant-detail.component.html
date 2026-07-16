@@ -8,10 +8,10 @@
       @if (tenant) {
         {{ tenant.name }}
       } @else {
-        Tenant review
+        Organization review
       }
     } @else {
-      Tenant review
+      Organization review
     }
   </h1>
   <div class="grow"></div>
@@ -21,7 +21,7 @@
   <div
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
-    <h2 class="title-medium">Loading tenant...</h2>
+    <h2 class="title-medium">Loading organization...</h2>
   </div>
 } @else if (tenantQuery.isError()) {
   <div class="bg-error text-on-error rounded-2xl p-4">
@@ -36,7 +36,7 @@
         <div>
           <h2 class="title-medium">{{ tenant.name }}</h2>
           <p class="body-medium text-on-surface-variant">
-            Read-only operational tenant review.
+            Review this organization's settings and platform tools.
           </p>
         </div>
         <div class="grow"></div>
@@ -44,7 +44,7 @@
           mat-button
           [routerLink]="['/global-admin/tenants', tenant.id, 'edit']"
         >
-          Edit tenant
+          Edit organization
         </a>
         @if (tenantPublicOrigin(tenant.domain); as tenantPublicOrigin) {
           <a
@@ -53,7 +53,7 @@
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open tenant
+            Open organization
           </a>
         }
       </div>
@@ -64,11 +64,7 @@
             <dt class="text-on-surface-variant text-xs uppercase">
               {{ row.label }}
             </dt>
-            <dd
-              class="break-words"
-              [class.font-mono]="row.monospace"
-              [class.text-xs]="row.monospace"
-            >
+            <dd class="break-words">
               {{ row.value }}
             </dd>
           </div>
@@ -76,13 +72,13 @@
       </dl>
 
       <nav
-        aria-label="Target tenant operations"
+        aria-label="Organization operations"
         class="border-outline-variant mt-6 border-t pt-4"
       >
-        <h3 class="title-small">Target tenant operations</h3>
+        <h3 class="title-small">Organization operations</h3>
         <p class="body-small text-on-surface-variant mt-1">
-          These tools stay scoped to this tenant and do not create a tenant user
-          session for the platform administrator.
+          These tools act only within this organization. They do not add the
+          platform administrator as a member.
         </p>
         <div class="mt-3 flex flex-wrap gap-2">
           <a
@@ -132,19 +128,19 @@
     </section>
   } @else {
     <section class="bg-surface text-on-surface rounded-2xl p-4">
-      <h2 class="title-medium">Tenant not found</h2>
+      <h2 class="title-medium">Organization not found</h2>
       <p class="body-medium text-on-surface-variant">
-        This tenant either does not exist or is no longer available for global
-        admin review.
+        This organization either does not exist or is no longer available for
+        platform review.
       </p>
     </section>
   }
 } @else {
   <section class="bg-surface text-on-surface rounded-2xl p-4">
-    <h2 class="title-medium">Tenant not found</h2>
+    <h2 class="title-medium">Organization not found</h2>
     <p class="body-medium text-on-surface-variant">
-      This tenant either does not exist or is no longer available for global
-      admin review.
+      This organization either does not exist or is no longer available for
+      platform review.
     </p>
   </section>
 }

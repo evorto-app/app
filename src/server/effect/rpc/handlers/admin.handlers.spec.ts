@@ -52,16 +52,19 @@ const createAdminOptions = () => ({
   headers: Headers.fromInput(createAdminHeaders()),
 });
 
-const createSettingsAdminHeaders = () => ({
+const createSettingsAdminHeaders = (stripeAccountId: null | string = null) => ({
   [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
   [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
     'admin:changeSettings',
   ]),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(createTenant()),
+  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
+    ...createTenant(),
+    stripeAccountId,
+  }),
 });
 
-const createSettingsAdminOptions = () => ({
-  headers: Headers.fromInput(createSettingsAdminHeaders()),
+const createSettingsAdminOptions = (stripeAccountId: null | string = null) => ({
+  headers: Headers.fromInput(createSettingsAdminHeaders(stripeAccountId)),
 });
 
 const createSettingsInput = () => ({
@@ -73,8 +76,6 @@ const createSettingsInput = () => ({
   emailSenderName: undefined,
   esnCardEnabled: false,
   maxActiveRegistrationsPerUser: 0,
-  privacyPolicyText: 'Current tenant privacy policy',
-  privacyPolicyUrl: undefined,
   receiptCountries: ['NL'],
   refundFeesOnCancellation: true,
   stripeAccountId: undefined,
@@ -103,9 +104,11 @@ const withTenantSettingsTransaction = <T extends object>(
   options: {
     readonly hasPaidEventConfiguration?: boolean;
     readonly hasPendingStripeObligations?: boolean;
+    readonly hasStripeTaxRateConfiguration?: boolean;
     readonly lockedCurrency?: 'AUD' | 'CZK' | 'EUR';
     readonly lockedStripeAccountId?: null | string;
     readonly lockedTimezone?: string;
+    readonly rotationTargetStripeAccountId?: string;
   } = {},
 ) => {
   const query =
@@ -117,41 +120,52 @@ const withTenantSettingsTransaction = <T extends object>(
       'delete' in database
         ? database.delete
         : () => ({ where: () => Effect.void }),
-    insert:
-      'insert' in database
-        ? database.insert
-        : () => ({
-            values: (value: {
-              privacyPolicyText: null | string;
-              privacyPolicyUrl: null | string;
-              version: number;
-            }) => ({
-              returning: () =>
-                Effect.succeed([
-                  {
-                    id: 'policy-next',
-                    privacyPolicyText: value.privacyPolicyText,
-                    privacyPolicyUrl: value.privacyPolicyUrl,
-                    version: value.version,
-                  },
-                ]),
-            }),
-          }),
     query,
-    select: () => {
+    select: (selection: Record<string, unknown> = {}) => {
+      const isStripeTaxRateConfigurationQuery = Reflect.has(
+        selection,
+        'stripeTaxRateId',
+      );
+      const isStripeTaxRateRotationBindingQuery = Reflect.has(
+        selection,
+        'sourceStripeTaxRateId',
+      );
+      const isStripeAccountRead =
+        Reflect.has(selection, 'stripeAccountId') &&
+        !Reflect.has(selection, 'currency');
       const selectQuery = {
         for: () =>
-          Effect.succeed([
-            {
-              currency: options.lockedCurrency ?? 'EUR',
-              id: 'tenant-1',
-              stripeAccountId: options.lockedStripeAccountId ?? null,
-              timezone: options.lockedTimezone ?? 'Europe/Amsterdam',
-            },
-          ]),
+          isStripeTaxRateRotationBindingQuery
+            ? Effect.succeed([])
+            : Effect.succeed([
+                {
+                  currency: options.lockedCurrency ?? 'EUR',
+                  id: 'tenant-1',
+                  stripeAccountId: options.lockedStripeAccountId ?? null,
+                  timezone: options.lockedTimezone ?? 'Europe/Amsterdam',
+                },
+              ]),
         from: () => selectQuery,
         innerJoin: () => selectQuery,
         limit: () => {
+          if (isStripeAccountRead) {
+            return Effect.succeed([
+              {
+                stripeAccountId:
+                  options.rotationTargetStripeAccountId ??
+                  options.lockedStripeAccountId ??
+                  null,
+              },
+            ]);
+          }
+          if (isStripeTaxRateConfigurationQuery) {
+            return Effect.succeed(
+              options.hasStripeTaxRateConfiguration
+                ? [{ stripeTaxRateId: 'txr_assigned' }]
+                : [],
+            );
+          }
+
           const isPendingObligationQuery = limitedSelectCount++ === 0;
           return Effect.succeed(
             isPendingObligationQuery
@@ -163,17 +177,7 @@ const withTenantSettingsTransaction = <T extends object>(
                 : [],
           );
         },
-        orderBy: () => ({
-          limit: () =>
-            Effect.succeed([
-              {
-                id: 'policy-1',
-                privacyPolicyText: 'Current tenant privacy policy',
-                privacyPolicyUrl: null,
-                version: 1,
-              },
-            ]),
-        }),
+        orderBy: () => selectQuery,
         where: () => selectQuery,
       };
       return selectQuery;
@@ -204,11 +208,23 @@ class TaxRateStripeHttpClient extends Stripe.HttpClient {
     ...arguments_: StripeHttpRequestArguments
   ): Promise<TaxRateStripeResponse> {
     const [host, , path, method] = arguments_;
-    if (
-      host !== 'api.stripe.com' ||
-      method !== 'GET' ||
-      path !== '/v1/tax_rates/txr_admin'
-    ) {
+    if (host !== 'api.stripe.com' || method !== 'GET') {
+      return Promise.reject(
+        new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
+      );
+    }
+
+    if (path === '/v1/tax_rates' || path.startsWith('/v1/tax_rates?')) {
+      return Promise.resolve(
+        new TaxRateStripeResponse({
+          data: [],
+          has_more: false,
+          object: 'list',
+          url: '/v1/tax_rates',
+        }),
+      );
+    }
+    if (path !== '/v1/tax_rates/txr_admin') {
       return Promise.reject(
         new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
       );
@@ -468,8 +484,6 @@ describe('adminHandlers tenant settings', () => {
             legalNoticeUrl: ' https://section.example.org/imprint ',
             logoUrl: 'https://cdn.example.org/logo.svg',
             maxActiveRegistrationsPerUser: 4.8,
-            privacyPolicyText: ' Tenant privacy text ',
-            privacyPolicyUrl: 'https://section.example.org/privacy',
             receiptCountries: ['NL'],
             refundFeesOnCancellation: false,
             seoDescription: '  Public description  ',
@@ -494,8 +508,6 @@ describe('adminHandlers tenant settings', () => {
           legalNoticeUrl: 'https://section.example.org/imprint',
           logoUrl: 'https://cdn.example.org/logo.svg',
           maxActiveRegistrationsPerUser: 4,
-          privacyPolicyText: 'Tenant privacy text',
-          privacyPolicyUrl: 'https://section.example.org/privacy',
           refundFeesOnCancellation: false,
           seoDescription: 'Public description',
           seoTitle: 'Public title',
@@ -516,8 +528,6 @@ describe('adminHandlers tenant settings', () => {
           locale: 'de-DE',
           logoUrl: 'https://cdn.example.org/logo.svg',
           maxActiveRegistrationsPerUser: 4,
-          privacyPolicyText: 'Tenant privacy text',
-          privacyPolicyUrl: 'https://section.example.org/privacy',
           refundFeesOnCancellation: false,
           seoDescription: 'Public description',
           seoTitle: 'Public title',
@@ -651,7 +661,6 @@ describe('adminHandlers tenant settings', () => {
           defaultLocation: null,
           esnCardEnabled: false,
           logoUrl: 'file:///tmp/logo.svg',
-          privacyPolicyText: 'Current tenant privacy policy',
           receiptCountries: ['NL'],
           theme: 'evorto',
           timezone: 'Europe/Berlin',
@@ -681,7 +690,6 @@ describe('adminHandlers tenant settings', () => {
             defaultLocation: null,
             esnCardEnabled: false,
             logoUrl: '/tenant-assets/tenant-1/logo/..%2Fsecret.png',
-            privacyPolicyText: 'Current tenant privacy policy',
             receiptCountries: ['NL'],
             theme: 'evorto',
             timezone: 'Europe/Berlin',
@@ -977,7 +985,7 @@ describe('adminHandlers tenant settings', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
-          'Stripe account cannot change while paid event configuration exists',
+          'Stripe account cannot be disconnected while paid event configuration exists',
         );
         expect(error.reason).toContain(
           'Make every event and template registration option and add-on free',
@@ -986,7 +994,47 @@ describe('adminHandlers tenant settings', () => {
   );
 
   it.effect(
-    'blocks Stripe account rotation while paid event configuration exists',
+    'allows Stripe account rotation when no tax-rate bindings exist',
+    () =>
+      Effect.gen(function* () {
+        let deletedTaxMetadata = false;
+        const updateQuery = {
+          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+          set: () => updateQuery,
+          where: () => updateQuery,
+        };
+        const database = withTenantSettingsTransaction(
+          {
+            delete: () => ({
+              where: () => {
+                deletedTaxMetadata = true;
+                return Effect.void;
+              },
+            }),
+            update: () => updateQuery,
+          },
+          {
+            lockedStripeAccountId: 'acct_existing',
+            rotationTargetStripeAccountId: 'acct_next',
+          },
+        );
+
+        const result = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            stripeAccountId: 'acct_next',
+            timezone: 'Europe/Amsterdam',
+          },
+          createSettingsAdminOptions('acct_existing'),
+        ).pipe(Effect.provide(taxRateImportLayer(database)));
+
+        expect(deletedTaxMetadata).toBe(true);
+        expect(result.stripeAccountId).toBe('acct_next');
+      }),
+  );
+
+  it.effect(
+    'blocks Stripe disconnect while tax-rate bindings remain assigned',
     () =>
       Effect.gen(function* () {
         const database = withTenantSettingsTransaction(
@@ -996,7 +1044,7 @@ describe('adminHandlers tenant settings', () => {
             },
           },
           {
-            hasPaidEventConfiguration: true,
+            hasStripeTaxRateConfiguration: true,
             lockedStripeAccountId: 'acct_existing',
           },
         );
@@ -1004,7 +1052,7 @@ describe('adminHandlers tenant settings', () => {
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
           {
             ...createSettingsInput(),
-            stripeAccountId: 'acct_next',
+            stripeAccountId: undefined,
             timezone: 'Europe/Amsterdam',
           },
           createSettingsAdminOptions(),
@@ -1012,8 +1060,9 @@ describe('adminHandlers tenant settings', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
-          'Stripe account cannot change while paid event configuration exists',
+          'Stripe account cannot be disconnected while tax rates remain assigned',
         );
+        expect(error.reason).toContain('before disconnecting Stripe');
       }),
   );
 
@@ -1037,7 +1086,10 @@ describe('adminHandlers tenant settings', () => {
             }),
             update: () => updateQuery,
           },
-          { lockedStripeAccountId: 'acct_existing' },
+          {
+            lockedStripeAccountId: 'acct_existing',
+            rotationTargetStripeAccountId: 'acct_new',
+          },
         );
 
         const result = yield* adminHandlers['admin.tenant.updateSettings'](

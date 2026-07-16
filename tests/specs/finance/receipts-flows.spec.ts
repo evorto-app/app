@@ -283,16 +283,19 @@ test('approve and record receipt reimbursements in finance', async ({
       page.getByText('No approved receipts are waiting for reimbursement.'),
     ).not.toBeVisible();
 
-    const refundSection = page.locator('section', {
+    const refundList = page.locator('app-receipt-refund-list');
+    await expect(refundList).not.toHaveAttribute('ngh', /.*/);
+    const refundSection = refundList.locator('section', {
       has: page.getByText(receiptFileName),
     });
     await expect(refundSection).toBeVisible();
 
     await expect(refundSection.locator('table[mat-table]')).toBeVisible();
-    await refundSection
-      .locator('tr.mat-mdc-row input[type="checkbox"]')
-      .first()
-      .check();
+    const receiptCheckbox = refundSection.getByRole('checkbox', {
+      name: new RegExp(escapedReceiptFileName),
+    });
+    await receiptCheckbox.check();
+    await expect(receiptCheckbox).toBeChecked();
     await expect(
       refundSection.getByText(
         `Selected total: ${formatTenantCurrency(1450, currency)}`,
@@ -373,6 +376,7 @@ test('approve and record receipt reimbursements in finance', async ({
 test('blocks approval but keeps rejection available when receipt evidence is missing', async ({
   database,
   page,
+  registerDatabaseCleanup,
   seedDate,
   seeded,
   tenant,
@@ -388,68 +392,69 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
   const receiptId = getId();
   const receiptFileName = `missing-evidence-${seedDate.getTime()}.pdf`;
   let receiptUploadId: string | undefined;
-  try {
-    receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
-      eventId,
-      fileName: receiptFileName,
-      mimeType: 'application/pdf',
-      sizeBytes: 1024,
-      tenantId: tenant.id,
-      uploadedByUserId: organizerUser.id,
-    });
-    await database.insert(schema.financeReceipts).values({
-      alcoholAmount: 0,
-      attachmentFileName: receiptFileName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 1024,
-      attachmentUploadId: receiptUploadId,
-      currency: tenant.currency,
-      depositAmount: 0,
-      eventId,
-      hasAlcohol: false,
-      hasDeposit: false,
-      id: receiptId,
-      purchaseCountry: 'DE',
-      receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24),
-      status: 'submitted',
-      submittedByUserId: organizerUser.id,
-      taxAmount: 100,
-      tenantId: tenant.id,
-      totalAmount: 1000,
-    });
-
-    await page.goto(`/finance/receipts-approval/${receiptId}`);
-    await expect(
-      page.getByRole('alert').filter({
-        hasText:
-          'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
-      }),
-    ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
-    const rejectButton = page.getByRole('button', { name: 'Reject' });
-    await expect(rejectButton).toBeEnabled();
-    await page
-      .getByLabel('Rejection reason')
-      .fill('The uploaded receipt evidence is unavailable.');
-    await rejectButton.click();
-    await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
-    await expect
-      .poll(() =>
-        database.query.financeReceipts.findFirst({
-          where: { id: receiptId, tenantId: tenant.id },
-        }),
-      )
-      .toMatchObject({ status: 'rejected' });
-  } finally {
-    await database
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, receiptId));
     if (receiptUploadId) {
-      await database
+      await cleanupDatabase
         .delete(schema.financeReceiptUploads)
         .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
     }
-  }
+  });
+
+  receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+    eventId,
+    fileName: receiptFileName,
+    mimeType: 'application/pdf',
+    sizeBytes: 1024,
+    tenantId: tenant.id,
+    uploadedByUserId: organizerUser.id,
+  });
+  await database.insert(schema.financeReceipts).values({
+    alcoholAmount: 0,
+    attachmentFileName: receiptFileName,
+    attachmentMimeType: 'application/pdf',
+    attachmentSizeBytes: 1024,
+    attachmentUploadId: receiptUploadId,
+    currency: tenant.currency,
+    depositAmount: 0,
+    eventId,
+    hasAlcohol: false,
+    hasDeposit: false,
+    id: receiptId,
+    purchaseCountry: 'DE',
+    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24),
+    status: 'submitted',
+    submittedByUserId: organizerUser.id,
+    taxAmount: 100,
+    tenantId: tenant.id,
+    totalAmount: 1000,
+  });
+
+  await page.goto(`/finance/receipts-approval/${receiptId}`);
+  await expect(
+    page.getByRole('alert').filter({
+      hasText:
+        'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
+  const rejectButton = page.getByRole('button', { name: 'Reject' });
+  await expect(rejectButton).toBeDisabled();
+  await page
+    .getByLabel('Reason shown to the submitter')
+    .fill('The uploaded receipt evidence is unavailable.');
+  await expect(rejectButton).toBeEnabled();
+  await rejectButton.click();
+  await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
+  await expect
+    .poll(() =>
+      database.query.financeReceipts.findFirst({
+        where: { id: receiptId, tenantId: tenant.id },
+      }),
+    )
+    .toMatchObject({ status: 'rejected' });
 });
 
 test('receipt dialog shows Other option when tenant allows it', async ({

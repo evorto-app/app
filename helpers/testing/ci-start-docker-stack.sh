@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export E2E_RUNTIME_MODE=playwright
+
 run_docker_preflight() {
   bun run env:runtime
   timeout 2m node_modules/.bin/dotenv -c dev -- docker compose config --quiet

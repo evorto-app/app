@@ -15,6 +15,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import type { EventGraphAddonFormModel } from './event-graph-form.model';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
 
 export interface EventGraphOptionChoice {
@@ -25,6 +26,7 @@ export interface EventGraphOptionChoice {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CurrencyAmountInputComponent,
     EditorComponent,
     FormField,
     MatButtonModule,
@@ -39,6 +41,7 @@ export interface EventGraphOptionChoice {
 export class EventAddonEditor {
   readonly addMappingRequested = output();
   readonly addOnForm = input.required<FieldTree<EventGraphAddonFormModel>>();
+  readonly currencyCode = input.required<string>();
   readonly optionChoices = input.required<readonly EventGraphOptionChoice[]>();
   readonly removeMappingRequested = output<number>();
   readonly removeRequested = output();

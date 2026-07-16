@@ -42,6 +42,7 @@ import { createHash } from 'node:crypto';
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventInstances,
+  eventRegistrations,
   financeReceipts,
   financeReceiptUploads,
   registrationTransferRefundPlanItems,
@@ -141,10 +142,13 @@ type PlatformTenantFinanceRequest = RpcGroup.Rpcs<
 interface RefundRecoveryCandidate {
   readonly amount: number;
   readonly attempts: number;
+  readonly attendeeFirstName: string;
+  readonly attendeeLastName: string;
   readonly createdAt: Date;
   readonly currency: Tenant['currency'];
   readonly eventId: null | string;
   readonly eventRegistrationId: null | string;
+  readonly eventTitle: string;
   readonly generation: number;
   readonly lastError: null | string;
   readonly leaseExpiresAt: Date | null;
@@ -229,12 +233,13 @@ const receiptNotFound = (receiptId: string) =>
   });
 
 const toTenantContext = (
-  tenant: Pick<Tenant, 'currency' | 'id' | 'receiptSettings'>,
+  tenant: Pick<Tenant, 'currency' | 'id' | 'receiptSettings' | 'timezone'>,
 ) =>
   PlatformFinanceTenantContext.make({
     currency: tenant.currency,
     receiptCountryConfig: resolveReceiptCountrySettings(tenant.receiptSettings),
     targetTenantId: tenant.id,
+    timezone: tenant.timezone,
   });
 
 const submitterEmail = (submitter: {
@@ -452,10 +457,13 @@ export const toRefundRecoveryRecord = (claim: RefundRecoveryCandidate) => {
 
   return PlatformFinanceRefundRecoveryRecord.make({
     amount: Math.abs(claim.amount),
+    attendeeFirstName: claim.attendeeFirstName,
+    attendeeLastName: claim.attendeeLastName,
     createdAt: claim.createdAt.toISOString(),
     currency: claim.currency,
     eventId: claim.eventId,
     eventRegistrationId: claim.eventRegistrationId,
+    eventTitle: claim.eventTitle,
     id: claim.refundClaimId,
     lastError: claim.lastError,
     mode,
@@ -1050,6 +1058,13 @@ const requeueRefundClaim = Effect.fn(
                 : null;
             const transferRecovery: RegistrationTransferRefundRequeueStatus =
               yield* markRegistrationTransferRefundRequeued(transaction, {
+                expectedTransfer:
+                  transferLookup.status === 'matched'
+                    ? {
+                        kind: transferLookup.kind,
+                        transferId: transferLookup.transfer.id,
+                      }
+                    : null,
                 reason: recovery.reason,
                 refundTransactionId: recovery.refundClaimId,
                 tenantId: input.targetTenantId,
@@ -1578,10 +1593,13 @@ export const platformTenantFinanceHandlers = {
             .select({
               amount: transactions.amount,
               attempts: transactions.stripeRefundAttempts,
+              attendeeFirstName: users.firstName,
+              attendeeLastName: users.lastName,
               createdAt: transactions.createdAt,
               currency: transactions.currency,
               eventId: transactions.eventId,
               eventRegistrationId: transactions.eventRegistrationId,
+              eventTitle: eventInstances.title,
               generation: transactions.stripeRefundGeneration,
               lastError: transactions.stripeRefundLastError,
               leaseExpiresAt: transactions.stripeRefundClaimLeaseExpiresAt,
@@ -1603,6 +1621,21 @@ export const platformTenantFinanceHandlers = {
               updatedAt: transactions.updatedAt,
             })
             .from(transactions)
+            .innerJoin(
+              eventRegistrations,
+              and(
+                eq(eventRegistrations.id, transactions.eventRegistrationId),
+                eq(eventRegistrations.tenantId, input.targetTenantId),
+              ),
+            )
+            .innerJoin(
+              eventInstances,
+              and(
+                eq(eventInstances.id, eventRegistrations.eventId),
+                eq(eventInstances.tenantId, input.targetTenantId),
+              ),
+            )
+            .innerJoin(users, eq(users.id, eventRegistrations.userId))
             .leftJoin(
               registrationTransferRefundPlanItems,
               and(

@@ -43,11 +43,15 @@ const validClaimRecord = {
     title: 'Welcome event',
   },
   expiresAt: '2026-08-20T18:00:00.000Z',
+  recipientBundlePrice: 7000,
   refundLifecycle: null,
   registrationOption: {
+    appliedDiscountType: 'esnCard',
+    basePrice: 3000,
     currency: 'EUR',
     currentPrice: 2500,
     description: 'Participant admission',
+    discountAmount: 500,
     id: 'option-1',
     isPaid: true,
     questions: [
@@ -136,7 +140,7 @@ describe('registration transfer claim record schema', () => {
     ).toEqual(validClaimRecord);
   });
 
-  it('decodes the event, recipient price, questions, fixed bundle, and state', () => {
+  it('decodes the event, recipient pricing, questions, fixed bundle, and state', () => {
     const decoded = Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
       ...validClaimRecord,
       credential: 'must-not-be-returned',
@@ -146,6 +150,19 @@ describe('registration transfer claim record schema', () => {
     expect(decoded).toMatchObject(validClaimRecord);
     expect(decoded).not.toHaveProperty('credential');
     expect(decoded).not.toHaveProperty('sourceUserId');
+    expect(decoded.registrationOption).toMatchObject({
+      appliedDiscountType: 'esnCard',
+      basePrice: 3000,
+      currentPrice: 2500,
+      discountAmount: 500,
+    });
+    expect(decoded.registrationOption).not.toHaveProperty(
+      'sourceAppliedDiscountType',
+    );
+    expect(decoded.registrationOption).not.toHaveProperty(
+      'sourceDiscountAmount',
+    );
+    expect(decoded.recipientBundlePrice).toBe(7000);
   });
 
   it('preserves registration check-in and add-on fulfillment history', () => {
@@ -204,9 +221,43 @@ describe('registration transfer claim record schema', () => {
     expect(() =>
       Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
         ...validClaimRecord,
+        recipientBundlePrice: -1,
+      }),
+    ).toThrow();
+
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+        ...validClaimRecord,
+        recipientBundlePrice: 7000.5,
+      }),
+    ).toThrow();
+
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+        ...validClaimRecord,
         registrationOption: {
           ...validClaimRecord.registrationOption,
           currentPrice: -1,
+        },
+      }),
+    ).toThrow();
+
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+        ...validClaimRecord,
+        registrationOption: {
+          ...validClaimRecord.registrationOption,
+          basePrice: -1,
+        },
+      }),
+    ).toThrow();
+
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+        ...validClaimRecord,
+        registrationOption: {
+          ...validClaimRecord.registrationOption,
+          discountAmount: -1,
         },
       }),
     ).toThrow();

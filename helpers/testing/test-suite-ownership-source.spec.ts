@@ -101,8 +101,10 @@ const externalTags = new Set([
   '@needs-live-esncard',
 ]);
 const externalTagPattern = /@needs-[a-z0-9-]+/gu;
-const liveProviderSource =
-  'tests/specs/profile/user-profile-live-esncard.spec.ts';
+const liveProviderSources = new Set([
+  'tests/docs/profile/discounts.doc.ts',
+  'tests/specs/profile/user-profile-live-esncard.spec.ts',
+]);
 
 const scriptKindForPath = (sourcePath: string) => {
   if (/\.tsx$/u.test(sourcePath)) return ts.ScriptKind.TSX;
@@ -138,10 +140,10 @@ const externalTagRoutingViolations = (sourcePath: string, source: string) => {
         }
         if (
           tag === '@needs-live-esncard' &&
-          sourcePath !== liveProviderSource
+          !liveProviderSources.has(sourcePath)
         ) {
           violations.push(
-            `${sourcePath}:${location.line + 1}: live ESNcard coverage is not collected outside ${liveProviderSource}`,
+            `${sourcePath}:${location.line + 1}: live ESNcard coverage is not collected by a dedicated live-provider project`,
           );
         }
       }
@@ -261,7 +263,7 @@ describe('test suite ownership source', () => {
     ).toHaveLength(1);
     expect(
       externalTagRoutingViolations(
-        liveProviderSource,
+        'tests/specs/profile/user-profile-live-esncard.spec.ts',
         `test('provider @needs-live-esncard @needs-google-maps', body)`,
       ),
     ).toHaveLength(1);

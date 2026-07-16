@@ -1,67 +1,233 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
+import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
+import { getId } from '../../../helpers/get-id';
 import { gaStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
-
-const platformScannerStatusGuidance = [
-  {
-    body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.',
-    status: 'PENDING',
-    title: 'Registration pending',
-  },
-  {
-    body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
-    status: 'WAITLIST',
-    title: 'Registration on waitlist',
-  },
-  {
-    body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, review the existing registration and refund instead of creating a replacement.',
-    status: 'CANCELLED',
-    title: 'Registration cancelled',
-  },
-] as const;
+import { seedUserRoleAssignmentScenario } from '../../support/utils/user-role-assignment-scenario';
 
 test.use({ storageState: gaStateFile });
 
-test('Review target-scoped platform operations', async ({
+test('Manage one organization and review change history', async ({
   database,
   events,
   page,
   registerDatabaseCleanup,
-  registrations,
+  seedDate,
+  seeded,
   templates,
   tenant,
 }, testInfo) => {
-  test.slow();
+  // This guide intentionally exercises six audited operations and their
+  // persisted readbacks in one continuous organization-scoped journey.
+  test.setTimeout(300_000);
 
-  const registration =
-    registrations.find((candidate) => candidate.status === 'CONFIRMED') ??
-    registrations[0];
-  if (!registration) {
+  const draftEvent = events.find(
+    (event) => event.id === seeded.scenario.events.draft.eventId,
+  );
+  const checkInEvent = events.find(
+    (event) => event.id === seeded.scenario.events.past.eventId,
+  );
+  const checkInOption = checkInEvent?.registrationOptions.find(
+    (option) => !option.organizingRegistration && !option.isPaid,
+  );
+  const documentedTemplate = templates.find(
+    (template) => template.seedKey === 'city-tour',
+  );
+  if (!draftEvent || !checkInEvent || !checkInOption || !documentedTemplate) {
     throw new Error(
-      'Expected a seeded registration for platform documentation',
+      'Expected deterministic draft event, free past-event option, and city-tour template for platform documentation',
     );
   }
+
+  const suffix = seedDate.getTime().toString();
+  const assignmentScenario = await seedUserRoleAssignmentScenario({
+    database,
+    roleName: `Platform event assistant ${suffix}`,
+    tenant,
+    userEmail: `platform-operator-docs-${suffix}@evorto.test`,
+  });
+  const eventReason = `Document target event update ${suffix}`;
+  const templateReason = `Document target template update ${suffix}`;
+  const roleAssignmentReason = `Document target role assignment ${suffix}`;
+  const roleRemovalReason = `Document target role removal ${suffix}`;
+  const receiptReason = `Document target receipt rejection ${suffix}`;
+  const registrationReason = `Document target registration check-in ${suffix}`;
+  const auditReasons = [
+    eventReason,
+    templateReason,
+    roleAssignmentReason,
+    roleRemovalReason,
+    receiptReason,
+    registrationReason,
+  ];
+  const editedEventTitle = `${draftEvent.title} - platform review`;
+  const editedTemplateTitle = `${documentedTemplate.title} - platform review`;
+  const registrationId = getId();
+  const receiptId = getId();
+  const receiptFileName = `platform-receipt-${suffix}.pdf`;
+  const rejectionReason =
+    'The uploaded receipt cannot be verified, so it must be submitted again.';
+  const receiptNotificationKey = `receipt-reviewed/${tenant.id}/${receiptId}/rejected`;
+  const registrationSpotCount = 2;
+  const originalOptionCounters =
+    await database.query.eventRegistrationOptions.findFirst({
+      columns: { checkedInSpots: true, confirmedSpots: true },
+      where: {
+        event: { tenantId: tenant.id },
+        eventId: checkInEvent.id,
+        id: checkInOption.id,
+      },
+    });
+  if (!originalOptionCounters) {
+    throw new Error('Expected the documented check-in option to exist');
+  }
+
+  let receiptUploadId: string | undefined;
+  let temporaryRecordsInserted = false;
+
+  const expectPersistedAudit = async (
+    reason: string,
+    action: (typeof schema.platformAuditEntries.$inferSelect)['action'],
+  ) => {
+    await expect
+      .poll(async () =>
+        database.query.platformAuditEntries.findFirst({
+          where: { action, reason, targetTenantId: tenant.id },
+        }),
+      )
+      .toEqual(
+        expect.objectContaining({
+          action,
+          reason,
+          targetTenantId: tenant.id,
+        }),
+      );
+  };
+
   registerDatabaseCleanup(async (cleanupDatabase) => {
     await cleanupDatabase
-      .update(schema.eventRegistrations)
-      .set({ status: registration.status })
+      .delete(schema.emailOutbox)
+      .where(eq(schema.emailOutbox.idempotencyKey, receiptNotificationKey));
+    await cleanupDatabase
+      .delete(schema.platformAuditEntries)
       .where(
         and(
-          eq(schema.eventRegistrations.id, registration.id),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.platformAuditEntries.targetTenantId, tenant.id),
+          inArray(schema.platformAuditEntries.reason, auditReasons),
+        ),
+      );
+    if (temporaryRecordsInserted) {
+      await cleanupDatabase
+        .delete(schema.financeReceipts)
+        .where(
+          and(
+            eq(schema.financeReceipts.id, receiptId),
+            eq(schema.financeReceipts.tenantId, tenant.id),
+          ),
+        );
+      await cleanupDatabase
+        .delete(schema.eventRegistrations)
+        .where(
+          and(
+            eq(schema.eventRegistrations.id, registrationId),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+          ),
+        );
+      await cleanupDatabase
+        .update(schema.eventRegistrationOptions)
+        .set(originalOptionCounters)
+        .where(
+          and(
+            eq(schema.eventRegistrationOptions.id, checkInOption.id),
+            eq(schema.eventRegistrationOptions.eventId, checkInEvent.id),
+          ),
+        );
+    }
+    if (receiptUploadId) {
+      await cleanupDatabase
+        .delete(schema.financeReceiptUploads)
+        .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+    }
+    await cleanupDatabase
+      .update(schema.eventInstances)
+      .set({ title: draftEvent.title })
+      .where(
+        and(
+          eq(schema.eventInstances.id, draftEvent.id),
+          eq(schema.eventInstances.tenantId, tenant.id),
+        ),
+      );
+    await cleanupDatabase
+      .update(schema.eventTemplates)
+      .set({ title: documentedTemplate.title })
+      .where(
+        and(
+          eq(schema.eventTemplates.id, documentedTemplate.id),
+          eq(schema.eventTemplates.tenantId, tenant.id),
+        ),
+      );
+    await assignmentScenario.cleanup();
+  });
+
+  const createdReceiptUploadId = await addConsumedFinanceReceiptUpload(
+    database,
+    {
+      eventId: checkInEvent.id,
+      fileName: receiptFileName,
+      mimeType: 'application/pdf',
+      sizeBytes: 2048,
+      tenantId: tenant.id,
+      uploadedByUserId: assignmentScenario.user.id,
+    },
+  );
+  receiptUploadId = createdReceiptUploadId;
+  await database.transaction(async (transaction) => {
+    await transaction.insert(schema.financeReceipts).values({
+      alcoholAmount: 0,
+      attachmentFileName: receiptFileName,
+      attachmentMimeType: 'application/pdf',
+      attachmentSizeBytes: 2048,
+      attachmentUploadId: createdReceiptUploadId,
+      currency: tenant.currency,
+      depositAmount: 0,
+      eventId: checkInEvent.id,
+      hasAlcohol: false,
+      hasDeposit: false,
+      id: receiptId,
+      purchaseCountry: 'DE',
+      receiptDate: seedDate,
+      status: 'submitted',
+      submittedByUserId: assignmentScenario.user.id,
+      taxAmount: 100,
+      tenantId: tenant.id,
+      totalAmount: 1200,
+    });
+    await transaction.insert(schema.eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      eventId: checkInEvent.id,
+      guestCount: 1,
+      id: registrationId,
+      registrationOptionId: checkInOption.id,
+      status: 'CONFIRMED',
+      tenantId: tenant.id,
+      userId: assignmentScenario.user.id,
+    });
+    await transaction
+      .update(schema.eventRegistrationOptions)
+      .set({
+        confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registrationSpotCount}`,
+      })
+      .where(
+        and(
+          eq(schema.eventRegistrationOptions.id, checkInOption.id),
+          eq(schema.eventRegistrationOptions.eventId, checkInEvent.id),
         ),
       );
   });
-  const documentedEvent = events[0];
-  const documentedTemplate = templates[0];
-  if (!documentedEvent || !documentedTemplate) {
-    throw new Error(
-      'Expected seeded event and template content for platform documentation',
-    );
-  }
+  temporaryRecordsInserted = true;
 
   await page.goto('/global-admin');
   await expect(
@@ -70,266 +236,413 @@ test('Review target-scoped platform operations', async ({
       name: 'Platform administration',
     }),
   ).toBeVisible();
-  await page.getByRole('link', { exact: true, name: 'Tenants' }).click();
+  await page.getByRole('link', { exact: true, name: 'Organizations' }).click();
   await expect(page).toHaveURL(/\/global-admin\/tenants$/u);
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Tenants' }),
-  ).toBeVisible();
-  await page.getByLabel('Search tenants').fill(tenant.domain);
+  await page.getByLabel('Search organizations').fill(tenant.domain);
   const tenantRow = page
     .locator('app-tenant-list > div')
     .filter({ hasText: tenant.domain });
   await expect(tenantRow).toBeVisible();
   await tenantRow
-    .getByRole('link', { exact: true, name: 'Review tenant' })
+    .getByRole('link', { exact: true, name: 'Review organization' })
     .click();
   await expect(page).toHaveURL(
     new RegExp(`/global-admin/tenants/${tenant.id}$`),
   );
   await expect(
-    page.getByRole('navigation', { name: 'Target tenant operations' }),
+    page.getByRole('navigation', { name: 'Organization operations' }),
   ).toBeVisible();
 
   await testInfo.attach('markdown', {
     body: `
-### Target-scoped platform operations
+{% callout type="note" title="Platform administrator requirements" %}
+Use this guide only when you are signed in as a platform administrator. An organization role does not grant this access.
+{% /callout %}
 
-Platform administrators are Auth0-backed platform principals, not tenant users. Open **Platform administration**, select **Tenants**, find the target tenant, and choose **Review tenant**. Continue through the dedicated operation links on that tenant review. The selected tenant is sent explicitly with every request; the platform session never inherits or merges tenant-role permissions.
+# Operate on one organization
 
-Available surfaces cover attributed event creation and lifecycle review, full event and template graph editing, registration approval/cancellation/check-in, existing-user role assignment, tenant roles, finance and refund recovery, and Stripe tax rates. Every mutation asks for an operational reason and writes the platform actor, target tenant, action, timestamp, and PII-free before/after state in the same transaction. Receipt review and reimbursement render and record each receipt's stored currency; a later tenant default cannot reinterpret those amounts or combine different currencies in one reimbursement batch.
+Platform administrators do not become organization members. Start at **Platform administration**, open **Organizations**, search by primary domain, and select **Review organization**. Confirm the organization name in the page header before every operation.
 
-First-come-first-served and manual approval are the supported registration modes. Legacy random-allocation records remain readable, but random is not writable: a legacy template is blocked with an explicit unsupported-mode message, and a legacy event must have every random option replaced with a supported mode before it can be saved.
-
-Participant profile and home views, joining or leaving a tenant, personal receipt submission, and self-service transfer or resale remain participant-owned workflows.
+Every change in this guide requires an operational reason. Evorto saves the domain change and a privacy-safe change-history entry together. The final section reads every reason back from the visible **Platform audit log**.
 `,
   });
   await takeScreenshot(
     testInfo,
     page.locator('app-tenant-detail'),
     page,
-    'Choose a target-tenant operation',
+    'Choose the organization to support',
   );
 
   await page.getByRole('link', { exact: true, name: 'Manage events' }).click();
-  await expect(page).toHaveURL(
-    new RegExp(`/global-admin/tenants/${tenant.id}/events$`),
-  );
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Events' }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('link', { name: 'Create event' }),
-  ).toHaveAttribute('href', `/global-admin/tenants/${tenant.id}/events/new`);
-  await expect(
-    page.getByText('Loading events...', { exact: true }),
-  ).toHaveCount(0, { timeout: 20_000 });
   const eventList = page.getByRole('region', {
-    name: 'Target-tenant events',
+    name: 'Organization events',
   });
   await expect(eventList).toBeVisible();
-  await expect(
-    eventList.getByText(documentedEvent.title, { exact: true }),
-  ).toBeVisible();
-  await takeScreenshot(
-    testInfo,
-    page.locator('app-platform-events'),
-    page,
-    'Target-tenant event lifecycle',
+  const eventRow = eventList.locator('article').filter({
+    has: page.getByText(draftEvent.title, { exact: true }),
+  });
+  await expect(eventRow.locator('app-event-status')).toHaveText('Draft');
+  await eventRow.getByRole('link', { name: 'Review event' }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/global-admin/tenants/${tenant.id}/events/${draftEvent.id}$`),
   );
 
   await testInfo.attach('markdown', {
     body: `
-### Edit the complete event graph
+## Edit a draft event
 
-Open a draft event to edit its core schedule together with every registration-option field, role restriction, cancellation and transfer policy, price, inclusive tax rate, ESNcard discount, add-on mapping, and registration question. Existing registration-option identities and live counters are preserved. Add-ons with purchases and questions with answers cannot be removed.
-
-The target tenant is checked on every read and write. Role references are validated while holding the shared tenant role-graph lock, and the event update plus its PII-free before/after audit entry commit atomically.
+Choose **Manage events**, find the draft, and select **Review event**. The editor shows the event owner, status, schedule, and complete registration setup. Only a draft can be saved from this form. Change the title, enter a precise **Update reason**, and select **Save draft details**. Status and listing actions use their own reason field and are not performed by this walkthrough.
 `,
   });
-
-  await page.getByRole('link', { name: 'Back to tenant' }).click();
+  const eventEditor = page.locator('app-platform-event-detail');
+  await eventEditor
+    .getByRole('textbox', { exact: true, name: 'Title' })
+    .first()
+    .fill(editedEventTitle);
+  await eventEditor.getByLabel('Update reason').fill(eventReason);
+  await takeScreenshot(
+    testInfo,
+    eventEditor,
+    page,
+    'Edit a draft event with an operational reason',
+  );
+  await eventEditor.getByRole('button', { name: 'Save draft details' }).click();
+  await expect(page.getByText('Event updated')).toBeVisible();
+  await expect
+    .poll(async () =>
+      database.query.eventInstances.findFirst({
+        columns: { title: true },
+        where: { id: draftEvent.id, tenantId: tenant.id },
+      }),
+    )
+    .toEqual({ title: editedEventTitle });
+  await expectPersistedAudit(eventReason, 'event.update');
   await expect(
-    page.getByRole('navigation', { name: 'Target tenant operations' }),
+    eventEditor.getByRole('heading', {
+      exact: true,
+      name: editedEventTitle,
+    }),
   ).toBeVisible();
+
+  await page.getByRole('link', { name: 'Back to organization' }).click();
   await page
     .getByRole('link', { exact: true, name: 'Manage templates' })
     .click();
-  await expect(page).toHaveURL(
-    new RegExp(`/global-admin/tenants/${tenant.id}/templates$`),
-  );
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Event templates' }),
-  ).toBeVisible();
-  await expect(
-    page.getByText('Loading templates...', { exact: true }),
-  ).toHaveCount(0, { timeout: 20_000 });
   const templateList = page.getByRole('region', {
-    name: 'Target-tenant templates',
+    name: 'Organization templates',
   });
   await expect(templateList).toBeVisible();
-  await expect(
-    templateList.getByText(documentedTemplate.title, { exact: true }),
-  ).toBeVisible();
-  await takeScreenshot(
-    testInfo,
-    page.locator('app-platform-templates'),
-    page,
-    'Target-tenant event templates',
+  const templateRow = templateList.locator('article').filter({
+    has: page.getByText(documentedTemplate.title, { exact: true }),
+  });
+  await templateRow.getByRole('link', { name: 'Edit template' }).click();
+  await expect(page).toHaveURL(
+    new RegExp(
+      `/global-admin/tenants/${tenant.id}/templates/${documentedTemplate.id}$`,
+    ),
   );
 
-  await page.getByRole('link', { name: 'Back to tenant' }).click();
-  await expect(
-    page.getByRole('navigation', { name: 'Target tenant operations' }),
-  ).toBeVisible();
-  await page.getByRole('link', { exact: true, name: 'Review finance' }).click();
-  await expect(page).toHaveURL(
-    new RegExp(`/global-admin/tenants/${tenant.id}/finance$`),
+  await testInfo.attach('markdown', {
+    body: `
+## Edit an event template
+
+Return to the organization, choose **Manage templates**, find the reusable template, and select **Edit template**. Change the template title, add an **Operational reason**, and select **Save template**. This changes the template only; events already created from it stay unchanged.
+`,
+  });
+  const templateEditor = page.locator(
+    '[data-testid="platform-template-editor"]',
   );
+  await templateEditor
+    .getByRole('textbox', { exact: true, name: 'Title' })
+    .first()
+    .fill(editedTemplateTitle);
+  await templateEditor.getByLabel('Operational reason').fill(templateReason);
+  await takeScreenshot(
+    testInfo,
+    templateEditor,
+    page,
+    'Edit a template with an operational reason',
+  );
+  await templateEditor.getByRole('button', { name: 'Save template' }).click();
+  await expect(page.getByText('Template updated')).toBeVisible();
+  await expect
+    .poll(async () =>
+      database.query.eventTemplates.findFirst({
+        columns: { title: true },
+        where: { id: documentedTemplate.id, tenantId: tenant.id },
+      }),
+    )
+    .toEqual({ title: editedTemplateTitle });
+  await expectPersistedAudit(templateReason, 'template.update');
+
+  await page.getByRole('link', { name: 'Back to organization' }).click();
+  await page.getByRole('link', { exact: true, name: 'Manage users' }).click();
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Tenant finance' }),
+    page.getByRole('heading', { level: 1, name: 'Organization members' }),
   ).toBeVisible();
-  await page.getByRole('tab', { name: 'Refund recovery' }).click();
+  const searchUsers = page.getByLabel('Search users');
+  await searchUsers.fill(assignmentScenario.user.email);
+  let userRow = page.getByRole('row').filter({
+    has: page.getByText(assignmentScenario.user.email, { exact: true }),
+  });
+  await expect(userRow).toBeVisible();
+
+  await testInfo.attach('markdown', {
+    body: `
+## Assign and remove an organization role
+
+Return to the organization and choose **Manage users**. Search by the existing member's email, then select **Manage roles** on that row. Open **Assigned roles**, choose the role, enter an **Operational reason**, and select **Save roles**. The assignment affects only this organization.
+`,
+  });
+  await userRow.getByRole('button', { name: 'Manage roles' }).click();
+  let assignedRoles = page.getByRole('combobox', { name: 'Assigned roles' });
+  await assignedRoles.click();
+  let assignmentOption = page.getByRole('option', {
+    exact: true,
+    name: assignmentScenario.role.name,
+  });
+  await expect(assignmentOption).toHaveAttribute('aria-selected', 'false');
+  await assignmentOption.click();
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Operational reason').fill(roleAssignmentReason);
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-platform-tenant-users form'),
+    page,
+    'Assign an organization role with an operational reason',
+  );
+  await page.getByRole('button', { name: 'Save roles' }).click();
+  await expect(page.getByText('User roles updated')).toBeVisible();
+  await expect
+    .poll(assignmentScenario.readAssignedRoleIds)
+    .toEqual([assignmentScenario.role.id]);
+  await expectPersistedAudit(roleAssignmentReason, 'user.assignRoles');
+
+  await page.reload();
+  await page.getByLabel('Search users').fill(assignmentScenario.user.email);
+  userRow = page.getByRole('row').filter({
+    has: page.getByText(assignmentScenario.user.email, { exact: true }),
+  });
   await expect(
-    page.getByText(
-      'Only terminal Stripe refunds and stopped, unleased refund processing appear here.',
-      { exact: false },
-    ),
+    userRow.getByText(assignmentScenario.role.name, { exact: true }),
   ).toBeVisible();
 
   await testInfo.attach('markdown', {
     body: `
-### Recover a refund without duplicating it
-
-Open **Review finance** and select **Refund recovery**. The queue excludes scheduled, leased, ambiguous, and successful refunds. A terminal Stripe refund schedules a new generation with a new generation-specific idempotency key; stopped processing resumes the existing durable claim and generation. Review the registration, source transaction, transfer state when present, and prior error before entering the required operational reason.
-
-The recovery write updates any linked transfer and appends the platform audit entry in the same transaction. A participant whose transfer already completed must not pay or claim again while finance recovers the source refund.
+To remove that role, select **Manage roles** again, deselect it in **Assigned roles**, enter a new operational reason, and save. Removing every role is allowed for this target member; it does not delete the member or the role definition.
 `,
   });
+  await userRow.getByRole('button', { name: 'Manage roles' }).click();
+  assignedRoles = page.getByRole('combobox', { name: 'Assigned roles' });
+  await assignedRoles.click();
+  assignmentOption = page.getByRole('option', {
+    exact: true,
+    name: assignmentScenario.role.name,
+  });
+  await expect(assignmentOption).toHaveAttribute('aria-selected', 'true');
+  await assignmentOption.click();
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Operational reason').fill(roleRemovalReason);
+  await page.getByRole('button', { name: 'Save roles' }).click();
+  await expect(page.getByText('User roles updated')).toBeVisible();
+  await expect.poll(assignmentScenario.readAssignedRoleIds).toEqual([]);
+  await expectPersistedAudit(roleRemovalReason, 'user.assignRoles');
+
+  await page.getByRole('link', { name: 'Back to organization' }).click();
+  await page.getByRole('link', { exact: true, name: 'Review finance' }).click();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Organization finance' }),
+  ).toBeVisible();
+  const platformFinance = page.locator('app-platform-finance');
+  await expect(platformFinance).not.toHaveAttribute('ngh', /.*/, {
+    timeout: 20_000,
+  });
+  await platformFinance.getByRole('tab', { name: 'Receipt approval' }).click();
+  const receiptSubmitter = page.getByText('Casey Member', { exact: true });
+  await expect(receiptSubmitter).toBeVisible();
+  const receiptRow = receiptSubmitter.locator('..').locator('..');
+  await receiptRow.getByRole('button', { name: 'Review' }).click();
+
+  await testInfo.attach('markdown', {
+    body: `
+## Reject an unverifiable receipt
+
+Return to the organization, choose **Review finance**, and open **Receipt approval**. Select the submitted receipt. When its stored evidence is unavailable, approval stays disabled, but rejection remains available. Choose **Reject**, enter a participant-facing **Rejection reason**, then enter a separate **Platform operational reason** for the change history. Select **Save decision**.
+
+This action records a decision and schedules a receipt-review notification; it does not reimburse the member or transfer money. Reimbursement, refund recovery, and Stripe tax-rate import are separate operations and are not performed by this walkthrough.
+`,
+  });
+  await expect(
+    page.getByText('Receipt evidence is unavailable.', { exact: false }),
+  ).toBeVisible();
+  await page.getByRole('combobox', { name: 'Decision' }).click();
+  await page.getByRole('option', { exact: true, name: 'Reject' }).click();
+  await page.getByLabel('Rejection reason').fill(rejectionReason);
+  await page.getByLabel('Platform operational reason').fill(receiptReason);
   await takeScreenshot(
     testInfo,
-    page.locator('app-platform-finance'),
+    platformFinance,
     page,
-    'Review refunds eligible for manual recovery',
+    'Reject a receipt with participant and operator reasons',
   );
+  const saveDecision = platformFinance.getByRole('button', {
+    name: 'Save decision',
+  });
+  await saveDecision.scrollIntoViewIfNeeded();
+  await expect(saveDecision).toBeEnabled({ timeout: 20_000 });
+  await saveDecision.click({ timeout: 20_000 });
+  await expect(page.getByText('Receipt rejected')).toBeVisible();
+  await expect
+    .poll(async () =>
+      database.query.financeReceipts.findFirst({
+        columns: { rejectionReason: true, status: true },
+        where: { id: receiptId, tenantId: tenant.id },
+      }),
+    )
+    .toEqual({ rejectionReason, status: 'rejected' });
+  await expect
+    .poll(async () =>
+      database.query.emailOutbox.findFirst({
+        columns: { kind: true },
+        where: { idempotencyKey: receiptNotificationKey },
+      }),
+    )
+    .toEqual({ kind: 'receiptReviewed' });
+  await expectPersistedAudit(receiptReason, 'receipt.review');
 
-  await page.getByRole('link', { name: 'Back to tenant' }).click();
-  await expect(
-    page.getByRole('navigation', { name: 'Target tenant operations' }),
-  ).toBeVisible();
+  await page.getByRole('link', { name: 'Back to organization' }).click();
   await page
     .getByRole('link', { exact: true, name: 'Inspect registrations' })
     .click();
-  await expect(page).toHaveURL(
-    new RegExp(`/global-admin/tenants/${tenant.id}/scanner$`),
-  );
-  const lookupInput = page.getByLabel('Registration ID or result URL');
-  await expect(lookupInput).toBeEnabled();
+  const lookupInput = page.getByLabel('Ticket link or registration ID');
+  await expect(lookupInput).toBeEnabled({ timeout: 20_000 });
   await lookupInput.fill(
-    `http://localhost:4200/scan/registration/${registration.id}`,
+    `http://localhost:4200/scan/registration/${registrationId}`,
   );
-  await page.getByRole('button', { name: 'Inspect' }).click();
-  await expect(page).toHaveURL(
-    new RegExp(
-      `/global-admin/tenants/${tenant.id}/scanner/${registration.id}$`,
-    ),
-  );
-  await expect(page.getByText(registration.id, { exact: true })).toBeVisible();
-  const inspection = page.locator('app-platform-scanner');
-  const registrationDetail = inspection.locator('section').filter({
-    has: page.getByRole('heading', {
-      exact: true,
-      level: 3,
-      name: 'Platform registration actions',
-    }),
+  const openRegistration = page.getByRole('button', {
+    name: 'Open registration',
   });
+  await expect(openRegistration).toBeEnabled({ timeout: 20_000 });
+  await openRegistration.click();
+  await expect(page).toHaveURL(
+    new RegExp(`/global-admin/tenants/${tenant.id}/scanner/${registrationId}$`),
+  );
+  const registrationDetail = page
+    .locator('app-platform-scanner section')
+    .filter({
+      has: page.getByRole('heading', {
+        exact: true,
+        level: 3,
+        name: 'Help with this registration',
+      }),
+    });
+  await expect(registrationDetail).toBeVisible({ timeout: 20_000 });
   await expect(
-    inspection.getByRole('heading', {
-      level: 1,
-      name: 'Registration inspection',
-    }),
-  ).toBeVisible();
-  await expect(
-    registrationDetail.getByText(registration.status, { exact: true }),
-  ).toBeVisible();
-  await expect(
-    registrationDetail.getByRole('heading', {
-      name: 'Platform registration actions',
-    }),
-  ).toBeVisible();
-  await expect(
-    registrationDetail.getByRole('heading', { name: 'Cancellation policy' }),
-  ).toBeVisible();
-  await expect(
-    registrationDetail.getByText('Participant deadline', { exact: true }),
-  ).toBeVisible();
-  await expect(
-    registrationDetail.getByText('Refund', { exact: true }),
-  ).toBeVisible();
-  await expect(
-    registrationDetail.getByLabel('Operational reason'),
-  ).toBeVisible();
-  await expect(
-    registrationDetail.getByText('Required for every platform mutation', {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    inspection.getByText('First 100 results', { exact: true }),
-  ).toBeVisible();
+    registrationDetail.getByText('Confirmed', { exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
 
   await testInfo.attach('markdown', {
     body: `
-### Review a scanner result
+## Check in an attendee and guest
 
-For deterministic support and documentation checks, paste a registration ID or an attendee ticket URL into **Registration inspection**. The result route validates the target tenant again; possession of a QR value is not authority. The recent-results query is bounded to 100 records.
+Return to the organization and choose **Inspect registrations**. Paste either the registration ID or its attendee ticket link, then select **Open registration**. Evorto confirms that the registration belongs to this organization before showing it.
 
-The result shows the current registration state, check-in eligibility, participant cancellation deadline, refund terms, and any pending payment state. Evorto displays only the actions allowed by that current state. Every available mutation requires an **Operational reason** before a platform administrator can approve a manual application, resume payment setup, check in the attendee and guests, or cancel the registration. Platform cancellation can override the participant deadline before the event starts, but it cannot bypass checked-in, started-event, or payment-safety constraints. Approval and cancellation do not invent a tenant executive user; their domain transition and PII-free platform audit entry share the same transaction.
+For a confirmed registration inside the check-in window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a registration.
+`,
+  });
+  const guestCheckInCount = registrationDetail.getByLabel(
+    'Guests to check in now',
+  );
+  const registrationActionReason = registrationDetail.getByLabel(
+    'Reason for this action',
+  );
+  await expect(guestCheckInCount).toBeVisible({ timeout: 20_000 });
+  await guestCheckInCount.fill('1');
+  await registrationActionReason.fill(registrationReason);
+  await takeScreenshot(
+    testInfo,
+    registrationDetail,
+    page,
+    'Check in an attendee and guest with an operational reason',
+  );
+  const checkIn = registrationDetail.getByRole('button', {
+    name: 'Check in',
+  });
+  await expect(checkIn).toBeEnabled({ timeout: 20_000 });
+  await checkIn.click({ timeout: 20_000 });
+  await expect(page.getByText('Registration checked in')).toBeVisible();
+  await expect(
+    registrationDetail.getByText('1 of 1 checked in', { exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(async () =>
+      database.query.eventRegistrations.findFirst({
+        columns: { checkedInGuestCount: true, checkInTime: true },
+        where: { id: registrationId, tenantId: tenant.id },
+      }),
+    )
+    .toEqual({
+      checkedInGuestCount: 1,
+      checkInTime: expect.any(Date),
+    });
+  await expect
+    .poll(async () =>
+      database.query.eventRegistrationOptions.findFirst({
+        columns: { checkedInSpots: true },
+        where: {
+          event: { tenantId: tenant.id },
+          eventId: checkInEvent.id,
+          id: checkInOption.id,
+        },
+      }),
+    )
+    .toEqual({
+      checkedInSpots:
+        originalOptionCounters.checkedInSpots + registrationSpotCount,
+    });
+  await expectPersistedAudit(registrationReason, 'registration.checkIn');
 
-Camera-based scanning remains in the organizer scanner and should be reviewed manually unless browser camera emulation is straightforward and reliable.
+  await page.goto('/global-admin');
+  await page.getByRole('link', { name: 'Platform audit log' }).click();
+  await expect(page).toHaveURL(/\/global-admin\/audit$/u);
+  const auditExpectations: ReadonlyArray<readonly [string, string]> = [
+    [eventReason, 'Event updated'],
+    [templateReason, 'Event template updated'],
+    [roleAssignmentReason, 'Organization member roles changed'],
+    [roleRemovalReason, 'Organization member roles changed'],
+    [receiptReason, 'Receipt reviewed'],
+    [registrationReason, 'Registration checked in'],
+  ];
+  for (const [reason, actionLabel] of auditExpectations) {
+    const auditEntry = page
+      .getByRole('article')
+      .filter({ has: page.getByText(reason, { exact: true }) });
+    await expect(auditEntry).toBeVisible();
+    await expect(
+      auditEntry.getByRole('heading', { exact: true, name: actionLabel }),
+    ).toBeVisible();
+    await expect(auditEntry).toContainText(tenant.name);
+  }
+  const eventAuditEntry = page
+    .getByRole('article')
+    .filter({ has: page.getByText(eventReason, { exact: true }) });
+  await eventAuditEntry.getByText('Review before and after').click();
+  await expect(eventAuditEntry).toContainText(draftEvent.title);
+  await expect(eventAuditEntry).toContainText(editedEventTitle);
+
+  await testInfo.attach('markdown', {
+    body: `
+## Verify the audit trail
+
+Return to **Platform administration** and select **Platform audit log**. Find each operation by its reason. Verify the action label and organization, then open **Review before and after** to compare the changes. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
+
+Participant profiles and home pages, joining or leaving an organization, personal receipt submission, and self-service registration transfer remain participant-owned. A platform administrator does not act as an organization member for those flows.
 `,
   });
   await takeScreenshot(
     testInfo,
-    page.locator('app-platform-scanner'),
+    page.locator('app-platform-audit'),
     page,
-    'Inspect a deterministic scanner result',
+    'Verify organization change-history entries',
   );
-
-  await testInfo.attach('markdown', {
-    body: `
-#### Resolve non-confirmed tickets without duplicate registration or payment
-
-The platform result names the exact state instead of showing one generic check-in error:
-
-- **Pending:** the attendee may still need organizer approval or their existing Stripe Checkout. Review that registration; do not start another registration or payment.
-- **Waitlist:** the attendee has no confirmed spot. Review capacity and the waitlist; do not take payment or create another registration from the scanner.
-- **Cancelled:** the ticket cannot be checked in. Do not ask the attendee to pay or register again; review the existing registration and refund if the cancellation looks wrong.
-`,
-  });
-
-  for (const guidance of platformScannerStatusGuidance) {
-    await database
-      .update(schema.eventRegistrations)
-      .set({ status: guidance.status })
-      .where(
-        and(
-          eq(schema.eventRegistrations.id, registration.id),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-        ),
-      );
-    await page.reload();
-
-    await expect(
-      registrationDetail.getByText(guidance.status, { exact: true }),
-    ).toBeVisible();
-    const statusAlert = registrationDetail.getByRole('alert');
-    await expect(statusAlert).toContainText(guidance.title);
-    await expect(statusAlert).toContainText(guidance.body);
-    await takeScreenshot(
-      testInfo,
-      statusAlert,
-      page,
-      `Platform scanner: ${guidance.title}`,
-    );
-  }
 });

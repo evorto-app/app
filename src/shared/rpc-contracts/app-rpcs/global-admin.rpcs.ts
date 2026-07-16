@@ -102,6 +102,7 @@ export const GlobalAdminPlatformAuditRecord = Schema.Struct({
   id: Schema.NonEmptyString,
   reason: Schema.NonEmptyString,
   targetTenantId: Schema.NonEmptyString,
+  targetTenantName: Schema.NullOr(Schema.NonEmptyString),
 });
 
 export type GlobalAdminPlatformAuditRecord = Schema.Schema.Type<
@@ -149,6 +150,7 @@ export const GlobalAdminEmailOutboxRecord = Schema.Struct({
   tenantDomain: Schema.NonEmptyString,
   tenantId: Schema.NonEmptyString,
   tenantName: Schema.NonEmptyString,
+  tenantTimezone: Tenant.fields.timezone,
   updatedAt: Schema.NonEmptyString,
 });
 

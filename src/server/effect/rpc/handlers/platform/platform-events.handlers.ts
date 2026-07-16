@@ -53,6 +53,7 @@ import {
   sanitizeRichTextHtml,
 } from '../../../../utils/rich-text-sanitize';
 import { validateTaxRate } from '../../../../utils/validate-tax-rate';
+import { purchasedAddOnRegistrationOptionRemovalMessage } from '../events/event-graph.service';
 import {
   createEventGraph,
   EventCreationAttribution,
@@ -99,10 +100,42 @@ export const platformEventGraphCompatibilityError = ({
     });
   }
 
+  if (
+    input.registrationOptions.some(
+      (option) => option.isPaid && option.price <= 0,
+    )
+  ) {
+    return new RpcBadRequestError({
+      message: 'Paid event registration options require a positive price',
+      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
+    });
+  }
+
   if (input.addOns.some((addOn) => addOn.isPaid && addOn.price <= 0)) {
     return new RpcBadRequestError({
       message: 'Paid event add-ons require a positive price',
       reason: 'paidEventAddonRequiresPositivePrice',
+    });
+  }
+
+  if (
+    input.addOns.some(
+      (addOn) =>
+        addOn.maxQuantityPerUser > addOn.totalAvailableQuantity ||
+        addOn.registrationOptions.some((mapping) => {
+          const mappedQuantity =
+            mapping.includedQuantity + mapping.optionalPurchaseQuantity;
+          return (
+            mappedQuantity === 0 ||
+            mappedQuantity > addOn.totalAvailableQuantity ||
+            mapping.optionalPurchaseQuantity > addOn.maxQuantityPerUser
+          );
+        }),
+    )
+  ) {
+    return new RpcBadRequestError({
+      message: 'Event add-on configuration is invalid',
+      reason: 'invalidEventAddon',
     });
   }
 
@@ -142,7 +175,7 @@ export const platformEventAddonMappingRemovalError = (
 ): null | RpcBadRequestError =>
   hasPurchases
     ? new RpcBadRequestError({
-        message: 'Purchased add-on mappings cannot be removed',
+        message: purchasedAddOnRegistrationOptionRemovalMessage,
         reason: 'eventAddonMappingInUse',
       })
     : null;
@@ -1318,6 +1351,7 @@ export const platformEventHandlers = {
               .from(eventTemplates)
               .where(eq(eventTemplates.tenantId, input.targetTenantId))
               .orderBy(asc(eventTemplates.title)),
+            timezone: Effect.succeed(operation.targetTenant.timezone),
           }),
         ),
         operation,

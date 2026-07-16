@@ -1,7 +1,7 @@
 import type { DatabaseClient } from '@db/index';
 
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import { and, eq, gt, or } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, or } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import {
@@ -25,10 +25,7 @@ export const eventConfigurationHasPaidItems = ({
 }: {
   readonly addOns: readonly PaidConfigurationItem[];
   readonly registrationOptions: readonly PaidConfigurationItem[];
-}): boolean =>
-  [...registrationOptions, ...addOns].some(
-    (item) => item.isPaid || item.price > 0,
-  );
+}): boolean => [...registrationOptions, ...addOns].some((item) => item.isPaid);
 
 export const stripeRequiredForPaidEventConfigurationError = () =>
   new RpcBadRequestError({
@@ -38,9 +35,17 @@ export const stripeRequiredForPaidEventConfigurationError = () =>
   });
 
 export const stripeAccountRemovalBlockedByPaidConfigurationErrorDetails = {
-  message: 'Stripe account cannot change while paid event configuration exists',
+  message:
+    'Stripe account cannot be disconnected while paid event configuration exists',
   reason:
-    'Make every event and template registration option and add-on free before changing the connected Stripe account.',
+    'Make every event and template registration option and add-on free before disconnecting Stripe.',
+} as const;
+
+export const stripeAccountRemovalBlockedByTaxConfigurationErrorDetails = {
+  message:
+    'Stripe account cannot be disconnected while tax rates remain assigned',
+  reason:
+    'Remove every tax-rate assignment from event and template registration options and add-ons before disconnecting Stripe.',
 } as const;
 
 export const paidEventConfigurationPredicates = (tenantId: string) => ({
@@ -205,6 +210,84 @@ export const tenantHasPaidEventConfiguration = Effect.fn(
       eq(eventTemplates.id, templateEventAddons.templateId),
     )
     .where(predicates.templateAddon)
+    .limit(1)
+    .pipe(Effect.orDie);
+
+  return templateAddon.length > 0;
+});
+
+/**
+ * Stripe tax-rate IDs belong to one Connect account. A true disconnect
+ * requires every mutable event/template binding to be cleared explicitly.
+ * Rotation uses the semantic remap planner instead. Call this after locking
+ * the tenant row so configuration writes and disconnect share one boundary.
+ */
+export const tenantHasStripeTaxRateConfiguration = Effect.fn(
+  'tenantHasStripeTaxRateConfiguration',
+)(function* (database: Pick<DatabaseClient, 'select'>, tenantId: string) {
+  const eventRegistrationOption = yield* database
+    .select({ stripeTaxRateId: eventRegistrationOptions.stripeTaxRateId })
+    .from(eventRegistrationOptions)
+    .innerJoin(
+      eventInstances,
+      eq(eventInstances.id, eventRegistrationOptions.eventId),
+    )
+    .where(
+      and(
+        eq(eventInstances.tenantId, tenantId),
+        isNotNull(eventRegistrationOptions.stripeTaxRateId),
+      ),
+    )
+    .limit(1)
+    .pipe(Effect.orDie);
+  if (eventRegistrationOption.length > 0) return true;
+
+  const eventAddon = yield* database
+    .select({ stripeTaxRateId: eventAddons.stripeTaxRateId })
+    .from(eventAddons)
+    .innerJoin(eventInstances, eq(eventInstances.id, eventAddons.eventId))
+    .where(
+      and(
+        eq(eventInstances.tenantId, tenantId),
+        isNotNull(eventAddons.stripeTaxRateId),
+      ),
+    )
+    .limit(1)
+    .pipe(Effect.orDie);
+  if (eventAddon.length > 0) return true;
+
+  const templateRegistrationOption = yield* database
+    .select({
+      stripeTaxRateId: templateRegistrationOptions.stripeTaxRateId,
+    })
+    .from(templateRegistrationOptions)
+    .innerJoin(
+      eventTemplates,
+      eq(eventTemplates.id, templateRegistrationOptions.templateId),
+    )
+    .where(
+      and(
+        eq(eventTemplates.tenantId, tenantId),
+        isNotNull(templateRegistrationOptions.stripeTaxRateId),
+      ),
+    )
+    .limit(1)
+    .pipe(Effect.orDie);
+  if (templateRegistrationOption.length > 0) return true;
+
+  const templateAddon = yield* database
+    .select({ stripeTaxRateId: templateEventAddons.stripeTaxRateId })
+    .from(templateEventAddons)
+    .innerJoin(
+      eventTemplates,
+      eq(eventTemplates.id, templateEventAddons.templateId),
+    )
+    .where(
+      and(
+        eq(eventTemplates.tenantId, tenantId),
+        isNotNull(templateEventAddons.stripeTaxRateId),
+      ),
+    )
     .limit(1)
     .pipe(Effect.orDie);
 

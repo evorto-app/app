@@ -10,7 +10,10 @@ import { stripeWebhookConfig } from '../config/stripe-config';
 import { retrieveHostedCheckoutSession } from '../integrations/stripe-checkout';
 import { enqueueWaitlistSpotAvailableEmail } from '../notifications/email-delivery';
 import { deriveRegistrationPaymentFeeSnapshot } from '../payments/registration-payment-fee-snapshot';
-import { reconcileRegistrationRefundWebhook } from '../payments/registration-refund';
+import {
+  reconcileProviderRegistrationRefundWebhook,
+  reconcileRegistrationRefundWebhook,
+} from '../payments/registration-refund';
 import {
   completePaidAddonPurchaseCheckout,
   expirePaidAddonPurchaseCheckout,
@@ -1509,16 +1512,29 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
         case 'refund.failed':
         case 'refund.updated': {
           const refund = event.data.object;
-          if (!refund.metadata?.['refundClaimId']) {
-            return responseText('Non-registration refund ignored');
-          }
-          const result = yield* reconcileRegistrationRefundWebhook(
+          const claimResult = yield* reconcileRegistrationRefundWebhook(
             refund,
             event.account,
           );
-          return result.status === 'reconciled'
+          if (claimResult.status === 'reconciled') {
+            return responseText('Success');
+          }
+          if (claimResult.status === 'rejected') {
+            return responseText('Refund claim ownership mismatch', 400);
+          }
+
+          const providerResult =
+            yield* reconcileProviderRegistrationRefundWebhook(
+              refund,
+              event.account,
+            );
+          return providerResult.status === 'reconciled'
             ? responseText('Success')
-            : responseText('Refund claim ownership mismatch', 400);
+            : providerResult.status === 'ignored'
+              ? responseText('Non-registration refund ignored')
+              : providerResult.status === 'deferred'
+                ? responseText('Refund source payment is not finalized', 409)
+                : responseText('Provider refund ownership mismatch', 400);
         }
 
         default: {

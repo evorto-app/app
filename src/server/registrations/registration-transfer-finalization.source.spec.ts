@@ -65,8 +65,9 @@ describe('registration transfer transactional finalization source', () => {
     expect(finalization).toContain('components: settledTerms');
     expect(finalization).toContain("kind: 'claim_transfer'");
     expect(finalization).toContain(
-      'operationKey: `registration-transfer:${transfer.id}`',
+      'const transferOperationId = `registration-transfer:${transfer.id}`',
     );
+    expect(finalization).toContain('operationKey: transferOperationId');
     expect(finalization).toContain('ownerUserId: recipientUserId');
     expect(finalization).toContain('stripeAccountId: payment.stripeAccountId');
     expect(finalization).toContain('stripeChargeId: payment.stripeChargeId');
@@ -170,6 +171,61 @@ describe('registration transfer transactional finalization source', () => {
       '.update(eventRegistrationAddonPurchases)',
     );
     expect(compensation).not.toContain('.update(eventAddons)');
+  });
+
+  it('serializes and rechecks the recipient tenant limit before ownership changes', () => {
+    const source = readSiblingSource('./registration-transfer-finalization.ts');
+    const finalization = source.slice(
+      source.indexOf('export const finalizeRegistrationTransferCheckout'),
+      source.indexOf('export const expireRegistrationTransferCheckout'),
+    );
+    const membershipLock = finalization.indexOf('.from(usersToTenants)');
+    const activeLimit = finalization.indexOf(
+      'maxActiveRegistrationsPerUser > 0',
+    );
+    const activeRegistrationCount = finalization.indexOf(
+      '.innerJoin(\n        eventInstances,',
+      activeLimit,
+    );
+    const compensation = finalization.indexOf(
+      'Recipient eligibility changed after payment; a full recipient refund was queued.',
+      activeRegistrationCount,
+    );
+    const ownershipUpdate = finalization.indexOf('.update(eventRegistrations)');
+
+    expect(membershipLock).toBeGreaterThan(-1);
+    expect(
+      finalization.indexOf(".for('update')", membershipLock),
+    ).toBeGreaterThan(membershipLock);
+    expect(activeLimit).toBeGreaterThan(membershipLock);
+    expect(activeRegistrationCount).toBeGreaterThan(activeLimit);
+    expect(compensation).toBeGreaterThan(activeRegistrationCount);
+    expect(ownershipUpdate).toBeGreaterThan(compensation);
+  });
+
+  it('locks and rechecks recipient role eligibility before ownership changes', () => {
+    const source = readSiblingSource('./registration-transfer-finalization.ts');
+    const finalization = source.slice(
+      source.indexOf('export const finalizeRegistrationTransferCheckout'),
+      source.indexOf('export const expireRegistrationTransferCheckout'),
+    );
+    const assignmentLock = finalization.indexOf('.from(rolesToTenantUsers)');
+    const optionLock = finalization.indexOf('.from(eventRegistrationOptions)');
+    const eligibilityCheck = finalization.indexOf(
+      'isUserEligibleForRegistrationOption({',
+    );
+    const ownershipUpdate = finalization.indexOf('.update(eventRegistrations)');
+
+    expect(assignmentLock).toBeGreaterThan(-1);
+    expect(
+      finalization.indexOf(".for('update')", assignmentLock),
+    ).toBeGreaterThan(assignmentLock);
+    expect(optionLock).toBeGreaterThan(assignmentLock);
+    expect(finalization.indexOf(".for('update')", optionLock)).toBeGreaterThan(
+      optionLock,
+    );
+    expect(eligibilityCheck).toBeGreaterThan(optionLock);
+    expect(ownershipUpdate).toBeGreaterThan(eligibilityCheck);
   });
 
   it('expires only the recipient payment attempt and keeps reconciliation cycle-free', () => {
@@ -277,8 +333,8 @@ describe('registration transfer claim lock source', () => {
       service.indexOf('const getClaim = Effect.fn'),
       service.indexOf('const cancel = Effect.fn'),
     );
-    const activeTransfers = eventHandlers.slice(
-      eventHandlers.indexOf('const activeTransfers ='),
+    const visibleTransfers = eventHandlers.slice(
+      eventHandlers.indexOf('const visibleTransfers ='),
       eventHandlers.indexOf('const addOnOptionsByRegistrationOptionId'),
     );
 
@@ -287,17 +343,29 @@ describe('registration transfer claim lock source', () => {
     expect(getClaim).toContain('.from(registrationTransferRefundPlanItems)');
     expect(getClaim).toContain('transactions.tenantId');
     expect(getClaim).toContain('registrationTransferRefundPlanItems.tenantId');
-    expect(activeTransfers).toContain(
+    expect(getClaim).toContain(
+      'const recipientBundlePrice = yield* registrationTransferTotalPrice({',
+    );
+    expect(getClaim).toContain('useSealedRecipientPricing');
+    expect(getClaim).toContain('transfer.recipientBasePrice');
+    expect(getClaim).toContain('addOn.recipientUnitPrice');
+    expect(getClaim).toContain('quantity: addOn.purchasedQuantity');
+    expect(getClaim).toContain('unitPrice: addOn.currentUnitPrice');
+    expect(getClaim).toContain('recipientBundlePrice,');
+    expect(visibleTransfers).toContain(
       'eq(registrationTransfers.tenantId, tenant.id)',
     );
-    expect(activeTransfers).toContain(
+    expect(visibleTransfers).toContain(
       '.from(registrationTransferRefundPlanItems)',
     );
-    expect(activeTransfers).toContain(
+    expect(visibleTransfers).toContain(
       'resolveRegistrationTransferRefundLifecycle({',
     );
+    expect(visibleTransfers).toContain('const currentRegistrationIdRows =');
+    expect(visibleTransfers).toContain('id: { in: ownedRegistrationIds }');
+    expect(visibleTransfers).toContain('currentlyOwnedRegistrations');
     expect(getClaim).not.toContain('stripeRefundLastError');
-    expect(activeTransfers).not.toContain('stripeRefundLastError');
+    expect(visibleTransfers).not.toContain('stripeRefundLastError');
   });
 
   it('revalidates identity, eligibility, sealed fulfillment, current prices, discounts, and tax under locks', () => {
@@ -322,7 +390,9 @@ describe('registration transfer claim lock source', () => {
       'eventRegistrationOptionDiscounts.discountedPrice',
     );
     expect(lockedClaim).toContain('tenantStripeTaxRates.stripeTaxRateId');
-    expect(lockedClaim).toContain('addOn.price * addOn.purchasedQuantity');
+    expect(lockedClaim).toContain(
+      'const totalPrice = yield* registrationTransferTotalPrice({',
+    );
     expect(lockedClaim).toContain(".for('update')");
   });
 

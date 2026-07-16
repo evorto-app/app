@@ -9,7 +9,9 @@ describe('unknown tenant response', () => {
   it('gives a person safe recovery guidance without reflecting the unknown host', () => {
     const visibleCopy = unknownTenantDocument.replaceAll(/\s+/g, ' ');
 
-    expect(visibleCopy).toContain('This link does not match an Evorto tenant');
+    expect(visibleCopy).toContain(
+      'This link does not match an Evorto organization',
+    );
     expect(visibleCopy).toContain(
       'Your account and registrations have not been changed.',
     );

@@ -13,7 +13,7 @@
       class="bg-error-container text-on-error-container p-4"
       role="alert"
     >
-      <p>{{ errorMessage(templateQuery.error()) }}</p>
+      <p>This template could not be loaded. Try again.</p>
       <button
         mat-stroked-button
         type="button"
@@ -31,10 +31,7 @@
     >
       <h2 class="title-medium">This template is read-only</h2>
       <p>{{ editorLoadError() }}</p>
-      <p>
-        The template remains available on its detail page. Replace the legacy
-        random allocation through a supported migration before editing it.
-      </p>
+      <p>The existing template remains available on its detail page.</p>
       <a mat-stroked-button routerLink="..">Back to template</a>
     </section>
   } @else if (templateQuery.isSuccess()) {
@@ -61,13 +58,14 @@
       <section class="border-outline-variant bg-surface rounded-lg border p-4">
         @if (!stripeConnectionKnown()) {
           <p class="text-on-surface-variant mb-4 text-sm" role="status">
-            Paid controls are unavailable while the tenant's Stripe status is
-            loading.
+            Paid controls are unavailable while the organization's Stripe status
+            is loading.
           </p>
         } @else if (paidControlsUnavailable()) {
           <p class="text-on-surface-variant mb-4 text-sm" role="status">
-            Paid controls are unavailable because this tenant has no connected
-            Stripe account. Saving keeps registration options and add-ons free.
+            Paid controls are unavailable because this organization has no
+            connected Stripe account. Saving keeps registration options and
+            add-ons free.
           </p>
         }
         <app-template-graph-editor
@@ -81,9 +79,10 @@
       </section>
 
       @if (updateTemplateMutation.isError()) {
-        <p class="text-error" role="alert">
-          {{ errorMessage(updateTemplateMutation.error()) }}
-        </p>
+        <div class="text-error grid gap-1" role="alert">
+          <p>The template could not be saved.</p>
+          <p>Your entries are still here. Review them and try again.</p>
+        </div>
       }
 
       <div class="flex justify-end">

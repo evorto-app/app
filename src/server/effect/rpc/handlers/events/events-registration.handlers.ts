@@ -18,6 +18,7 @@ import {
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
   type EventsCancellableRegistrationStatus,
+  type EventsOutgoingRegistrationTransferRecord,
   type EventsRegistrationStatusRecord,
 } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 import { resolveTenantDiscountProviders } from '@shared/tenant-config';
@@ -32,6 +33,7 @@ import {
   isNull,
   not,
   notExists,
+  or,
   sql,
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -50,6 +52,7 @@ import {
   eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
+  eventRegistrationQuestions,
   eventRegistrations,
   registrationAcquisitionRefundAllocations,
   registrationTransferRefundPlanItems,
@@ -98,9 +101,11 @@ import {
   RegistrationTransferMutationConflict,
 } from '../../../../registrations/registration-transfer-mutation-guard';
 import {
+  registrationTransferBasePrice,
   registrationTransferTotalPrice,
   resolveRegistrationTransferPrice,
 } from '../../../../registrations/registration-transfer-pricing';
+import { resolveRegistrationTransferPriorRefunds } from '../../../../registrations/registration-transfer-prior-refunds';
 import { resolveRegistrationTransferRefundLifecycle } from '../../../../registrations/registration-transfer-refund-lifecycle';
 import { resolveRegistrationTransferDeadline } from '../../../../registrations/registration-transfer-state';
 import { StripeClient } from '../../../../stripe-client';
@@ -219,6 +224,8 @@ const normalizeTransferTargetSearch = (search: string | undefined) =>
 
 const privateRegistrationTransferRequiredMessage =
   'This registration bundle cannot be reassigned directly. Create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.';
+const recipientQuestionTransferRequiredMessage =
+  "This registration has participant questions, so it cannot be reassigned directly. Create a private transfer offer so the recipient can answer the current questions without inheriting the previous participant's answers.";
 
 const directTransferPreviewStatePart = (value: object): string =>
   JSON.stringify(value) ?? 'null';
@@ -463,7 +470,7 @@ export const registrationCancellationStripeRefundTerms = ({
   | undefined
   | { readonly amount: number; readonly applicationFeeRefunded: boolean } => {
   const amount = refundFeesOnCancellation ? grossAmount : stripeNetAmount;
-  if (amount === null || !Number.isInteger(amount) || amount <= 0) {
+  if (amount === null || !Number.isInteger(amount) || amount < 0) {
     return;
   }
   return {
@@ -2636,6 +2643,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                       appFee: transactions.appFee,
                       currency: transactions.currency,
                       eventId: transactions.eventId,
+                      eventRegistrationId: transactions.eventRegistrationId,
                       id: transactions.id,
                       method: transactions.method,
                       status: transactions.status,
@@ -2730,10 +2738,17 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 : yield* tx
                     .select({
                       amount: transactions.amount,
+                      currency: transactions.currency,
+                      eventId: transactions.eventId,
+                      eventRegistrationId: transactions.eventRegistrationId,
+                      manuallyCreated: transactions.manuallyCreated,
                       method: transactions.method,
                       sourceTransactionId: transactions.sourceTransactionId,
                       status: transactions.status,
+                      stripeAccountId: transactions.stripeAccountId,
+                      stripeRefundId: transactions.stripeRefundId,
                       stripeRefundStatus: transactions.stripeRefundStatus,
+                      targetUserId: transactions.targetUserId,
                     })
                     .from(transactions)
                     .where(
@@ -2748,15 +2763,12 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                     )
                     .orderBy(transactions.id)
                     .for('update');
-            if (
-              sourceRefunds.some(
-                (refund) =>
-                  refund.method !== 'stripe' ||
-                  refund.status !== 'successful' ||
-                  refund.stripeRefundStatus !== 'succeeded' ||
-                  !refund.sourceTransactionId,
-              )
-            ) {
+            const priorRefundResolution =
+              resolveRegistrationTransferPriorRefunds({
+                refunds: sourceRefunds,
+                sourcePayments: successfulPaidSourceTransactions,
+              });
+            if (priorRefundResolution._tag === 'Unresolved') {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
@@ -2764,34 +2776,28 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 }),
               );
             }
-
-            const refundedBySourceTransaction = new Map<string, number>();
-            for (const refund of sourceRefunds) {
-              if (!refund.sourceTransactionId || refund.amount >= 0) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message: 'Source refund history has an invalid amount',
-                  }),
-                );
-              }
-              refundedBySourceTransaction.set(
-                refund.sourceTransactionId,
-                (refundedBySourceTransaction.get(refund.sourceTransactionId) ??
-                  0) - refund.amount,
+            if (priorRefundResolution._tag === 'InvalidProvenance') {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'Source refund ownership is inconsistent. Create a private transfer only after the payment history is reconciled.',
+                }),
               );
             }
+            if (priorRefundResolution._tag === 'InvalidAmount') {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message: 'Source refund history has an invalid amount',
+                }),
+              );
+            }
+            const refundedBySourceTransaction =
+              priorRefundResolution.refundedBySourceTransactionId;
 
             let sourceRefundAmountDue = 0;
             for (const payment of successfulPaidSourceTransactions) {
               const refundedAmount =
                 refundedBySourceTransaction.get(payment.id) ?? 0;
-              if (refundedAmount > payment.amount) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message: 'Source refunds exceed an original payment',
-                  }),
-                );
-              }
               sourceRefundAmountDue += payment.amount - refundedAmount;
             }
 
@@ -2800,6 +2806,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 discountProviders: tenants.discountProviders,
                 eventStart: eventInstances.start,
                 eventStatus: eventInstances.status,
+                optionIsPaid: eventRegistrationOptions.isPaid,
                 optionPrice: eventRegistrationOptions.price,
                 optionRoleIds: eventRegistrationOptions.roleIds,
                 optionStripeTaxRateId: eventRegistrationOptions.stripeTaxRateId,
@@ -2832,6 +2839,26 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationInternalError({
                   message: 'Registration transfer pricing is unavailable',
+                }),
+              );
+            }
+            const lockedRegistrationQuestions = yield* tx
+              .select({ id: eventRegistrationQuestions.id })
+              .from(eventRegistrationQuestions)
+              .where(
+                and(
+                  eq(eventRegistrationQuestions.eventId, registration.eventId),
+                  eq(
+                    eventRegistrationQuestions.registrationOptionId,
+                    registration.registrationOptionId,
+                  ),
+                ),
+              )
+              .for('update');
+            if (lockedRegistrationQuestions.length > 0) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: recipientQuestionTransferRequiredMessage,
                 }),
               );
             }
@@ -3075,6 +3102,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
             const lockedDiscountCards = yield* tx
               .select({
                 type: userDiscountCards.type,
+                validFrom: userDiscountCards.validFrom,
                 validTo: userDiscountCards.validTo,
               })
               .from(userDiscountCards)
@@ -3107,22 +3135,33 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 .filter(([, provider]) => provider.status === 'enabled')
                 .map(([discountType]) => discountType),
             );
+            const optionBasePrice = registrationTransferBasePrice({
+              isPaid: lockedPricing.optionIsPaid,
+              price: lockedPricing.optionPrice,
+            });
             const recipientPrice = resolveRegistrationTransferPrice({
-              basePrice: lockedPricing.optionPrice,
+              basePrice: optionBasePrice,
               cards: lockedDiscountCards,
               discounts: lockedDiscounts,
               enabledDiscountTypes,
               eventStart: lockedPricing.eventStart,
             });
-            const recipientBundlePrice = registrationTransferTotalPrice({
-              addOnTotal: lockedBundleAddOns.reduce(
-                (total, addOn) => total + addOn.price * addOn.purchasedQuantity,
-                0,
-              ),
+            const recipientBundlePrice = yield* registrationTransferTotalPrice({
+              addOns: lockedBundleAddOns.map((addOn) => ({
+                quantity: addOn.purchasedQuantity,
+                unitPrice: addOn.price,
+              })),
               effectivePrice: recipientPrice.effectivePrice,
               guestCount: lockedRegistration.guestCount,
-              guestUnitPrice: lockedPricing.optionPrice,
-            });
+              guestUnitPrice: optionBasePrice,
+            }).pipe(
+              Effect.mapError(
+                (error) =>
+                  new EventRegistrationConflictError({
+                    message: error.message,
+                  }),
+              ),
+            );
             if (sourceRefundAmountDue > 0 || recipientBundlePrice > 0) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
@@ -3192,7 +3231,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               checkedInGuestCount: lockedRegistration.checkedInGuestCount,
               checkInTime: lockedRegistration.checkInTime,
               guestCount: lockedRegistration.guestCount,
-              guestUnitPrice: lockedPricing.optionPrice,
+              guestUnitPrice: optionBasePrice,
               lockedState: {
                 acquisition: directTransferPreviewStatePart(
                   currentAcquisitionState.acquisition,
@@ -3251,7 +3290,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                   checkInTime:
                     lockedRegistration.checkInTime?.toISOString() ?? null,
                   guestCount: lockedRegistration.guestCount,
-                  guestUnitPrice: lockedPricing.optionPrice,
+                  guestUnitPrice: optionBasePrice,
                 },
                 completionMode: 'databaseOnly' as const,
                 currency: tenant.currency,
@@ -3271,7 +3310,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                   lastName: targetUser.lastName,
                 },
                 registrationOption: {
-                  currentPrice: lockedPricing.optionPrice,
+                  currentPrice: optionBasePrice,
                   id: registration.registrationOptionId,
                   title: lockedPricing.optionTitle,
                 },
@@ -3355,7 +3394,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               .set({
                 appliedDiscountedPrice: recipientPrice.appliedDiscountedPrice,
                 appliedDiscountType: recipientPrice.appliedDiscountType,
-                basePriceAtRegistration: lockedPricing.optionPrice,
+                basePriceAtRegistration: optionBasePrice,
                 discountAmount: recipientPrice.discountAmount,
                 stripeTaxRateId: lockedPricing.optionStripeTaxRateId,
                 taxRateDisplayName: registrationTaxRate?.displayName,
@@ -3393,13 +3432,14 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
             if (transferredRegistrations.length !== 1) {
               return { _tag: 'RegistrationUnavailable' } as const;
             }
+            const transferOperationId = `direct-registration-transfer:${currentAcquisitionState.acquisition.id}`;
             yield* establishRegistrationAcquisition(tx, {
               acquiredAt: new Date(),
               components: settledDirectAcquisition,
               currency: tenant.currency,
               eventId: registration.eventId,
               kind: 'direct_transfer',
-              operationKey: `direct-registration-transfer:${currentAcquisitionState.acquisition.id}`,
+              operationKey: transferOperationId,
               ownerUserId: targetUserId,
               registrationId: registration.id,
               spotCount: registrationSpotCount(lockedRegistration.guestCount),
@@ -3424,6 +3464,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                   registrationId: registration.id,
                   tenant,
                   to: previousOwnerEmail,
+                  transferOperationId,
                 });
               }
               if (newOwnerEmail) {
@@ -3435,6 +3476,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                   registrationId: registration.id,
                   tenant,
                   to: newOwnerEmail,
+                  transferOperationId,
                 });
               }
             }
@@ -4018,6 +4060,7 @@ export const eventRegistrationHandlers = {
       if (!user) {
         return {
           isRegistered: false,
+          outgoingTransfers: [],
           registrations: [],
         };
       }
@@ -4205,40 +4248,91 @@ export const eventRegistrationHandlers = {
                 ),
             );
 
-      const activeTransfers =
-        registrations.length === 0
-          ? []
-          : yield* databaseEffect((database) =>
-              database
-                .select({
-                  expiresAt: registrationTransfers.expiresAt,
-                  ownershipTransferredAt:
-                    registrationTransfers.ownershipTransferredAt,
-                  sourceRegistrationId:
-                    registrationTransfers.sourceRegistrationId,
-                  status: registrationTransfers.status,
-                  transferId: registrationTransfers.id,
-                })
-                .from(registrationTransfers)
-                .where(
-                  and(
-                    inArray(
-                      registrationTransfers.sourceRegistrationId,
-                      registrations.map((registration) => registration.id),
-                    ),
-                    inArray(registrationTransfers.status, [
-                      ...activeRegistrationTransferStatuses,
-                    ]),
-                    eq(registrationTransfers.tenantId, tenant.id),
-                  ),
-                ),
+      const ownedRegistrationIds = registrations.map(
+        (registration) => registration.id,
+      );
+      const transferVisibility =
+        ownedRegistrationIds.length === 0
+          ? eq(registrationTransfers.sourceUserId, user.id)
+          : or(
+              eq(registrationTransfers.sourceUserId, user.id),
+              inArray(
+                registrationTransfers.sourceRegistrationId,
+                ownedRegistrationIds,
+              ),
             );
-      const activeTransferRefundRows =
-        activeTransfers.length === 0
+      const visibleTransfers = yield* databaseEffect((database) =>
+        database
+          .select({
+            expiresAt: registrationTransfers.expiresAt,
+            ownershipTransferredAt:
+              registrationTransfers.ownershipTransferredAt,
+            registrationOptionId: registrationTransfers.registrationOptionId,
+            sourceRegistrationId: registrationTransfers.sourceRegistrationId,
+            sourceUserId: registrationTransfers.sourceUserId,
+            status: registrationTransfers.status,
+            transferId: registrationTransfers.id,
+          })
+          .from(registrationTransfers)
+          .where(
+            and(
+              eq(registrationTransfers.eventId, eventId),
+              eq(registrationTransfers.tenantId, tenant.id),
+              inArray(registrationTransfers.status, [
+                ...activeRegistrationTransferStatuses,
+                'completed',
+              ]),
+              transferVisibility,
+            ),
+          ),
+      );
+      const outgoingTransferRows = visibleTransfers.flatMap((transfer) => {
+        const ownershipTransferredAt = transfer.ownershipTransferredAt;
+        if (
+          transfer.sourceUserId !== user.id ||
+          ownershipTransferredAt === null
+        ) {
+          return [];
+        }
+        switch (transfer.status) {
+          case 'completed':
+          case 'refund_failed':
+          case 'refund_pending': {
+            return [{ ...transfer, ownershipTransferredAt }];
+          }
+          default: {
+            return [];
+          }
+        }
+      });
+      const currentRegistrationIdRows =
+        outgoingTransferRows.length === 0 || ownedRegistrationIds.length === 0
+          ? ownedRegistrationIds.map((id) => ({ id }))
+          : yield* databaseEffect((database) =>
+              database.query.eventRegistrations.findMany({
+                columns: { id: true },
+                where: {
+                  eventId,
+                  id: { in: ownedRegistrationIds },
+                  status: { NOT: 'CANCELLED' },
+                  tenantId: tenant.id,
+                  userId: user.id,
+                },
+              }),
+            );
+      const currentRegistrationIds = new Set(
+        currentRegistrationIdRows.map((registration) => registration.id),
+      );
+      const currentlyOwnedRegistrations = registrations.filter((registration) =>
+        currentRegistrationIds.has(registration.id),
+      );
+      const visibleTransferRefundRows =
+        visibleTransfers.length === 0
           ? []
           : yield* databaseEffect((database) =>
               database
                 .select({
+                  currency: registrationTransferRefundPlanItems.currency,
                   refund: {
                     manuallyCreated: transactions.manuallyCreated,
                     method: transactions.method,
@@ -4254,6 +4348,8 @@ export const eventRegistrationHandlers = {
                       transactions.stripeRefundNextAttemptAt,
                     stripeRefundStatus: transactions.stripeRefundStatus,
                   },
+                  refundAmountDue:
+                    registrationTransferRefundPlanItems.refundAmountDue,
                   transferId: registrationTransferRefundPlanItems.transferId,
                 })
                 .from(registrationTransferRefundPlanItems)
@@ -4275,33 +4371,106 @@ export const eventRegistrationHandlers = {
                   and(
                     inArray(
                       registrationTransferRefundPlanItems.transferId,
-                      activeTransfers.map((transfer) => transfer.transferId),
+                      visibleTransfers.map((transfer) => transfer.transferId),
                     ),
                     eq(registrationTransferRefundPlanItems.tenantId, tenant.id),
                     gt(registrationTransferRefundPlanItems.refundAmountDue, 0),
                   ),
                 ),
             );
-      const activeTransferRefunds = new Map<
+      const refundRowsByTransferId = new Map<
         string,
-        (typeof activeTransferRefundRows)[number]['refund'][]
+        (typeof visibleTransferRefundRows)[number][]
       >();
-      for (const row of activeTransferRefundRows) {
-        const refunds = activeTransferRefunds.get(row.transferId) ?? [];
-        refunds.push(row.refund);
-        activeTransferRefunds.set(row.transferId, refunds);
+      for (const row of visibleTransferRefundRows) {
+        const refundRows = refundRowsByTransferId.get(row.transferId) ?? [];
+        refundRows.push(row);
+        refundRowsByTransferId.set(row.transferId, refundRows);
       }
+      const outgoingRegistrationOptionIds = [
+        ...new Set(
+          outgoingTransferRows.map((transfer) => transfer.registrationOptionId),
+        ),
+      ];
+      const outgoingRegistrationOptions =
+        outgoingRegistrationOptionIds.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  id: eventRegistrationOptions.id,
+                  title: eventRegistrationOptions.title,
+                })
+                .from(eventRegistrationOptions)
+                .where(
+                  and(
+                    eq(eventRegistrationOptions.eventId, eventId),
+                    inArray(
+                      eventRegistrationOptions.id,
+                      outgoingRegistrationOptionIds,
+                    ),
+                  ),
+                ),
+            );
+      const outgoingRegistrationOptionTitleById = new Map(
+        outgoingRegistrationOptions.map((option) => [option.id, option.title]),
+      );
+      const outgoingTransfers = outgoingTransferRows
+        .map((transfer) => {
+          const refundRows =
+            refundRowsByTransferId.get(transfer.transferId) ?? [];
+          const refundAmount = refundRows.reduce(
+            (total, row) => total + row.refundAmountDue,
+            0,
+          );
+          const refundLifecycle = resolveRegistrationTransferRefundLifecycle({
+            refunds: refundRows.map((row) => row.refund),
+            transferStatus: transfer.status,
+          });
+          const refundStatus: EventsOutgoingRegistrationTransferRecord['refundStatus'] =
+            transfer.status === 'completed'
+              ? refundAmount === 0
+                ? 'notRequired'
+                : 'completed'
+              : refundLifecycle?.state === 'processing'
+                ? 'processing'
+                : refundLifecycle?.state === 'succeeded'
+                  ? 'completed'
+                  : 'needsAttention';
+          const registrationOptionTitle =
+            outgoingRegistrationOptionTitleById.get(
+              transfer.registrationOptionId,
+            );
+          if (!registrationOptionTitle) {
+            throw new Error(
+              `Registration option missing for transfer ${transfer.transferId}`,
+            );
+          }
+          return {
+            currency: refundRows[0]?.currency ?? tenant.currency,
+            refundAmount,
+            refundStatus,
+            registrationOptionTitle,
+            transferId: transfer.transferId,
+            transferredAt: transfer.ownershipTransferredAt.toISOString(),
+          };
+        })
+        .toSorted((left, right) =>
+          right.transferredAt.localeCompare(left.transferredAt),
+        );
       const registrationIds = new Set(
-        registrations.map((registration) => registration.id),
+        currentlyOwnedRegistrations.map((registration) => registration.id),
       );
       const activeTransferByRegistrationId = new Map<
         string,
         NonNullable<EventsRegistrationStatusRecord['activeTransfer']>
       >();
-      for (const transfer of activeTransfers) {
+      for (const transfer of visibleTransfers) {
         if (!isActiveRegistrationTransferStatus(transfer.status)) continue;
         const refundLifecycle = resolveRegistrationTransferRefundLifecycle({
-          refunds: activeTransferRefunds.get(transfer.transferId) ?? [],
+          refunds: (refundRowsByTransferId.get(transfer.transferId) ?? []).map(
+            (row) => row.refund,
+          ),
           transferStatus: transfer.status,
         });
         if (registrationIds.has(transfer.sourceRegistrationId)) {
@@ -4334,211 +4503,219 @@ export const eventRegistrationHandlers = {
       }
       const now = yield* registrationHandlerNow.pipe(Effect.orDie);
 
-      const registrationSummaries = registrations.map((registration) => {
-        const registrationOption = registration.registrationOption;
-        if (!registrationOption) {
-          throw new Error(
-            `Registration option missing for registration ${registration.id}`,
-          );
-        }
-        const event = registration.event;
-        if (!event) {
-          throw new Error(`Event missing for registration ${registration.id}`);
-        }
-
-        const registrationTransaction = registration.transactions.find(
-          (transaction) =>
-            transaction.type === 'registration' &&
-            transaction.amount < registrationOption.price,
-        );
-
-        const discountedPrice =
-          registration.appliedDiscountedPrice ??
-          registrationTransaction?.amount ??
-          undefined;
-        const appliedDiscountType =
-          registration.appliedDiscountType ??
-          (discountedPrice === undefined ? undefined : ('esnCard' as const));
-        const basePriceAtRegistration =
-          registration.basePriceAtRegistration ??
-          (discountedPrice === undefined
-            ? undefined
-            : registrationOption.price);
-        const discountAmount =
-          registration.discountAmount ??
-          (discountedPrice === undefined
-            ? undefined
-            : registrationOption.price - discountedPrice);
-
-        const activeTransfer =
-          activeTransferByRegistrationId.get(registration.id) ?? null;
-        const pendingOrder = registration.addonPurchaseOrders[0];
-        const purchaseByAddOnId = new Map(
-          registration.addonPurchases.map((purchase) => [
-            purchase.addonId,
-            purchase,
-          ]),
-        );
-        const registrationAddOns = (
-          addOnOptionsByRegistrationOptionId.get(
-            registration.registrationOptionId,
-          ) ?? []
-        ).flatMap((addOnOption) => {
+      const registrationSummaries = currentlyOwnedRegistrations.map(
+        (registration) => {
+          const registrationOption = registration.registrationOption;
+          if (!registrationOption) {
+            throw new Error(
+              `Registration option missing for registration ${registration.id}`,
+            );
+          }
           const event = registration.event;
-          if (!event) return [];
-          const purchase = purchaseByAddOnId.get(addOnOption.addOnId);
-          const matchingPendingOrder =
-            pendingOrder?.addonId === addOnOption.addOnId
-              ? pendingOrder
-              : undefined;
-          const pendingQuantity = matchingPendingOrder?.quantity ?? 0;
-          const settledPurchasedQuantity = purchase?.purchasedQuantity ?? 0;
-          const taxConfigured =
-            addOnOption.stripeTaxRateId === null ||
-            (addOnOption.nextPurchaseTaxRateInclusive !== null &&
-              addOnOption.nextPurchaseTaxRatePercentage !== null);
-          const hasPaidPrice = addOnOption.nextPurchaseUnitPrice > 0;
-          const paymentConfigured =
-            addOnOption.isPaid === hasPaidPrice &&
-            (!hasPaidPrice || tenant.stripeAccountId !== null);
-          const availability = registrationAddonPurchaseAvailability({
-            activeTransfer: activeTransfer !== null,
-            allowMultiple: addOnOption.allowMultiple,
-            allowPurchaseBeforeEvent: addOnOption.allowPurchaseBeforeEvent,
-            allowPurchaseDuringEvent: addOnOption.allowPurchaseDuringEvent,
-            eventEnd: event.end,
-            eventStart: event.start,
-            eventStatus: event.status,
-            maxQuantityPerUser: addOnOption.maxQuantityPerUser,
-            now,
-            optionalPurchaseQuantity: addOnOption.optionalPurchaseQuantity,
-            paymentConfigured,
-            pendingOptionalQuantity: pendingQuantity,
-            pendingOrder: pendingOrder !== undefined,
-            purchasedOptionalQuantity: settledPurchasedQuantity,
-            registrationStatus: registration.status,
-            stockAvailableQuantity: addOnOption.stockAvailableQuantity,
-            taxConfigured,
-          });
-          const nextPurchaseUnitAmounts = taxConfigured
-            ? resolveAddonTaxAmounts({
-                baseAmount: addOnOption.nextPurchaseUnitPrice,
-                taxRateInclusive: addOnOption.nextPurchaseTaxRateInclusive,
-                taxRatePercentage: addOnOption.nextPurchaseTaxRatePercentage,
-              })
-            : undefined;
-          const redeemedQuantity = purchase?.redeemedQuantity ?? 0;
-          const cancelledQuantity = purchase?.cancelledQuantity ?? 0;
-          const totalQuantity = purchase?.quantity ?? 0;
+          if (!event) {
+            throw new Error(
+              `Event missing for registration ${registration.id}`,
+            );
+          }
 
-          return [
-            {
-              addOnId: addOnOption.addOnId,
+          const registrationTransaction = registration.transactions.find(
+            (transaction) =>
+              transaction.type === 'registration' &&
+              transaction.amount < registrationOption.price,
+          );
+
+          const discountedPrice =
+            registration.appliedDiscountedPrice ??
+            registrationTransaction?.amount ??
+            undefined;
+          const appliedDiscountType =
+            registration.appliedDiscountType ??
+            (discountedPrice === undefined ? undefined : ('esnCard' as const));
+          const basePriceAtRegistration =
+            registration.basePriceAtRegistration ??
+            (discountedPrice === undefined
+              ? undefined
+              : registrationOption.price);
+          const discountAmount =
+            registration.discountAmount ??
+            (discountedPrice === undefined
+              ? undefined
+              : registrationOption.price - discountedPrice);
+
+          const activeTransfer =
+            activeTransferByRegistrationId.get(registration.id) ?? null;
+          const pendingOrder = registration.addonPurchaseOrders[0];
+          const purchaseByAddOnId = new Map(
+            registration.addonPurchases.map((purchase) => [
+              purchase.addonId,
+              purchase,
+            ]),
+          );
+          const registrationAddOns = (
+            addOnOptionsByRegistrationOptionId.get(
+              registration.registrationOptionId,
+            ) ?? []
+          ).flatMap((addOnOption) => {
+            const event = registration.event;
+            if (!event) return [];
+            const purchase = purchaseByAddOnId.get(addOnOption.addOnId);
+            const matchingPendingOrder =
+              pendingOrder?.addonId === addOnOption.addOnId
+                ? pendingOrder
+                : undefined;
+            const pendingQuantity = matchingPendingOrder?.quantity ?? 0;
+            const settledPurchasedQuantity = purchase?.purchasedQuantity ?? 0;
+            const taxConfigured =
+              addOnOption.stripeTaxRateId === null ||
+              (addOnOption.nextPurchaseTaxRateInclusive !== null &&
+                addOnOption.nextPurchaseTaxRatePercentage !== null);
+            const hasPaidPrice = addOnOption.nextPurchaseUnitPrice > 0;
+            const paymentConfigured =
+              addOnOption.isPaid === hasPaidPrice &&
+              (!hasPaidPrice || tenant.stripeAccountId !== null);
+            const availability = registrationAddonPurchaseAvailability({
+              activeTransfer: activeTransfer !== null,
               allowMultiple: addOnOption.allowMultiple,
               allowPurchaseBeforeEvent: addOnOption.allowPurchaseBeforeEvent,
               allowPurchaseDuringEvent: addOnOption.allowPurchaseDuringEvent,
-              cancelledQuantity,
-              currency: tenant.currency,
-              description: addOnOption.description,
-              includedQuantity: purchase?.includedQuantity ?? 0,
-              isPaid: addOnOption.isPaid,
+              eventEnd: event.end,
+              eventStart: event.start,
+              eventStatus: event.status,
               maxQuantityPerUser: addOnOption.maxQuantityPerUser,
-              nextPurchaseTaxRateDisplayName:
-                addOnOption.nextPurchaseTaxRateDisplayName,
-              nextPurchaseTaxRateInclusive:
-                addOnOption.nextPurchaseTaxRateInclusive,
-              nextPurchaseTaxRatePercentage:
-                addOnOption.nextPurchaseTaxRatePercentage,
-              nextPurchaseUnitGrossAmount:
-                nextPurchaseUnitAmounts?.expectedGrossAmount ?? null,
-              nextPurchaseUnitPrice: addOnOption.nextPurchaseUnitPrice,
-              nextPurchaseUnitTaxAmount:
-                nextPurchaseUnitAmounts?.taxAmount ?? null,
+              now,
               optionalPurchaseQuantity: addOnOption.optionalPurchaseQuantity,
-              pendingCheckoutExpiresAt:
-                matchingPendingOrder?.expiresAt?.toISOString() ?? null,
-              pendingCheckoutUrl:
-                matchingPendingOrder?.transaction?.stripeCheckoutUrl ?? null,
-              pendingOperationKey: matchingPendingOrder?.operationKey ?? null,
-              pendingQuantity,
-              redeemedQuantity,
-              remainingQuantity: Math.max(
-                0,
-                totalQuantity - redeemedQuantity - cancelledQuantity,
-              ),
-              settledPurchasedQuantity,
-              title: addOnOption.title,
-              totalAvailableQuantity: addOnOption.stockAvailableQuantity,
-              totalQuantity,
-              ...availability,
-            },
-          ];
-        });
-        const transferBlockedReason = registrationTransferBlockedReason({
-          activeTransfer: activeTransfer !== null,
-          eventStart: registration.event?.start ?? null,
-          eventStatus: registration.event?.status ?? null,
-          hasPendingAddonOrder: pendingOrder !== undefined,
-          now,
-          registrationStatus: registration.status,
-          transferDeadlineHoursBeforeStart:
-            registrationOption.transferDeadlineHoursBeforeStart ??
-            tenant.transferDeadlineHoursBeforeStart ??
-            0,
-        });
-        const cancellationAvailability = registrationCancellationAvailability({
-          checkInTime: registration.checkInTime,
-          deadlineHoursBeforeStart: resolveCancellationDeadlineHoursBeforeStart(
-            registrationOption.cancellationDeadlineHoursBeforeStart,
-            tenant.cancellationDeadlineHoursBeforeStart,
-          ),
-          eventStart: event.start,
-          now,
-        });
+              paymentConfigured,
+              pendingOptionalQuantity: pendingQuantity,
+              pendingOrder: pendingOrder !== undefined,
+              purchasedOptionalQuantity: settledPurchasedQuantity,
+              registrationStatus: registration.status,
+              stockAvailableQuantity: addOnOption.stockAvailableQuantity,
+              taxConfigured,
+            });
+            const nextPurchaseUnitAmounts = taxConfigured
+              ? resolveAddonTaxAmounts({
+                  baseAmount: addOnOption.nextPurchaseUnitPrice,
+                  taxRateInclusive: addOnOption.nextPurchaseTaxRateInclusive,
+                  taxRatePercentage: addOnOption.nextPurchaseTaxRatePercentage,
+                })
+              : undefined;
+            const redeemedQuantity = purchase?.redeemedQuantity ?? 0;
+            const cancelledQuantity = purchase?.cancelledQuantity ?? 0;
+            const totalQuantity = purchase?.quantity ?? 0;
 
-        return {
-          activeTransfer,
-          addonPurchases: registration.addonPurchases.flatMap((purchase) =>
-            purchase.addOn
-              ? [
-                  {
-                    quantity: purchase.quantity,
-                    title: purchase.addOn.title,
-                    unitPrice: purchase.unitPrice,
-                  },
-                ]
-              : [],
-          ),
-          appliedDiscountedPrice: discountedPrice,
-          appliedDiscountType,
-          basePriceAtRegistration,
-          ...cancellationAvailability,
-          checkoutUrl: registration.transactions.find(
-            (transaction) =>
-              transaction.method === 'stripe' &&
-              transaction.type === 'registration',
-          )?.stripeCheckoutUrl,
-          discountAmount,
-          guestCount: registration.guestCount,
-          id: registration.id,
-          organizingRegistration: registrationOption.organizingRegistration,
-          paymentPending: registration.transactions.some(
-            (transaction) =>
-              transaction.status === 'pending' &&
-              transaction.type === 'registration',
-          ),
-          registeredDescription: registrationOption.registeredDescription,
-          registrationAddOns,
-          registrationOptionId: registration.registrationOptionId,
-          registrationOptionTitle: registrationOption.title,
-          status: registration.status,
-          transferAvailable: transferBlockedReason === 'none',
-          transferBlockedReason,
-        };
-      });
+            return [
+              {
+                addOnId: addOnOption.addOnId,
+                allowMultiple: addOnOption.allowMultiple,
+                allowPurchaseBeforeEvent: addOnOption.allowPurchaseBeforeEvent,
+                allowPurchaseDuringEvent: addOnOption.allowPurchaseDuringEvent,
+                cancelledQuantity,
+                currency: tenant.currency,
+                description: addOnOption.description,
+                includedQuantity: purchase?.includedQuantity ?? 0,
+                isPaid: addOnOption.isPaid,
+                maxQuantityPerUser: addOnOption.maxQuantityPerUser,
+                nextPurchaseTaxRateDisplayName:
+                  addOnOption.nextPurchaseTaxRateDisplayName,
+                nextPurchaseTaxRateInclusive:
+                  addOnOption.nextPurchaseTaxRateInclusive,
+                nextPurchaseTaxRatePercentage:
+                  addOnOption.nextPurchaseTaxRatePercentage,
+                nextPurchaseUnitGrossAmount:
+                  nextPurchaseUnitAmounts?.expectedGrossAmount ?? null,
+                nextPurchaseUnitPrice: addOnOption.nextPurchaseUnitPrice,
+                nextPurchaseUnitTaxAmount:
+                  nextPurchaseUnitAmounts?.taxAmount ?? null,
+                optionalPurchaseQuantity: addOnOption.optionalPurchaseQuantity,
+                pendingCheckoutExpiresAt:
+                  matchingPendingOrder?.expiresAt?.toISOString() ?? null,
+                pendingCheckoutUrl:
+                  matchingPendingOrder?.transaction?.stripeCheckoutUrl ?? null,
+                pendingOperationKey: matchingPendingOrder?.operationKey ?? null,
+                pendingQuantity,
+                redeemedQuantity,
+                remainingQuantity: Math.max(
+                  0,
+                  totalQuantity - redeemedQuantity - cancelledQuantity,
+                ),
+                settledPurchasedQuantity,
+                title: addOnOption.title,
+                totalAvailableQuantity: addOnOption.stockAvailableQuantity,
+                totalQuantity,
+                ...availability,
+              },
+            ];
+          });
+          const transferBlockedReason = registrationTransferBlockedReason({
+            activeTransfer: activeTransfer !== null,
+            eventStart: registration.event?.start ?? null,
+            eventStatus: registration.event?.status ?? null,
+            hasPendingAddonOrder: pendingOrder !== undefined,
+            now,
+            registrationStatus: registration.status,
+            transferDeadlineHoursBeforeStart:
+              registrationOption.transferDeadlineHoursBeforeStart ??
+              tenant.transferDeadlineHoursBeforeStart ??
+              0,
+          });
+          const cancellationAvailability = registrationCancellationAvailability(
+            {
+              checkInTime: registration.checkInTime,
+              deadlineHoursBeforeStart:
+                resolveCancellationDeadlineHoursBeforeStart(
+                  registrationOption.cancellationDeadlineHoursBeforeStart,
+                  tenant.cancellationDeadlineHoursBeforeStart,
+                ),
+              eventStart: event.start,
+              now,
+            },
+          );
+
+          return {
+            activeTransfer,
+            addonPurchases: registration.addonPurchases.flatMap((purchase) =>
+              purchase.addOn
+                ? [
+                    {
+                      quantity: purchase.quantity,
+                      title: purchase.addOn.title,
+                      unitPrice: purchase.unitPrice,
+                    },
+                  ]
+                : [],
+            ),
+            appliedDiscountedPrice: discountedPrice,
+            appliedDiscountType,
+            basePriceAtRegistration,
+            ...cancellationAvailability,
+            checkoutUrl: registration.transactions.find(
+              (transaction) =>
+                transaction.method === 'stripe' &&
+                transaction.type === 'registration',
+            )?.stripeCheckoutUrl,
+            discountAmount,
+            guestCount: registration.guestCount,
+            id: registration.id,
+            organizingRegistration: registrationOption.organizingRegistration,
+            paymentPending: registration.transactions.some(
+              (transaction) =>
+                transaction.status === 'pending' &&
+                transaction.type === 'registration',
+            ),
+            registeredDescription: registrationOption.registeredDescription,
+            registrationAddOns,
+            registrationOptionId: registration.registrationOptionId,
+            registrationOptionTitle: registrationOption.title,
+            status: registration.status,
+            transferAvailable: transferBlockedReason === 'none',
+            transferBlockedReason,
+          };
+        },
+      );
 
       return {
-        isRegistered: registrations.length > 0,
+        isRegistered: currentlyOwnedRegistrations.length > 0,
+        outgoingTransfers,
         registrations: registrationSummaries,
       };
     }),

@@ -26,6 +26,33 @@ export class RequestBodyTooLargeError extends Schema.TaggedErrorClass<RequestBod
 ) {}
 
 const contentLengthPattern = /^[0-9]+$/;
+const prebufferedRequestBodies = new WeakMap<Request, ArrayBuffer>();
+
+/** Creates a body stream that views the bounded buffer without copying it. */
+export const requestBodyStreamFromBuffer = (
+  body: ArrayBuffer,
+): ReadableStream<Uint8Array> =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (body.byteLength > 0) {
+        controller.enqueue(new Uint8Array(body));
+      }
+      controller.close();
+    },
+  });
+
+/**
+ * Records that the raw Node adapter already enforced this request's body limit.
+ * Request identity is used deliberately so no client-supplied header can claim
+ * that an unbounded body is trusted.
+ */
+export const registerPrebufferedRequestBody = (
+  request: Request,
+  body: ArrayBuffer,
+): Request => {
+  prebufferedRequestBodies.set(request, body);
+  return request;
+};
 
 const concatenateChunks = (chunks: readonly Uint8Array[]) => {
   const totalBytes = chunks.reduce(
@@ -149,6 +176,16 @@ export const readRequestBody = Effect.fn('readRequestBody')(function* (
   if (contentLength !== null && BigInt(contentLength) > BigInt(maxBytes)) {
     yield* cancelBody(request.body);
     return yield* new RequestBodyTooLargeError({ maxBytes });
+  }
+
+  const prebufferedBody = prebufferedRequestBodies.get(request);
+  if (prebufferedBody !== undefined) {
+    if (prebufferedBody.byteLength > maxBytes) {
+      yield* cancelBody(request.body);
+      return yield* new RequestBodyTooLargeError({ maxBytes });
+    }
+
+    return prebufferedBody;
   }
 
   const requestBody = request.body;

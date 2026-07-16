@@ -1,3 +1,4 @@
+import type { IconRecord } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import type {
   PlatformTemplatesCreateInput,
   PlatformTemplatesUpdateInput,
@@ -7,12 +8,14 @@ import type {
   PlatformStripeTaxRateRecord,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
+import type { IconValue } from '@shared/types/icon';
 
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
   effect,
+  HostListener,
   inject,
   Injectable,
   input,
@@ -20,14 +23,12 @@ import {
   untracked,
 } from '@angular/core';
 import {
+  apply,
   applyEach,
   disabled,
   form,
   FormField,
-  hidden,
   maxLength,
-  min,
-  minLength,
   required,
   submit,
   validate,
@@ -48,13 +49,23 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import type { EventLocationType } from '../../../types/location';
+
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
+import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
+import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 import { persistedAdvancedToSimpleModeIssue } from '../../shared/components/forms/registration-mode-transition';
+import {
+  templateGraphAddonFormSchema,
+  templateGraphQuestionFormSchema,
+} from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema';
 import {
   isSimpleCompatibleRegistrationOptions,
   templateGraphFormToPayload,
+  templateGraphLocationFormModelToValue,
+  templateGraphLocationValueToFormModel,
   templateGraphRecordToFormModel,
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.mapper';
 import {
@@ -65,11 +76,13 @@ import {
   resetTemplateGraphPayments,
   type TemplateGraphFormModel,
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
+import { templateGraphRegistrationOptionFormSchema } from '../../shared/components/forms/template-graph-editor/template-graph-registration-option-form.schema';
 import {
   type TemplateConfigurationMode,
   type TemplateModeConfirmationData,
   TemplateModeConfirmationDialogComponent,
 } from '../../shared/components/forms/template-graph-editor/template-mode-confirmation-dialog.component';
+import { IconComponent } from '../../shared/components/icon/icon.component';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 
 export type PlatformTemplateFormLoadResult =
@@ -91,6 +104,13 @@ export const createPlatformTemplateQuestionFormModel =
   createTemplateGraphQuestionFormModel;
 export const platformTemplateFormToPayload = templateGraphFormToPayload;
 
+export const platformTemplateIconChoiceToValue = (
+  choice: Pick<IconRecord, 'commonName' | 'sourceColor'>,
+): IconValue => ({
+  iconColor: choice.sourceColor ?? 0,
+  iconName: choice.commonName,
+});
+
 export const platformTemplateModeTransitionIssue = (
   targetMode: TemplateConfigurationMode,
   persistedTemplate: TemplateGraphRecord | undefined,
@@ -105,6 +125,19 @@ export const platformTemplateModeTransitionIssue = (
   }
   return persistedAdvancedToSimpleModeIssue(persistedTemplate, currentOptions);
 };
+
+export const platformTemplateEditorDataReady = ({
+  optionsResolved,
+  rolesResolved,
+  templateRequired,
+  templateResolved,
+}: {
+  optionsResolved: boolean;
+  rolesResolved: boolean;
+  templateRequired: boolean;
+  templateResolved: boolean;
+}): boolean =>
+  optionsResolved && rolesResolved && (!templateRequired || templateResolved);
 
 export const platformTemplateRecordToFormModel = (
   template: Parameters<typeof templateGraphRecordToFormModel>[0],
@@ -166,8 +199,12 @@ export class PlatformTemplateEditorOperations {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CurrencyAmountInputComponent,
+    EditorComponent,
     FontAwesomeModule,
     FormField,
+    IconComponent,
+    LocationSelectorField,
     MatButtonModule,
     MatCheckboxModule,
     MatFormFieldModule,
@@ -197,19 +234,66 @@ export class PlatformTemplateEditorComponent {
   protected readonly createMutation = injectMutation(() =>
     this.operations.create(),
   );
-  protected readonly editorLoadError = signal('');
   protected readonly optionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
+  protected readonly rolesQuery = injectQuery(() =>
+    this.operations.roles(this.tenantId()),
+  );
+  protected readonly templateQuery = injectQuery(() => ({
+    ...this.operations.findOne(this.tenantId(), this.templateId() ?? '__new__'),
+    enabled: Boolean(this.templateId()),
+  }));
+  protected readonly editorDataReady = computed(() =>
+    platformTemplateEditorDataReady({
+      optionsResolved:
+        this.optionsQuery.isSuccess() && !this.optionsQuery.isFetching(),
+      rolesResolved:
+        this.rolesQuery.isSuccess() && !this.rolesQuery.isFetching(),
+      templateRequired: Boolean(this.templateId()),
+      templateResolved:
+        this.templateQuery.isSuccess() && !this.templateQuery.isFetching(),
+    }),
+  );
+  protected readonly editorDataRetrying = computed(
+    () =>
+      this.optionsQuery.isFetching() ||
+      this.rolesQuery.isFetching() ||
+      (Boolean(this.templateId()) && this.templateQuery.isFetching()),
+  );
+  protected readonly editorLoadError = signal('');
   protected readonly esnCardEnabled = computed(
     () =>
       this.optionsQuery.isSuccess() && this.optionsQuery.data().esnCardEnabled,
   );
   protected readonly faPlus = faPlus;
   protected readonly faTrashCan = faTrashCan;
+  private readonly templateModel = signal(createPlatformTemplateFormModel());
+  private readonly savedTemplateSnapshot = signal(
+    JSON.stringify(this.templateModel()),
+  );
+  protected readonly hasUnsavedChanges = computed(
+    () => this.savedTemplateSnapshot() !== JSON.stringify(this.templateModel()),
+  );
   protected readonly modeBlockMessage = signal('');
-  protected readonly rolesQuery = injectQuery(() =>
-    this.operations.roles(this.tenantId()),
+  protected readonly selectedIcon = computed<IconValue>(() => ({
+    iconColor: this.templateModel().iconColor,
+    iconName: this.templateModel().iconName,
+  }));
+  protected readonly selectedIconLabel = computed(() => {
+    const selectedName = this.templateModel().iconName;
+    return this.optionsQuery.isSuccess()
+      ? (this.optionsQuery
+          .data()
+          .iconChoices.find((choice) => choice.commonName === selectedName)
+          ?.friendlyName ??
+          (this.templateId()
+            ? 'Previously selected icon (no longer available)'
+            : 'Default icon'))
+      : '';
+  });
+  protected readonly selectedLocation = computed(() =>
+    templateGraphLocationFormModelToValue(this.templateModel().location),
   );
   protected readonly targetTenantQuery = injectQuery(() =>
     this.operations.tenant(this.tenantId()),
@@ -224,7 +308,11 @@ export class PlatformTemplateEditorComponent {
       this.targetTenantQuery.isSuccess() &&
       this.targetTenantQuery.data()?.stripeConnected === false,
   );
-  private readonly templateModel = signal(createPlatformTemplateFormModel());
+  protected readonly targetTenantCurrency = computed(() =>
+    this.targetTenantQuery.isSuccess()
+      ? (this.targetTenantQuery.data()?.currency ?? '')
+      : '',
+  );
   protected readonly templateForm = form(this.templateModel, (template) => {
     required(template.categoryId, { message: 'Select a category.' });
     required(template.title, { message: 'Enter a template title.' });
@@ -237,6 +325,7 @@ export class PlatformTemplateEditorComponent {
       message: 'Enter a template description.',
     });
     required(template.iconName, { message: 'Enter an icon name.' });
+    required(template.iconColor, { message: 'Enter an icon color index.' });
     required(template.location.name, {
       message: 'Enter a location name.',
       when: ({ valueOf }) => valueOf(template.location.type) !== 'none',
@@ -265,6 +354,7 @@ export class PlatformTemplateEditorComponent {
     });
 
     applyEach(template.registrationOptions, (registration) => {
+      apply(registration, templateGraphRegistrationOptionFormSchema);
       disabled(registration.isPaid, () => !this.stripeConnected());
       disabled(registration.price, () => !this.stripeConnected());
       disabled(
@@ -272,121 +362,16 @@ export class PlatformTemplateEditorComponent {
         () => !this.stripeConnected(),
       );
       disabled(registration.stripeTaxRateId, () => !this.stripeConnected());
-      required(registration.title, {
-        message: 'Enter a registration option title.',
-      });
-      min(registration.closeRegistrationOffset, 0);
-      min(registration.openRegistrationOffset, 0);
-      min(registration.price, 0);
-      min(registration.spots, 1);
-      minLength(registration.roleIds, 1, {
-        message: 'Select at least one tenant role.',
-      });
-      required(registration.stripeTaxRateId, {
-        message: 'Select an imported inclusive tax rate.',
-        when: ({ valueOf }) => valueOf(registration.isPaid),
-      });
-      hidden(
-        registration.price,
-        ({ valueOf }) => !valueOf(registration.isPaid),
-      );
-      hidden(
-        registration.esnCardDiscountedPrice,
-        ({ valueOf }) => !valueOf(registration.isPaid),
-      );
-      hidden(
-        registration.stripeTaxRateId,
-        ({ valueOf }) => !valueOf(registration.isPaid),
-      );
-      validate(
-        registration.cancellationDeadlineHoursBeforeStart,
-        ({ value }) => {
-          const hours = value();
-          return hours !== '' && hours < 0
-            ? { kind: 'min', message: 'Deadline cannot be negative.' }
-            : undefined;
-        },
-      );
-      validate(registration.transferDeadlineHoursBeforeStart, ({ value }) => {
-        const hours = value();
-        return hours !== '' && hours < 0
-          ? { kind: 'min', message: 'Deadline cannot be negative.' }
-          : undefined;
-      });
-      validate(registration.esnCardDiscountedPrice, ({ value, valueOf }) => {
-        const discountedPrice = value();
-        if (discountedPrice === '') return;
-        if (discountedPrice < 0) {
-          return {
-            kind: 'min',
-            message: 'Discounted price cannot be negative.',
-          };
-        }
-        return discountedPrice > valueOf(registration.price)
-          ? {
-              kind: 'max',
-              message: 'Discounted price cannot exceed the base price.',
-            }
-          : undefined;
-      });
     });
 
     applyEach(template.addOns, (addOn) => {
+      apply(addOn, templateGraphAddonFormSchema);
       disabled(addOn.isPaid, () => !this.stripeConnected());
       disabled(addOn.price, () => !this.stripeConnected());
       disabled(addOn.stripeTaxRateId, () => !this.stripeConnected());
-      required(addOn.title, { message: 'Enter an add-on title.' });
-      min(addOn.maxQuantityPerUser, 1);
-      min(addOn.price, 1, {
-        message: 'Paid add-ons must cost at least one cent.',
-      });
-      min(addOn.totalAvailableQuantity, 1);
-      required(addOn.stripeTaxRateId, {
-        message: 'Select an imported inclusive tax rate.',
-        when: ({ valueOf }) => valueOf(addOn.isPaid),
-      });
-      hidden(addOn.price, ({ valueOf }) => !valueOf(addOn.isPaid));
-      hidden(addOn.stripeTaxRateId, ({ valueOf }) => !valueOf(addOn.isPaid));
-      applyEach(addOn.registrationOptions, (mapping) => {
-        required(mapping.registrationOptionKey, {
-          message: 'Select a registration option.',
-        });
-        min(mapping.includedQuantity, 0);
-        min(mapping.optionalPurchaseQuantity, 0);
-        validate(mapping.includedQuantity, ({ value, valueOf }) =>
-          value() > valueOf(addOn.totalAvailableQuantity)
-            ? {
-                kind: 'max',
-                message: 'Included quantity cannot exceed available quantity.',
-              }
-            : undefined,
-        );
-        validate(mapping.optionalPurchaseQuantity, ({ value, valueOf }) =>
-          value() > valueOf(addOn.maxQuantityPerUser)
-            ? {
-                kind: 'max',
-                message: 'Optional quantity cannot exceed the per-user limit.',
-              }
-            : undefined,
-        );
-      });
-      validate(addOn.maxQuantityPerUser, ({ value, valueOf }) =>
-        value() > valueOf(addOn.totalAvailableQuantity)
-          ? {
-              kind: 'max',
-              message: 'Maximum per user cannot exceed available quantity.',
-            }
-          : undefined,
-      );
     });
 
-    applyEach(template.questions, (question) => {
-      required(question.title, { message: 'Enter a question.' });
-      required(question.registrationOptionKey, {
-        message: 'Select a registration option.',
-      });
-      min(question.sortOrder, 0);
-    });
+    applyEach(template.questions, templateGraphQuestionFormSchema);
 
     validate(template.simpleModeEnabled, ({ value, valueOf }) =>
       !value() ||
@@ -406,15 +391,11 @@ export class PlatformTemplateEditorComponent {
       message: 'Reason must be 500 characters or fewer.',
     });
   });
-  protected readonly templateQuery = injectQuery(() => ({
-    ...this.operations.findOne(this.tenantId(), this.templateId() ?? '__new__'),
-    enabled: Boolean(this.templateId()),
-  }));
   protected readonly updateMutation = injectMutation(() =>
     this.operations.update(),
   );
   private readonly dialog = inject(MatDialog);
-  private readonly initializedNewTemplate = signal(false);
+  private readonly initializedNewTemplateTenantId = signal<null | string>(null);
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
@@ -422,21 +403,29 @@ export class PlatformTemplateEditorComponent {
 
   constructor() {
     effect(() => {
+      const tenantId = this.tenantId();
       const templateId = this.templateId();
       if (!templateId) {
         if (
-          this.initializedNewTemplate() ||
+          this.initializedNewTemplateTenantId() === tenantId ||
           !this.optionsQuery.isSuccess() ||
           !this.rolesQuery.isSuccess()
         ) {
           return;
         }
         const categories = this.optionsQuery.data().categories;
+        const [defaultIcon] = this.optionsQuery.data().iconChoices;
+        const defaultIconValue = defaultIcon
+          ? platformTemplateIconChoiceToValue(defaultIcon)
+          : undefined;
         const roles = this.rolesQuery.data();
         untracked(() => {
-          this.templateModel.update((model) => ({
+          const model = createPlatformTemplateFormModel();
+          this.templateModel.set({
             ...model,
             categoryId: categories[0]?.id ?? '',
+            iconColor: defaultIconValue?.iconColor ?? model.iconColor,
+            iconName: defaultIconValue?.iconName ?? model.iconName,
             registrationOptions: model.registrationOptions.map((option) => ({
               ...option,
               roleIds: roles
@@ -447,9 +436,10 @@ export class PlatformTemplateEditorComponent {
                 )
                 .map((role) => role.id),
             })),
-          }));
+          });
+          this.rememberCurrentTemplate();
           this.templateForm().reset();
-          this.initializedNewTemplate.set(true);
+          this.initializedNewTemplateTenantId.set(tenantId);
         });
         return;
       }
@@ -473,6 +463,7 @@ export class PlatformTemplateEditorComponent {
               ? resetTemplateGraphPayments(result.model)
               : result.model,
           );
+          this.rememberCurrentTemplate();
           this.templateForm().reset();
         }
         this.initializedTemplateId.set(templateId);
@@ -485,6 +476,16 @@ export class PlatformTemplateEditorComponent {
       if (resetModel === model) return;
       untracked(() => this.templateModel.set(resetModel));
     });
+  }
+
+  canDeactivate(): boolean {
+    if (!this.hasUnsavedChanges()) return true;
+    return (
+      typeof globalThis.confirm === 'function' &&
+      globalThis.confirm(
+        'You have unsaved template changes. Leave this page and discard them?',
+      )
+    );
   }
 
   protected addAddOn(): void {
@@ -568,6 +569,19 @@ export class PlatformTemplateEditorComponent {
     );
   }
 
+  protected iconChoiceValue(choice: IconRecord): IconValue {
+    return platformTemplateIconChoiceToValue(choice);
+  }
+
+  protected iconIsAvailable(iconName: string): boolean {
+    return (
+      this.optionsQuery.isSuccess() &&
+      this.optionsQuery
+        .data()
+        .iconChoices.some((choice) => choice.commonName === iconName)
+    );
+  }
+
   protected isSimpleMode(): boolean {
     return this.templateModel().simpleModeEnabled;
   }
@@ -580,6 +594,13 @@ export class PlatformTemplateEditorComponent {
 
   protected mutationPending(): boolean {
     return this.createMutation.isPending() || this.updateMutation.isPending();
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  protected protectUnsavedChangesBeforeUnload(event: BeforeUnloadEvent): void {
+    if (!this.hasUnsavedChanges()) return;
+    event.preventDefault();
+    event.returnValue = '';
   }
 
   protected registrationOptionLabel(key: string): string {
@@ -689,15 +710,30 @@ export class PlatformTemplateEditorComponent {
     }));
   }
 
+  protected retryEditorData(): void {
+    if (this.optionsQuery.isError()) void this.optionsQuery.refetch();
+    if (this.rolesQuery.isError()) void this.rolesQuery.refetch();
+    if (this.templateId() && this.templateQuery.isError()) {
+      void this.templateQuery.refetch();
+    }
+  }
+
   protected roleLabel(role: PlatformRoleRecord): string {
     return role.name;
   }
 
   protected save(event: Event): void {
     event.preventDefault();
-    if (this.mutationPending() || this.editorLoadError()) return;
+    if (
+      this.mutationPending() ||
+      this.editorLoadError() ||
+      !this.editorDataReady()
+    ) {
+      return;
+    }
 
     void submit(this.templateForm, async () => {
+      if (!this.editorDataReady()) return;
       const value = this.stripeDisconnected()
         ? resetTemplateGraphPayments(this.templateModel())
         : this.templateModel();
@@ -726,18 +762,40 @@ export class PlatformTemplateEditorComponent {
         this.notifications.showSuccess(
           templateId ? 'Template updated' : 'Template created',
         );
+        this.rememberCurrentTemplate();
         await this.router.navigate([
           '/global-admin/tenants',
           this.tenantId(),
           'templates',
           saved.id,
         ]);
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to save template'),
+          'The template could not be saved. Review the details and try again.',
         );
       }
     });
+  }
+
+  protected selectIcon(iconName: string): void {
+    if (!this.optionsQuery.isSuccess()) return;
+    const choice = this.optionsQuery
+      .data()
+      .iconChoices.find((candidate) => candidate.commonName === iconName);
+    if (!choice) return;
+    const icon = platformTemplateIconChoiceToValue(choice);
+    this.templateModel.update((model) => ({
+      ...model,
+      iconColor: icon.iconColor,
+      iconName: icon.iconName,
+    }));
+  }
+
+  protected setLocation(location: EventLocationType | null): void {
+    this.templateModel.update((model) => ({
+      ...model,
+      location: templateGraphLocationValueToFormModel(location),
+    }));
   }
 
   protected taxRateIsAvailable(taxRateId: string): boolean {
@@ -745,7 +803,7 @@ export class PlatformTemplateEditorComponent {
   }
 
   protected taxRateLabel(rate: PlatformStripeTaxRateRecord): string {
-    const name = rate.displayName ?? rate.id;
+    const name = rate.displayName?.trim() || 'Unnamed tax rate';
     return rate.percentage === null ? name : `${name} · ${rate.percentage}%`;
   }
 
@@ -756,5 +814,9 @@ export class PlatformTemplateEditorComponent {
       options[0]?.key ??
       ''
     );
+  }
+
+  private rememberCurrentTemplate(): void {
+    this.savedTemplateSnapshot.set(JSON.stringify(this.templateModel()));
   }
 }

@@ -44,21 +44,37 @@ interface OnboardingSettingsFormModel {
   questions: OnboardingQuestionFormModel[];
 }
 
-const questionSchema = schema<OnboardingQuestionFormModel>((question) => {
-  required(question.prompt);
-  maxLength(question.prompt, 200);
-  validate(question.optionsText, ({ value, valueOf }) => {
-    if (valueOf(question.type) === 'shortText') return;
-    const options = value()
+export const onboardingOptionsFromText = (optionsText: string): string[] => [
+  ...new Set(
+    optionsText
       .split('\n')
       .map((option) => option.trim())
-      .filter(Boolean);
-    return new Set(options).size >= 2
-      ? undefined
-      : {
-          kind: 'minOptions',
-          message: 'Selection questions need at least two different options.',
-        };
+      .filter(Boolean),
+  ),
+];
+
+export const onboardingOptionsValidationMessage = (
+  optionsText: string,
+): string | undefined => {
+  const options = onboardingOptionsFromText(optionsText);
+  if (options.some((option) => option.length > 80)) {
+    return 'Selection options must be no longer than 80 characters.';
+  }
+  if (options.length < 2 || options.length > 20) {
+    return 'Selection questions require between 2 and 20 options.';
+  }
+  return;
+};
+
+const questionSchema = schema<OnboardingQuestionFormModel>((question) => {
+  required(question.prompt, { message: 'Enter a question.' });
+  maxLength(question.prompt, 200, {
+    message: 'Use 200 characters or fewer.',
+  });
+  validate(question.optionsText, ({ value, valueOf }) => {
+    if (valueOf(question.type) === 'shortText') return;
+    const message = onboardingOptionsValidationMessage(value());
+    return message ? { kind: 'selectionOptions', message } : undefined;
   });
 });
 
@@ -74,15 +90,6 @@ const settingsSchema = schema<OnboardingSettingsFormModel>((settings) => {
   );
 });
 
-export const onboardingOptionsFromText = (optionsText: string): string[] => [
-  ...new Set(
-    optionsText
-      .split('\n')
-      .map((option) => option.trim())
-      .filter(Boolean),
-  ),
-];
-
 export const onboardingPublishNotice = (result: {
   affectedUsers: number;
   policyChanged: boolean;
@@ -90,10 +97,10 @@ export const onboardingPublishNotice = (result: {
   questionsChanged: boolean;
 }): string => {
   if (result.policyChanged) {
-    return `Privacy policy version ${result.policyVersion} published. ${result.affectedUsers} tenant users must accept it before continuing.`;
+    return `Privacy policy version ${result.policyVersion} published. ${result.affectedUsers} members must accept it before continuing.`;
   }
   if (result.questionsChanged) {
-    return 'Onboarding questions updated. Tenant users with missing answers will be prompted before continuing.';
+    return 'Onboarding questions updated. Members with missing answers will be prompted before continuing.';
   }
   return 'Onboarding settings are unchanged';
 };

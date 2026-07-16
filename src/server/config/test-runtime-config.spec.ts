@@ -106,6 +106,14 @@ describe('test-runtime-config', () => {
         '--project=local-chrome-live-esncard',
       ]),
     ).toBe(false);
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment([
+        'node',
+        'playwright',
+        'test',
+        '--project=docs-live-esncard',
+      ]),
+    ).toBe(false);
   });
 
   it('treats integration project selection as requiring integration credentials', () => {

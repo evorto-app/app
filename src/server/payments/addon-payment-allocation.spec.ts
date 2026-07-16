@@ -6,6 +6,7 @@ import {
   allocateIntegerByWeight,
   finalizeAddonPaymentAllocations,
 } from './addon-payment-allocation';
+import { maximumPersistedPaymentAmount } from './payment-amount';
 
 describe('add-on payment allocation', () => {
   it('uses stable largest remainders and preserves the exact total', () => {
@@ -18,6 +19,40 @@ describe('add-on payment allocation', () => {
         ]),
       ),
     ).toEqual({ a: 4, b: 3, c: 3 });
+  });
+
+  it('allocates exactly when intermediate products exceed safe-number precision', () => {
+    expect(
+      Object.fromEntries(
+        allocateIntegerByWeight(maximumPersistedPaymentAmount, [
+          { key: 'large', weight: maximumPersistedPaymentAmount - 1 },
+          { key: 'small', weight: 1 },
+        ]),
+      ),
+    ).toEqual({ large: maximumPersistedPaymentAmount - 1, small: 1 });
+
+    expect(
+      allocateCumulativeQuantityAmount({
+        alreadyAllocatedQuantity: maximumPersistedPaymentAmount - 1,
+        amount: maximumPersistedPaymentAmount,
+        quantity: 1,
+        totalQuantity: maximumPersistedPaymentAmount,
+      }),
+    ).toBe(1);
+  });
+
+  it('rejects values and derived weight totals outside persisted payment bounds', () => {
+    expect(() =>
+      allocateIntegerByWeight(maximumPersistedPaymentAmount + 1, [
+        { key: 'only', weight: 1 },
+      ]),
+    ).toThrow(RangeError);
+    expect(() =>
+      allocateIntegerByWeight(10, [
+        { key: 'a', weight: maximumPersistedPaymentAmount },
+        { key: 'b', weight: 1 },
+      ]),
+    ).toThrow('Allocation weight total exceeds the payment limit');
   });
 
   it('persists exact gross, tax, Stripe fee, app fee and net shares', async () => {

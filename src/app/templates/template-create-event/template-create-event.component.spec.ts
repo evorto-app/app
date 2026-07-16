@@ -74,8 +74,8 @@ describe('template legacy random allocation guard', () => {
     ];
     expect(templateHasLegacyRandomRegistration(registrationOptions)).toBe(true);
     expect(registrationOptions[1]?.registrationMode).toBe('random');
-    expect(legacyRandomTemplateEventMessage).toContain(
-      'cannot be created from it until',
+    expect(legacyRandomTemplateEventMessage).toBe(
+      'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
     );
     expect(
       templateHasLegacyRandomRegistration([
@@ -283,7 +283,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
     );
     expect(alert?.textContent).toContain('Your entries are still here.');
     expect(alert?.textContent).toContain(
-      'Legacy random allocation must be changed on the template before trying again.',
+      'If the template uses Random allocation, an authorized template editor must choose First come, first served or Manual approval before you try again.',
     );
     expect(titleInput.value).toBe('Retained workshop');
 

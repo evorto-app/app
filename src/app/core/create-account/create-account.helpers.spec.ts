@@ -1,3 +1,4 @@
+import { TenantOnboardingRequirementsChangedError } from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,6 +8,8 @@ import {
   createAccountPayloadFromModel,
   createAccountSubmitDisabled,
   isAuthEmailVerifiedForAccountCreation,
+  isTenantOnboardingRequirementsChangedError,
+  mergeCreateAccountModelWithChangedRequirements,
 } from './create-account.helpers';
 
 const emptyModel = () => ({
@@ -101,6 +104,115 @@ describe('createAccountModelFromRequirements', () => {
       policyVersionId: 'policy-2',
     });
   });
+
+  it('merges changed questions by id without discarding entered profile details or answers', () => {
+    expect(
+      mergeCreateAccountModelWithChangedRequirements(
+        {
+          acceptedPrivacyPolicy: true,
+          answers: [
+            { questionId: 'question-kept', value: 'My current answer' },
+            { questionId: 'question-retired', value: 'No longer needed' },
+          ],
+          communicationEmail: 'entered@example.org',
+          firstName: 'Entered',
+          lastName: 'Name',
+          policyVersionId: 'policy-2',
+        },
+        {
+          complete: false,
+          hasMembership: true,
+          policy: {
+            id: 'policy-2',
+            privacyPolicyText: 'Current policy',
+            privacyPolicyUrl: null,
+            version: 2,
+          },
+          profile: {
+            communicationEmail: 'stale@example.org',
+            firstName: 'Stale',
+            lastName: 'Profile',
+          },
+          questions: [
+            {
+              answer: 'Stored answer',
+              id: 'question-kept',
+              options: [],
+              prompt: 'Existing question',
+              type: 'shortText',
+            },
+            {
+              answer: 'Previously saved answer',
+              id: 'question-added',
+              options: [],
+              prompt: 'Added question',
+              type: 'shortText',
+            },
+          ],
+          tenantId: 'tenant-1',
+          tenantName: 'Example Section',
+        },
+      ),
+    ).toEqual({
+      acceptedPrivacyPolicy: true,
+      answers: [
+        { questionId: 'question-kept', value: 'My current answer' },
+        { questionId: 'question-added', value: 'Previously saved answer' },
+      ],
+      communicationEmail: 'entered@example.org',
+      firstName: 'Entered',
+      lastName: 'Name',
+      policyVersionId: 'policy-2',
+    });
+  });
+
+  it('requires explicit acceptance when the policy changes during onboarding', () => {
+    const current = {
+      ...emptyModel(),
+      acceptedPrivacyPolicy: true,
+      policyVersionId: 'policy-1',
+    };
+
+    expect(
+      mergeCreateAccountModelWithChangedRequirements(current, {
+        complete: false,
+        hasMembership: false,
+        policy: {
+          id: 'policy-2',
+          privacyPolicyText: 'Updated policy',
+          privacyPolicyUrl: null,
+          version: 2,
+        },
+        profile: null,
+        questions: [],
+        tenantId: 'tenant-1',
+        tenantName: 'Example Section',
+      }).acceptedPrivacyPolicy,
+    ).toBe(false);
+  });
+});
+
+describe('isTenantOnboardingRequirementsChangedError', () => {
+  it('recognizes only the decoded typed requirements-changed error', () => {
+    expect(
+      isTenantOnboardingRequirementsChangedError(
+        new TenantOnboardingRequirementsChangedError({
+          message: 'Review the current questions.',
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isTenantOnboardingRequirementsChangedError(
+        new Error('Temporary network failure'),
+      ),
+    ).toBe(false);
+    expect(
+      isTenantOnboardingRequirementsChangedError({
+        _tag: 'TenantOnboardingRequirementsChangedError',
+        message: 'Unvalidated structural lookalike',
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('createAccountPayloadFromModel', () => {
@@ -152,7 +264,7 @@ describe('createAccountErrorMessage', () => {
 
   it('falls back to account creation copy for unknown failures', () => {
     expect(createAccountErrorMessage(null)).toBe(
-      'Failed to complete tenant setup',
+      'Failed to complete organization setup',
     );
   });
 });

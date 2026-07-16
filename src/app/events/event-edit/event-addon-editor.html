@@ -43,13 +43,12 @@
 
     @if (!addOn.price().hidden()) {
       <section class="grid gap-4 sm:grid-cols-2">
-        <mat-form-field>
-          <mat-label>Unit price in cents</mat-label>
-          <input matInput type="number" [formField]="addOn.price" />
-          @if (addOn.price().touched() && addOn.price().errors()[0]; as error) {
-            <mat-error>{{ error.message }}</mat-error>
-          }
-        </mat-form-field>
+        <app-currency-amount-input
+          label="Unit price"
+          [currencyCode]="currencyCode()"
+          [formField]="addOn.price"
+          [minimumMinorUnits]="1"
+        />
         <mat-form-field>
           <mat-label>Tax rate</mat-label>
           <mat-select [formField]="addOn.stripeTaxRateId">
@@ -93,7 +92,7 @@
     <section class="grid gap-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 class="title-medium">Registration option mappings</h3>
+          <h3 class="title-medium">Available with registration options</h3>
           <p class="text-on-surface-variant text-sm">
             Included units are granted automatically. Optional units remain a
             separate participant choice.
@@ -105,7 +104,7 @@
           [disabled]="!canAddMapping()"
           (click)="addMappingRequested.emit()"
         >
-          Map another option
+          Add registration option
         </button>
       </div>
 
@@ -153,7 +152,7 @@
             mat-button
             (click)="removeMappingRequested.emit(mappingIndex)"
           >
-            Remove mapping
+            Remove registration option
           </button>
         </div>
       } @empty {

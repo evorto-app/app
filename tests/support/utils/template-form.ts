@@ -41,11 +41,14 @@ export const fillTemplateBasics = async (
   if (description !== null) {
     const placeholder = page.getByTestId('rich-editor-placeholder').first();
     if (await placeholder.isVisible()) {
+      await expect(placeholder).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
       await placeholder.click();
     }
 
     const editor = page.getByTestId('rich-editor-content').first();
-    await expect(editor).toBeVisible();
+    await expect(editor).toBeVisible({ timeout: 20_000 });
     await editor.fill(description);
   }
 

@@ -777,6 +777,30 @@ describe('database registration concurrency invariants', () => {
     await pool.end();
   });
 
+  it('rejects an incomplete finalized add-on payment allocation', async () => {
+    const fixture = await seedFixture(database);
+    fixtures.push(fixture);
+    const purchaseLot =
+      await database.query.eventRegistrationAddonPurchaseLots.findFirst({
+        columns: { id: true },
+        where: { registrationId: fixture.registrationId },
+      });
+
+    if (!purchaseLot) {
+      throw new Error('Expected seeded add-on purchase lot');
+    }
+    await expect(
+      pool.query(
+        `UPDATE event_registration_addon_purchase_lots SET tax_amount = NULL WHERE id = $1`,
+        [purchaseLot.id],
+      ),
+    ).rejects.toMatchObject({
+      code: '23514',
+      constraint:
+        'event_registration_addon_purchase_lots_payment_allocation_shape',
+    });
+  });
+
   it('rejects an active-registration duplicate even when its tenant id is forged', async () => {
     const fixture = await seedFixture(database);
     fixtures.push(fixture);

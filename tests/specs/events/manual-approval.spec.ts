@@ -131,6 +131,8 @@ const approvalOutboxRows = async (
 };
 
 test.describe('Manual approval registrations', () => {
+  test.describe.configure({ mode: 'default' });
+
   test('confirms a free application exactly once', async ({
     browser,
     database,

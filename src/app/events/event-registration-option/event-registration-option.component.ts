@@ -1,4 +1,4 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -21,6 +21,7 @@ import { interval, map } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 
 export interface EventRegistrationAddonView {
@@ -163,16 +164,20 @@ export const registrationOptionSelectedTotalPrice = (
 export const registrationAddonPurchasePayload = (
   addOns: readonly Pick<
     EventRegistrationAddonView,
-    'id' | 'registrationOptions'
+    'allowPurchaseDuringRegistration' | 'id' | 'registrationOptions'
   >[],
   selections: Readonly<Record<string, number>>,
   registrationOptionId: string,
 ): { addOnId: string; quantity: number }[] =>
   addOns
-    .filter((addOn) =>
-      addOn.registrationOptions.some(
-        (option) => option.registrationOptionId === registrationOptionId,
-      ),
+    .filter(
+      (addOn) =>
+        addOn.allowPurchaseDuringRegistration &&
+        addOn.registrationOptions.some(
+          (option) =>
+            option.registrationOptionId === registrationOptionId &&
+            option.optionalPurchaseQuantity > 0,
+        ),
     )
     .map((addOn) => ({
       addOnId: addOn.id,
@@ -183,7 +188,10 @@ export const registrationAddonPurchasePayload = (
 export const registrationAddonMaxSelectableQuantity = (
   addOn: Pick<
     EventRegistrationAddonView,
-    'maxQuantityPerUser' | 'registrationOptions' | 'totalAvailableQuantity'
+    | 'allowPurchaseDuringRegistration'
+    | 'maxQuantityPerUser'
+    | 'registrationOptions'
+    | 'totalAvailableQuantity'
   >,
   registrationOptionId: string,
 ): number => {
@@ -191,21 +199,52 @@ export const registrationAddonMaxSelectableQuantity = (
     (option) => option.registrationOptionId === registrationOptionId,
   );
 
-  if (!attachment || attachment.optionalPurchaseQuantity <= 0) {
+  if (
+    !addOn.allowPurchaseDuringRegistration ||
+    !attachment ||
+    attachment.optionalPurchaseQuantity <= 0
+  ) {
     return 0;
   }
 
   return Math.min(
     attachment.optionalPurchaseQuantity,
-    Math.max(0, addOn.maxQuantityPerUser - attachment.includedQuantity),
+    Math.max(0, addOn.maxQuantityPerUser),
     Math.max(0, addOn.totalAvailableQuantity - attachment.includedQuantity),
   );
 };
 
+export const registrationAddonIsSoldOut = (
+  addOn: Pick<
+    EventRegistrationAddonView,
+    | 'allowPurchaseDuringRegistration'
+    | 'maxQuantityPerUser'
+    | 'registrationOptions'
+    | 'totalAvailableQuantity'
+  >,
+  registrationOptionId: string,
+): boolean => {
+  const attachment = addOn.registrationOptions.find(
+    (option) => option.registrationOptionId === registrationOptionId,
+  );
+
+  return (
+    addOn.allowPurchaseDuringRegistration &&
+    attachment !== undefined &&
+    attachment.optionalPurchaseQuantity > 0 &&
+    registrationAddonMaxSelectableQuantity(addOn, registrationOptionId) === 0
+  );
+};
+
+export const registrationAddonSoldOutLabel = (
+  includedQuantity: number,
+): 'Extra items sold out' | 'Sold out' =>
+  includedQuantity > 0 ? 'Extra items sold out' : 'Sold out';
+
 export const registrationAddonSelectedTotalPrice = (
   addOns: readonly Pick<
     EventRegistrationAddonView,
-    'id' | 'price' | 'registrationOptions'
+    'allowPurchaseDuringRegistration' | 'id' | 'price' | 'registrationOptions'
   >[],
   selections: Readonly<Record<string, number>>,
   registrationOptionId: string,
@@ -213,6 +252,7 @@ export const registrationAddonSelectedTotalPrice = (
   let total = 0;
 
   for (const addOn of addOns) {
+    if (!addOn.allowPurchaseDuringRegistration) continue;
     const attachment = addOn.registrationOptions.find(
       (option) => option.registrationOptionId === registrationOptionId,
     );
@@ -277,7 +317,7 @@ export const registrationOptionAvailability = (
     MatFormFieldModule,
     MatInputModule,
     CurrencyPipe,
-    DatePipe,
+    TenantDatePipe,
     PriceWithTaxComponent,
   ],
   selector: 'app-event-registration-option',
@@ -288,6 +328,7 @@ export class EventRegistrationOptionComponent {
   public readonly addOns = input<readonly EventRegistrationAddonView[]>([]);
   public readonly registrationOption =
     input.required<EventRegistrationOptionView>();
+  protected readonly addonSoldOutLabel = registrationAddonSoldOutLabel;
   protected readonly audienceCopy = computed(() =>
     registrationOptionAudienceCopy(this.registrationOption()),
   );
@@ -381,6 +422,7 @@ export class EventRegistrationOptionComponent {
       stripeTaxRateId: option.stripeTaxRateId ?? null,
     };
   });
+
   protected readonly waitlistAvailable = computed(() => {
     return registrationOptionCanJoinWaitlist(this.registrationOption());
   });
@@ -409,6 +451,10 @@ export class EventRegistrationOptionComponent {
 
   addonQuantity(addOnId: string): number {
     return this.addonSelections()[addOnId] ?? 0;
+  }
+
+  addonSoldOut(addOn: EventRegistrationAddonView): boolean {
+    return registrationAddonIsSoldOut(addOn, this.registrationOption().id);
   }
 
   addonTaxRate(addOn: {

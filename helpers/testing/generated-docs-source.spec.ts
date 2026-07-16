@@ -58,6 +58,37 @@ describe('generated docs source current behavior', () => {
     expect(scenarioSeed).not.toContain('.transaction(');
   });
 
+  it('keeps waitlist availability docs backed by the recipient follow-up journey', () => {
+    const source = readSource(
+      'tests/docs/events/registration-cancellation.doc.ts',
+    );
+    const scenarioStart = source.indexOf(
+      "test('Cancel a confirmed free registration and release its capacity'",
+    );
+    const scenarioEnd = source.indexOf(
+      "test('Cancel a Stripe-backed registration with settled add-ons and recover its refund'",
+      scenarioStart,
+    );
+    const scenario = source.slice(scenarioStart, scenarioEnd);
+
+    expect(scenarioStart).toBeGreaterThanOrEqual(0);
+    expect(scenarioEnd).toBeGreaterThan(scenarioStart);
+    expect(scenario).toContain('storageState: adminStateFile');
+    expect(scenario).toContain('const eventPath = waitlistEmail?.text.match');
+    expect(scenario).toContain(
+      "getByText('You are currently on the waitlist')",
+    );
+    expect(scenario).toContain("name: 'Leave the waitlist?'");
+    expect(scenario).toContain(
+      "getByRole('button', { exact: true, name: 'Register' })",
+    );
+    expect(scenario).toContain("status: 'CONFIRMED'");
+    expect(scenario).toContain("kind: 'registrationConfirmed'");
+    expect(scenario).toContain(
+      'This completes only the in-app follow-up. The earlier email still promised no reservation',
+    );
+  });
+
   it('keeps Stripe add-on cancellation docs backed by allocation and refund-recovery evidence', () => {
     const source = readSource(
       'tests/docs/events/registration-cancellation.doc.ts',
@@ -281,7 +312,7 @@ describe('generated docs source current behavior', () => {
       /await expect\(\s*scannerAddOn\.getByText\('Refund processing', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
     );
     expect(journey).toMatch(
-      /await expect\(\s*scannerAddOn\.getByText\('Provider action required', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
+      /await expect\(\s*scannerAddOn\.getByText\('Refund needs review', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
     );
     expect(journey).toMatch(
       /await expect\(\s*scannerAddOn\.getByText\('Refund needs attention', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
@@ -294,10 +325,10 @@ describe('generated docs source current behavior', () => {
       /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund retrying\//u,
     );
     expect(journey).toMatch(
-      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Provider action required\//u,
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Contact organizer for refund update\//u,
     );
     expect(journey).toMatch(
-      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund needs attention\//u,
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Contact organizer for refund update\//u,
     );
     expect(journey).toMatch(
       /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund completed\//u,
@@ -306,25 +337,27 @@ describe('generated docs source current behavior', () => {
     expect(journey).toContain('storageState: gaStateFile');
     expect(journey).toContain("name: 'Review finance'");
     expect(journey).toContain('const providerActionTransactionRow');
-    expect(journey).toContain("hasText: 'Provider action required'");
+    expect(journey).toContain("hasText: 'Action required in Stripe'");
     expect(journey).toContain("name: 'Refund recovery'");
     expect(journey).toContain("name: 'Review recovery'");
-    expect(journey).toContain("name: 'Resume stopped refund'");
-    expect(journey).toContain("name: 'Retry terminal refund'");
-    expect(journey).toContain('stripeRefundAttempts: true');
-    expect(journey).toContain('stripeRefundMaxAttempts: true');
+    expect(journey).toContain("name: 'Resume refund checks'");
+    expect(journey).toContain("name: 'Retry failed refund'");
     expect(journey).toContain(
+      'stripeRefundAttempts: refundClaim.stripeRefundMaxAttempts',
+    );
+    expect(journey).toContain(
+      'stripeRefundMaxAttempts: refundClaim.stripeRefundMaxAttempts',
+    );
+    expect(journey).not.toContain(
       '`attempts ${terminalRefundClaim.stripeRefundAttempts}/${terminalRefundClaim.stripeRefundMaxAttempts}`',
     );
-    expect(journey).toContain(
+    expect(journey).not.toContain(
       '`generation ${terminalRefundClaim.stripeRefundGeneration}`',
     );
-    expect(journey).toContain('getByText(refundClaim.id, { exact: true })');
-    expect(journey).toContain(
-      'getByText(scenario.registrationId, { exact: true })',
-    );
+    expect(journey).toContain('not.toContainText(refundClaim.id)');
+    expect(journey).toContain('not.toContainText(scenario.registrationId)');
     expect(journey).toContain("getByLabel('Operational recovery reason')");
-    expect(journey).toContain("name: 'Schedule new refund generation'");
+    expect(journey).toContain("name: 'Retry failed refund'");
     expect(journey.match(/mode: 'resumeGeneration'/gu)).toHaveLength(2);
     expect(journey.match(/mode: 'newGeneration'/gu)).toHaveLength(2);
     expect(journey).toContain('stripeRefundId: generationZeroRefundId');
@@ -337,7 +370,7 @@ describe('generated docs source current behavior', () => {
     expect(journey).toContain("toEqual({ status: 'CANCELLED' })");
     expect(journey).toContain('Money has not necessarily been returned yet');
     expect(journey).toContain(
-      'It does not certify live bank or card-network settlement',
+      "This local walkthrough verifies Evorto's refund workflow but not settlement by the card network or bank.",
     );
     expect(addOnScenarioSource).toContain(
       'paidIncludedQuantity > initialStock - paidPurchaseQuantity',
@@ -406,37 +439,39 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('A supported non-Stripe source');
   });
 
-  it('keeps tenant general-settings docs aligned with implemented branding and legal routes', () => {
+  it('keeps organization general-settings docs aligned with implemented branding and legal routes', () => {
     const source = readSource('tests/docs/admin/general-settings.doc.ts');
 
     expect(source).not.toContain(
       'domain onboarding, brand asset upload, legal text page',
     );
     expect(source).toContain(
-      'A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.',
+      'A read-only **Organization** summary with its name and public domain.',
     );
     expect(source).not.toContain('canonicalRootUrl');
     expect(source).not.toContain('Canonical root URL');
     expect(source).toContain(
-      'A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field that accepts an IANA timezone such as Europe/Berlin.',
+      'A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field for the city or region used for event times.',
     );
-    expect(source).toContain(
-      '**Formatting locale** is read-only and fixed to **de-DE**',
-    );
-    expect(source).toContain(
+    expect(source).not.toContain('**Formatting locale**');
+    expect(source).not.toContain(
       "generalSettings.getByRole('combobox', { name: 'Locale' })",
+    );
+    expect(source).toContain(
+      "generalSettings.getByText('Organization name', { exact: true })",
+    );
+    expect(source).toContain(
+      "generalSettings.getByText('Public domain', { exact: true })",
     );
     expect(source).toContain(
       "generalSettings.getByRole('textbox', { name: 'Timezone' })",
     );
     expect(source).toContain(
-      '**SEO title** and **SEO description** for tenant-level page metadata.',
+      '**SEO title** and **SEO description** for public-page previews.',
     );
+    expect(source).not.toContain('A **Deferred settings** summary');
     expect(source).toContain(
-      'A **Deferred settings** summary that keeps custom-domain automation visible as a deferred scope item.',
-    );
-    expect(source).toContain(
-      '**Operations settings** for tenant email reply-to name/email, Stripe account id, the tenant-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior.',
+      '**Operations settings** for email reply-to name/email, Stripe account id, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior.',
     );
     expect(source).toContain('documentedEmailSenderName');
     expect(source).toContain('documentedEmailSenderEmail');
@@ -453,30 +488,30 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('} finally {');
     expect(source).not.toContain('.update(schema.tenants)');
     expect(source).toContain(
-      'The generated journey below updates the editable operations values and uploaded brand assets on its disposable tenant while preserving the connected Stripe account. It saves the form, checks the stored tenant row, reloads the page, and checks that the same values are read back.',
+      'The walkthrough below updates these values and the uploaded brand assets while preserving the connected Stripe account. It saves the form, reloads the page, and confirms that the same values remain.',
     );
-    expect(source).toContain("getByLabel('Upload tenant logo file')");
-    expect(source).toContain("getByLabel('Upload tenant favicon file')");
+    expect(source).toContain("getByLabel('Upload organization logo file')");
+    expect(source).toContain("getByLabel('Upload organization favicon file')");
     expect(source).toContain('documentedLogoUrl');
     expect(source).toContain('documentedFaviconUrl');
     expect(source).toContain(
-      'uploaded paths from a different tenant are rejected',
+      'Use uploaded assets that belong to this organization.',
     );
     expect(source).toContain('Transfer deadline before event (hours)');
     expect(source).toContain('Cancellation deadline before event (hours)');
     expect(source).toContain('Refund fees on cancellation');
     expect(source).toContain(
-      'The public footer gives a saved external URL precedence and opens it off-site.',
+      'When both fields are saved, the public footer gives the external URL precedence and does not show the hosted text.',
     );
     expect(source).toContain(
-      'For privacy, Evorto stores the text and URL together as one policy version that a member accepts once.',
+      'The privacy policy is managed with required questions on **Member onboarding**, so a policy cannot be changed without the member-acceptance warning.',
     );
     expect(source).not.toContain('Do not fill both alternatives');
     expect(source).toContain(
       "test('Publish hosted legal pages and verify the signed-out footer @admin'",
     );
     expect(source).toContain(
-      "getByRole('textbox', { name: 'Hosted privacy policy text' })",
+      "getByRole('textbox', { name: 'Privacy policy text' })",
     );
     expect(source).toContain('storageState: { cookies: [], origins: [] }');
     expect(source).toContain("name: 'Privacy policy'");
@@ -485,15 +520,15 @@ describe('generated docs source current behavior', () => {
       '**Allowed receipt countries** and **Allow other** for receipt submission.',
     );
     expect(source).toContain(
-      '**ESN Card discounts** and optional **Buy ESNcard URL** when the tenant uses ESNcard validation.',
+      '**ESN Card discounts** and optional **Buy ESNcard URL** when the organization uses ESNcard validation.',
     );
     expect(source).toContain(
       'Tax rates are managed on the separate **Tax Rates** page.',
     );
     expect(source).toContain(
-      'Currency and timezone changes are only accepted before event or payment data exists for the tenant.',
+      'Currency and timezone can be changed before the organization has event or payment data; after that, Evorto prevents the change.',
     );
-    expect(source).toContain(
+    expect(source).not.toContain(
       'When one of those accepted changes is saved, Evorto reloads the app',
     );
     expect(source).not.toContain('Tax rates are configured here');
@@ -521,15 +556,17 @@ describe('generated docs source current behavior', () => {
     expect(responseSource).toContain("'X-Robots-Tag': 'noindex, nofollow'");
   });
 
-  it('keeps global-admin docs aligned with the relaunch tenant-administration scope', () => {
+  it('keeps global-admin docs aligned with organization administration', () => {
     const source = readSource('tests/docs/admin/global-admin.doc.ts');
 
     expect(source).toContain('expectGlobalAdminTenantRows');
     expect(source).toContain('expectGlobalAdminTenantFormSurface');
-    expect(source).toContain('Search tenants');
-    expect(source).toContain('No tenants match this search');
-    expect(source).toContain('Read-only operational tenant review');
-    expect(source).toContain('Open tenant');
+    expect(source).toContain('Search organizations');
+    expect(source).toContain('No organizations match this search');
+    expect(source).toContain(
+      "Review this organization's settings and platform tools.",
+    );
+    expect(source).toContain('Open organization');
     expect(source).not.toContain('canonicalRootUrl');
     expect(source).not.toContain('Canonical root URL');
     expect(source).toContain('Stripe account');
@@ -549,28 +586,26 @@ describe('generated docs source current behavior', () => {
       'expect(tenantPrimaryDomainInput(page)).toHaveValue(',
     );
     expect(source).toContain(
-      'Tenant create/edit manages the one active primary domain, name, theme, currency, timezone, and connected Stripe account id.',
+      'Create and edit manage the primary domain, name, theme, currency, timezone, and connected Stripe account.',
     );
     expect(source).toContain(
-      'the server blocks removing a connected account while any paid template/event option or add-on still exists',
+      'a connected Stripe account cannot be removed while a paid template, event option, or add-on still exists',
+    );
+    expect(source).not.toContain('The formatting locale remains fixed');
+    expect(source).toContain(
+      'Domains must be unique host names without paths, queries, fragments, credentials, or custom ports.',
     );
     expect(source).toContain(
-      'The formatting locale remains fixed to **de-DE**.',
+      'The create journey also checks domain safeguards before saving: domains with paths are rejected, and duplicate primary domains return a visible error while keeping the form intact.',
     );
     expect(source).toContain(
-      'Transactional links and Stripe return URLs use the secure HTTPS origin derived from this normalized domain rather than request headers.',
+      'Each platform change requires an operator reason.',
     );
     expect(source).toContain(
-      'The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run.',
+      'A public-domain change is rejected while pending payments, refunds, or registration transfers still depend on existing links.',
     );
     expect(source).toContain(
-      'Each allowed platform mutation requires an operator reason.',
-    );
-    expect(source).toContain(
-      'A public-URL migration is rejected while pending Stripe Checkouts or refunds, or active registration transfers, still depend on issued links.',
-    );
-    expect(source).toContain(
-      'operators must keep HTTPS redirects from the old domain to the new domain for already-issued QR codes',
+      'Keep the old domain redirecting to the new one so issued links and QR codes continue to work.',
     );
     expect(source).toContain(
       "getByRole('link', { name: 'Platform audit log' })",
@@ -578,14 +613,72 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("page.locator('app-platform-audit')");
     expect(source).toContain('.delete(schema.platformAuditEntries)');
     expect(source).toContain('.delete(schema.tenantPrivacyPolicyVersions)');
-    expect(source).toContain(
+    expect(source).not.toContain(
       'Custom-domain verification and multi-domain automation are deferred.',
     );
-    expect(source).toContain(
-      'Tenant-admin impersonation is not available in the current relaunch surface.',
-    );
+    expect(source).not.toContain('impersonation');
     expect(source).not.toContain('impersonation workflow');
     expect(source).not.toContain('multiple active domains');
+  });
+
+  it('keeps platform-operator docs backed by target-scoped mutations and audit readback', () => {
+    const source = readSource(
+      'tests/docs/admin/platform-tenant-operations.doc.ts',
+    );
+
+    expect(source).toContain('seeded.scenario.events.draft.eventId');
+    expect(source).toContain('seeded.scenario.events.past.eventId');
+    expect(source).toContain('seedUserRoleAssignmentScenario');
+    expect(source).toContain(
+      "await expectPersistedAudit(eventReason, 'event.update')",
+    );
+    expect(source).toContain(
+      "await expectPersistedAudit(templateReason, 'template.update')",
+    );
+    expect(source).toContain(
+      "await expectPersistedAudit(roleAssignmentReason, 'user.assignRoles')",
+    );
+    expect(source).toContain(
+      "await expectPersistedAudit(roleRemovalReason, 'user.assignRoles')",
+    );
+    expect(source).toContain(
+      "await expectPersistedAudit(receiptReason, 'receipt.review')",
+    );
+    expect(source).toContain(
+      "await expectPersistedAudit(registrationReason, 'registration.checkIn')",
+    );
+    expect(source).toContain(
+      "getByRole('link', { exact: true, name: 'Manage events' })",
+    );
+    expect(source).toContain(
+      "getByRole('button', { name: 'Save draft details' })",
+    );
+    expect(source).toContain("getByRole('button', { name: 'Save template' })");
+    expect(source).toContain("getByRole('button', { name: 'Save roles' })");
+    expect(source).toContain(
+      "const saveDecision = platformFinance.getByRole('button', {",
+    );
+    expect(source).toContain("name: 'Save decision'");
+    expect(source).toContain(
+      'expect(saveDecision).toBeEnabled({ timeout: 20_000 })',
+    );
+    expect(source).toContain(
+      "const checkIn = registrationDetail.getByRole('button', {",
+    );
+    expect(source).toContain("name: 'Check in'");
+    expect(source).toContain(
+      'expect(checkIn).toBeEnabled({ timeout: 20_000 })',
+    );
+    expect(source).toContain(
+      "getByRole('link', { name: 'Platform audit log' })",
+    );
+    expect(source).toContain('.delete(schema.platformAuditEntries)');
+    expect(source).toContain('await assignmentScenario.cleanup()');
+    expect(source).toContain(
+      'Reimbursement, refund recovery, and Stripe tax-rate import are separate operations and are not performed by this walkthrough.',
+    );
+    expect(source).not.toContain('full event and template graph editing');
+    expect(source).not.toContain('### Recover a refund without duplicating it');
   });
 
   it('keeps global Email Outbox docs aligned with visibility, recovery, and permission behavior', () => {
@@ -594,7 +687,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('seedEmailOutboxScenario');
     expect(source).toContain("page.goto('/global-admin')");
     expect(source).toContain("getByRole('link', { name: 'Email outbox' })");
-    expect(source).toContain('Rows needing delivery');
+    expect(source).toContain('Delivery details');
     expect(source).toContain('Temporary provider timeout');
     expect(source).toContain('Recipient address was rejected');
     expect(source).toContain('scenario.sent.subject');
@@ -606,20 +699,20 @@ describe('generated docs source current behavior', () => {
       'It omits successfully **sent** rows even though the Sent total still includes them.',
     );
     expect(source).toContain(
-      'Evorto can reclaim the row after that claim lease expires',
+      'Do not infer that the email is permanently stuck from a brief **Sending** state',
     );
     expect(source).toContain('automatic retries have stopped');
     expect(source).toContain(
-      'There is currently no tenant/status search control and no manual retry button on this page.',
+      'There is currently no organization/status search control and no manual retry button on this page.',
     );
     expect(source).toContain(
-      'platform administrator whose authority comes from verified Auth0 app metadata',
+      'You must be signed in as a platform administrator.',
     );
     expect(source).toContain(
       'without platform administrator authority is redirected to the forbidden page',
     );
     expect(source).toContain(
-      "Tenant roles, including a tenant's ordinary Admin role, do not grant access",
+      "Organization roles, including an organization's ordinary Admin role, do not grant access",
     );
     expect(source).not.toContain('tenant admins can review all email');
     expect(source).not.toContain('Refresh retries the email');
@@ -632,10 +725,10 @@ describe('generated docs source current behavior', () => {
       'Login email address and notification email address',
     );
     expect(source).toContain(
-      'IBAN and PayPal details are optional global reimbursement details, not tenant-specific payout instructions.',
+      'IBAN and PayPal details are optional global reimbursement details, not organization-specific payout instructions.',
     );
     expect(source).toContain(
-      'The notification email is user-managed and may differ from the Auth0 login email.',
+      'The notification email is user-managed and may differ from the sign-in email.',
     );
     expect(source).toContain(
       'Optional IBAN and PayPal fields store global reimbursement details for finance teams.',
@@ -656,7 +749,7 @@ describe('generated docs source current behavior', () => {
       'updatedProfileUser.paypalEmail).toBe(documentedPaypalEmail)',
     );
     expect(source).toContain(
-      'Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/transfer details back to the event page, expose waitlist routing back to the event page, and explain that cancellation stops after check-in while a transfer preserves the attendee and guest check-in history',
+      'From an event card, you can continue a pending payment or open the event to view the ticket, cancellation, transfer, or waitlist details',
     );
     expect(source).toContain(
       'Continue payment from this card, or open the event page for registration details.',
@@ -706,39 +799,38 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/users/create-account.doc.ts');
 
     expect(source).toContain(
-      'The account form pre-fills first name, last name, and **Notification email** from Auth0 data when available.',
+      'The account form pre-fills first name, last name, and **Notification email** from the sign-in account when available.',
     );
     expect(source).toContain(
-      'It stays disabled while invalid, already submitting, waiting for the onboarding mutation, or until the current privacy policy is accepted',
+      'The button stays unavailable until every required field is valid and the current policy is accepted.',
     );
     expect(source).toContain(
-      'Existing global users with the same Auth0 id join the current tenant instead of creating a duplicate global user.',
+      'If your login already belongs to another organization, Evorto adds the same account here instead of creating a duplicate.',
     );
     expect(source).toContain(
-      'If setup fails or the requirements changed in another tab, the page shows a retryable server error instead of silently losing the submit attempt.',
+      'If requirements change while the page is open, Evorto keeps matching answers and asks you to review the latest version.',
     );
-    expect(source).toContain('exact privacy-policy version');
-    expect(source).toContain('original home tenant stays unchanged');
+    expect(source).toContain('accepted privacy-policy version');
+    expect(source).toContain('original home organization stays unchanged');
     expect(source).not.toContain('login email as your notification email');
     expect(source).not.toContain('tenant-specific notification email');
   });
 
   it('keeps tenant-onboarding docs page-backed and explicit about versioned consent', () => {
     const source = readSource('tests/docs/users/tenant-onboarding.doc.ts');
-
     expect(source).toContain("admin.page.goto('/admin/onboarding')");
     expect(source).toContain('takeScreenshot');
     expect(source).toContain('Publishing a policy takes effect immediately');
-    expect(source).toContain('Every existing tenant user');
+    expect(source).toContain('Every existing member');
     expect(source).toContain('Confirm and continue');
     expect(source).toContain('tenantPrivacyPolicyAcceptances.findFirst');
     expect(source).toContain('tenantOnboardingQuestionAnswers.findFirst');
-    expect(source).toContain('Make this my home tenant');
+    expect(source).toContain('Make this my home organization');
     expect(source).toContain(
       'Text and URL saved together form one policy version with one publication time and author.',
     );
     expect(source).toContain(
-      'while a URL is saved, **Privacy** opens that external URL',
+      'while a URL is saved, **Privacy** opens that external page',
     );
     expect(source).toContain("name: 'Privacy policy URL'");
     expect(source).toContain('.fill(privacyPolicyUrl)');
@@ -746,7 +838,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("name: 'Open the full privacy policy'");
     expect(source).toContain("toHaveAttribute('href', privacyPolicyUrl)");
     expect(source).toContain(
-      'Hosted text plus an external URL is still one accepted policy version, not two separate acceptances.',
+      'Hosted text plus an external URL count as one policy version.',
     );
   });
 
@@ -805,9 +897,7 @@ describe('generated docs source current behavior', () => {
     );
     const combinedSource = `${overviewSource}\n${receiptSource}`;
 
-    expect(combinedSource).toContain(
-      'queues the submitter receipt-reviewed email in the durable email outbox.',
-    );
+    expect(combinedSource).toContain('schedules an email to the submitter.');
     expect(receiptSource).toContain(
       'delivered+receipt-doc-${receiptId}@resend.dev',
     );
@@ -815,7 +905,7 @@ describe('generated docs source current behavior', () => {
       'record the manual reimbursement transaction for the selected batch',
     );
     expect(receiptSource).toContain(
-      "Recording reimbursement updates the receipt to **refunded** and creates a successful manual refund transaction in Evorto using the receipt's recorded currency.",
+      "Recording reimbursement updates the receipt to **Reimbursed** and creates a successful manual refund transaction in Evorto using the receipt's recorded currency.",
     );
     expect(receiptSource).toContain(
       'The actual bank or PayPal transfer remains an external finance action.',
@@ -839,13 +929,13 @@ describe('generated docs source current behavior', () => {
       'It shows links only for the finance capabilities you have, so users with receipt approval access do not automatically see the transaction list.',
     );
     expect(source).toContain(
-      '- **finance:viewTransactions**: view the tenant transaction list.',
+      "- **View transactions** to review the organization's transaction list.",
     );
     expect(source).toContain(
-      '- **finance:approveReceipts**: review submitted receipts.',
+      '- **Approve receipts** to review submitted receipts.',
     );
     expect(source).toContain(
-      '- **finance:refundReceipts**: record receipt reimbursement batches.',
+      '- **Record receipt reimbursements** to record reimbursement batches.',
     );
     expect(source).toContain('visibleTransactionComment');
     expect(source).toContain('cancelledTransactionComment');
@@ -919,23 +1009,23 @@ describe('generated docs source current behavior', () => {
     );
   });
 
-  it('keeps template docs aligned with simple and advanced graph authoring', () => {
+  it('keeps template docs aligned with simple and advanced registration setup', () => {
     const source = readSource('tests/docs/templates/templates.doc.ts');
 
     expect(source).toContain(
       'Simple mode intentionally keeps exactly one organizer registration block and one participant registration block.',
     );
     expect(source).toContain(
-      'Advanced configuration supports any number of named options and reveals reusable add-ons with explicit option mappings.',
+      'Advanced configuration supports any number of named options and lets you choose which registration options can use each reusable add-on.',
     );
     expect(source).toContain(
-      'first save the advanced graph with exactly one organizing and one non-organizing option',
+      'first save the advanced setup with exactly one organizing and one non-organizing option',
     );
     expect(source).toContain(
       '**Description** and **description for registered users**: Optional reusable',
     );
     expect(source).toContain(
-      '**ESNcard discounted price**: Optional discounted pricing for tenants with the ESNcard discount provider enabled.',
+      '**ESNcard discounted price**: Optional discounted pricing for organizations with ESNcard discounts enabled.',
     );
     expect(source).toContain(
       '**Selected roles**: The roles that are selected for this registration.',
@@ -997,7 +1087,7 @@ describe('generated docs source current behavior', () => {
       'If the reason says a registration option no longer belongs to the selected template',
     );
     expect(source).toContain(
-      'If it mentions legacy random allocation, return to the template, change every option to **First come, first served** or **Manual approval**',
+      'If it mentions random allocation, return to the template, change every option to **First come, first served** or **Manual approval**',
     );
     expect(source).toContain(
       'Do not assume the event exists until its detail page opens and shows the event title.',
@@ -1043,7 +1133,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/events/registration-transfer.doc.ts',
     );
     const paidTransferJourneyStart = transferSource.indexOf(
-      "test('Complete a paid transfer and recover one failed source refund claim'",
+      "test('Complete a paid transfer and retry a failed refund'",
     );
     expect(paidTransferJourneyStart).toBeGreaterThan(0);
     const freeTransferSource = transferSource.slice(
@@ -1074,10 +1164,10 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('## Buy add-ons after registration');
     expect(source).not.toContain('## Registration unavailable states');
     expect(source).toContain(
-      'This guide is for a signed-in participant whose account belongs to the same tenant as the event.',
+      'This guide is for a signed-in participant whose account belongs to the same organization as the event.',
     );
     expect(source).toContain(
-      "A paid registration also requires the tenant's Stripe payments to be available",
+      "A paid registration also requires the organization's Stripe payments to be available",
     );
     expect(source).toContain(
       'Show this ticket QR code when attending the event.',
@@ -1155,16 +1245,16 @@ describe('generated docs source current behavior', () => {
     expect(transferSource).toContain('# Transfer a registration');
     expect(transferSource).toContain('waitForRegistrationPage');
     expect(transferSource).toContain(
-      'This guide uses two signed-in participant accounts that belong to the same tenant:',
+      'This guide uses two signed-in participant accounts that belong to the same organization:',
     );
     expect(transferSource).toContain(
-      '/docs/complete-a-paid-transfer-and-recover-one-failed-source-refund-claim',
+      '/docs/complete-a-paid-transfer-and-retry-a-failed-refund',
     );
     expect(transferSource).toContain(
       '/docs/transfer-a-registration-with-a-private-offer',
     );
     expect(transferSource).toContain(
-      'The transfer link and manual code are bearer credentials.',
+      'The private link and manual code grant access to the transfer offer.',
     );
     expect(freeTransferSource).toContain(
       "getByRole('link', { exact: true, name: 'Profile' })",
@@ -1196,7 +1286,7 @@ describe('generated docs source current behavior', () => {
       'schema.eventRegistrationQuestionAnswers.answer',
     );
     expect(freeTransferSource).toContain(
-      'The source participant entered this answer.',
+      'The previous owner entered this answer.',
     );
     expect(freeTransferSource).toContain(
       'Previous answers do not transfer: answer every currently required question for the recipient',
@@ -1221,14 +1311,13 @@ describe('generated docs source current behavior', () => {
     expect(transferSource).toContain(
       "applies only the recipient's current eligible discounts",
     );
+    expect(
+      transferSource.match(
+        /Evorto refunds the exact remaining refundable amount from each original Stripe payment after accounting for prior successful refunds\./gu,
+      ),
+    ).toHaveLength(2);
     expect(transferSource).toContain(
-      'a separate claim for each remaining source refund',
-    );
-    expect(transferSource).toContain(
-      'the prior and new refunds add up to each original Stripe payment exactly',
-    );
-    expect(transferSource).toContain(
-      'completes database-only only when the entire bundle is free and no source refund claim is required',
+      'When the bundle is free and no refund is needed, the transfer completes immediately without Stripe.',
     );
     expect(transferSource).not.toContain(
       'a successful separately paid add-on currently blocks',
@@ -1237,10 +1326,10 @@ describe('generated docs source current behavior', () => {
       'Non-Stripe and multi-source paid tickets stay blocked',
     );
     expect(transferSource).toContain(
-      "The registration stays confirmed under the source owner's ownership while the offer is open.",
+      "The registration stays confirmed under the current owner's ownership while the offer is open.",
     );
     expect(transferSource).toContain(
-      "Stripe Checkout on the tenant's connected account and includes the platform application fee.",
+      "Stripe Checkout on the organization's connected account and includes the platform application fee.",
     );
     expect(transferSource).toContain(
       '**Transfer complete — refund processing**',
@@ -1249,14 +1338,14 @@ describe('generated docs source current behavior', () => {
       '**Transfer complete — refund needs attention**',
     );
     expect(transferSource).toContain(
-      'must use the recovery action to requeue the existing failed refund claim',
+      'A platform administrator must retry the failed refund',
     );
     expect(transferSource).toContain(
-      'A platform administrator must use the recovery action',
+      'A platform administrator opens the affected organization, selects **Review finance**, and then opens **Refund recovery**.',
     );
     expect(transferSource).not.toContain('finance or platform administrator');
     expect(transferSource).toContain(
-      'queues a full recipient refund including the platform fee',
+      'starts a full recipient refund including the platform fee',
     );
     expect(transferSource).toContain(
       '**Transfer stopped — refund needs attention**',
@@ -1265,7 +1354,7 @@ describe('generated docs source current behavior', () => {
       'the recipient does not own the ticket and must not pay or claim again',
     );
     expect(transferSource).toContain(
-      "test('Complete a paid transfer and recover one failed source refund claim'",
+      "test('Complete a paid transfer and retry a failed refund'",
     );
     expect(transferSource).toContain('seedPaidRegistrationTransferScenario');
     expect(transferSource).toContain('await scenario.completeCheckout()');
@@ -1279,7 +1368,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(transferSource).toContain('refundRecoveryForm.getByLabel(');
     expect(transferSource).toContain("'Operational recovery reason'");
-    expect(transferSource).toContain("name: 'Schedule new refund generation'");
+    expect(transferSource).toContain("name: 'Retry failed refund'");
     expect(transferSource).toContain("name: 'Payment still required'");
     expect(transferSource).toContain(
       "name: 'Transfer complete — refund processing'",
@@ -1538,6 +1627,55 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('.set({ unlisted: target.unlisted })');
   });
 
+  it('keeps ordinary listed-event discovery beginner-readable and page-backed', () => {
+    const source = readSource('tests/docs/events/event-discovery.doc.ts');
+    const publicationSource = readSource(
+      'helpers/testing/documentation-publication-contract.ts',
+    );
+
+    expect(source).toContain("test('Find a listed event'");
+    expect(source).toContain('# Find a listed event');
+    expect(source).toContain('Before you start');
+    expect(source).toContain(
+      "getByRole('link', { exact: true, name: 'Events' })",
+    );
+    expect(source).toContain('nearestDateHeading');
+    expect(source).toContain('toHaveClass(/ring-success/u)');
+    expect(source).toContain('registeredDay).not.toBe(otherDay)');
+    expect(source).toContain('Desktop event list and selected event details');
+    expect(source).toContain('height: 844, width: 390');
+    expect(source).toContain("name: 'Back to events'");
+    expect(source).toContain('Successful empty event list');
+    expect(source).toContain("includes('events.eventList')");
+    expect(source).toContain(
+      'Event list request failure shown separately from an empty result',
+    );
+    expect(source).toContain('registerDatabaseCleanup');
+    expect(source).toContain('.delete(schema.eventRegistrations)');
+    expect(source).toContain('.delete(schema.eventRegistrationOptions)');
+    expect(source).toContain('.delete(schema.eventInstances)');
+    expect(source).toContain('for (const event of originalEventTimes)');
+    expect(source).not.toContain('test.skip');
+    expect(source).not.toContain('test.fixme');
+
+    const findAnEventStart = publicationSource.indexOf(
+      "id: 'evorto:find-an-event'",
+    );
+    const registerForEventStart = publicationSource.indexOf(
+      "id: 'evorto:register-for-an-event'",
+      findAnEventStart,
+    );
+    const findAnEventCatalog = publicationSource.slice(
+      findAnEventStart,
+      registerForEventStart,
+    );
+    expect(findAnEventStart).toBeGreaterThanOrEqual(0);
+    expect(registerForEventStart).toBeGreaterThan(findAnEventStart);
+    expect(findAnEventCatalog.indexOf("'find-a-listed-event'")).toBeLessThan(
+      findAnEventCatalog.indexOf("'user-understanding-unlisted-events'"),
+    );
+  });
+
   it('keeps manual approval docs beginner-readable and behavior-backed', () => {
     const source = readSource('tests/docs/events/manual-approval.doc.ts');
 
@@ -1562,8 +1700,22 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Payment setup needs retry');
     expect(source).toContain('Retry payment setup');
     expect(source).toContain("transactionStatus: 'cancelled'");
-    expect(source).toContain('Current boundaries');
-    expect(source).toContain('Application and approval are tenant-scoped.');
+    expect(source).toContain('# Withdraw a pending application');
+    expect(source).toContain(
+      'This immediately withdraws your pending application. It does not release confirmed capacity or start a refund.',
+    );
+    expect(source).toContain("status: 'CANCELLED'");
+    expect(source).toContain('capacityBeforeApplying');
+    expect(source).toContain(
+      "throw new Error('Expected a new pending application after withdrawal')",
+    );
+    expect(source).toContain('Application states');
+    expect(source).not.toContain(
+      'A separate **Reject application** action is not currently available',
+    );
+    expect(source).toContain(
+      'Application and approval belong to this organization.',
+    );
     expect(source).not.toContain('an application reserves a spot immediately');
     expect(source).not.toContain(
       'payment approval immediately creates a ticket',
@@ -1599,6 +1751,19 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Organizer/helper application pending');
     expect(source).toContain('Approve application');
     expect(source).toContain(
+      'A paid category remains pending until Stripe payment succeeds',
+    );
+    expect(source).toContain('## Withdraw before approval');
+    expect(source).toContain('## Apply again');
+    expect(source).toContain("status: 'CANCELLED'");
+    expect(source).toContain('paymentCount: 0');
+    expect(source).toContain(
+      'Pending application withdrawal leaves organizer access unavailable',
+    );
+    expect(source).not.toContain(
+      'without demonstrating withdrawal of the pending application',
+    );
+    expect(source).not.toContain(
       'Paid organizer/helper categories are outside this guide.',
     );
     expect(source).toContain('seedOrganizerSignupScenario');
@@ -1627,6 +1792,25 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Return-to-draft feedback on event details');
     expect(source).not.toContain("status).toBe('REJECTED')");
     expect(source).toContain("expect(approvedEvent.status).toBe('APPROVED')");
+    expect(source).toContain(
+      'const clickHydratedAction = async (action: Locator)',
+    );
+    expect(source).toContain("not.toHaveAttribute('jsaction', /click/, {");
+    expect(source.match(/await clickHydratedAction\(/g)).toHaveLength(10);
+    expect(source).toContain('name: /^Event Reviews(?: \\d+)?$/u');
+    expect(source).toContain("name: 'Refresh pending reviews'");
+    expect(source).toContain('test.setTimeout(300_000)');
+    expect(source).toContain(
+      'Pending review and published events are both locked against material editing.',
+    );
+    expect(source).toContain(
+      "page.getByRole('link', { exact: true, name: 'Edit Event' })",
+    );
+    expect(source).toContain('await page.goto(`/events/${eventId}/edit`)');
+    expect(source).toContain('\\?error=event-locked$');
+    expect(source).toContain(
+      'Published events expose no edit action, and direct edit URLs return to the event details page.',
+    );
     expect(source).toContain('.delete(schema.eventRegistrationOptions)');
     expect(source).toContain('.delete(schema.eventInstances)');
     expect(source).not.toContain(
@@ -1638,10 +1822,10 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/events/event-management.doc.ts');
 
     expect(source).toContain(
-      'Each draft event owns its registration configuration independently from the source template.',
+      'Each draft event has its own registration configuration, independent of the template.',
     );
     expect(source).toContain(
-      'Before returning an advanced event to simple mode, save the advanced graph with exactly one option of each kind',
+      'Before returning an advanced event to simple mode, save the advanced setup with exactly one option of each kind',
     );
     expect(source).toContain("page.getByTestId('event-mode-simple')");
     expect(source).toContain("page.getByTestId('event-mode-advanced')");
@@ -1682,7 +1866,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('.update(eventRegistrationOptions)');
     expect(source).toContain('.set({ checkedInSpots: initialCheckedInSpots })');
     expect(source).toContain(
-      "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event sources.",
+      "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments.",
     );
     expect(source).toContain(
       'Event registration and add-on payments are Stripe-only',
@@ -1691,7 +1875,13 @@ describe('generated docs source current behavior', () => {
       'Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged.',
     );
     expect(source).toContain(
-      'The source receives exact refunds for every original Stripe payment',
+      'The previous owner receives exact refunds for every original Stripe payment',
+    );
+    expect(source).toContain(
+      'only when the entire fixed bundle is free, requires no refund, and has no participant questions',
+    );
+    expect(source).toContain(
+      'When participant questions exist, the organizer creates a private transfer offer instead',
     );
     expect(source).not.toContain('pending manual refund record');
     expect(source).not.toContain(
@@ -1701,7 +1891,7 @@ describe('generated docs source current behavior', () => {
       'It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning',
     );
     expect(source).toContain(
-      'Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries.',
+      'Already selected roles are hidden from suggestions so the same eligibility role cannot be added twice.',
     );
     expect(source).toContain(
       'If the organizer overview request fails, Evorto hides every registration count and participant action.',
@@ -1719,6 +1909,24 @@ describe('generated docs source current behavior', () => {
       "registrationOptionEditor.getByPlaceholder('Add Role...')",
     );
     expect(source).toContain('Event edit role picker duplicate prevention');
+    expect(source).toContain('## Edit an existing draft event');
+    expect(source).toContain('await database.insert(eventInstances).values({');
+    expect(source).toContain("status: 'DRAFT'");
+    expect(source).toContain('await editableTitle.fill(savedEditableTitle)');
+    expect(source).toContain(
+      'await descriptionContent.fill(savedEditableDescription)',
+    );
+    expect(source).toContain("name: 'Change registration configuration?'");
+    expect(source).toContain("name: 'Keep current mode'");
+    expect(source).toContain("name: 'Use advanced mode'");
+    expect(source).toContain("getByLabel('Capacity').fill('37')");
+    expect(source).toContain("name: 'Manual approval'");
+    expect(source).toContain('persistedEvent?.simpleModeEnabled).toBe(false)');
+    expect(source).toContain(
+      "persistedParticipantOption?.registrationMode).toBe('application')",
+    );
+    expect(source).toContain('Reloaded draft event with saved changes');
+    expect(source).toContain('.where(eq(eventInstances.id, editableEventId))');
     expect(source).not.toContain('manual check-in from the organizer overview');
     expect(source).not.toContain('automatic refund controls are available');
     expect(source).not.toContain('paid registration transfer is available');
@@ -1751,6 +1959,9 @@ describe('generated docs source current behavior', () => {
 
   it('keeps role docs aligned with generated permission reference semantics', () => {
     const rolesSource = readSource('tests/docs/roles/roles.doc.ts');
+    const roleScenarioSource = readSource(
+      'tests/support/utils/user-role-assignment-scenario.ts',
+    );
     const permissionsSource = readSource(
       'tests/docs/roles/about-permissions.doc.ts',
     );
@@ -1771,18 +1982,41 @@ describe('generated docs source current behavior', () => {
     expect(rolesSource).toContain(
       "createdRole.permissions).toContain('templates:view')",
     );
+    expect(rolesSource).toContain('updatedRoleDescription');
+    expect(rolesSource).toContain(
+      'editRoleFormCheckbox(/^Show this role in the hub$/).setChecked(true)',
+    );
+    expect(rolesSource).toContain(
+      'editRoleFormCheckbox(/^Members Hub$/).setChecked(true)',
+    );
+    expect(rolesSource).toContain(
+      "updatedRole?.permissions).toContain('internal:viewInternalPages')",
+    );
+    expect(rolesSource).toContain('await page.reload()');
+    expect(rolesSource).toContain('openAuthenticatedTestPage({');
+    expect(rolesSource).toContain('storageState: userStateFile');
+    expect(rolesSource).toContain("exact: true,\n        name: 'Members Hub'");
+    expect(rolesSource).toContain('tenantScopeDecoy.memberDisplayName');
+    expect(rolesSource).toContain(').toHaveCount(0)');
+    expect(rolesSource).not.toContain('members are collapsed by default');
+    expect(roleScenarioSource).toContain('seedMembersHubTenantScopeDecoy');
+    expect(roleScenarioSource).toContain(
+      "description: 'This same-named role belongs to another tenant'",
+    );
+    expect(roleScenarioSource).toContain('name: roleName');
+    expect(roleScenarioSource).toContain('displayInHub: true');
     expect(rolesSource).toContain('.delete(schema.roles)');
     expect(permissionsSource).toContain(
-      'Permissions are tenant-scoped capabilities assigned through roles.',
+      'Permissions belong to an organization and are assigned through roles.',
     );
     expect(permissionsSource).toContain(
-      'Wildcard permissions such as \\`events:*\\` grant the permissions in that group.',
+      'Some permissions include related access so the user can reach the screens needed to use them.',
     );
     expect(permissionsSource).toContain(
-      'Some permissions also include dependent permissions so the user can reach the screens needed to use the parent capability.',
+      'The reference below names those included permissions with the same labels shown in the role editor.',
     );
     expect(permissionsSource).toContain(
-      'Global admin access is separate from tenant roles.',
+      'Platform administrator access is separate from organization roles',
     );
     expect(permissionsSource).toContain('PERMISSION_GROUPS');
     expect(permissionsSource).toContain('PERMISSION_DEPENDENCIES');
@@ -1800,18 +2034,23 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('esnCardSubmitPayloadFromIdentifier');
     expect(source).toContain('esnCardMutationErrorMessage');
     expect(source).toContain(
-      'The profile discount-card form stores one ESN card per user and trims the card number before validation.',
+      'The profile discount-card form accepts one ESN card per person and ignores spaces around the card number before validation.',
     );
     expect(source).toContain(
-      'Save, refresh, and remove stay disabled while any ESNcard write is pending',
+      'Save, refresh, and remove stay disabled while any ESNcard action is pending',
     );
     expect(source).toContain(
-      'Provider outages are not treated as invalid cards.',
+      'A temporary verification problem is not treated as an invalid card.',
     );
     expect(source).toContain(
-      'Evorto leaves the stored ESN card unchanged so the user can retry later.',
+      'leaves the saved ESNcard unchanged so you can try again later.',
     );
     expect(source).toContain("page.goto('/profile#discounts')");
+    expect(source).toContain(
+      'const clickHydratedAction = async (action: Locator)',
+    );
+    expect(source).toContain("not.toHaveAttribute('jsaction', /click/, {");
+    expect(source.match(/await clickHydratedAction\(/g)).toHaveLength(8);
     expect(source).toContain(
       "page.getByRole('heading', { level: 2, name: 'Discount Cards' })",
     );

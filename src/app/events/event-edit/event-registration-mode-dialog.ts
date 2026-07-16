@@ -30,16 +30,17 @@ export interface EventRegistrationModeDialogData {
     <mat-dialog-content>
       @if (data.to === 'advanced') {
         <p>
-          Advanced mode keeps both current options and reveals controls for an
-          arbitrary option list and add-ons. You can return to simple mode only
-          while the event has exactly one organizing and one non-organizing
-          option.
+          Advanced mode keeps both current options and lets you add registration
+          options and choose which registration options can use each add-on. You
+          can return to simple mode only while the event has exactly one
+          organizing and one non-organizing option.
         </p>
       } @else {
         <p>
-          Simple mode will show the existing organizing and non-organizing
-          options. No questions, add-ons, or mappings are deleted; advanced
-          add-on controls are only hidden.
+          Simple mode shows the existing organizing and non-organizing options.
+          Questions, add-ons, and the registration options that can use each
+          add-on stay saved. Those controls are hidden until you return to
+          advanced mode.
         </p>
       }
       <p class="mt-3">

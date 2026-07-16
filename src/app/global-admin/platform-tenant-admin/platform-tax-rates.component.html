@@ -1,5 +1,5 @@
 <app-platform-tenant-page-header
-  title="Tenant tax rates"
+  title="Organization tax rates"
   [tenantId]="tenantId()"
 />
 
@@ -11,7 +11,8 @@
   <div role="alert" class="bg-error-container text-on-error-container p-4">
     <p class="body-medium">Stripe tax rates could not be loaded.</p>
     <p class="body-small mt-1">
-      The tenant needs a connected Stripe account before rates can be imported.
+      The organization needs a connected Stripe account before rates can be
+      imported.
     </p>
     <button mat-stroked-button type="button" (click)="ratesQuery.refetch()">
       Try again

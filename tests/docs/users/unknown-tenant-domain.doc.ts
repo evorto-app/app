@@ -3,7 +3,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test('Recover from an unknown tenant link', async ({
+test('Recover from an unknown organization link', async ({
   baseURL,
   page,
 }, testInfo) => {
@@ -17,12 +17,12 @@ test('Recover from an unknown tenant link', async ({
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="No account is required" %}
-This recovery page is public. It appears before Evorto can select a tenant, so signing in, changing accounts, or creating another registration cannot repair the address.
+This recovery page is public. It appears before Evorto can select an organization, so signing in, changing accounts, or creating another registration cannot repair the address.
 {% /callout %}
 
-# Recover from an unknown Evorto tenant link
+# Recover from an unknown Evorto organization link
 
-You may reach this page after typing a tenant address, opening an old bookmark, following an outdated event link, or scanning a QR code whose tenant domain has changed. Evorto returns a real **404 Not Found** page and does not reveal whether another tenant or account exists.
+You may reach this page after typing an organization address, opening an old bookmark, following an outdated event link, or scanning a QR code whose organization address has changed. Evorto returns a real **404 Not Found** page and does not reveal whether another organization or account exists.
 `,
   });
 
@@ -30,11 +30,11 @@ You may reach this page after typing a tenant address, opening an old bookmark, 
     waitUntil: 'domcontentloaded',
   });
   expect(response?.status()).toBe(404);
-  await expect(page).toHaveTitle('Tenant link not found | Evorto');
+  await expect(page).toHaveTitle('Organization link not found | Evorto');
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'This link does not match an Evorto tenant',
+      name: 'This link does not match an Evorto organization',
     }),
   ).toBeVisible();
   await expect(
@@ -45,18 +45,18 @@ You may reach this page after typing a tenant address, opening an old bookmark, 
     testInfo,
     page.locator('main'),
     page,
-    'Unknown tenant link recovery',
+    'Unknown organization link recovery',
   );
 
   await testInfo.attach('markdown', {
     body: `
 ## What to do
 
-1. Return to the latest event email or invitation and open its complete link without editing the tenant part of the address.
-2. If you typed the address, check it for a missing or misspelled tenant name.
-3. Ask the event organizer for the tenant's current Evorto link.
+1. Return to the latest event email or invitation and open its complete link without editing the organization part of the address.
+2. If you typed the address, check it for a missing or misspelled organization name.
+3. Ask the event organizer for the organization's current Evorto link.
 
-If a QR code led here, do not change the encoded URL and do not create a replacement registration. Show the error to an organizer so they can confirm whether the tenant domain changed and provide a current ticket link. The message **Your account and registrations have not been changed** is the completion state for this recovery check: the failed lookup is read-only.
+If a QR code led here, do not change the encoded link and do not create a replacement registration. Show the error to an organizer so they can confirm whether the organization address changed and provide a current ticket link. The message **Your account and registrations have not been changed** confirms that the failed lookup did not alter anything.
 `,
   });
 });

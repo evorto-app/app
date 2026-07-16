@@ -32,7 +32,7 @@ export const waitForScannerAddonFulfillment = async (
 ): Promise<Locator> => {
   const heading = page.getByRole('heading', {
     exact: true,
-    name: 'Add-on fulfillment',
+    name: 'Add-ons',
   });
   await heading.waitFor({ state: 'visible', timeout: 15_000 });
   return heading;

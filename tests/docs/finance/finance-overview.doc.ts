@@ -59,10 +59,10 @@ test('Manage finances @finance', async ({
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="User permissions" %}
-For this guide, we assume you have the finance permissions needed for each child page:
-- **finance:viewTransactions**: view the tenant transaction list.
-- **finance:approveReceipts**: review submitted receipts.
-- **finance:refundReceipts**: record receipt reimbursement batches.
+You need the finance access for the page you want to use:
+- **View transactions** to review the organization's transaction list.
+- **Approve receipts** to review submitted receipts.
+- **Record receipt reimbursements** to record reimbursement batches.
 {% /callout %}
 
 # Finance Management
@@ -126,9 +126,9 @@ Cancelled transactions are omitted from this list.
       body: `
 ## Receipt Approvals
 
-The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Each amount is displayed in the currency recorded when the receipt was submitted, rather than a later tenant default. Reviewers can open each receipt, validate submitted values, and approve or reject it. The detail page notes that a submitter email is queued after the review is saved.
+The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Each amount is displayed in the currency recorded when the receipt was submitted, rather than a later organization default. Reviewers can open each receipt, validate submitted values, and approve or reject it. The detail page notes that the submitter will be notified after the review is saved.
 
-Approving or rejecting records the review status in Evorto and queues the submitter receipt-reviewed email in the durable email outbox.
+Approving or rejecting records the review status in Evorto and schedules an email to the submitter.
 `,
     });
     await page.goto('/finance/receipts-approval');

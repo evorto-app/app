@@ -1,7 +1,6 @@
-import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
 import type { UsersEventSummaryRecord } from '@shared/rpc-contracts/app-rpcs/users.rpcs';
 
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -43,7 +42,9 @@ import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
+import { receiptStatusLabel } from '../../finance/shared/receipt-status-label';
 import {
   EditProfileDialogComponent,
   EditProfileDialogData,
@@ -189,16 +190,11 @@ export const profileEventActionNote = (event: {
     }
 
     const guidance: string[] = [];
-    const actionRequired = refunds.some(
-      ({ state }) => state === 'actionRequired',
+    const needsOrganizerFollowUp = refunds.some(
+      ({ state }) => state === 'actionRequired' || state === 'needsAttention',
     );
-    if (refunds.some(({ state }) => state === 'needsAttention')) {
-      guidance.push(
-        "at least one refund needs a platform administrator's attention",
-      );
-    }
-    if (actionRequired) {
-      guidance.push('at least one Stripe refund requires provider-side action');
+    if (needsOrganizerFollowUp) {
+      guidance.push('at least one refund needs organizer follow-up');
     }
     if (refunds.some(({ state }) => state === 'retrying')) {
       guidance.push('at least one refund is retrying automatically');
@@ -207,7 +203,7 @@ export const profileEventActionNote = (event: {
       guidance.push('at least one refund is queued or processing');
     }
     if (guidance.length > 0) {
-      const organizerFollowUp = actionRequired
+      const organizerFollowUp = needsOrganizerFollowUp
         ? ' Contact the organizer for an update.'
         : '';
       return `Your registration remains cancelled, but ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp} Do not pay or register again to retry it.${progress}`;
@@ -238,7 +234,7 @@ export const profileEventActionNote = (event: {
         return 'Open the event page for your organizer/helper pass, event management access, and current cancellation details.';
       }
 
-      return 'Open the event page for ticket access and the current availability of cancellation and unpaid self-service transfer.';
+      return "Open the event page for ticket access and to see whether cancellation or transfer is currently available. A transfer may be free or require the recipient to pay, based on current prices and the recipient's eligible discounts.";
     }
     case 'PENDING': {
       if (event.paymentState === 'pending') {
@@ -303,11 +299,9 @@ export const registrationRefundStateLabel = (
   state: ProfileEventRefund['state'],
 ): string => {
   switch (state) {
-    case 'actionRequired': {
-      return 'Provider action required';
-    }
+    case 'actionRequired':
     case 'needsAttention': {
-      return 'Refund needs attention';
+      return 'Contact organizer for refund update';
     }
     case 'pending': {
       return 'Refund queued';
@@ -325,25 +319,6 @@ export const registrationRefundSourceLabel = (
   source: ProfileEventRefund['source'],
 ): string =>
   source === 'registration' ? 'Registration payment' : 'Add-on payment';
-
-export const profileReceiptStatusLabel = (
-  status: FinanceReceiptStatus,
-): string => {
-  switch (status) {
-    case 'approved': {
-      return 'Approved';
-    }
-    case 'refunded': {
-      return 'Reimbursed';
-    }
-    case 'rejected': {
-      return 'Rejected';
-    }
-    case 'submitted': {
-      return 'Submitted';
-    }
-  }
-};
 
 export const profileSectionFromFragment = (
   fragment: null | string,
@@ -367,7 +342,7 @@ export const profileSectionFromFragment = (
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    TenantDatePipe,
     CurrencyPipe,
     FontAwesomeModule,
     FormField,
@@ -470,8 +445,8 @@ export class UserProfileComponent {
   protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
 
   protected readonly profileEventPassLabel = profileEventPassLabel;
-  protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly profileTransferClaimPath = profileTransferClaimPath;
+  protected readonly receiptStatusLabel = receiptStatusLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
@@ -679,7 +654,7 @@ export class UserProfileComponent {
     this.setHomeTenantMutation.mutate(undefined, {
       onError: (error) => {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to change home tenant'),
+          getErrorMessage(error, 'Failed to change home organization'),
         );
       },
       onSuccess: (homeTenant) => {
@@ -697,7 +672,7 @@ export class UserProfileComponent {
           updatedUser,
         );
         this.notifications.showSuccess(
-          `${homeTenant.homeTenantName} is now your home tenant`,
+          `${homeTenant.homeTenantName} is now your home organization`,
         );
       },
     });

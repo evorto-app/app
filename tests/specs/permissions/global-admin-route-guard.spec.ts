@@ -10,7 +10,7 @@ test.describe('global admin route guard allow path', () => {
     await page.goto('/global-admin/tenants');
     await expect(page).toHaveURL(/\/global-admin\/tenants/);
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Tenants' }),
+      page.getByRole('heading', { level: 1, name: 'Organizations' }),
     ).toBeVisible();
   });
 
@@ -23,7 +23,7 @@ test.describe('global admin route guard allow path', () => {
       new RegExp(`/global-admin/tenants/${tenant.id}`),
     );
     await expect(
-      page.getByText('Read-only operational tenant review'),
+      page.getByText("Review this organization's settings and platform tools."),
     ).toBeVisible();
   });
 
@@ -33,7 +33,7 @@ test.describe('global admin route guard allow path', () => {
     await page.goto('/global-admin/tenants/create');
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create/);
     await expect(
-      page.getByRole('heading', { name: 'Create tenant' }),
+      page.getByRole('heading', { name: 'Create organization' }),
     ).toBeVisible();
   });
 
@@ -66,7 +66,7 @@ test.describe('global admin route guard allow path', () => {
       new RegExp(`/global-admin/tenants/${tenant.id}/edit`),
     );
     await expect(
-      page.getByRole('heading', { name: 'Edit tenant' }),
+      page.getByRole('heading', { name: 'Edit organization' }),
     ).toBeVisible();
   });
 
@@ -77,11 +77,11 @@ test.describe('global admin route guard allow path', () => {
     const operations = [
       { heading: 'Events', path: 'events' },
       { heading: 'Event templates', path: 'templates' },
-      { heading: 'Registration inspection', path: 'scanner' },
-      { heading: 'Tenant users', path: 'users' },
-      { heading: 'Tenant roles', path: 'roles' },
-      { heading: 'Tenant tax rates', path: 'tax-rates' },
-      { heading: 'Tenant finance', path: 'finance' },
+      { heading: 'Registration support', path: 'scanner' },
+      { heading: 'Organization members', path: 'users' },
+      { heading: 'Organization roles', path: 'roles' },
+      { heading: 'Organization tax rates', path: 'tax-rates' },
+      { heading: 'Organization finance', path: 'finance' },
     ] as const;
 
     for (const operation of operations) {

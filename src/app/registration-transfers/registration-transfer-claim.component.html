@@ -10,26 +10,32 @@
   </header>
 
   @if (claimQuery.isPending()) {
-    <div class="grid min-h-48 place-items-center" aria-label="Loading transfer">
-      <mat-spinner diameter="40" />
+    <div class="grid min-h-48 place-items-center">
+      <mat-spinner diameter="40" aria-label="Loading transfer" />
     </div>
   } @else if (claimQuery.isError()) {
+    @let lookupError = lookupErrorCopy(claimQuery.error());
     <section
       class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-5"
       role="alert"
     >
-      <h2 class="title-medium">Transfer could not be opened</h2>
-      <p>
-        We could not open a transfer with this code. Check the complete code and
-        try again, or ask the sender for the current code.
-      </p>
-      <a
-        mat-stroked-button
-        class="justify-self-start"
-        routerLink="/registration-transfers"
-      >
-        Enter another code
-      </a>
+      <h2 class="title-medium">{{ lookupError.title }}</h2>
+      <p>{{ lookupError.body }}</p>
+      <div class="flex flex-wrap gap-2">
+        @if (lookupError.retryable) {
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="claimQuery.refetch()"
+            [disabled]="claimQuery.isFetching()"
+          >
+            {{ claimQuery.isFetching() ? "Trying again…" : "Try again" }}
+          </button>
+        }
+        <a mat-stroked-button routerLink="/registration-transfers">
+          Enter another code
+        </a>
+      </div>
     </section>
   } @else if (claimQuery.data(); as claim) {
     <section class="bg-surface-container-low grid gap-4 rounded-xl p-5">
@@ -48,17 +54,53 @@
           </p>
           <p class="body-large">{{ claim.registrationOption.title }}</p>
         </div>
-        <div>
-          <p class="label-medium text-on-surface-variant">
-            Your current registration price
-          </p>
-          <p class="body-large">
-            {{
-              claim.registrationOption.currentPrice / 100
-                | currency: claim.registrationOption.currency
-            }}
-          </p>
-        </div>
+        <dl class="grid gap-2">
+          <div class="grid grid-cols-[1fr_auto] gap-4">
+            <dt class="label-medium text-on-surface-variant">
+              Current base price
+            </dt>
+            <dd class="body-medium text-right">
+              {{
+                claim.registrationOption.basePrice / 100
+                  | currency: claim.registrationOption.currency
+              }}
+            </dd>
+          </div>
+          @if (
+            claim.registrationOption.appliedDiscountType === "esnCard" &&
+            claim.registrationOption.discountAmount !== null
+          ) {
+            <div class="grid grid-cols-[1fr_auto] gap-4">
+              <dt class="label-medium text-on-surface-variant">
+                Your current ESNcard discount
+              </dt>
+              <dd class="body-medium text-right">
+                −{{
+                  claim.registrationOption.discountAmount / 100
+                    | currency: claim.registrationOption.currency
+                }}
+              </dd>
+            </div>
+          }
+          <div
+            class="grid grid-cols-[1fr_auto] gap-4 border-t border-outline-variant pt-2"
+          >
+            <dt class="grid gap-1">
+              <span class="label-medium text-on-surface-variant">
+                Your current registration price
+              </span>
+              <span class="body-small text-on-surface-variant">
+                Includes the add-on units marked Included below.
+              </span>
+            </dt>
+            <dd class="body-large text-right">
+              {{
+                claim.registrationOption.currentPrice / 100
+                  | currency: claim.registrationOption.currency
+              }}
+            </dd>
+          </div>
+        </dl>
       </div>
       <div class="grid gap-3 border-t border-outline-variant pt-4">
         <div>
@@ -121,27 +163,30 @@
                 }
               </dt>
               <dd class="body-medium grid gap-2 sm:min-w-48 sm:text-right">
-                <span>
-                  {{ addOn.quantity }} total ·
-                  {{
-                    addOn.currentUnitPrice / 100
-                      | currency: claim.registrationOption.currency
-                  }}
-                  current unit price
-                </span>
+                <span>{{ addOn.quantity }} total</span>
                 <dl
                   class="body-small grid grid-cols-[1fr_auto] gap-x-3 gap-y-1"
                 >
                   @if (addOn.includedQuantity > 0) {
                     <div class="contents">
-                      <dt class="text-on-surface-variant">Included</dt>
+                      <dt class="text-on-surface-variant">
+                        Included in registration price
+                      </dt>
                       <dd>{{ addOn.includedQuantity }}</dd>
                     </div>
                   }
                   @if (addOn.purchasedQuantity > 0) {
                     <div class="contents">
-                      <dt class="text-on-surface-variant">Purchased</dt>
-                      <dd>{{ addOn.purchasedQuantity }}</dd>
+                      <dt class="text-on-surface-variant">
+                        Purchased at current unit price
+                      </dt>
+                      <dd>
+                        {{ addOn.purchasedQuantity }} ×
+                        {{
+                          addOn.currentUnitPrice / 100
+                            | currency: claim.registrationOption.currency
+                        }}
+                      </dd>
                     </div>
                   }
                   <div class="contents">
@@ -167,6 +212,21 @@
               <dd class="body-medium sm:text-right">None</dd>
             </div>
           }
+          <div
+            class="grid grid-cols-[1fr_auto] gap-4 border-t border-outline-variant pt-4"
+          >
+            <dt class="title-medium">Total due</dt>
+            <dd class="title-medium text-right">
+              @if (claim.recipientBundlePrice === 0) {
+                Free
+              } @else {
+                {{
+                  claim.recipientBundlePrice / 100
+                    | currency: claim.registrationOption.currency
+                }}
+              }
+            </dd>
+          </div>
         </dl>
       </div>
       <p class="body-small text-on-surface-variant">
@@ -183,7 +243,7 @@
         [class.bg-primary-container]="state.tone === 'success'"
         [class.text-on-primary-container]="state.tone === 'success'"
         [class.bg-surface-container-high]="state.tone === 'info'"
-        role="status"
+        [attr.role]="state.tone === 'error' ? 'alert' : 'status'"
       >
         <h2 class="title-medium">{{ state.title }}</h2>
         <p class="body-medium">{{ state.body }}</p>
@@ -213,7 +273,16 @@
     }
 
     @if (claim.status === "open") {
-      <form class="grid gap-6" (submit)="submitClaim($event)">
+      <form
+        class="grid gap-6"
+        [attr.aria-busy]="claimMutation.isPending() || null"
+        (submit)="submitClaim($event)"
+      >
+        <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          @if (claimMutation.isPending()) {
+            Claiming registration. Please wait.
+          }
+        </p>
         @if (claim.registrationOption.questions.length > 0) {
           <section
             class="grid gap-4"
@@ -245,6 +314,14 @@
                   @if (question.description) {
                     <mat-hint>{{ question.description }}</mat-hint>
                   }
+                  @if (
+                    answerField.answer().touched() &&
+                    answerField.answer().invalid()
+                  ) {
+                    @for (error of answerField.answer().errors(); track error) {
+                      <mat-error>{{ error.message }}</mat-error>
+                    }
+                  }
                 </mat-form-field>
               }
             }
@@ -254,10 +331,10 @@
         <section class="bg-surface-container-high grid gap-2 rounded-xl p-4">
           <h2 class="title-small">What happens next</h2>
           <p class="body-small text-on-surface-variant">
-            Free claims move the fixed bundle to you in one database
-            transaction. Paid claims open Stripe Checkout on this tenant's
-            connected account; the bundle stays with its current owner until
-            your payment succeeds.
+            Evorto checks the latest fixed bundle, total due, and any refund
+            before changing ownership. If payment is due, Stripe Checkout opens
+            and the bundle stays with its current owner until payment succeeds.
+            A free claim continues without a payment step.
           </p>
         </section>
 
@@ -281,33 +358,37 @@
         role="alert"
       >
         <h2 class="title-medium">Claim did not complete</h2>
-        <p>
-          {{
-            errorMessage(claimMutation.error(), "Registration transfer failed")
-          }}
-        </p>
+        <p>We could not complete the transfer. Nothing changed.</p>
         <p class="body-small">
-          No duplicate claim was created. Review the current details and retry
-          this same offer.
+          Refresh to check the transfer's current status before trying again.
         </p>
       </section>
     }
-    @if (retryMutation.isError() || unsafeCheckout()) {
+    @if (unsafeCheckout()) {
       <section
         class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
         role="alert"
       >
         <h2 class="title-medium">Checkout could not be opened</h2>
         <p>
-          {{
-            unsafeCheckout()
-              ? "The returned payment URL was not a valid Stripe Checkout URL."
-              : errorMessage(retryMutation.error(), "Checkout retry failed")
-          }}
+          The payment link could not be verified as Stripe Checkout. For your
+          security, nothing was opened.
         </p>
         <p class="body-small">
-          Your transfer remains in its persisted state. Refresh before trying
-          again.
+          Refresh to check the latest status before trying again.
+        </p>
+      </section>
+    } @else if (retryMutation.isError()) {
+      <section
+        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        role="alert"
+      >
+        <h2 class="title-medium">Checkout could not be reopened</h2>
+        <p>
+          We could not reopen Stripe Checkout. Your transfer has not changed.
+        </p>
+        <p class="body-small">
+          Select Continue payment again, or refresh to check the latest status.
         </p>
       </section>
     }

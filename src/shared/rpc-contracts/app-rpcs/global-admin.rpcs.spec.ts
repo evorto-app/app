@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GlobalAdminEmailOutboxKind,
   GlobalAdminEmailOutboxKinds,
+  GlobalAdminEmailOutboxRecord,
   GlobalAdminTenantCreateInput,
   GlobalAdminTenantUpdateError,
   GlobalAdminTenantUrlMigrationBlockedError,
@@ -32,6 +33,31 @@ describe('GlobalAdminEmailOutboxKind', () => {
     expect(() =>
       Schema.decodeUnknownSync(GlobalAdminEmailOutboxKind)('unknownKind'),
     ).toThrow();
+  });
+
+  it('requires the owning tenant timezone on operator records', () => {
+    expect(
+      Schema.decodeUnknownSync(GlobalAdminEmailOutboxRecord)({
+        attempts: 0,
+        createdAt: '2026-07-15T14:30:00.000Z',
+        exhaustedAt: null,
+        id: 'email-1',
+        kind: 'registrationConfirmed',
+        lastAttemptAt: null,
+        lastError: null,
+        maxAttempts: 8,
+        nextAttemptAt: '2026-07-15T14:30:00.000Z',
+        recipient: 'member@example.org',
+        sentAt: null,
+        status: 'queued',
+        subject: 'Registration confirmed',
+        tenantDomain: 'section.example.org',
+        tenantId: 'tenant-1',
+        tenantName: 'Section',
+        tenantTimezone: 'Australia/Brisbane',
+        updatedAt: '2026-07-15T14:30:00.000Z',
+      }),
+    ).toMatchObject({ tenantTimezone: 'Australia/Brisbane' });
   });
 });
 
@@ -103,10 +129,11 @@ describe('GlobalAdminTenantUrlMigrationBlockedError', () => {
   it('preserves typed active-link blockers across the global-admin RPC boundary', () => {
     const error = new GlobalAdminTenantUrlMigrationBlockedError({
       activeRegistrationTransfers: true,
-      message: 'Tenant public URL cannot change while issued links are active',
+      message:
+        'Organization public URL cannot change while issued links are active',
       pendingStripeObligations: false,
       reason:
-        'Complete or cancel every active registration transfer before changing the tenant public URL.',
+        "Complete or cancel every active registration transfer before changing the organization's public URL.",
       tenantId: 'tenant-1',
     });
 

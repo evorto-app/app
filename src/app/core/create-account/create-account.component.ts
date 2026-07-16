@@ -38,13 +38,17 @@ import {
   createAccountPayloadFromModel,
   createAccountSubmitDisabled,
   isAuthEmailVerifiedForAccountCreation,
+  isTenantOnboardingRequirementsChangedError,
+  mergeCreateAccountModelWithChangedRequirements,
 } from './create-account.helpers';
 
 const onboardingAnswerSchema = schema<{ questionId: string; value: string }>(
   (answer) => {
     required(answer.questionId);
-    required(answer.value);
-    maxLength(answer.value, 250);
+    required(answer.value, { message: 'Answer this required question.' });
+    maxLength(answer.value, 250, {
+      message: 'Use 250 characters or fewer.',
+    });
   },
 );
 
@@ -111,8 +115,12 @@ export class CreateAccountComponent {
           },
     );
     applyEach(formPath.answers, onboardingAnswerSchema);
-    required(formPath.communicationEmail);
-    pattern(formPath.communicationEmail, notificationEmailPattern);
+    required(formPath.communicationEmail, {
+      message: 'Enter the email address where you receive notifications.',
+    });
+    pattern(formPath.communicationEmail, notificationEmailPattern, {
+      message: 'Enter a valid email address.',
+    });
     required(formPath.firstName);
     required(formPath.lastName);
     required(formPath.policyVersionId);
@@ -131,6 +139,7 @@ export class CreateAccountComponent {
     this.operations.onboardingRequirements(),
   );
   private readonly queryClient = inject(QueryClient);
+  private requirementsInitialized = false;
   private readonly router = inject(Router);
 
   constructor() {
@@ -148,10 +157,15 @@ export class CreateAccountComponent {
         this.router.navigate(['/profile']);
         return;
       }
-      if (this.accountForm().touched()) return;
       this.accountModel.update((current) =>
-        createAccountModelFromRequirements(current, requirements),
+        this.requirementsInitialized
+          ? mergeCreateAccountModelWithChangedRequirements(
+              current,
+              requirements,
+            )
+          : createAccountModelFromRequirements(current, requirements),
       );
+      this.requirementsInitialized = true;
     });
   }
 
@@ -182,15 +196,8 @@ export class CreateAccountComponent {
         this.router.navigate(['/profile']);
       } catch (error) {
         this.accountError.set(createAccountErrorMessage(error));
-        const refreshedRequirements =
+        if (isTenantOnboardingRequirementsChangedError(error)) {
           await this.onboardingRequirementsQuery.refetch();
-        if (refreshedRequirements.data) {
-          this.accountModel.update((current) =>
-            createAccountModelFromRequirements(
-              current,
-              refreshedRequirements.data,
-            ),
-          );
         }
       }
     });

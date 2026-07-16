@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Release registrations after an unbound Checkout expires

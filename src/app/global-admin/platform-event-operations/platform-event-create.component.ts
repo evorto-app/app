@@ -1,10 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  effect,
   inject,
   Injectable,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import {
   form,
@@ -12,6 +14,7 @@ import {
   maxLength,
   required,
   submit,
+  validate,
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -25,9 +28,13 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
+import {
+  platformEventInstantToLocalDateTime,
+  platformEventLocalDateTimeRangeHasValidOrder,
+  platformEventLocalDateTimeToInstant,
+} from './platform-event-date-time';
 
 interface PlatformEventCreateFormModel {
   creatorUserId: string;
@@ -39,20 +46,27 @@ interface PlatformEventCreateFormModel {
   title: string;
 }
 
-const localDateTimeValue = (date: Date): string => {
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-};
+const emptyCreateModel = (): PlatformEventCreateFormModel => ({
+  creatorUserId: '',
+  description: '',
+  end: '',
+  reason: '',
+  start: '',
+  templateId: '',
+  title: '',
+});
 
-const initialCreateModel = (): PlatformEventCreateFormModel => {
+const initialCreateModel = (
+  timezone: Parameters<typeof platformEventInstantToLocalDateTime>[1],
+): PlatformEventCreateFormModel => {
   const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
   return {
     creatorUserId: '',
     description: '',
-    end: localDateTimeValue(end),
+    end: platformEventInstantToLocalDateTime(end, timezone),
     reason: '',
-    start: localDateTimeValue(start),
+    start: platformEventInstantToLocalDateTime(start, timezone),
     templateId: '',
     title: '',
   };
@@ -94,12 +108,16 @@ export class PlatformEventCreateOperations {
 export class PlatformEventCreateComponent {
   readonly tenantId = input.required<string>();
 
-  private readonly createModel = signal(initialCreateModel());
+  private readonly operations = inject(PlatformEventCreateOperations);
+  protected readonly optionsQuery = injectQuery(() =>
+    this.operations.formOptions(this.tenantId()),
+  );
+  private readonly createModel = signal(emptyCreateModel());
   protected readonly createForm = form(this.createModel, (event) => {
     required(event.creatorUserId, {
-      message: 'Select a target-tenant member.',
+      message: 'Select an organization member.',
     });
-    required(event.templateId, { message: 'Select a target-tenant template.' });
+    required(event.templateId, { message: 'Select an organization template.' });
     required(event.title, { message: 'Enter an event title.' });
     maxLength(event.title, 200, {
       message: 'Title must be 200 characters or fewer.',
@@ -107,33 +125,69 @@ export class PlatformEventCreateComponent {
     required(event.description, { message: 'Enter an event description.' });
     required(event.start, { message: 'Enter a start date and time.' });
     required(event.end, { message: 'Enter an end date and time.' });
+    validate(event.end, ({ value, valueOf }) => {
+      if (!this.optionsQuery.isSuccess()) return;
+      return platformEventLocalDateTimeRangeHasValidOrder(
+        valueOf(event.start),
+        value(),
+        this.optionsQuery.data().timezone,
+      ) === false
+        ? {
+            kind: 'dateOrder',
+            message: 'The event must end after it starts.',
+          }
+        : undefined;
+    });
     required(event.reason, { message: 'Enter an operational reason.' });
     maxLength(event.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
   });
-  private readonly operations = inject(PlatformEventCreateOperations);
   protected readonly createMutation = injectMutation(() =>
     this.operations.create(),
   );
-  protected readonly optionsQuery = injectQuery(() =>
-    this.operations.formOptions(this.tenantId()),
-  );
+  private readonly initializedTenantId = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 
+  constructor() {
+    effect(() => {
+      if (!this.optionsQuery.isSuccess()) return;
+      const tenantId = this.tenantId();
+      if (this.initializedTenantId() === tenantId) return;
+      const timezone = this.optionsQuery.data().timezone;
+
+      untracked(() => {
+        this.createModel.set(initialCreateModel(timezone));
+        this.createForm().reset();
+        this.initializedTenantId.set(tenantId);
+      });
+    });
+  }
+
   protected save(event: Event): void {
     event.preventDefault();
-    if (this.createMutation.isPending()) return;
+    if (this.createMutation.isPending() || !this.optionsQuery.isSuccess()) {
+      return;
+    }
+    const timezone = this.optionsQuery.data().timezone;
 
     void submit(this.createForm, async () => {
       const value = this.createModel();
+      const end = platformEventLocalDateTimeToInstant(value.end, timezone);
+      const start = platformEventLocalDateTimeToInstant(value.start, timezone);
+      if (!end || !start) {
+        this.notifications.showError(
+          "Enter valid event times in the organization's time zone, including daylight-saving transitions.",
+        );
+        return;
+      }
       try {
         const created = await this.createMutation.mutateAsync({
           ...value,
-          end: new Date(value.end).toISOString(),
-          start: new Date(value.start).toISOString(),
+          end,
+          start,
           targetTenantId: this.tenantId(),
         });
         await this.queryClient.invalidateQueries(this.operations.listFilter());
@@ -144,9 +198,9 @@ export class PlatformEventCreateComponent {
           'events',
           created.id,
         ]);
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to create event'),
+          'The event could not be created. Review the details and try again.',
         );
       }
     });

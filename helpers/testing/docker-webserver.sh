@@ -5,14 +5,79 @@ compose_pid=''
 cleanup_started='false'
 readonly compose_project_name="${COMPOSE_PROJECT_NAME:-}"
 readonly teardown_attempts=2
+readonly teardown_attempt_timeout_seconds=90
+readonly verification_command_timeout_seconds=10
+readonly timeout_termination_grace_seconds=2
+readonly compose_supervisor_exit_attempts=50
+wall_clock_timeout_script="$(
+  cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
+)/run-with-wall-clock-timeout.ts"
+readonly wall_clock_timeout_script
+
+ensure_disposable_project() {
+  local db_container_id
+  local inspect_status
+  local project_status
+
+  db_container_id="$(docker compose ps --all -q db)"
+  project_status="$?"
+  if [[ "${project_status}" -ne 0 ]]; then
+    printf 'Unable to inspect the existing Docker Compose project (status %s).\n' \
+      "${project_status}" >&2
+    return "${project_status}"
+  fi
+  db_container_id="${db_container_id//[[:space:]]/}"
+  if [[ -z "${db_container_id}" ]]; then
+    return 0
+  fi
+
+  local container_environment
+  container_environment="$(
+    docker inspect \
+      --format '{{range .Config.Env}}{{println .}}{{end}}' \
+      "${db_container_id}"
+  )"
+  inspect_status="$?"
+  if [[ "${inspect_status}" -ne 0 ]]; then
+    printf 'Unable to inspect the existing Docker database container (status %s).\n' \
+      "${inspect_status}" >&2
+    return "${inspect_status}"
+  fi
+
+  local container_branch_id
+  local container_delete_branch
+  container_branch_id="$(
+    printf '%s\n' "${container_environment}" | sed -n 's/^BRANCH_ID=//p'
+  )"
+  container_branch_id="${container_branch_id//[[:space:]]/}"
+  container_delete_branch="$(
+    printf '%s\n' "${container_environment}" |
+      sed -n 's/^DELETE_BRANCH=//p' |
+      tr '[:upper:]' '[:lower:]' |
+      tr -d '[:space:]'
+  )"
+
+  if [[ -n "${container_branch_id}" || "${container_delete_branch:-true}" == 'false' ]]; then
+    printf '%s\n' \
+      'Refusing disposable Playwright ownership of an existing persistent Docker stack. Resume it with bun run docker:resume, or intentionally reset it with bun run docker:start.' \
+      >&2
+    return 3
+  fi
+
+  return 0
+}
 
 verify_project_removed() {
   local project_filter="label=com.docker.compose.project=${compose_project_name}"
   local remaining_containers
   local remaining_networks
+  local remaining_volumes
 
   remaining_containers="$(
-    docker ps --all --quiet --filter "${project_filter}"
+    bun "${wall_clock_timeout_script}" \
+      "${verification_command_timeout_seconds}" \
+      "${timeout_termination_grace_seconds}" \
+      docker ps --all --quiet --filter "${project_filter}"
   )"
   local container_status="$?"
   if [[ "${container_status}" -ne 0 ]]; then
@@ -22,7 +87,10 @@ verify_project_removed() {
   fi
 
   remaining_networks="$(
-    docker network ls --quiet --filter "${project_filter}"
+    bun "${wall_clock_timeout_script}" \
+      "${verification_command_timeout_seconds}" \
+      "${timeout_termination_grace_seconds}" \
+      docker network ls --quiet --filter "${project_filter}"
   )"
   local network_status="$?"
   if [[ "${network_status}" -ne 0 ]]; then
@@ -31,8 +99,21 @@ verify_project_removed() {
     return "${network_status}"
   fi
 
-  if [[ -n "${remaining_containers}" || -n "${remaining_networks}" ]]; then
-    printf 'Docker Compose teardown left project containers or networks behind.\n' >&2
+  remaining_volumes="$(
+    bun "${wall_clock_timeout_script}" \
+      "${verification_command_timeout_seconds}" \
+      "${timeout_termination_grace_seconds}" \
+      docker volume ls --quiet --filter "${project_filter}"
+  )"
+  local volume_status="$?"
+  if [[ "${volume_status}" -ne 0 ]]; then
+    printf 'Unable to verify Docker Compose volume cleanup (status %s).\n' \
+      "${volume_status}" >&2
+    return "${volume_status}"
+  fi
+
+  if [[ -n "${remaining_containers}" || -n "${remaining_networks}" || -n "${remaining_volumes}" ]]; then
+    printf 'Docker Compose teardown left project containers, networks, or volumes behind.\n' >&2
     return 1
   fi
 
@@ -45,7 +126,10 @@ teardown_compose_project() {
   local teardown_status=1
 
   for ((attempt = 1; attempt <= teardown_attempts; attempt += 1)); do
-    docker compose down --timeout 60 --remove-orphans
+    bun "${wall_clock_timeout_script}" \
+      "${teardown_attempt_timeout_seconds}" \
+      "${timeout_termination_grace_seconds}" \
+      docker compose down --timeout 60 --remove-orphans --volumes
     down_status="$?"
     if [[ "${down_status}" -ne 0 ]]; then
       teardown_status="${down_status}"
@@ -69,6 +153,46 @@ teardown_compose_project() {
   return "${teardown_status}"
 }
 
+terminate_compose_process() {
+  local pid="${compose_pid}"
+
+  compose_pid=''
+  if [[ -z "${pid}" ]]; then
+    return 0
+  fi
+
+  if kill -0 "${pid}" 2>/dev/null; then
+    kill -TERM "${pid}" 2>/dev/null
+
+    local attempt
+    for ((attempt = 1; attempt <= compose_supervisor_exit_attempts; attempt += 1)); do
+      if ! kill -0 "${pid}" 2>/dev/null; then
+        break
+      fi
+      sleep 0.1
+    done
+
+    if kill -0 "${pid}" 2>/dev/null; then
+      kill -KILL "${pid}" 2>/dev/null
+    fi
+  fi
+
+  wait "${pid}" 2>/dev/null
+  return 0
+}
+
+run_compose_command() {
+  bun "${wall_clock_timeout_script}" \
+    0 \
+    "${timeout_termination_grace_seconds}" \
+    docker compose "$@" &
+  compose_pid="$!"
+  wait "${compose_pid}"
+  local command_status="$?"
+  compose_pid=''
+  return "${command_status}"
+}
+
 cleanup() {
   local requested_status="${1:-0}"
 
@@ -79,13 +203,9 @@ cleanup() {
   trap - EXIT HUP INT TERM
 
   set +e
+  terminate_compose_process
   teardown_compose_project
   local teardown_status="$?"
-
-  if [[ -n "${compose_pid}" ]] && kill -0 "${compose_pid}" 2>/dev/null; then
-    kill -TERM "${compose_pid}" 2>/dev/null
-    wait "${compose_pid}" 2>/dev/null
-  fi
 
   if [[ "${teardown_status}" -ne 0 ]]; then
     exit "${teardown_status}"
@@ -106,14 +226,25 @@ if [[ -z "${compose_project_name}" ]]; then
   exit 2
 fi
 
+ensure_disposable_project
+ownership_status="$?"
+if [[ "${ownership_status}" -ne 0 ]]; then
+  exit "${ownership_status}"
+fi
+
+export E2E_RUNTIME_MODE=playwright
+
 trap 'cleanup "$?"' EXIT
 trap 'handle_signal HUP' HUP
 trap 'handle_signal INT' INT
 trap 'handle_signal TERM' TERM
 
-docker compose up --build &
-compose_pid="$!"
-wait "${compose_pid}"
+run_compose_command build
+build_status="$?"
+if [[ "${build_status}" -ne 0 ]]; then
+  exit "${build_status}"
+fi
+
+run_compose_command up --no-build --abort-on-container-failure
 up_status="$?"
-compose_pid=''
 exit "${up_status}"

@@ -51,7 +51,14 @@ For large multi-phase changes, keep an assembly branch plus one child branch per
 We use Knope for release notes.
 
 - Always add a change file in `.changeset/*.md` for release-relevant work.
+- Target the single package as `default` in change-file frontmatter, followed by
+  the appropriate `patch`, `minor`, or `major` change type.
 - Do not rely on conventional commits or PR titles as release documentation.
+- Knope Bot prepares the version, changelog, and GitHub draft in the
+  `knope/release` pull request. After that pull request merges, the release
+  workflow publishes only the exact draft whose tag points to the merged commit
+  and only after production provider certification passes. Do not manually
+  publish the draft or run a second release command around this gate.
 
 ## Development server
 
@@ -95,7 +102,7 @@ unfiltered commands below against the commit that will be pushed:
 
 ```bash
 bun install --frozen-lockfile
-knope --validate
+bun run release:validate
 bun run format:write
 bun run format:check
 bun run lint
@@ -138,23 +145,19 @@ zero-failure, zero-skip, zero-todo, zero-fixme,
 zero-expected-failure, zero-retry/flake, zero-interruption, and zero-focused-test
 rule before CI is attempted.
 
-The **Production Provider Certification** workflow repeats both provider runs
-behind the protected `esncard-release-certification` GitHub environment. The
-baseline E2E secret set and certification environment supply a test-mode
-`STRIPE_TEST_API_KEY`, which is mapped to the application's `STRIPE_API_KEY`
-name only inside test steps. Production Stripe credentials remain separate and
-must be exposed only to the operational command that requires them.
+The **Production Provider Certification** workflow is configured to repeat both
+provider runs behind the `esncard-release-certification` GitHub environment once
+that environment is provisioned and protected. The baseline E2E secret set and
+certification environment supply a test-mode `STRIPE_TEST_API_KEY`, which is
+mapped to the application's `STRIPE_API_KEY` name only inside test steps.
+Production Stripe credentials remain separate and must be exposed only to the
+operational command that requires them.
 
-The account-scoped Stripe tax-rate rollout requires
-`bun run db:backfill-stripe-tax-rate-accounts` after the nullable schema
-expansion and before releasing application versions that require account-owned
-rates. That command performs a Stripe Connect-verified metadata refresh and
-installs temporary fail-closed database rollout guards; it never infers
-ownership from the tenant row alone. Any unresolved ownership, provider,
-account-change, or guard-installation error blocks the rollout. Deployment
-automation for this prerequisite is handled separately. See
-[STRIPE_TAX_RATE_ACCOUNT_ROLLOUT.md](STRIPE_TAX_RATE_ACCOUNT_ROLLOUT.md) for the
-operator recovery and later contract-cleanup procedure.
+Stripe tax-rate metadata always belongs to a non-null connected account. The
+fresh target schema enforces that shape directly, while server writers share the
+tenant-row serialization lock with account rotation. Legacy tax rates must be
+provider-verified and written with their account ownership by the separate data
+transfer; there is no nullable-row rollout or production backfill command.
 
 The final Playwright runs must exercise the exact checkout being pushed. Stop
 an unknown reused server and let the gate own a fresh stack, or start the exact

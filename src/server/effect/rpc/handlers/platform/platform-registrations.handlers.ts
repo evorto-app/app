@@ -1,5 +1,7 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
+import { registrationSpotCount } from '@shared/registration-spots';
+import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -11,20 +13,38 @@ import {
   type PlatformRegistrationsCancelInput,
   type PlatformRegistrationsCheckInInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import { and, asc, desc, eq, exists, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventInstances,
+  eventRegistrationAddonPurchaseLots,
+  eventRegistrationAddonPurchases,
   eventRegistrationOptions,
   eventRegistrations,
+  registrationAcquisitionComponents,
+  registrationAcquisitionPayments,
+  registrationAcquisitionRefundAllocations,
+  registrationAcquisitions,
+  registrationTransfers,
   tenants,
   transactions,
   users,
 } from '../../../../../db/schema';
 import { getServerNow } from '../../../../clock';
 import { serverClockConfig } from '../../../../config/server-config';
+import { allocateAcquisitionComponentQuantity } from '../../../../registrations/registration-acquisition-refund';
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
   RegistrationTransferMutationConflict,
@@ -346,6 +366,488 @@ const normalizeRegistrationListRecord = (
   status: registration.status,
 });
 
+export const platformRegistrationActiveTransferPredicate = (input: {
+  readonly registrationId: string;
+  readonly tenantId: string;
+}) =>
+  and(
+    eq(registrationTransfers.tenantId, input.tenantId),
+    or(
+      and(
+        eq(registrationTransfers.sourceRegistrationId, input.registrationId),
+        inArray(registrationTransfers.status, [
+          ...activeRegistrationTransferStatuses,
+        ]),
+      ),
+      and(
+        eq(registrationTransfers.recipientRegistrationId, input.registrationId),
+        eq(registrationTransfers.status, 'checkout_pending'),
+      ),
+    ),
+  );
+
+export const platformRegistrationCancellationBlockedReason = (input: {
+  readonly activeTransfer: boolean;
+  readonly checkInTime: Date | null;
+  readonly eventStart: Date;
+  readonly now: Date;
+  readonly pendingAddonPayment: boolean;
+  readonly pendingStripePayment: null | {
+    readonly stripeAccountId: null | string;
+    readonly stripeCheckoutSessionId: null | string;
+  };
+  readonly refundBlockedReason: null | string;
+  readonly status: PlatformRegistrationDetailRecord['status'];
+}): null | string => {
+  if (input.status === 'CANCELLED') {
+    return 'Registration is already cancelled.';
+  }
+  if (input.checkInTime) return 'Checked-in registrations cannot be cancelled.';
+  if (input.eventStart <= input.now) return 'The event has already started.';
+  if (input.activeTransfer) {
+    return 'Resolve the active registration transfer before cancelling this registration.';
+  }
+  if (input.pendingStripePayment?.stripeCheckoutSessionId === null) {
+    return 'Payment setup is still being reconciled. Resume approval before cancelling.';
+  }
+  if (
+    input.pendingStripePayment &&
+    !input.pendingStripePayment.stripeAccountId
+  ) {
+    return 'The pending payment is missing its Stripe account and cannot be cancelled safely.';
+  }
+  if (input.pendingAddonPayment) {
+    return 'An add-on payment is still in progress. Finish or let that checkout expire before cancelling.';
+  }
+  return input.refundBlockedReason;
+};
+
+type CancellationRefundPreview =
+  PlatformRegistrationDetailRecord['cancellation']['refund'];
+
+interface PlatformRegistrationCancellationRefundPreview {
+  readonly blockedReason: null | string;
+  readonly refund: CancellationRefundPreview;
+}
+type RefundPreviewAcquisition = Pick<
+  typeof registrationAcquisitions.$inferSelect,
+  'eventId' | 'ownerUserId' | 'spotCount'
+>;
+type RefundPreviewAllocation = Pick<
+  typeof registrationAcquisitionRefundAllocations.$inferSelect,
+  'componentId' | 'quantity'
+>;
+type RefundPreviewComponent = Pick<
+  typeof registrationAcquisitionComponents.$inferSelect,
+  | 'acquisitionPaymentId'
+  | 'applicationFeeAmount'
+  | 'currency'
+  | 'grossAmount'
+  | 'id'
+  | 'kind'
+  | 'netAmount'
+  | 'purchaseId'
+  | 'purchaseLotId'
+  | 'quantity'
+  | 'stripeFeeAmount'
+>;
+type RefundPreviewLot = Pick<
+  typeof eventRegistrationAddonPurchaseLots.$inferSelect,
+  'cancelledQuantity' | 'id' | 'purchaseId' | 'quantity' | 'redeemedQuantity'
+>;
+type RefundPreviewPayment = Pick<
+  typeof registrationAcquisitionPayments.$inferSelect,
+  'id' | 'transactionId'
+>;
+type RefundPreviewPurchase = Pick<
+  typeof eventRegistrationAddonPurchases.$inferSelect,
+  | 'cancelledQuantity'
+  | 'id'
+  | 'includedQuantity'
+  | 'purchasedQuantity'
+  | 'redeemedQuantity'
+>;
+
+type RefundPreviewTransaction = Pick<
+  typeof transactions.$inferSelect,
+  | 'amount'
+  | 'appFee'
+  | 'currency'
+  | 'eventId'
+  | 'id'
+  | 'method'
+  | 'status'
+  | 'stripeAccountId'
+  | 'stripeChargeId'
+  | 'stripeFee'
+  | 'stripeNetAmount'
+  | 'stripePaymentIntentId'
+  | 'targetUserId'
+  | 'type'
+>;
+
+const refundPreviewUnavailable = (
+  refundFeesOnCancellation: boolean,
+): PlatformRegistrationCancellationRefundPreview => ({
+  blockedReason:
+    "The current attendee's refundable payment could not be verified. Reconcile the registration payment before cancelling.",
+  refund: {
+    amount: null,
+    feesIncluded: refundFeesOnCancellation,
+    method: null,
+    required: false,
+  },
+});
+
+const refundPreviewNotRequired = (
+  refundFeesOnCancellation: boolean,
+): PlatformRegistrationCancellationRefundPreview => ({
+  blockedReason: null,
+  refund: {
+    amount: null,
+    feesIncluded: refundFeesOnCancellation,
+    method: null,
+    required: false,
+  },
+});
+
+/**
+ * Mirrors the monetary part of cancellation without mutating fulfillment.
+ * Historical transactions are intentionally accepted as input, but only
+ * sources owned by the current acquisition epoch can contribute a refund.
+ */
+export const platformRegistrationCancellationRefundPreview = (input: {
+  readonly acquisition: RefundPreviewAcquisition;
+  readonly allocations: readonly RefundPreviewAllocation[];
+  readonly components: readonly RefundPreviewComponent[];
+  readonly eventId: string;
+  readonly expectedSpotCount: number;
+  readonly lots: readonly RefundPreviewLot[];
+  readonly ownerUserId: string;
+  readonly payments: readonly RefundPreviewPayment[];
+  readonly purchases: readonly RefundPreviewPurchase[];
+  readonly refundFeesOnCancellation: boolean;
+  readonly transactions: readonly RefundPreviewTransaction[];
+}): PlatformRegistrationCancellationRefundPreview => {
+  const noRefund = refundPreviewNotRequired(input.refundFeesOnCancellation);
+  if (
+    input.acquisition.ownerUserId !== input.ownerUserId ||
+    input.acquisition.eventId !== input.eventId ||
+    input.acquisition.spotCount !== input.expectedSpotCount
+  ) {
+    return refundPreviewUnavailable(input.refundFeesOnCancellation);
+  }
+
+  const purchaseById = new Map(
+    input.purchases.map((purchase) => [purchase.id, purchase]),
+  );
+  if (
+    input.lots.some((lot) => !purchaseById.has(lot.purchaseId)) ||
+    input.purchases.some((purchase) => {
+      const lots = input.lots.filter(
+        ({ purchaseId }) => purchaseId === purchase.id,
+      );
+      const lotQuantity = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+      const purchasedConsumed = lots.reduce(
+        (sum, lot) => sum + lot.redeemedQuantity + lot.cancelledQuantity,
+        0,
+      );
+      const includedConsumed =
+        purchase.redeemedQuantity +
+        purchase.cancelledQuantity -
+        purchasedConsumed;
+      return (
+        lotQuantity !== purchase.purchasedQuantity ||
+        includedConsumed < 0 ||
+        includedConsumed > purchase.includedQuantity
+      );
+    })
+  ) {
+    return refundPreviewUnavailable(input.refundFeesOnCancellation);
+  }
+
+  const registrationComponents = input.components.filter(
+    ({ kind }) => kind === 'registration',
+  );
+  const addonComponents = input.components.filter(
+    ({ kind }) => kind === 'addon_lot',
+  );
+  const lotById = new Map(input.lots.map((lot) => [lot.id, lot]));
+  if (
+    registrationComponents.length !== 1 ||
+    registrationComponents[0]?.quantity !== input.expectedSpotCount ||
+    addonComponents.length !== input.lots.length ||
+    addonComponents.some((component) => {
+      const lot = component.purchaseLotId
+        ? lotById.get(component.purchaseLotId)
+        : undefined;
+      return (
+        !lot ||
+        component.purchaseId !== lot.purchaseId ||
+        component.quantity !== lot.quantity
+      );
+    })
+  ) {
+    return refundPreviewUnavailable(input.refundFeesOnCancellation);
+  }
+
+  const transactionById = new Map(
+    input.transactions.map((transaction) => [transaction.id, transaction]),
+  );
+  const paymentIds = new Set(input.payments.map(({ id }) => id));
+  if (
+    paymentIds.size !== input.payments.length ||
+    input.payments.some((payment) => {
+      const source = transactionById.get(payment.transactionId);
+      const components = input.components.filter(
+        ({ acquisitionPaymentId }) => acquisitionPaymentId === payment.id,
+      );
+      return (
+        !source ||
+        components.length === 0 ||
+        source.amount <= 0 ||
+        source.appFee === null ||
+        source.eventId !== input.eventId ||
+        source.method !== 'stripe' ||
+        source.status !== 'successful' ||
+        !source.stripeAccountId ||
+        (!source.stripeChargeId && !source.stripePaymentIntentId) ||
+        source.stripeFee === null ||
+        source.stripeNetAmount === null ||
+        source.targetUserId !== input.ownerUserId ||
+        (source.type !== 'registration' && source.type !== 'addon') ||
+        components.some(({ currency }) => currency !== source.currency) ||
+        components.reduce(
+          (sum, component) => sum + component.grossAmount,
+          0,
+        ) !== source.amount ||
+        components.reduce(
+          (sum, component) => sum + component.applicationFeeAmount,
+          0,
+        ) !== source.appFee ||
+        components.reduce(
+          (sum, component) => sum + component.stripeFeeAmount,
+          0,
+        ) !== source.stripeFee ||
+        components.reduce((sum, component) => sum + component.netAmount, 0) !==
+          source.stripeNetAmount
+      );
+    })
+  ) {
+    return refundPreviewUnavailable(input.refundFeesOnCancellation);
+  }
+
+  const allocatedQuantityByComponent = new Map<string, number>();
+  for (const allocation of input.allocations) {
+    allocatedQuantityByComponent.set(
+      allocation.componentId,
+      (allocatedQuantityByComponent.get(allocation.componentId) ?? 0) +
+        allocation.quantity,
+    );
+  }
+
+  let refundAmount = 0;
+  for (const component of input.components) {
+    const paymentId = component.acquisitionPaymentId;
+    const amountsAreValid =
+      Number.isSafeInteger(component.grossAmount) &&
+      component.grossAmount >= 0 &&
+      component.netAmount >= 0 &&
+      component.stripeFeeAmount >= 0 &&
+      component.applicationFeeAmount >= 0 &&
+      component.netAmount +
+        component.stripeFeeAmount +
+        component.applicationFeeAmount ===
+        component.grossAmount;
+    if (
+      !amountsAreValid ||
+      (component.grossAmount > 0
+        ? !paymentId || !paymentIds.has(paymentId)
+        : paymentId !== null)
+    ) {
+      return refundPreviewUnavailable(input.refundFeesOnCancellation);
+    }
+    if (component.grossAmount === 0) continue;
+    if (!paymentId) {
+      return refundPreviewUnavailable(input.refundFeesOnCancellation);
+    }
+    let alreadyAllocatedQuantity = 0;
+    let quantity = component.quantity;
+    if (component.kind === 'registration') {
+      if ((allocatedQuantityByComponent.get(component.id) ?? 0) !== 0) {
+        return refundPreviewUnavailable(input.refundFeesOnCancellation);
+      }
+    } else {
+      const lot = component.purchaseLotId
+        ? lotById.get(component.purchaseLotId)
+        : undefined;
+      if (!lot) {
+        return refundPreviewUnavailable(input.refundFeesOnCancellation);
+      }
+      alreadyAllocatedQuantity = lot.cancelledQuantity + lot.redeemedQuantity;
+      quantity = Math.max(0, lot.quantity - alreadyAllocatedQuantity);
+      if (
+        (allocatedQuantityByComponent.get(component.id) ?? 0) >
+        lot.cancelledQuantity
+      ) {
+        return refundPreviewUnavailable(input.refundFeesOnCancellation);
+      }
+    }
+    if (quantity === 0) continue;
+    const amounts = allocateAcquisitionComponentQuantity({
+      alreadyAllocatedQuantity,
+      component,
+      quantity,
+    });
+    if (!amounts) {
+      return refundPreviewUnavailable(input.refundFeesOnCancellation);
+    }
+    refundAmount += input.refundFeesOnCancellation
+      ? amounts.grossAmount
+      : amounts.netAmount;
+  }
+
+  return refundAmount > 0
+    ? {
+        blockedReason: null,
+        refund: {
+          amount: refundAmount,
+          feesIncluded: input.refundFeesOnCancellation,
+          method: 'stripe',
+          required: true,
+        },
+      }
+    : noRefund;
+};
+
+const loadPlatformRegistrationCancellationRefundPreview = Effect.fn(
+  'PlatformRegistrations.loadCancellationRefundPreview',
+)(function* (
+  database: DatabaseReader,
+  input: {
+    readonly eventId: string;
+    readonly guestCount: number;
+    readonly ownerUserId: string;
+    readonly refundFeesOnCancellation: boolean;
+    readonly registrationId: string;
+    readonly status: PlatformRegistrationDetailRecord['status'];
+    readonly targetTenantId: string;
+    readonly transactions: readonly RefundPreviewTransaction[];
+  },
+) {
+  if (input.status !== 'CONFIRMED') {
+    return refundPreviewNotRequired(input.refundFeesOnCancellation);
+  }
+  const acquisitions = yield* database
+    .select()
+    .from(registrationAcquisitions)
+    .where(
+      and(
+        eq(registrationAcquisitions.tenantId, input.targetTenantId),
+        eq(registrationAcquisitions.registrationId, input.registrationId),
+      ),
+    )
+    .orderBy(desc(registrationAcquisitions.ordinal))
+    .limit(1)
+    .pipe(Effect.orDie);
+  const acquisition = acquisitions[0] ?? null;
+  if (!acquisition) {
+    return refundPreviewUnavailable(input.refundFeesOnCancellation);
+  }
+
+  const payments = yield* database
+    .select()
+    .from(registrationAcquisitionPayments)
+    .where(
+      and(
+        eq(registrationAcquisitionPayments.acquisitionId, acquisition.id),
+        eq(registrationAcquisitionPayments.tenantId, input.targetTenantId),
+        eq(
+          registrationAcquisitionPayments.registrationId,
+          input.registrationId,
+        ),
+      ),
+    )
+    .pipe(Effect.orDie);
+  const components = yield* database
+    .select()
+    .from(registrationAcquisitionComponents)
+    .where(
+      and(
+        eq(registrationAcquisitionComponents.acquisitionId, acquisition.id),
+        eq(registrationAcquisitionComponents.tenantId, input.targetTenantId),
+        eq(
+          registrationAcquisitionComponents.registrationId,
+          input.registrationId,
+        ),
+      ),
+    )
+    .pipe(Effect.orDie);
+  const lots = yield* database
+    .select()
+    .from(eventRegistrationAddonPurchaseLots)
+    .where(
+      and(
+        eq(eventRegistrationAddonPurchaseLots.tenantId, input.targetTenantId),
+        eq(
+          eventRegistrationAddonPurchaseLots.registrationId,
+          input.registrationId,
+        ),
+      ),
+    )
+    .pipe(Effect.orDie);
+  const purchases = yield* database
+    .select()
+    .from(eventRegistrationAddonPurchases)
+    .where(
+      and(
+        eq(eventRegistrationAddonPurchases.tenantId, input.targetTenantId),
+        eq(
+          eventRegistrationAddonPurchases.registrationId,
+          input.registrationId,
+        ),
+        eq(eventRegistrationAddonPurchases.eventId, input.eventId),
+      ),
+    )
+    .pipe(Effect.orDie);
+  const allocations = yield* database
+    .select({
+      componentId: registrationAcquisitionRefundAllocations.componentId,
+      quantity: registrationAcquisitionRefundAllocations.quantity,
+    })
+    .from(registrationAcquisitionRefundAllocations)
+    .where(
+      and(
+        eq(
+          registrationAcquisitionRefundAllocations.acquisitionId,
+          acquisition.id,
+        ),
+        eq(
+          registrationAcquisitionRefundAllocations.tenantId,
+          input.targetTenantId,
+        ),
+        eq(
+          registrationAcquisitionRefundAllocations.registrationId,
+          input.registrationId,
+        ),
+      ),
+    )
+    .pipe(Effect.orDie);
+  return platformRegistrationCancellationRefundPreview({
+    acquisition,
+    allocations,
+    components,
+    eventId: input.eventId,
+    expectedSpotCount: registrationSpotCount(input.guestCount),
+    lots,
+    ownerUserId: input.ownerUserId,
+    payments,
+    purchases,
+    refundFeesOnCancellation: input.refundFeesOnCancellation,
+    transactions: input.transactions,
+  });
+});
+
 export const loadPlatformRegistrationDetail = Effect.fn(
   'PlatformRegistrations.loadPlatformRegistrationDetail',
 )(function* (
@@ -373,6 +875,7 @@ export const loadPlatformRegistrationDetail = Effect.fn(
     .select({
       cancellationDeadlineHoursBeforeStart:
         tenants.cancellationDeadlineHoursBeforeStart,
+      currency: tenants.currency,
       refundFeesOnCancellation: tenants.refundFeesOnCancellation,
     })
     .from(tenants)
@@ -391,21 +894,42 @@ export const loadPlatformRegistrationDetail = Effect.fn(
   const registrationTransactions = yield* database
     .select({
       amount: transactions.amount,
+      appFee: transactions.appFee,
+      currency: transactions.currency,
+      eventId: transactions.eventId,
+      id: transactions.id,
       method: transactions.method,
       status: transactions.status,
       stripeAccountId: transactions.stripeAccountId,
+      stripeChargeId: transactions.stripeChargeId,
       stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
+      stripeFee: transactions.stripeFee,
       stripeNetAmount: transactions.stripeNetAmount,
+      stripePaymentIntentId: transactions.stripePaymentIntentId,
+      targetUserId: transactions.targetUserId,
+      type: transactions.type,
     })
     .from(transactions)
     .where(
       and(
         eq(transactions.tenantId, targetTenantId),
         eq(transactions.eventRegistrationId, registrationId),
-        eq(transactions.type, 'registration'),
+        inArray(transactions.type, ['addon', 'registration']),
       ),
     )
     .pipe(Effect.orDie);
+  const activeTransfers = yield* database
+    .select({ id: registrationTransfers.id })
+    .from(registrationTransfers)
+    .where(
+      platformRegistrationActiveTransferPredicate({
+        registrationId,
+        tenantId: targetTenantId,
+      }),
+    )
+    .limit(1)
+    .pipe(Effect.orDie);
+  const activeTransfer = activeTransfers.length > 0;
   const remainingGuestCount = Math.max(
     0,
     registration.guestCount - registration.checkedInGuestCount,
@@ -428,34 +952,44 @@ export const loadPlatformRegistrationDetail = Effect.fn(
   const refundFeesOnCancellation =
     registration.refundFeesOnCancellation ??
     tenantPolicy.refundFeesOnCancellation;
-  const successfulPaidTransaction = registrationTransactions.find(
-    (transaction) =>
-      transaction.status === 'successful' && transaction.amount > 0,
-  );
+  const refundPreview =
+    yield* loadPlatformRegistrationCancellationRefundPreview(database, {
+      eventId: registration.eventId,
+      guestCount: registration.guestCount,
+      ownerUserId: registration.attendeeId,
+      refundFeesOnCancellation,
+      registrationId,
+      status: registration.status,
+      targetTenantId,
+      transactions: registrationTransactions,
+    });
   const pendingPayment = registrationTransactions.find(
-    (transaction) => transaction.status === 'pending',
+    (transaction) =>
+      transaction.status === 'pending' && transaction.type === 'registration',
   );
   const pendingStripePayment = registrationTransactions.find(
     (transaction) =>
-      transaction.status === 'pending' && transaction.method === 'stripe',
+      transaction.status === 'pending' &&
+      transaction.method === 'stripe' &&
+      transaction.type === 'registration',
   );
-  const refundAmount = successfulPaidTransaction
-    ? successfulPaidTransaction.method === 'stripe' && !refundFeesOnCancellation
-      ? successfulPaidTransaction.stripeNetAmount
-      : successfulPaidTransaction.amount
-    : null;
+  const pendingAddonPayment = registrationTransactions.find(
+    (transaction) =>
+      transaction.status === 'pending' &&
+      transaction.method === 'stripe' &&
+      transaction.type === 'addon',
+  );
   const cancellationBlockedReason =
-    registration.status === 'CANCELLED'
-      ? 'Registration is already cancelled.'
-      : registration.checkInTime
-        ? 'Checked-in registrations cannot be cancelled.'
-        : registration.eventStart <= now
-          ? 'The event has already started.'
-          : pendingStripePayment?.stripeCheckoutSessionId === null
-            ? 'Payment setup is still being reconciled. Resume approval before cancelling.'
-            : pendingStripePayment && !pendingStripePayment.stripeAccountId
-              ? 'The pending payment is missing its Stripe account and cannot be cancelled safely.'
-              : null;
+    platformRegistrationCancellationBlockedReason({
+      activeTransfer,
+      checkInTime: registration.checkInTime,
+      eventStart: registration.eventStart,
+      now,
+      pendingAddonPayment: pendingAddonPayment !== undefined,
+      pendingStripePayment: pendingStripePayment ?? null,
+      refundBlockedReason: refundPreview.blockedReason,
+      status: registration.status,
+    });
 
   return {
     ...normalizeRegistrationListRecord(registration),
@@ -467,15 +1001,11 @@ export const loadPlatformRegistrationDetail = Effect.fn(
       blockedReason: cancellationBlockedReason,
       deadline: cancellationDeadline.toISOString(),
       deadlinePassed: cancellationDeadlinePassed,
-      refund: {
-        amount: refundAmount,
-        feesIncluded: refundFeesOnCancellation,
-        method: successfulPaidTransaction?.method ?? null,
-        required: successfulPaidTransaction !== undefined,
-      },
+      refund: refundPreview.refund,
     },
     checkedInGuestCount: registration.checkedInGuestCount,
     checkInTimingIssue,
+    currency: tenantPolicy.currency,
     guestCount: registration.guestCount,
     manualApprovalAvailable:
       registration.status === 'PENDING' &&

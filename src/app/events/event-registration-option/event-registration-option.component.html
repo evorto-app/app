@@ -57,25 +57,46 @@
       <div class="border-outline-variant flex flex-col gap-3 border-t pt-3">
         <p class="label-medium text-on-surface-variant">Add-ons</p>
         @for (addOn of addOns(); track addOn.id) {
+          @let includedQuantity = addonIncludedQuantity(addOn);
+          @let maxQuantity = addonMaxQuantity(addOn);
+          @let soldOut = addonSoldOut(addOn);
           <div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
             <div>
               <p class="body-medium text-on-surface">{{ addOn.title }}</p>
               <p class="body-small text-on-surface-variant">
-                @if (addonIncludedQuantity(addOn) > 0) {
-                  {{ addonIncludedQuantity(addOn) }} included ·
+                @if (includedQuantity > 0) {
+                  {{ includedQuantity }} included
                 }
-                Up to {{ addonMaxQuantity(addOn) }} optional
+                @if (includedQuantity > 0 && (maxQuantity > 0 || soldOut)) {
+                  ·
+                }
+                @if (maxQuantity > 0) {
+                  Up to {{ maxQuantity }} optional
+                } @else if (soldOut) {
+                  {{ addonSoldOutLabel(includedQuantity) }}
+                }
               </p>
               @if (addOn.isPaid) {
-                <app-price-with-tax
-                  [amount]="addOn.price"
-                  [taxRate]="addonTaxRate(addOn)"
-                />
+                @if (maxQuantity > 0) {
+                  <div class="flex flex-wrap items-baseline gap-x-1">
+                    <app-price-with-tax
+                      [amount]="addOn.price"
+                      [taxRate]="addonTaxRate(addOn)"
+                    />
+                    <span class="body-small text-on-surface-variant">
+                      per extra item
+                    </span>
+                  </div>
+                } @else if (includedQuantity > 0) {
+                  <p class="body-small text-on-surface-variant">
+                    Included in registration price
+                  </p>
+                }
               } @else {
                 <p class="body-small text-on-surface-variant">Free</p>
               }
             </div>
-            @if (addonMaxQuantity(addOn) > 0) {
+            @if (maxQuantity > 0) {
               <mat-form-field appearance="outline" class="w-32">
                 <mat-label>Quantity</mat-label>
                 <input
@@ -84,8 +105,9 @@
                   min="0"
                   step="1"
                   inputmode="numeric"
+                  [attr.aria-label]="'Quantity for ' + addOn.title"
                   [disabled]="!controlsInteractive()"
-                  [max]="addonMaxQuantity(addOn)"
+                  [max]="maxQuantity"
                   [value]="addonQuantity(addOn.id)"
                   (input)="updateAddonQuantity(addOn, $event)"
                 />

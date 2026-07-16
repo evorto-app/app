@@ -3,108 +3,190 @@
 <section class="mb-6 border-l-4 border-primary pl-4">
   <h2 class="title-small">Explicit owner attribution</h2>
   <p class="body-medium text-on-surface-variant mt-1">
-    The selected member becomes the event owner. You remain the platform audit
-    actor and do not receive a tenant-user session.
+    The selected member becomes the event owner. The change history records you
+    as the administrator who created it; you are not added as an organization
+    member.
   </p>
 </section>
 
 @if (optionsQuery.isPending()) {
-  <p role="status">Loading target-tenant members and templates...</p>
+  <p role="status">Loading organization members and templates...</p>
 } @else if (optionsQuery.isError()) {
-  <section class="bg-error-container text-on-error-container p-4" role="alert">
-    Creation options could not be loaded.
+  <section
+    class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
+    role="alert"
+  >
+    <p>
+      Organization members and templates could not be loaded. No event has been
+      created.
+    </p>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="optionsQuery.isFetching()"
+      (click)="optionsQuery.refetch()"
+    >
+      {{ optionsQuery.isFetching() ? "Retrying..." : "Try again" }}
+    </button>
   </section>
 } @else if (optionsQuery.isSuccess()) {
-  <form class="grid max-w-3xl gap-4" (submit)="save($event)">
-    <div class="grid gap-4 sm:grid-cols-2">
-      <mat-form-field>
-        <mat-label>Event owner</mat-label>
-        <mat-select [formField]="createForm.creatorUserId">
-          @for (creator of optionsQuery.data().creators; track creator.id) {
-            <mat-option [value]="creator.id">
-              {{ creator.firstName }} {{ creator.lastName }} ·
-              {{ creator.email }}
-            </mat-option>
+  @if (optionsQuery.data().creators.length === 0) {
+    <section class="border-outline-variant mb-5 grid gap-3 border-l-2 pl-4">
+      <div>
+        <h2 class="title-small">Add an active event owner</h2>
+        <p class="body-medium text-on-surface-variant mt-1">
+          An event needs an active organization member as its owner. Add or
+          reactivate a member, then return here to create the event.
+        </p>
+      </div>
+      <div>
+        <a
+          mat-stroked-button
+          [routerLink]="['/global-admin/tenants', tenantId(), 'users']"
+        >
+          Manage organization members
+        </a>
+      </div>
+    </section>
+  }
+  @if (optionsQuery.data().templates.length === 0) {
+    <section class="border-outline-variant mb-5 grid gap-3 border-l-2 pl-4">
+      <div>
+        <h2 class="title-small">Create an event template</h2>
+        <p class="body-medium text-on-surface-variant mt-1">
+          Every event starts from a template. Create one for this organization,
+          then return here to create the event.
+        </p>
+      </div>
+      <div>
+        <a
+          mat-stroked-button
+          [routerLink]="[
+            '/global-admin/tenants',
+            tenantId(),
+            'templates',
+            'new',
+          ]"
+        >
+          Create event template
+        </a>
+      </div>
+    </section>
+  }
+  @if (
+    optionsQuery.data().creators.length > 0 &&
+    optionsQuery.data().templates.length > 0
+  ) {
+    <form class="grid max-w-3xl gap-4" (submit)="save($event)">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <mat-form-field>
+          <mat-label>Event owner</mat-label>
+          <mat-select [formField]="createForm.creatorUserId">
+            @for (creator of optionsQuery.data().creators; track creator.id) {
+              <mat-option [value]="creator.id">
+                {{ creator.firstName }} {{ creator.lastName }} ·
+                {{ creator.email }}
+              </mat-option>
+            }
+          </mat-select>
+          @for (error of createForm.creatorUserId().errors(); track error) {
+            <mat-error>{{ error.message }}</mat-error>
           }
-        </mat-select>
-        @for (error of createForm.creatorUserId().errors(); track error) {
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Source template</mat-label>
+          <mat-select [formField]="createForm.templateId">
+            @for (
+              template of optionsQuery.data().templates;
+              track template.id
+            ) {
+              <mat-option [value]="template.id">{{
+                template.title
+              }}</mat-option>
+            }
+          </mat-select>
+          @for (error of createForm.templateId().errors(); track error) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <mat-form-field>
+        <mat-label>Event title</mat-label>
+        <input matInput [formField]="createForm.title" />
+        @for (error of createForm.title().errors(); track error) {
           <mat-error>{{ error.message }}</mat-error>
         }
       </mat-form-field>
 
       <mat-form-field>
-        <mat-label>Source template</mat-label>
-        <mat-select [formField]="createForm.templateId">
-          @for (template of optionsQuery.data().templates; track template.id) {
-            <mat-option [value]="template.id">{{ template.title }}</mat-option>
-          }
-        </mat-select>
-        @for (error of createForm.templateId().errors(); track error) {
+        <mat-label>Description</mat-label>
+        <textarea
+          matInput
+          rows="5"
+          [formField]="createForm.description"
+        ></textarea>
+        <mat-hint
+          >The source template supplies icon, location, registration options,
+          add-ons, and questions.</mat-hint
+        >
+        @for (error of createForm.description().errors(); track error) {
           <mat-error>{{ error.message }}</mat-error>
         }
       </mat-form-field>
-    </div>
 
-    <mat-form-field>
-      <mat-label>Event title</mat-label>
-      <input matInput [formField]="createForm.title" />
-      @for (error of createForm.title().errors(); track error) {
-        <mat-error>{{ error.message }}</mat-error>
-      }
-    </mat-form-field>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <mat-form-field>
+          <mat-label>Start</mat-label>
+          <input
+            matInput
+            type="datetime-local"
+            [formField]="createForm.start"
+          />
+          <mat-hint>
+            Organization time zone: {{ optionsQuery.data().timezone }}
+          </mat-hint>
+          @for (error of createForm.start().errors(); track error) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>End</mat-label>
+          <input matInput type="datetime-local" [formField]="createForm.end" />
+          <mat-hint>
+            Organization time zone: {{ optionsQuery.data().timezone }}
+          </mat-hint>
+          @for (error of createForm.end().errors(); track error) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+      </div>
 
-    <mat-form-field>
-      <mat-label>Description</mat-label>
-      <textarea
-        matInput
-        rows="5"
-        [formField]="createForm.description"
-      ></textarea>
-      <mat-hint
-        >The source template supplies icon, location, registration options,
-        add-ons, and questions.</mat-hint
-      >
-      @for (error of createForm.description().errors(); track error) {
-        <mat-error>{{ error.message }}</mat-error>
-      }
-    </mat-form-field>
-
-    <div class="grid gap-4 sm:grid-cols-2">
       <mat-form-field>
-        <mat-label>Start</mat-label>
-        <input matInput type="datetime-local" [formField]="createForm.start" />
+        <mat-label>Operational reason</mat-label>
+        <textarea matInput rows="3" [formField]="createForm.reason"></textarea>
+        <mat-hint>Saved in the event's change history.</mat-hint>
+        @for (error of createForm.reason().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
       </mat-form-field>
-      <mat-form-field>
-        <mat-label>End</mat-label>
-        <input matInput type="datetime-local" [formField]="createForm.end" />
-      </mat-form-field>
-    </div>
 
-    <mat-form-field>
-      <mat-label>Operational reason</mat-label>
-      <textarea matInput rows="3" [formField]="createForm.reason"></textarea>
-      <mat-hint>
-        Stored with the application append-only platform audit entry.
-      </mat-hint>
-      @for (error of createForm.reason().errors(); track error) {
-        <mat-error>{{ error.message }}</mat-error>
-      }
-    </mat-form-field>
-
-    <div class="flex justify-end gap-2">
-      <a
-        mat-button
-        [routerLink]="['/global-admin/tenants', tenantId(), 'events']"
-      >
-        Cancel
-      </a>
-      <button
-        mat-flat-button
-        type="submit"
-        [disabled]="createForm().invalid() || createMutation.isPending()"
-      >
-        {{ createMutation.isPending() ? "Creating..." : "Create event" }}
-      </button>
-    </div>
-  </form>
+      <div class="flex justify-end gap-2">
+        <a
+          mat-button
+          [routerLink]="['/global-admin/tenants', tenantId(), 'events']"
+        >
+          Cancel
+        </a>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="createForm().invalid() || createMutation.isPending()"
+        >
+          {{ createMutation.isPending() ? "Creating..." : "Create event" }}
+        </button>
+      </div>
+    </form>
+  }
 }

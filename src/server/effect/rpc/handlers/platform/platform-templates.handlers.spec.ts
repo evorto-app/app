@@ -1,9 +1,13 @@
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
 import { describe, expect, it } from '@effect/vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { readFileSync } from 'node:fs';
 
-import { platformTemplateAuditSnapshot } from './platform-templates.handlers';
+import {
+  platformTemplateAuditSnapshot,
+  platformTemplateIconTenantScope,
+} from './platform-templates.handlers';
 
 const graphRecord: TemplateGraphRecord = {
   addOns: [
@@ -98,6 +102,15 @@ const graphRecord: TemplateGraphRecord = {
 };
 
 describe('platform template full-graph handler', () => {
+  it('scopes icon choices to the explicitly targeted organization', () => {
+    const query = new PgDialect().sqlToQuery(
+      platformTemplateIconTenantScope('tenant-target'),
+    );
+
+    expect(query.sql).toBe('"icons"."tenantId" = $1');
+    expect(query.params).toEqual(['tenant-target']);
+  });
+
   it('keeps create, update, and application audit writes in one transaction', () => {
     const source = readFileSync(
       new URL('platform-templates.handlers.ts', import.meta.url),

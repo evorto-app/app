@@ -50,9 +50,19 @@ import { emailOutboxStaleSendingPredicate } from '../../../notifications/email-o
 import { normalizeTenantPrivacyPolicy } from '../../../onboarding/tenant-onboarding.service';
 import {
   stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+  stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
   tenantHasPaidEventConfiguration,
+  tenantHasStripeTaxRateConfiguration,
 } from '../../../payments/paid-event-configuration';
 import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
+import {
+  applyStripeTaxRateAccountRotation,
+  fetchStripeTaxRateAccountRotationTargetRates,
+  planStripeTaxRateAccountRotation,
+  type StripeTaxRateAccountRotationPlan,
+  type StripeTaxRateAccountRotationTargetRate,
+} from '../../../payments/stripe-tax-rate-account-rotation';
+import { StripeClient } from '../../../stripe-client';
 import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
@@ -156,6 +166,7 @@ const toGlobalAdminPlatformAuditRecord = (entry: {
   id: string;
   reason: string;
   targetTenantId: string;
+  targetTenantName: null | string;
 }) =>
   Schema.decodeUnknownSync(GlobalAdminPlatformAuditRecord)({
     ...entry,
@@ -291,13 +302,13 @@ const tenantUrlMigrationBlockedReason = ({
   pendingStripeObligations: boolean;
 }): string => {
   if (activeRegistrationTransfers && pendingStripeObligations) {
-    return 'Complete or cancel every pending Stripe Checkout or refund and every active registration transfer before changing the tenant public URL.';
+    return "Complete or cancel every pending Stripe Checkout or refund and every active registration transfer before changing the organization's public URL.";
   }
   if (pendingStripeObligations) {
-    return 'Complete or cancel every pending Stripe Checkout or refund before changing the tenant public URL.';
+    return "Complete or cancel every pending Stripe Checkout or refund before changing the organization's public URL.";
   }
 
-  return 'Complete or cancel every active registration transfer before changing the tenant public URL.';
+  return "Complete or cancel every active registration transfer before changing the organization's public URL.";
 };
 
 export const globalAdminHandlers = {
@@ -363,6 +374,7 @@ export const globalAdminHandlers = {
               tenantDomain: tenants.domain,
               tenantId: emailOutbox.tenantId,
               tenantName: tenants.name,
+              tenantTimezone: tenants.timezone,
               updatedAt: emailOutbox.updatedAt,
             })
             .from(emailOutbox)
@@ -413,8 +425,13 @@ export const globalAdminHandlers = {
             id: platformAuditEntries.id,
             reason: platformAuditEntries.reason,
             targetTenantId: platformAuditEntries.targetTenantId,
+            targetTenantName: tenants.name,
           })
           .from(platformAuditEntries)
+          .leftJoin(
+            tenants,
+            eq(platformAuditEntries.targetTenantId, tenants.id),
+          )
           .orderBy(desc(platformAuditEntries.createdAt))
           .limit(100),
       );
@@ -446,7 +463,7 @@ export const globalAdminHandlers = {
       if (existingDomainTenant) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Tenant domain already exists',
+            message: 'Organization domain already exists',
             reason: tenantInput.domain,
           }),
         );
@@ -460,6 +477,8 @@ export const globalAdminHandlers = {
               .values({
                 ...tenantInput,
                 locale: TENANT_FORMATTING_LOCALE,
+                privacyPolicyText: initialPrivacyPolicy.privacyPolicyText,
+                privacyPolicyUrl: initialPrivacyPolicy.privacyPolicyUrl,
                 stripeAccountId: tenantInput.stripeAccountId ?? null,
               })
               .returning(globalAdminTenantReturningColumns);
@@ -551,7 +570,7 @@ export const globalAdminHandlers = {
       if (existingDomainTenant && existingDomainTenant.id !== id) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Tenant domain already exists',
+            message: 'Organization domain already exists',
             reason: tenantInput.domain,
           }),
         );
@@ -559,7 +578,7 @@ export const globalAdminHandlers = {
 
       const targetTenant = yield* databaseEffect((database) =>
         database.query.tenants.findFirst({
-          columns: { id: true },
+          columns: { id: true, stripeAccountId: true },
           where: { id },
         }),
       );
@@ -567,6 +586,21 @@ export const globalAdminHandlers = {
         return yield* Effect.fail(
           new RpcBadRequestError({ message: 'Tenant not found' }),
         );
+      }
+      const nextStripeAccountId = tenantInput.stripeAccountId ?? null;
+      let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
+        [];
+      if (
+        targetTenant.stripeAccountId &&
+        nextStripeAccountId &&
+        targetTenant.stripeAccountId !== nextStripeAccountId
+      ) {
+        const stripe = yield* StripeClient;
+        stripeTaxRateRotationTargets =
+          yield* fetchStripeTaxRateAccountRotationTargetRates(
+            stripe,
+            nextStripeAccountId,
+          );
       }
 
       return yield* databaseEffectWithTenantUpdateError((database) =>
@@ -599,7 +633,7 @@ export const globalAdminHandlers = {
                 return yield* new GlobalAdminTenantUrlMigrationBlockedError({
                   activeRegistrationTransfers,
                   message:
-                    'Tenant public URL cannot change while issued links are active',
+                    'Organization public URL cannot change while issued links are active',
                   pendingStripeObligations,
                   reason: tenantUrlMigrationBlockedReason({
                     activeRegistrationTransfers,
@@ -610,7 +644,7 @@ export const globalAdminHandlers = {
               }
             }
 
-            const nextStripeAccountId = tenantInput.stripeAccountId ?? null;
+            let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
             if (beforeTenant.stripeAccountId !== nextStripeAccountId) {
               const hasPendingStripeObligations =
                 yield* tenantHasPendingStripeObligations(transaction, id);
@@ -623,12 +657,39 @@ export const globalAdminHandlers = {
                 });
               }
 
-              const hasPaidEventConfiguration =
-                yield* tenantHasPaidEventConfiguration(transaction, id);
-              if (hasPaidEventConfiguration) {
-                return yield* new RpcBadRequestError(
-                  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+              if (nextStripeAccountId === null) {
+                const hasPaidEventConfiguration =
+                  yield* tenantHasPaidEventConfiguration(transaction, id);
+                if (hasPaidEventConfiguration) {
+                  return yield* new RpcBadRequestError(
+                    stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+                  );
+                }
+                const hasStripeTaxRateConfiguration =
+                  yield* tenantHasStripeTaxRateConfiguration(transaction, id);
+                if (hasStripeTaxRateConfiguration) {
+                  return yield* new RpcBadRequestError(
+                    stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                  );
+                }
+              } else if (beforeTenant.stripeAccountId) {
+                rotationPlan = yield* planStripeTaxRateAccountRotation(
+                  transaction,
+                  {
+                    sourceStripeAccountId: beforeTenant.stripeAccountId,
+                    targetRates: stripeTaxRateRotationTargets,
+                    targetStripeAccountId: nextStripeAccountId,
+                    tenantId: id,
+                  },
                 );
+              } else {
+                const hasStripeTaxRateConfiguration =
+                  yield* tenantHasStripeTaxRateConfiguration(transaction, id);
+                if (hasStripeTaxRateConfiguration) {
+                  return yield* new RpcBadRequestError(
+                    stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                  );
+                }
               }
 
               yield* transaction
@@ -659,6 +720,14 @@ export const globalAdminHandlers = {
             if (!updatedTenant) {
               return yield* Effect.die(
                 new Error('Tenant update returned no rows'),
+              );
+            }
+            if (rotationPlan) {
+              // Source metadata was removed with the old account; restore
+              // only the provider-verified target-account matches.
+              yield* applyStripeTaxRateAccountRotation(
+                transaction,
+                rotationPlan,
               );
             }
 

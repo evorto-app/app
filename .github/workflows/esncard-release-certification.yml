@@ -15,6 +15,24 @@ on:
       CLIENT_SECRET:
         description: Auth0 application secret used by the certification stack
         required: true
+      E2E_ADMIN_USER_PASSWORD:
+        description: Rotated password for the admin Playwright account
+        required: true
+      E2E_DEFAULT_USER_PASSWORD:
+        description: Rotated password for the default Playwright account
+        required: true
+      E2E_EMPTY_USER_PASSWORD:
+        description: Rotated password for the no-permissions Playwright account
+        required: true
+      E2E_GLOBAL_ADMIN_USER_PASSWORD:
+        description: Rotated password for the global-admin Playwright account
+        required: true
+      E2E_ORGANIZER_USER_PASSWORD:
+        description: Rotated password for the organizer Playwright account
+        required: true
+      E2E_REGULAR_USER_PASSWORD:
+        description: Rotated password for the regular Playwright account
+        required: true
       E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER:
         description: Approved permanently expired non-production ESNcard identity
         required: true
@@ -49,8 +67,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-protected-ref:
+    name: Require protected main certification source
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Reject unprotected certification refs
+        env:
+          CERTIFICATION_REF: ${{ github.ref }}
+          CERTIFICATION_REF_PROTECTED: ${{ github.ref_protected }}
+        run: |
+          if [ "${CERTIFICATION_REF}" != "refs/heads/main" ]; then
+            echo "::error::Provider certification may run only from refs/heads/main"
+            exit 1
+          fi
+          if [ "${CERTIFICATION_REF_PROTECTED}" != "true" ]; then
+            echo "::error::Provider certification requires a protected main ref"
+            exit 1
+          fi
+
   certify:
     name: Required Auth0, Google Maps, and ESNcard certification
+    needs: validate-protected-ref
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: esncard-release-certification
@@ -62,6 +100,9 @@ jobs:
       COMPOSE_PROJECT_NAME: evorto-esncard-release
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       DELETE_BRANCH: true
+      E2E_NOW_ISO: "2026-09-15T12:00:00.000Z"
+      E2E_RUNTIME_MODE: playwright
+      E2E_SEED_KEY: evorto-e2e-default-v1
       ISSUER_BASE_URL: ${{ vars.ISSUER_BASE_URL }}
       NEON_DATABASE_NAME: appdb
       NEON_LOCAL_BRANCH_TTL_HOURS: 4
@@ -87,6 +128,12 @@ jobs:
           AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_ADMIN_USER_PASSWORD: ${{ secrets.E2E_ADMIN_USER_PASSWORD }}
+          E2E_DEFAULT_USER_PASSWORD: ${{ secrets.E2E_DEFAULT_USER_PASSWORD }}
+          E2E_EMPTY_USER_PASSWORD: ${{ secrets.E2E_EMPTY_USER_PASSWORD }}
+          E2E_GLOBAL_ADMIN_USER_PASSWORD: ${{ secrets.E2E_GLOBAL_ADMIN_USER_PASSWORD }}
+          E2E_ORGANIZER_USER_PASSWORD: ${{ secrets.E2E_ORGANIZER_USER_PASSWORD }}
+          E2E_REGULAR_USER_PASSWORD: ${{ secrets.E2E_REGULAR_USER_PASSWORD }}
           E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER }}
           E2E_LIVE_ESN_CARD_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_IDENTIFIER }}
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
@@ -96,7 +143,7 @@ jobs:
           SECRET: ${{ secrets.SECRET }}
           STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
         run: |
-          for variable_name in FONT_AWESOME_TOKEN NEON_API_KEY NEON_PROJECT_ID PARENT_BRANCH_ID CLIENT_ID CLIENT_SECRET AUTH0_MANAGEMENT_CLIENT_ID AUTH0_MANAGEMENT_CLIENT_SECRET ISSUER_BASE_URL PUBLIC_GOOGLE_MAPS_API_KEY E2E_LIVE_ESN_CARD_IDENTIFIER E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER SECRET STRIPE_TEST_API_KEY STRIPE_TEST_ACCOUNT_ID; do
+          for variable_name in FONT_AWESOME_TOKEN NEON_API_KEY NEON_PROJECT_ID PARENT_BRANCH_ID CLIENT_ID CLIENT_SECRET AUTH0_MANAGEMENT_CLIENT_ID AUTH0_MANAGEMENT_CLIENT_SECRET E2E_ADMIN_USER_PASSWORD E2E_DEFAULT_USER_PASSWORD E2E_EMPTY_USER_PASSWORD E2E_GLOBAL_ADMIN_USER_PASSWORD E2E_ORGANIZER_USER_PASSWORD E2E_REGULAR_USER_PASSWORD ISSUER_BASE_URL PUBLIC_GOOGLE_MAPS_API_KEY E2E_LIVE_ESN_CARD_IDENTIFIER E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER SECRET STRIPE_TEST_API_KEY STRIPE_TEST_ACCOUNT_ID; do
             if [ -z "${!variable_name}" ]; then
               echo "::error::Missing required provider certification configuration: ${variable_name}"
               exit 1
@@ -109,6 +156,9 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -132,6 +182,12 @@ jobs:
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_ADMIN_USER_PASSWORD: ${{ secrets.E2E_ADMIN_USER_PASSWORD }}
+          E2E_DEFAULT_USER_PASSWORD: ${{ secrets.E2E_DEFAULT_USER_PASSWORD }}
+          E2E_EMPTY_USER_PASSWORD: ${{ secrets.E2E_EMPTY_USER_PASSWORD }}
+          E2E_GLOBAL_ADMIN_USER_PASSWORD: ${{ secrets.E2E_GLOBAL_ADMIN_USER_PASSWORD }}
+          E2E_ORGANIZER_USER_PASSWORD: ${{ secrets.E2E_ORGANIZER_USER_PASSWORD }}
+          E2E_REGULAR_USER_PASSWORD: ${{ secrets.E2E_REGULAR_USER_PASSWORD }}
           E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER }}
           E2E_LIVE_ESN_CARD_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_IDENTIFIER }}
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
@@ -217,7 +273,15 @@ jobs:
           AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_ADMIN_USER_PASSWORD: ${{ secrets.E2E_ADMIN_USER_PASSWORD }}
+          E2E_DEFAULT_USER_PASSWORD: ${{ secrets.E2E_DEFAULT_USER_PASSWORD }}
+          E2E_EMPTY_USER_PASSWORD: ${{ secrets.E2E_EMPTY_USER_PASSWORD }}
+          E2E_GLOBAL_ADMIN_USER_PASSWORD: ${{ secrets.E2E_GLOBAL_ADMIN_USER_PASSWORD }}
+          E2E_ORGANIZER_USER_PASSWORD: ${{ secrets.E2E_ORGANIZER_USER_PASSWORD }}
+          E2E_REGULAR_USER_PASSWORD: ${{ secrets.E2E_REGULAR_USER_PASSWORD }}
           E2E_SELECTED_PROJECTS: local-chrome-integration,docs-integration
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PLAYWRIGHT_SELECTED_PROJECTS: local-chrome-integration,docs-integration
           PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}
           SECRET: ${{ secrets.SECRET }}
@@ -228,13 +292,19 @@ jobs:
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_ADMIN_USER_PASSWORD: ${{ secrets.E2E_ADMIN_USER_PASSWORD }}
+          E2E_DEFAULT_USER_PASSWORD: ${{ secrets.E2E_DEFAULT_USER_PASSWORD }}
+          E2E_EMPTY_USER_PASSWORD: ${{ secrets.E2E_EMPTY_USER_PASSWORD }}
+          E2E_GLOBAL_ADMIN_USER_PASSWORD: ${{ secrets.E2E_GLOBAL_ADMIN_USER_PASSWORD }}
+          E2E_ORGANIZER_USER_PASSWORD: ${{ secrets.E2E_ORGANIZER_USER_PASSWORD }}
+          E2E_REGULAR_USER_PASSWORD: ${{ secrets.E2E_REGULAR_USER_PASSWORD }}
           E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER }}
           E2E_LIVE_ESN_CARD_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_IDENTIFIER }}
-          E2E_SELECTED_PROJECTS: local-chrome-live-esncard
+          E2E_SELECTED_PROJECTS: local-chrome-live-esncard,docs-live-esncard
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
-          PLAYWRIGHT_SELECTED_PROJECTS: local-chrome-live-esncard
+          PLAYWRIGHT_SELECTED_PROJECTS: local-chrome-live-esncard,docs-live-esncard
           SECRET: ${{ secrets.SECRET }}
           STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
         run: bun run test:e2e:live-esncard:release

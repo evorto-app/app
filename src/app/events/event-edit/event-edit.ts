@@ -36,7 +36,10 @@ import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
-import { resolveTenantRuntimeTimezone } from '../../core/tenant-runtime';
+import {
+  resolveTenantRuntimeTimezone,
+  tenantCurrencyCode,
+} from '../../core/tenant-runtime';
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
@@ -63,17 +66,23 @@ import {
 import { EventRegistrationOptionEditor } from './event-registration-option-editor';
 
 export const eventEditSubmitDisabled = ({
+  discountProvidersReady,
   formInvalid,
   formSubmitting,
   graphReadOnly,
   mutationPending,
 }: {
+  discountProvidersReady: boolean;
   formInvalid: boolean;
   formSubmitting: boolean;
   graphReadOnly: boolean;
   mutationPending: boolean;
 }): boolean =>
-  formInvalid || formSubmitting || graphReadOnly || mutationPending;
+  !discountProvidersReady ||
+  formInvalid ||
+  formSubmitting ||
+  graphReadOnly ||
+  mutationPending;
 
 export const eventOptionRemovalBlockReason = (
   model: Pick<EventGraphFormModel, 'addOns' | 'questions'>,
@@ -93,7 +102,7 @@ export const eventOptionRemovalBlockReason = (
       ),
     )
   ) {
-    return 'Remove this option from its add-on mappings first.';
+    return 'Remove this registration option from its add-ons first.';
   }
   return null;
 };
@@ -141,9 +150,18 @@ export class EventEdit {
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
-
+  protected readonly discountProvidersReady = computed(
+    () =>
+      this.discountProvidersQuery.isSuccess() &&
+      !this.discountProvidersQuery.isFetching(),
+  );
   protected readonly esnEnabled = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return false;
+    if (
+      !this.discountProvidersQuery.isSuccess() ||
+      this.discountProvidersQuery.isFetching()
+    ) {
+      return false;
+    }
     return this.discountProvidersQuery
       .data()
       .some(
@@ -151,6 +169,7 @@ export class EventEdit {
           provider.type === 'esnCard' && provider.status === 'enabled',
       );
   });
+
   protected readonly eventEditSubmitDisabled = eventEditSubmitDisabled;
   protected readonly stripeConnected = computed(() =>
     Boolean(this.config.tenantSignal()?.stripeAccountId),
@@ -185,6 +204,9 @@ export class EventEdit {
   protected readonly saveError = signal<null | string>(null);
   protected readonly simpleModeIssue = computed(() =>
     simpleEventGraphIssue(this.eventModel().registrationOptions),
+  );
+  protected readonly tenantCurrency = computed(() =>
+    tenantCurrencyCode(this.config),
   );
   protected readonly updateEventMutation = injectMutation(() =>
     this.rpc.events.updateGraph.mutationOptions(),
@@ -424,6 +446,7 @@ export class EventEdit {
     this.saveError.set(null);
     if (
       eventEditSubmitDisabled({
+        discountProvidersReady: this.discountProvidersReady(),
         formInvalid: this.eventForm().invalid(),
         formSubmitting: this.eventForm().submitting(),
         graphReadOnly: this.loadBlock() !== null,
@@ -434,6 +457,7 @@ export class EventEdit {
     }
 
     await submit(this.eventForm, async (formState) => {
+      if (!this.discountProvidersReady()) return;
       const formValue = this.paidControlsUnavailable()
         ? resetEventGraphPayments(formState().value())
         : formState().value();

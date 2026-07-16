@@ -1,4 +1,7 @@
-<app-platform-tenant-page-header title="Tenant users" [tenantId]="tenantId()" />
+<app-platform-tenant-page-header
+  title="Organization members"
+  [tenantId]="tenantId()"
+/>
 
 <mat-form-field class="mb-4 w-full max-w-xl">
   <mat-label>Search users</mat-label>
@@ -11,6 +14,30 @@
   />
 </mat-form-field>
 
+@if (rolesQuery.isPending()) {
+  <p class="body-small text-on-surface-variant mb-4" role="status">
+    Loading organization roles. Role assignment is unavailable until they load.
+  </p>
+} @else if (rolesQuery.isError()) {
+  <section
+    class="bg-error-container text-on-error-container mb-4 grid justify-items-start gap-3 p-4"
+    role="alert"
+  >
+    <p>
+      Organization roles could not be loaded. Role assignment is unavailable
+      until they load.
+    </p>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="rolesQuery.isFetching()"
+      (click)="rolesQuery.refetch()"
+    >
+      {{ rolesQuery.isFetching() ? "Retrying..." : "Try again" }}
+    </button>
+  </section>
+}
+
 @if (usersQuery.isPending()) {
   <p role="status" aria-live="polite" class="body-medium">Loading users...</p>
 } @else if (usersQuery.isError()) {
@@ -22,7 +49,7 @@
   </div>
 } @else if (usersQuery.isSuccess()) {
   <p class="body-small text-on-surface-variant mb-2">
-    {{ usersQuery.data().usersCount }} existing tenant users
+    {{ usersQuery.data().usersCount }} existing organization members
   </p>
   <div class="overflow-x-auto border-y border-outline-variant">
     <table mat-table [dataSource]="usersQuery.data().users">
@@ -53,7 +80,12 @@
           <span class="sr-only">Actions</span>
         </th>
         <td mat-cell *matCellDef="let user">
-          <button mat-button type="button" (click)="selectUser(user)">
+          <button
+            mat-button
+            type="button"
+            [disabled]="!rolesReady()"
+            (click)="selectUser(user)"
+          >
             Manage roles
           </button>
         </td>
@@ -64,7 +96,7 @@
   </div>
   <mat-paginator
     showFirstLastButtons
-    aria-label="Select page of tenant users"
+    aria-label="Select page of organization members"
     [length]="usersQuery.data().usersCount"
     [pageIndex]="pageIndex()"
     [pageSize]="pageSize()"
@@ -79,7 +111,7 @@
       Update {{ user.firstName }} {{ user.lastName }}
     </h2>
     <p class="body-small text-on-surface-variant mt-1">
-      Changes affect this tenant only. Removing every role is allowed.
+      Changes affect this organization only. Removing every role is allowed.
     </p>
     <mat-form-field class="mt-4 w-full">
       <mat-label>Assigned roles</mat-label>
@@ -98,9 +130,7 @@
         rows="3"
         [formField]="assignmentForm.reason"
       ></textarea>
-      <mat-hint>
-        Recorded in the application append-only platform audit.
-      </mat-hint>
+      <mat-hint>Saved in this member's change history.</mat-hint>
       @for (error of assignmentForm.reason().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
       }
@@ -113,7 +143,9 @@
         mat-flat-button
         type="submit"
         [disabled]="
-          assignmentForm().invalid() || assignRolesMutation.isPending()
+          assignmentForm().invalid() ||
+          !rolesReady() ||
+          assignRolesMutation.isPending()
         "
       >
         {{ assignRolesMutation.isPending() ? "Saving..." : "Save roles" }}

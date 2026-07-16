@@ -104,12 +104,14 @@ describe('production provider scope', () => {
     );
     expectLiveProviderTimeout(functionalJourney);
     expectLiveProviderTimeout(documentationJourney);
+    expect(documentationJourney).toContain(
+      'Google Maps location search must be available',
+    );
     for (const prerequisite of [
       'billing enabled',
       'Maps JavaScript API',
       'Places API (New)',
     ]) {
-      expect(documentationJourney).toContain(prerequisite);
       expect(source('tests/README.md')).toContain(prerequisite);
     }
     expect(

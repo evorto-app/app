@@ -1,0 +1,27 @@
+@if (!hidden()) {
+  <mat-form-field class="w-full">
+    <mat-label>{{ formattedLabel() }}</mat-label>
+    <input
+      matInput
+      inputmode="decimal"
+      type="number"
+      step="0.01"
+      [attr.aria-invalid]="showError()"
+      [attr.aria-label]="formattedLabel()"
+      [disabled]="disabled()"
+      [min]="minimumMajorUnits()"
+      [readonly]="readonly()"
+      [required]="required()"
+      [value]="majorUnitValue()"
+      (blur)="markTouched()"
+      (input)="updateValue($event)"
+    />
+    @if (showError()) {
+      <mat-hint class="text-error" role="alert">
+        {{ firstErrorMessage() }}
+      </mat-hint>
+    } @else if (hint()) {
+      <mat-hint>{{ hint() }}</mat-hint>
+    }
+  </mat-form-field>
+}

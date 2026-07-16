@@ -2,14 +2,22 @@ import { describe, expect, it } from '@effect/vitest';
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 
 import {
+  eventRegistrationQuestionOwnerUniqueConstraintName,
+  eventRegistrationQuestions,
+} from './event-registration-questions';
+import {
   activeRegistrationTransferSourceUniqueIndexName,
+  registrationTransferAnswerQuestionOwnerForeignKeyName,
   registrationTransferAnswers,
+  registrationTransferAnswerTransferOwnerForeignKeyName,
   registrationTransferBundleAddonPurchaseLots,
   registrationTransferBundleAddonPurchases,
   registrationTransferEvents,
   registrationTransferExpiryIndexName,
+  registrationTransferOwnerUniqueConstraintName,
   registrationTransferRefundPlanItems,
   registrationTransfers,
+  registrationTransferSourceRegistrationOwnerForeignKeyName,
 } from './registration-transfers';
 
 const expectCheckSql = ({
@@ -170,6 +178,11 @@ describe('registration transfer schema', () => {
       name: 'registration_transfers_id_tenant_unique',
       table: registrationTransfers,
     });
+    expectUniqueConstraint({
+      columns: ['id', 'event_id', 'registration_option_id', 'tenantId'],
+      name: registrationTransferOwnerUniqueConstraintName,
+      table: registrationTransfers,
+    });
     expectForeignKey({
       columns: ['compensation_refund_transaction_id', 'tenantId'],
       foreignColumns: ['id', 'tenantId'],
@@ -189,9 +202,14 @@ describe('registration transfer schema', () => {
       table: registrationTransfers,
     });
     expectForeignKey({
-      columns: ['source_registration_id', 'tenantId'],
-      foreignColumns: ['id', 'tenantId'],
-      name: 'registration_transfers_source_registration_tenant_fk',
+      columns: [
+        'source_registration_id',
+        'event_id',
+        'registration_option_id',
+        'tenantId',
+      ],
+      foreignColumns: ['id', 'eventId', 'registrationOptionId', 'tenantId'],
+      name: registrationTransferSourceRegistrationOwnerForeignKeyName,
       table: registrationTransfers,
     });
   });
@@ -225,8 +243,21 @@ describe('registration transfer schema', () => {
         'registration_transfer_bundle_fulfillment_bounds',
         'registration_transfer_bundle_grant_breakdown',
         'registration_transfer_bundle_price_nonnegative',
+        'registration_transfer_bundle_recipient_terms_shape',
         'registration_transfer_bundle_refund_bounds',
       ]),
+    );
+    const recipientTermsShape = tableConfig.checks.find(
+      (constraint) =>
+        constraint.name ===
+        'registration_transfer_bundle_recipient_terms_shape',
+    );
+    expect(recipientTermsShape).toBeDefined();
+    if (!recipientTermsShape) {
+      throw new Error('Expected recipient terms shape check constraint');
+    }
+    expect(new PgDialect().sqlToQuery(recipientTermsShape.value).sql).toContain(
+      '"registration_transfer_bundle_addon_purchases"."recipient_unit_price" IS NOT NULL AND "registration_transfer_bundle_addon_purchases"."recipient_unit_price" >= 0',
     );
     expectUniqueConstraint({
       columns: ['transfer_id', 'addon_id'],
@@ -364,20 +395,38 @@ describe('registration transfer schema', () => {
     expect(tableConfig.columns.map((column) => column.name)).toEqual(
       expect.arrayContaining([
         'answer',
+        'event_id',
         'question_id',
+        'registration_option_id',
         'tenant_id',
         'transfer_id',
       ]),
     );
+    expectUniqueConstraint({
+      columns: ['id', 'eventId', 'registrationOptionId'],
+      name: eventRegistrationQuestionOwnerUniqueConstraintName,
+      table: eventRegistrationQuestions,
+    });
     expectUniqueConstraint({
       columns: ['transfer_id', 'question_id'],
       name: 'registration_transfer_answers_question_unique',
       table: registrationTransferAnswers,
     });
     expectForeignKey({
-      columns: ['transfer_id', 'tenant_id'],
-      foreignColumns: ['id', 'tenantId'],
-      name: 'registration_transfer_answers_transfer_tenant_fk',
+      columns: ['question_id', 'event_id', 'registration_option_id'],
+      foreignColumns: ['id', 'eventId', 'registrationOptionId'],
+      name: registrationTransferAnswerQuestionOwnerForeignKeyName,
+      table: registrationTransferAnswers,
+    });
+    expectForeignKey({
+      columns: [
+        'transfer_id',
+        'event_id',
+        'registration_option_id',
+        'tenant_id',
+      ],
+      foreignColumns: ['id', 'event_id', 'registration_option_id', 'tenantId'],
+      name: registrationTransferAnswerTransferOwnerForeignKeyName,
       onDelete: 'cascade',
       table: registrationTransferAnswers,
     });

@@ -63,6 +63,18 @@ export const receiptApprovalDisabled = ({
   receiptPending: boolean;
 }): boolean => !evidenceAvailable || receiptReviewActionDisabled(reviewState);
 
+export const receiptRejectionDisabled = ({
+  rejectionReason,
+  ...reviewState
+}: {
+  formInvalid: boolean;
+  mutationPending: boolean;
+  receiptPending: boolean;
+  rejectionReason: string;
+}): boolean =>
+  rejectionReason.trim().length === 0 ||
+  receiptReviewActionDisabled(reviewState);
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -118,7 +130,7 @@ export class ReceiptApprovalDetailComponent {
   protected readonly receiptApprovalDisabled = receiptApprovalDisabled;
   protected readonly receiptEvidenceUnavailableNotice =
     receiptEvidenceUnavailableNotice;
-  protected readonly receiptReviewActionDisabled = receiptReviewActionDisabled;
+  protected readonly receiptRejectionDisabled = receiptRejectionDisabled;
   protected readonly receiptReviewNotificationNotice =
     receiptReviewNotificationNotice;
   protected readonly rejectionReason = signal('');
@@ -193,16 +205,22 @@ export class ReceiptApprovalDetailComponent {
     };
     const evidenceAvailable =
       this.receiptQuery.data()?.receiptEvidenceAvailable ?? false;
+    const rejectionReason = this.rejectionReason().trim();
     const actionDisabled =
       status === 'approved'
         ? receiptApprovalDisabled({ evidenceAvailable, ...reviewState })
-        : receiptReviewActionDisabled(reviewState);
+        : receiptRejectionDisabled({ rejectionReason, ...reviewState });
     if (actionDisabled) {
       if (formInvalid || this.receiptQuery.isPending()) {
         this.form.markAllAsTouched();
       }
       if (status === 'approved' && !evidenceAvailable) {
         this.notifications.showError(receiptEvidenceUnavailableNotice);
+      }
+      if (status === 'rejected' && rejectionReason.length === 0) {
+        this.notifications.showError(
+          'Enter the reason that will be shown to the submitter.',
+        );
       }
       return;
     }
@@ -243,8 +261,7 @@ export class ReceiptApprovalDetailComponent {
         id: receiptId,
         purchaseCountry: value.purchaseCountry,
         receiptDate: receiptDate.toISOString(),
-        rejectionReason:
-          status === 'rejected' ? this.rejectionReason().trim() || null : null,
+        rejectionReason: status === 'rejected' ? rejectionReason : null,
         status,
         taxAmount,
         totalAmount,

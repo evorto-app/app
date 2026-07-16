@@ -249,8 +249,7 @@
                         } @else {
                           <p class="body-small">
                             Your Stripe payment link is still being prepared.
-                            Retry this same purchase; no second order will be
-                            created.
+                            Trying again will not create a duplicate purchase.
                           </p>
                           <button
                             type="button"
@@ -265,8 +264,8 @@
                             {{
                               activePurchaseKey() ===
                               registration.id + ":" + addOn.addOnId
-                                ? "Retrying…"
-                                : "Retry same checkout"
+                                ? "Trying again…"
+                                : "Try again"
                             }}
                           </button>
                         }
@@ -388,12 +387,20 @@
         @let transferStatus =
           registrationActiveTransferStatusCopy(activeTransfer);
         <div
-          class="bg-surface-container-high text-on-surface grid gap-3 rounded-lg p-4 @md:col-span-2"
-          role="status"
+          class="grid gap-3 rounded-lg p-4 @md:col-span-2"
+          [class.bg-error-container]="transferStatus.tone === 'error'"
+          [class.text-on-error-container]="transferStatus.tone === 'error'"
+          [class.bg-surface-container-high]="transferStatus.tone !== 'error'"
+          [class.text-on-surface]="transferStatus.tone !== 'error'"
+          [attr.role]="transferStatus.tone === 'error' ? 'alert' : 'status'"
         >
           <div>
             <p class="title-small">{{ transferStatus.title }}</p>
-            <p class="body-small text-on-surface-variant mt-1">
+            <p
+              class="body-small mt-1"
+              [class.text-on-error-container]="transferStatus.tone === 'error'"
+              [class.text-on-surface-variant]="transferStatus.tone !== 'error'"
+            >
               {{ transferStatus.body }}
               @if (transferStatus.showExpiry) {
                 The private offer expires

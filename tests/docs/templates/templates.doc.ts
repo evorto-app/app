@@ -184,11 +184,8 @@ test('Manage templates', async ({
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
-{% callout type="note" title="User permissions" %}
-For this guide, we assume you have an account with all required permissions. These are:
-- **templates:create**: This permission is required to create a new template.
-- **templates:editAll**: This permission is required to edit templates.
-- **events:create**: This permission is required to create an event from the template.
+{% callout type="note" title="Before you begin" %}
+Use an account that can create and edit templates and create events.
 {% /callout %}
 Templates are the base for all events.
 They are used to save common settings for events and have to be created before you can create an event.
@@ -229,8 +226,8 @@ There are a few general settings that are required for templates:
 Simple mode is the default and splits registration settings in two.
 There are the settings for participants, and separately, those for organizers.
 Both have the same structure, but you can see that different roles are preselected.
-Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Advanced configuration supports any number of named options and reveals reusable add-ons with explicit option mappings. Every mode change asks for confirmation. To return to simple mode, first save the advanced graph with exactly one organizing and one non-organizing option; switching modes never silently replaces option IDs.
-Paid event registrations and add-ons use Stripe only. If the tenant has no connected Stripe account, keep every registration fee and add-on price at zero; there is no cash or manually settled paid-event fallback.
+Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Advanced configuration supports any number of named options and lets you choose which registration options can use each reusable add-on. Every mode change asks for confirmation. To return to simple mode, first save the advanced setup with exactly one organizing and one non-organizing option; switching modes never silently replaces saved options.
+Paid event registrations and add-ons use Stripe only. If the organization has no connected Stripe account, keep every registration fee and add-on price at zero; there is no cash or manually settled paid-event fallback.
 The registration consists of the following settings:
 - **Registration option name**: The reusable label copied into events created
   from this template.
@@ -239,7 +236,7 @@ The registration consists of the following settings:
   option.
 - **Payment required**: Is a payment required for this registration?
 - **Registration fee**: The registration fee for this registration. This field is only visible if the payment is required.
-- **ESNcard discounted price**: Optional discounted pricing for tenants with the ESNcard discount provider enabled. Leave it empty when this template registration should use the standard price only.
+- **ESNcard discounted price**: Optional discounted pricing for organizations with ESNcard discounts enabled. Leave it empty when this template registration should use the standard price only.
 - **Selected roles**: The roles that are selected for this registration. Users can only see and use the registration if they have one of the selected roles.
 - **Registration mode**: **First come, first served** confirms an eligible signup when capacity is available. **Manual approval** saves a pending application for an organizer to review; if the option is paid, payment starts only after approval and confirmation waits for successful payment.
 - **Registration start**: The offset in hours for when the registration should start. For example 168 hours means that the registration will start 7 days before the event starts.
@@ -257,7 +254,7 @@ The registration consists of the following settings:
   await testInfo.attach('markdown', {
     body: `
 In the migrated form, payment-specific fields are conditionally shown.
-When **Enable Payment** is on, the price and tax-rate fields appear for that registration block. Tenants with ESNcard discounts enabled also see the optional ESNcard discounted price field.
+When **Enable Payment** is on, the price and tax-rate fields appear for that registration block. Organizations with ESNcard discounts enabled also see the optional ESNcard price field.
 `,
   });
   const paymentToggle = page
@@ -269,11 +266,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
     .locator('app-template-registration-option-editor')
     .first();
   await expect(
-    organizerRegistrationForm
-      .locator('mat-form-field')
-      .filter({ hasText: 'Price (in cents)' })
-      .locator('input[type="number"]')
-      .first(),
+    organizerRegistrationForm.getByLabel(/^Price \([A-Z]{3}\)$/),
   ).toBeVisible();
   await expect(
     organizerRegistrationForm
@@ -371,7 +364,12 @@ When a template creates an event, those reusable add-ons are copied into the eve
       exact: true,
     }),
   ).toBeVisible();
-  await takeScreenshot(testInfo, addOnEditor, page, 'Reusable add-on mappings');
+  await takeScreenshot(
+    testInfo,
+    addOnEditor,
+    page,
+    'Registration options for reusable add-ons',
+  );
 
   await testInfo.attach('markdown', {
     body: `
@@ -550,11 +548,11 @@ You will be redirected to the detail page for that template.
   await testInfo.attach('markdown', {
     body: `
 ## Creating an event from a template
-Open the template detail page and click **Create event**. The event form starts with the template title, description, and registration options. On save, the server atomically snapshots the template-owned mode, questions, add-ons, and mappings into event-owned rows. Later template edits never rewrite that event snapshot.
+Open the template detail page and click **Create event**. The event form starts with the template title, description, and registration options. When you save, Evorto copies the template's registration setup, questions, and add-ons into the new event. Later template changes do not alter events already created from it.
 
-Dates use the fixed **de-DE** format. Enter times in the tenant's business timezone; Evorto preserves that meaning even when an organizer's browser is set to another timezone.
+Dates use the fixed **de-DE** format. Enter times in the organization's time zone; Evorto preserves that meaning even when an organizer's browser is set to another time zone.
 
-If **Event could not be created** appears, your entries remain in the form. Read the reason. For a temporary connection or server error, correct any affected field and click **Create event** again. If the reason says a registration option no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. If it mentions legacy random allocation, return to the template, change every option to **First come, first served** or **Manual approval**, save the template, and then start event creation again. A restarted form does not retain unsaved event entries. Do not assume the event exists until its detail page opens and shows the event title.
+If **Event could not be created** appears, your entries remain in the form. Read the reason. For a temporary connection error, correct any affected field and click **Create event** again. If the reason says a registration option no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. If it mentions random allocation, return to the template, change every option to **First come, first served** or **Manual approval**, save the template, and then start event creation again. A restarted form does not retain unsaved event entries. Do not assume the event exists until its detail page opens and shows the event title.
 `,
   });
   await page.getByRole('link', { name: 'Create event' }).click();
@@ -677,7 +675,7 @@ If **Event could not be created** appears, your entries remain in the form. Read
   await testInfo.attach('markdown', {
     body: `
 ## Template and event independence
-The event now owns its copied registration graph. Editing the source template changes future events only; the existing event keeps its option IDs, labels, add-on mappings, and quantities.
+The event now has its own copy of the registration setup. Editing the template changes future events only; the existing event keeps its saved options, labels, add-on availability, and quantities.
 `,
   });
   await page.goto(`/templates/${createdTemplate.id}/edit`);

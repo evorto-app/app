@@ -6,11 +6,11 @@
         class="bg-warning-container text-on-warning-container grid gap-3 rounded-xl p-4"
       >
         <div>
-          <h2 class="title-medium">You are browsing another tenant</h2>
+          <h2 class="title-medium">You are browsing another organization</h2>
           <p class="body-medium mt-1">
-            Your home tenant is
-            {{ profileUser()?.homeTenantName ?? "another tenant" }}. Joining
-            this tenant did not change that preference.
+            Your home organization is
+            {{ profileUser()?.homeTenantName ?? "another organization" }}.
+            Joining this organization did not change that preference.
           </p>
         </div>
         <button
@@ -23,7 +23,7 @@
           {{
             setHomeTenantMutation.isPending()
               ? "Changing..."
-              : "Make this my home tenant"
+              : "Make this my home organization"
           }}
         </button>
       </section>
@@ -432,7 +432,7 @@
             </div>
           } @else {
             <p class="text-on-surface-variant text-sm">
-              Discount cards are not enabled for this tenant.
+              Discount cards are not enabled for this organization.
             </p>
           }
         </div>
@@ -467,7 +467,7 @@
                     <span
                       class="rounded bg-surface px-2 py-1 text-xs uppercase"
                     >
-                      {{ profileReceiptStatusLabel(receipt.status) }}
+                      {{ receiptStatusLabel(receipt.status) }}
                     </span>
                   </div>
                   <p class="text-on-surface-variant text-sm">

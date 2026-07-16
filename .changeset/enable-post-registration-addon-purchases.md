@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Enable participant add-on purchases after registration

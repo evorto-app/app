@@ -6,7 +6,7 @@ export const unknownTenantDocument = `<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Tenant link not found | Evorto</title>
+    <title>Organization link not found | Evorto</title>
     <style>
       :root {
         color-scheme: light;
@@ -114,7 +114,7 @@ export const unknownTenantDocument = `<!doctype html>
   <body>
     <main>
       <p class="eyebrow">Evorto</p>
-      <h1>This link does not match an Evorto tenant</h1>
+      <h1>This link does not match an Evorto organization</h1>
       <p class="lead">
         Evorto could not find an organization for this web address. Your
         account and registrations have not been changed.
@@ -123,14 +123,14 @@ export const unknownTenantDocument = `<!doctype html>
       <h2>What to do</h2>
       <ol>
         <li>Open the complete link from your latest event email or invitation.</li>
-        <li>Check the address for a missing or misspelled tenant name.</li>
-        <li>Ask the event organizer for the tenant's current Evorto link.</li>
+        <li>Check the address for a missing or misspelled organization name.</li>
+        <li>Ask the event organizer for the organization's current Evorto link.</li>
       </ol>
 
       <p class="note">
         If a QR code brought you here, do not edit its address or create a new
         registration. Ask an organizer to confirm that the code still points to
-        the tenant's current domain.
+        the organization's current domain.
       </p>
     </main>
   </body>

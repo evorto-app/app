@@ -2,10 +2,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   Injectable,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import {
   form,
@@ -116,6 +118,9 @@ export class PlatformTenantUsersComponent {
   protected readonly rolesQuery = injectQuery(() =>
     this.operations.listRoles(this.tenantId()),
   );
+  protected readonly rolesReady = computed(
+    () => this.rolesQuery.isSuccess() && !this.rolesQuery.isFetching(),
+  );
 
   protected readonly search = signal('');
   protected readonly usersQuery = injectQuery(() =>
@@ -132,8 +137,24 @@ export class PlatformTenantUsersComponent {
     return this.usersQuery.data().users.find((user) => user.id === userId);
   });
 
+  private readonly initializedTenantId = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
+
+  constructor() {
+    effect(() => {
+      const tenantId = this.tenantId();
+      if (this.initializedTenantId() === tenantId) return;
+      untracked(() => {
+        this.assignmentModel.set({ reason: '', roleIds: [], userId: '' });
+        this.assignmentForm().reset();
+        this.search.set('');
+        this.pageIndex.set(0);
+        this.pageSize.set(100);
+        this.initializedTenantId.set(tenantId);
+      });
+    });
+  }
 
   protected cancelAssignment(): void {
     this.assignmentModel.set({ reason: '', roleIds: [], userId: '' });
@@ -147,7 +168,7 @@ export class PlatformTenantUsersComponent {
 
   protected saveAssignment(event: Event): void {
     event.preventDefault();
-    if (this.assignRolesMutation.isPending()) return;
+    if (this.assignRolesMutation.isPending() || !this.rolesReady()) return;
 
     void submit(this.assignmentForm, async () => {
       const assignment = this.assignmentModel();
@@ -170,6 +191,7 @@ export class PlatformTenantUsersComponent {
   }
 
   protected selectUser(user: { id: string; roleIds: readonly string[] }): void {
+    if (!this.rolesReady()) return;
     this.assignmentModel.set({
       reason: '',
       roleIds: [...user.roleIds],

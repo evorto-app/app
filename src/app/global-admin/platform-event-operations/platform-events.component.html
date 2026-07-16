@@ -28,7 +28,7 @@
     class="bg-error-container text-on-error-container grid gap-3 p-4"
     role="alert"
   >
-    <p>{{ errorMessage(eventsQuery.error()) }}</p>
+    <p>Events for this organization could not be loaded. Try again.</p>
     <div>
       <button mat-stroked-button type="button" (click)="eventsQuery.refetch()">
         Try again
@@ -37,7 +37,7 @@
   </section>
 } @else if (eventsQuery.isSuccess()) {
   <section
-    aria-label="Target-tenant events"
+    aria-label="Organization events"
     class="divide-outline-variant divide-y"
   >
     @for (event of eventsQuery.data(); track event.id) {
@@ -47,16 +47,21 @@
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <h2 class="title-medium truncate">{{ event.title }}</h2>
-            <span class="label-small bg-surface-container rounded px-2 py-1">
-              {{ event.status }}
-            </span>
+            <app-event-status [status]="event.status" />
             @if (event.unlisted) {
               <span class="label-small text-on-surface-variant">Unlisted</span>
             }
           </div>
           <p class="body-small text-on-surface-variant mt-1">
-            {{ event.start | date: "medium" }} –
-            {{ event.end | date: "medium" }}
+            @if (targetTenantOptionsQuery.isSuccess()) {
+              {{ displayDateTime(event.start) }} –
+              {{ displayDateTime(event.end) }} ·
+              {{ targetTenantOptionsQuery.data().timezone }}
+            } @else if (targetTenantOptionsQuery.isError()) {
+              <span role="alert">Organization time zone unavailable.</span>
+            } @else {
+              <span role="status">Loading organization time zone...</span>
+            }
           </p>
         </div>
         <a
@@ -75,8 +80,8 @@
       <section class="border-outline-variant border-t py-6">
         <h2 class="title-medium">No events found</h2>
         <p class="body-medium text-on-surface-variant mt-1">
-          Create an event from a target-tenant template and attribute it to an
-          active tenant member.
+          Create an event from an organization template and assign an active
+          organization member as its owner.
         </p>
       </section>
     }

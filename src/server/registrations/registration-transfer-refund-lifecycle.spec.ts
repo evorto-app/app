@@ -66,6 +66,27 @@ describe('resolveRegistrationTransferRefundLifecycle', () => {
   });
 
   it.each([
+    { status: 'successful' as const, stripeRefundStatus: 'pending' as const },
+    { status: 'pending' as const, stripeRefundStatus: 'succeeded' as const },
+  ])(
+    'does not report success for inconsistent success state %#',
+    ({ status, stripeRefundStatus }) => {
+      expect(
+        resolveRegistrationTransferRefundLifecycle({
+          refunds: [
+            {
+              ...pendingRefund(),
+              status,
+              stripeRefundStatus,
+            },
+          ],
+          transferStatus: 'refund_pending',
+        })?.state,
+      ).not.toBe('succeeded');
+    },
+  );
+
+  it.each([
     { reason: 'missing claim', refunds: [null] },
     { reason: 'empty claim set', refunds: [] },
     {

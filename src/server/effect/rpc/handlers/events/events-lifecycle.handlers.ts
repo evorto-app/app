@@ -84,7 +84,7 @@ const invalidSourceTemplateRegistrationOptionError = () =>
 const unsupportedSourceTemplateRegistrationModeError = () =>
   new RpcBadRequestError({
     message:
-      'Events cannot be created from templates using legacy random allocation',
+      'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
     reason: 'unsupportedTemplateRegistrationMode',
   });
 

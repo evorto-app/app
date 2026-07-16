@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -20,6 +19,7 @@ import {
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { ReceiptAmountPipe } from '../shared/receipt-amount.pipe';
 import {
   isSafeReceiptPreviewUrl,
@@ -37,6 +37,9 @@ interface ReceiptReimbursementPayoutDetails {
 export const receiptReimbursementManualNotice =
   'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.';
 
+export const receiptReimbursementMissingPayoutNotice =
+  'This person has no payout details. Ask them to add an IBAN or PayPal address to their profile before recording a reimbursement.';
+
 export function receiptReimbursementCanRecord(
   selectedReceiptIds: readonly string[],
   payout: ReceiptReimbursementPayoutDetails,
@@ -51,6 +54,12 @@ export function receiptReimbursementCanRecord(
     : Boolean(payout.paypalEmail);
 }
 
+export function receiptReimbursementHasPayoutDetails(
+  payout: ReceiptReimbursementPayoutDetails,
+): boolean {
+  return Boolean(payout.iban || payout.paypalEmail);
+}
+
 export function receiptReimbursementPayoutDetailLabel(
   payoutType: ReceiptReimbursementPayoutType,
   payoutReference: null | string,
@@ -59,11 +68,26 @@ export function receiptReimbursementPayoutDetailLabel(
   return `${label}: ${payoutReference || 'not set'}`;
 }
 
+export function receiptReimbursementReceiptSelectionLabel(receipt: {
+  attachmentFileName: string;
+  eventTitle: string;
+}): string {
+  return `Select receipt ${receipt.attachmentFileName} for ${receipt.eventTitle}`;
+}
+
 export function receiptReimbursementRecordDisabled(input: {
   canRecord: boolean;
   mutationPending: boolean;
 }): boolean {
   return !input.canRecord || input.mutationPending;
+}
+
+export function receiptReimbursementSelectAllLabel(group: {
+  currency: ReceiptCurrency;
+  submittedByFirstName: string;
+  submittedByLastName: string;
+}): string {
+  return `Select all ${group.currency} receipts for ${group.submittedByFirstName} ${group.submittedByLastName}`;
 }
 
 export function receiptReimbursementSelectedTotal(
@@ -84,7 +108,7 @@ export const receiptReimbursementGroupKey = (group: {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    TenantDatePipe,
     MatButtonModule,
     MatCheckboxModule,
     MatSelectModule,
@@ -104,12 +128,20 @@ export class ReceiptRefundListComponent {
     'totalAmount',
     'preview',
   ];
+  protected readonly receiptReimbursementHasPayoutDetails =
+    receiptReimbursementHasPayoutDetails;
   protected readonly receiptReimbursementManualNotice =
     receiptReimbursementManualNotice;
+  protected readonly receiptReimbursementMissingPayoutNotice =
+    receiptReimbursementMissingPayoutNotice;
   protected readonly receiptReimbursementPayoutDetailLabel =
     receiptReimbursementPayoutDetailLabel;
+  protected readonly receiptReimbursementReceiptSelectionLabel =
+    receiptReimbursementReceiptSelectionLabel;
   protected readonly receiptReimbursementRecordDisabled =
     receiptReimbursementRecordDisabled;
+  protected readonly receiptReimbursementSelectAllLabel =
+    receiptReimbursementSelectAllLabel;
   private readonly rpc = AppRpc.injectClient();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),

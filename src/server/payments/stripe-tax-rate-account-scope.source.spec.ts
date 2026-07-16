@@ -5,6 +5,36 @@ import { describe, expect, it } from 'vitest';
 const readSource = (relativePath: string): string =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
 
+const expectAtomicAccountRotation = (
+  source: string,
+  handlerMarker: string,
+  transactionMarker: string,
+): void => {
+  const start = source.indexOf(handlerMarker);
+  const handler = source.slice(start);
+  const targetFetch = handler.indexOf(
+    'fetchStripeTaxRateAccountRotationTargetRates(',
+  );
+  const transaction = handler.indexOf(transactionMarker);
+  const tenantLock = handler.indexOf(".for('update')", transaction);
+  const plan = handler.indexOf('planStripeTaxRateAccountRotation(', tenantLock);
+  const metadataDelete = handler.indexOf('.delete(tenantStripeTaxRates)', plan);
+  const accountUpdate = handler.indexOf('.update(tenants)', metadataDelete);
+  const apply = handler.indexOf(
+    'applyStripeTaxRateAccountRotation(',
+    accountUpdate,
+  );
+
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(targetFetch).toBeGreaterThanOrEqual(0);
+  expect(targetFetch).toBeLessThan(transaction);
+  expect(tenantLock).toBeGreaterThan(transaction);
+  expect(plan).toBeGreaterThan(tenantLock);
+  expect(metadataDelete).toBeGreaterThan(plan);
+  expect(accountUpdate).toBeGreaterThan(metadataDelete);
+  expect(apply).toBeGreaterThan(accountUpdate);
+};
+
 const expectAccountScopedTaxRateRead = (
   source: string,
   startMarker: string,
@@ -74,7 +104,7 @@ describe('Stripe tax-rate account scope source guards', () => {
     expectAccountScopedTaxRateRead(
       directTransfer,
       'const registrationAddOnOptions =',
-      'const activeTransfers =',
+      'const visibleTransfers =',
       "tenant.stripeAccountId ?? ''",
     );
 
@@ -127,7 +157,7 @@ describe('Stripe tax-rate account scope source guards', () => {
     expect(validation).toContain('stripeAccountId: tenant.stripeAccountId');
   });
 
-  it('scopes standard imports and lists and clears metadata inside account rotation', () => {
+  it('serializes both tax-rate import paths on the tenant row', () => {
     const admin = readSource('../effect/rpc/handlers/admin.handlers.ts');
     const importStart = admin.indexOf("'admin.tenant.importStripeTaxRates':");
     const importEnd = admin.indexOf(
@@ -149,37 +179,90 @@ describe('Stripe tax-rate account scope source guards', () => {
     expect(listHandler).toContain('if (!stripeAccountId)');
     expect(listHandler).toContain('stripeAccountId,');
 
-    const updateStart = admin.indexOf("'admin.tenant.updateSettings':");
-    const updateHandler = admin.slice(updateStart);
-    const paidGuard = updateHandler.indexOf(
-      'tenantHasPaidEventConfiguration(tx, tenant.id)',
+    const platform = readSource(
+      '../effect/rpc/handlers/platform/platform-tenant-admin.handlers.ts',
     );
-    const metadataDelete = updateHandler.indexOf(
-      '.delete(tenantStripeTaxRates)',
+    const lockStart = platform.indexOf('const lockTargetTenant =');
+    const lockEnd = platform.indexOf('export const', lockStart);
+    expect(platform.slice(lockStart, lockEnd)).toContain(".for('update')");
+    const platformImportStart = platform.indexOf("'platform.taxRates.import':");
+    const platformImportEnd = platform.indexOf(
+      "'platform.taxRates.listStripe':",
+      platformImportStart,
     );
-    const accountUpdate = updateHandler.indexOf('.update(tenants)');
-    expect(paidGuard).toBeGreaterThanOrEqual(0);
-    expect(metadataDelete).toBeGreaterThan(paidGuard);
-    expect(accountUpdate).toBeGreaterThan(metadataDelete);
+    const platformImport = platform.slice(
+      platformImportStart,
+      platformImportEnd,
+    );
+    expect(platformImport).toContain('database.transaction((transaction) =>');
+    expect(platformImport).toContain('lockTargetTenant(');
+    expect(platformImport).toContain('ensureStripeAccountUnchanged(');
+    expect(platformImport.indexOf('lockTargetTenant(')).toBeLessThan(
+      platformImport.indexOf('.insert(tenantStripeTaxRates)'),
+    );
   });
 
-  it('clears every tenant tax metadata row in the global-admin rotation transaction', () => {
-    const source = readSource(
-      '../effect/rpc/handlers/global-admin.handlers.ts',
+  it('locks, plans, switches, and remaps both account-rotation paths atomically', () => {
+    expectAtomicAccountRotation(
+      readSource('../effect/rpc/handlers/admin.handlers.ts'),
+      "'admin.tenant.updateSettings':",
+      '.transaction((tx) =>',
     );
-    const updateStart = source.indexOf("'globalAdmin.tenants.update':");
-    const update = source.slice(updateStart);
-    const paidGuard = update.indexOf(
-      'tenantHasPaidEventConfiguration(transaction, id)',
+    expectAtomicAccountRotation(
+      readSource('../effect/rpc/handlers/global-admin.handlers.ts'),
+      "'globalAdmin.tenants.update':",
+      'database.transaction((transaction)',
     );
-    const metadataDelete = update.indexOf('.delete(tenantStripeTaxRates)');
-    const tenantUpdate = update.indexOf('.update(tenants)');
+  });
 
-    expect(paidGuard).toBeGreaterThanOrEqual(0);
-    expect(metadataDelete).toBeGreaterThan(paidGuard);
-    expect(tenantUpdate).toBeGreaterThan(metadataDelete);
-    expect(update.slice(metadataDelete, tenantUpdate)).toContain(
-      '.where(eq(tenantStripeTaxRates.tenantId, id))',
-    );
+  it('keeps every binding remap tenant-scoped and compare-and-set', () => {
+    const rotation = readSource('./stripe-tax-rate-account-rotation.ts');
+    for (const [kind, endMarker, table, parentColumn, ownerTable] of [
+      [
+        'eventAddon',
+        "case 'eventRegistrationOption':",
+        'eventAddons',
+        'eventId',
+        'eventInstances',
+      ],
+      [
+        'eventRegistrationOption',
+        "case 'templateAddon':",
+        'eventRegistrationOptions',
+        'eventId',
+        'eventInstances',
+      ],
+      [
+        'templateAddon',
+        "case 'templateRegistrationOption':",
+        'templateEventAddons',
+        'templateId',
+        'eventTemplates',
+      ],
+      [
+        'templateRegistrationOption',
+        'upsertTargetRate:',
+        'templateRegistrationOptions',
+        'templateId',
+        'eventTemplates',
+      ],
+    ] as const) {
+      const start = rotation.indexOf(`case '${kind}':`);
+      const end = rotation.indexOf(endMarker, start);
+      const remap = rotation.slice(start, end);
+      const normalizedRemap = remap.replaceAll(/\s+/gu, ' ');
+
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(end).toBeGreaterThan(start);
+      expect(normalizedRemap).toContain(`eq(${table}.id, binding.id)`);
+      expect(normalizedRemap).toContain(
+        `eq(${table}.${parentColumn}, binding.parentId)`,
+      );
+      expect(normalizedRemap).toContain(
+        `${table}.stripeTaxRateId, binding.sourceStripeTaxRateId`,
+      );
+      expect(normalizedRemap).toContain(`eq(${ownerTable}.tenantId, tenantId)`);
+      expect(normalizedRemap).toContain(`.returning({ id: ${table}.id })`);
+    }
   });
 });

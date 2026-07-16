@@ -218,10 +218,11 @@ Registration should support:
 
 Cancellation and transfer timing are tenant configuration defaults. Whether
 payment fees are refunded applies to ordinary cancellation only; transfer
-refunds return the source participant's exact original Stripe payments. A
-registration option may explicitly override timing and cancellation-fee
-defaults. New tenants seed transfer until the event starts, cancellation until
-five days before the event, and cancellation fee refund enabled.
+refunds bring each source payment's cumulative successful refunds to its exact
+original Stripe amount. A registration option may explicitly override timing
+and cancellation-fee defaults. New tenants seed transfer until the event starts,
+cancellation until five days before the event, and cancellation fee refund
+enabled.
 
 ### Simple and advanced registration configuration
 
@@ -342,8 +343,16 @@ The intended workflow:
 6. After the recipient flow succeeds, the existing registration remains
    confirmed under the recipient's ownership with its identity, all bundle
    quantities, and fulfillment/check-in history unchanged.
-7. The source participant no longer owns the registration and receives exact
-   refunds for the original Stripe registration and purchased-add-on payments.
+7. The source participant no longer owns the registration and receives the
+   exact remaining refundable amount from every original Stripe registration
+   and purchased-add-on payment after prior successful refunds.
+
+Previous participant-question answers are never part of the transfer bundle.
+An immediate organizer or participant reassignment is available only when the
+whole bundle is free, no source refund is required, and the registration option
+has no participant questions. When current questions exist, the recipient must
+use the private link/code claim so they can provide their own answers before
+ownership changes.
 
 The goal is to let users transfer spots without trusting each other directly.
 
@@ -356,6 +365,15 @@ the tenant, subject to the registration-option override rules. The ordinary
 cancellation fee policy does not reduce a transfer refund: each source
 registration or add-on payment is refunded until its total refunds equal the
 exact original Stripe amount.
+
+Stripe tax-rate IDs are account-owned configuration. Disconnecting remains
+blocked while paid event or template configuration exists. For an account
+rotation, the replacement Stripe account must already contain exactly one
+active, inclusive rate with the same normalized percentage, display name,
+country, and state as each assigned source rate. Evorto rejects a missing or
+ambiguous match; otherwise it atomically imports the replacement metadata and
+remaps every event and template registration-option and add-on binding without
+changing its tax semantics.
 
 ## Check-in
 

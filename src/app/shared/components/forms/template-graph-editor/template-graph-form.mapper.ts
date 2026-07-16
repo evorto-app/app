@@ -16,7 +16,7 @@ import {
 } from './template-graph-form.model';
 
 export const legacyRandomTemplateEditMessage =
-  'This template uses random allocation, which is deferred and unsupported for the relaunch. It remains readable but cannot be edited here.';
+  'Random allocation is unavailable. Create a new template using First come, first served or Manual approval instead.';
 
 export type TemplateGraphAdvancedCompatibilityReason =
   'registrationOptionCount' | 'registrationOptionKinds';
@@ -246,7 +246,7 @@ const refundFeesValue = (
   return choice === 'refund';
 };
 
-const formLocationToPayload = (
+export const templateGraphLocationFormModelToValue = (
   location: TemplateGraphLocationFormModel,
 ): EventLocationType | null => {
   const address = optionalText(location.address);
@@ -352,7 +352,7 @@ export const templateGraphFormToPayload = (
     iconColor: model.iconColor,
     iconName: model.iconName.trim(),
   },
-  location: formLocationToPayload(model.location),
+  location: templateGraphLocationFormModelToValue(model.location),
   planningTips: optionalText(model.planningTips),
   questions: model.questions.map((question) => ({
     description: optionalText(question.description),

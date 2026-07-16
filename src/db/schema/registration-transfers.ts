@@ -61,6 +61,14 @@ export const activeRegistrationTransferSourceUniqueIndexName =
   'registration_transfers_active_source_unique';
 export const registrationTransferExpiryIndexName =
   'registration_transfers_expiry_idx';
+export const registrationTransferOwnerUniqueConstraintName =
+  'registration_transfers_id_event_option_tenant_unique';
+export const registrationTransferSourceRegistrationOwnerForeignKeyName =
+  'registration_transfers_source_registration_owner_fk';
+export const registrationTransferAnswerQuestionOwnerForeignKeyName =
+  'registration_transfer_answers_question_owner_fk';
+export const registrationTransferAnswerTransferOwnerForeignKeyName =
+  'registration_transfer_answers_transfer_owner_fk';
 
 export const registrationTransfers = pgTable(
   'registration_transfers',
@@ -191,10 +199,20 @@ export const registrationTransfers = pgTable(
       'registration_transfers_reserved_spots_nonnegative',
       sql`${table.reservedAdditionalSpots} = 0`,
     ),
-    sourceRegistrationTenant: foreignKey({
-      columns: [table.sourceRegistrationId, table.tenantId],
-      foreignColumns: [eventRegistrations.id, eventRegistrations.tenantId],
-      name: 'registration_transfers_source_registration_tenant_fk',
+    sourceRegistrationOwner: foreignKey({
+      columns: [
+        table.sourceRegistrationId,
+        table.eventId,
+        table.registrationOptionId,
+        table.tenantId,
+      ],
+      foreignColumns: [
+        eventRegistrations.id,
+        eventRegistrations.eventId,
+        eventRegistrations.registrationOptionId,
+        eventRegistrations.tenantId,
+      ],
+      name: registrationTransferSourceRegistrationOwnerForeignKeyName,
     }),
     sourceSpotCountPositive: check(
       'registration_transfers_source_spot_count_positive',
@@ -204,6 +222,9 @@ export const registrationTransfers = pgTable(
       table.id,
       table.tenantId,
     ),
+    transferOwnerIdentity: unique(
+      registrationTransferOwnerUniqueConstraintName,
+    ).on(table.id, table.eventId, table.registrationOptionId, table.tenantId),
   }),
 );
 
@@ -280,7 +301,7 @@ export const registrationTransferBundleAddonPurchases = pgTable(
       sql`(
         ${table.recipientUnitPrice} IS NULL AND ${table.recipientStripeTaxRateId} IS NULL AND ${table.recipientTaxRateDisplayName} IS NULL AND ${table.recipientTaxRateInclusive} IS NULL AND ${table.recipientTaxRatePercentage} IS NULL
       ) OR (
-        ${table.recipientUnitPrice} >= 0 AND (
+        ${table.recipientUnitPrice} IS NOT NULL AND ${table.recipientUnitPrice} >= 0 AND (
           (${table.recipientStripeTaxRateId} IS NULL AND ${table.recipientTaxRateDisplayName} IS NULL AND ${table.recipientTaxRateInclusive} IS NULL AND ${table.recipientTaxRatePercentage} IS NULL)
           OR
           (${table.recipientStripeTaxRateId} IS NOT NULL AND ${table.recipientTaxRateDisplayName} IS NOT NULL AND ${table.recipientTaxRateInclusive} IS NOT NULL AND ${table.recipientTaxRatePercentage} IS NOT NULL)
@@ -459,29 +480,47 @@ export const registrationTransferAnswers = pgTable(
   {
     answer: text('answer').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    eventId: varchar('event_id', { length: 20 }).notNull(),
     id: varchar('id', { length: 20 })
       .$defaultFn(() => createId())
       .primaryKey(),
-    questionId: varchar('question_id', { length: 20 })
-      .notNull()
-      .references(() => eventRegistrationQuestions.id),
+    questionId: varchar('question_id', { length: 20 }).notNull(),
+    registrationOptionId: varchar('registration_option_id', {
+      length: 20,
+    }).notNull(),
     tenantId: varchar('tenant_id', { length: 20 })
       .notNull()
       .references(() => tenants.id),
     transferId: varchar('transfer_id', { length: 20 }).notNull(),
   },
   (table) => ({
+    questionOwner: foreignKey({
+      columns: [table.questionId, table.eventId, table.registrationOptionId],
+      foreignColumns: [
+        eventRegistrationQuestions.id,
+        eventRegistrationQuestions.eventId,
+        eventRegistrationQuestions.registrationOptionId,
+      ],
+      name: registrationTransferAnswerQuestionOwnerForeignKeyName,
+    }),
+    transferOwner: foreignKey({
+      columns: [
+        table.transferId,
+        table.eventId,
+        table.registrationOptionId,
+        table.tenantId,
+      ],
+      foreignColumns: [
+        registrationTransfers.id,
+        registrationTransfers.eventId,
+        registrationTransfers.registrationOptionId,
+        registrationTransfers.tenantId,
+      ],
+      name: registrationTransferAnswerTransferOwnerForeignKeyName,
+    }).onDelete('cascade'),
     transferQuestionUnique: unique(
       'registration_transfer_answers_question_unique',
     ).on(table.transferId, table.questionId),
-    transferTenant: foreignKey({
-      columns: [table.transferId, table.tenantId],
-      foreignColumns: [
-        registrationTransfers.id,
-        registrationTransfers.tenantId,
-      ],
-      name: 'registration_transfer_answers_transfer_tenant_fk',
-    }).onDelete('cascade'),
   }),
 );
 

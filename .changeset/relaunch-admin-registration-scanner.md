@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Tighten relaunch admin, registration, and scanner behavior

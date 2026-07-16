@@ -5,12 +5,7 @@ import type {
   EventsRegistrationStatusRecord,
 } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import {
-  CurrencyPipe,
-  DatePipe,
-  DOCUMENT,
-  NgOptimizedImage,
-} from '@angular/common';
+import { CurrencyPipe, DOCUMENT, NgOptimizedImage } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -34,6 +29,7 @@ import { firstValueFrom } from 'rxjs';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { normalizeStripeCheckoutUrl } from '../../core/stripe-checkout-url';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import {
   type RegistrationCancellationConfirmationData,
@@ -227,7 +223,7 @@ export const registrationCancellationCopy = (registration: {
   if (registration.status === 'CONFIRMED') {
     return {
       buttonLabel: 'Cancel registration',
-      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. Paid refunds start only when Stripe payment ownership, fee allocation, and add-on amounts reconcile safely. Refunds then process asynchronously.`,
+      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. If a refund applies, Evorto starts it automatically after cancellation. It may take time to appear; do not pay or register again to retry it.`,
     };
   }
 
@@ -297,7 +293,7 @@ export const registrationTransferActionCopy = (registration: {
     return {
       buttonLabel: 'Create transfer link',
       helperText:
-        'Create a private link and code for one eligible tenant member. They review the current questions, add-ons, discount, and price before claiming it.',
+        'Create a private link and code for one eligible organization member. They review the current questions, add-ons, discount, and price before claiming it.',
     };
   }
 
@@ -316,6 +312,7 @@ export const registrationActiveTransferStatusCopy = (
   cancelLabel: null | string;
   showExpiry: boolean;
   title: string;
+  tone: 'error' | 'info' | 'success';
 } => {
   switch (activeTransfer.status) {
     case 'checkout_pending': {
@@ -325,12 +322,14 @@ export const registrationActiveTransferStatusCopy = (
             cancelLabel: 'Cancel pending transfer payment',
             showExpiry: true,
             title: 'Transfer payment is pending',
+            tone: 'info',
           }
         : {
             body: 'Your registration remains confirmed until the recipient payment is confirmed.',
             cancelLabel: 'Cancel transfer offer',
             showExpiry: true,
             title: 'Recipient payment is pending',
+            tone: 'info',
           };
     }
     case 'open': {
@@ -339,17 +338,19 @@ export const registrationActiveTransferStatusCopy = (
         cancelLabel: 'Cancel transfer offer',
         showExpiry: true,
         title: 'Transfer offer is active',
+        tone: 'info',
       };
     }
     case 'refund_failed': {
       return {
         body:
           activeTransfer.registrationSide === 'recipient'
-            ? 'The ticket transfer is complete, but the previous owner refund needs platform-administrator attention. Your ticket remains confirmed.'
-            : 'The ticket transfer is complete, but your refund needs platform-administrator attention. The transfer can no longer be cancelled.',
+            ? 'The ticket transfer is complete and your ticket remains confirmed. The previous owner refund still needs follow-up; you do not need to do anything.'
+            : 'The ticket transfer is complete, but your refund still needs follow-up and may not have reached you. Do not pay or register again; contact an organizer for an update.',
         cancelLabel: null,
         showExpiry: false,
         title: 'Transfer refund needs attention',
+        tone: 'error',
       };
     }
     case 'refund_pending': {
@@ -357,11 +358,12 @@ export const registrationActiveTransferStatusCopy = (
         return {
           body:
             activeTransfer.registrationSide === 'recipient'
-              ? 'The ticket transfer is complete, but the previous owner refund requires provider-side action. Your ticket remains confirmed.'
-              : 'The ticket transfer is complete, but your refund requires provider-side action. Do not pay or register again to retry it.',
+              ? 'The ticket transfer is complete and your ticket remains confirmed. The previous owner refund still needs follow-up; you do not need to do anything.'
+              : 'The ticket transfer is complete, but your refund still needs follow-up and may not have reached you. Do not pay or register again; contact an organizer for an update.',
           cancelLabel: null,
           showExpiry: false,
-          title: 'Transfer refund requires provider action',
+          title: 'Transfer refund needs attention',
+          tone: 'error',
         };
       }
       if (activeTransfer.refundLifecycle?.state === 'succeeded') {
@@ -373,17 +375,19 @@ export const registrationActiveTransferStatusCopy = (
           cancelLabel: null,
           showExpiry: false,
           title: 'Transfer refund completed',
+          tone: 'success',
         };
       }
       if (activeTransfer.refundLifecycle?.state !== 'processing') {
         return {
           body:
             activeTransfer.registrationSide === 'recipient'
-              ? 'The ticket transfer is complete, but the previous owner refund processing stopped and needs platform-administrator attention. Your ticket remains confirmed.'
-              : 'The ticket transfer is complete, but your refund processing stopped and needs platform-administrator attention. Do not pay or register again to retry it.',
+              ? 'The ticket transfer is complete and your ticket remains confirmed. The previous owner refund still needs follow-up; you do not need to do anything.'
+              : 'The ticket transfer is complete, but your refund still needs follow-up and may not have reached you. Do not pay or register again; contact an organizer for an update.',
           cancelLabel: null,
           showExpiry: false,
           title: 'Transfer refund needs attention',
+          tone: 'error',
         };
       }
       return {
@@ -394,6 +398,7 @@ export const registrationActiveTransferStatusCopy = (
         cancelLabel: null,
         showExpiry: false,
         title: 'Transfer refund is processing',
+        tone: 'success',
       };
     }
   }
@@ -423,7 +428,7 @@ export const registrationTransferActionDisabled = (input: {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CurrencyPipe,
-    DatePipe,
+    TenantDatePipe,
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
@@ -794,12 +799,12 @@ export class EventActiveRegistrationComponent {
     key: string;
   }): Promise<void> {
     const refreshed = await this.invalidateOwnerQueries(true);
-    const recoveryCopy = refreshed
-      ? 'Retry reuses this exact purchase request. If a pending checkout has definitively expired, reload before deliberately starting a new purchase.'
-      : 'The latest ticket status could not be refreshed. Retry will reuse this exact purchase request.';
+    const refreshCopy = refreshed
+      ? ''
+      : 'The latest ticket status could not be refreshed. ';
     this.setPurchaseNotice(input.key, {
       kind: 'error',
-      message: `${getErrorMessage(input.error, 'Add-on purchase failed')} ${recoveryCopy}`,
+      message: `${getErrorMessage(input.error, 'Add-on purchase failed')} ${refreshCopy}Trying again will not create a duplicate purchase. If the checkout has expired, reload this page and start the add-on purchase again.`,
     });
   }
 

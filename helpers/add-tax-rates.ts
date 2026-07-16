@@ -12,6 +12,14 @@ export const addTaxRates = async (
   database: NodePgDatabase<typeof relations>,
   tenant: { id: string; stripeAccountId: null | string },
 ) => {
+  if (!tenant.stripeAccountId) {
+    consola.info(
+      `Skipping default tax rates for tenant ${tenant.id} without Stripe`,
+    );
+    return;
+  }
+  const stripeAccountId = tenant.stripeAccountId;
+
   const seedRates: Array<{
     stripeTaxRateId: string;
     displayName: string;
@@ -50,7 +58,7 @@ export const addTaxRates = async (
           inclusive: true,
           percentage: r.percentage,
           state: null,
-          stripeAccountId: tenant.stripeAccountId,
+          stripeAccountId,
           stripeTaxRateId: r.stripeTaxRateId,
           tenantId: tenant.id,
         }) satisfies Omit<

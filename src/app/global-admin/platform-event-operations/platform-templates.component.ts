@@ -10,7 +10,6 @@ import { RouterLink } from '@angular/router';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 
 @Injectable({ providedIn: 'root' })
@@ -35,8 +34,4 @@ export class PlatformTemplatesComponent {
   protected readonly templatesQuery = injectQuery(() =>
     this.operations.list(this.tenantId()),
   );
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to load target-tenant templates');
-  }
 }

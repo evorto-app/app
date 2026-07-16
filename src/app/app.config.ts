@@ -1,4 +1,4 @@
-import { DATE_PIPE_DEFAULT_OPTIONS, registerLocaleData } from '@angular/common';
+import { registerLocaleData } from '@angular/common';
 import {
   provideHttpClient,
   withFetch,
@@ -41,10 +41,11 @@ import { appQueryProviders } from './core/app-query-client';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { ConfigService } from './core/config.service';
 import { AppRpc, resolveRpcUrl } from './core/effect-rpc-angular-client';
+import { TENANT_DATE_PIPE_TIMEZONE } from './core/tenant-date.pipe';
 import { TenantLuxonDateAdapter } from './core/tenant-luxon-date-adapter';
 import {
   tenantCurrencyCode,
-  tenantDatePipeConfig,
+  tenantDatePipeTimezone,
 } from './core/tenant-runtime';
 
 export const appConfig: ApplicationConfig = {
@@ -79,8 +80,8 @@ export const appConfig: ApplicationConfig = {
     },
     {
       deps: [ConfigService],
-      provide: DATE_PIPE_DEFAULT_OPTIONS,
-      useFactory: tenantDatePipeConfig,
+      provide: TENANT_DATE_PIPE_TIMEZONE,
+      useFactory: tenantDatePipeTimezone,
     },
     {
       provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,

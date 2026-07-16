@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Harden tenant authorization, trusted media, payments, and registration concurrency

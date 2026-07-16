@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { and, eq } from 'drizzle-orm';
+import { and, DrizzleQueryError, eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import { Pool } from 'pg';
@@ -56,6 +56,22 @@ interface Fixture {
 }
 
 type TestDatabase = NodePgDatabase<typeof relations>;
+
+const expectCheckViolation = async (
+  operation: PromiseLike<unknown>,
+  constraint: string,
+) => {
+  try {
+    await operation;
+    throw new Error(`Expected check constraint ${constraint} to reject`);
+  } catch (error) {
+    expect(error).toBeInstanceOf(DrizzleQueryError);
+    if (!(error instanceof DrizzleQueryError)) {
+      throw error;
+    }
+    expect(error.cause).toMatchObject({ code: '23514', constraint });
+  }
+};
 
 const makeLayer = (url: string) => {
   const config = ConfigProvider.layer(
@@ -342,6 +358,45 @@ describe('add-on fulfillment concurrency', () => {
       await cleanFixture(database, fixture);
     }
     await pool.end();
+  });
+
+  it('rejects incomplete refund and fulfillment audit shapes', async () => {
+    const fixture = await seedFixture(database, {
+      includedQuantity: 1,
+      purchasedQuantity: 0,
+    });
+    fixtures.push(fixture);
+
+    await expectCheckViolation(
+      database.insert(eventRegistrationAddonFulfillmentEvents).values({
+        actorKind: 'system',
+        actorSubject: null,
+        eventId: fixture.eventId,
+        operationKey: `constraint:actor:${fixture.purchaseId}`,
+        purchaseId: fixture.purchaseId,
+        quantity: 1,
+        registrationId: fixture.registrationId,
+        tenantId: fixture.tenantId,
+        type: 'redeemed',
+      }),
+      'event_registration_addon_fulfillment_event_actor_shape',
+    );
+
+    await expectCheckViolation(
+      database.insert(eventRegistrationAddonFulfillmentEvents).values({
+        actorKind: 'system',
+        actorSubject: 'system:constraint-test',
+        eventId: fixture.eventId,
+        operationKey: `constraint:reason:${fixture.purchaseId}`,
+        purchaseId: fixture.purchaseId,
+        quantity: 1,
+        reason: null,
+        registrationId: fixture.registrationId,
+        tenantId: fixture.tenantId,
+        type: 'cancelled',
+      }),
+      'event_registration_addon_fulfillment_event_shape',
+    );
   });
 
   it('redeems two distinct intents from one snapshot and keeps an exact retry idempotent', async () => {

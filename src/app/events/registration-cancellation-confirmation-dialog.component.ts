@@ -48,7 +48,7 @@ export const registrationCancellationConfirmationCopy = ({
 
     return {
       confirmLabel: 'Confirm cancellation',
-      impact: `This immediately cancels ${subject}'s registration and releases its reserved capacity. If a payment exists, Evorto starts the applicable refund workflow, which may still require operator follow-up. This action cannot be undone.`,
+      impact: `This immediately cancels ${subject}'s registration and releases its reserved capacity. If a refund applies, Evorto starts it automatically; it may take time to appear. This action cannot be undone.`,
       title: `Cancel ${subject}'s registration?`,
     };
   }
@@ -75,7 +75,7 @@ export const registrationCancellationConfirmationCopy = ({
   return {
     confirmLabel: 'Confirm cancellation',
     impact:
-      'This immediately cancels your confirmed registration and releases its reserved capacity. If a payment exists, Evorto starts the applicable refund workflow, which may still require operator follow-up. This action cannot be undone.',
+      'This immediately cancels your confirmed registration and releases its reserved capacity. If a refund applies, Evorto starts it automatically; it may take time to appear. Do not pay or register again to retry it. This action cannot be undone.',
     title: 'Cancel your registration?',
   };
 };

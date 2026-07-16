@@ -42,6 +42,9 @@ export const scannerCameraErrorMessage = (error: unknown): string => {
   }
 };
 
+export const scannerNonTicketMessage =
+  'This QR code is not an Evorto ticket. Keep the camera open and scan the QR code shown on the attendee ticket.';
+
 export const registrationIdFromScannedTicketUrl = (
   scannedLink: string,
 ): string | undefined => {
@@ -62,10 +65,11 @@ export const registrationIdFromScannedTicketUrl = (
   templateUrl: './scanner.component.html',
 })
 export class ScannerComponent implements OnDestroy {
+  protected readonly cameraErrorMessage = signal('');
   protected readonly cameraReady = signal(false);
   protected readonly cameraStarting = signal(false);
-  protected readonly errorMessage = signal('');
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly ticketFeedbackMessage = signal('');
   protected readonly videoRef =
     viewChild<ElementRef<HTMLVideoElement>>('videoElement');
   private readonly router = inject(Router);
@@ -83,6 +87,7 @@ export class ScannerComponent implements OnDestroy {
   }
 
   protected retryCamera(): void {
+    this.ticketFeedbackMessage.set('');
     void this.startScanner({ clearErrorOnSuccess: true });
   }
 
@@ -90,19 +95,23 @@ export class ScannerComponent implements OnDestroy {
     const scannedLink = result.data as string;
     const registrationId = registrationIdFromScannedTicketUrl(scannedLink);
     if (!registrationId) {
-      this.errorMessage.set('Invalid QR code');
+      this.ticketFeedbackMessage.set(scannerNonTicketMessage);
       void this.startScanner();
       return;
     }
 
-    this.router.navigate(['/scan/registration', registrationId]);
+    this.ticketFeedbackMessage.set('');
+    void this.router.navigate(['/scan/registration', registrationId]);
   }
 
   private async setupScanner(): Promise<void> {
     const videoElement = this.videoRef();
     if (!videoElement) {
       consola.error('videoElement not found');
-      this.errorMessage.set('The scanner view could not be initialized.');
+      this.ticketFeedbackMessage.set('');
+      this.cameraErrorMessage.set(
+        'The scanner view could not be initialized. Refresh the page and try again.',
+      );
       return;
     }
     const qrScanner = new QrScanner(
@@ -136,12 +145,13 @@ export class ScannerComponent implements OnDestroy {
       await scanner.start();
       this.cameraReady.set(true);
       if (options.clearErrorOnSuccess) {
-        this.errorMessage.set('');
+        this.cameraErrorMessage.set('');
       }
     } catch (error) {
       consola.warn('Failed to start QR scanner camera', error);
       this.cameraReady.set(false);
-      this.errorMessage.set(scannerCameraErrorMessage(error));
+      this.ticketFeedbackMessage.set('');
+      this.cameraErrorMessage.set(scannerCameraErrorMessage(error));
     } finally {
       this.cameraStarting.set(false);
     }

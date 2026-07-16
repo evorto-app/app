@@ -42,10 +42,14 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
   required(form.title, { message: 'Enter an event title.' });
   required(form.description, { message: 'Enter an event description.' });
   required(form.icon, { message: 'Choose an event icon.' });
+  required(form.start, { message: 'Enter an event start.' });
+  required(form.end, { message: 'Enter an event end.' });
   validate(form.description, ({ value }) => richTextUploadError(value()));
   validate(form.end, ({ value, valueOf }) => {
+    const end = value();
     const start = valueOf(form.start);
-    return value().toMillis() < start.toMillis()
+    if (!end || !start) return;
+    return end.toMillis() <= start.toMillis()
       ? {
           kind: 'dateOrder',
           message: 'The event must end after it starts.',
@@ -67,21 +71,36 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
 
   applyEach(form.registrationOptions, (option) => {
     required(option.title, { message: 'Enter an option name.' });
+    required(option.openRegistrationTime, {
+      message: 'Enter a registration opening time.',
+    });
+    required(option.closeRegistrationTime, {
+      message: 'Enter a registration closing time.',
+    });
     validate(option.description, ({ value }) => richTextUploadError(value()));
     validate(option.registeredDescription, ({ value }) =>
       richTextUploadError(value()),
     );
     validate(option.closeRegistrationTime, ({ value, valueOf }) => {
-      return value().toMillis() <
-        valueOf(option.openRegistrationTime).toMillis()
+      const close = value();
+      const open = valueOf(option.openRegistrationTime);
+      if (!close || !open) return;
+      return close.toMillis() < open.toMillis()
         ? {
             kind: 'registrationDateOrder',
             message: 'Registration must close after it opens.',
           }
         : undefined;
     });
-    min(option.price, 0, { message: 'Price cannot be negative.' });
+    required(option.price, {
+      message: 'Enter a price.',
+      when: ({ valueOf }) => valueOf(option.isPaid),
+    });
+    min(option.price, 1, {
+      message: 'Paid registrations must cost at least 0.01.',
+    });
     validate(option.price, ({ value }) => nonNegativeIntegerError(value()));
+    required(option.spots, { message: 'Enter a capacity.' });
     min(option.spots, 0, { message: 'Capacity cannot be negative.' });
     validate(option.spots, ({ value }) => nonNegativeIntegerError(value()));
     validate(option.cancellationDeadlineHoursBeforeStart, ({ value }) =>
@@ -120,6 +139,7 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
     required(question.registrationOptionKey, {
       message: 'Choose the registration option that receives this question.',
     });
+    required(question.sortOrder, { message: 'Enter a sort order.' });
     min(question.sortOrder, 0, { message: 'Sort order cannot be negative.' });
     validate(question.sortOrder, ({ value }) =>
       nonNegativeIntegerError(value()),
@@ -140,13 +160,23 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
   applyEach(form.addOns, (addOn) => {
     required(addOn.title, { message: 'Enter an add-on name.' });
     validate(addOn.description, ({ value }) => richTextUploadError(value()));
+    required(addOn.price, {
+      message: 'Enter a price.',
+      when: ({ valueOf }) => valueOf(addOn.isPaid),
+    });
     min(addOn.price, 1, {
-      message: 'Paid add-ons must cost at least one cent.',
+      message: 'Paid add-ons must cost at least 0.01.',
     });
     validate(addOn.price, ({ value }) => nonNegativeIntegerError(value()));
+    required(addOn.maxQuantityPerUser, {
+      message: 'Enter a per-user maximum.',
+    });
     validate(addOn.maxQuantityPerUser, ({ value }) =>
       positiveIntegerError(value()),
     );
+    required(addOn.totalAvailableQuantity, {
+      message: 'Enter total stock.',
+    });
     validate(addOn.totalAvailableQuantity, ({ value }) =>
       nonNegativeIntegerError(value()),
     );
@@ -175,6 +205,12 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
     applyEach(addOn.registrationOptions, (mapping) => {
       required(mapping.registrationOptionKey, {
         message: 'Choose a registration option.',
+      });
+      required(mapping.includedQuantity, {
+        message: 'Enter an included quantity.',
+      });
+      required(mapping.optionalPurchaseQuantity, {
+        message: 'Enter an optional quantity.',
       });
       validate(mapping.registrationOptionKey, ({ value, valueOf }) => {
         const optionKeys = new Set(

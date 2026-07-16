@@ -57,8 +57,8 @@
       >
         <p>Location search is not configured for this site.</p>
         <p class="mt-1">
-          A site administrator needs to configure the Google Maps API key before
-          locations can be selected.
+          Ask a site administrator to enable Google Maps before selecting a
+          location.
         </p>
       </div>
     } @else if (searchState?.status === "provider-error") {
@@ -66,7 +66,7 @@
         class="bg-error-container text-on-error-container rounded p-3 text-sm"
         role="alert"
       >
-        <p>The location provider is unavailable right now.</p>
+        <p>Google Maps is unavailable right now.</p>
         <p class="mt-1">Check your connection, then try the search again.</p>
         <button type="button" class="mt-2" mat-button (click)="retrySearch()">
           Retry location search
@@ -87,7 +87,7 @@
         class="bg-error-container text-on-error-container mt-3 rounded p-3 text-sm"
         role="alert"
       >
-        <p>The location provider could not load this place.</p>
+        <p>Google Maps could not load this place.</p>
         <p class="mt-1">Try again or choose a different search result.</p>
         <button
           type="button"

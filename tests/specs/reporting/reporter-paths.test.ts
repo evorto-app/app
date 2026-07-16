@@ -165,6 +165,35 @@ test('documentation reporter clears docs/image roots on begin', async ({}, testI
   expect(fs.existsSync(imgsRoot)).toBe(true);
 });
 
+test('documentation reporter fails when a selected docs group produces no content', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-incomplete');
+  const imgsRoot = testInfo.outputPath('docs-incomplete-images');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+  const fakeFilePath = path.join(
+    process.cwd(),
+    'tests/docs/events/incomplete.doc.ts',
+  );
+  const incompleteTest = {
+    id: 'incomplete-doc-test',
+    location: { file: fakeFilePath, line: 10 },
+    parent: undefined,
+    title: 'Incomplete documentation journey',
+    titlePath: () => ['', 'docs', fakeFilePath, 'Incomplete journey'],
+  } as any;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for reporter types
+  reporter.onBegin({}, { allTests: () => [incompleteTest] });
+  // @ts-expect-error minimal stubs for reporter types
+  expect(reporter.onEnd({})).toEqual({ status: 'failed' });
+  expect(
+    fs.existsSync(
+      path.join(docsRoot, 'incomplete-documentation-journey', 'page.md'),
+    ),
+  ).toBe(false);
+});
+
 test('documentation reporter leaves docs/image roots untouched in list-only mode', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out6');
   const imgsRoot = testInfo.outputPath('docs-img6');

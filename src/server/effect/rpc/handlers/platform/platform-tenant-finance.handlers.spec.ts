@@ -74,6 +74,7 @@ const tenantContext = () =>
     currency: 'EUR',
     receiptCountryConfig: { allowOther: false, receiptCountries: ['DE'] },
     targetTenantId: 'tenant-1',
+    timezone: 'Australia/Brisbane',
   });
 
 const platformAuthority = PlatformAdministratorAuthority.make({
@@ -260,6 +261,36 @@ describe('platform tenant finance handlers', () => {
 
     expect(source).toMatch(
       /or\(\s*isNull\(transactions\.stripeRefundNextAttemptAt\),\s*gte\(\s*transactions\.stripeRefundAttempts,\s*transactions\.stripeRefundMaxAttempts/u,
+    );
+  });
+
+  it('loads refund recovery context through target-tenant registration and event joins', () => {
+    const source = readFileSync(
+      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
+      'utf8',
+    );
+    const recoveryQueueStart = source.indexOf(
+      "'platform.finance.refundClaims.recoveryQueue'",
+    );
+    const recoveryQueueEnd = source.indexOf(
+      "'platform.finance.refundClaims.requeue'",
+      recoveryQueueStart,
+    );
+    const recoveryQueueSource = source.slice(
+      recoveryQueueStart,
+      recoveryQueueEnd,
+    );
+
+    expect(recoveryQueueSource).toContain('attendeeFirstName: users.firstName');
+    expect(recoveryQueueSource).toContain('eventTitle: eventInstances.title');
+    expect(recoveryQueueSource).toMatch(
+      /eq\(eventRegistrations\.tenantId, input\.targetTenantId\)/u,
+    );
+    expect(recoveryQueueSource).toMatch(
+      /eq\(eventInstances\.tenantId, input\.targetTenantId\)/u,
+    );
+    expect(recoveryQueueSource).toContain(
+      "runPlatformRead(\n      input.targetTenantId,\n      'finance:refundReceipts'",
     );
   });
 
@@ -564,10 +595,13 @@ describe('platform tenant finance handlers', () => {
     const recovery = toRefundRecoveryRecord({
       amount: -1800,
       attempts: 8,
+      attendeeFirstName: 'Pat',
+      attendeeLastName: 'Example',
       createdAt: new Date('2026-07-10T10:00:00.000Z'),
       currency: 'EUR',
       eventId: 'event-1',
       eventRegistrationId: 'source-registration-1',
+      eventTitle: 'Welcome dinner',
       generation: 0,
       lastError: 'Terminal Stripe refund failure',
       leaseExpiresAt: null,
@@ -599,16 +633,20 @@ describe('platform tenant finance handlers', () => {
           currency: 'EUR',
           receiptCountryConfig: { allowOther: false, receiptCountries: [] },
           targetTenantId: 'tenant-1',
+          timezone: 'Australia/Brisbane',
         }),
       }),
     ).toEqual({
       claims: [
         {
           amount: 1800,
+          attendeeFirstName: 'Pat',
+          attendeeLastName: 'Example',
           createdAt: '2026-07-10T10:00:00.000Z',
           currency: 'EUR',
           eventId: 'event-1',
           eventRegistrationId: 'source-registration-1',
+          eventTitle: 'Welcome dinner',
           id: 'refund-claim-1',
           lastError: 'Terminal Stripe refund failure',
           mode: 'newGeneration',
@@ -631,16 +669,20 @@ describe('platform tenant finance handlers', () => {
         currency: 'EUR',
         receiptCountryConfig: { allowOther: false, receiptCountries: [] },
         targetTenantId: 'tenant-1',
+        timezone: 'Australia/Brisbane',
       },
     });
 
     const orphaned = toRefundRecoveryRecord({
       amount: -1800,
       attempts: 1,
+      attendeeFirstName: 'Pat',
+      attendeeLastName: 'Example',
       createdAt: new Date('2026-07-10T10:00:00.000Z'),
       currency: 'EUR',
       eventId: 'event-1',
       eventRegistrationId: 'source-registration-1',
+      eventTitle: 'Welcome dinner',
       generation: 0,
       lastError: 'Worker stopped before scheduling the next attempt',
       leaseExpiresAt: null,

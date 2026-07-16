@@ -85,6 +85,18 @@ const eventOptionEditorByTitle = async (
   );
 };
 
+const openTemplateEdit = async (
+  page: Page,
+  templateId: string,
+): Promise<void> => {
+  await page.goto(`/templates/${templateId}/edit`);
+  const templateEdit = page.locator('app-template-edit');
+  await expect(templateEdit).toBeVisible();
+  await expect(templateEdit).not.toHaveAttribute('ngh', /.*/, {
+    timeout: 20_000,
+  });
+};
+
 const confirmTemplateMode = async (
   page: Page,
   mode: 'advanced' | 'simple',
@@ -167,7 +179,7 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
     );
   }
 
-  await page.goto(`/templates/${template.id}/edit`);
+  await openTemplateEdit(page, template.id);
   // The edit route renders its shell before the client-side template query
   // completes, so wait for the actual editor state rather than the route load.
   await expect(
@@ -223,7 +235,9 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   await addOnEditor.getByLabel('Maximum per user').fill('3');
   await addOnEditor.getByLabel('Included quantity').fill('2');
   await addOnEditor.getByLabel('Optional purchase quantity').fill('1');
-  await addOnEditor.getByRole('button', { name: 'Add mapping' }).click();
+  await addOnEditor
+    .getByRole('button', { name: 'Add registration option', exact: true })
+    .click();
   await addOnEditor.getByLabel('Included quantity').nth(1).fill('0');
   await addOnEditor.getByLabel('Optional purchase quantity').nth(1).fill('3');
 
@@ -297,7 +311,7 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
       left.registrationOptionId.localeCompare(right.registrationOptionId),
     );
 
-  await page.goto(`/templates/${template.id}/edit`);
+  await openTemplateEdit(page, template.id);
   await page.getByRole('button', { name: 'Use simple configuration' }).click();
   await expect(page.getByTestId('template-graph-mode-error')).toContainText(
     'Simple configuration requires exactly one organizing and one non-organizing option.',
@@ -338,7 +352,7 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
     [initialOrganizer.id, initialParticipant.id].sort(),
   );
 
-  await page.goto(`/templates/${template.id}/edit`);
+  await openTemplateEdit(page, template.id);
   await confirmTemplateMode(page, 'simple');
   await expect(page.getByTestId('template-addons-section')).toHaveCount(0);
   await page.getByTestId('save-template-graph').click();
@@ -446,7 +460,9 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
   await addOnEditor.getByLabel('Maximum optional units per user').fill('3');
   await addOnEditor.getByLabel('Included quantity').fill('2');
   await addOnEditor.getByLabel('Optional quantity').fill('1');
-  await addOnEditor.getByRole('button', { name: 'Map another option' }).click();
+  await addOnEditor
+    .getByRole('button', { name: 'Add registration option', exact: true })
+    .click();
   await addOnEditor.getByLabel('Included quantity').nth(1).fill('0');
   await addOnEditor.getByLabel('Optional quantity').nth(1).fill('3');
 
@@ -724,7 +740,7 @@ test('event creation snapshots an advanced template before later page-backed tem
 
   const sourceTitleBeforeEdit = firstSourceOption.title;
   const changedSourceTitle = `${sourceTitleBeforeEdit} updated`;
-  await page.goto(`/templates/${template.id}/edit`);
+  await openTemplateEdit(page, template.id);
   const sourceOptionEditor = await templateOptionEditorByTitle(
     page,
     sourceTitleBeforeEdit,
@@ -820,10 +836,13 @@ test('legacy random template and event graphs are explicit read-only blocks', as
     .update(schema.templateRegistrationOptions)
     .set({ registrationMode: 'random' })
     .where(eq(schema.templateRegistrationOptions.id, templateOption.id));
-  await page.goto(`/templates/${template.id}/edit`);
+  await openTemplateEdit(page, template.id);
   await expect(page.getByTestId('template-graph-readonly')).toContainText(
-    'random allocation',
+    'Random allocation is unavailable.',
     { timeout: 20_000 },
+  );
+  await expect(page.getByTestId('template-graph-readonly')).toContainText(
+    'Create a new template using First come, first served or Manual approval instead.',
   );
   await expect(page.getByTestId('save-template-graph')).toHaveCount(0);
 
@@ -833,8 +852,11 @@ test('legacy random template and event graphs are explicit read-only blocks', as
     .where(eq(schema.eventRegistrationOptions.id, eventOption.id));
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(page.getByTestId('event-graph-readonly')).toContainText(
-    'legacy random allocation',
+    'Random allocation is unavailable.',
     { timeout: 20_000 },
+  );
+  await expect(page.getByTestId('event-graph-readonly')).toContainText(
+    'An authorized event editor must choose First come, first served or Manual approval',
   );
   await expect(page.getByTestId('save-event-graph')).toHaveCount(0);
 });

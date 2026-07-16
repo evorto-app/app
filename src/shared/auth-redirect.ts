@@ -9,17 +9,16 @@ const hasUnsafeRedirectCharacter = (value: string): boolean =>
       codePoint === 0x7f
     );
   });
+const isSafeRelativeRedirectPath = (value: string): boolean =>
+  value.startsWith('/') &&
+  !value.startsWith('//') &&
+  !value.includes('://') &&
+  !hasUnsafeRedirectCharacter(value);
 
 export const sanitizeRelativeRedirectPath = (
   value: null | string | undefined,
 ): string | undefined => {
-  if (
-    !value ||
-    !value.startsWith('/') ||
-    value.startsWith('//') ||
-    value.includes('://') ||
-    hasUnsafeRedirectCharacter(value)
-  ) {
+  if (!value || !isSafeRelativeRedirectPath(value)) {
     return;
   }
 
@@ -29,7 +28,10 @@ export const sanitizeRelativeRedirectPath = (
       return;
     }
 
-    return `${parsed.pathname}${parsed.search}`;
+    const canonicalPath = `${parsed.pathname}${parsed.search}`;
+    return isSafeRelativeRedirectPath(canonicalPath)
+      ? canonicalPath
+      : undefined;
   } catch {
     return;
   }

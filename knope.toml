@@ -1,6 +1,15 @@
 [package]
-versioned_files = ["package.json"]
+versioned_files = [
+  { path = "package.json", regex = '(?m)^  "version": "(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)"' },
+]
 changelog = "CHANGELOG.md"
+# Knope Bot creates a draft release whenever assets are configured. Keeping
+# this intentionally empty lets the certified release workflow publish the
+# draft without claiming that the application ships downloadable artifacts.
+assets = []
+
+[changes]
+ignore_conventional_commits = true
 
 [bot.releases]
 enabled = true

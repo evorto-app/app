@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { getId } from '../../../helpers/get-id';
+import { resolveStripeWebhookSecret } from '../../../helpers/testing/stripe-webhook-secret';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
@@ -11,11 +12,12 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { createSettledStripeTestPayment } from '../../support/utils/settled-stripe-test-payment';
 
 test.use({ storageState: userStateFile });
+test.describe.configure({ mode: 'default' });
 
 const regularUserId =
   usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
   usersToAuthenticate[0].id;
-const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'] ?? '';
+let webhookSecret = '';
 const stripeAccountId = process.env['STRIPE_TEST_ACCOUNT_ID'] ?? '';
 
 type SignedCheckoutWebhookInput = {
@@ -250,13 +252,13 @@ const assertCheckoutOwnershipRejected = async (input: {
 
 test.beforeAll(() => {
   expect(
-    webhookSecret.length,
-    'STRIPE_WEBHOOK_SECRET is required for webhook replay tests',
-  ).toBeGreaterThan(0);
-  expect(
     stripeAccountId.length,
     'STRIPE_TEST_ACCOUNT_ID is required for webhook replay tests',
   ).toBeGreaterThan(0);
+});
+
+test.beforeEach(async () => {
+  webhookSecret = await resolveStripeWebhookSecret();
 });
 
 test('an exact pending transaction and checkout session match completes once under webhook replay @finance @stripe', async ({

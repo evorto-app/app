@@ -168,6 +168,17 @@ describe('email delivery', () => {
           registrationId: 'registration-1',
           tenant,
           to: 'new-owner@example.com',
+          transferOperationId: 'direct-registration-transfer:acquisition-1',
+        });
+        yield* enqueueRegistrationTransferredEmail(database, {
+          eventTitle,
+          eventUrl,
+          recipientRole: 'newOwner',
+          recipientUserId: 'user-2',
+          registrationId: 'registration-1',
+          tenant,
+          to: 'new-owner@example.com',
+          transferOperationId: 'direct-registration-transfer:acquisition-1',
         });
         yield* enqueueRegistrationTransferredEmail(database, {
           eventTitle,
@@ -177,6 +188,17 @@ describe('email delivery', () => {
           registrationId: 'registration-1',
           tenant,
           to: 'previous-owner@example.com',
+          transferOperationId: 'direct-registration-transfer:acquisition-1',
+        });
+        yield* enqueueRegistrationTransferredEmail(database, {
+          eventTitle,
+          eventUrl,
+          recipientRole: 'newOwner',
+          recipientUserId: 'user-2',
+          registrationId: 'registration-1',
+          tenant,
+          to: 'new-owner@example.com',
+          transferOperationId: 'direct-registration-transfer:acquisition-2',
         });
 
         expect(insertedValues.map((value) => value.idempotencyKey)).toEqual([
@@ -184,14 +206,18 @@ describe('email delivery', () => {
           'registration-confirmed/tenant-1/registration-1',
           'registration-cancelled/tenant-1/registration-1',
           'waitlist-spot-available/tenant-1/waitlist-1/cancellation-registration-1',
-          'registration-transferred/tenant-1/registration-1/newOwner/user-2',
-          'registration-transferred/tenant-1/registration-1/previousOwner/user-1',
+          'registration-transferred/tenant-1/registration-1/direct-registration-transfer:acquisition-1/newOwner/user-2',
+          'registration-transferred/tenant-1/registration-1/direct-registration-transfer:acquisition-1/newOwner/user-2',
+          'registration-transferred/tenant-1/registration-1/direct-registration-transfer:acquisition-1/previousOwner/user-1',
+          'registration-transferred/tenant-1/registration-1/direct-registration-transfer:acquisition-2/newOwner/user-2',
         ]);
         expect(insertedValues.map((value) => value.kind)).toEqual([
           'registrationConfirmed',
           'registrationConfirmed',
           'registrationCancelled',
           'waitlistSpotAvailable',
+          'registrationTransferred',
+          'registrationTransferred',
           'registrationTransferred',
           'registrationTransferred',
         ]);
@@ -209,7 +235,9 @@ describe('email delivery', () => {
           expect(insertedValue.text).toEqual(expect.any(String));
           expect(String(insertedValue.text).length).toBeGreaterThan(20);
         }
-        expect(insertedValues[0]?.text).toContain('not a bearer credential');
+        expect(insertedValues[0]?.text).toContain(
+          'The ticket owner must sign in to Evorto',
+        );
         expect(insertedValues[3]?.text).toContain('does not reserve a spot');
       }),
   );

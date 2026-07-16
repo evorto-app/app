@@ -10,6 +10,8 @@ import {
   MatDialogTitle,
 } from '@angular/material/dialog';
 
+import { TENANT_FORMATTING_LOCALE } from '../../../types/custom/tenant';
+
 export interface PlatformRegistrationCancellationConfirmationCopy {
   readonly canConfirm: boolean;
   readonly impact: string;
@@ -22,6 +24,15 @@ export interface PlatformRegistrationCancellationConfirmationData {
   readonly registration: PlatformRegistrationDetailRecord;
 }
 
+export const formatPlatformRegistrationRefundAmount = (
+  amountInMinorUnits: number,
+  currency: PlatformRegistrationDetailRecord['currency'],
+): string =>
+  new Intl.NumberFormat(TENANT_FORMATTING_LOCALE, {
+    currency,
+    style: 'currency',
+  }).format(amountInMinorUnits / 100);
+
 export const platformRegistrationCancellationConfirmationCopy = ({
   registration,
 }: PlatformRegistrationCancellationConfirmationData): PlatformRegistrationCancellationConfirmationCopy => {
@@ -32,14 +43,14 @@ export const platformRegistrationCancellationConfirmationCopy = ({
     registration.guestCount === 1
       ? '1 guest place'
       : `${registration.guestCount} guest places`;
-  const impact = `This cancels ${participantName}'s entire registration: the attendee place, ${guestCopy}, and every remaining included, free, or purchased add-on unit. Existing check-in and fulfillment history stays recorded. This action cannot be undone.`;
+  const impact = `This cancels ${participantName}'s entire registration: the attendee place, ${guestCopy}, and every remaining included, free, or purchased add-on unit. Existing check-in and add-on handout history stays recorded. This action cannot be undone.`;
 
   if (!registration.cancellation.refund.required) {
     return {
       canConfirm: true,
       impact,
       refund:
-        'No successful paid acquisition is recorded, so no refund is required.',
+        'No successful event payment is recorded, so no refund is required.',
       title: `Cancel ${participantName}'s registration?`,
     };
   }
@@ -49,7 +60,7 @@ export const platformRegistrationCancellationConfirmationCopy = ({
       canConfirm: false,
       impact,
       refund:
-        'The payment record does not identify Stripe as its source. Paid event transactions are Stripe-only, so repair the payment provenance before cancelling.',
+        'This paid registration is not linked to a Stripe payment. Paid event transactions are Stripe-only, so correct the payment record before cancelling.',
       title: `Cancellation blocked for ${participantName}`,
     };
   }
@@ -57,8 +68,8 @@ export const platformRegistrationCancellationConfirmationCopy = ({
   const amount = registration.cancellation.refund.amount;
   const amountCopy =
     amount === null
-      ? 'The exact amount will be calculated from the immutable original Stripe payment records during cancellation.'
-      : `The current server preview is ${amount} minor currency units. Cancellation recalculates the exact amount from the immutable original Stripe payment records before it commits.`;
+      ? 'The exact refund will be calculated from the original Stripe payment when you confirm the cancellation.'
+      : `${formatPlatformRegistrationRefundAmount(amount, registration.currency)} is currently expected. Evorto recalculates the exact refund from the original Stripe payment when you confirm the cancellation.`;
   const feeCopy = registration.cancellation.refund.feesIncluded
     ? 'The configured policy includes payment fees.'
     : 'The configured policy excludes payment fees.';

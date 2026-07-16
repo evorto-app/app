@@ -9,7 +9,7 @@ test.use({
 });
 test.setTimeout(90_000);
 
-test('Choose a tenant default location with Google Maps @needs-google-maps', async ({
+test('Choose an organization default location with Google Maps @needs-google-maps', async ({
   database,
   page,
   tenant,
@@ -18,13 +18,13 @@ test('Choose a tenant default location with Google Maps @needs-google-maps', asy
 
   await testInfo.attach('markdown', {
     body: `
-{% callout type="note" title="Account, permission, and provider prerequisite" %}
-This guide uses a signed-in tenant administrator with **admin:changeSettings** in the tenant being changed. The Evorto deployment must have a working **PUBLIC_GOOGLE_MAPS_API_KEY**, billing enabled, and both the Maps JavaScript API and Places API (New) enabled for the key's project. Location search is required production functionality; a missing or rejected key is a release blocker, not a reason to skip this journey.
+{% callout type="note" title="Before you begin" %}
+Sign in as an organization administrator with access to change organization settings. Google Maps location search must be available.
 {% /callout %}
 
-# Choose a tenant default location with Google Maps
+# Choose an organization default location with Google Maps
 
-The tenant default location biases later event and template searches toward the tenant's usual area. Selecting a result asks Google Places for both autocomplete results and the chosen place's current details. Evorto stores the returned place id, display name, address when available, and coordinates.
+The organization default location biases later event and template searches toward its usual area. Choose a Google Maps suggestion to save its name, address, and position.
 
 Start from the normal application navigation: select **Admin Tools**, then **General settings**.
 `,
@@ -47,13 +47,13 @@ Start from the normal application navigation: select **Admin Tools**, then **Gen
 
   await testInfo.attach('markdown', {
     body: `
-## Search and review the provider result
+## Search and review the location
 
 1. In **Location**, type a recognizable place name plus its city or country. More context reduces ambiguous results.
-2. Wait for the Google Places suggestions. An empty-result message means the query found no candidates; broaden or correct the wording. A provider error offers **Retry location search**. A configuration error tells a site administrator to fix the API key.
-3. Select the intended suggestion. Evorto then loads that place's details. If that second request fails, use **Retry location details** or choose another result. The dialog closes only after complete, finite coordinates and a place id have been returned.
+2. Wait for the Google Places suggestions. An empty-result message means the search found no candidates; broaden or correct the wording. If Google Maps is temporarily unavailable, use **Retry location search**. If location search is not configured, contact the site administrator.
+3. Select the intended suggestion. Evorto then loads that place's details. If that second request fails, use **Retry location details** or choose another result. The dialog closes only after Evorto has a complete location with valid coordinates.
 
-This generated journey uses **Brandenburg Gate Berlin Germany** as a stable public example.
+For example, search for **Brandenburg Gate Berlin Germany**.
 `,
   });
 
@@ -104,12 +104,12 @@ This generated journey uses **Brandenburg Gate Berlin Germany** as a stable publ
     body: `
 ## Save and verify the location
 
-The selected name appearing under **Default Location** is only the pending form value. Select **Save** and wait for **Tenant settings updated** before leaving the page. This journey then reads the tenant record and reloads the page; both checks must retain the same Google place.
+The selected name appearing under **Default Location** is only the pending form value. Select **Save** and wait for **Organization settings updated** before leaving the page. Reloading must retain the same Google place.
 `,
   });
 
   await settings.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Tenant settings updated')).toBeVisible();
+  await expect(page.getByText('Organization settings updated')).toBeVisible();
 
   await expect
     .poll(async () => {
@@ -144,7 +144,7 @@ The selected name appearing under **Default Location** is only the pending form 
     testInfo,
     locationField,
     page,
-    'Persisted tenant default location',
+    'Saved organization default location',
   );
 
   await testInfo.attach('markdown', {
@@ -153,7 +153,7 @@ The selected name appearing under **Default Location** is only the pending form 
 
 The saved location is **${location.name}**. Event and template location searches may now use its coordinates as a search bias; it does not silently change existing event locations.
 
-To correct the choice, select **Change location**, search again, select the intended result, and save. Select **Cancel** in the dialog to retain the current form value. If Google Maps cannot initialize, search, or load place details, do not type guessed coordinates into this flow or treat an unverified result as complete: correct the deployment key, API enablement, browser-key restrictions, billing, or network access, then rerun the required integration journey.
+To correct the choice, select **Change location**, search again, select the intended result, and save. Select **Cancel** in the dialog to retain the current form value. If Google Maps cannot start, search, or load place details, do not treat an unverified result as complete. Retry once, then contact the site administrator if the problem continues.
 `,
   });
 });

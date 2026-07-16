@@ -1,9 +1,9 @@
 <h1 mat-dialog-title>Private transfer link created</h1>
 <mat-dialog-content class="grid gap-5">
   <p class="body-medium text-on-surface-variant">
-    Send either the link or the code to one person you trust. The first eligible
-    tenant member who starts the claim owns it; do not post these credentials
-    publicly.
+    Send either the link or code to one person you trust. The first eligible
+    organization member to use one can claim the registration. Keep both
+    private.
   </p>
 
   <div class="grid gap-2">
@@ -47,6 +47,13 @@
       manually.
     </p>
   }
+  <p class="sr-only" role="status" aria-live="polite">
+    @if (copied() === "link") {
+      Claim link copied to clipboard.
+    } @else if (copied() === "code") {
+      Claim code copied to clipboard.
+    }
+  </p>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
   <button mat-flat-button mat-dialog-close type="button">Done</button>

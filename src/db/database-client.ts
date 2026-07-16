@@ -23,3 +23,7 @@ export const createDatabaseClient = (
     pool,
   };
 };
+
+export type ScriptDatabaseClient = ReturnType<
+  typeof createDatabaseClient
+>['database'];

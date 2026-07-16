@@ -39,10 +39,13 @@ replace it with aspirational documentation.
   operation links, opens the refund-recovery surface, and resolves a
   deterministic scanner result from an attendee ticket URL.
 - `docs/admin/platform-tenant-operations.doc.ts` documents explicit target
-  selection, owner attribution, operation reasons, atomic audit records, and
-  participant-only boundaries. It also explains when refund recovery starts a
-  new idempotency generation versus resuming the existing durable claim, and
-  keeps deferred random allocation read-compatible but non-writable.
+  selection and executes representative event and template edits, existing-user
+  role assignment and removal, an unverifiable-receipt rejection, and attendee
+  plus guest check-in. Every page mutation supplies its own operational reason,
+  reads domain state back from PostgreSQL, and is then found by reason, action,
+  and target tenant in the visible platform audit log. The guide explicitly
+  separates participant-owned flows and names the adjacent finance, lifecycle,
+  tax-import, approval, and cancellation operations that it does not execute.
 - Prefer the target-scoped registration-result route for repeatable platform
   scanner checks. The organizer guide already exercises deterministic mocked
   camera permission/readiness, while Browser review covers the fallback and a
@@ -70,12 +73,17 @@ replace it with aspirational documentation.
   the recipient's current discounts, with one exact refund per original Stripe
   source. The recipient payment is recalculated independently from those source
   refunds, and source-user discounts do not transfer. Only a wholly free bundle
-  with no refund may complete database-only.
+  with no refund may complete database-only. Immediate direct reassignment is
+  also limited to options without participant questions; otherwise the private
+  recipient claim must collect and replace the recipient-owned answers.
 - `docs/events/registration-transfer.doc.ts` generates the participant-facing
   walkthrough for creating and claiming a private transfer offer by link or manual code. Its paid
   journey captures the pending Checkout, confirmed/refund-processing,
   refund-needs-attention, and safely requeued states from persisted data and
-  explains the fixed-bundle, current-recipient-pricing contract.
+  explains the fixed-bundle, current-recipient-pricing contract. It also follows
+  the source participant's event-page summary through processing, failure,
+  retry, and completion, showing the exact aggregate refund without restoring
+  ticket ownership or management actions.
 
 ## Registration Cancellation Coverage
 
@@ -92,7 +100,9 @@ replace it with aspirational documentation.
   participant Profile, Global Admin **Refund recovery** UI, durable refund
   history, and append-only platform audit record. This is deterministic local
   workflow evidence, not certification of live bank or card-network settlement.
-- The Docker Playwright server sets `E2E_RUNTIME_MODE=playwright`. Server startup
+- Compose only passes through `E2E_RUNTIME_MODE`; ordinary `docker:start` and
+  `docker:resume` do not force it. The disposable Docker Playwright server and
+  E2E CI launch paths set `E2E_RUNTIME_MODE=playwright`. Server startup
   accepts that mode only together with `NODE_ENV=development`,
   `NEON_LOCAL_PROXY=true`, and the pinned `E2E_NOW_ISO`, then pauses only the
   recurring registration-refund worker so audited recovery assertions and
@@ -157,11 +167,10 @@ AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... PUBLIC_GOOGLE_
 E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard
 E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard:release
 bun run test:e2e:docs
-bun run test:e2e:docs:publish
+EVORTO_PAGES_ROOT=/absolute/path/to/evorto-pages AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... PUBLIC_GOOGLE_MAPS_API_KEY=... E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:docs:publish
 bun run test:e2e:install
 bun run test:e2e -- --project=setup
 bun run test:e2e -- --headed --workers 1
-bun run test:e2e:report
 bun run lint
 ```
 
@@ -280,9 +289,12 @@ printed or committed.
   `docker:webserver`, which still builds and starts the Compose stack in the
   foreground but does not force a Compose teardown first. Its wrapper traps
   exit and Playwright shutdown signals and runs the project-scoped
-  `docker compose down --timeout 60 --remove-orphans`; Compose gets a 60-second
-  database shutdown grace period, while Playwright gives the wrapper 90 seconds
-  to finish object removal. Named volumes are not removed. Playwright and the
+  `docker compose down --timeout 60 --remove-orphans --volumes`; Compose gets a
+  60-second database shutdown grace period, while portable wall-clock watchdogs
+  cap each Compose attempt at 90 seconds and each container, network, or volume
+  verification command at 10 seconds. Playwright gives the wrapper five minutes
+  for both attempts, watchdog termination grace, verification, removal, and a
+  final buffer. Playwright and the
   E2E workflows probe `/readyz`, which anonymously renders `/events` on the
   incoming origin and returns `204` only for the expected event-list SSR
   document. Redirects, error/authentication documents, non-HTML responses, and
@@ -290,24 +302,35 @@ printed or committed.
   exact `204` without following redirects, so a redirect's final `2xx` cannot
   report a false green. A static asset such as `/robots.txt` is not a valid
   application readiness check. A pre-existing stack selected through
-  `reuseExistingServer` never starts the wrapper and remains running. The
+  `reuseExistingServer` never starts the wrapper and remains running. A stopped
+  database container created with an explicit `BRANCH_ID` or
+  `DELETE_BRANCH=false` is also protected: the disposable wrapper refuses to
+  start and directs the operator to `docker:resume` or an intentional
+  `docker:start` reset. The
   branch-expiration sidecar is fail-closed, so inability to set the fallback
   expiration prevents database setup instead of silently continuing.
   A final local gate must not trust an unknown reused server: stop it and let
   Playwright own a fresh stack, or explicitly start the exact checkout being
   pushed and verify that provenance. `/readyz` proves behavior, not commit or
   image identity.
-- `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
+- `bun run test:e2e:ui` first creates the six authenticated storage states in a
+  trace-off setup run, then opens a baseline-only Playwright UI. The UI baseline
+  projects retain their `database-setup` dependency for the newly started UI
+  stack but omit the password-entering authentication setup and reuse the
+  precreated storage states. Playwright UI always records a live trace, so
+  provider and account-creation tests that enter protected values are
+  intentionally excluded; run their canonical non-UI commands instead.
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is the Auth0 Management and required Google Maps portion of the
   provider gate and requires their approved local credentials.
 - `bun run test:e2e:live-esncard` runs only the live esncard.org active-card
-  add/refresh/remove and expired-card status path. It uses the dedicated
-  `local-chrome-live-esncard` project with normal authenticated setup and
-  narrows execution to
-  `tests/specs/profile/user-profile-live-esncard.spec.ts` and
-  `@needs-live-esncard`. The command runs the fail-closed live-provider runtime
-  preflight first; a missing `E2E_LIVE_ESN_CARD_IDENTIFIER` or
+  add/refresh/remove and expired-card status paths. It selects both the
+  `local-chrome-live-esncard` functional project and the `docs-live-esncard`
+  publication project with normal authenticated setup; the current collection
+  is nine tests across those projects, including shared setup. The command
+  narrows execution to the functional and documentation ESNcard sources tagged
+  `@needs-live-esncard`. It runs the fail-closed live-provider runtime preflight
+  first; a missing `E2E_LIVE_ESN_CARD_IDENTIFIER` or
   `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` is an error, not a skipped test. This
   focused command does not run the provider-error unit check;
   use `bun run test:e2e:live-esncard:release` for the ESNcard provider portion.
@@ -327,11 +350,44 @@ printed or committed.
   Docker, contacting external services, or writing local docs/HTML report
   artifacts. Run the docs projects without `--list` when you intentionally want
   to regenerate documentation artifacts.
+- Normal local runs also omit Playwright's persistent HTML, JSON, and blob
+  reporters. Playwright API step titles and its automatic ARIA failure snapshot
+  can contain form values, including Auth0 passwords and protected provider
+  identifiers, even when traces, screenshots, and video are disabled. Protected
+  credential entry must use `fillProtectedValue`; its auto policy fails closed
+  unless effective trace, screenshot, video, HAR, and context-video capture are
+  all off and the protected-value sanitizer reporter is active. The helper
+  accepts a protected environment-variable name instead of an arbitrary value;
+  the create-account fixture uses a fresh run-generated Auth0 password that is
+  registered before workers start. A value-free step and native form setter keep
+  the value out of Playwright action titles. Downstream reporters run in quiet
+  mode while the sanitizer emits redacted stdout/stderr, removes automatic
+  `error-context.md` attachments, and redacts protected values from remaining
+  text diagnostics. An attachment that cannot be inspected is removed and fails
+  the run closed. Explicit safe attachments remain available. Never log or
+  assert a raw protected value, and do not add a file-writing reporter to a
+  secret-bearing run. Delete any older `playwright-report` directory before
+  sharing artifacts.
 - `bun run test:e2e:docs` writes generated docs to ignored local
-  `test-results/docs` paths by default. Use
-  `bun run test:e2e:docs:publish` only when you intentionally want to update
-  `/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs` and
-  `/Users/hedde/code/evorto-pages/apps/documentation/public/docs`.
+  `test-results/docs` paths. Every other non-publishing Playwright package
+  script forces the same ignored paths, so `DOCS_OUT_DIR` or
+  `DOCS_IMG_OUT_DIR` values in local dotenv files cannot erase published docs
+  during a functional, integration, live-provider, UI, or focused run.
+- Use `bun run test:e2e:docs:publish` only when you intentionally want to update
+  the generated guide catalog in the tracked Evorto Pages documentation app.
+  Set `EVORTO_PAGES_ROOT` to an absolute path containing
+  `apps/documentation-page` and `tools/docs/sync-generated-docs.mjs`; the
+  command does not assume a developer-specific checkout. Publishing requires
+  the complete Auth0 Management, Google Maps, active ESNcard, and permanently
+  expired ESNcard credential set. It generates `docs-baseline`,
+  `docs-integration`, and `docs-live-esncard` together into ignored staging,
+  maps every guide into the consumer's fixed 13-guide lifecycle catalog, and
+  emits `docs-tests.bundle/v1alpha1` plus the hashed output manifest. Any new,
+  renamed, missing, or unmapped guide fails publication before the consumer is
+  changed. The Evorto Pages sync tool validates that exact artifact and performs
+  its own rollback-backed replacement of only the generated guide and asset
+  trees, preserving curated routes and assets. A failed or incomplete run
+  leaves the previous consumer content unchanged.
 
 ## Playwright Browsers
 
@@ -403,7 +459,9 @@ Playwright separates external-service coverage with dedicated projects:
 
 CI infers whether integration-only credentials are required from the selected Playwright projects.
 If you select `local-chrome-integration` or `docs-integration`, CI/runtime validation demands the extra external-service credentials.
-UI mode is intentionally unrestricted and does not force integration-only credentials at startup.
+UI mode is intentionally baseline-only: it omits protected-input provider and
+account-creation tests and does not require their integration credentials at
+startup.
 CI baseline jobs set `E2E_SELECTED_PROJECTS` so Playwright worker processes
 that no longer expose the original CLI `--project` flags still use the
 baseline credential contract.
@@ -424,6 +482,12 @@ Required for full Playwright flows:
 - `BASE_URL`
 - `CLIENT_ID`
 - `CLIENT_SECRET`
+- `E2E_DEFAULT_USER_PASSWORD`
+- `E2E_ADMIN_USER_PASSWORD`
+- `E2E_GLOBAL_ADMIN_USER_PASSWORD`
+- `E2E_REGULAR_USER_PASSWORD`
+- `E2E_ORGANIZER_USER_PASSWORD`
+- `E2E_EMPTY_USER_PASSWORD`
 - `ISSUER_BASE_URL`
 - `NEON_API_KEY` for Docker-backed Neon Local runs
 - `NEON_PROJECT_ID` for Docker-backed Neon Local runs
@@ -446,8 +510,41 @@ precondition.
 
 Registration payment docs and functional tests that deliver an exact signed
 completion event prefer the running Compose app container's file-backed secret,
-resolved through its project/service labels without logging it, and fall back
-to `STRIPE_WEBHOOK_SECRET` when no Docker runtime is available.
+resolved through its project/service labels without logging it. They wait for
+that nonempty file and fail closed instead of signing with a stale static value;
+`STRIPE_WEBHOOK_SECRET` is used only when no Compose app container is running.
+
+The six stable Auth0 Playwright accounts use dedicated password variables.
+Their prior tracked passwords are compromised by repository history and must
+not be reused. Rotate all six accounts out of band, then configure the new
+values in the ignored local `.env` for local certification. Runtime preflight
+and the authentication setup fail closed when any value is absent. Never print
+the values, put them in command examples, or copy them back into tracked
+fixtures.
+
+Keep these long-lived passwords exclusively in the protected
+`esncard-release-certification` GitHub environment; do not keep repository-level
+copies. The E2E Baseline has no pull-request trigger, validates that it is
+running from protected `main` before its secret-bearing job can start, and then
+targets that environment. The Production Provider Certification workflow uses
+the same boundary. The environment must exist with required reviewers and a
+protected deployment-branch policy before either workflow is enabled. If that
+trusted boundary cannot be provisioned, CI must instead create disposable
+Auth0 accounts whose credentials and sessions are revoked after each run.
+The authentication setup disables traces, screenshots, and video. The default
+local reporter set also omits persistent HTML, JSON, and blob output because
+Playwright can include password form-fill values in API step titles. Together,
+these controls keep password values out of repository-owned Playwright
+artifacts while preserving terminal results and the mandatory completeness
+reporter. Credential-backed baseline CI additionally forces tracing off, never
+uploads `playwright-report`, and explicitly excludes `trace.zip` from both
+artifact uploads.
+
+The ordinary `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, and
+`test:e2e:docs` scripts run `test:e2e:check` first. That Playwright preflight
+requires all six passwords before Docker-backed test startup. `docker:check`
+does not require them, so starting the development stack remains independent of
+test-account custody.
 
 Required in CI baseline docs/functional jobs:
 
@@ -480,7 +577,8 @@ The **Production Provider Certification** workflow is both manually
 dispatchable and called as a required job by the repository Release workflow.
 Its job targets the protected `esncard-release-certification` GitHub
 environment. The first step validates the required secret and variable names
-before checkout or tool setup, including Auth0 Management, Google Maps,
+before checkout or tool setup, including Auth0 Management, Google Maps, all six
+Auth0 Playwright account passwords,
 `E2E_LIVE_ESN_CARD_IDENTIFIER`, and
 `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`. The Release caller maps only the
 declared required secrets; the called job keeps the protected environment

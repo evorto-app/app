@@ -4,7 +4,6 @@ import {
   createGlobalAdminTenantFormModel,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
-  globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
   globalAdminTenantUpdateErrorMessage,
   normalizeGlobalAdminTenantDomain,
@@ -22,14 +21,6 @@ describe('global admin tenant form model', () => {
       theme: 'evorto',
       timezone: 'Europe/Berlin',
     });
-  });
-
-  it('keeps the visible relaunch scope aligned with the one-domain tenant workflow', () => {
-    expect(globalAdminTenantRelaunchScopeItems).toEqual([
-      'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
-      'Custom-domain verification and multi-domain automation are deferred.',
-      'Tenant-admin impersonation is not available in the current relaunch surface.',
-    ]);
   });
 
   it('maps tenant records into editable form state without exposing derived values', () => {
@@ -212,14 +203,14 @@ describe('global admin tenant form model', () => {
         _tag: 'GlobalAdminTenantUrlMigrationBlockedError',
         activeRegistrationTransfers: true,
         message:
-          'Tenant public URL cannot change while issued links are active',
+          'Organization public URL cannot change while issued links are active',
         pendingStripeObligations: false,
         reason:
-          'Complete or cancel every active registration transfer before changing the tenant public URL.',
+          "Complete or cancel every active registration transfer before changing the organization's public URL.",
         tenantId: 'tenant-1',
       }),
     ).toBe(
-      'Tenant public URL cannot change while issued links are active. Complete or cancel every active registration transfer before changing the tenant public URL.',
+      "Organization public URL cannot change while issued links are active. Complete or cancel every active registration transfer before changing the organization's public URL.",
     );
   });
 

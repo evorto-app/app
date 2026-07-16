@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Reconcile Checkout cancellation before releasing registrations

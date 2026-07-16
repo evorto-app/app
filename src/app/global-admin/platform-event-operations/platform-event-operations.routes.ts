@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 
+import { platformTemplateUnsavedChangesGuard } from './platform-template-unsaved-changes.guard';
+
 export const PLATFORM_EVENT_OPERATION_ROUTES: Routes = [
   {
     loadComponent: () =>
@@ -23,6 +25,7 @@ export const PLATFORM_EVENT_OPERATION_ROUTES: Routes = [
     path: 'tenants/:tenantId/events',
   },
   {
+    canDeactivate: [platformTemplateUnsavedChangesGuard],
     loadComponent: () =>
       import('./platform-template-editor.component').then(
         (module) => module.PlatformTemplateEditorComponent,
@@ -30,6 +33,7 @@ export const PLATFORM_EVENT_OPERATION_ROUTES: Routes = [
     path: 'tenants/:tenantId/templates/new',
   },
   {
+    canDeactivate: [platformTemplateUnsavedChangesGuard],
     loadComponent: () =>
       import('./platform-template-editor.component').then(
         (module) => module.PlatformTemplateEditorComponent,

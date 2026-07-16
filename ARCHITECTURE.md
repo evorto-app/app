@@ -222,6 +222,14 @@ account that owns the relevant payment workflow. Evorto adds only its
 application fee; tenant payment and cancellation settings remain tenant-owned,
 with narrower registration-option overrides where configured.
 
+Mutable event/template tax-rate bindings are scoped to the current Connect
+account. Disconnect is rejected while any binding remains. Account rotation
+preloads the replacement account's active inclusive rates, requires one exact
+normalized semantic match for each distinct source rate, then atomically
+replaces tenant tax metadata and remaps all event/template registration-option
+and add-on bindings. Missing or ambiguous matches fail before mutation, so an
+account change cannot silently drop or alter tax behavior.
+
 Event registrations and add-ons have no non-Stripe paid path. Without a
 connected Stripe account, persisted and editable registration options and
 add-ons must be free. Manual finance transactions used by other workflows do
@@ -232,9 +240,16 @@ all included, free, and purchased add-ons, their fixed quantities, original
 source-payment allocations, guest/check-in state, and fulfillment history.
 Claiming a transfer must not accept recipient-selected add-on omissions or guest
 changes. Price the unchanged bundle from current base prices and the recipient's
-current discounts, refund each original Stripe source exactly, and calculate
-the recipient payment independently. Only a wholly free bundle with no refund
-obligation may complete database-only.
+current discounts, refund each original Stripe source for its exact remaining
+refundable amount after prior successful refunds, and calculate the recipient
+payment independently. Only a wholly free bundle with no refund obligation may
+complete database-only.
+
+Participant-question answers are recipient-owned data, not bundle state. The
+server permits immediate direct reassignment only when the free/no-refund
+bundle's registration option has no participant questions. Otherwise it routes
+the transfer through the private recipient claim, which validates current
+questions and atomically replaces any source answers with the recipient's own.
 
 Transfer ownership and refund provenance use an application-append-only
 acquisition ledger. Production server code inserts ownership epochs,

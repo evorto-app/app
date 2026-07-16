@@ -4,9 +4,13 @@ import { isSafeReceiptPreviewUrl } from '../shared/receipt-preview-dialog/receip
 import {
   receiptReimbursementCanRecord,
   receiptReimbursementGroupKey,
+  receiptReimbursementHasPayoutDetails,
   receiptReimbursementManualNotice,
+  receiptReimbursementMissingPayoutNotice,
   receiptReimbursementPayoutDetailLabel,
+  receiptReimbursementReceiptSelectionLabel,
   receiptReimbursementRecordDisabled,
+  receiptReimbursementSelectAllLabel,
   receiptReimbursementSelectedTotal,
 } from './receipt-refund-list.component';
 
@@ -70,6 +74,44 @@ describe('receiptReimbursementCanRecord', () => {
         'paypal',
       ),
     ).toBe(true);
+  });
+});
+
+describe('receiptReimbursementHasPayoutDetails', () => {
+  it('reports whether the recipient has at least one usable payout method', () => {
+    expect(
+      receiptReimbursementHasPayoutDetails({
+        iban: null,
+        paypalEmail: null,
+      }),
+    ).toBe(false);
+    expect(
+      receiptReimbursementHasPayoutDetails({
+        iban: 'DE123',
+        paypalEmail: null,
+      }),
+    ).toBe(true);
+    expect(receiptReimbursementMissingPayoutNotice).toContain(
+      'before recording a reimbursement',
+    );
+  });
+});
+
+describe('receipt reimbursement selection labels', () => {
+  it('identifies the recipient, currency, receipt, and event for checkbox controls', () => {
+    expect(
+      receiptReimbursementSelectAllLabel({
+        currency: 'EUR',
+        submittedByFirstName: 'Ada',
+        submittedByLastName: 'Lovelace',
+      }),
+    ).toBe('Select all EUR receipts for Ada Lovelace');
+    expect(
+      receiptReimbursementReceiptSelectionLabel({
+        attachmentFileName: 'receipt.pdf',
+        eventTitle: 'Welcome Week',
+      }),
+    ).toBe('Select receipt receipt.pdf for Welcome Week');
   });
 });
 

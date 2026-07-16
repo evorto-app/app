@@ -24,7 +24,6 @@ import consola from 'consola/browser';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import {
   createOrdinaryTemplateGraphFormModel,
   ordinaryTemplateGraphFormToPayload,
@@ -165,10 +164,6 @@ export class TemplateCreateComponent {
       if (resetModel === model) return;
       untracked(() => this.templateModel.set(resetModel));
     });
-  }
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to create template');
   }
 
   protected async onSubmit(event: Event) {

@@ -14,13 +14,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   PlatformRegistrationDetailRecord,
   PlatformRegistrationsCancelInput,
+  PlatformRegistrationsCheckInInput,
 } from '../../../shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { PlatformRegistrationCancellationConfirmationDialogComponent } from './platform-registration-cancellation-confirmation-dialog.component';
 import {
+  platformGuestCheckInIssue,
+  platformGuestCheckInSelection,
   platformRegistrationStatusIssueCopy,
+  platformRegistrationStatusLabel,
   PlatformScannerComponent,
   PlatformScannerOperations,
   registrationIdFromPlatformScannerInput,
@@ -38,9 +42,9 @@ describe('platformRegistrationStatusIssueCopy', () => {
     });
   });
 
-  it('distinguishes pending approval or Checkout from a duplicate payment', () => {
+  it('distinguishes pending approval or payment from a duplicate payment', () => {
     expect(platformRegistrationStatusIssueCopy('PENDING')).toEqual({
-      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing Stripe Checkout is still needed. Do not start a second registration or payment from the scanner.',
+      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
       title: 'Registration pending',
     });
   });
@@ -50,6 +54,51 @@ describe('platformRegistrationStatusIssueCopy', () => {
       body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
       title: 'Registration on waitlist',
     });
+  });
+
+  it('maps stored status codes to attendee-facing labels', () => {
+    expect(platformRegistrationStatusLabel('CONFIRMED')).toBe('Confirmed');
+    expect(platformRegistrationStatusLabel('PENDING')).toBe('Pending');
+    expect(platformRegistrationStatusLabel('WAITLIST')).toBe('On waitlist');
+    expect(platformRegistrationStatusLabel('CANCELLED')).toBe('Cancelled');
+  });
+});
+
+describe('platform guest check-in selection', () => {
+  it('accepts only whole guest counts within the remaining quantity', () => {
+    expect(
+      platformGuestCheckInSelection({
+        inputValue: '2',
+        remainingGuestCount: 3,
+      }),
+    ).toEqual({ count: 2, error: '' });
+
+    for (const inputValue of ['', '-1', '1.5', '4', 'not-a-number']) {
+      expect(
+        platformGuestCheckInSelection({
+          inputValue,
+          remainingGuestCount: 3,
+        }),
+      ).toEqual({
+        count: 0,
+        error: 'Enter a whole number from 0 to 3.',
+      });
+    }
+  });
+
+  it('requires at least one guest when the attendee is already checked in', () => {
+    expect(
+      platformGuestCheckInIssue({
+        attendeeCheckedIn: true,
+        selection: { count: 0, error: '' },
+      }),
+    ).toBe('Choose at least one guest to check in.');
+    expect(
+      platformGuestCheckInIssue({
+        attendeeCheckedIn: false,
+        selection: { count: 0, error: '' },
+      }),
+    ).toBe('');
   });
 });
 
@@ -142,6 +191,7 @@ const inspectedRegistration: PlatformRegistrationDetailRecord = {
   checkedInGuestCount: 0,
   checkInTime: null,
   checkInTimingIssue: false,
+  currency: 'EUR',
   event: {
     id: 'event-1',
     start: '2030-01-02T00:00:00.000Z',
@@ -170,17 +220,48 @@ const findButton = (
     (button) => button.textContent?.replaceAll(/\s+/g, ' ').trim() === label,
   );
 
-describe('PlatformScannerComponent cancellation confirmation', () => {
+const findAlertButton = (
+  fixture: ComponentFixture<PlatformScannerComponent>,
+  alertText: string,
+): HTMLButtonElement | undefined =>
+  [
+    ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+      '[role="alert"]',
+    ),
+  ]
+    .find((alert) => alert.textContent?.includes(alertText))
+    ?.querySelector<HTMLButtonElement>('button') ?? undefined;
+
+describe('PlatformScannerComponent', () => {
   const cancelRegistration = vi.fn(
     async (
       _input: PlatformRegistrationsCancelInput,
       _context?: unknown,
     ): Promise<PlatformRegistrationDetailRecord> => inspectedRegistration,
   );
+  const checkInRegistration = vi.fn(
+    async (
+      _input: PlatformRegistrationsCheckInInput,
+      _context?: unknown,
+    ): Promise<PlatformRegistrationDetailRecord> => inspectedRegistration,
+  );
   const dialogOpen = vi.fn(() => ({ afterClosed: () => of(false) }));
+  const findRegistration = vi.fn(
+    async (): Promise<PlatformRegistrationDetailRecord> =>
+      inspectedRegistration,
+  );
+  const listRegistrations = vi.fn(async () => []);
+  const loadFormOptions = vi.fn(async () => ({
+    timezone: 'Australia/Brisbane',
+  }));
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    findRegistration.mockReset().mockResolvedValue(inspectedRegistration);
+    listRegistrations.mockReset().mockResolvedValue([]);
+    loadFormOptions.mockReset().mockResolvedValue({
+      timezone: 'Australia/Brisbane',
+    });
     queryClient = new QueryClient({
       defaultOptions: {
         mutations: { retry: false },
@@ -213,15 +294,19 @@ describe('PlatformScannerComponent cancellation confirmation', () => {
               mutationKey: ['platform-scanner', 'cancel'],
             }),
             checkIn: () => ({
-              mutationFn: vi.fn(),
+              mutationFn: checkInRegistration,
               mutationKey: ['platform-scanner', 'check-in'],
             }),
             findOne: () => ({
-              queryFn: async () => inspectedRegistration,
+              queryFn: findRegistration,
               queryKey: ['platform-scanner', 'registration'],
             }),
+            formOptions: () => ({
+              queryFn: loadFormOptions,
+              queryKey: ['platform-scanner', 'target-tenant-options'],
+            }),
             list: () => ({
-              queryFn: async () => [],
+              queryFn: listRegistrations,
               queryKey: ['platform-scanner', 'registrations'],
             }),
             registrationFilter: () => ({
@@ -243,10 +328,7 @@ describe('PlatformScannerComponent cancellation confirmation', () => {
   const render = async (): Promise<
     ComponentFixture<PlatformScannerComponent>
   > => {
-    const fixture = TestBed.createComponent(PlatformScannerComponent);
-    fixture.componentRef.setInput('registrationId', 'registration-1');
-    fixture.componentRef.setInput('tenantId', 'tenant-1');
-    fixture.detectChanges();
+    const fixture = renderInitial('registration-1');
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('Weekend trip');
@@ -260,6 +342,199 @@ describe('PlatformScannerComponent cancellation confirmation', () => {
     fixture.detectChanges();
     return fixture;
   };
+
+  const renderInitial = (
+    registrationId?: string,
+  ): ComponentFixture<PlatformScannerComponent> => {
+    const fixture = TestBed.createComponent(PlatformScannerComponent);
+    if (registrationId) {
+      fixture.componentRef.setInput('registrationId', registrationId);
+    }
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    fixture.detectChanges();
+    return fixture;
+  };
+
+  it('retries a failed registration lookup', async () => {
+    findRegistration
+      .mockReset()
+      .mockRejectedValueOnce(
+        new Error('Provider secret and registration-1 must never render'),
+      )
+      .mockResolvedValue(inspectedRegistration);
+    const fixture = renderInitial('registration-1');
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain(
+        'This registration could not be loaded.',
+      );
+    });
+    expect(findRegistration).toHaveBeenCalledOnce();
+    expect(fixture.nativeElement.textContent).not.toContain('Provider secret');
+
+    const retryButton = findAlertButton(
+      fixture,
+      'This registration could not be loaded.',
+    );
+    if (!retryButton) throw new Error('Expected a registration retry button');
+    retryButton.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findRegistration).toHaveBeenCalledTimes(2);
+      expect(fixture.nativeElement.textContent).toContain('Weekend trip');
+      expect(fixture.nativeElement.textContent).not.toContain('registration-1');
+    });
+  });
+
+  it('retries a failed registrations list', async () => {
+    listRegistrations
+      .mockReset()
+      .mockRejectedValueOnce(new Error('Unavailable'))
+      .mockResolvedValue([]);
+    const fixture = renderInitial();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain(
+        'Registrations for this organization could not be loaded.',
+      );
+    });
+    expect(listRegistrations).toHaveBeenCalledOnce();
+
+    const retryButton = findAlertButton(
+      fixture,
+      'Registrations for this organization could not be loaded.',
+    );
+    if (!retryButton) throw new Error('Expected a registrations retry button');
+    retryButton.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(listRegistrations).toHaveBeenCalledTimes(2);
+      expect(fixture.nativeElement.textContent).toContain(
+        'No registrations found.',
+      );
+    });
+  });
+
+  it('retries loading the organization time zone', async () => {
+    loadFormOptions
+      .mockReset()
+      .mockRejectedValueOnce(new Error('Unavailable'))
+      .mockResolvedValue({ timezone: 'Australia/Brisbane' });
+    const fixture = renderInitial('registration-1');
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain(
+        "Dates cannot be shown in the organization's time zone right now.",
+      );
+    });
+    expect(loadFormOptions).toHaveBeenCalledOnce();
+
+    const retryButton = findAlertButton(
+      fixture,
+      "Dates cannot be shown in the organization's time zone right now.",
+    );
+    if (!retryButton) throw new Error('Expected a time-zone retry button');
+    retryButton.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(loadFormOptions).toHaveBeenCalledTimes(2);
+      expect(fixture.nativeElement.textContent).toContain(
+        '02 Jan 2030, 10:00 · Australia/Brisbane',
+      );
+    });
+  });
+
+  it('formats operational dates in the target tenant timezone', async () => {
+    const fixture = await render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain(
+        '02 Jan 2030, 10:00 · Australia/Brisbane',
+      );
+      expect(fixture.nativeElement.textContent).toContain(
+        '01 Jan 2030, 10:00 · Australia/Brisbane',
+      );
+    });
+  });
+
+  it('clears action state when the inspected registration changes', async () => {
+    const fixture = await render();
+    const guestCount = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLInputElement>('input[type="number"]');
+    if (!guestCount) throw new Error('Expected a guest-count field');
+    guestCount.value = '2';
+    guestCount.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    fixture.componentRef.setInput('registrationId', 'registration-2');
+    fixture.detectChanges();
+
+    const reason = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLTextAreaElement>('textarea');
+    expect(reason?.value).toBe('');
+    expect(guestCount.value).toBe('0');
+  });
+
+  it('explains invalid guest quantities and keeps check-in disabled', async () => {
+    const fixture = await render();
+    const guestCount = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLInputElement>('input[type="number"]');
+    if (!guestCount) throw new Error('Expected a guest-count field');
+
+    guestCount.value = '1.5';
+    guestCount.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Enter a whole number from 0 to 2.',
+    );
+    expect(findButton(fixture, 'Check in')?.disabled).toBe(true);
+
+    guestCount.value = '1';
+    guestCount.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(findButton(fixture, 'Check in')?.disabled).toBe(false);
+  });
+
+  it('clears the reason and guest count after a successful check-in', async () => {
+    const fixture = await render();
+    const guestCount = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLInputElement>('input[type="number"]');
+    if (!guestCount) throw new Error('Expected a guest-count field');
+    guestCount.value = '2';
+    guestCount.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    findButton(fixture, 'Check in')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(checkInRegistration).toHaveBeenCalledOnce();
+      const reason = (
+        fixture.nativeElement as HTMLElement
+      ).querySelector<HTMLTextAreaElement>('textarea');
+      expect(reason?.value).toBe('');
+      expect(guestCount.value).toBe('0');
+    });
+    expect(checkInRegistration.mock.calls[0]?.[0]).toEqual({
+      guestCheckInCount: 2,
+      reason: 'Duplicate registration',
+      registrationId: 'registration-1',
+      targetTenantId: 'tenant-1',
+    });
+  });
 
   it('does not cancel when the administrator keeps the registration', async () => {
     const fixture = await render();

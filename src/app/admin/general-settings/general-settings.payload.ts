@@ -21,8 +21,6 @@ export interface GeneralSettingsModel {
   legalNoticeUrl: string;
   logoUrl: string;
   maxActiveRegistrationsPerUser: number;
-  privacyPolicyText: string;
-  privacyPolicyUrl: string;
   receiptCountries: string[];
   refundFeesOnCancellation: boolean;
   seoDescription: string;
@@ -61,8 +59,6 @@ export const generalSettingsPayloadFromModel = (
   maxActiveRegistrationsPerUser: nonNegativeWholeHours(
     settings.maxActiveRegistrationsPerUser,
   ),
-  privacyPolicyText: optionalTrimmed(settings.privacyPolicyText),
-  privacyPolicyUrl: optionalTrimmed(settings.privacyPolicyUrl),
   receiptCountries: settings.receiptCountries,
   refundFeesOnCancellation: settings.refundFeesOnCancellation,
   seoDescription: optionalTrimmed(settings.seoDescription),

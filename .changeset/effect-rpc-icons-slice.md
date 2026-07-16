@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Move icon selector APIs from tRPC to Effect RPC

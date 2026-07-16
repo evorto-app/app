@@ -131,7 +131,7 @@ describe('event graph form mapping', () => {
     });
   });
 
-  it('blocks legacy random allocation without coercing it', () => {
+  it('blocks unavailable random allocation without coercing it', () => {
     const source = eventGraph();
     const result = eventGraphRecordToFormModel(
       {
@@ -141,6 +141,9 @@ describe('event graph form mapping', () => {
         ),
       },
       DEFAULT_TENANT_TIMEZONE,
+    );
+    expect(legacyRandomEventEditMessage).toBe(
+      'Random allocation is unavailable. An authorized event editor must choose First come, first served or Manual approval before anyone can edit this registration setup.',
     );
     expect(result).toEqual({ error: legacyRandomEventEditMessage });
   });

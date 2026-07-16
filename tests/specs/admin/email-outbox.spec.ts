@@ -11,12 +11,12 @@ test.use({ storageState: gaStateFile });
 
 const outboxRow = (page: Page, item: EmailOutboxScenarioItem) =>
   page
-    .getByRole('heading', { name: 'Rows needing delivery' })
+    .getByRole('heading', { name: 'Delivery details' })
     .locator('..')
     .locator(':scope > div')
     .filter({ has: page.getByRole('heading', { name: item.subject }) });
 
-test('global admin reviews active Email Outbox delivery and recovery states @admin @globalAdmin', async ({
+test('global admin reviews active Email Outbox delivery states and read-only history @admin @globalAdmin', async ({
   database,
   page,
   tenant,
@@ -79,10 +79,20 @@ test('global admin reviews active Email Outbox delivery and recovery states @adm
     await expect(exhaustedRow).toContainText('8/8');
     await expect(exhaustedRow).toContainText('Recipient address was rejected');
     await expect(
-      exhaustedRow.getByText('Exhausted', { exact: true }),
+      exhaustedRow.getByText('Retries ended', { exact: true }),
+    ).toBeVisible();
+    await expect(exhaustedRow).toContainText(
+      'Automatic retries ended. Stored as read-only history.',
+    );
+    await expect(exhaustedRow.getByText('Next attempt')).toHaveCount(0);
+    await expect(
+      page.getByRole('heading', { name: 'Email delivery status' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Email delivery needs attention' }),
+      page.getByText(
+        'Exhausted emails remain stored as read-only history. Automatic retries have ended; no recovery action is required.',
+        { exact: true },
+      ),
     ).toBeVisible();
 
     // Sent rows contribute to the summary but the operational list is fixed to

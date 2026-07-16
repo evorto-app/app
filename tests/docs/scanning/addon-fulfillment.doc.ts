@@ -89,14 +89,14 @@ You need a confirmed organizer/helper registration for this event or **Organize 
 
 # Fulfill add-ons from a scanned registration
 
-1. Sign in to the tenant that owns the event.
+1. Sign in to the organization that owns the event.
 2. Select **Scanner** in the main navigation.
 3. Scan the attendee's confirmed ticket QR code.
 4. Verify the attendee, event, registration option, and add-on quantities before recording fulfillment.
 
-The QR value is only a registration locator. Evorto rechecks the current tenant and your organizer permissions before showing the result or accepting an action.
+The QR value identifies a registration but does not grant access by itself. Evorto still checks the organization and your organizer access before showing the result or accepting an action.
 
-This generated walkthrough opens the deterministic registration-result URL directly, while the separate check-in guide exercises deterministic mocked camera permission and readiness. Synthetic camera input does not prove physical-device focus or QR recognition, so the accepted Browser review also checks the camera fallback and a real result page manually on a representative organizer-sized viewport.
+If the camera is unavailable, open the attendee's ticket link through the scanner result flow and verify the same registration details before recording fulfillment.
 `,
     });
 
@@ -106,74 +106,67 @@ This generated walkthrough opens the deterministic registration-result URL direc
     ).toBeVisible();
     const fulfillmentHeading = await waitForScannerAddonFulfillment(page);
     const addOn = page.locator('article').filter({ hasText: addOnTitle });
-    await expect(addOn).toContainText(
-      '1 included (1 unredeemed) · 2 optional (2 unredeemed)',
-    );
+    await expect(addOn).toContainText('1 included · 2 purchased');
     await expect(
-      addOn.getByText('Total', { exact: true }).locator('..'),
-    ).toContainText('3');
-    await expect(
-      addOn.getByText('Redeemed', { exact: true }).locator('..'),
+      addOn.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('0');
     await expect(
       addOn.getByText('Cancelled', { exact: true }).locator('..'),
     ).toContainText('0');
     await expect(
-      addOn.getByText('Remaining', { exact: true }).locator('..'),
+      addOn.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('3');
     await takeScreenshot(
       testInfo,
       fulfillmentHeading,
       page,
-      'Review included and optional add-on quantities',
+      'Review included and purchased add-on quantities',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Redeem one unit and undo an accidental tap
+## Hand out one unit and undo an accidental tap
 
-The overview separates included and optional quantities and always shows total, redeemed, cancelled, remaining, and refund state. Select **Redeem 1** only when one unit has actually been handed over or the checklist item has been completed.
+The overview separates included and purchased quantities and always shows what is ready to hand out, already handed out, cancelled, and whether a refund applies. Select **Hand out 1** only when one unit has actually been handed over or the checklist item has been completed.
 
-After a redemption, the scanner offers **Undo last redemption** only for that add-on's current latest unreversed redemption. Use it immediately for an accidental tap. Redeemed units cannot be cancelled.
+After a handout, the scanner offers **Undo last handout** only for that add-on's latest recorded handout. Use it immediately for an accidental tap. Handed-out units cannot be cancelled.
 `,
     });
 
-    await addOn.getByRole('button', { name: 'Redeem 1' }).click();
+    await addOn.getByRole('button', { name: 'Hand out 1' }).click();
     await expect(
-      addOn.getByText('Redeemed', { exact: true }).locator('..'),
+      addOn.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('1', { timeout: 15_000 });
-    await addOn.getByRole('button', { name: 'Undo last redemption' }).click();
+    await addOn.getByRole('button', { name: 'Undo last handout' }).click();
     await expect(
-      addOn.getByText('Redeemed', { exact: true }).locator('..'),
+      addOn.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('0', { timeout: 15_000 });
     await expect(
-      addOn.getByRole('button', { name: 'Undo last redemption' }),
+      addOn.getByRole('button', { name: 'Undo last handout' }),
     ).toHaveCount(0);
 
-    await addOn.getByRole('button', { name: 'Redeem 1' }).click();
+    await addOn.getByRole('button', { name: 'Hand out 1' }).click();
     await expect(
-      addOn.getByText('Redeemed', { exact: true }).locator('..'),
+      addOn.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('1', { timeout: 15_000 });
     await takeScreenshot(
       testInfo,
       addOn,
       page,
-      'Record one redeemed included unit',
+      'Record one handed-out included unit',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Cancel unredeemed units
+## Cancel remaining units
 
-Select **Cancel unredeemed units**, choose a whole-unit quantity, enter the required operational reason, and explicitly choose refund handling when optional units are selected. Evorto allocates the selected cancellation to optional purchased units first, then included units; the dialog shows the exact split before submission. Included units can be cancelled while they remain unredeemed, but they are never refunded. Optional purchased units may be cancelled with or without refund handling.
+Select **Cancel remaining units**, choose a whole-unit quantity, enter the required operational reason, and explicitly choose refund handling when optional units are selected. Evorto allocates the selected cancellation to optional purchased units first, then included units; the dialog shows the exact split before submission. Included units can be cancelled while they remain unredeemed, but they are never refunded. Optional purchased units may be cancelled with or without refund handling.
 
-For this free optional add-on, the refund choice explains that no monetary refund is required and records that outcome explicitly. This walkthrough does not exercise a paid Stripe refund. Continue with the **Cancel a Stripe-backed registration with settled add-ons and recover its refund** section in [Participant registration cancellation](/docs/participant-registration-cancellation) for signed local Stripe-shaped webhook updates, participant and scanner status, and audited platform-operator recovery. That local journey does not certify live provider or bank settlement.
+This optional add-on is free, so no monetary refund is required. For paid cancellation and refund recovery, continue with **Cancel a Stripe-backed registration with settled add-ons and recover its refund** in [Participant registration cancellation](/docs/participant-registration-cancellation), and rely on the refund status Evorto displays before telling a participant that money has been returned.
 `,
     });
 
-    await addOn
-      .getByRole('button', { name: 'Cancel unredeemed units' })
-      .click();
+    await addOn.getByRole('button', { name: 'Cancel remaining units' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('2 unredeemed units available');
     await expect(dialog).toContainText(
@@ -207,17 +200,17 @@ For this free optional add-on, the refund choice explains that no monetary refun
       page.getByText('Cancellation recorded. No monetary refund was required.'),
     ).toBeVisible();
     await expect(
-      addOn.getByText('Redeemed', { exact: true }).locator('..'),
+      addOn.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('1');
     await expect(
-      addOn.getByText('Remaining', { exact: true }).locator('..'),
+      addOn.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('1');
     await expect(addOn.getByText('No monetary refund required')).toBeVisible();
     await takeScreenshot(
       testInfo,
       addOn,
       page,
-      'Review redeemed cancelled remaining and refund status',
+      'Review handed-out cancelled remaining and refund status',
     );
 
     const events = await database
@@ -258,9 +251,9 @@ For this free optional add-on, the refund choice explains that no monetary refun
       body: `
 ## Safe completion and recovery
 
-Every action uses an idempotent operation key, so a retry cannot silently apply the same write twice. The result refreshes from persisted fulfillment state after each success. If another organizer changes the same add-on first, Evorto rejects the stale action and asks you to refresh instead of overwriting their work.
+Retrying the same action cannot silently hand out or cancel the same unit twice. The result shows the latest fulfillment state after each success. If another organizer changes the same add-on first, Evorto asks you to refresh instead of overwriting their work.
 
-Cancellation is hidden without the separate cancellation permission and is rejected again on the server. Cross-tenant registration or add-on identifiers are not accepted. Redeemed units remain visible in the audit trail and cannot be moved into the cancelled quantity.
+Cancellation is hidden without the separate cancellation permission. Registrations and add-ons from another organization cannot be changed here. Handed-out units remain visible in the audit trail and cannot be moved into the cancelled quantity.
 `,
     });
   } finally {

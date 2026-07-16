@@ -13,15 +13,16 @@ const enablePaymentForLastRegistrationOption = async (page: Page) => {
   const paymentCheckbox = participantOptionForm.getByRole('checkbox', {
     name: 'Enable payment',
   });
+  await expect(paymentCheckbox).toBeEnabled({ timeout: 20_000 });
   await paymentCheckbox.check();
   await expect(
     priceInputForRegistrationOption(participantOptionForm),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
 };
 
 const priceInputForRegistrationOption = (
   participantOptionForm: ReturnType<Page['locator']>,
-) => participantOptionForm.getByLabel('Price (in cents)');
+) => participantOptionForm.getByLabel(/^Price \([A-Z]{3}\)$/);
 
 const taxRateSelectForRegistrationOption = (
   participantOptionForm: ReturnType<Page['locator']>,
@@ -116,7 +117,7 @@ test.describe('Template Tax Rate Validation', () => {
     const participantOptionForm = page
       .locator('app-template-registration-option-editor')
       .last();
-    await priceInputForRegistrationOption(participantOptionForm).fill('1000');
+    await priceInputForRegistrationOption(participantOptionForm).fill('10.00');
     await taxRateSelectForRegistrationOption(participantOptionForm).click();
     await expect(
       page.getByRole('option', { exact: true, name: taxRateLabel }),

@@ -3,8 +3,7 @@ name: E2E Baseline
 on:
   workflow_dispatch:
   push:
-    branches: [main, develop]
-  pull_request:
+    branches: [main]
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -14,10 +13,31 @@ permissions:
   contents: read
 
 jobs:
+  validate-protected-ref:
+    name: Require protected main E2E source
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Reject unprotected E2E refs
+        env:
+          E2E_REF: ${{ github.ref }}
+          E2E_REF_PROTECTED: ${{ github.ref_protected }}
+        run: |
+          if [ "${E2E_REF}" != "refs/heads/main" ]; then
+            echo "::error::Credential-backed E2E may run only from refs/heads/main"
+            exit 1
+          fi
+          if [ "${E2E_REF_PROTECTED}" != "true" ]; then
+            echo "::error::Credential-backed E2E requires a protected main ref"
+            exit 1
+          fi
+
   e2e:
     name: Playwright E2E (functional + docs)
+    needs: validate-protected-ref
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    environment: esncard-release-certification
     env:
       CI: true
       APP_HOST_PORT: 4200
@@ -35,6 +55,7 @@ jobs:
       NO_WEBSERVER: true
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       E2E_NOW_ISO: "2026-09-15T12:00:00.000Z"
+      E2E_RUNTIME_MODE: playwright
       E2E_SEED_KEY: evorto-e2e-default-v1
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       ISSUER_BASE_URL: ${{ vars.ISSUER_BASE_URL }}
@@ -50,6 +71,12 @@ jobs:
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_ADMIN_USER_PASSWORD: ${{ secrets.E2E_ADMIN_USER_PASSWORD }}
+          E2E_DEFAULT_USER_PASSWORD: ${{ secrets.E2E_DEFAULT_USER_PASSWORD }}
+          E2E_EMPTY_USER_PASSWORD: ${{ secrets.E2E_EMPTY_USER_PASSWORD }}
+          E2E_GLOBAL_ADMIN_USER_PASSWORD: ${{ secrets.E2E_GLOBAL_ADMIN_USER_PASSWORD }}
+          E2E_ORGANIZER_USER_PASSWORD: ${{ secrets.E2E_ORGANIZER_USER_PASSWORD }}
+          E2E_REGULAR_USER_PASSWORD: ${{ secrets.E2E_REGULAR_USER_PASSWORD }}
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
@@ -57,7 +84,7 @@ jobs:
           STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: |
-          for variable_name in FONT_AWESOME_TOKEN NEON_API_KEY NEON_PROJECT_ID PARENT_BRANCH_ID CLIENT_ID CLIENT_SECRET ISSUER_BASE_URL SECRET STRIPE_TEST_API_KEY STRIPE_TEST_ACCOUNT_ID STRIPE_WEBHOOK_SECRET; do
+          for variable_name in FONT_AWESOME_TOKEN NEON_API_KEY NEON_PROJECT_ID PARENT_BRANCH_ID CLIENT_ID CLIENT_SECRET E2E_ADMIN_USER_PASSWORD E2E_DEFAULT_USER_PASSWORD E2E_EMPTY_USER_PASSWORD E2E_GLOBAL_ADMIN_USER_PASSWORD E2E_ORGANIZER_USER_PASSWORD E2E_REGULAR_USER_PASSWORD ISSUER_BASE_URL SECRET STRIPE_TEST_API_KEY STRIPE_TEST_ACCOUNT_ID STRIPE_WEBHOOK_SECRET; do
             if [ -z "${!variable_name}" ]; then
               echo "::error::Missing required E2E configuration: ${variable_name}"
               exit 1
@@ -70,6 +97,9 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -99,7 +129,7 @@ jobs:
           done
 
       - name: Install Playwright browsers
-        run: bunx playwright install --with-deps
+        run: bunx playwright install --with-deps chromium
 
       - name: Prepare Neon Local metadata directory
         run: |
@@ -177,6 +207,14 @@ jobs:
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          E2E_ADMIN_USER_PASSWORD: ${{ secrets.E2E_ADMIN_USER_PASSWORD }}
+          E2E_DEFAULT_USER_PASSWORD: ${{ secrets.E2E_DEFAULT_USER_PASSWORD }}
+          E2E_EMPTY_USER_PASSWORD: ${{ secrets.E2E_EMPTY_USER_PASSWORD }}
+          E2E_GLOBAL_ADMIN_USER_PASSWORD: ${{ secrets.E2E_GLOBAL_ADMIN_USER_PASSWORD }}
+          E2E_ORGANIZER_USER_PASSWORD: ${{ secrets.E2E_ORGANIZER_USER_PASSWORD }}
+          E2E_REGULAR_USER_PASSWORD: ${{ secrets.E2E_REGULAR_USER_PASSWORD }}
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           SECRET: ${{ secrets.SECRET }}
           STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
@@ -196,14 +234,15 @@ jobs:
 
           E2E_SELECTED_PROJECTS=local-chrome-baseline \
           PLAYWRIGHT_SELECTED_PROJECTS=local-chrome-baseline \
-          bun run test:e2e
+          bun run test:e2e -- --trace=off
 
           DOCS_OUT_DIR=test-results/docs \
           DOCS_IMG_OUT_DIR=test-results/docs/images \
           E2E_SELECTED_PROJECTS=docs-baseline \
           PLAYWRIGHT_SELECTED_PROJECTS=docs-baseline \
           bunx playwright test --project=docs-baseline \
-            --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts
+            --trace=off \
+            --reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts
 
       - name: Collect Docker logs
         if: always()
@@ -230,7 +269,8 @@ jobs:
           name: playwright-test-results
           path: |
             test-results/**
-            playwright-report/**
+            !test-results/docs/**
+            !test-results/**/trace.zip
           if-no-files-found: ignore
           retention-days: 7
 
@@ -239,6 +279,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-docs
-          path: test-results/docs/**
+          path: |
+            test-results/docs/**
+            !test-results/docs/**/trace.zip
           if-no-files-found: ignore
           retention-days: 14

@@ -89,6 +89,8 @@ export const pendingRegistrationTransactionUniqueIndexName =
   'transactions_pending_registration_unique';
 export const paidEventTransactionMethodCheckName =
   'transactions_paid_event_method_stripe';
+export const refundOperationShapeCheckName =
+  'transactions_refund_operation_shape';
 export const registrationRefundOperationUniqueIndexName =
   'transactions_registration_refund_operation_unique';
 
@@ -187,17 +189,17 @@ export const transactions = pgTable(
       ),
     paidEventTransactionMethod: check(
       paidEventTransactionMethodCheckName,
-      sql`${table.type} NOT IN ('registration', 'addon') OR ${table.method} = 'stripe'`,
+      sql`${table.type}::text NOT IN ('registration', 'addon') OR (${table.method}::text = 'stripe' AND ${table.amount} > 0)`,
     ),
     refundOperationShape: check(
-      'transactions_refund_operation_shape',
+      refundOperationShapeCheckName,
       sql`(
-        (${table.type} <> 'refund' AND ${table.sourceTransactionId} IS NULL AND ${table.refundOperationKey} IS NULL AND ${table.stripeRefundApplicationFee} IS NULL)
+        (${table.type}::text <> 'refund' AND ${table.sourceTransactionId} IS NULL AND ${table.refundOperationKey} IS NULL AND ${table.stripeRefundApplicationFee} IS NULL)
         OR
-        (${table.type} = 'refund' AND ${table.amount} < 0 AND (
+        (${table.type}::text = 'refund' AND ${table.amount} < 0 AND (
           (${table.sourceTransactionId} IS NULL AND ${table.refundOperationKey} IS NULL AND ${table.stripeRefundApplicationFee} IS NULL AND ${table.manuallyCreated} IS TRUE)
           OR
-          (${table.sourceTransactionId} IS NOT NULL AND length(trim(${table.refundOperationKey})) BETWEEN 1 AND 100)
+          (${table.sourceTransactionId} IS NOT NULL AND ${table.refundOperationKey} IS NOT NULL AND length(trim(${table.refundOperationKey})) BETWEEN 1 AND 100 AND ${table.stripeRefundApplicationFee} IS NOT NULL AND ${table.manuallyCreated} IS FALSE AND ${table.method}::text = 'stripe')
         ))
       )`,
     ),

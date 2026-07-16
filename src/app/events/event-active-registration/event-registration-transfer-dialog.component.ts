@@ -1,5 +1,4 @@
 import { Clipboard } from '@angular/cdk/clipboard';
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,6 +16,8 @@ import {
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
+
 export interface EventRegistrationTransferDialogData {
   readonly claimCode: string;
   readonly claimUrl: string;
@@ -29,7 +30,7 @@ type CopiedTransferCredential = 'code' | 'link';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    TenantDatePipe,
     MatButtonModule,
     MatDialogActions,
     MatDialogClose,

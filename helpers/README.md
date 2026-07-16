@@ -104,13 +104,23 @@ branch. CI or another controlled environment can set
 `NEON_LOCAL_METADATA_DIR` to an absolute host directory when a bind mount is
 intentional. With the normal generated `NEON_LOCAL_PROXY=true` environment,
 Playwright `webServer` uses `bun run docker:webserver`, which starts the
-foreground Compose stack without forcing `docker compose down` first. The
-wrapper traps process exit and Playwright shutdown signals, then runs the
-project-scoped `docker compose down --timeout 60 --remove-orphans` so stopped
-containers and networks do not linger. Playwright allows 90 seconds for that
-60-second Compose shutdown plus object removal. When Playwright reuses a stack
-that was already serving the app, it never starts that wrapper; the user-owned
-stack therefore keeps running.
+foreground Compose stack without forcing `docker compose down` first. It uses
+`--abort-on-container-failure` so a failed one-shot setup service ends startup
+immediately, while successful one-shot services leave the long-running app
+stack active. The wrapper traps process exit and Playwright shutdown signals,
+then runs the project-scoped
+`docker compose down --timeout 60 --remove-orphans --volumes` so stopped
+containers, networks, and disposable named volumes do not linger. Each Compose
+teardown call has a 90-second wall-clock watchdog, and each container, network,
+or volume verification call has a 10-second watchdog.
+Playwright allows five minutes for both teardown attempts, watchdog termination
+grace, verification, removal, and an additional shutdown buffer. When
+Playwright reuses a stack that was already serving the app, it never starts that
+wrapper; the user-owned stack therefore keeps running. If the project instead
+contains a stopped database container created with an explicit `BRANCH_ID` or
+`DELETE_BRANCH=false`, the disposable wrapper refuses ownership before starting
+Compose. Resume that retained stack with `bun run docker:resume`, or choose
+`bun run docker:start` for an intentional reset.
 
 An explicitly supplied disposable database with `NEON_LOCAL_PROXY=false` uses
 `helpers/testing/host-e2e-webserver.sh`. That host wrapper starts or temporarily
@@ -133,8 +143,9 @@ a fresh stack.
 Resume also verifies that the existing `db`, `minio`, `stripe`, and `evorto`
 containers are present and that the original `db-expiration`, `db-setup`, and
 `minio-init` containers completed successfully. It starts the retained database
-and MinIO container IDs directly, waits for both to become healthy, and then
-starts the retained Stripe and app container IDs. It never invokes Compose
+and MinIO container IDs directly, waits for both to become healthy, then starts
+Stripe and waits for its signing-secret-backed healthcheck before starting the
+app. It never invokes Compose
 startup dependency resolution or starts the one-shot services again, so a
 resume cannot create a replacement container and preserves the initialized
 schema, seed data, bucket, and branch-expiration state. If any container is
@@ -218,7 +229,8 @@ registrations, and at least one checked-in aggregate for scanner review.
 The Docker Stripe CLI listener writes its generated webhook signing secret into
 a shared Docker volume. The app container reads that file through
 `STRIPE_WEBHOOK_SECRET_FILE`, so local paid checkout webhooks use the same
-runtime secret that Stripe CLI generated for the listener session.
+runtime secret that Stripe CLI generated for the listener session. Compose
+waits for the secret file to become nonempty before starting the app container.
 
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 

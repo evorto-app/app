@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 Explain how guest registrations affect capacity and paid totals, prove that

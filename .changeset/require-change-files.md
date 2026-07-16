@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Require change files for release notes

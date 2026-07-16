@@ -1,14 +1,17 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   Injectable,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import {
+  disabled,
   form,
   FormField,
   maxLength,
@@ -20,6 +23,7 @@ import {
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import {
@@ -34,17 +38,25 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom } from 'rxjs';
 
 import type {
   PlatformFinanceReceiptWithSubmitterRecord,
   PlatformFinanceRefundLifecycleSummary,
   PlatformFinanceRefundRecoveryRecord,
   PlatformFinanceReimbursementGroup,
+  PlatformFinanceTenantContext,
+  PlatformFinanceTransactionRecord,
 } from '../../../shared/rpc-contracts/app-rpcs/platform-tenant-finance.rpcs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
+import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
+import {
+  type PlatformReimbursementConfirmationData,
+  PlatformReimbursementConfirmationDialogComponent,
+} from './platform-reimbursement-confirmation-dialog.component';
 import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
 
 interface ReceiptReviewModel {
@@ -79,6 +91,46 @@ interface SelectedReceiptContext {
   receipt: PlatformFinanceReceiptWithSubmitterRecord;
 }
 
+interface SelectedReimbursementContext {
+  group: PlatformFinanceReimbursementGroup;
+  timezone: PlatformFinanceTenantContext['timezone'];
+}
+
+export const platformTransactionMethodLabel = (
+  method: PlatformFinanceTransactionRecord['method'],
+): string => {
+  switch (method) {
+    case 'cash': {
+      return 'Cash';
+    }
+    case 'paypal': {
+      return 'PayPal';
+    }
+    case 'stripe': {
+      return 'Stripe';
+    }
+    case 'transfer': {
+      return 'Bank transfer';
+    }
+  }
+};
+
+export const platformTransactionStatusLabel = (
+  status: PlatformFinanceTransactionRecord['status'],
+): string => {
+  switch (status) {
+    case 'cancelled': {
+      return 'Cancelled';
+    }
+    case 'pending': {
+      return 'Pending';
+    }
+    case 'successful': {
+      return 'Successful';
+    }
+  }
+};
+
 export const platformReceiptEvidenceUnavailableNotice =
   'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.';
 
@@ -105,37 +157,32 @@ export interface PlatformRefundLifecycleCopy {
 export const platformRefundLifecycleCopy = (
   summary: PlatformFinanceRefundLifecycleSummary,
 ): PlatformRefundLifecycleCopy => {
-  const attemptSummary =
-    summary.attempts !== null && summary.maxAttempts !== null
-      ? ` ${summary.attempts} of ${summary.maxAttempts} attempts used.`
-      : '';
-
   switch (summary.status) {
     case 'action-required': {
       return {
         detail: summary.recoveryMode
-          ? `Stripe requires additional provider-side action.${attemptSummary} Complete it in the connected Stripe account, then open Refund recovery to resume status checks.`
-          : `Stripe requires additional provider-side action.${attemptSummary} Review the connected Stripe account; automatic status checks remain scheduled.`,
-        label: 'Provider action required',
+          ? 'Complete the required action in the connected Stripe account, then open Refund recovery to resume checks.'
+          : 'Complete the required action in the connected Stripe account. Evorto will keep checking automatically.',
+        label: 'Action required in Stripe',
       };
     }
     case 'needs-attention': {
       return {
         detail: summary.recoveryMode
-          ? `Automatic processing stopped.${attemptSummary} Open Refund recovery to review it.`
-          : `This refund is not eligible for safe requeue.${attemptSummary} It will not appear in Refund recovery; review its recorded payment source and lifecycle state.`,
+          ? 'Automatic refund processing stopped. Open Refund recovery to review the safe next step.'
+          : 'Evorto cannot safely retry this refund. Compare it with the connected Stripe account before making a manual change.',
         label: 'Needs attention',
       };
     }
     case 'pending': {
       return {
-        detail: 'Automatic refund processing is queued.',
+        detail: 'The refund is waiting to be processed.',
         label: 'Pending',
       };
     }
     case 'retrying': {
       return {
-        detail: `Automatic refund processing is active.${attemptSummary}`,
+        detail: 'Evorto will try the refund again automatically.',
         label: 'Retrying',
       };
     }
@@ -217,8 +264,9 @@ export class PlatformFinanceOperations {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    CurrencyAmountInputComponent,
     CurrencyPipe,
-    DatePipe,
+    TenantDatePipe,
     FormField,
     MatButtonModule,
     MatCheckboxModule,
@@ -244,6 +292,10 @@ export class PlatformFinanceComponent {
     platformReceiptEvidenceUnavailableNotice;
   protected readonly platformReceiptReviewDisabled =
     platformReceiptReviewDisabled;
+  protected readonly platformTransactionMethodLabel =
+    platformTransactionMethodLabel;
+  protected readonly platformTransactionStatusLabel =
+    platformTransactionStatusLabel;
   protected readonly receiptCountryConfig = computed(() =>
     this.approvalQueueQuery.isSuccess()
       ? this.approvalQueueQuery.data().tenantContext.receiptCountryConfig
@@ -272,6 +324,9 @@ export class PlatformFinanceComponent {
   protected readonly refundRecoveryMutation = injectMutation(() =>
     this.operations.requeueRefundClaim(),
   );
+  protected readonly reimbursementMutation = injectMutation(() =>
+    this.operations.recordReimbursement(),
+  );
   private readonly reimbursementModel = signal<ReimbursementModel>({
     payoutType: '',
     reason: '',
@@ -280,6 +335,15 @@ export class PlatformFinanceComponent {
   protected readonly reimbursementForm = form(
     this.reimbursementModel,
     (reimbursement) => {
+      disabled(reimbursement.payoutType, () =>
+        this.reimbursementMutation.isPending(),
+      );
+      disabled(reimbursement.reason, () =>
+        this.reimbursementMutation.isPending(),
+      );
+      disabled(reimbursement.receiptIds, () =>
+        this.reimbursementMutation.isPending(),
+      );
       required(reimbursement.payoutType, { message: 'Select a payout type.' });
       minLength(reimbursement.receiptIds, 1);
       maxLength(reimbursement.receiptIds, 100, {
@@ -292,9 +356,6 @@ export class PlatformFinanceComponent {
         message: 'Reason must be 500 characters or fewer.',
       });
     },
-  );
-  protected readonly reimbursementMutation = injectMutation(() =>
-    this.operations.recordReimbursement(),
   );
   protected readonly reimbursementQueueQuery = injectQuery(() =>
     this.operations.reimbursementQueue(this.tenantId()),
@@ -331,7 +392,7 @@ export class PlatformFinanceComponent {
           ? undefined
           : {
               kind: 'minorUnitInteger',
-              message: 'Enter a whole number of minor currency units.',
+              message: 'Enter an amount with no more than two decimal places.',
             },
       );
     }
@@ -346,13 +407,13 @@ export class PlatformFinanceComponent {
     signal<null | PlatformFinanceRefundRecoveryRecord>(null);
 
   protected readonly selectedReimbursement =
-    signal<null | PlatformFinanceReimbursementGroup>(null);
+    signal<null | SelectedReimbursementContext>(null);
   protected readonly selectedReimbursementTotal = computed(() => {
-    const group = this.selectedReimbursement();
-    if (!group) return 0;
+    const selected = this.selectedReimbursement();
+    if (!selected) return 0;
     const selectedIds = new Set(this.reimbursementModel().receiptIds);
     let total = 0;
-    for (const receipt of group.receipts) {
+    for (const receipt of selected.group.receipts) {
       if (selectedIds.has(receipt.id)) total += receipt.totalAmount;
     }
     return total;
@@ -375,8 +436,16 @@ export class PlatformFinanceComponent {
     }),
   );
 
+  private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
+
+  constructor() {
+    effect(() => {
+      this.tenantId();
+      untracked(() => this.resetTenantScopedState());
+    });
+  }
 
   protected changeTransactionPage(event: PageEvent): void {
     this.transactionPageIndex.set(event.pageIndex);
@@ -420,7 +489,16 @@ export class PlatformFinanceComponent {
   protected chooseReimbursement(
     group: PlatformFinanceReimbursementGroup,
   ): void {
-    this.selectedReimbursement.set(group);
+    if (this.reimbursementMutation.isPending()) return;
+    if (!this.reimbursementQueueQuery.isSuccess()) {
+      throw new Error(
+        'Cannot select a reimbursement without its target tenant context',
+      );
+    }
+    this.selectedReimbursement.set({
+      group,
+      timezone: this.reimbursementQueueQuery.data().tenantContext.timezone,
+    });
     this.reimbursementModel.set({
       payoutType: group.payout.iban
         ? 'iban'
@@ -445,12 +523,51 @@ export class PlatformFinanceComponent {
       const reimbursement = this.reimbursementModel();
       const [firstReceiptId, ...remainingReceiptIds] = reimbursement.receiptIds;
       if (!firstReceiptId || !reimbursement.payoutType) return;
-      const selectedGroup = this.selectedReimbursement();
+      const selectedReimbursement = this.selectedReimbursement();
+      if (!selectedReimbursement) return;
+      const selectedGroup = selectedReimbursement.group;
       const payoutVersion =
         reimbursement.payoutType === 'paypal'
-          ? selectedGroup?.payoutVersions.paypal
-          : selectedGroup?.payoutVersions.iban;
-      if (!payoutVersion) return;
+          ? selectedGroup.payoutVersions.paypal
+          : selectedGroup.payoutVersions.iban;
+      const payoutDestination =
+        reimbursement.payoutType === 'paypal'
+          ? selectedGroup.payout.paypalEmail
+          : selectedGroup.payout.iban;
+      if (!payoutDestination || !payoutVersion) return;
+
+      const targetTenantId = this.tenantId();
+      const recipient =
+        `${selectedGroup.submittedByFirstName} ${selectedGroup.submittedByLastName}`.trim() ||
+        selectedGroup.submittedByEmail;
+      const confirmation: PlatformReimbursementConfirmationData = {
+        currency: selectedGroup.currency,
+        payoutDestination,
+        payoutMethod:
+          reimbursement.payoutType === 'paypal' ? 'PayPal' : 'Bank transfer',
+        receiptCount: reimbursement.receiptIds.length,
+        recipient,
+        totalAmount: this.selectedReimbursementTotal(),
+      };
+      const confirmed = await firstValueFrom(
+        this.dialog
+          .open<
+            PlatformReimbursementConfirmationDialogComponent,
+            PlatformReimbursementConfirmationData,
+            boolean
+          >(PlatformReimbursementConfirmationDialogComponent, {
+            data: confirmation,
+            width: 'min(38rem, calc(100vw - 2rem))',
+          })
+          .afterClosed(),
+      );
+      if (
+        confirmed !== true ||
+        this.reimbursementMutation.isPending() ||
+        this.tenantId() !== targetTenantId
+      ) {
+        return;
+      }
 
       try {
         const result = await this.reimbursementMutation.mutateAsync({
@@ -458,21 +575,23 @@ export class PlatformFinanceComponent {
           payoutVersion,
           reason: reimbursement.reason,
           receiptIds: [firstReceiptId, ...remainingReceiptIds],
-          targetTenantId: this.tenantId(),
+          targetTenantId,
         });
-        await this.refreshFinance();
+        this.refreshFinance();
         this.notifications.showSuccess(
           `Recorded reimbursement for ${result.receiptCount} receipts`,
         );
-        this.selectedReimbursement.set(null);
-        this.reimbursementModel.set({
-          payoutType: '',
-          reason: '',
-          receiptIds: [],
-        });
-      } catch (error) {
+        if (this.selectedReimbursement() === selectedReimbursement) {
+          this.selectedReimbursement.set(null);
+          this.reimbursementModel.set({
+            payoutType: '',
+            reason: '',
+            receiptIds: [],
+          });
+        }
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to record reimbursement'),
+          'The reimbursement could not be recorded. Review the details and try again.',
         );
       }
     });
@@ -490,17 +609,17 @@ export class PlatformFinanceComponent {
           refundClaimId: recovery.refundClaimId,
           targetTenantId: this.tenantId(),
         });
-        await this.refreshFinance();
+        this.refreshFinance();
         this.notifications.showSuccess(
           result.mode === 'newGeneration'
-            ? 'Terminal refund scheduled as a new safe generation'
-            : 'Stopped refund processing resumed',
+            ? 'Failed refund scheduled for retry'
+            : 'Refund checks resumed',
         );
         this.selectedRefundClaim.set(null);
         this.refundRecoveryModel.set({ reason: '', refundClaimId: '' });
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to requeue refund claim'),
+          'The refund recovery action could not be saved. Try again.',
         );
       }
     });
@@ -535,7 +654,7 @@ export class PlatformFinanceComponent {
           taxAmount: review.taxAmount,
           totalAmount: review.totalAmount,
         });
-        await this.refreshFinance();
+        this.refreshFinance();
         this.notifications.showSuccess(
           review.status === 'approved'
             ? 'Receipt approved'
@@ -543,9 +662,9 @@ export class PlatformFinanceComponent {
         );
         this.selectedReceipt.set(null);
         this.reviewModel.set(emptyReview());
-      } catch (error) {
+      } catch {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to review receipt'),
+          'The receipt review could not be saved. Review the details and try again.',
         );
       }
     });
@@ -555,6 +674,7 @@ export class PlatformFinanceComponent {
     receiptId: string,
     selected: boolean,
   ): void {
+    if (this.reimbursementMutation.isPending()) return;
     const current = this.reimbursementModel();
     const receiptIds = selected
       ? current.receiptIds.includes(receiptId) ||
@@ -565,7 +685,26 @@ export class PlatformFinanceComponent {
     this.reimbursementModel.set({ ...current, receiptIds });
   }
 
-  private async refreshFinance(): Promise<void> {
-    await this.queryClient.invalidateQueries(this.operations.financeFilter());
+  private refreshFinance(): void {
+    // The mutation result is authoritative. Refetching the independent finance
+    // queues must not keep the completed action pending when one active query
+    // is slow or waiting on an external provider.
+    void this.queryClient.invalidateQueries(this.operations.financeFilter());
+  }
+
+  private resetTenantScopedState(): void {
+    this.transactionPageIndex.set(0);
+
+    this.selectedReceipt.set(null);
+    this.reviewModel.set(emptyReview());
+    this.reviewForm().reset();
+
+    this.selectedReimbursement.set(null);
+    this.reimbursementModel.set({ payoutType: '', reason: '', receiptIds: [] });
+    this.reimbursementForm().reset();
+
+    this.selectedRefundClaim.set(null);
+    this.refundRecoveryModel.set({ reason: '', refundClaimId: '' });
+    this.refundRecoveryForm().reset();
   }
 }

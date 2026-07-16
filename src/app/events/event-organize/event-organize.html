@@ -238,26 +238,36 @@
                               </button>
                             }
                             @if (registrationOption.canTransferRegistrations) {
-                              <button
-                                mat-stroked-button
-                                type="button"
-                                (click)="openTransferDialog(user)"
-                                [disabled]="
-                                  organizerRegistrationTransferDisabled({
-                                    mutationPending:
-                                      approveRegistrationMutation.isPending() ||
-                                      transferRegistrationMutation.isPending() ||
-                                      cancelRegistrationMutation.isPending(),
-                                    status: user.status,
-                                  })
-                                "
-                              >
-                                {{
-                                  user.status === "CONFIRMED"
-                                    ? "Review transfer"
-                                    : "Transfer unavailable"
-                                }}
-                              </button>
+                              <div class="grid gap-1">
+                                <button
+                                  mat-stroked-button
+                                  type="button"
+                                  (click)="openTransferDialog(user)"
+                                  [disabled]="
+                                    organizerRegistrationTransferDisabled({
+                                      mutationPending:
+                                        approveRegistrationMutation.isPending() ||
+                                        transferRegistrationMutation.isPending() ||
+                                        cancelRegistrationMutation.isPending(),
+                                      status: user.status,
+                                    })
+                                  "
+                                >
+                                  {{
+                                    user.status === "CONFIRMED"
+                                      ? "Review transfer"
+                                      : "Transfer unavailable"
+                                  }}
+                                </button>
+                                @if (user.status !== "CONFIRMED") {
+                                  <p
+                                    class="body-small text-on-surface-variant max-w-56"
+                                  >
+                                    Only confirmed registrations can be
+                                    transferred.
+                                  </p>
+                                }
+                              </div>
                             }
                             @if (registrationOption.canCancelRegistrations) {
                               <button
@@ -371,7 +381,7 @@
                     <span
                       class="rounded bg-surface px-2 py-1 text-xs uppercase"
                     >
-                      {{ receipt.status }}
+                      {{ receiptStatusLabel(receipt.status) }}
                     </span>
                   </div>
                   <p class="text-on-surface-variant text-sm">

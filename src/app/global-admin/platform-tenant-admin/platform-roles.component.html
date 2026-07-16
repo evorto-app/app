@@ -1,4 +1,7 @@
-<app-platform-tenant-page-header title="Tenant roles" [tenantId]="tenantId()" />
+<app-platform-tenant-page-header
+  title="Organization roles"
+  [tenantId]="tenantId()"
+/>
 
 <div class="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
   <section aria-labelledby="role-list-title">
@@ -17,7 +20,7 @@
         </button>
       </div>
     } @else if (rolesQuery.isSuccess()) {
-      <mat-action-list aria-label="Tenant roles">
+      <mat-action-list aria-label="Organization roles">
         @for (role of rolesQuery.data(); track role.id) {
           <button
             mat-list-item
@@ -75,7 +78,7 @@
 
     <div class="grid gap-2 sm:grid-cols-2">
       <mat-checkbox [formField]="roleForm.defaultUserRole">
-        Default role for new tenant users
+        Default role for new organization members
       </mat-checkbox>
       <mat-checkbox [formField]="roleForm.defaultOrganizerRole">
         Default organizer role

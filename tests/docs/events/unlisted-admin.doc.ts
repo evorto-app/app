@@ -24,8 +24,8 @@ test('Admin: manage unlisted events', async ({
     body: `
 {% callout type="note" title="Permissions" %}
 To change listing, an admin needs:
-- \`events:changeListing\` (toggle the unlisted flag)
-- \`events:seeUnlisted\` (to see unlisted events in lists)
+- **Change event listing** access
+- **View unlisted events** access
 {% /callout %}
 
 # Managing Unlisted Events (Admin)

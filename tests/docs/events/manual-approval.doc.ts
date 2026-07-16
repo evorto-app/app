@@ -149,9 +149,9 @@ test.describe('Manual approval registrations', () => {
       await testInfo.attach('markdown', {
         body: `
 {% callout type="note" title="Before you start" %}
-This guide uses two signed-in accounts in the same tenant:
-- a **participant** whose tenant role is eligible for the event option;
-- an **event manager** with **events:organizeAll**, or an organizer/helper who already has a confirmed organizer registration for this event.
+This guide uses two signed-in accounts in the same organization:
+- a **participant** whose organization role is eligible for the event option;
+- an **event manager** with **Organize all events** access, or an organizer/helper who already has a confirmed organizer registration for this event.
 
 The event must be published and its registration window must be open. An application does not reserve a spot, charge the participant, or create a ticket. Those outcomes happen only after an authorized organizer approves it.
 {% /callout %}
@@ -347,6 +347,256 @@ The application and approval actions disappear after completion. Refreshing or s
       ).toHaveLength(1);
     } finally {
       await organizer?.context.close();
+      await scenario.cleanup();
+    }
+  });
+
+  test('Withdraw a pending application and apply again', async ({
+    database,
+    page,
+    seeded,
+  }, testInfo) => {
+    const scenario = await seedManualApprovalScenario({
+      database,
+      kind: 'paid',
+      seeded,
+    });
+
+    try {
+      const existingParticipantRegistrations =
+        await database.query.eventRegistrations.findMany({
+          columns: { id: true },
+          where: {
+            registrationOptionId: scenario.optionId,
+            tenantId: scenario.tenant.id,
+            userId: scenario.participant.id,
+          },
+        });
+      const existingRegistrationIds = new Set(
+        existingParticipantRegistrations.map((registration) => registration.id),
+      );
+      const capacityBeforeApplying =
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            reservedSpots: true,
+            waitlistSpots: true,
+          },
+          where: { id: scenario.optionId },
+        });
+
+      await testInfo.attach('markdown', {
+        body: `
+{% callout type="note" title="Before you start" %}
+This guide starts after you have found a published event with an open **Manual approval option**. You must be signed in and eligible for that option.
+
+Withdrawing is available only while the application is still pending organizer approval. It does not cancel a confirmed ticket or a payment-in-progress registration. This example uses a paid option to make the boundary clear: applying has not opened Stripe Checkout, charged the participant, or reserved capacity yet.
+{% /callout %}
+
+# Withdraw a pending application
+
+1. Select **Events** in the main navigation.
+2. Open the event.
+3. Find the **Manual approval option** and select **Apply for approval**.
+4. Wait for **Your registration is pending organizer approval**.
+
+The pending application card explains that withdrawal happens before approval. It has no QR ticket or payment action because the organizer has not approved it.
+`,
+      });
+
+      await openEventFromNormalNavigation(page, scenario);
+      const applicationCard = await applyForApproval(page, scenario);
+      const firstApplication = await requireParticipantRegistration(
+        database,
+        scenario,
+      );
+      expect(firstApplication.status).toBe('PENDING');
+      expect(
+        await database.query.transactions.findMany({
+          where: { eventRegistrationId: firstApplication.id },
+        }),
+      ).toHaveLength(0);
+      expect(
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            reservedSpots: true,
+            waitlistSpots: true,
+          },
+          where: { id: scenario.optionId },
+        }),
+      ).toEqual(capacityBeforeApplying);
+
+      const activeApplication = page.locator('app-event-active-registration');
+      await expect(
+        activeApplication.getByText(
+          'This withdraws your pending application before organizer approval.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
+      await expect(
+        page.getByRole('img', { name: 'QR code for the registration' }),
+      ).toHaveCount(0);
+      await takeScreenshot(
+        testInfo,
+        activeApplication,
+        page,
+        'Pending application before withdrawal',
+      );
+
+      await testInfo.attach('markdown', {
+        body: `
+## Review the withdrawal before confirming
+
+1. On the pending application, select **Cancel registration**.
+2. Read the **Cancel your pending registration?** confirmation.
+3. Select **Keep registration** if you are not certain. It is focused by default, so pressing Enter when the dialog opens does not withdraw the application.
+4. To continue, open **Cancel registration** again and select **Confirm cancellation**.
+
+The confirmation states exactly what changes: the pending application is withdrawn immediately, no confirmed capacity is released, and no refund starts. The withdrawal cannot be undone, but you can submit a new application while registration remains open.
+`,
+      });
+
+      const cancelRegistration = activeApplication.getByRole('button', {
+        exact: true,
+        name: 'Cancel registration',
+      });
+      await expect(cancelRegistration).not.toHaveAttribute(
+        'jsaction',
+        /click/,
+        { timeout: 20_000 },
+      );
+      await cancelRegistration.click();
+      const cancellationDialog = page.getByRole('dialog', {
+        name: 'Cancel your pending registration?',
+      });
+      await expect(cancellationDialog).toBeVisible();
+      await expect(
+        cancellationDialog.getByText(
+          'This immediately withdraws your pending application. It does not release confirmed capacity or start a refund. This action cannot be undone.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      const keepRegistration = cancellationDialog.getByRole('button', {
+        exact: true,
+        name: 'Keep registration',
+      });
+      await expect(keepRegistration).toBeFocused();
+      await takeScreenshot(
+        testInfo,
+        cancellationDialog,
+        page,
+        'Review the pending application withdrawal',
+      );
+      await keepRegistration.click();
+      await expect(cancellationDialog).toHaveCount(0);
+      await expect(activeApplication).toBeVisible();
+      expect(
+        await database.query.eventRegistrations.findFirst({
+          where: { id: firstApplication.id },
+        }),
+      ).toEqual(expect.objectContaining({ status: 'PENDING' }));
+
+      await cancelRegistration.click();
+      await page
+        .getByRole('dialog', { name: 'Cancel your pending registration?' })
+        .getByRole('button', { exact: true, name: 'Confirm cancellation' })
+        .click();
+      await expect(activeApplication).toHaveCount(0, { timeout: 20_000 });
+      await expect(
+        applicationCard.getByRole('button', { name: 'Apply for approval' }),
+      ).toBeVisible({ timeout: 20_000 });
+
+      await expect
+        .poll(async () => {
+          const persistedApplication =
+            await database.query.eventRegistrations.findFirst({
+              where: { id: firstApplication.id },
+            });
+          const option =
+            await database.query.eventRegistrationOptions.findFirst({
+              columns: {
+                confirmedSpots: true,
+                reservedSpots: true,
+                waitlistSpots: true,
+              },
+              where: { id: scenario.optionId },
+            });
+          const transactions = await database.query.transactions.findMany({
+            where: { eventRegistrationId: firstApplication.id },
+          });
+          return {
+            capacity: option,
+            paymentCount: transactions.length,
+            status: persistedApplication?.status,
+          };
+        })
+        .toEqual({
+          capacity: capacityBeforeApplying,
+          paymentCount: 0,
+          status: 'CANCELLED',
+        });
+
+      await testInfo.attach('markdown', {
+        body: `
+## Apply again if you still want to attend
+
+After withdrawal, the event shows **Apply for approval** again. The cancelled application remains in the audit history as **Cancelled**, but it no longer blocks a new application.
+
+Select **Apply for approval** to create a new pending application. The new application is a separate record for the organizer to review. Withdrawing and applying again still does not reserve capacity or start payment; a paid option reaches Stripe Checkout only after organizer approval.
+`,
+      });
+
+      await applyForApproval(page, scenario);
+      const participantRegistrations =
+        await database.query.eventRegistrations.findMany({
+          orderBy: { createdAt: 'asc' },
+          where: {
+            registrationOptionId: scenario.optionId,
+            tenantId: scenario.tenant.id,
+            userId: scenario.participant.id,
+          },
+        });
+      const documentedApplications = participantRegistrations.filter(
+        (registration) => !existingRegistrationIds.has(registration.id),
+      );
+      expect(documentedApplications).toHaveLength(2);
+      expect(
+        documentedApplications.find(
+          (registration) => registration.id === firstApplication.id,
+        ),
+      ).toEqual(expect.objectContaining({ status: 'CANCELLED' }));
+      const reappliedApplication = documentedApplications.find(
+        (registration) =>
+          registration.id !== firstApplication.id &&
+          registration.status === 'PENDING',
+      );
+      if (!reappliedApplication) {
+        throw new Error('Expected a new pending application after withdrawal');
+      }
+      expect(
+        await database.query.transactions.findMany({
+          where: { eventRegistrationId: reappliedApplication.id },
+        }),
+      ).toHaveLength(0);
+      expect(
+        await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            confirmedSpots: true,
+            reservedSpots: true,
+            waitlistSpots: true,
+          },
+          where: { id: scenario.optionId },
+        }),
+      ).toEqual(capacityBeforeApplying);
+      await takeScreenshot(
+        testInfo,
+        page.locator('app-event-active-registration'),
+        page,
+        'New application awaiting organizer review',
+      );
+    } finally {
       await scenario.cleanup();
     }
   });
@@ -748,9 +998,9 @@ If Stripe Checkout could not be prepared after capacity was reserved, Evorto kee
 
 After Stripe confirms the pending Checkout is expired, Evorto cancels the local payment claim, releases the reserved spot, and returns the event to the application choice. If Stripe cannot confirm expiry, nothing is released and the participant receives a retryable error instead. The participant may apply again while registration remains open.
 
-{% callout type="note" title="Current boundaries" %}
-- A separate **Reject application** action is not currently available; organizers may approve or cancel a registration.
-- Application and approval are tenant-scoped. Organizer access in another tenant does not grant access here.
+{% callout type="note" title="Application states" %}
+- Organizers resolve a pending application by approving it or cancelling its registration.
+- Application and approval belong to this organization. Organizer access in another organization does not grant access here.
 - Payment confirmation and the QR ticket appear only after Stripe reports a successful payment.
 {% /callout %}
 `,

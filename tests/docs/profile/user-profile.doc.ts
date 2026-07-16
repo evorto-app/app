@@ -152,7 +152,7 @@ If another participant sends you a manual transfer code, select **Claim transfer
 ## Editing Your Profile
 
 Click **Edit profile** to open the profile dialog.
-The form uses inline validation, and the save button is only enabled when both names and the notification email are filled in. IBAN and PayPal details are optional global reimbursement details, not tenant-specific payout instructions. Saving the dialog updates the profile summary immediately after the profile query refreshes.
+The form uses inline validation, and the save button is only enabled when both names and the notification email are filled in. IBAN and PayPal details are optional global reimbursement details, not organization-specific payout instructions. The profile summary updates immediately after saving.
 `,
     });
 
@@ -176,7 +176,7 @@ The form uses inline validation, and the save button is only enabled when both n
       body: `
 ## Notification Email Persistence
 
-The notification email is user-managed and may differ from the Auth0 login email. Optional IBAN and PayPal fields store global reimbursement details for finance teams. After saving, the profile summary displays the updated notification email while the login email remains unchanged.
+The notification email is user-managed and may differ from the sign-in email. Optional IBAN and PayPal fields store global reimbursement details for finance teams. After saving, the profile summary displays the updated notification email while the sign-in email remains unchanged.
 `,
     });
 
@@ -221,8 +221,8 @@ The user profile now uses a two-column layout:
 
 - Left side: section navigation cards
 - Right side: selected section content
-- The **Events** section links each registration back to event details, shows registration status, selected option, guest quantity and purchased add-ons when applicable, payment state, and check-in time when available, and exposes implemented recovery actions such as continuing a pending checkout payment or opening the event page where confirmed tickets are shown
-- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/transfer details back to the event page, expose waitlist routing back to the event page, and explain that cancellation stops after check-in while a transfer preserves the attendee and guest check-in history
+- The **Events** section links each registration to its event details and shows its status, selected option, guest quantity, purchased add-ons, payment state, and check-in time when available
+- From an event card, you can continue a pending payment or open the event to view the ticket, cancellation, transfer, or waitlist details; the card also explains that cancellation stops after check-in and that a transfer preserves attendee and guest check-in history
 - Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
     });

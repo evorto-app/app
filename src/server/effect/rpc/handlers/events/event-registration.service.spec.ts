@@ -554,10 +554,14 @@ const runManualApproval = ({
 
 const createDirectCheckoutDatabase = ({
   bindingSucceeds = true,
+  configuredStripeTaxRateId = 'txr_19',
+  lockedStripeAccountId = 'acct_123',
   operationOrder = [],
   registrationOption = {},
 }: {
   bindingSucceeds?: boolean;
+  configuredStripeTaxRateId?: string;
+  lockedStripeAccountId?: string;
   operationOrder?: string[];
   registrationOption?: {
     isPaid?: boolean;
@@ -568,7 +572,7 @@ const createDirectCheckoutDatabase = ({
   const effectiveStripeTaxRateId =
     registrationOption.isPaid === false
       ? null
-      : (registrationOption.stripeTaxRateId ?? 'txr_19');
+      : (registrationOption.stripeTaxRateId ?? configuredStripeTaxRateId);
   let bindingUpdateCount = 0;
   let claim: ManualApprovalClaim | null = null;
   let claimInsertCount = 0;
@@ -699,7 +703,9 @@ const createDirectCheckoutDatabase = ({
                       return Effect.succeed([{ id: 'tenant-user-1' }]);
                     }
                     if (table === tenants) {
-                      return Effect.succeed([{ stripeAccountId: 'acct_123' }]);
+                      return Effect.succeed([
+                        { stripeAccountId: lockedStripeAccountId },
+                      ]);
                     }
                     if (table === eventRegistrationOptions) {
                       return Effect.succeed([
@@ -735,7 +741,7 @@ const createDirectCheckoutDatabase = ({
                               displayName: 'VAT',
                               inclusive: true,
                               percentage: '19',
-                              stripeTaxRateId: 'txr_19',
+                              stripeTaxRateId: configuredStripeTaxRateId,
                             },
                           ])
                         : Effect.succeed([]),
@@ -858,9 +864,11 @@ const createDirectCheckoutDatabase = ({
 const runDirectCheckout = ({
   database,
   stripe,
+  stripeAccountId = 'acct_123',
 }: {
   database: object;
   stripe: Stripe;
+  stripeAccountId?: string;
 }) =>
   EventRegistrationService.registerForEvent({
     eventId: 'event-1',
@@ -870,7 +878,7 @@ const runDirectCheckout = ({
       ...tenantPublicOrigin,
       currency: 'EUR',
       id: 'tenant-1',
-      stripeAccountId: 'acct_123',
+      stripeAccountId,
     },
     user: {
       email: 'alice@example.com',
@@ -3526,6 +3534,68 @@ describe('EventRegistrationService', () => {
             idempotencyKey: `registration:registration-direct:transaction:${claim?.id}`,
             stripeAccount: 'acct_123',
           },
+        );
+      }),
+  );
+
+  it.effect(
+    'creates paid Checkout on the replacement account after its tax rate is reassigned',
+    () =>
+      Effect.gen(function* () {
+        const directDatabase = createDirectCheckoutDatabase({
+          configuredStripeTaxRateId: 'txr_replacement',
+          lockedStripeAccountId: 'acct_replacement',
+          registrationOption: {
+            isPaid: true,
+            price: 1000,
+            stripeTaxRateId: 'txr_replacement',
+          },
+        });
+        const checkoutStripeClient = createStripeTestClient();
+        const createSession = vi.fn(() =>
+          Promise.resolve({
+            id: 'cs_rotated_account',
+            payment_intent: 'pi_rotated_account',
+            url: 'https://checkout.stripe.test/rotated-account',
+          } as Stripe.Checkout.Session),
+        );
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(createSession);
+
+        yield* runDirectCheckout({
+          database: directDatabase.database,
+          stripe: checkoutStripeClient,
+          stripeAccountId: 'acct_replacement',
+        });
+
+        expect(directDatabase.getClaim()).toEqual(
+          expect.objectContaining({
+            stripeAccountId: 'acct_replacement',
+            stripeCheckoutRequest: expect.objectContaining({
+              lineItems: [
+                {
+                  name: 'Registration fee for Approved event',
+                  quantity: 1,
+                  taxRateId: 'txr_replacement',
+                  unitAmount: 1000,
+                },
+              ],
+            }),
+          }),
+        );
+        expect(createSession).toHaveBeenCalledWith(
+          expect.objectContaining({
+            line_items: [
+              expect.objectContaining({
+                price_data: expect.objectContaining({ unit_amount: 1000 }),
+                quantity: 1,
+                tax_rates: ['txr_replacement'],
+              }),
+            ],
+          }),
+          expect.objectContaining({ stripeAccount: 'acct_replacement' }),
         );
       }),
   );

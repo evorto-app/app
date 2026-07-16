@@ -15,6 +15,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faTrashCan } from '@fortawesome/duotone-regular-svg-icons';
 
+import { CurrencyAmountInputComponent } from '../../controls/currency-amount-input/currency-amount-input.component';
 import { TemplateGraphAddonFormModel } from './template-graph-form.model';
 import { TemplateTaxRateLoadState } from './template-registration-option-editor.component';
 
@@ -27,6 +28,7 @@ export interface TemplateGraphOptionChoice {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: '@container block' },
   imports: [
+    CurrencyAmountInputComponent,
     FontAwesomeModule,
     FormField,
     MatButtonModule,
@@ -41,6 +43,7 @@ export interface TemplateGraphOptionChoice {
 export class TemplateAddonEditorComponent {
   readonly addMapping = output();
   readonly addOnForm = input.required<FieldTree<TemplateGraphAddonFormModel>>();
+  readonly currencyCode = input.required<string>();
   readonly optionChoices =
     input.required<readonly TemplateGraphOptionChoice[]>();
   readonly remove = output();

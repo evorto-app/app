@@ -41,7 +41,7 @@ interface ServerRequestLike {
   readonly url: string;
 }
 
-const resolveConfiguredServerRpcOrigin = (): string | undefined => {
+export const resolveTrustedServerRpcOrigin = (): string | undefined => {
   const processLike = (
     globalThis as typeof globalThis & { readonly process?: ServerProcessLike }
   ).process;
@@ -89,7 +89,7 @@ const resolveRequest = (): ServerRequestLike | undefined => {
 };
 
 export const resolveServerRpcOrigin = (request?: ServerRequestLike): string => {
-  const configuredOrigin = resolveConfiguredServerRpcOrigin();
+  const configuredOrigin = resolveTrustedServerRpcOrigin();
   if (configuredOrigin) {
     return configuredOrigin;
   }

@@ -128,10 +128,13 @@ export class PlatformFinanceRefundRecoveryRecord extends Schema.Class<PlatformFi
   'PlatformFinanceRefundRecoveryRecord',
 )({
   amount: positiveNumber,
+  attendeeFirstName: Schema.NonEmptyString,
+  attendeeLastName: Schema.NonEmptyString,
   createdAt: Schema.NonEmptyString,
   currency: Tenant.fields.currency,
   eventId: Schema.NullOr(Schema.NonEmptyString),
   eventRegistrationId: Schema.NonEmptyString,
+  eventTitle: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
   lastError: Schema.NullOr(Schema.String),
   mode: PlatformFinanceRefundRecoveryMode,
@@ -181,6 +184,7 @@ export class PlatformFinanceTenantContext extends Schema.Class<PlatformFinanceTe
     receiptCountries: Schema.Array(Schema.NonEmptyString),
   }),
   targetTenantId: Schema.NonEmptyString,
+  timezone: Tenant.fields.timezone,
 }) {}
 
 export class PlatformFinanceTransactionRecord extends Schema.Class<PlatformFinanceTransactionRecord>(

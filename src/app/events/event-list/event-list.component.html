@@ -51,12 +51,33 @@
     >
       @if (eventQuery.isPending()) {
         <div
+          role="status"
+          aria-live="polite"
           class="bg-surface text-on-surface animate-pulse rounded-2xl px-4 py-2"
         >
-          <p class="headline-small">Loading…</p>
+          <p class="headline-small">Loading events…</p>
         </div>
       } @else if (eventQuery.isError()) {
-        <p>Error: {{ eventErrorMessage() }}</p>
+        <div
+          role="alert"
+          class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+        >
+          <div>
+            <h2 class="title-medium">Events could not be loaded</h2>
+            <p class="body-medium mt-1">
+              Event discovery is temporarily unavailable. Check your connection
+              and try again.
+            </p>
+          </div>
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="eventQuery.isFetching()"
+            (click)="eventQuery.refetch()"
+          >
+            {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+          </button>
+        </div>
       } @else if (eventQuery.isSuccess()) {
         @for (day of eventQuery.data(); track day.day) {
           <p

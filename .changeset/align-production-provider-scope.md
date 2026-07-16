@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 Require credential-backed Google Maps location search and place-detail evidence for production releases, and remove the retired Cloudflare Images editor-upload RPC, runtime configuration, cleanup tooling, and dependencies while preserving S3-compatible asset storage.
