@@ -1,0 +1,134 @@
+Side-conversation handoff:
+
+- Ignore Fly-related work; a separate change is planned there.
+- Active ESNcard identifier: 2254268ZBWZ
+  Use it as E2E_LIVE_ESN_CARD_IDENTIFIER for local live-provider certification.
+- Permanently expired ESNcard identifier: 1995822SFGS
+  Use it for negative/expired-provider coverage if useful.
+- Keep both identifiers out of tracked files; use local .env or protected CI secrets.
+- The focused Google Maps rerun passed 8/8 with zero skips/flakes after the hydration wait. The full 11-test provider suite still needs a clean rerun.
+
+---
+
+## Code review guidelines:
+# Review Guidelines
+
+You are acting as a reviewer for a proposed code change made by another engineer.
+
+Review the change and respond in normal Markdown. Do not return JSON, XML, a findings object, or any structured review schema.
+
+When feedback should be attached directly to a changed line, emit one `::code-comment{...}` directive for that issue. The directive creates an inline code comment in the review UI; keep the visible response as normal Markdown. Emit no directives when there are no actionable inline comments.
+
+Required `code-comment` attributes: `title`, `body`, and `file`. Optional attributes: `start`, `end`, and `priority`. Use the shortest useful line range. `file` should be an absolute path or include the workspace folder segment.
+
+Focus on discrete, actionable issues the original author would likely fix if they knew about them. Prefer no issues over speculative or low-signal feedback.
+
+General guidelines for whether to call out an issue:
+
+1. It meaningfully impacts correctness, performance, security, or maintainability.
+2. It is discrete and actionable.
+3. It was introduced by the change under review.
+4. The author would likely fix it once aware.
+5. It does not rely on unstated assumptions about intent.
+6. It identifies the affected behavior clearly rather than speculating broadly.
+
+When you call out an issue, include the relevant file and line or function in prose, explain the scenario where it matters, and keep the explanation concise. Use priority labels such as `[P1]` or `[P2]` only when helpful to communicate severity.
+
+If there are no actionable issues, say that directly and briefly.
+Review the code changes against the base branch 'origin/main'. The merge base commit for this comparison is ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73. Run `git diff ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73` to inspect the changes relative to origin/main. Provide concise, actionable feedback in a normal Markdown response.
+## My request for Codex:
+Please review changes on codex/production-readiness-compliance against origin/main
+
+---
+
+Please fix these
+
+---
+
+I think that the passwords are saved in the test files, please double check
+
+---
+
+## Code review guidelines:
+# Review Guidelines
+
+You are acting as a reviewer for a proposed code change made by another engineer.
+
+Review the change and respond in normal Markdown. Do not return JSON, XML, a findings object, or any structured review schema.
+
+When feedback should be attached directly to a changed line, emit one `::code-comment{...}` directive for that issue. The directive creates an inline code comment in the review UI; keep the visible response as normal Markdown. Emit no directives when there are no actionable inline comments.
+
+Required `code-comment` attributes: `title`, `body`, and `file`. Optional attributes: `start`, `end`, and `priority`. Use the shortest useful line range. `file` should be an absolute path or include the workspace folder segment.
+
+Focus on discrete, actionable issues the original author would likely fix if they knew about them. Prefer no issues over speculative or low-signal feedback.
+
+General guidelines for whether to call out an issue:
+
+1. It meaningfully impacts correctness, performance, security, or maintainability.
+2. It is discrete and actionable.
+3. It was introduced by the change under review.
+4. The author would likely fix it once aware.
+5. It does not rely on unstated assumptions about intent.
+6. It identifies the affected behavior clearly rather than speculating broadly.
+
+When you call out an issue, include the relevant file and line or function in prose, explain the scenario where it matters, and keep the explanation concise. Use priority labels such as `[P1]` or `[P2]` only when helpful to communicate severity.
+
+If there are no actionable issues, say that directly and briefly.
+Review the code changes against the base branch 'origin/main'. The merge base commit for this comparison is ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73. Run `git diff ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73` to inspect the changes relative to origin/main. Provide concise, actionable feedback in a normal Markdown response.
+## My request for Codex:
+Please review changes on codex/production-readiness-compliance against origin/main
+
+---
+
+Fix the issues
+
+---
+
+## Code review guidelines:
+# Review Guidelines
+
+You are acting as a reviewer for a proposed code change made by another engineer.
+
+Review the change and respond in normal Markdown. Do not return JSON, XML, a findings object, or any structured review schema.
+
+When feedback should be attached directly to a changed line, emit one `::code-comment{...}` directive for that issue. The directive creates an inline code comment in the review UI; keep the visible response as normal Markdown. Emit no directives when there are no actionable inline comments.
+
+Required `code-comment` attributes: `title`, `body`, and `file`. Optional attributes: `start`, `end`, and `priority`. Use the shortest useful line range. `file` should be an absolute path or include the workspace folder segment.
+
+Focus on discrete, actionable issues the original author would likely fix if they knew about them. Prefer no issues over speculative or low-signal feedback.
+
+General guidelines for whether to call out an issue:
+
+1. It meaningfully impacts correctness, performance, security, or maintainability.
+2. It is discrete and actionable.
+3. It was introduced by the change under review.
+4. The author would likely fix it once aware.
+5. It does not rely on unstated assumptions about intent.
+6. It identifies the affected behavior clearly rather than speculating broadly.
+
+When you call out an issue, include the relevant file and line or function in prose, explain the scenario where it matters, and keep the explanation concise. Use priority labels such as `[P1]` or `[P2]` only when helpful to communicate severity.
+
+If there are no actionable issues, say that directly and briefly.
+Review the code changes against the base branch 'origin/main'. The merge base commit for this comparison is ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73. Run `git diff ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73` to inspect the changes relative to origin/main. Provide concise, actionable feedback in a normal Markdown response.
+## My request for Codex:
+Please review changes on codex/production-readiness-compliance against origin/main
+
+---
+
+Fix these issues
+
+---
+
+I reset docker
+
+---
+
+Please take me through the [APPLICATION_COMPLIANCE_AUDIT.md](APPLICATION_COMPLIANCE_AUDIT.md)
+
+---
+
+Okay, we should get the local changes commited and the audit unified then
+
+Legacy migration will be planned only when we are functionally complete, then it is on a best effort basis.
+
+Next we will plan a migration for the new version to a differen hosting providerder and then manual browser testing in that new staging environment
