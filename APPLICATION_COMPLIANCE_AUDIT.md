@@ -1,38 +1,32 @@
 # Application Production-Readiness Compliance Ledger
 
-Ledger updated: 2026-07-15
+Ledger updated: 2026-07-16
 
-Current fully validated baseline: `codex/production-readiness-compliance` at
-`2f027218b2302724f5b3ca0b984c2eaa3d1c6170`
+Unified implementation baseline: `codex/production-readiness-compliance` at
+`77b5825492112f89f8a32d99400cf9c2a0563136`
 
 `origin/main` at that validation point:
 `ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73`
 (`0` commits behind)
 
-A fresh fetch on 2026-07-15 confirmed that this baseline remains `0` commits
-behind `origin/main` at `ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73`.
-The exact commit passed 1,128 server/helper tests, 644 Angular/shared tests, 48
-disposable PostgreSQL 17 tests, 150 functional Playwright tests, and 49
-generated-documentation Playwright tests with zero incomplete outcomes. The
-separate credential-backed Auth0/Google Maps selection passed 11/11, and live
-ESNcard certification passed its 28/28 profile precheck plus 8/8 Playwright
-tests. Corrected PR CI then passed the full baseline, including all Playwright
-tests, in 40m17s.
+A fresh fetch at the start of consolidation confirmed that this branch was `0`
+commits behind `origin/main` at
+`ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73`. The implementation baseline
+contains sealed fixed-bundle transfer pricing, composite ownership constraints,
+exact Stripe refund identity validation, fail-closed legacy-import preflight,
+tenant-safe UI state, settled discount-provider save gates, env-key-only
+protected test input, and supervised Docker build/up/teardown.
 
-The working tree after that exact baseline contains the current
-production-readiness candidate: sealed fixed-bundle transfer pricing, composite
-ownership constraints, exact Stripe refund identity validation, fail-closed
-legacy-import preflight, tenant-safe UI state, settled discount-provider save
-gates, env-key-only protected test input, and supervised Docker
-build/up/teardown. Current working-tree verification passes 1,360/1,360
-server/helper tests, 799/799 Angular/shared tests, 55/55 disposable PostgreSQL
-17 tests, 150/150 functional Playwright tests, 52/52 documentation Playwright
-tests, 11/11 Auth0/Google Maps integration tests, 27/27 live ESNcard unit tests,
-and 9/9 live ESNcard Playwright tests, all with zero incomplete outcomes.
-Formatting, lint, the production build, and 19/19 Docker lifecycle tests also
-pass. Every Docker-backed run left zero project-labeled containers, networks,
-and volumes. This is working-tree evidence; it does not supersede the clean
-exact-commit baseline above or waive the remaining external release blockers.
+Local verification passes 1,360/1,360 server/helper tests, 799/799
+Angular/shared tests, 55/55 disposable PostgreSQL 17 tests, 150/150 functional
+Playwright tests, 52/52 documentation Playwright tests, 11/11 Auth0/Google Maps
+integration tests, 27/27 live ESNcard unit tests, and 9/9 live ESNcard
+Playwright tests. All recorded suites have zero skips, todos, fixmes, expected
+failures, retries, flakes, focused tests, interrupted tests, or other incomplete
+outcomes. Formatting, lint, the production build, and 19/19 Docker lifecycle
+tests also pass. Every Docker-backed run left zero project-labeled containers,
+networks, and volumes. The documentation-only audit consolidation commit after
+this baseline does not change runtime implementation or test behavior.
 
 Draft review: [PR #91](https://github.com/evorto-app/app/pull/91)
 
@@ -45,46 +39,39 @@ release gates.
 **Not yet ready to declare a complete production replacement.**
 
 The original audit's broad implementation findings are mostly remediated.
-Commit `2f027218b2302724f5b3ca0b984c2eaa3d1c6170` has a completely
-green local baseline of 2,019 collected tests with zero skipped or otherwise
-incomplete outcomes. The same exact commit passed all 11 credential-backed
-Auth0/Google Maps tests and the active/expired live ESNcard certification.
-Organizer/helper signup, fixed-bundle transfer, Stripe-only paid configuration,
-fail-closed receipt evidence/loading, cancellation/refund recovery,
-confirmation with locked stale-state checks, and exact owned Neon Local cleanup
-are proven against that baseline.
+Unified implementation baseline `77b58254921` is locally green across the
+application, server/helper, PostgreSQL, functional, documentation, Auth0/Google
+Maps, and active/expired live ESNcard gates. Organizer/helper signup,
+fixed-bundle transfer, Stripe-only paid configuration, fail-closed receipt
+evidence/loading, cancellation/refund recovery, locked stale-state checks,
+tenant isolation, and owned Docker/Neon Local cleanup are proven against this
+source tree.
 
-The uncommitted next-candidate work is not covered by those baseline counts. It
-closes newly discovered transfer-validity/arithmetic, mobile platform navigation,
-generated-documentation isolation, beginner-guide, screen-reader, authorization,
-import, secret-custody, and container-lifecycle gaps. The complete current
-server/helper suite passes 1,360/1,360, the complete Angular/shared suite passes
-799/799, and the production build passes. PostgreSQL passes 55/55, functional
-Playwright passes 150/150, the documentation baseline passes 52/52, the
-Auth0/Google Maps selection passes 11/11, and live ESNcard certification passes
-27/27 unit plus 9/9 Playwright tests, all without incomplete outcomes. Combined
-documentation discovery still lists 55 tests in 32 files for the staged
-publisher. The cross-repository publication contract is repaired in source,
-but the combined publisher, real Pages synchronization/build, and a clean
-exact-commit gate remain pending.
+The application is nevertheless not ready to be declared the production
+replacement. The next release phase is a separately planned migration to a new
+hosting provider, deployment of this version to a new staging environment, and
+a complete authenticated desktop/compact manual Browser acceptance pass in that
+environment. Any defect found there must be fixed, covered durably where
+practical, and retested locally before a CI-triggering action. Fly-related work
+is intentionally excluded because it is owned by a separate change.
 
-The leading release blocker is MIG-001: production cutover would lose unsupported
-legacy registration, payment, add-on, fulfillment, reimbursement, and submitted-
-answer history, so the preflight correctly stops before destructive work. The
-highest-risk implemented application boundary is paid registration transfer. The
-binding contract is one inseparable registration, guest, add-on, and fulfillment
-bundle with exact refunds for every original Stripe source; its implementation
-and page-backed proof passed the exact baseline gate. The new validity-window
-and amount-bound hardening still needs the next exact-commit gate. Paid event
-registration and add-on transactions are Stripe-only, so legacy/manual
-paid-event sources are not a supported product branch. The remaining high-risk
-evidence gaps include the six historical Auth0 E2E passwords that require
-external rotation and release-safe provisioning, the unprotected live ESNcard
-release environment, the incomplete authenticated Browser review queue, the
-currently incomplete generated publication artifact, and the absence of a new
-clean exact-commit rerun. Cloudflare Images is removed and is not a provider
-gate. GitHub's current `main` ruleset also does not make
-the green checks mandatory.
+Legacy data migration is not a prerequisite for functional completion. MIG-001
+is an accepted sequencing decision: after the new staging environment is
+functionally accepted, plan the legacy import as a separate best-effort effort
+with explicit supported scope, exclusions, reconciliation, and rollback/cutover
+criteria. The existing direct-schema importer must continue to fail closed
+before destructive work when unsupported history is present. Until that later
+plan is executed, no claim is made that historical registration, payment,
+add-on, fulfillment, reimbursement, or submitted-answer data can be migrated
+without loss.
+
+Other remaining release gates are external or operational: rotate and safely
+provision the six historical Auth0 E2E credentials, protect the live ESNcard
+release environment, publish and build the real Pages documentation artifact,
+prove live email delivery, approve production legal content, configure the
+chosen `main` protection policy, and prove the first exact-tag release. Google
+Maps remains required production functionality. Cloudflare Images is removed
+and is not a release gate.
 
 ## How to read this ledger
 
@@ -93,7 +80,7 @@ the green checks mandatory.
 | **Open**              | Required product behavior or evidence is absent.                                                            |
 | **Partial**           | The original failure is substantially remediated, but a narrower release-relevant gap remains.              |
 | **External**          | Repository work is present, but completion needs credentials, infrastructure policy, legal approval, or UI. |
-| **Candidate**         | Implementation is present in the current candidate and still needs the complete exact-commit local gate.    |
+| **Candidate**         | Implementation exists, but a named release artifact or external proof is still pending.                     |
 | **Resolved**          | Current source plus focused and broad evidence close the original finding.                                  |
 | **Accepted deferral** | Explicitly out of current product scope; it must not be represented as delivered.                           |
 
@@ -114,39 +101,39 @@ capability checks.
 
 ## Finding and gate status
 
-| ID           | Severity | Status    | Area                  | Remaining work                                                                                                                                                                                |
-| ------------ | -------- | --------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PROD-002     | P1       | Candidate | Paid transfer         | Fixed-bundle provenance, validity/bounds, refund identity, and recipient-owned question handling pass current PostgreSQL, functional, and docs coverage; the clean exact-commit gate remains. |
-| PROD-003     | P1       | Resolved  | Organizer signup      | Signup, exclusivity, capability, access, profile, cancellation, docs, and the complete baseline gate are green.                                                                               |
-| SEC-003      | P1       | Resolved  | Receipt evidence      | Upload/finalization/approval fail closed on exact retrievable evidence; focused and complete baseline gates are green.                                                                        |
-| DOC-001      | P1       | Resolved  | Cancellation/refund   | The Stripe/add-on/refund-state guide passed the complete exact-commit gate at `2f027218b23`.                                                                                                  |
-| ESN-001      | P1       | External  | Live ESNcard          | Current active/expired certification passed 27/27 unit and 9/9 Playwright checks; the protected GitHub environment and secret policy remain absent.                                           |
-| AUTH-001     | P1       | Resolved  | Auth0 integration     | The current credential-backed provider suite passed 11/11 with zero incomplete outcomes; repeat it on the final exact commit.                                                                 |
-| AUTH-002     | P1       | External  | E2E credentials       | Plaintext passwords are removed and auth traces disabled; rotate all six historical passwords and provision local/protected secret values.                                                    |
-| AUTH-003     | P2       | Open      | CI identity custody   | Do not give long-lived Auth0 passwords to PR-controlled code; choose an approved trusted workflow or ephemeral-account design before CI provisioning.                                         |
-| MIG-001      | P0       | Open      | Production cutover    | The guarded direct-schema ETL still lacks registration, payment/refund, add-on, fulfillment, receipt, and submission-history import/reconciliation.                                           |
-| PROVIDER-001 | P1       | Resolved  | Google Maps           | The current Auth0/Google Maps integration selection passed 11/11 with zero skips, retries, flakes, or other incomplete outcomes.                                                              |
-| REL-001      | P1       | Candidate | Release automation    | Knope draft preparation and exact-tag certified publication are implemented; exact gate and a regenerated first release remain unproven.                                                      |
-| REL-002      | P1       | External  | Main enforcement      | `main` still requires no checks, approval, or thread resolution; the one-seat review/bypass policy needs an explicit owner decision.                                                          |
-| BROWSER-001  | P1       | Partial   | Manual acceptance     | Exploratory desktop/compact review covered organizer, guest, unlisted, and recovery slices; refresh the final candidate and finish the broader queue.                                         |
-| LEGAL-001    | P1       | External  | Legal content         | Legal/privacy settings are implemented, but production text and policy approval are not recorded.                                                                                             |
-| OPS-001      | P2       | Resolved  | Email outbox          | Leased delivery is crash-safe; exhausted mail intentionally remains stored and read-only with no recovery action.                                                                             |
-| OPS-002      | P2       | Resolved  | Neon Local lifecycle  | Exact owned functional, documentation, and Auth0 integration branches were deleted and returned HTTP 404.                                                                                     |
-| OPS-003      | P2       | Resolved  | Local containers      | Process-group teardown passes 19/19; every Docker-backed suite ended with zero project-labeled containers, networks, and volumes.                                                             |
-| UX-002       | P2       | Resolved  | Load recovery         | Event, participant, and receipt query failures fail closed with explicit retry; the complete baseline gate is green.                                                                          |
-| UX-004       | P2       | Resolved  | Cancellation safety   | Expected-state RPC/locked checks and no-write tests passed focused and complete baseline gates.                                                                                               |
-| DOC-002      | P2       | Resolved  | Product docs          | The complete documentation baseline passed 52/52 with zero incomplete outcomes; live inbox acceptance remains separately tracked under EMAIL-001.                                             |
-| DOC-003      | P1       | Candidate | Generated publication | Separate docs/provider/live runtime inputs are green; the combined publisher, real Pages sync/build, and clean exact-commit gate remain.                                                      |
-| EMAIL-001    | P1       | External  | Live email acceptance | Deterministic outbox behavior is covered, but live Resend delivery to an owned inbox has no credential, domain, or acceptance evidence in this run.                                           |
+| ID           | Severity | Status            | Area                  | Remaining work                                                                                                                                                                              |
+| ------------ | -------- | ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PROD-002     | P1       | Resolved          | Paid transfer         | Fixed-bundle provenance, validity/bounds, refund identity, and recipient-owned question handling pass PostgreSQL, functional, and documentation coverage.                                   |
+| PROD-003     | P1       | Resolved          | Organizer signup      | Signup, exclusivity, capability, access, profile, cancellation, docs, and the complete baseline gate are green.                                                                             |
+| SEC-003      | P1       | Resolved          | Receipt evidence      | Upload/finalization/approval fail closed on exact retrievable evidence; focused and complete baseline gates are green.                                                                      |
+| DOC-001      | P1       | Resolved          | Cancellation/refund   | The Stripe/add-on/refund-state guide passed the complete local implementation gate.                                                                                                         |
+| ESN-001      | P1       | External          | Live ESNcard          | Current active/expired certification passed 27/27 unit and 9/9 Playwright checks; the protected GitHub environment and secret policy remain absent.                                         |
+| AUTH-001     | P1       | Resolved          | Auth0 integration     | The credential-backed provider suite passed 11/11 with zero incomplete outcomes on the unified implementation baseline.                                                                     |
+| AUTH-002     | P1       | External          | E2E credentials       | Plaintext passwords are removed and auth traces disabled; rotate all six historical passwords and provision local/protected secret values.                                                  |
+| AUTH-003     | P2       | Open              | CI identity custody   | Do not give long-lived Auth0 passwords to PR-controlled code; choose an approved trusted workflow or ephemeral-account design before CI provisioning.                                       |
+| MIG-001      | P1       | Accepted deferral | Legacy migration      | Plan best-effort legacy import only after functional completion and staging acceptance; retain fail-closed preflight and document supported scope, exclusions, reconciliation, and cutover. |
+| PROVIDER-001 | P1       | Resolved          | Google Maps           | The current Auth0/Google Maps integration selection passed 11/11 with zero skips, retries, flakes, or other incomplete outcomes.                                                            |
+| REL-001      | P1       | Candidate         | Release automation    | Knope draft preparation and exact-tag certified publication are implemented; a regenerated first release remains unproven.                                                                  |
+| REL-002      | P1       | External          | Main enforcement      | `main` still requires no checks, approval, or thread resolution; the one-seat review/bypass policy needs an explicit owner decision.                                                        |
+| BROWSER-001  | P1       | Partial           | Manual acceptance     | Local exploratory slices are recorded; complete authenticated desktop/compact acceptance is intentionally sequenced to the new-provider staging environment.                                |
+| LEGAL-001    | P1       | External          | Legal content         | Legal/privacy settings are implemented, but production text and policy approval are not recorded.                                                                                           |
+| OPS-001      | P2       | Resolved          | Email outbox          | Leased delivery is crash-safe; exhausted mail intentionally remains stored and read-only with no recovery action.                                                                           |
+| OPS-002      | P2       | Resolved          | Neon Local lifecycle  | Exact owned functional, documentation, and Auth0 integration branches were deleted and returned HTTP 404.                                                                                   |
+| OPS-003      | P2       | Resolved          | Local containers      | Process-group teardown passes 19/19; every Docker-backed suite ended with zero project-labeled containers, networks, and volumes.                                                           |
+| UX-002       | P2       | Resolved          | Load recovery         | Event, participant, and receipt query failures fail closed with explicit retry; the complete baseline gate is green.                                                                        |
+| UX-004       | P2       | Resolved          | Cancellation safety   | Expected-state RPC/locked checks and no-write tests passed focused and complete baseline gates.                                                                                             |
+| DOC-002      | P2       | Resolved          | Product docs          | The complete documentation baseline passed 52/52 with zero incomplete outcomes; live inbox acceptance remains separately tracked under EMAIL-001.                                           |
+| DOC-003      | P1       | Candidate         | Generated publication | Separate docs/provider/live runtime inputs are green; the combined publisher and real Pages synchronization/build remain.                                                                   |
+| EMAIL-001    | P1       | External          | Live email acceptance | Deterministic outbox behavior is covered, but live Resend delivery to an owned inbox has no credential, domain, or acceptance evidence in this run.                                         |
 
-MIG-001 is the known P0 release blocker: production cutover is prohibited until
-legacy history import and reconciliation are complete. The open, partial, and
-external P1 rows above also prevent a production-replacement declaration, as do
-the P1 candidate rows until their complete exact-commit gate passes.
+MIG-001 is not a blocker to functional completion or new-provider staging. It is
+an accepted post-completion planning item and must not be represented as a
+completed or lossless migration. The open, partial, external, and candidate P1
+rows above still prevent a production-replacement declaration.
 
 ## Active finding details
 
-### PROD-002 — Fixed-bundle transfer is baseline-green; hardening is candidate
+### PROD-002 — Fixed-bundle transfer is implementation-baseline green
 
 The original audit covered private offer credentials, recipient eligibility,
 recipient Stripe Checkout, connected-account ownership, source cancellation, a
@@ -176,7 +163,7 @@ connected Stripe account may offer only free registration options and free
 add-ons; cash, bank-transfer, manually settled, or otherwise non-Stripe paid
 event sources are unsupported, not an undecided transfer branch.
 
-Exact baseline `2f027218b23` models an in-place ownership handoff: one confirmed
+Unified baseline `77b58254921` models an in-place ownership handoff: one confirmed
 registration id keeps its guest/check-in state, add-on purchases, lots,
 fulfillment events, refund allocations, capacity, and stock. Sealed bundle rows
 prevent recipient omission or re-quantitying. The payment-provenance slice now
@@ -190,8 +177,8 @@ historical source discount is not carried into the guide's final registration
 state. Server authorization and composite tenant foreign keys remain the
 boundary; no PostgreSQL RLS is planned for this ledger.
 
-The acquisition schema and finalization API have stabilized. The current
-candidate checks the complete recipient discount validity window, bounds derived
+The acquisition schema and finalization API have stabilized. The implementation
+checks the complete recipient discount validity window, bounds derived
 amounts before PostgreSQL writes, and freezes current base-price, recipient-
 discount, and fixed add-on totals once recipient Checkout begins. It validates a
 metadata-less provider refund against exact connected-account and payment
@@ -199,11 +186,9 @@ identity, makes a terminal identity mismatch non-retryable, and enforces full
 tenant/event/registration owner tuples for the source registration and every
 transferred answer. The complete server/helper suite passes 1,360/1,360 with
 zero incomplete outcomes. Current PostgreSQL coverage passes 55/55, functional
-Playwright passes 150/150, and the documentation baseline passes 52/52. PROD-002
-remains Candidate only because this working-tree evidence must be repeated on a
-clean exact commit. The old baseline's separately-paid-add-on rejection and
-source-cancellation model are historical evidence of the gap, not acceptable
-final behavior.
+Playwright passes 150/150, and the documentation baseline passes 52/52. The old
+separately-paid-add-on rejection and source-cancellation model are historical
+evidence of the gap, not acceptable final behavior.
 
 ### PROD-003 — Organizer/helper signup is validated
 
@@ -230,7 +215,7 @@ product does not implement.
 
 Focused local evidence is green, including the combined organizer/receipt
 functional run (`13/13`) and generated-documentation run (`10/10`). The complete
-exact-commit local gate at `e3e252768e4` is also green, so PROD-003 is resolved.
+local implementation gate is also green, so PROD-003 is resolved.
 
 ### SEC-003 — Receipt approval requires retrievable, exactly bound evidence
 
@@ -253,8 +238,8 @@ The functional and documentation journeys upload a real PDF to local MinIO and
 prove the browser receives a successful PDF document response. A negative
 functional case removes the object, proves approval is unavailable, and proves
 rejection still succeeds. Focused server, component, functional, and generated-
-documentation evidence and the complete exact-commit local gate at
-`e3e252768e4` are green, so SEC-003 is resolved.
+documentation evidence and the complete local implementation gate are green, so
+SEC-003 is resolved.
 
 ### DOC-001 — Cancellation and refund documentation is resolved
 
@@ -267,7 +252,7 @@ participant deadline denial, organizer cancellation, guest-capacity release,
 cancellation and waitlist email creation, persisted readback, the visible
 confirmation flow, and the resulting Profile state.
 
-Exact baseline `2f027218b23` adds a second page-backed beginner journey for a confirmed
+The implementation adds a second page-backed beginner journey for a confirmed
 free registration with one included and two Stripe-settled optional add-on
 units. It redeems the included unit and one paid unit through the production
 fulfillment service, cancels through the participant UI, and proves the exact
@@ -293,7 +278,7 @@ by server coverage and policy text rather than a second Browser journey. Keep
 deterministic database readback and literal recovery language: a queued Stripe
 refund claim must never be documented as money already returned.
 
-The current candidate extends the free-cancellation guide through the recipient
+The unified implementation extends the free-cancellation guide through the recipient
 side of the waitlist message. It opens the exact event path rendered into the
 queued email under the waitlisted account, proves that the message did not
 reserve capacity, leaves the old waitlist row through its focused confirmation,
@@ -322,7 +307,7 @@ Both approved identifiers were supplied only as process-local environment
 variables, traces were disabled, and no identifier value was written to tracked
 files or this ledger.
 
-On 2026-07-15 the current candidate release command passed its complete 27-test
+On 2026-07-16 the unified implementation baseline release command passed its complete 27-test
 Profile precheck and all 9 live Playwright tests with zero skips, retries,
 flakes, or other incomplete outcomes. The protected-value sanitizer remained
 active and post-run inspection found no project-labeled containers, networks,
@@ -342,20 +327,17 @@ The credential-backed integration projects remain intentionally separate from
 the baseline. The account-creation path in
 [`tests/specs/profile/create-account.spec.ts`](tests/specs/profile/create-account.spec.ts)
 requires Auth0 Management credentials and fails preflight when they are absent.
-On exact validated baseline `2f027218b23`, `bun run test:e2e:integration`
-passed all 11 Auth0/Google Maps functional and documentation tests with zero
-incomplete outcomes. Its owned Neon branch was deleted and left zero
-project-labeled containers. On 2026-07-15 the current candidate repeated the
-canonical selection at 11/11 with zero incomplete outcomes and a clean
-container teardown. Repeat the same credential-backed suite on the final exact
-release commit before CI or release; missing credentials remain a local blocker
-rather than a skip.
+On 2026-07-16 unified implementation baseline `77b58254921`,
+`bun run test:e2e:integration` passed all 11 Auth0/Google Maps functional and
+documentation tests with zero incomplete outcomes and a clean container
+teardown. Repeat the same credential-backed suite on any later release commit;
+missing credentials remain a local blocker rather than a skip.
 
 ### AUTH-002 — Tracked E2E passwords require rotation
 
 The six long-lived Auth0 Playwright account passwords were stored as literals in
 [`helpers/user-data.ts`](helpers/user-data.ts) on both `origin/main` and the
-validated baseline. The current candidate removes every password value from the
+historical baseline. The unified implementation removes every password value from the
 tracked account matrix, resolves one dedicated environment variable per account
 only when the authentication setup submits the login form, and fails closed when
 any value is absent or blank. The authentication setup project disables traces,
@@ -392,7 +374,7 @@ Auth0 test accounts. The protected-main provider workflow is separately guarded
 in source, but its referenced GitHub environment must also exist with reviewers
 and a deployment-branch policy before it receives credentials.
 
-### MIG-001 — Production cutover remains blocked on history preservation
+### MIG-001 — Legacy migration is sequenced after functional completion
 
 The relaunch intentionally targets the current Drizzle schema directly; it does
 not mutate the legacy schema or add an application compatibility layer. The
@@ -405,20 +387,26 @@ blocks any source tenant containing registrations, transactions, purchased
 product lines, collected fees, costs, receipts, or event-submission items because
 registration/payment/refund history, add-on quantities, acquisition snapshots,
 fulfillment history, reimbursements, and submitted answers are not yet imported
-and reconciled. Production cutover remains blocked until that dedicated history
-importer and count/ownership/Stripe-provenance reconciliation are implemented,
-reviewed, and proven during an externally coordinated maintenance window. See
+and reconciled.
+
+The binding sequence is now explicit: finish the application, deploy it to the
+new-provider staging environment, and complete manual Browser acceptance first.
+Only then create a separate best-effort legacy migration plan. That plan must
+name the supported source scope and exclusions, reconciliation checks,
+Stripe-provenance constraints, rollback strategy, and whether any maintenance
+window or cutover is justified. Functional completion does not depend on that
+later plan, and no lossless legacy replacement is claimed in the meantime. See
 [`migration/README.md`](migration/README.md) and
 [`migration/cutover-guard.ts`](migration/cutover-guard.ts).
 
-### PROVIDER-001 — Current-candidate Google Maps verification passed
+### PROVIDER-001 — Google Maps verification passed
 
 Google Maps location search and place details are required production
 functionality. Unit coverage validates configuration plus initialization,
 search, empty-result, and error mapping in
 [`src/server/config/server-config.spec.ts`](src/server/config/server-config.spec.ts)
 and [`src/app/core/location-search.spec.ts`](src/app/core/location-search.spec.ts),
-and exact baseline `2f027218b23` adds credential-gated Playwright journeys in
+and the unified baseline includes credential-gated Playwright journeys in
 [`tests/specs/admin/google-maps-location.spec.ts`](tests/specs/admin/google-maps-location.spec.ts)
 and
 [`tests/docs/admin/google-maps-location.doc.ts`](tests/docs/admin/google-maps-location.doc.ts).
@@ -446,16 +434,15 @@ failure traces for the two provider journeys. The focused location-dialog suite
 passed 8/8 and the canonical `bun run test:e2e:integration` run passed 11/11,
 including live Maps loader, autocomplete, place details, persisted coordinates,
 and both the functional and generated-documentation journeys, with zero skips
-or retries. This is exact-commit evidence at `2f027218b23`; repeat it after the
-next candidate changes. On the current candidate, the focused Google Maps rerun
-passed 8/8 with zero skips, retries, or flakes after adding the hydration wait.
-The current candidate then passed the complete canonical 11-test Auth0/Google
-Maps provider selection with zero skips, retries, flakes, or other incomplete
-outcomes. Repeat it on the final exact release commit. Production provider
+or retries. The focused Google Maps rerun passed 8/8 with zero skips, retries,
+or flakes after adding the hydration wait. Unified implementation baseline
+`77b58254921` then passed the complete canonical 11-test Auth0/Google Maps
+provider selection with zero skips, retries, flakes, or other incomplete
+outcomes. Production provider
 provisioning remains an out-of-band deployment requirement.
 
-Cloudflare Images is not production scope or a release gate. Exact baseline
-`2f027218b23` removed its editor upload RPC, configuration, handler, integration,
+Cloudflare Images is not production scope or a release gate. The implementation
+removed its editor upload RPC, configuration, handler, integration,
 cleanup tooling, dependencies, Compose variables, and test-gate language while
 preserving the separate S3-compatible receipt/object-storage boundary. The
 provider-scope source guard passes 2/2. Any dormant external
@@ -482,11 +469,11 @@ policy. Configure and verify the chosen requirements in GitHub rather than
 inferring them from workflow YAML.
 
 Fly deployment behavior and environment hardening are intentionally excluded
-from this candidate because a separate deployment change is planned. The
-current working-tree candidate does not modify the Fly workflow, and this audit
-makes no claim that the separate deployment work is complete.
+because a separate deployment change is planned. The unified implementation
+does not modify the Fly workflow, and this audit makes no claim that the
+separate deployment work is complete.
 
-The current candidate removes the release placeholder. Knope now uses
+The unified implementation removes the release placeholder. Knope now uses
 regex-backed package versioning, single-package `default` change files, and an
 empty asset list so Knope Bot prepares a reviewable version/changelog update and
 draft GitHub release. After the `knope/release` pull request merges,
@@ -497,7 +484,7 @@ only then publishes it with job-scoped `contents: write`.
 
 This is Candidate source behavior, not release evidence. Open PR #60 predates
 the repair, drops the final `package.json` newline, and has only four checks; do
-not merge it as-is. After this candidate lands, require Knope Bot to regenerate
+not merge it as-is. Before release, require Knope Bot to regenerate
 that pull request, inspect its version/changelog/draft, repeat the exact local
 and provider gates, and verify the first certified tag and published release.
 
@@ -516,11 +503,9 @@ with **Log in now**. Browser diagnostics contained no warning or error.
 
 Review-driven copy and live-region grammar refinements followed that Browser
 session. Current automated component, Axe, functional, and documentation checks
-cover the final wording, including transient retry, stale-template restart, and
-legacy-mode migration, but the clean exact candidate must be reopened in the
-in-app Browser after any later edit before release. This is meaningful exploratory slice evidence,
-not a complete pass through every state, destructive mutation, or remaining
-application area.
+cover the final wording, including transient retry and stale-template restart.
+This is meaningful exploratory slice evidence, not a complete pass through every
+state, destructive mutation, or remaining application area.
 
 The cancellation/refund candidate was reopened against the current host-run app
 at desktop and 390×844. Signed-out event discovery, a paid event detail, pricing,
@@ -530,16 +515,19 @@ result states are page-backed in the focused 12/12 generated guides; they remain
 Playwright rather than in-app Browser evidence because the in-app Browser has no
 authenticated Auth0 handoff for the test identities.
 
-The latest working-tree candidate was also opened from its isolated Compose
+The unified implementation was also opened from its isolated Compose
 runtime at desktop and 320×800. The signed-out Events list and a seeded event
 detail rendered the registration option and explicit login requirement. At 320
 CSS pixels the document, body, and bottom navigation each measured exactly 320
 pixels wide, with no horizontal overflow, and Browser diagnostics contained no
-warning or error. This current-candidate slice proves signed-out discovery and
+warning or error. This local slice proves signed-out discovery and
 two-destination compact navigation; it does not stand in for the blocked
 authenticated five-destination navigation review.
 
-There is still no recorded complete pass through:
+The remaining manual queue is intentionally deferred to the new hosting
+provider's staging environment, where deployment configuration, routing,
+provider connectivity, and the actual staged build can be accepted together.
+There is still no recorded complete staged pass through:
 
 1. the rest of anonymous discovery beyond the validated unlisted-link slice;
 2. the rest of participant registration/profile states beyond guest selection;
@@ -556,7 +544,8 @@ denied-permission alert and retry state, and exercises deterministic
 the direct scanner-result URL after retry failure and success. This is the
 reliable simulated-camera/result path selected for this release effort; it
 covers the requested scanner integration without claiming physical-device
-hardware certification. The broader manual Browser queue above remains open.
+hardware certification. The broader manual Browser queue above remains open
+until the new staging environment exists.
 
 ### LEGAL-001 — Legal approval is outside automated proof
 
@@ -621,7 +610,7 @@ another checkout or user-owned stack.
 
 ### OPS-003 — Local Compose teardown is runtime-validated
 
-The current candidate fixes a cleanup lock inversion discovered when Playwright
+The unified implementation fixes a cleanup lock inversion discovered when Playwright
 timed out during web-server startup: the wrapper previously attempted `compose
 down` while its foreground `compose up` process could still hold the project
 lock. Compose build and startup now run in a detached supervised process group,
@@ -639,8 +628,8 @@ After Docker Desktop was reset, the canonical PostgreSQL, functional,
 documentation, provider, and live ESNcard suites all completed. Every
 Docker-backed run performed project-scoped teardown; post-run inspection found
 zero project-labeled containers, networks, and volumes. OPS-003 is therefore
-resolved for the current candidate. The final exact-commit gate must retain the
-same teardown proof.
+resolved for the unified implementation. Every later release commit must retain
+the same teardown proof.
 
 ### UX-002 — Organizer and receipt query failures are fail-closed
 
@@ -655,8 +644,8 @@ participant, and receipt failures now use explicit `role="alert"` states and
 retry actions; the participant message says missing counts are not zero, and the
 receipt message says existing records may still be present. The back action has
 an accessible name. Focused component, fail-once functional Playwright, and
-generated event-management coverage are present. The complete exact-commit gate
-at `e3e252768e4` is green, so UX-002 is resolved.
+generated event-management coverage are present. The complete local
+implementation gate is green, so UX-002 is resolved.
 
 ### UX-004 — Destructive registration cancellation requires confirmation
 
@@ -687,7 +676,7 @@ and schema coverage pins the payload contract in
 Participant and organizer callers preserve the reviewed values across a delayed
 dialog, send them with the mutation, and invalidate the relevant queries on an
 error so the user can review current state. Focused no-write evidence and the
-complete exact-commit gate at `e3e252768e4` are green, so UX-004 is resolved.
+complete local implementation gate are green, so UX-004 is resolved.
 
 ### DOC-002 — Product documentation baseline is runtime-validated
 
@@ -709,9 +698,9 @@ complete exact-commit gate at `e3e252768e4` are green, so UX-004 is resolved.
   Receipt review now documents exact capabilities, missing-evidence rejection,
   notification readback, and the separate manual reimbursement step.
 
-On 2026-07-15 the complete documentation baseline passed 52/52 with zero skips,
+On 2026-07-16 the complete documentation baseline passed 52/52 with zero skips,
 retries, flakes, or other incomplete outcomes. DOC-002 is resolved for the
-current candidate; publication remains separately tracked under DOC-003.
+unified implementation; publication remains separately tracked under DOC-003.
 
 ### DOC-003 — Generated publication is aligned with the tracked consumer
 
@@ -722,7 +711,7 @@ Running `docs-integration` after `docs-baseline` therefore erased the baseline
 publication and left only the Auth0 and Google Maps pages.
 
 All non-publishing package scripts now force ignored `test-results/docs` paths.
-The candidate `bun run test:e2e:docs:publish` command runs `docs-baseline`,
+The `bun run test:e2e:docs:publish` command runs `docs-baseline`,
 `docs-integration`, and `docs-live-esncard` together into staging, and the
 reporter fails a selected documentation group that produces no
 product-documentation attachment. Combined list discovery reports 55 tests in
@@ -750,8 +739,8 @@ Focused unit/source verification and TypeScript pass, and the exact
 artifact produced by the Evorto adapter was accepted by the current
 `origin/master` Pages sync implementation against a disposable repository: 13
 guides and one fixture asset copied, no real Pages checkout modified. The full
-55-test runtime generation, real Pages sync/build, and clean exact-commit gate
-remain. The separate 52-test docs baseline, 11-test provider suite, and 9-test
+55-test combined runtime generation and real Pages sync/build remain. The
+separate 52-test docs baseline, 11-test provider suite, and 9-test
 live-provider suite are runtime-green; the remaining gap is the unified
 publisher plus real Pages synchronization/build, not Docker recovery.
 
@@ -834,17 +823,17 @@ coverage for:
   interrupted tests.
 
 [`tests/test-inventory.md`](tests/test-inventory.md) is the maintained coverage
-map. Exact baseline `2f027218b23` passed the 49-test `docs-baseline` project and
-the 11-test credential-backed functional/documentation selection. Current
-combined documentation discovery selects `docs-baseline`, `docs-integration`,
+map. Unified implementation baseline `77b58254921` passed the 52-test
+`docs-baseline` project and the 11-test credential-backed
+functional/documentation selection. Combined documentation discovery selects
+`docs-baseline`, `docs-integration`,
 and `docs-live-esncard` in one run and reports 55 tests in 32 files. That is the
 shared seven-test setup, 45 baseline journeys, Auth0 account creation, required
 Google Maps, and the secret-safe active/expired ESNcard lifecycle. The separate
-current runtime selections pass 52/52 documentation baseline tests, 11/11
-Auth0/Google Maps tests, and 9/9 live ESNcard Playwright tests. They still need
-the next complete clean exact-commit gate and rollback-backed combined
-publication. This ledger remains the source of truth for release gaps; the
-inventory does not waive the open rows above.
+runtime selections pass 52/52 documentation baseline tests, 11/11 Auth0/Google
+Maps tests, and 9/9 live ESNcard Playwright tests. Rollback-backed combined
+publication remains pending. This ledger remains the source of truth for
+release gaps; the inventory does not waive the open rows above.
 
 ## Recorded decisions and accepted deferrals
 
@@ -875,7 +864,7 @@ inventory does not waive the open rows above.
   tenant IANA timezone.
 - Platform operations require an explicit target, reason, actor, before/after
   state, and append-only audit entry.
-- In-app Browser review complements Playwright. For the scanner candidate,
+- In-app Browser review complements Playwright. For the scanner integration,
   deterministic Playwright camera input plus scan-result journeys are the
   accepted integration evidence; they do not claim physical-device hardware
   certification.
@@ -884,6 +873,9 @@ inventory does not waive the open rows above.
   project.
 - Google Maps is required production functionality and needs live provider
   evidence. Cloudflare Images is removed and is not a release gate.
+- Legacy migration is planned only after functional completion and new-staging
+  acceptance, on a best-effort basis with explicit supported scope and
+  exclusions. The fail-closed importer guard remains binding until then.
 - Templates and events own independent simple/advanced registration graphs;
   event creation snapshots the template and later template edits do not rewrite
   the event.
@@ -909,24 +901,24 @@ Product UI and docs must continue to state these boundaries honestly.
 
 ## Execution order
 
-1. Close MIG-001 with a dedicated legacy history importer and reconciliation
-   proof. Keep the direct current-schema target, separate read-only source, and
-   fail-closed cutover guard; do not bypass the preflight or clear production
-   target data while unsupported history exists.
-2. Rotate all six historical Auth0 Playwright passwords and put the rotated
+1. Treat `77b58254921` as the unified functionally verified implementation
+   baseline. Preserve the rule that every CI-triggering action is preceded by a
+   complete green local gate with zero incomplete outcomes.
+2. Plan the migration of the new application version to a different hosting
+   provider. Keep Fly-related work outside this plan, inventory runtime and
+   provider dependencies, define rollback and observability, and make the new
+   staging environment the first deployment target.
+3. Provision and deploy the new staging environment, then complete the durable
+   authenticated desktop/compact Browser queue there. Convert defects into
+   fixes and regression coverage, rerun the affected complete local gates, and
+   redeploy/retest until staged acceptance is recorded. Scanner camera/result
+   integration already has accepted deterministic Playwright coverage.
+4. Rotate all six historical Auth0 Playwright passwords and put the rotated
    values in the ignored local `.env`. Do not reuse the values still present in
    Git history. Before any GitHub provisioning, resolve AUTH-003 with a trusted
    workflow or disposable-account design; do not expose the long-lived values
    to pull-request-controlled code.
-3. Complete the remaining desktop/compact in-app Browser queue. Scanner
-   camera/result integration already has accepted deterministic Playwright
-   coverage. Convert any defect into durable Playwright/docs coverage.
-4. Create a local candidate commit and require a clean worktree. Run the entire
-   local gate on that exact commit, including the 55-test combined documentation
-   selection, Auth0/Google Maps, active/expired live ESNcard certification, and
-   exact Neon branch deletion. If any failure requires an edit, recommit and
-   restart the complete gate.
-5. Run the staged documentation publisher from that exact green candidate and
+5. Run the staged documentation publisher from the green implementation and
    an explicit current Pages checkout. Verify the 13 generated guide routes,
    page/image inventory, preserved curated routes/assets, and complete Pages site
    build instead of relying on the current two-page partial artifact.
@@ -934,65 +926,36 @@ Product UI and docs must continue to state these boundaries honestly.
    recipient's in-app leave-and-register follow-up is now deterministic and
    page-backed; keep it and the unknown-domain scanner recovery guide current.
 7. Provision and approve the live ESNcard environment with protected active and
-   permanently expired identifier secrets, execute exact-candidate certification,
+   permanently expired identifier secrets, execute exact-commit certification,
    approve production legal text, require the verified checks and review policy
    on `main`, regenerate the stale Knope release pull request, and verify the
    first exact-tag certified draft publication. Keep deployment work in its
    separate change.
+8. Only after functional completion and new-staging Browser acceptance, create
+   the separate best-effort legacy migration plan. Keep the direct current-schema
+   target, separate read-only source, and fail-closed preflight. Define what can
+   be imported and reconciled honestly; do not bypass the guard or imply complete
+   historical continuity where the source cannot support it.
 
 CI speed work may continue after correctness is preserved—for example, caching
 or safe job decomposition—but it is an optimization, not a substitute for any
 release gate and must not reduce test collection.
 
 Before any push, PR update, or other CI-triggering action: finish edits, make a
-local candidate commit, require a clean worktree, and run the complete local
+local commit, require a clean worktree, and run the complete local
 equivalent of every affected CI suite on that exact commit. Every collected test
 must pass with zero incomplete outcomes. If anything changes afterward, amend or
 recommit and rerun the complete gate on the new exact commit. Missing services or
 credentials are blockers to resolve locally, not reasons to let CI try first.
-No push is allowed before that exact-commit run is green.
+No push is allowed before that exact-commit run is green. No push or CI run was
+attempted during this audit consolidation.
 
 ## Validation record
 
-### Current fully validated baseline
+### Unified implementation baseline
 
-The canonical local baseline passed on exact commit
-`2f027218b2302724f5b3ca0b984c2eaa3d1c6170`:
-
-| Suite                              |    Passed | Incomplete outcomes |
-| ---------------------------------- | --------: | ------------------: |
-| Server/helper Vitest               |     1,128 |                   0 |
-| Angular/shared Vitest              |       644 |                   0 |
-| PostgreSQL 17 integration          |        48 |                   0 |
-| Functional Playwright baseline     |       150 |                   0 |
-| Generated-documentation Playwright |        49 |                   0 |
-| **Total**                          | **2,019** |               **0** |
-
-Frozen dependency installation, Knope validation, formatting, lint/clean-tree
-check, and the production application build also passed. The exact functional
-and documentation Neon branches returned HTTP 404 after teardown and no
-project-labeled containers remained.
-
-The credential-backed integration projects are intentionally separate from the
-2,019 baseline total. On the same exact commit, `bun run test:e2e:integration`
-passed 11/11 Auth0/Google Maps functional and documentation tests with zero
-incomplete outcomes. Live ESNcard certification also passed 28/28 profile tests
-and 8/8 provider Playwright tests. Their exact Neon branches returned HTTP 404
-after cleanup.
-
-### Validated-baseline CI confirmation
-
-Pushed baseline `2f027218b23` has green GitHub results for CodeQL, CodeRabbit,
-Git Town, Knope/change files, PostgreSQL integration, lint/unit/build, and the
-complete E2E Baseline. After the missing repository secrets were configured,
-the corrected E2E run completed in 40m17s. CI confirms an already-green local
-baseline and does not close REL-001 until GitHub requires the checks. It does not
-validate the new working-tree candidate, and no new CI run may be attempted
-before that candidate is entirely green locally on its exact commit.
-
-### Current working-tree candidate
-
-The next candidate contains changes after `2f027218b23`. It hardens transfer
+Commit `77b5825492112f89f8a32d99400cf9c2a0563136` is the single current
+implementation baseline. It hardens transfer
 discount validity and monetary bounds, seals bundle pricing after recipient
 Checkout begins, validates exact provider refund identity, enforces composite
 tenant/event/registration ownership, fails legacy import closed before data
@@ -1002,15 +965,18 @@ live active/expired ESNcard guide, and removes tracked Auth0 test-account
 passwords and persistent Playwright reports. Protected-value entry is env-key
 only and redacted before output forwarding. Compose startup and teardown now
 supervise complete process groups and separate image building from runtime
-orchestration.
+orchestration. A 60-second docs-project timeout exposed one late page-fixture
+setup failure after parallel tenant seeding; the email-outbox guide now has an
+explicit 120-second test budget, and the complete docs matrix then passed
+52/52.
 
-Current working-tree evidence passes:
+Local evidence for this implementation baseline passes:
 
 | Focused selection                                    | Passed | Incomplete outcomes |
 | ---------------------------------------------------- | -----: | ------------------: |
-| Complete current server/helper Vitest                |  1,360 |                   0 |
-| Complete current Angular/shared Vitest               |    799 |                   0 |
-| Current PostgreSQL 17 integration                    |     55 |                   0 |
+| Complete server/helper Vitest                        |  1,360 |                   0 |
+| Complete Angular/shared Vitest                       |    799 |                   0 |
+| PostgreSQL 17 integration                            |     55 |                   0 |
 | Functional Playwright                                |    150 |                   0 |
 | Documentation baseline Playwright                    |     52 |                   0 |
 | Auth0/Google Maps integration Playwright             |     11 |                   0 |
@@ -1023,19 +989,28 @@ Current working-tree evidence passes:
 | Mobile navigation and transfer accessibility Angular |     16 |                   0 |
 | Combined documentation list discovery                |     55 |                   — |
 
-The production build, release validation, lint, formatting, Docker Compose
+These suites overlap and are not summed into a misleading aggregate total. The
+production build, release validation, lint, formatting, Docker Compose
 configuration, shell syntax, workflow lint, and diff checks pass. The combined
 documentation selection is seven setup tests, 45 baseline journeys, two
 Auth0/Maps journeys, and one live ESNcard journey.
 
-This is working-tree evidence, not a clean exact-commit gate. All five runtime
-selections passed with zero incomplete outcomes, and post-run Docker inspection
-found no project-labeled containers, networks, or volumes. Before any push or
-CI-triggering action, create the candidate commit, repeat the entire local gate
-on that exact commit, and require every collected outcome to pass with zero
-incomplete results.
+All runtime selections passed with zero incomplete outcomes, and post-run Docker
+inspection found no project-labeled containers, networks, or volumes. The six
+historical passwords and two ESNcard identifiers were process-local only and
+were neither printed nor written to tracked files. The following audit
+consolidation commit changes documentation only.
 
-Prior focused evidence incorporated into exact baseline `2f027218b23`:
+### Historical baseline and CI confirmation
+
+Earlier pushed baseline `2f027218b23` has green GitHub results for CodeQL,
+CodeRabbit, Git Town, Knope/change files, PostgreSQL integration,
+lint/unit/build, and the complete E2E Baseline. After the missing repository
+secrets were configured, the corrected E2E run completed in 40m17s. This is
+historical confirmation, not evidence for later source. No new CI run was
+attempted during consolidation; local verification remains mandatory first.
+
+Prior focused evidence incorporated into the implementation baseline:
 
 | Focused run                                      | Passed | Incomplete outcomes |
 | ------------------------------------------------ | -----: | ------------------: |
@@ -1049,7 +1024,7 @@ The focused generated guide initially exposed one literal copy mismatch after
 the product wording became more explicit. The assertion now follows the visible
 copy and the two complete focused files pass 12/12. The production application
 build also passes. In addition to the earlier host-run baseline at desktop and
-390×844, the current isolated candidate was opened at desktop and 320×800 with
+390×844, the isolated implementation was opened at desktop and 320×800 with
 no console warning, error, or horizontal overflow in the signed-out slice. The focused
 PostgreSQL and documentation runs used disposable branch
 `br-lucky-thunder-a9msks8n` (expiry `2026-07-12T13:17:12Z`); teardown deleted it,
@@ -1086,19 +1061,19 @@ separately above.
 
 ### Explicitly not claimed
 
-- Production cutover is not ready. MIG-001 remains open until legacy
-  registration, financial, add-on, fulfillment, reimbursement, and submitted-
-  answer history is imported and reconciled without loss.
-- The 11/11 Auth0/Google Maps result and Cloudflare Images removal are exact on
-  `2f027218b23`. The current candidate also passed the full 11-test provider
+- Production replacement is not ready. The new hosting-provider plan, staging
+  deployment, and complete staged Browser acceptance have not happened.
+- Legacy migration is neither complete nor a current functional-completion
+  gate. It will be planned only after staged functional acceptance, on a
+  best-effort basis; no lossless-history claim is made.
+- The unified implementation passed the full 11-test Auth0/Google Maps provider
   suite with zero skips, retries, flakes, or other incomplete outcomes; a
-  protected final exact-release-commit run remains outstanding.
+  protected final release-commit run remains outstanding.
   No live Cloudflare Images evidence is required because that provider is not
   production scope or a release gate.
-- Local active/expired ESNcard certification is exact-green on `2f027218b23`.
-  The current candidate passed 27/27 unit/Profile tests and 9/9 live Playwright
-  tests, but no protected GitHub environment, reviewer policy, or exact-release-
-  commit run is recorded.
+- The unified implementation passed 27/27 unit/Profile tests and 9/9 live
+  ESNcard Playwright tests, but no protected GitHub environment, reviewer
+  policy, or final release-commit run is recorded.
 - The six historical Auth0 E2E passwords are not rotated or release-provisioned.
   They were recovered from the merge-base blob and used only as child-process
   environment values for local harness verification; they were not printed,
@@ -1108,16 +1083,16 @@ separately above.
   two-page external artifact. The unified publisher still needs release-safe
   Auth0 values, an explicit current Pages checkout, real synchronization, and a
   complete site build.
-- No authenticated six-area in-app Browser walkthrough is recorded.
-- No physical-device camera certification is claimed; the accepted candidate
+- No authenticated six-area Browser walkthrough in the new staging environment
+  is recorded.
+- No physical-device camera certification is claimed; the accepted
   integration evidence uses deterministic Playwright camera and result journeys.
 - No production legal approval is recorded.
 - No required-check/review/thread-resolution policy is configured on `main`.
 - The Knope source path is implemented but has not regenerated PR #60 or proved
   a real exact-tag draft publication. Deployment work exists separately.
-- No clean exact-commit local gate is recorded for the candidate.
 
-These are open release-evidence or policy items, not skipped tests and not implied
-by the 2,019-test exact baseline. Google Maps is required production
+These are open release-evidence or policy items, not skipped tests and not
+implied by the green local implementation baseline. Google Maps is required production
 functionality and therefore requires approved live-provider evidence.
 Cloudflare Images is removed and is not a release gate.
