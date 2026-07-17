@@ -7,6 +7,7 @@ import * as RpcSerialization from 'effect/unstable/rpc/RpcSerialization';
 import * as RpcServer from 'effect/unstable/rpc/RpcServer';
 
 import { RuntimeConfig } from '../../config/runtime-config';
+import { ObjectStorage } from '../../integrations/object-storage';
 import { RegistrationTransferService } from '../../registrations/registration-transfer.service';
 import { stripeClientLayer } from '../../stripe-client';
 import { serverLoggerLayer } from '../server-logger.layer';
@@ -26,11 +27,16 @@ class AppRpcHttpApp extends Context.Service<
   >
 >()('@server/effect/rpc/AppRpcHttpApp') {}
 
+const objectStorageLayer = ObjectStorage.Default;
+const receiptMediaLayer = ReceiptMediaService.Default.pipe(
+  Layer.provide(objectStorageLayer),
+);
 const appRpcDependenciesLayer = Layer.mergeAll(
   EventRegistrationService.Default,
   RegistrationTransferService.Default,
   RpcAccess.Default,
-  ReceiptMediaService.Default,
+  objectStorageLayer,
+  receiptMediaLayer,
   SimpleTemplateService.Default,
   RuntimeConfig.Default,
   stripeClientLayer,

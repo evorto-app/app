@@ -694,7 +694,7 @@ test('event creation snapshots an advanced template before later page-backed tem
 
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
-  await page.getByRole('link', { name: template.title }).click();
+  await page.locator(`a[href="/templates/${template.id}"]`).click();
   await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${template.id}/create-event`);
 

@@ -6,12 +6,12 @@ import { relations } from './relations';
 
 export const createDatabaseClient = (
   databaseUrl: string,
-  neonLocalProxy = false,
+  caCertificate?: string,
 ) => {
   const pool = new Pool(
     createNodePgPoolConfig({
+      caCertificate,
       databaseUrl,
-      neonLocalProxy,
     }),
   );
 

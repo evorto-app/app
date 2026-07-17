@@ -27,7 +27,7 @@ build_and_start_compose() {
   start_status=1
   for attempt in 1 2; do
     set +e
-    timeout 12m node_modules/.bin/dotenv -c dev -- docker compose build --progress=plain db-setup evorto
+    timeout 12m node_modules/.bin/dotenv -c dev -- docker compose build --progress=plain db-setup worker evorto
     build_status=$?
     if [ "${build_status}" = "0" ]; then
       timeout 5m node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d
@@ -53,7 +53,7 @@ build_and_start_compose() {
     echo "::error::Docker Compose build/start timed out before the workflow step timeout"
   fi
   node_modules/.bin/dotenv -c dev -- docker compose ps || true
-  node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db-expiration db-setup minio minio-init evorto || true
+  node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto || true
   return "${start_status}"
 }
 

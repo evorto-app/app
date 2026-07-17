@@ -24,7 +24,6 @@ import {
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import {
   provideRouter,
-  Router,
   withComponentInputBinding,
   withRouterConfig,
   withViewTransitions,
@@ -33,12 +32,12 @@ import {
   provideEffectHttpClient,
   provideEffectRpcProtocolHttpLayer,
 } from '@heddendorp/effect-platform-angular';
-import * as Sentry from '@sentry/angular';
 
 import { TENANT_FORMATTING_LOCALE } from '../types/custom/tenant';
 import { routes } from './app.routes';
 import { appQueryProviders } from './core/app-query-client';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
+import { BrowserErrorHandler } from './core/browser-error-handler';
 import { ConfigService } from './core/config.service';
 import { AppRpc, resolveRpcUrl } from './core/effect-rpc-angular-client';
 import { TENANT_DATE_PIPE_TIMEZONE } from './core/tenant-date.pipe';
@@ -91,14 +90,9 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: ErrorHandler,
-      useValue: Sentry.createErrorHandler(),
-    },
-    {
-      deps: [Router],
-      provide: Sentry.TraceService,
+      useClass: BrowserErrorHandler,
     },
     provideAppInitializer(async () => {
-      inject(Sentry.TraceService);
       const config = inject(ConfigService);
       await config.initialize();
     }),

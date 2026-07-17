@@ -446,17 +446,21 @@ describe('globalAdminHandlers', () => {
           {
             attempts: 8,
             createdAt: now,
+            deliveryUnknownAt: null,
             exhaustedAt,
             id: 'email-1',
             kind: 'receiptReviewed',
             lastAttemptAt: exhaustedAt,
-            lastError: 'Resend email request failed: 400',
+            lastError: 'tem email request failed with HTTP 400',
             maxAttempts: 8,
             nextAttemptAt: exhaustedAt,
+            provider: 'tem',
+            providerMessageId: null,
             recipient: 'member@example.org',
             sentAt: null,
             status: 'failed',
             subject: 'Receipt rejected',
+            suppressedAt: null,
             tenantDomain: 'section.example.org',
             tenantId: 'tenant-1',
             tenantName: 'Section',
@@ -493,12 +497,14 @@ describe('globalAdminHandlers', () => {
       } as never).pipe(Effect.provide(provideDatabase(database)));
 
       expect(overview.summary).toEqual({
+        deliveryUnknown: 0,
         exhausted: 1,
         failed: 2,
         queued: 1,
         sending: 0,
         sent: 0,
         staleSending: 1,
+        suppressed: 0,
         waitingForRetry: 1,
       });
       expect(select).toHaveBeenNthCalledWith(
@@ -509,7 +515,7 @@ describe('globalAdminHandlers', () => {
         expect.objectContaining({
           exhaustedAt: '2026-07-09T09:00:00.000Z',
           id: 'email-1',
-          lastError: 'Resend email request failed: 400',
+          lastError: 'tem email request failed with HTTP 400',
           status: 'failed',
           tenantTimezone: 'Australia/Brisbane',
         }),

@@ -50,14 +50,6 @@ const dockerRequiredVariables = [
     name: 'FONT_AWESOME_TOKEN',
   },
   {
-    description: 'Neon Local branch creation',
-    name: 'NEON_API_KEY',
-  },
-  {
-    description: 'Neon Local project selection',
-    name: 'NEON_PROJECT_ID',
-  },
-  {
     description: 'Auth0 application id',
     name: 'CLIENT_ID',
   },

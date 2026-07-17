@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   foreignKey,
@@ -23,6 +24,11 @@ export const financeReceiptStatus = pgEnum('finance_receipt_status', [
   'refunded',
 ]);
 
+export const financeReceiptUploadStatus = pgEnum(
+  'finance_receipt_upload_status',
+  ['pending', 'ready', 'rejected', 'consumed'],
+);
+
 export const financeReceiptUploads = pgTable(
   'finance_receipt_uploads',
   {
@@ -31,9 +37,14 @@ export const financeReceiptUploads = pgTable(
     eventId: varchar({ length: 20 })
       .notNull()
       .references(() => eventInstances.id),
+    expiresAt: timestamp()
+      .notNull()
+      .default(sql`now() + interval '5 minutes'`),
     fileName: text().notNull(),
     mimeType: text().notNull(),
+    rejectionReason: text(),
     sizeBytes: integer().notNull(),
+    status: financeReceiptUploadStatus().notNull().default('pending'),
     storageKey: text().notNull().unique(),
     storageUrl: text(),
     uploadedAt: timestamp(),

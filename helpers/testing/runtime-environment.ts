@@ -10,13 +10,17 @@ import path from 'node:path';
 // Generates worktree-local runtime ports and names so parallel Docker/test
 // runs do not collide with the main checkout or other Codex worktrees.
 const DEFAULT_APP_HOST_PORT = 4200;
-const DEFAULT_NEON_LOCAL_HOST_PORT = 55_432;
+const DEFAULT_POSTGRES_HOST_PORT = 55_432;
 const DEFAULT_MINIO_HOST_PORT = 9000;
 const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9400;
+const DEFAULT_MAILPIT_HOST_PORT = 8025;
 const DEFAULT_PORT_SPAN = 400;
 const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.dev');
 
-const databaseName = process.env['NEON_DATABASE_NAME']?.trim() || 'appdb';
+const databaseName = process.env['POSTGRES_DB']?.trim() || 'appdb';
+const databaseUser = process.env['POSTGRES_USER']?.trim() || 'evorto';
+const databasePassword =
+  process.env['POSTGRES_PASSWORD']?.trim() || 'evorto-local';
 const e2eNowIso = process.env['E2E_NOW_ISO']?.trim() || DEFAULT_E2E_NOW_ISO;
 const e2eSeedKey = process.env['E2E_SEED_KEY']?.trim() || DEFAULT_E2E_SEED_KEY;
 
@@ -70,9 +74,10 @@ const resolvePort = (
 
 export interface RuntimePorts {
   readonly appHostPort: number;
+  readonly mailpitHostPort: number;
   readonly minioConsoleHostPort: number;
   readonly minioHostPort: number;
-  readonly neonLocalHostPort: number;
+  readonly postgresHostPort: number;
 }
 
 export const resolveRuntimePorts = (
@@ -85,6 +90,11 @@ export const resolveRuntimePorts = (
       environment,
       ['APP_HOST_PORT'],
       derivePort(digest, DEFAULT_APP_HOST_PORT, DEFAULT_PORT_SPAN, 0),
+    ),
+    mailpitHostPort: resolvePort(
+      environment,
+      ['MAILPIT_HOST_PORT'],
+      derivePort(digest, DEFAULT_MAILPIT_HOST_PORT, DEFAULT_PORT_SPAN, 32),
     ),
     minioConsoleHostPort: resolvePort(
       environment,
@@ -101,10 +111,10 @@ export const resolveRuntimePorts = (
       ['MINIO_HOST_PORT'],
       derivePort(digest, DEFAULT_MINIO_HOST_PORT, DEFAULT_PORT_SPAN, 16),
     ),
-    neonLocalHostPort: resolvePort(
+    postgresHostPort: resolvePort(
       environment,
-      ['NEON_LOCAL_HOST_PORT'],
-      derivePort(digest, DEFAULT_NEON_LOCAL_HOST_PORT, DEFAULT_PORT_SPAN, 8),
+      ['POSTGRES_HOST_PORT'],
+      derivePort(digest, DEFAULT_POSTGRES_HOST_PORT, DEFAULT_PORT_SPAN, 8),
     ),
   } satisfies RuntimePorts;
   const portsByNumber = new Map<number, string[]>();
@@ -125,8 +135,13 @@ export const resolveRuntimePorts = (
   return ports;
 };
 
-const { appHostPort, minioConsoleHostPort, minioHostPort, neonLocalHostPort } =
-  resolveRuntimePorts(seed);
+const {
+  appHostPort,
+  mailpitHostPort,
+  minioConsoleHostPort,
+  minioHostPort,
+  postgresHostPort,
+} = resolveRuntimePorts(seed);
 
 const sanitizeProjectName = (value: string): string =>
   value
@@ -146,23 +161,27 @@ const defaultProjectName = (digest: string): string => {
 const composeProjectName =
   process.env['COMPOSE_PROJECT_NAME']?.trim() || defaultProjectName(digest);
 const baseUrl = `http://localhost:${appHostPort}`;
-const databaseUrl = `postgresql://neon:npg@localhost:${neonLocalHostPort}/${databaseName}?sslmode=require`;
+const databaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@localhost:${postgresHostPort}/${databaseName}?sslmode=disable`;
+const postgresIntegrationDatabaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@localhost:${postgresHostPort}/evorto_postgres_integration?sslmode=disable`;
 
 const runtimeEnvironment = {
   APP_HOST_PORT: String(appHostPort),
   BASE_URL: baseUrl,
   COMPOSE_PROJECT_NAME: composeProjectName,
   DATABASE_URL: databaseUrl,
-  DELETE_BRANCH: 'true',
+  E2E_USE_DOCKER_STACK: 'true',
   E2E_NOW_ISO: e2eNowIso,
   E2E_SEED_KEY: e2eSeedKey,
+  LOCAL_DATABASE: 'true',
+  MAILPIT_HOST_PORT: String(mailpitHostPort),
   MINIO_CONSOLE_HOST_PORT: String(minioConsoleHostPort),
   MINIO_HOST_PORT: String(minioHostPort),
-  NEON_DATABASE_NAME: databaseName,
-  NEON_LOCAL_BRANCH_TTL_HOURS: '24',
-  NEON_LOCAL_HOST_PORT: String(neonLocalHostPort),
-  NEON_LOCAL_PROXY: 'true',
   NODE_ENV: 'development',
+  POSTGRES_DB: databaseName,
+  POSTGRES_HOST_PORT: String(postgresHostPort),
+  POSTGRES_INTEGRATION_DATABASE_URL: postgresIntegrationDatabaseUrl,
+  POSTGRES_PASSWORD: databasePassword,
+  POSTGRES_USER: databaseUser,
   SSR_RPC_ORIGIN: baseUrl,
 } as const;
 

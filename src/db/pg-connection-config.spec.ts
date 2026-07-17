@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
+import { Redacted } from 'effect';
 
 import {
   createNodePgPoolConfig,
@@ -7,128 +8,74 @@ import {
 
 describe('pg-connection-config', () => {
   const databaseUrl =
-    'postgresql://neon:npg@localhost:55432/appdb?sslmode=require';
+    'postgresql://evorto:local@localhost:55432/appdb?sslmode=disable';
 
-  it('allows the Neon Local self-signed certificate when the proxy is enabled', () => {
+  it('uses the URL SSL mode and bounded pool settings for both clients', () => {
     expect(
       createNodePgPoolConfig({
         databaseUrl,
-        neonLocalProxy: true,
-      }),
-    ).toMatchObject({
-      database: 'appdb',
-      host: 'localhost',
-      password: 'npg',
-      port: 55_432,
-      ssl: {
-        rejectUnauthorized: false,
-      },
-      user: 'neon',
-    });
-
-    expect(
-      createPgClientConfig({
-        databaseUrl,
-        neonLocalProxy: true,
-      }),
-    ).toMatchObject({
-      ssl: {
-        rejectUnauthorized: false,
-      },
-    });
-  });
-
-  it('does not override SSL settings when the proxy is disabled', () => {
-    expect(
-      createNodePgPoolConfig({
-        databaseUrl,
-        neonLocalProxy: false,
+        pool: {
+          connectTimeoutMs: 4000,
+          idleTimeoutMs: 20_000,
+          max: 4,
+          min: 1,
+        },
       }),
     ).toMatchObject({
       connectionString: databaseUrl,
+      connectionTimeoutMillis: 4000,
+      idleTimeoutMillis: 20_000,
+      max: 4,
+      min: 1,
     });
-    expect(
-      createNodePgPoolConfig({
-        databaseUrl,
-        neonLocalProxy: false,
-      }).ssl,
-    ).toBeUndefined();
 
-    expect(
-      createPgClientConfig({
-        databaseUrl,
-        neonLocalProxy: false,
-      }).ssl,
-    ).toBeUndefined();
-  });
-
-  it('rejects non-local hosts when the Neon Local proxy flag is enabled', () => {
-    expect(() =>
-      createNodePgPoolConfig({
-        databaseUrl:
-          'postgresql://neon:npg@branch-host.neon.tech:5432/appdb?sslmode=require',
-        neonLocalProxy: true,
-      }),
-    ).toThrowError(
-      'NEON_LOCAL_PROXY only supports localhost or docker db hosts. Received "branch-host.neon.tech".',
-    );
-
-    expect(() =>
-      createPgClientConfig({
-        databaseUrl:
-          'postgresql://neon:npg@branch-host.neon.tech:5432/appdb?sslmode=require',
-        neonLocalProxy: true,
-      }),
-    ).toThrowError(
-      'NEON_LOCAL_PROXY only supports localhost or docker db hosts. Received "branch-host.neon.tech".',
-    );
-  });
-
-  it('accepts IPv6 loopback hosts when the Neon Local proxy flag is enabled', () => {
-    expect(
-      createNodePgPoolConfig({
-        databaseUrl: 'postgresql://neon:npg@[::1]:55432/appdb?sslmode=require',
-        neonLocalProxy: true,
-      }),
-    ).toMatchObject({
-      host: '::1',
-      port: 55_432,
-      ssl: {
-        rejectUnauthorized: false,
+    const effectConfig = createPgClientConfig({
+      databaseUrl,
+      pool: {
+        connectTimeoutMs: 4000,
+        idleTimeoutMs: 20_000,
+        max: 4,
+        min: 1,
       },
     });
+    if (!effectConfig.url) {
+      throw new Error('Expected the Effect PostgreSQL URL to be configured');
+    }
+    expect(Redacted.value(effectConfig.url)).toBe(databaseUrl);
+    expect(effectConfig).toMatchObject({
+      connectTimeout: 4000,
+      idleTimeout: 20_000,
+      maxConnections: 4,
+      minConnections: 1,
+    });
+    expect(effectConfig.ssl).toBeUndefined();
+  });
 
-    expect(
-      createPgClientConfig({
-        databaseUrl: 'postgresql://neon:npg@[::1]:55432/appdb?sslmode=require',
-        neonLocalProxy: true,
-      }),
-    ).toMatchObject({
-      host: '::1',
-      port: 55_432,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+  it('verifies managed database TLS against the configured CA', () => {
+    const caCertificate =
+      '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
+
+    expect(createNodePgPoolConfig({ caCertificate, databaseUrl }).ssl).toEqual({
+      ca: caCertificate,
+      rejectUnauthorized: true,
+    });
+    expect(createPgClientConfig({ caCertificate, databaseUrl }).ssl).toEqual({
+      ca: caCertificate,
+      rejectUnauthorized: true,
     });
   });
 
-  it('rejects non-postgres URL schemes for Neon Local parsing', () => {
+  it('rejects an inverted pool range', () => {
     expect(() =>
       createNodePgPoolConfig({
-        databaseUrl: 'mysql://neon:npg@localhost:55432/appdb',
-        neonLocalProxy: true,
+        databaseUrl,
+        pool: {
+          connectTimeoutMs: 4000,
+          idleTimeoutMs: 20_000,
+          max: 2,
+          min: 3,
+        },
       }),
-    ).toThrowError(
-      'DATABASE_URL must use postgres or postgresql scheme. Received "mysql:".',
-    );
-
-    expect(() =>
-      createPgClientConfig({
-        databaseUrl: 'mysql://neon:npg@localhost:55432/appdb',
-        neonLocalProxy: true,
-      }),
-    ).toThrowError(
-      'DATABASE_URL must use postgres or postgresql scheme. Received "mysql:".',
-    );
+    ).toThrowError('DATABASE_POOL_MIN cannot exceed DATABASE_POOL_MAX');
   });
 });

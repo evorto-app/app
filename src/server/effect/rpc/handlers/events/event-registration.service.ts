@@ -71,6 +71,16 @@ const databaseEffect = <A>(
   // callers get deterministic domain errors instead of partial success.
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
+const registrationServiceNow = (pinnedNowIso?: string) =>
+  Effect.try({
+    catch: (cause) =>
+      new EventRegistrationInternalError({
+        cause,
+        message: 'Invalid E2E_NOW_ISO server clock value',
+      }),
+    try: () => getServerNow(pinnedNowIso).toJSDate(),
+  });
+
 export const isDefinitiveCheckoutSessionCreateFailure = (
   error: unknown,
 ): boolean => {
@@ -1262,7 +1272,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
-        const now = getServerNow(pinnedNowIso).toJSDate();
+        const now = yield* registrationServiceNow(pinnedNowIso);
         yield* tenantOutboundRootUrl(tenant).pipe(
           Effect.mapError(
             (cause) =>
@@ -2587,7 +2597,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               }),
           ),
         );
-        const now = getServerNow(pinnedNowIso).toJSDate();
+        const now = yield* registrationServiceNow(pinnedNowIso);
         if (!Number.isInteger(guestCount) || guestCount < 0) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
@@ -3557,7 +3567,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           const pinnedNowIso = Option.getOrUndefined(
             serverEnvironment.E2E_NOW_ISO,
           );
-          const now = getServerNow(pinnedNowIso).toJSDate();
+          const now = yield* registrationServiceNow(pinnedNowIso);
 
           const existingRegistration = yield* databaseEffect((database) =>
             database.query.eventRegistrations.findFirst({

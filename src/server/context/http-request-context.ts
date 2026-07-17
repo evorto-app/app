@@ -27,8 +27,7 @@ export class HttpRequestTenantNotFoundError extends Schema.TaggedErrorClass<Http
 
 const resolveRequestHost = (
   request: HttpServerRequest.HttpServerRequest,
-): readonly string[] | string | undefined =>
-  request.headers['x-forwarded-host'] ?? request.headers['host'];
+): readonly string[] | string | undefined => request.headers['host'];
 
 export const resolveHttpRequestContext = (
   request: HttpServerRequest.HttpServerRequest,

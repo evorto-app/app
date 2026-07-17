@@ -655,7 +655,8 @@ describe('platform event, template, and registration handlers', () => {
       const defect = Cause.squash(exit.cause);
       expect(defect).toBeInstanceOf(EventRegistrationInternalError);
       expect(defect).toMatchObject({
-        message: expect.stringContaining('Invalid server configuration'),
+        cause: expect.any(Error),
+        message: 'Invalid E2E_NOW_ISO server clock value',
       });
     }),
   );

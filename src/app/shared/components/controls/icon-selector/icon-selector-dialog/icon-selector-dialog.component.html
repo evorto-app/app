@@ -31,7 +31,7 @@
             />
             <span
               aria-hidden="true"
-              class="bg-surface break-all rounded px-2 text-sm"
+              class="bg-surface text-on-surface break-all rounded px-2 text-sm"
             >
               {{ icon.friendlyName }}
             </span>
@@ -51,7 +51,9 @@
         [disabled]="addIconMutation.isPending()"
       >
         <app-icon size="40" [iconCommonName]="directAccessIcon()" />
-        <span class="bg-surface rounded px-2 py-1">{{ searchValue() }}</span>
+        <span class="bg-surface text-on-surface rounded px-2 py-1">
+          {{ searchValue() }}
+        </span>
       </button>
     }
     @if (invalidDirectAccessName()) {
@@ -66,5 +68,5 @@
   </div>
 </mat-dialog-content>
 <mat-dialog-actions>
-  <button mat-button mat-dialog-close>Cancel</button>
+  <button mat-button mat-dialog-close class="text-on-surface!">Cancel</button>
 </mat-dialog-actions>

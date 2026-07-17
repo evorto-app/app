@@ -183,11 +183,13 @@ describe('CI quality source', () => {
     );
 
     expect(dockerLogCommands).toEqual([
-      'docker compose logs --no-color --tail=100 db-expiration db-setup minio minio-init evorto',
-      'docker compose logs --no-color --tail=100 db-expiration db-setup minio minio-init evorto',
-      'docker compose logs -f --no-color db-expiration db-setup minio minio-init evorto 2>&1 | tee test-results/docker-logs/live-docker.log &',
-      'docker compose logs --no-color db-expiration db-setup minio minio-init evorto > test-results/docker-logs/docker-compose.log || true',
-      'node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db-expiration db-setup minio minio-init evorto || true',
+      'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
+      'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
+      'docker compose logs -f --no-color db-setup mailpit minio minio-init worker evorto 2>&1 | tee test-results/docker-logs/live-docker.log &',
+      'docker compose logs --no-color db-setup mailpit minio minio-init worker evorto > test-results/docker-logs/docker-compose.log || true',
+      'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
+      'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
+      'node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto || true',
     ]);
 
     for (const command of dockerLogCommands) {

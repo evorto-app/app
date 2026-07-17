@@ -84,7 +84,7 @@ const webServer = (() => {
     return;
   }
 
-  const command = environment.NEON_LOCAL_PROXY
+  const command = environment.E2E_USE_DOCKER_STACK
     ? 'bun run docker:webserver'
     : 'bash helpers/testing/host-e2e-webserver.sh';
 
@@ -99,7 +99,7 @@ const webServer = (() => {
       signal: 'SIGTERM',
       timeout: 300_000,
     },
-    reuseExistingServer: environment.NEON_LOCAL_PROXY,
+    reuseExistingServer: environment.E2E_USE_DOCKER_STACK,
     // Match CI's 12-minute build plus 5-minute startup bounds so a cold local
     // run can finish building, initialize its services, and reach readiness.
     timeout: 1_020_000,

@@ -112,6 +112,8 @@ bun run test:unit:server
 bun run test:unit
 bun run test:integration:postgres:local
 bun run build:app
+bun run infra:check
+bun run image:security:local
 bun run test:e2e
 bun run test:e2e:docs
 ```
@@ -123,6 +125,8 @@ reasons to defer a suite to CI. Commands with forwarded file, filter, project,
 shard, `--changed`, or reporter arguments are useful diagnostics but never
 satisfy the final gate. See [QUALITY.md](QUALITY.md) for the done criteria and
 [tests/README.md](tests/README.md) for the disposable PostgreSQL prerequisite.
+The infrastructure commands validate and scan both Terraform roots, then build,
+inspect, inventory, and vulnerability-scan the real Linux/amd64 runtime image.
 
 The block above is the normal pull-request baseline. Any caller-forwarded
 selector beyond a canonical package script that reduces collection is

@@ -77,7 +77,6 @@ const configProviderLayer = ConfigProvider.layer(
       ['E2E_NOW_ISO', '2026-09-15T12:00:00.000Z'],
       ['ISSUER_BASE_URL', 'https://issuer.example'],
       ['NODE_ENV', 'production'],
-      ['RESEND_API_KEY', 're_test_123'],
       ['SECRET', 'secret'],
     ]),
   }),

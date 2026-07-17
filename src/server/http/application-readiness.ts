@@ -17,6 +17,7 @@ const notReadyResponse = () =>
 
 export const createApplicationReadinessSsrRequest = (
   readinessRequest: Request,
+  readinessTenantHost?: string,
 ): Request => {
   const targetUrl = new URL(
     APPLICATION_READINESS_SSR_PATH,
@@ -24,10 +25,16 @@ export const createApplicationReadinessSsrRequest = (
   );
   const headers = new Headers(readinessRequest.headers);
 
+  if (readinessTenantHost) {
+    targetUrl.host = readinessTenantHost;
+    headers.set('host', readinessTenantHost);
+  }
+
   // Always test the public SSR path. A caller's valid session must not hide an
   // authentication redirect or a tenant-host configuration problem.
   headers.delete('authorization');
   headers.delete('cookie');
+  headers.delete('x-forwarded-host');
   headers.set('accept', 'text/html');
 
   return new Request(targetUrl, {

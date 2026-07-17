@@ -24,7 +24,6 @@ const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 
 type TestDatabase = NodePgDatabase<typeof relations>;
 
@@ -33,10 +32,7 @@ const makeDatabaseServiceLayer = (url: string) =>
     Layer.provide(
       ConfigProvider.layer(
         ConfigProvider.fromEnv({
-          env: Object.fromEntries([
-            ['DATABASE_URL', url],
-            ['NEON_LOCAL_PROXY', String(neonLocalProxy)],
-          ]),
+          env: Object.fromEntries([['DATABASE_URL', url]]),
         }),
       ),
     ),
@@ -73,7 +69,7 @@ describe('event-create Stripe account serialization', () => {
   }[] = [];
 
   beforeAll(() => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
   });
 

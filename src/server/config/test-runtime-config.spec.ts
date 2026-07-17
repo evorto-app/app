@@ -185,7 +185,7 @@ describe('test-runtime-config', () => {
 
       expect(environment.BASE_URL).toBe('http://localhost:4200');
       expect(environment.CLIENT_SECRET).toBe('playwright-list-client-secret');
-      expect(environment.STRIPE_API_KEY).toBe('sk_test_playwright_list');
+      expect(environment.STRIPE_API_KEY).toBe('playwright-list-stripe-api-key');
       expect(environment.STRIPE_WEBHOOK_SECRET).toBe('whsec_playwright_list');
     }),
   );

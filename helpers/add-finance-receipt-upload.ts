@@ -62,6 +62,7 @@ export const addAvailableConsumedFinanceReceiptUpload = async (
     id: uploadId,
     mimeType: input.mimeType,
     sizeBytes: source.size,
+    status: 'consumed',
     storageKey,
     storageUrl: `http://minio:9000/${bucket}/${storageKey}`,
     tenantId: input.tenantId,
@@ -92,6 +93,7 @@ export const addConsumedFinanceReceiptUpload = async (
     id: uploadId,
     mimeType: input.mimeType,
     sizeBytes: input.sizeBytes,
+    status: 'consumed',
     storageKey: buildReceiptStorageKey({
       eventId: input.eventId,
       fileName: input.fileName,

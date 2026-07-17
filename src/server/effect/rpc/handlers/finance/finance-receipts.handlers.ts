@@ -961,6 +961,7 @@ export const financeReceiptsHandlers = {
                   eq(financeReceiptUploads.tenantId, tenant.id),
                   eq(financeReceiptUploads.eventId, input.eventId),
                   eq(financeReceiptUploads.uploadedByUserId, user.id),
+                  eq(financeReceiptUploads.status, 'ready'),
                   isNotNull(financeReceiptUploads.uploadedAt),
                   isNull(financeReceiptUploads.consumedAt),
                 ),
@@ -1000,13 +1001,14 @@ export const financeReceiptsHandlers = {
 
             const consumedUploads = yield* tx
               .update(financeReceiptUploads)
-              .set({ consumedAt: new Date() })
+              .set({ consumedAt: new Date(), status: 'consumed' })
               .where(
                 and(
                   eq(financeReceiptUploads.id, upload.id),
                   eq(financeReceiptUploads.tenantId, tenant.id),
                   eq(financeReceiptUploads.eventId, input.eventId),
                   eq(financeReceiptUploads.uploadedByUserId, user.id),
+                  eq(financeReceiptUploads.status, 'ready'),
                   isNotNull(financeReceiptUploads.uploadedAt),
                   isNull(financeReceiptUploads.consumedAt),
                 ),

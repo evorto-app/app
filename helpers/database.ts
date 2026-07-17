@@ -1,7 +1,7 @@
 import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { databaseConfig } from '@db/database-config';
 import { stripeConfig } from '@server/config/stripe-config';
-import { Effect, Option } from 'effect';
+import { Effect, Option, Redacted } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
 import { setupDatabase } from '../src/db/setup-database';
@@ -31,7 +31,7 @@ import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 
 const main = Effect.gen(function* () {
   const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
-  const { DATABASE_URL, NEON_LOCAL_PROXY } = yield* databaseConfig
+  const config = yield* databaseConfig
     .parse(runtimeConfigProvider)
     .pipe(
       Effect.mapError(
@@ -51,9 +51,13 @@ const main = Effect.gen(function* () {
           ),
       ),
     );
+  const caCertificate = config.DATABASE_TLS_CA_CERTIFICATE.pipe(
+    Option.map((certificate) => Redacted.value(certificate)),
+    Option.getOrUndefined,
+  );
   const { database, pool } = createDatabaseClient(
-    DATABASE_URL,
-    NEON_LOCAL_PROXY,
+    config.DATABASE_URL,
+    caCertificate,
   );
   const setupOptions = Option.match(STRIPE_TEST_ACCOUNT_ID, {
     onNone: () => ({}),

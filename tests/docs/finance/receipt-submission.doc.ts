@@ -330,11 +330,9 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
   const storageUrl = new URL(uploadedReceipt.storageUrl);
   const storagePathSegments = storageUrl.pathname.split('/').filter(Boolean);
   const receiptKeySegments = expectedStorageKey.split('/');
-  expect(storageUrl.protocol).toMatch(/^https?:$/);
-  expect(storagePathSegments.length).toBeGreaterThan(receiptKeySegments.length);
-  expect(storagePathSegments.slice(-receiptKeySegments.length)).toEqual(
-    receiptKeySegments,
-  );
+  expect(storageUrl.protocol).toBe('s3:');
+  expect(storageUrl.hostname).not.toBe('');
+  expect(storagePathSegments).toEqual(receiptKeySegments);
 
   const submissionEmails = await database
     .select({ id: schema.emailOutbox.id })

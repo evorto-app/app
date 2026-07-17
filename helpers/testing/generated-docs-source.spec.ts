@@ -899,7 +899,7 @@ describe('generated docs source current behavior', () => {
 
     expect(combinedSource).toContain('schedules an email to the submitter.');
     expect(receiptSource).toContain(
-      'delivered+receipt-doc-${receiptId}@resend.dev',
+      'delivered+receipt-doc-${receiptId}@notifications.example.test',
     );
     expect(combinedSource).toContain(
       'record the manual reimbursement transaction for the selected batch',

@@ -10,6 +10,5 @@ export const getPublicConfigEffect = Effect.gen(function* () {
     googleMapsApiKey: Option.getOrNull(
       runtimeConfig.server.PUBLIC_GOOGLE_MAPS_API_KEY,
     ),
-    sentryDsn: Option.getOrNull(runtimeConfig.server.PUBLIC_SENTRY_DSN),
   } satisfies PublicConfig;
 });

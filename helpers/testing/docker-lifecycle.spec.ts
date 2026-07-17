@@ -291,7 +291,7 @@ describe('Docker Compose lifecycle wrappers', () => {
     expect(result.stderr).toBe('');
   });
 
-  it('refuses to resume a container that was created with an ephemeral branch', () => {
+  it('ignores obsolete branch variables when resuming plain PostgreSQL', () => {
     const { environment, logPath } = createFakeDocker();
     const result = spawnSync('bash', [resumeScript], {
       encoding: 'utf8',
@@ -302,11 +302,8 @@ describe('Docker Compose lifecycle wrappers', () => {
       },
     });
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(
-      'Refusing to resume an ephemeral Neon Local stack',
-    );
-    expect(fs.readFileSync(logPath, 'utf8')).not.toContain('start ');
+    expect(result.status).toBe(0);
+    expect(fs.readFileSync(logPath, 'utf8')).not.toContain('.Config.Env');
   });
 
   it.each([
@@ -340,8 +337,9 @@ describe('Docker Compose lifecycle wrappers', () => {
         .split('\n')
         .filter((command) => command.startsWith('start '));
       expect(resumeCommands).toEqual([
-        'start db-container minio-container',
+        'start db-container minio-container mailpit-container',
         'start stripe-container',
+        'start worker-container',
         'start evorto-container',
       ]);
       expect(resumeCommands.join('\n')).not.toMatch(
@@ -349,7 +347,7 @@ describe('Docker Compose lifecycle wrappers', () => {
       );
       const lifecycleLog = fs.readFileSync(logPath, 'utf8');
       expect(lifecycleLog).toContain(
-        'start stripe-container\ninspect --format {{if .State.Health}}{{.State.Health.Status}}{{else}}missing-healthcheck{{end}} stripe-container\nstart evorto-container',
+        'start stripe-container\ninspect --format {{if .State.Health}}{{.State.Health.Status}}{{else}}missing-healthcheck{{end}} stripe-container\nstart worker-container\nstart evorto-container',
       );
       expect(lifecycleLog).not.toContain('compose down');
       expect(lifecycleLog).not.toContain('volume ls');
@@ -426,7 +424,7 @@ describe('Docker Compose lifecycle wrappers', () => {
         .trim()
         .split('\n')
         .filter((command) => command.startsWith('start ')),
-    ).toEqual(['start db-container minio-container']);
+    ).toEqual(['start db-container minio-container mailpit-container']);
   });
 
   it('does not start the app until the retained Stripe listener is healthy', () => {
@@ -448,7 +446,10 @@ describe('Docker Compose lifecycle wrappers', () => {
         .trim()
         .split('\n')
         .filter((command) => command.startsWith('start ')),
-    ).toEqual(['start db-container minio-container', 'start stripe-container']);
+    ).toEqual([
+      'start db-container minio-container mailpit-container',
+      'start stripe-container',
+    ]);
   });
 
   it('refuses a retained Stripe container without a signing-secret healthcheck', () => {
@@ -470,7 +471,10 @@ describe('Docker Compose lifecycle wrappers', () => {
         .trim()
         .split('\n')
         .filter((command) => command.startsWith('start ')),
-    ).toEqual(['start db-container minio-container', 'start stripe-container']);
+    ).toEqual([
+      'start db-container minio-container mailpit-container',
+      'start stripe-container',
+    ]);
   });
 
   it.each([
@@ -499,11 +503,11 @@ describe('Docker Compose lifecycle wrappers', () => {
 
       expect(result.status).toBe(3);
       expect(result.stderr).toContain(
-        'Refusing disposable Playwright ownership of an existing persistent Docker stack',
+        'Refusing disposable Playwright ownership because this project already has a PostgreSQL container',
       );
       const lifecycleLog = fs.readFileSync(logPath, 'utf8');
       expect(lifecycleLog).toContain('compose ps --all -q db');
-      expect(lifecycleLog).toContain('inspect --format');
+      expect(lifecycleLog).not.toContain('inspect --format');
       expect(lifecycleLog).not.toContain('compose up');
       expect(lifecycleLog).not.toContain('compose down');
       expect(lifecycleLog).not.toContain('volume ls');
@@ -515,7 +519,7 @@ describe('Docker Compose lifecycle wrappers', () => {
       upBehavior: 'wait-with-descendant',
     });
     const child = spawn('bash', [webserverScript], {
-      env: environment,
+      env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
       stdio: 'pipe',
     });
     childProcesses.push(child);
@@ -540,7 +544,6 @@ describe('Docker Compose lifecycle wrappers', () => {
     await waitForProcessExit(descendantPid);
     expect(fs.readFileSync(logPath, 'utf8').trim().split('\n')).toEqual([
       'compose ps --all -q db',
-      'inspect --format {{range .Config.Env}}{{println .}}{{end}} db-container',
       'compose build',
       'compose up --no-build --abort-on-container-failure',
       'compose up terminated',
@@ -558,7 +561,7 @@ describe('Docker Compose lifecycle wrappers', () => {
       upBehavior: 'wait',
     });
     const child = spawn('bash', [webserverScript], {
-      env: environment,
+      env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
       stdio: 'pipe',
     });
     childProcesses.push(child);
@@ -579,7 +582,6 @@ describe('Docker Compose lifecycle wrappers', () => {
     expect(exit).toEqual({ code: 143, signal: null });
     expect(fs.readFileSync(logPath, 'utf8').trim().split('\n')).toEqual([
       'compose ps --all -q db',
-      'inspect --format {{range .Config.Env}}{{println .}}{{end}} db-container',
       'compose build',
       'compose up --no-build --abort-on-container-failure',
       'compose up terminated',
@@ -597,7 +599,7 @@ describe('Docker Compose lifecycle wrappers', () => {
       upBehavior: 'wait',
     });
     const child = spawn('bash', [webserverScript], {
-      env: environment,
+      env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
       stdio: 'pipe',
     });
     childProcesses.push(child);
@@ -631,7 +633,7 @@ describe('Docker Compose lifecycle wrappers', () => {
       upBehavior: 'wait',
     });
     const child = spawn('bash', [webserverScript], {
-      env: environment,
+      env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
       stdio: 'pipe',
     });
     childProcesses.push(child);
@@ -668,7 +670,7 @@ describe('Docker Compose lifecycle wrappers', () => {
       upBehavior: 'wait',
     });
     const child = spawn('bash', [webserverScript], {
-      env: environment,
+      env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
       stdio: 'pipe',
     });
     childProcesses.push(child);
@@ -703,13 +705,12 @@ describe('Docker Compose lifecycle wrappers', () => {
     const { environment, logPath } = createFakeDocker({ upStatus: 37 });
     const result = spawnSync('bash', [webserverScript], {
       encoding: 'utf8',
-      env: environment,
+      env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
     });
 
     expect(result.status).toBe(37);
     expect(fs.readFileSync(logPath, 'utf8').trim().split('\n')).toEqual([
       'compose ps --all -q db',
-      'inspect --format {{range .Config.Env}}{{println .}}{{end}} db-container',
       'compose build',
       'compose up --no-build --abort-on-container-failure',
       'compose down --timeout 60 --remove-orphans --volumes',

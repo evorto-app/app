@@ -191,6 +191,13 @@ test('event authoring controls expose accessible names and keyboard interaction'
 
   const iconDialog = page.locator('app-icon-selector-dialog');
   await expect(iconDialog).toBeVisible();
+  const iconDialogContainer = page
+    .locator('mat-dialog-container')
+    .filter({ has: iconDialog });
+  await expect(iconDialogContainer).toHaveClass(/mdc-dialog--open/);
+  await expect(
+    iconDialogContainer.locator('.mat-mdc-dialog-inner-container'),
+  ).toHaveCSS('opacity', '1');
   const iconChoice = iconDialog
     .getByRole('button', { name: /^Select .+ icon$/ })
     .first();

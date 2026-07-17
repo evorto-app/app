@@ -104,7 +104,7 @@ replace it with aspirational documentation.
   `docker:resume` do not force it. The disposable Docker Playwright server and
   E2E CI launch paths set `E2E_RUNTIME_MODE=playwright`. Server startup
   accepts that mode only together with `NODE_ENV=development`,
-  `NEON_LOCAL_PROXY=true`, and the pinned `E2E_NOW_ISO`, then pauses only the
+  `LOCAL_DATABASE=true`, and the pinned `E2E_NOW_ISO`, then pauses only the
   recurring registration-refund worker so audited recovery assertions and
   signed webhook transitions cannot race it. Immediate refund processing still
   runs through production code. Outside that validated local mode the worker is
@@ -136,7 +136,8 @@ replace it with aspirational documentation.
   Receipt/upload database rows are deleted by the journey. The Docker MinIO
   service has no persistent Compose volume, so `bun run docker:stop` (and the
   destructive start commands) removes the container and its test objects. Tests
-  do not run deletion calls against developer-configured or remote R2 endpoints.
+  do not run deletion calls against developer-configured remote object-storage
+  endpoints.
   When repeatedly reusing one already-running stack, stop that stack after the
   run to discard its temporary objects.
 
@@ -193,20 +194,11 @@ POSTGRES_INTEGRATION_DATABASE_URL='postgresql://evorto:integration@localhost:543
 bun run test:integration:postgres
 ```
 
-A remote target must be an isolated Neon `appdb` branch whose name starts with
-`codex-postgres-integration-`. The runner uses `NEON_API_KEY`,
-`NEON_PROJECT_ID`, and `POSTGRES_INTEGRATION_NEON_BRANCH_ID` to prove that the
-branch is non-default, unprotected, unexpired, expires within 25 hours, and
-owns the supplied active read/write endpoint before any schema reset. Use
-`bun run test:integration:postgres:local` when those values are supplied by the
-supported dev dotenv files plus exported target variables.
-
-The runner does not create or delete remote branches. Create a schema-only,
-short-lived branch before the run, and explicitly delete and verify removal of
-that same branch afterward; expiration is crash recovery, not the primary
-cleanup path. Never point this command at the default, production, shared, or
-otherwise persistent database. Connection URLs and credentials must not be
-printed or committed.
+Remote targets are rejected. `bun run test:integration:postgres:local` loads the
+generated worktree-local loopback URL and still requires
+`POSTGRES_INTEGRATION_DISPOSABLE=true`. Never point this command at a default,
+production, shared, or otherwise persistent database. Connection URLs and
+credentials must not be printed or committed.
 
 ## Docker Runtime
 
@@ -216,19 +208,14 @@ printed or committed.
 - Show the generated worktree Compose project status: `bun run docker:ps`
 - Start the local runtime stack: `bun run docker:start`
 - Resume an existing local runtime stack without recreating containers:
-  `bun run docker:resume`. This is only valid with an explicit existing
-  `BRANCH_ID` or `DELETE_BRANCH=false` on the existing database container; the
-  command fails for the default ephemeral branch because it is deleted when the
-  database container stops. Changing dotenv after the container stops does not
-  make it resumable because retained containers keep their original
-  environment. Resume requires the existing `db`, `minio`, `stripe`, and
-  `evorto` containers plus successfully completed `db-expiration`, `db-setup`,
-  and `minio-init` containers. It starts only those retained long-running
-  container IDs and never invokes dependency startup, schema reset/seeding,
-  bucket initialization, or branch-expiration setup.
+  `bun run docker:resume`. Resume requires the existing `db`, `minio`,
+  `mailpit`, `stripe`, `worker`, and `evorto` containers plus successfully
+  completed `db-setup` and `minio-init` containers. It starts only retained
+  long-running container IDs and never invokes dependency startup, schema
+  reset/seeding, or bucket initialization.
 - Start the local runtime stack in foreground for Playwright `webServer` without
   forcing `docker compose down`: `bun run docker:webserver`
-- When an explicit disposable database sets `NEON_LOCAL_PROXY=false`, the
+- When an explicit caller sets `E2E_USE_DOCKER_STACK=false`, the
   canonical Playwright command uses `host-e2e-webserver.sh` instead of the full
   Compose stack. That wrapper starts only this worktree's MinIO service when it
   is absent, initializes the local bucket, gives the host Angular server the
@@ -242,7 +229,9 @@ printed or committed.
   `bun run docker:start:foreground`
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
 - Stop the local runtime stack: `bun run docker:stop`
-- Local Docker runs use Neon Local instead of a plain Postgres container.
+- Local Docker runs use the pinned plain PostgreSQL 17 container.
+- Mailpit captures local transactional email and the worker runs as a separate
+  polling process from the same image as web.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts. It first drops and recreates the Docker database `public` schema so Drizzle does not require interactive confirmation inside the container.
 - Docker Compose forces app media/uploads to the in-network MinIO endpoint even
   when normal local dotenv values point to an external S3-compatible endpoint.
@@ -258,8 +247,8 @@ printed or committed.
   generated worktree port has also been added to the Auth0 application.
 - Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default. Use `bun run docker:ps` rather than bare `docker compose ps` when checking a worktree stack because the generated `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
 - `bun run docker:check` fails before Docker Compose mutates local containers
-  when required local runtime variables are missing. The check covers Neon
-  Local, Auth0, Stripe, the application session secret, and Font Awesome package
+  when required local runtime variables are missing. The check covers Auth0,
+  Stripe, the application session secret, and Font Awesome package
   registry access for the premium and brand icon packages. It also reports Bun, Docker
   Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
   cache status. It lists optional live-provider variables, including
@@ -278,13 +267,10 @@ printed or committed.
   those scripts run `docker compose down --timeout 60 --remove-orphans` and then
   `db-setup` clears the
   `public` schema, pushes schema, and resets/seeds the Docker database.
-  Neon Local and the branch-expiration helper share a project-scoped named
-  metadata volume by default so Docker Desktop does not need a macOS host bind
-  mount during shutdown cleanup. The database container assigns that mount to
-  Neon's `postgres` user before startup so branch state remains writable for
-  expiration and shutdown cleanup. `NEON_LOCAL_METADATA_DIR` remains available
-  for controlled environments such as CI that intentionally provide a host
-  metadata directory.
+  PostgreSQL data, Mailpit messages, and the Stripe signing secret use
+  project-scoped named volumes. The Playwright-owned disposable wrapper removes
+  those volumes on exit; manual `docker:stop` preserves them for
+  `docker:resume`.
   Playwright `webServer` uses
   `docker:webserver`, which still builds and starts the Compose stack in the
   foreground but does not force a Compose teardown first. Its wrapper traps
@@ -302,13 +288,10 @@ printed or committed.
   exact `204` without following redirects, so a redirect's final `2xx` cannot
   report a false green. A static asset such as `/robots.txt` is not a valid
   application readiness check. A pre-existing stack selected through
-  `reuseExistingServer` never starts the wrapper and remains running. A stopped
-  database container created with an explicit `BRANCH_ID` or
-  `DELETE_BRANCH=false` is also protected: the disposable wrapper refuses to
-  start and directs the operator to `docker:resume` or an intentional
-  `docker:start` reset. The
-  branch-expiration sidecar is fail-closed, so inability to set the fallback
-  expiration prevents database setup instead of silently continuing.
+  `reuseExistingServer` never starts the wrapper and remains running. Any
+  existing PostgreSQL container is also protected: the disposable wrapper
+  refuses to take ownership and directs the operator to `docker:resume` or an
+  intentional `docker:start` reset.
   A final local gate must not trust an unknown reused server: stop it and let
   Playwright own a fresh stack, or explicitly start the exact checkout being
   pushed and verify that provenance. `/readyz` proves behavior, not commit or
@@ -489,10 +472,6 @@ Required for full Playwright flows:
 - `E2E_ORGANIZER_USER_PASSWORD`
 - `E2E_EMPTY_USER_PASSWORD`
 - `ISSUER_BASE_URL`
-- `NEON_API_KEY` for Docker-backed Neon Local runs
-- `NEON_PROJECT_ID` for Docker-backed Neon Local runs
-- `PARENT_BRANCH_ID` for CI/provider workflows, so their disposable branch
-  parent is explicit
 - `SECRET`
 - `STRIPE_API_KEY`
 - `STRIPE_TEST_ACCOUNT_ID`
@@ -609,7 +588,8 @@ either value.
 
 The current esncard.org validation endpoint requires no API key, OAuth client,
 or other ESNcard provider credential. Normal CI infrastructure still needs the
-application's Auth0, Neon, Stripe, Font Awesome, and local-stack configuration;
+application's Auth0, PostgreSQL, Stripe, Font Awesome, and local-stack
+configuration;
 those are not ESNcard provider credentials. Repository code can enforce the
 gate but cannot configure the GitHub environment protection rules or provision
 either approved identity.
@@ -620,7 +600,7 @@ either approved identity.
 
 - distinct `COMPOSE_PROJECT_NAME`
 - distinct local app port and `BASE_URL`
-- distinct local Neon Local port
+- distinct local PostgreSQL port
 - distinct local MinIO ports
 
 Set `APP_HOST_PORT` before running `bun run env:runtime` only when you need a specific callback URL such as `localhost:4200`.

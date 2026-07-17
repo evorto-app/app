@@ -30,7 +30,7 @@ const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
   CLIENT_SECRET: 'playwright-list-client-secret',
   ISSUER_BASE_URL: 'https://playwright-list.invalid',
   SECRET: 'playwright-list-secret',
-  STRIPE_API_KEY: 'sk_test_playwright_list',
+  STRIPE_API_KEY: 'playwright-list-stripe-api-key',
   STRIPE_TEST_ACCOUNT_ID: 'acct_playwright_list',
   STRIPE_WEBHOOK_SECRET: 'whsec_playwright_list',
 } as const;
@@ -205,10 +205,10 @@ export const testRuntimeConfigState = Config.all({
     ),
   ),
   E2E_SELECTED_PROJECTS: selectedProjectNamesConfig,
-  ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
-  NEON_LOCAL_PROXY: Config.boolean('NEON_LOCAL_PROXY').pipe(
-    Config.withDefault(false),
+  E2E_USE_DOCKER_STACK: Config.boolean('E2E_USE_DOCKER_STACK').pipe(
+    Config.withDefault(true),
   ),
+  ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
   NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
   PUBLIC_GOOGLE_MAPS_API_KEY: optionalTrimmedString(
     'PUBLIC_GOOGLE_MAPS_API_KEY',

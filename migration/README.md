@@ -94,7 +94,9 @@ Coordinated Cutover
 The relaunch uses the current Drizzle schema directly. It does not mutate the
 legacy schema in place and does not run an expand/contract compatibility layer.
 The legacy database and new target database must be separate, and
-`NEON_PROD_CONNECTION` must use read-only source credentials.
+`LEGACY_DATABASE_URL` must use read-only source credentials. Legacy migration
+is a separate best-effort project and is not part of the Scaleway hosting
+cutover.
 
 1. Pass every local test suite completely before beginning the cutover.
 2. Enter externally enforced maintenance and drain HTTP writers, jobs, and

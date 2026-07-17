@@ -6,8 +6,9 @@ import {
   it,
   vi,
 } from '@effect/vitest';
-import { ConfigProvider, Effect } from 'effect';
+import { ConfigProvider, Effect, Layer } from 'effect';
 
+import { ObjectStorage } from './integrations/object-storage';
 import {
   sanitizeTenantBrandAssetFileName,
   tenantBrandAssetContentTypeFromFileName,
@@ -45,6 +46,9 @@ const objectStorageProviderLayer = ConfigProvider.layer(
       ['S3_SECRET_ACCESS_KEY', 'test-secret'],
     ]),
   }),
+);
+const objectStorageLayer = ObjectStorage.Default.pipe(
+  Layer.provide(objectStorageProviderLayer),
 );
 
 beforeEach(() => {
@@ -119,7 +123,7 @@ describe('tenant brand assets', () => {
         kind: 'logo',
         mimeType: 'image/png',
         tenantId: 'tenant-1',
-      }).pipe(Effect.provide(objectStorageProviderLayer));
+      }).pipe(Effect.provide(objectStorageLayer));
 
       expect(captured.key).toMatch(
         /^tenant-assets\/tenant-1\/logo\/[0-9a-f-]{36}-Section-Logo\.png$/,

@@ -28,10 +28,12 @@ export const emailOutboxKindLabel = {
 } as const satisfies Record<GlobalAdminEmailOutboxKind, string>;
 
 const emailOutboxStatusLabel = {
+  deliveryUnknown: 'Delivery unknown',
   failed: 'Failed',
   queued: 'Queued',
   sending: 'Sending',
   sent: 'Sent',
+  suppressed: 'Suppressed',
 } as const;
 
 @Injectable({ providedIn: 'root' })

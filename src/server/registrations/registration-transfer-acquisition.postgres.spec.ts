@@ -52,7 +52,6 @@ const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 
 interface AcquisitionFixture {
   readonly acquisitionIds: readonly [string, string, string];
@@ -78,7 +77,6 @@ const makeLayer = (url: string) => {
     ConfigProvider.fromEnv({
       env: {
         DATABASE_URL: url,
-        NEON_LOCAL_PROXY: String(neonLocalProxy),
       },
     }),
   );
@@ -946,7 +944,7 @@ describe('registration acquisition ledger', () => {
   let pool: Pool;
 
   beforeAll(() => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
     layer = makeLayer(databaseUrl);
   });

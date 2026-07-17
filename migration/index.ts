@@ -3,7 +3,7 @@ import { databaseConfig } from '@db/database-config';
 import consola from 'consola';
 import type { InferSelectModel } from 'drizzle-orm';
 import { reset } from 'drizzle-seed';
-import { ConfigProvider, Effect } from 'effect';
+import { ConfigProvider, Effect, Option, Redacted } from 'effect';
 import { DateTime } from 'luxon';
 import type Stripe from 'stripe';
 
@@ -22,7 +22,7 @@ import {
   type MigrationFeature,
   parseMigrationFeatures,
 } from './feature-selection';
-import { oldDatabase } from './migrator-database';
+import { oldDatabase, oldPool } from './migrator-database';
 import { preflightLegacyTenant } from './preflight';
 import { migrateEvents } from './steps/events';
 import { setupDefaultRoles } from './steps/roles';
@@ -180,7 +180,7 @@ async function runForTenant(
 
 const main = Effect.gen(function* () {
   const runtimeConfigProvider = yield* makeRuntimeConfigProvider();
-  const { DATABASE_URL, NEON_LOCAL_PROXY } = yield* databaseConfig
+  const databaseConfiguration = yield* databaseConfig
     .parse(runtimeConfigProvider)
     .pipe(
       Effect.mapError(
@@ -195,13 +195,17 @@ const main = Effect.gen(function* () {
     clearTarget: process.env['MIGRATION_CLEAR_DB'] === 'true',
     confirmation: process.env['MIGRATION_CUTOVER_CONFIRMED'],
     featureSelection: process.env['MIGRATE_FEATURES'],
-    sourceDatabaseUrl: process.env['NEON_PROD_CONNECTION'],
-    targetDatabaseUrl: DATABASE_URL,
+    sourceDatabaseUrl: process.env['LEGACY_DATABASE_URL'],
+    targetDatabaseUrl: databaseConfiguration.DATABASE_URL,
     tenantSelection: process.env['MIGRATE_TENANTS'],
   });
+  const caCertificate = databaseConfiguration.DATABASE_TLS_CA_CERTIFICATE.pipe(
+    Option.map((certificate) => Redacted.value(certificate)),
+    Option.getOrUndefined,
+  );
   const { database, pool } = createDatabaseClient(
-    DATABASE_URL,
-    NEON_LOCAL_PROXY,
+    databaseConfiguration.DATABASE_URL,
+    caCertificate,
   );
 
   const migration = Effect.gen(function* () {
@@ -216,7 +220,12 @@ const main = Effect.gen(function* () {
   );
 
   yield* migration.pipe(
-    Effect.ensuring(Effect.tryPromise(() => pool.end()).pipe(Effect.orDie)),
+    Effect.ensuring(
+      Effect.all([
+        Effect.tryPromise(() => oldPool.end()),
+        Effect.tryPromise(() => pool.end()),
+      ]).pipe(Effect.orDie),
+    ),
   );
 });
 

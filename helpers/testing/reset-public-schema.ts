@@ -4,15 +4,12 @@ import { createNodePgPoolConfig } from '../../src/db/pg-connection-config';
 
 export const resetPublicSchema = async ({
   databaseUrl,
-  neonLocalProxy,
 }: {
   readonly databaseUrl: string;
-  readonly neonLocalProxy: boolean;
 }): Promise<void> => {
   const pool = new Pool(
     createNodePgPoolConfig({
       databaseUrl,
-      neonLocalProxy,
     }),
   );
 

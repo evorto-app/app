@@ -58,7 +58,6 @@ const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 
 interface Fixture {
   readonly addOnId: string;
@@ -81,10 +80,7 @@ const makeId = (prefix: string, suffix: string): string =>
 const makeDatabaseServiceLayer = (url: string) => {
   const configLayer = ConfigProvider.layer(
     ConfigProvider.fromEnv({
-      env: Object.fromEntries([
-        ['DATABASE_URL', url],
-        ['NEON_LOCAL_PROXY', String(neonLocalProxy)],
-      ]),
+      env: Object.fromEntries([['DATABASE_URL', url]]),
     }),
   );
   return databaseLayer.pipe(Layer.provide(configLayer));
@@ -455,7 +451,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
   let pool: Pool;
 
   beforeAll(() => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
   });
 

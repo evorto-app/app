@@ -28,8 +28,7 @@ const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
 const database = drizzle<typeof relations>({ client: pool, relations });
 
 const tenantId = createId();
@@ -78,7 +77,6 @@ const configLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
     env: {
       DATABASE_URL: databaseUrl,
-      NEON_LOCAL_PROXY: String(neonLocalProxy),
     },
   }),
 );

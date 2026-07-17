@@ -76,14 +76,22 @@ const createContextLayer = (
     Layer.succeed(
       ReceiptMediaService,
       (options.receiptMediaService ?? {
+        createUploadPolicy: () =>
+          Effect.succeed({
+            fields: { key: 'receipts/example.png' },
+            storageKey: 'receipts/example.png',
+            url: 'https://storage.example.test/bucket',
+          }),
+        inspectUpload: () =>
+          Effect.succeed({
+            mimeType: 'image/png',
+            sizeBytes: 7,
+            storageKey: 'receipts/example.png',
+            storageUrl: 's3://bucket/receipts/example.png',
+          }),
         objectExists: () => Effect.succeed(false),
         signedPreviewUrl: () =>
           Effect.succeed('https://signed.example.test/receipt'),
-        uploadOriginal: () =>
-          Effect.succeed({
-            storageKey: 'receipts/tenant-1/event-1/user-1/file.png',
-            storageUrl: 'https://storage.example.test/receipt',
-          }),
       }) as never,
     ),
   );
@@ -91,10 +99,9 @@ const createContextLayer = (
 
 const uploadInput = {
   eventId: 'event-1',
-  fileBase64: Buffer.from('receipt').toString('base64'),
   fileName: 'receipt.png',
-  fileSizeBytes: 7,
   mimeType: 'image/png',
+  sizeBytes: 7,
 };
 
 const receiptFieldsInput = {
@@ -498,6 +505,7 @@ const submittedReceiptRow = {
   attachmentUploadedByUserId: 'user-1',
   attachmentUploadEventId: 'event-1',
   attachmentUploadId: 'upload-1',
+  attachmentUploadStatus: 'consumed' as const,
   attachmentUploadTenantId: 'tenant-1',
   createdAt: new Date('2026-05-19T10:00:00.000Z'),
   currency: 'AUD' as const,
@@ -662,7 +670,8 @@ const databaseWithReceiptReviewLifecycle = ({
 describe('financeHandlers composition', () => {
   it('contains the full finance rpc handler set', () => {
     expect(Object.keys(financeHandlers).toSorted()).toEqual([
-      'finance.receiptMedia.uploadOriginal',
+      'finance.receiptMedia.createUpload',
+      'finance.receiptMedia.finalizeUpload',
       'finance.receipts.byEvent',
       'finance.receipts.createRefund',
       'finance.receipts.findOneForApproval',
@@ -809,19 +818,21 @@ describe('finance receipt media permissions', () => {
   it.effect('rejects receipt uploads without receipt-submit access', () =>
     Effect.gen(function* () {
       let isUploadCalled = false;
-      const error = yield* financeHandlers[
-        'finance.receiptMedia.uploadOriginal'
-      ](uploadInput, { headers: {} } as never).pipe(
+      const error = yield* financeHandlers['finance.receiptMedia.createUpload'](
+        uploadInput,
+        { headers: {} } as never,
+      ).pipe(
         Effect.flip,
         Effect.provide(
           createContextLayer([], {
             database: databaseWithNoOrganizerReceiptAccess(),
             receiptMediaService: {
-              uploadOriginal: () => {
+              createUploadPolicy: () => {
                 isUploadCalled = true;
                 return Effect.succeed({
+                  fields: {},
                   storageKey: 'receipts/tenant-1/event-1/user-1/file.png',
-                  storageUrl: 'local-unavailable://receipt',
+                  url: 'https://storage.example.test/bucket',
                 });
               },
             },
@@ -840,18 +851,19 @@ describe('finance receipt media permissions', () => {
       let capturedInput: unknown;
       const lifecycleSteps: string[] = [];
       const result = yield* financeHandlers[
-        'finance.receiptMedia.uploadOriginal'
+        'finance.receiptMedia.createUpload'
       ](uploadInput, { headers: {} } as never).pipe(
         Effect.provide(
           createContextLayer(['events:organizeAll'], {
             database: databaseWithReceiptUploadLifecycle(lifecycleSteps),
             receiptMediaService: {
-              uploadOriginal: (input: unknown) => {
+              createUploadPolicy: (input: unknown) => {
                 capturedInput = input;
                 lifecycleSteps.push('storage');
                 return Effect.succeed({
+                  fields: { key: 'receipts/example.png' },
                   storageKey: 'receipts/tenant-1/event-1/user-1/file.png',
-                  storageUrl: 'local-unavailable://receipt',
+                  url: 'https://storage.example.test/bucket',
                 });
               },
             },
@@ -868,9 +880,12 @@ describe('finance receipt media permissions', () => {
         }),
       );
       expect(result).toEqual({
+        expiresAt: expect.any(String),
+        fields: { key: 'receipts/example.png' },
         uploadId: expect.any(String),
+        url: 'https://storage.example.test/bucket',
       });
-      expect(lifecycleSteps).toEqual(['preflight', 'storage', 'finalize']);
+      expect(lifecycleSteps).toEqual(['preflight', 'storage']);
     }),
   );
 
@@ -880,22 +895,22 @@ describe('finance receipt media permissions', () => {
       Effect.gen(function* () {
         const lifecycleSteps: string[] = [];
         const error = yield* financeHandlers[
-          'finance.receiptMedia.uploadOriginal'
+          'finance.receiptMedia.createUpload'
         ](uploadInput, { headers: {} } as never).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer(['events:organizeAll'], {
               database: databaseWithReceiptUploadLifecycle(lifecycleSteps),
               receiptMediaService: {
-                objectExists: () => Effect.succeed(false),
-                signedPreviewUrl: () =>
-                  Effect.succeed('https://signed.example.test/receipt'),
-                uploadOriginal: () =>
+                createUploadPolicy: () =>
                   Effect.fail(
                     new ReceiptMediaServiceUnavailableError({
                       message: 'Receipt storage is unavailable',
                     }),
                   ),
+                objectExists: () => Effect.succeed(false),
+                signedPreviewUrl: () =>
+                  Effect.succeed('https://signed.example.test/receipt'),
               },
             }),
           ),
@@ -1208,6 +1223,8 @@ describe('finance receipt approval evidence', () => {
             createContextLayer(['finance:approveReceipts'], {
               database: fixture.database,
               receiptMediaService: {
+                createUploadPolicy: () =>
+                  Effect.dieMessage('Unexpected receipt upload'),
                 objectExists: ({ storageKey }: { storageKey: string }) =>
                   Effect.sync(() => {
                     expect(storageKey).toBe(
@@ -1218,8 +1235,6 @@ describe('finance receipt approval evidence', () => {
                   }),
                 signedPreviewUrl: () =>
                   Effect.succeed('https://signed.example.test/receipt'),
-                uploadOriginal: () =>
-                  Effect.dieMessage('Unexpected receipt upload'),
               },
             }),
           ),
@@ -1254,11 +1269,11 @@ describe('finance receipt approval evidence', () => {
           createContextLayer(['finance:approveReceipts'], {
             database: fixture.database,
             receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
               objectExists: () => Effect.succeed(false),
               signedPreviewUrl: () =>
                 Effect.succeed('https://signed.example.test/receipt'),
-              uploadOriginal: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
             },
           }),
         ),
@@ -1286,6 +1301,8 @@ describe('finance receipt approval evidence', () => {
           createContextLayer(['finance:approveReceipts'], {
             database: fixture.database,
             receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
               objectExists: () => Effect.succeed(true),
               signedPreviewUrl: () =>
                 Effect.fail(
@@ -1293,8 +1310,6 @@ describe('finance receipt approval evidence', () => {
                     message: 'Receipt storage is unavailable',
                   }),
                 ),
-              uploadOriginal: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
             },
           }),
         ),
@@ -1325,11 +1340,11 @@ describe('finance receipt approval evidence', () => {
           createContextLayer(['finance:approveReceipts'], {
             database: fixture.database,
             receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
               objectExists,
               signedPreviewUrl: () =>
                 Effect.succeed('https://signed.example.test/receipt'),
-              uploadOriginal: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
             },
           }),
         ),
@@ -1369,11 +1384,11 @@ describe('finance receipt approval evidence', () => {
             createContextLayer(['finance:approveReceipts'], {
               database: fixture.database,
               receiptMediaService: {
+                createUploadPolicy: () =>
+                  Effect.dieMessage('Unexpected receipt upload'),
                 objectExists,
                 signedPreviewUrl: () =>
                   Effect.succeed('https://signed.example.test/receipt'),
-                uploadOriginal: () =>
-                  Effect.dieMessage('Unexpected receipt upload'),
               },
             }),
           ),
@@ -1410,11 +1425,11 @@ describe('finance receipt approval evidence', () => {
           createContextLayer(['finance:approveReceipts'], {
             database: fixture.database,
             receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
               objectExists: () => Effect.succeed(true),
               signedPreviewUrl: () =>
                 Effect.succeed('https://signed.example.test/receipt'),
-              uploadOriginal: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
             },
           }),
         ),
@@ -1448,11 +1463,11 @@ describe('finance receipt approval evidence', () => {
           createContextLayer(['finance:approveReceipts'], {
             database: fixture.database,
             receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
               objectExists,
               signedPreviewUrl: () =>
                 Effect.succeed('https://signed.example.test/receipt'),
-              uploadOriginal: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
             },
           }),
         ),
@@ -1491,6 +1506,7 @@ describe('finance receipt amount validation', () => {
       expect(result).toEqual({ id: 'receipt-1' });
       expect(receiptDatabase.consumedValues()).toEqual({
         consumedAt: expect.any(Date),
+        status: 'consumed',
       });
       expect(receiptDatabase.insertedValues()).toEqual(
         expect.objectContaining({

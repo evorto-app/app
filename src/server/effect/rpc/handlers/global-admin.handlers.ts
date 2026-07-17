@@ -360,6 +360,7 @@ export const globalAdminHandlers = {
             .select({
               attempts: emailOutbox.attempts,
               createdAt: emailOutbox.createdAt,
+              deliveryUnknownAt: emailOutbox.deliveryUnknownAt,
               exhaustedAt: emailOutbox.exhaustedAt,
               id: emailOutbox.id,
               kind: emailOutbox.kind,
@@ -367,10 +368,13 @@ export const globalAdminHandlers = {
               lastError: emailOutbox.lastError,
               maxAttempts: emailOutbox.maxAttempts,
               nextAttemptAt: emailOutbox.nextAttemptAt,
+              provider: emailOutbox.provider,
+              providerMessageId: emailOutbox.providerMessageId,
               recipient: emailOutbox.toEmail,
               sentAt: emailOutbox.sentAt,
               status: emailOutbox.status,
               subject: emailOutbox.subject,
+              suppressedAt: emailOutbox.suppressedAt,
               tenantDomain: tenants.domain,
               tenantId: emailOutbox.tenantId,
               tenantName: tenants.name,
@@ -379,18 +383,28 @@ export const globalAdminHandlers = {
             })
             .from(emailOutbox)
             .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
-            .where(inArray(emailOutbox.status, ['queued', 'sending', 'failed']))
+            .where(
+              inArray(emailOutbox.status, [
+                'queued',
+                'sending',
+                'failed',
+                'deliveryUnknown',
+                'suppressed',
+              ]),
+            )
             .orderBy(desc(emailOutbox.updatedAt))
             .limit(100),
         ]),
       );
       const summary = {
+        deliveryUnknown: 0,
         exhausted: exhaustedRows[0]?.total ?? 0,
         failed: 0,
         queued: 0,
         sending: 0,
         sent: 0,
         staleSending: staleSendingRows[0]?.total ?? 0,
+        suppressed: 0,
         waitingForRetry: waitingForRetryRows[0]?.total ?? 0,
       };
       for (const row of statusCounts) {
@@ -401,10 +415,12 @@ export const globalAdminHandlers = {
         items: itemRows.map((row) => ({
           ...row,
           createdAt: row.createdAt.toISOString(),
+          deliveryUnknownAt: row.deliveryUnknownAt?.toISOString() ?? null,
           exhaustedAt: row.exhaustedAt?.toISOString() ?? null,
           lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
           nextAttemptAt: row.nextAttemptAt.toISOString(),
           sentAt: row.sentAt?.toISOString() ?? null,
+          suppressedAt: row.suppressedAt?.toISOString() ?? null,
           updatedAt: row.updatedAt.toISOString(),
         })),
         summary,

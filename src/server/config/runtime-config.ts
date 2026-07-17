@@ -2,6 +2,7 @@ import { Context, Effect, Layer } from 'effect';
 
 import { authConfig, type AuthConfig } from './auth-config';
 import { databaseConfig, type DatabaseConfig } from './database-config';
+import { deploymentConfig, type DeploymentConfig } from './deployment-config';
 import {
   type ObjectStorageConfigState,
   objectStorageStateConfig,
@@ -16,6 +17,7 @@ import {
 export interface RuntimeConfigShape {
   auth: AuthConfig;
   database: DatabaseConfig;
+  deployment: DeploymentConfig;
   objectStorage: ObjectStorageConfigState;
   server: ServerConfig;
   stripe: StripeConfig;
@@ -26,6 +28,7 @@ const runtimeConfigEffect = Effect.gen(function* () {
   return {
     auth: yield* authConfig,
     database: yield* databaseConfig,
+    deployment: yield* deploymentConfig,
     objectStorage: yield* objectStorageStateConfig,
     server: yield* serverConfig,
     stripe: yield* stripeConfig,

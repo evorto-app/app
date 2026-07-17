@@ -3,7 +3,12 @@ import type { DatabaseClient } from '@db/index';
 import { Database } from '@db/index';
 import { emailOutbox } from '@db/schema';
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
-import { ConfigProvider, Effect, Exit, Layer } from 'effect';
+import {
+  EmailDelivery,
+  EmailDeliveryPermanentError,
+  EmailDeliveryRetryableError,
+} from '@server/integrations/email-delivery';
+import { Effect, Exit, Layer } from 'effect';
 
 import {
   enqueueReceiptReviewedEmail,
@@ -14,14 +19,6 @@ import {
   handleEmailOutboxProcessorCause,
   processDueEmailOutbox,
 } from './email-delivery';
-
-const emailConfigProviderLayer = ConfigProvider.layer(
-  ConfigProvider.fromEnv({
-    env: {
-      RESEND_API_KEY: 're_test_123',
-    },
-  }),
-);
 
 describe('email delivery', () => {
   afterEach(() => {
@@ -84,8 +81,8 @@ describe('email delivery', () => {
 
         expect(insertedValue).toEqual(
           expect.objectContaining({
-            fromEmail: 'no-reply@notifications.esn.world',
-            fromName: 'ESN.WORLD',
+            fromEmail: 'no-reply@notifications.evorto.app',
+            fromName: 'Evorto',
             idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
             kind: 'receiptReviewed',
             replyToEmail: 'board@example.org',
@@ -311,114 +308,113 @@ describe('email delivery', () => {
       }),
   );
 
-  it.effect('sends due outbox rows through Resend with reply-to', () =>
-    Effect.gen(function* () {
-      const now = new Date('2026-07-09T10:00:00.000Z');
-      const queuedRow = {
-        attempts: 0,
-        claimLeaseExpiresAt: null,
-        claimLeaseId: null,
-        createdAt: now,
-        exhaustedAt: null,
-        fromEmail: 'no-reply@notifications.esn.world',
-        fromName: 'ESN.WORLD',
-        html: '<p>Hello</p>',
-        id: 'email-1',
-        idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
-        kind: 'receiptReviewed' as const,
-        lastAttemptAt: null,
-        lastError: null,
-        maxAttempts: 8,
-        nextAttemptAt: now,
-        replyToEmail: 'board@example.org',
-        replyToName: 'Example Section',
-        resendEmailId: null,
-        sentAt: null,
-        status: 'queued' as const,
-        subject: 'Receipt approved',
-        tenantId: 'tenant-1',
-        text: 'Hello',
-        toEmail: 'alice@example.com',
-        updatedAt: now,
-      };
-      const claimedRow = {
-        ...queuedRow,
-        attempts: 1,
-        claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
-        claimLeaseId: 'lease-1',
-        lastAttemptAt: now,
-        status: 'sending' as const,
-      };
-      const fetchMock = vi.fn(async () =>
-        Response.json({ id: 'resend-email-1' }),
-      );
-      vi.stubGlobal('fetch', fetchMock);
-      const updateSets: unknown[] = [];
-      const database = {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              orderBy: () => ({
-                limit: () => Effect.succeed([queuedRow]),
+  it.effect(
+    'sends due outbox rows through the delivery service with reply-to',
+    () =>
+      Effect.gen(function* () {
+        const now = new Date('2026-07-09T10:00:00.000Z');
+        const queuedRow = {
+          attempts: 0,
+          claimLeaseExpiresAt: null,
+          claimLeaseId: null,
+          createdAt: now,
+          exhaustedAt: null,
+          fromEmail: 'no-reply@notifications.evorto.app',
+          fromName: 'Evorto',
+          html: '<p>Hello</p>',
+          id: 'email-1',
+          idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
+          kind: 'receiptReviewed' as const,
+          lastAttemptAt: null,
+          lastError: null,
+          maxAttempts: 8,
+          nextAttemptAt: now,
+          provider: null,
+          providerMessageId: null,
+          replyToEmail: 'board@example.org',
+          replyToName: 'Example Section',
+          sentAt: null,
+          status: 'queued' as const,
+          subject: 'Receipt approved',
+          tenantId: 'tenant-1',
+          text: 'Hello',
+          toEmail: 'alice@example.com',
+          updatedAt: now,
+        };
+        const claimedRow = {
+          ...queuedRow,
+          attempts: 1,
+          claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
+          claimLeaseId: 'lease-1',
+          lastAttemptAt: now,
+          status: 'sending' as const,
+        };
+        const deliverMock = vi.fn(() =>
+          Effect.succeed({
+            _tag: 'Delivered' as const,
+            provider: 'fake' as const,
+            providerMessageId: 'fake-email-1',
+          }),
+        );
+        const updateSets: unknown[] = [];
+        const database = {
+          select: () => ({
+            from: () => ({
+              where: () => ({
+                orderBy: () => ({
+                  limit: () => Effect.succeed([queuedRow]),
+                }),
               }),
             }),
           }),
-        }),
-        update: () => ({
-          set: (values: { status?: string }) => {
-            updateSets.push(values);
-            return {
-              where: () => ({
-                returning: () =>
-                  Effect.succeed(
-                    values.status === 'sending'
-                      ? [claimedRow]
-                      : [{ id: claimedRow.id }],
-                  ),
-              }),
-            };
-          },
-        }),
-      };
-
-      const processed = yield* processDueEmailOutbox(1).pipe(
-        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-        Effect.provide(emailConfigProviderLayer),
-      );
-
-      expect(processed).toBe(1);
-      expect(fetchMock).toHaveBeenCalledOnce();
-      const [, init] = fetchMock.mock.calls[0] ?? [];
-      expect(init).toEqual(
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: 'Bearer re_test_123',
-            'Content-Type': 'application/json',
-            'Idempotency-Key': 'receipt-reviewed/tenant-1/receipt-1/approved',
+          update: () => ({
+            set: (values: { status?: string }) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () =>
+                    Effect.succeed(
+                      values.status === 'sending'
+                        ? [claimedRow]
+                        : [{ id: claimedRow.id }],
+                    ),
+                }),
+              };
+            },
           }),
-          method: 'POST',
-        }),
-      );
-      expect(JSON.parse(String(init?.body))).toEqual(
-        expect.objectContaining({
-          from: 'ESN.WORLD <no-reply@notifications.esn.world>',
-          reply_to: 'Example Section <board@example.org>',
-          subject: 'Receipt approved',
-          to: 'alice@example.com',
-        }),
-      );
-      expect(updateSets).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ status: 'sending' }),
+        };
+
+        const processed = yield* processDueEmailOutbox(1).pipe(
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provide(EmailDelivery.layerFake(deliverMock)),
+        );
+
+        expect(processed).toBe(1);
+        expect(deliverMock).toHaveBeenCalledOnce();
+        expect(deliverMock).toHaveBeenCalledWith(
           expect.objectContaining({
-            claimLeaseExpiresAt: null,
-            claimLeaseId: null,
-            resendEmailId: 'resend-email-1',
-            status: 'sent',
+            idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
+            replyTo: {
+              email: 'board@example.org',
+              name: 'Example Section',
+            },
+            subject: 'Receipt approved',
+            to: 'alice@example.com',
           }),
-        ]),
-      );
-    }),
+        );
+        expect(updateSets).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ status: 'sending' }),
+            expect.objectContaining({
+              claimLeaseExpiresAt: null,
+              claimLeaseId: null,
+              provider: 'fake',
+              providerMessageId: 'fake-email-1',
+              status: 'sent',
+            }),
+          ]),
+        );
+      }),
   );
 
   it.effect(
@@ -432,8 +428,8 @@ describe('email delivery', () => {
           claimLeaseId: 'abandoned-lease',
           createdAt: now,
           exhaustedAt: null,
-          fromEmail: 'no-reply@notifications.esn.world',
-          fromName: 'ESN.WORLD',
+          fromEmail: 'no-reply@notifications.evorto.app',
+          fromName: 'Evorto',
           html: '<p>Hello</p>',
           id: 'email-stale',
           idempotencyKey: 'manual-approval/tenant-1/registration-1/confirmed',
@@ -442,9 +438,10 @@ describe('email delivery', () => {
           lastError: null,
           maxAttempts: 8,
           nextAttemptAt: new Date('2026-07-09T10:00:00.000Z'),
+          provider: null,
+          providerMessageId: null,
           replyToEmail: null,
           replyToName: null,
-          resendEmailId: null,
           sentAt: null,
           status: 'sending' as const,
           subject: 'Registration approved',
@@ -459,10 +456,13 @@ describe('email delivery', () => {
           claimLeaseId: 'replacement-lease',
           lastAttemptAt: now,
         };
-        const fetchMock = vi.fn(async () =>
-          Response.json({ id: 'resend-email-stale' }),
+        const deliverMock = vi.fn(() =>
+          Effect.succeed({
+            _tag: 'Delivered' as const,
+            provider: 'fake' as const,
+            providerMessageId: 'fake-email-stale',
+          }),
         );
-        vi.stubGlobal('fetch', fetchMock);
         const updateSets: {
           claimLeaseExpiresAt?: unknown;
           claimLeaseId?: null | string;
@@ -501,16 +501,13 @@ describe('email delivery', () => {
 
         const processed = yield* processDueEmailOutbox(1).pipe(
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-          Effect.provide(emailConfigProviderLayer),
+          Effect.provide(EmailDelivery.layerFake(deliverMock)),
         );
 
         expect(processed).toBe(1);
-        expect(fetchMock).toHaveBeenCalledOnce();
-        const [, init] = fetchMock.mock.calls[0] ?? [];
-        expect(init?.headers).toEqual(
+        expect(deliverMock).toHaveBeenCalledWith(
           expect.objectContaining({
-            'Idempotency-Key':
-              'manual-approval/tenant-1/registration-1/confirmed',
+            idempotencyKey: 'manual-approval/tenant-1/registration-1/confirmed',
           }),
         );
         expect(reclaimedRow.attempts).toBe(8);
@@ -538,8 +535,8 @@ describe('email delivery', () => {
         claimLeaseId: 'abandoned-lease',
         createdAt: now,
         exhaustedAt: null,
-        fromEmail: 'no-reply@notifications.esn.world',
-        fromName: 'ESN.WORLD',
+        fromEmail: 'no-reply@notifications.evorto.app',
+        fromName: 'Evorto',
         html: '<p>Hello</p>',
         id: 'email-stale',
         idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
@@ -548,9 +545,10 @@ describe('email delivery', () => {
         lastError: null,
         maxAttempts: 8,
         nextAttemptAt: now,
+        provider: null,
+        providerMessageId: null,
         replyToEmail: null,
         replyToName: null,
-        resendEmailId: null,
         sentAt: null,
         status: 'sending' as const,
         subject: 'Receipt approved',
@@ -559,8 +557,13 @@ describe('email delivery', () => {
         toEmail: 'alice@example.com',
         updatedAt: now,
       };
-      const fetchMock = vi.fn();
-      vi.stubGlobal('fetch', fetchMock);
+      const deliverMock = vi.fn(() =>
+        Effect.succeed({
+          _tag: 'Delivered' as const,
+          provider: 'fake' as const,
+          providerMessageId: 'unexpected',
+        }),
+      );
       const database = {
         select: () => ({
           from: () => ({
@@ -582,11 +585,11 @@ describe('email delivery', () => {
 
       const processed = yield* processDueEmailOutbox(1).pipe(
         Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-        Effect.provide(emailConfigProviderLayer),
+        Effect.provide(EmailDelivery.layerFake(deliverMock)),
       );
 
       expect(processed).toBe(0);
-      expect(fetchMock).not.toHaveBeenCalled();
+      expect(deliverMock).not.toHaveBeenCalled();
     }),
   );
 
@@ -601,8 +604,8 @@ describe('email delivery', () => {
         claimLeaseId: null,
         createdAt: now,
         exhaustedAt: null,
-        fromEmail: 'no-reply@notifications.esn.world',
-        fromName: 'ESN.WORLD',
+        fromEmail: 'no-reply@notifications.evorto.app',
+        fromName: 'Evorto',
         html: '<p>Hello</p>',
         id: 'email-1',
         idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
@@ -611,9 +614,10 @@ describe('email delivery', () => {
         lastError: null,
         maxAttempts: 8,
         nextAttemptAt: now,
+        provider: null,
+        providerMessageId: null,
         replyToEmail: null,
         replyToName: null,
-        resendEmailId: null,
         sentAt: null,
         status: 'queued' as const,
         subject: 'Receipt approved',
@@ -630,9 +634,13 @@ describe('email delivery', () => {
         lastAttemptAt: now,
         status: 'sending' as const,
       };
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () => new Response('{}', { status: 500 })),
+      const deliveryLayer = EmailDelivery.layerFake(() =>
+        Effect.fail(
+          new EmailDeliveryRetryableError({
+            message: 'tem email request failed with HTTP 500',
+            provider: 'tem',
+          }),
+        ),
       );
       const updateSets: unknown[] = [];
       const database = {
@@ -664,7 +672,7 @@ describe('email delivery', () => {
 
       const processed = yield* processDueEmailOutbox(1).pipe(
         Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-        Effect.provide(emailConfigProviderLayer),
+        Effect.provide(deliveryLayer),
       );
 
       expect(processed).toBe(1);
@@ -675,7 +683,7 @@ describe('email delivery', () => {
             claimLeaseExpiresAt: null,
             claimLeaseId: null,
             exhaustedAt: null,
-            lastError: 'Resend email request failed: 500',
+            lastError: 'tem email request failed with HTTP 500',
             nextAttemptAt: new Date('2026-07-09T10:00:01.000Z'),
             status: 'queued',
           }),
@@ -695,8 +703,8 @@ describe('email delivery', () => {
         claimLeaseId: null,
         createdAt: now,
         exhaustedAt: null,
-        fromEmail: 'no-reply@notifications.esn.world',
-        fromName: 'ESN.WORLD',
+        fromEmail: 'no-reply@notifications.evorto.app',
+        fromName: 'Evorto',
         html: '<p>Hello</p>',
         id: 'email-1',
         idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
@@ -705,9 +713,10 @@ describe('email delivery', () => {
         lastError: null,
         maxAttempts: 8,
         nextAttemptAt: now,
+        provider: null,
+        providerMessageId: null,
         replyToEmail: null,
         replyToName: null,
-        resendEmailId: null,
         sentAt: null,
         status: 'queued' as const,
         subject: 'Receipt approved',
@@ -724,9 +733,13 @@ describe('email delivery', () => {
         lastAttemptAt: now,
         status: 'sending' as const,
       };
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () => new Response('{}', { status: 400 })),
+      const deliveryLayer = EmailDelivery.layerFake(() =>
+        Effect.fail(
+          new EmailDeliveryPermanentError({
+            message: 'tem email request failed with HTTP 400',
+            provider: 'tem',
+          }),
+        ),
       );
       const updateSets: unknown[] = [];
       const database = {
@@ -758,7 +771,7 @@ describe('email delivery', () => {
 
       const processed = yield* processDueEmailOutbox(1).pipe(
         Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-        Effect.provide(emailConfigProviderLayer),
+        Effect.provide(deliveryLayer),
       );
 
       expect(processed).toBe(1);
@@ -769,7 +782,7 @@ describe('email delivery', () => {
             claimLeaseExpiresAt: null,
             claimLeaseId: null,
             exhaustedAt: now,
-            lastError: 'Resend email request failed: 400',
+            lastError: 'tem email request failed with HTTP 400',
             nextAttemptAt: now,
             status: 'failed',
           }),

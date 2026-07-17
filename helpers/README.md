@@ -76,35 +76,20 @@ This will:
 
 `bun run db:reset` now uses the same generated `.env.dev` plus `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract.
 
-The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
-
-Docker Compose now also runs one-shot `db-expiration` and `db-setup`
-containers before `evorto` starts. `bun run docker:start`,
+Docker Compose runs a pinned PostgreSQL 17 container plus one-shot `db-setup`
+before `evorto` and the polling worker start. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run
 `docker compose down --timeout 60 --remove-orphans` first, then run the
-equivalent of `bun run db:reset`
-against the Docker database during stack startup. That Docker reset path drops
-and recreates the `public` schema before running Drizzle so the one-shot
-container cannot get stuck on non-TTY confirmation prompts from older local
-branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
-`docker compose down` deletes the branch. The database receives a 60-second
-shutdown grace period for that cleanup, and `db-expiration` must successfully
-set a short Neon branch expiration before database setup can continue. The
-expiration is a fallback for interrupted local or CI shutdowns; failure is a
-startup blocker rather than silently accepting lost cleanup coverage. Both
-services share the project-scoped `neon-local-metadata` Docker
-volume by default. Keeping that shutdown-critical state off a macOS host bind
-mount avoids Docker Desktop file-sharing stalls while Neon Local reads the
-metadata during branch cleanup. The database container assigns the mount to
-Neon's `postgres` user before startup so the branch state is writable during
-expiration and shutdown cleanup. Neon Local is not restarted independently: a
-proxy crash leaves the stack failed so the next explicit stack start also reruns
-the branch-expiration sidecar instead of creating an untracked replacement
-branch. CI or another controlled environment can set
-`NEON_LOCAL_METADATA_DIR` to an absolute host directory when a bind mount is
-intentional. With the normal generated `NEON_LOCAL_PROXY=true` environment,
-Playwright `webServer` uses `bun run docker:webserver`, which starts the
-foreground Compose stack without forcing `docker compose down` first. It uses
+equivalent of `bun run db:reset` against the Docker database during stack
+startup. That path drops and recreates `public`, applies Drizzle, and seeds the
+local dataset without an interactive confirmation. PostgreSQL data, Mailpit
+messages, and the Stripe signing secret use project-scoped named volumes;
+MinIO data is container-local for the disposable test stack.
+
+The generated `E2E_USE_DOCKER_STACK=true` environment makes Playwright use
+`bun run docker:webserver`. That wrapper refuses to take ownership when an
+existing project database container is present, builds and starts the full
+stack, and uses
 `--abort-on-container-failure` so a failed one-shot setup service ends startup
 immediately, while successful one-shot services leave the long-running app
 stack active. The wrapper traps process exit and Playwright shutdown signals,
@@ -114,16 +99,14 @@ containers, networks, and disposable named volumes do not linger. Each Compose
 teardown call has a 90-second wall-clock watchdog, and each container, network,
 or volume verification call has a 10-second watchdog.
 Playwright allows five minutes for both teardown attempts, watchdog termination
-grace, verification, removal, and an additional shutdown buffer. When
-Playwright reuses a stack that was already serving the app, it never starts that
-wrapper; the user-owned stack therefore keeps running. If the project instead
-contains a stopped database container created with an explicit `BRANCH_ID` or
-`DELETE_BRANCH=false`, the disposable wrapper refuses ownership before starting
-Compose. Resume that retained stack with `bun run docker:resume`, or choose
-`bun run docker:start` for an intentional reset.
+grace, verification, removal, and an additional shutdown buffer. When it reuses
+a stack that was already serving the app, it never starts that wrapper and the
+user-owned stack remains running. Resume an initialized stopped project with
+`bun run docker:resume`, or use `bun run docker:start` for an intentional reset.
 
-An explicitly supplied disposable database with `NEON_LOCAL_PROXY=false` uses
-`helpers/testing/host-e2e-webserver.sh`. That host wrapper starts or temporarily
+An explicitly supplied `E2E_USE_DOCKER_STACK=false` uses
+`helpers/testing/host-e2e-webserver.sh`. The caller owns its database. The host
+wrapper starts or temporarily
 resumes only the current worktree's MinIO container, initializes its bucket,
 and exports the same loopback S3 endpoint and credentials to the Angular server
 that receipt fixtures use. It restores a previously stopped MinIO container and
@@ -132,24 +115,12 @@ Compose teardown or mutates unrelated services or projects. Existing host app
 servers are not reused in this mode because their storage configuration cannot
 be proven after startup.
 
-`bun run docker:resume` rejects the default
-ephemeral `DELETE_BRANCH=true` mode because the branch is gone after the
-database stops. It inspects the existing database container rather than
-trusting current dotenv values, because retained containers keep the
-environment from their creation. Resume only when that container was created
-with an explicit existing `BRANCH_ID` or `DELETE_BRANCH=false`; otherwise start
-a fresh stack.
-
-Resume also verifies that the existing `db`, `minio`, `stripe`, and `evorto`
-containers are present and that the original `db-expiration`, `db-setup`, and
-`minio-init` containers completed successfully. It starts the retained database
-and MinIO container IDs directly, waits for both to become healthy, then starts
-Stripe and waits for its signing-secret-backed healthcheck before starting the
-app. It never invokes Compose
-startup dependency resolution or starts the one-shot services again, so a
-resume cannot create a replacement container and preserves the initialized
-schema, seed data, bucket, and branch-expiration state. If any container is
-missing or any one-shot setup failed, use `bun run docker:start` for an
+`bun run docker:resume` requires the existing `db`, `minio`, `mailpit`,
+`stripe`, `worker`, and `evorto` containers plus successful `db-setup` and
+`minio-init` containers. It starts retained container IDs directly, waits for
+database, object storage, email, and Stripe health, then starts worker and web.
+It never reruns schema reset/seeding or bucket initialization. If any container
+is missing or a one-shot setup failed, use `bun run docker:start` for an
 intentional fresh reset instead.
 
 Use `bun run docker:ps` to inspect the generated worktree Compose project; bare
@@ -183,7 +154,7 @@ app metadata claims, not tenant roles.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
-containers, including Neon Local, Auth0, Stripe, the app session secret, and
+containers, including Auth0, Stripe, the app session secret, and
 Font Awesome package registry access for premium and brand icons. It also
 reports local tooling readiness such as Bun, Docker Compose, Compose config
 validation, Playwright CLI availability, and whether the matching Playwright

@@ -39,7 +39,6 @@ const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 
 interface Fixture {
   readonly addOnId: string;
@@ -109,7 +108,6 @@ const makeLayer = (url: string) => {
       env: {
         BASE_URL: 'https://addon-purchase.example',
         DATABASE_URL: url,
-        NEON_LOCAL_PROXY: String(neonLocalProxy),
         NODE_ENV: 'test',
       },
     }),
@@ -437,7 +435,7 @@ describe('post-registration add-on purchase concurrency', () => {
   let pool: Pool;
 
   beforeAll(() => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
     layer = makeLayer(databaseUrl);
   });

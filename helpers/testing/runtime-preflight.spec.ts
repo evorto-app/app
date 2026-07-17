@@ -159,8 +159,12 @@ describe('evaluateRuntimePreflight', () => {
     expect(bunfig).toContain('url = "https://npm.fontawesome.com/"');
     expect(bunfig).toContain('token = "$FONT_AWESOME_TOKEN"');
     expect(dockerfile).toContain(
-      'FONT_AWESOME_TOKEN="$(cat /run/secrets/FONT_AWESOME_TOKEN)" bun install',
+      'export FONT_AWESOME_TOKEN="$(cat /run/secrets/FONT_AWESOME_TOKEN)"',
     );
+    expect(dockerfile).toContain(
+      'node ops/scaleway/prime-bun-fontawesome-cache.mjs',
+    );
+    expect(dockerfile).toContain('&& bun install --frozen-lockfile');
   });
 
   it('keeps premium and brand icon packages on the Font Awesome registry path', () => {
@@ -285,7 +289,7 @@ describe('evaluateRuntimePreflight', () => {
       "? 'bun run docker:webserver'\n    : 'bash helpers/testing/host-e2e-webserver.sh'",
     );
     expect(playwrightConfig).toContain(
-      'reuseExistingServer: environment.NEON_LOCAL_PROXY',
+      'reuseExistingServer: environment.E2E_USE_DOCKER_STACK',
     );
     expect(playwrightConfig).toMatch(
       /gracefulShutdown:\s*\{\s*signal:\s*'SIGTERM',\s*timeout:\s*300_000,?\s*\}/,
@@ -430,37 +434,27 @@ describe('evaluateRuntimePreflight', () => {
       'utf8',
     );
     const dbService = serviceBlock(composeFile, 'db');
-    const dbExpirationService = serviceBlock(composeFile, 'db-expiration');
     const dbSetupService = serviceBlock(composeFile, 'db-setup');
     const evortoService = serviceBlock(composeFile, 'evorto');
+    const mailpitService = serviceBlock(composeFile, 'mailpit');
     const stripeService = serviceBlock(composeFile, 'stripe');
-    const neonMetadataMount =
-      '- "${NEON_LOCAL_METADATA_DIR:-neon-local-metadata}:/tmp/.neon_local"';
+    const workerService = serviceBlock(composeFile, 'worker');
 
-    expect(dbService).toContain('NEON_API_KEY:');
-    expect(dbService).toContain('NEON_PROJECT_ID:');
-    expect(dbService).toContain('restart: "no"');
-    expect(dbService).toContain('stop_grace_period: 60s');
-    expect(dbService).not.toContain('restart: on-failure');
-    expect(dbService).toContain(neonMetadataMount);
-    expect(dbService).toContain(
-      'chown -R postgres:postgres /tmp/.neon_local && exec /usr/local/bin/startup.sh',
-    );
-    expect(dbExpirationService).toContain(neonMetadataMount);
-    expect(dbExpirationService).toContain(
-      'bun helpers/testing/set-neon-local-branch-expiration.ts',
-    );
-    expect(dbExpirationService).not.toContain('|| true');
-    expect(composeFile).toContain('\n  neon-local-metadata:\n');
-    expect(composeFile).not.toContain(
-      '${NEON_LOCAL_METADATA_DIR:-./.neon_local}',
-    );
+    expect(dbService).toContain('postgres:17.10-alpine@sha256:');
+    expect(dbService).toContain('restart: unless-stopped');
+    expect(dbService).toContain('postgres-data:/var/lib/postgresql/data');
+    expect(dbService).toContain('POSTGRES_HOST_PORT');
+    expect(dbService).toContain('pg_isready');
+    expect(composeFile).not.toMatch(/NEON_|Neon Local|neon-local/u);
 
     expect(dbSetupService).toContain('secrets:');
     expect(dbSetupService).toContain('- FONT_AWESOME_TOKEN');
     expect(dbSetupService).toContain('E2E_NOW_ISO:');
     expect(dbSetupService).toContain('E2E_SEED_KEY:');
     expect(dbSetupService).toContain('STRIPE_TEST_ACCOUNT_ID:');
+    expect(dbSetupService).toContain(
+      'LOCAL_DATABASE_CONFIRM_RESET: evorto-local-reset',
+    );
     expect(dbSetupService).toContain('bun helpers/reset-database-schema.ts');
     expect(dbSetupService).toContain(
       'bun ./node_modules/drizzle-kit/bin.cjs push --force',
@@ -495,6 +489,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).toContain(
       'S3_PUBLIC_ENDPOINT: "http://localhost:${MINIO_HOST_PORT:-9000}"',
     );
+    expect(composeFile).toContain(
+      'MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:${APP_HOST_PORT:-4200}"',
+    );
     expect(evortoService).toContain(
       'S3_ACCESS_KEY_ID: "${MINIO_ROOT_USER:-minioadmin}"',
     );
@@ -511,6 +508,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).toContain('E2E_RUNTIME_MODE:');
     expect(evortoService).not.toContain('E2E_RUNTIME_MODE: "playwright"');
     expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
+    expect(evortoService).toContain('APP_ROLE: web');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
     );
@@ -522,6 +520,16 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).toContain('sleep 2');
     expect(evortoService).toContain(
       'kill -TERM "$$tee_pid" 2>/dev/null || true',
+    );
+
+    expect(mailpitService).toContain('axllent/mailpit:v1.28.2@sha256:');
+    expect(mailpitService).toContain('MAILPIT_HOST_PORT');
+    expect(mailpitService).toContain('mailpit-data:/data');
+    expect(workerService).toContain('APP_ROLE: worker');
+    expect(workerService).toContain('WORKER_TRIGGER_MODE: poll');
+    expect(workerService).toContain('EMAIL_DELIVERY_PROVIDER: mailpit');
+    expect(workerService).toContain(
+      'MAILPIT_API_URL: http://mailpit:8025/api/v1/send',
     );
 
     expect(stripeService).toContain('STRIPE_API_KEY:');
@@ -593,7 +601,6 @@ describe('evaluateRuntimePreflight', () => {
       env: {
         CLIENT_ID: 'client-id',
         ISSUER_BASE_URL: 'issuer',
-        NEON_PROJECT_ID: 'project-id',
         SECRET: 'secret',
       },
       fileExists: (filePath) => filePath !== '/repo/.env.dev',
@@ -605,7 +612,6 @@ describe('evaluateRuntimePreflight', () => {
       expect.arrayContaining([
         expect.objectContaining({
           details: expect.arrayContaining([
-            'NEON_API_KEY: Neon Local branch creation',
             'CLIENT_SECRET: Auth0 application secret',
             'FONT_AWESOME_TOKEN: Font Awesome package registry access for premium and brand icons',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
@@ -618,7 +624,6 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'CLIENT_ID: Auth0 application id',
             'ISSUER_BASE_URL: Auth0 issuer URL',
-            'NEON_PROJECT_ID: Neon Local project selection',
             'SECRET: Application session secret',
           ]),
           label: 'Available docker runtime variables',

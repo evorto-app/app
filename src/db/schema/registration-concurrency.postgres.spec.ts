@@ -52,7 +52,6 @@ const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 
 interface CapturedStripeRequest {
   readonly idempotencyKey: string;
@@ -268,8 +267,6 @@ const makeConfigLayer = (url: string) =>
         ['CLIENT_SECRET', 'client-secret'],
         ['DATABASE_URL', url],
         ['ISSUER_BASE_URL', 'https://issuer.example'],
-        ['NEON_LOCAL_PROXY', String(neonLocalProxy)],
-        ['RESEND_API_KEY', 're_test_concurrency'],
         ['SECRET', 'test-secret'],
       ]),
     }),
@@ -766,7 +763,7 @@ describe('database registration concurrency invariants', () => {
   let pool: Pool;
 
   beforeAll(() => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
   });
 
@@ -1068,7 +1065,7 @@ describe('paid manual approval concurrency', () => {
   let pool: Pool;
 
   beforeAll(() => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
   });
 
@@ -1302,7 +1299,7 @@ describe('direct paid registration concurrency', () => {
   let pool: Pool;
 
   beforeAll(() => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
   });
 

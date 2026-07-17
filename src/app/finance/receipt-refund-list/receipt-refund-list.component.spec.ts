@@ -19,7 +19,7 @@ describe('isSafeReceiptPreviewUrl', () => {
     expect(isSafeReceiptPreviewUrl('/receipt-preview/file.pdf')).toBe(true);
     expect(
       isSafeReceiptPreviewUrl(
-        'https://receipt-bucket.s3.amazonaws.com/signed/file.pdf?token=abc',
+        'https://receipt-bucket.s3.fr-par.scw.cloud/signed/file.pdf?token=abc',
       ),
     ).toBe(true);
     expect(isSafeReceiptPreviewUrl('http://localhost:9000/receipt.pdf')).toBe(
@@ -37,6 +37,9 @@ describe('isSafeReceiptPreviewUrl', () => {
     expect(isSafeReceiptPreviewUrl('https://evil.example.test/receipt')).toBe(
       false,
     );
+    expect(
+      isSafeReceiptPreviewUrl('https://objects.example.test/receipt.pdf'),
+    ).toBe(false);
   });
 });
 

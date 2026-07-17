@@ -6,8 +6,9 @@ import {
   it,
   vi,
 } from '@effect/vitest';
-import { ConfigProvider, Effect } from 'effect';
+import { ConfigProvider, Effect, Layer } from 'effect';
 
+import { ObjectStorage } from '../integrations/object-storage';
 import { handleTenantBrandAssetWebRequest } from './tenant-brand-asset.web-handler';
 
 const runtimeGlobal = globalThis as typeof globalThis & {
@@ -49,6 +50,9 @@ const objectStorageProviderLayer = ConfigProvider.layer(
     ]),
   }),
 );
+const objectStorageLayer = ObjectStorage.Default.pipe(
+  Layer.provide(objectStorageProviderLayer),
+);
 
 afterEach(() => {
   if (originalBunRuntime) {
@@ -78,7 +82,7 @@ describe('handleTenantBrandAssetWebRequest', () => {
         fileName: 'logo.png',
         kind: 'logo',
         tenantId: 'tenant-1',
-      }).pipe(Effect.provide(objectStorageProviderLayer));
+      }).pipe(Effect.provide(objectStorageLayer));
 
       expect(response.status).toBe(200);
       expect(response.headers.get('Content-Type')).toBe('image/png');
@@ -94,7 +98,7 @@ describe('handleTenantBrandAssetWebRequest', () => {
         fileName: 'logo.svg',
         kind: 'logo',
         tenantId: 'tenant-1',
-      }).pipe(Effect.provide(objectStorageProviderLayer));
+      }).pipe(Effect.provide(objectStorageLayer));
 
       expect(response.status).toBe(404);
     }),
@@ -120,7 +124,7 @@ describe('handleTenantBrandAssetWebRequest', () => {
         fileName: 'logo.png',
         kind: 'logo',
         tenantId: 'tenant-1',
-      }).pipe(Effect.provide(objectStorageProviderLayer));
+      }).pipe(Effect.provide(objectStorageLayer));
 
       expect(response.status).toBe(404);
     }),

@@ -33,7 +33,6 @@ const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 
 interface TenantBoundaryFixture {
   categoryIds: readonly [string, string];
@@ -216,7 +215,7 @@ describe('tenant boundary constraints in PostgreSQL', () => {
   let pool: Pool;
 
   beforeAll(async () => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
     await seedFixture(database, fixture);
   });

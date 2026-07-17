@@ -73,7 +73,7 @@
               "msgpackr-extract",
               "node-domexception"
             ],
-            "externalDependencies": ["@sentry/profiling-node", "skia-canvas"],
+            "externalDependencies": ["skia-canvas"],
             "security": {
               "allowedHosts": [
                 "localhost",

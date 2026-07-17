@@ -392,8 +392,8 @@ export async function addRegistrations(
     }
   }
 
-  // Execute writes without an explicit transaction because Neon Local's fetch
-  // transport under Bun can require websocket-only transaction paths. A failed
+  // Execute writes without an explicit transaction so the deterministic seed
+  // path stays compatible with the shared script database client. A failed
   // write must still reject the seed so db:reset cannot report partial data as
   // a successful setup.
   if (registrations.length > 0) {

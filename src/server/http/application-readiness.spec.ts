@@ -41,11 +41,19 @@ describe('application readiness', () => {
       expect(request.headers.get('accept')).toBe('text/html');
       expect(request.headers.has('authorization')).toBe(false);
       expect(request.headers.has('cookie')).toBe(false);
-      expect(request.headers.get('x-forwarded-host')).toBe(
-        'tenant.forwarded.example.test',
-      );
+      expect(request.headers.has('x-forwarded-host')).toBe(false);
     },
   );
+
+  it('uses the configured tenant host instead of the probe hostname', () => {
+    const request = createApplicationReadinessSsrRequest(
+      new Request('https://generated.functions.fnc.fr-par.scw.cloud/readyz'),
+      'staging.evorto.app',
+    );
+
+    expect(request.url).toBe('https://staging.evorto.app/events');
+    expect(request.headers.get('host')).toBe('staging.evorto.app');
+  });
 
   it('returns the one exact success status for the expected SSR document', async () => {
     const response =

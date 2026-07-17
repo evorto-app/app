@@ -4,7 +4,12 @@ import type { ReactElement } from 'react';
 import { Database } from '@db/index';
 import { emailOutbox as emailOutboxTable } from '@db/schema';
 import { render } from '@react-email/render';
-import { serverEmailConfig } from '@server/config/server-config';
+import {
+  EmailDelivery,
+  type EmailDeliveryError,
+  EmailDeliveryRetryableError,
+  TRANSACTIONAL_EMAIL_SENDER,
+} from '@server/integrations/email-delivery';
 import { asc, sql } from 'drizzle-orm';
 import { Cause, Duration, Effect, Schema } from 'effect';
 
@@ -83,9 +88,6 @@ export interface EnqueueWaitlistSpotAvailableEmailInput {
   waitlistRegistrationId: string;
 }
 
-type EmailDeliveryFailure =
-  EmailDeliveryExternalError | EmailDeliveryRequestError;
-
 interface EmailOutboxClaim {
   claimLeaseId: string;
   row: EmailOutboxRow;
@@ -112,23 +114,6 @@ interface TenantEmailSender {
   name: string;
 }
 
-class EmailDeliveryExternalError extends Schema.TaggedErrorClass<EmailDeliveryExternalError>()(
-  'EmailDeliveryExternalError',
-  {
-    cause: Schema.Defect(),
-    message: Schema.String,
-    retryable: Schema.Boolean,
-  },
-) {}
-
-class EmailDeliveryRequestError extends Schema.TaggedErrorClass<EmailDeliveryRequestError>()(
-  'EmailDeliveryRequestError',
-  {
-    message: Schema.String,
-    retryable: Schema.Boolean,
-  },
-) {}
-
 class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRenderError>()(
   'EmailTemplateRenderError',
   {
@@ -138,12 +123,9 @@ class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRend
 ) {}
 
 const defaultEmailSender = {
-  email: 'no-reply@notifications.esn.world',
-  name: 'ESN.WORLD',
+  email: TRANSACTIONAL_EMAIL_SENDER.email,
+  name: TRANSACTIONAL_EMAIL_SENDER.name,
 } satisfies TenantEmailSender;
-
-const formatSender = ({ email, name }: TenantEmailSender): string =>
-  `${name.replaceAll('"', '').trim()} <${email}>`;
 
 const tenantReplyTo = (
   tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'name'>,
@@ -340,83 +322,28 @@ export const enqueueRegistrationTransferredEmail = (
 const retryDelayMs = (attempts: number): number =>
   Math.min(30 * 60 * 1000, 1000 * 2 ** Math.max(0, attempts - 1));
 
-const isRetryableResendStatus = (status: number): boolean =>
-  status === 429 || status >= 500;
-
-const errorMessageFromUnknown = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 const sendOutboxRow = Effect.fn('sendOutboxRow')(function* (
   row: EmailOutboxRow,
 ) {
-  const emailConfig = yield* serverEmailConfig.pipe(
-    Effect.mapError(
-      (cause) =>
-        new EmailDeliveryExternalError({
-          cause,
-          message: errorMessageFromUnknown(cause),
-          retryable: true,
-        }),
-    ),
-  );
-  const body = {
-    from: formatSender({ email: row.fromEmail, name: row.fromName }),
+  return yield* EmailDelivery.deliver({
     html: row.html,
-    ...(row.replyToEmail && {
-      reply_to: formatSender({
-        email: row.replyToEmail,
-        name: row.replyToName ?? row.replyToEmail,
-      }),
-    }),
+    idempotencyKey: row.idempotencyKey,
+    replyTo: row.replyToEmail
+      ? {
+          email: row.replyToEmail,
+          name: row.replyToName ?? row.replyToEmail,
+        }
+      : null,
     subject: row.subject,
     text: row.text,
     to: row.toEmail,
-  };
-
-  const response = yield* Effect.tryPromise({
-    catch: (cause) =>
-      new EmailDeliveryExternalError({
-        cause,
-        message: errorMessageFromUnknown(cause),
-        retryable: true,
-      }),
-    try: (signal) =>
-      fetch('https://api.resend.com/emails', {
-        body: JSON.stringify(body),
-        headers: {
-          Authorization: `Bearer ${emailConfig.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-          'Idempotency-Key': row.idempotencyKey,
-        },
-        method: 'POST',
-        signal,
-      }),
   });
-
-  if (!response.ok) {
-    return yield* Effect.fail(
-      new EmailDeliveryRequestError({
-        message: `Resend email request failed: ${response.status}`,
-        retryable: isRetryableResendStatus(response.status),
-      }),
-    );
-  }
-
-  const responseBody: unknown = yield* Effect.tryPromise(() =>
-    response.json(),
-  ).pipe(Effect.catch(() => Effect.succeed(null)));
-
-  return responseBody &&
-    typeof responseBody === 'object' &&
-    'id' in responseBody &&
-    typeof responseBody.id === 'string'
-    ? responseBody.id
-    : null;
 });
 
 const markOutboxRowSent = Effect.fn('markOutboxRowSent')(function* (
   claim: EmailOutboxClaim,
-  resendEmailId: null | string,
+  provider: 'fake' | 'mailpit' | 'tem',
+  providerMessageId: string,
 ) {
   const updatedRows = yield* Database.use((database) =>
     database
@@ -425,7 +352,8 @@ const markOutboxRowSent = Effect.fn('markOutboxRowSent')(function* (
         claimLeaseExpiresAt: null,
         claimLeaseId: null,
         lastError: null,
-        resendEmailId,
+        provider,
+        providerMessageId,
         sentAt: new Date(),
         status: 'sent',
       })
@@ -437,10 +365,14 @@ const markOutboxRowSent = Effect.fn('markOutboxRowSent')(function* (
 
 const markOutboxRowFailed = Effect.fn('markOutboxRowFailed')(function* (
   claim: EmailOutboxClaim,
-  failure: EmailDeliveryFailure,
+  failure: Exclude<
+    EmailDeliveryError,
+    { readonly _tag: 'EmailDeliveryUnknownError' }
+  >,
 ) {
   const exhausted =
-    !failure.retryable || claim.row.attempts >= claim.row.maxAttempts;
+    !(failure instanceof EmailDeliveryRetryableError) ||
+    claim.row.attempts >= claim.row.maxAttempts;
   const nextAttemptAt = exhausted
     ? new Date()
     : new Date(Date.now() + retryDelayMs(claim.row.attempts));
@@ -454,6 +386,54 @@ const markOutboxRowFailed = Effect.fn('markOutboxRowFailed')(function* (
         lastError: failure.message,
         nextAttemptAt,
         status: exhausted ? 'failed' : 'queued',
+      })
+      .where(emailOutboxOwnedClaimPredicate(claim.row.id, claim.claimLeaseId))
+      .returning({ id: emailOutboxTable.id }),
+  );
+  return updatedRows.length > 0;
+});
+
+const markOutboxRowDeliveryUnknown = Effect.fn('markOutboxRowDeliveryUnknown')(
+  function* (
+    claim: EmailOutboxClaim,
+    failure: Extract<
+      EmailDeliveryError,
+      { readonly _tag: 'EmailDeliveryUnknownError' }
+    >,
+  ) {
+    const updatedRows = yield* Database.use((database) =>
+      database
+        .update(emailOutboxTable)
+        .set({
+          claimLeaseExpiresAt: null,
+          claimLeaseId: null,
+          deliveryUnknownAt: new Date(),
+          lastError: failure.message,
+          provider: failure.provider,
+          status: 'deliveryUnknown',
+        })
+        .where(emailOutboxOwnedClaimPredicate(claim.row.id, claim.claimLeaseId))
+        .returning({ id: emailOutboxTable.id }),
+    );
+    return updatedRows.length > 0;
+  },
+);
+
+const markOutboxRowSuppressed = Effect.fn('markOutboxRowSuppressed')(function* (
+  claim: EmailOutboxClaim,
+  provider: 'fake' | 'mailpit' | 'tem',
+  reason: string,
+) {
+  const updatedRows = yield* Database.use((database) =>
+    database
+      .update(emailOutboxTable)
+      .set({
+        claimLeaseExpiresAt: null,
+        claimLeaseId: null,
+        lastError: reason,
+        provider,
+        status: 'suppressed',
+        suppressedAt: new Date(),
       })
       .where(emailOutboxOwnedClaimPredicate(claim.row.id, claim.claimLeaseId))
       .returning({ id: emailOutboxTable.id }),
@@ -499,23 +479,38 @@ export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
       }
       processedRows += 1;
 
-      const delivery = yield* sendOutboxRow(claimedRow.row).pipe(
-        Effect.map((resendEmailId) => ({
-          _tag: 'Sent' as const,
-          resendEmailId,
+      const attempt = yield* sendOutboxRow(claimedRow.row).pipe(
+        Effect.map((delivery) => ({
+          _tag: 'Delivery' as const,
+          delivery,
         })),
         Effect.catch((error) =>
           Effect.succeed({
-            _tag: 'Failed' as const,
-            failure: error,
+            _tag: 'Failure' as const,
+            error,
           }),
         ),
       );
 
-      const settled =
-        delivery._tag === 'Sent'
-          ? yield* markOutboxRowSent(claimedRow, delivery.resendEmailId)
-          : yield* markOutboxRowFailed(claimedRow, delivery.failure);
+      const settled = yield* Effect.gen(function* () {
+        if (attempt._tag === 'Failure') {
+          return attempt.error._tag === 'EmailDeliveryUnknownError'
+            ? yield* markOutboxRowDeliveryUnknown(claimedRow, attempt.error)
+            : yield* markOutboxRowFailed(claimedRow, attempt.error);
+        }
+        if (attempt.delivery._tag === 'Suppressed') {
+          return yield* markOutboxRowSuppressed(
+            claimedRow,
+            attempt.delivery.provider,
+            attempt.delivery.reason,
+          );
+        }
+        return yield* markOutboxRowSent(
+          claimedRow,
+          attempt.delivery.provider,
+          attempt.delivery.providerMessageId,
+        );
+      });
       if (!settled) {
         yield* Effect.logWarning(
           'Email outbox claim was reclaimed before delivery settled',

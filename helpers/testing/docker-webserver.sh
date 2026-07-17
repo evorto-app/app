@@ -16,7 +16,6 @@ readonly wall_clock_timeout_script
 
 ensure_disposable_project() {
   local db_container_id
-  local inspect_status
   local project_status
 
   db_container_id="$(docker compose ps --all -q db)"
@@ -30,41 +29,10 @@ ensure_disposable_project() {
   if [[ -z "${db_container_id}" ]]; then
     return 0
   fi
-
-  local container_environment
-  container_environment="$(
-    docker inspect \
-      --format '{{range .Config.Env}}{{println .}}{{end}}' \
-      "${db_container_id}"
-  )"
-  inspect_status="$?"
-  if [[ "${inspect_status}" -ne 0 ]]; then
-    printf 'Unable to inspect the existing Docker database container (status %s).\n' \
-      "${inspect_status}" >&2
-    return "${inspect_status}"
-  fi
-
-  local container_branch_id
-  local container_delete_branch
-  container_branch_id="$(
-    printf '%s\n' "${container_environment}" | sed -n 's/^BRANCH_ID=//p'
-  )"
-  container_branch_id="${container_branch_id//[[:space:]]/}"
-  container_delete_branch="$(
-    printf '%s\n' "${container_environment}" |
-      sed -n 's/^DELETE_BRANCH=//p' |
-      tr '[:upper:]' '[:lower:]' |
-      tr -d '[:space:]'
-  )"
-
-  if [[ -n "${container_branch_id}" || "${container_delete_branch:-true}" == 'false' ]]; then
-    printf '%s\n' \
-      'Refusing disposable Playwright ownership of an existing persistent Docker stack. Resume it with bun run docker:resume, or intentionally reset it with bun run docker:start.' \
-      >&2
-    return 3
-  fi
-
-  return 0
+  printf '%s\n' \
+    'Refusing disposable Playwright ownership because this project already has a PostgreSQL container. Resume it with bun run docker:resume, or intentionally reset it with bun run docker:start.' \
+    >&2
+  return 3
 }
 
 verify_project_removed() {

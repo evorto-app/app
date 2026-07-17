@@ -3,7 +3,7 @@ import type { AdminTenantBrandAssetKind } from '@shared/rpc-contracts/app-rpcs/a
 import { RpcInternalServerError } from '@shared/errors/rpc-errors';
 import { Effect } from 'effect';
 
-import { getObjectFromR2 } from '../integrations/cloudflare-r2';
+import { ObjectStorage } from '../integrations/object-storage';
 import {
   tenantBrandAssetContentTypeFromFileName,
   tenantBrandAssetStorageKey,
@@ -49,7 +49,7 @@ export const handleTenantBrandAssetWebRequest = (input: {
       kind: input.kind,
       tenantId: input.tenantId,
     });
-    const body = yield* getObjectFromR2({ key: storageKey }).pipe(
+    const body = yield* ObjectStorage.get(storageKey).pipe(
       Effect.catchIf(isObjectNotFoundError, () => Effect.succeed(null)),
       Effect.mapError(
         (cause) =>

@@ -12,6 +12,7 @@ import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
 import {
+  RpcBadRequestError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
@@ -251,24 +252,44 @@ export const FinanceReceiptsSubmit = asRpcMutation(
   }),
 );
 
-export const FinanceReceiptMediaUploadOriginal = asRpcMutation(
-  Rpc.make('finance.receiptMedia.uploadOriginal', {
-    error: Schema.Union([
-      ReceiptMediaBadRequestError,
-      ReceiptMediaInternalError,
-      ReceiptMediaServiceUnavailableError,
-      FinanceResourceNotFoundError,
-      RpcForbiddenError,
-      RpcUnauthorizedError,
-    ]),
+const FinanceReceiptMediaError = Schema.Union([
+  RpcBadRequestError,
+  ReceiptMediaBadRequestError,
+  ReceiptMediaInternalError,
+  ReceiptMediaServiceUnavailableError,
+  FinanceResourceNotFoundError,
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+]);
+
+export const FinanceReceiptMediaCreateUpload = asRpcMutation(
+  Rpc.make('finance.receiptMedia.createUpload', {
+    error: FinanceReceiptMediaError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
-      fileBase64: Schema.NonEmptyString,
       fileName: Schema.NonEmptyString,
-      fileSizeBytes: positiveNumber,
       mimeType: Schema.NonEmptyString,
+      sizeBytes: positiveNumber,
     }),
     success: Schema.Struct({
+      expiresAt: Schema.NonEmptyString,
+      fields: Schema.Record(Schema.String, Schema.String),
+      uploadId: Schema.NonEmptyString,
+      url: Schema.NonEmptyString,
+    }),
+  }),
+);
+
+export const FinanceReceiptMediaFinalizeUpload = asRpcMutation(
+  Rpc.make('finance.receiptMedia.finalizeUpload', {
+    error: FinanceReceiptMediaError,
+    payload: Schema.Struct({
+      uploadId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      fileName: Schema.NonEmptyString,
+      mimeType: Schema.NonEmptyString,
+      sizeBytes: positiveNumber,
       uploadId: Schema.NonEmptyString,
     }),
   }),
@@ -304,7 +325,8 @@ export const FinanceTransactionsFindMany = asRpcQuery(
 );
 
 export class FinanceRpcs extends RpcGroup.make(
-  FinanceReceiptMediaUploadOriginal,
+  FinanceReceiptMediaCreateUpload,
+  FinanceReceiptMediaFinalizeUpload,
   FinanceReceiptsByEvent,
   FinanceReceiptsCreateRefund,
   FinanceReceiptsFindOneForApproval,

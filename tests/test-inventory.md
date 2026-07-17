@@ -586,7 +586,8 @@ and the release-gated live ESNcard provider credential path.
     endpoint while requiring the exact tenant/event/user-bound bucket-key
     suffix. Database rows are deleted in-test, while volume-less MinIO test
     objects are discarded with the Compose container instead of risking a
-    cleanup request against a developer-configured or remote R2 endpoint.
+    cleanup request against a developer-configured remote object-storage
+    endpoint.
   - Keep paid-registration webhook counter coverage aligned with buyer-plus-guest
     spot counts. Local shared coverage pins the capacity count helper used by
     webhook completion/expiry updates; Stripe replay specs remain

@@ -380,6 +380,8 @@ describe('platform tenant finance handlers', () => {
               }),
               Layer.succeed(Database, database as never),
               Layer.succeed(ReceiptMediaService, {
+                createUploadPolicy: () =>
+                  Effect.dieMessage('Unexpected receipt upload'),
                 objectExists: () => Effect.succeed(true),
                 signedPreviewUrl: () =>
                   Effect.fail(
@@ -387,8 +389,6 @@ describe('platform tenant finance handlers', () => {
                       message: 'Receipt storage is unavailable',
                     }),
                   ),
-                uploadOriginal: () =>
-                  Effect.dieMessage('Unexpected receipt upload'),
               }),
             ),
           ),

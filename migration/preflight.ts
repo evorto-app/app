@@ -1,7 +1,6 @@
 import { count, eq, or } from 'drizzle-orm';
 
 import * as oldSchema from '../old/drizzle';
-import { oldDatabase } from './migrator-database';
 
 export interface UnsupportedLegacyHistoryCounts {
   readonly collectedFees: number;
@@ -38,6 +37,10 @@ export const preflightLegacyTenant = async (tenant: {
   readonly id: string;
   readonly shortName: string;
 }) => {
+  // Keep the pure preflight policy importable without legacy credentials.
+  // The best-effort migration database is required only when the operator
+  // actually runs a tenant preflight.
+  const { oldDatabase } = await import('./migrator-database');
   const registrationRows = await oldDatabase
     .select({ count: count() })
     .from(oldSchema.eventRegistration)

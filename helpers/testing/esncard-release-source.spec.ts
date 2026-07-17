@@ -21,8 +21,6 @@ const requiredCertificationSecrets = [
   'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER',
   'E2E_LIVE_ESN_CARD_IDENTIFIER',
   'FONT_AWESOME_TOKEN',
-  'NEON_API_KEY',
-  'PARENT_BRANCH_ID',
   'PUBLIC_GOOGLE_MAPS_API_KEY',
   'SECRET',
   'STRIPE_TEST_API_KEY',
@@ -116,7 +114,7 @@ describe('production provider certification source', () => {
         `${secretName}: \${{ secrets.${secretName} }}`,
       );
     }
-    for (const secretName of ['FONT_AWESOME_TOKEN', 'NEON_API_KEY']) {
+    for (const secretName of ['FONT_AWESOME_TOKEN']) {
       expect(playwrightStep).toContain(
         `${secretName}: \${{ secrets.${secretName} }}`,
       );
@@ -277,7 +275,7 @@ describe('production provider certification source', () => {
       expect(integrationStepSource).toContain(mapping);
       expect(liveStepSource).toContain(mapping);
     }
-    for (const secretName of ['FONT_AWESOME_TOKEN', 'NEON_API_KEY']) {
+    for (const secretName of ['FONT_AWESOME_TOKEN']) {
       expect(integrationStepSource).toContain(
         `${secretName}: \${{ secrets.${secretName} }}`,
       );

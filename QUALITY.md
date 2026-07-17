@@ -278,10 +278,11 @@ on exit or shutdown. When `reuseExistingServer` finds a running app, Playwright
 does not own that stack and leaves it running. A final gate must not trust an
 unknown reused server: stop it and let the gate start a fresh stack, or start
 the exact checkout being pushed and verify that provenance explicitly.
-`/readyz` proves behavior, not commit identity. Do not resume the default
-ephemeral Neon Local stack after it stops; start fresh unless an explicit
-existing `BRANCH_ID` or `DELETE_BRANCH=false` made the existing database
-container's branch persistent when that container was created.
+`/readyz` proves behavior, not commit identity. `docker:resume` is valid only
+for an already initialized plain PostgreSQL/MinIO/Mailpit/Stripe/web/worker
+Compose project whose one-shot database and bucket setup completed
+successfully. Use `docker:start` for an intentional schema reset and reseed;
+the disposable Playwright-owned stack removes its project volumes on exit.
 
 For a typical change, before finishing:
 

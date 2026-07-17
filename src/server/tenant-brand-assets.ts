@@ -7,7 +7,7 @@ import {
 import { Effect } from 'effect';
 import { randomUUID } from 'node:crypto';
 
-import { uploadObjectToR2 } from './integrations/cloudflare-r2';
+import { ObjectStorage } from './integrations/object-storage';
 
 const MAX_TENANT_BRAND_ASSET_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -131,7 +131,7 @@ export const uploadTenantBrandAsset = (input: {
       tenantId: input.tenantId,
     });
 
-    yield* uploadObjectToR2({
+    yield* ObjectStorage.put({
       body,
       contentType: input.mimeType,
       key: storageKey,

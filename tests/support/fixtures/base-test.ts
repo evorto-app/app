@@ -74,12 +74,7 @@ interface BaseFixtures {
 
 export const test = base.extend<BaseFixtures>({
   database: async ({}, use) => {
-    const pool = new Pool(
-      createNodePgPoolConfig({
-        databaseUrl,
-        neonLocalProxy: environment.NEON_LOCAL_PROXY,
-      }),
-    );
+    const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     const database = drizzle({
       client: pool,
       relations,

@@ -28,7 +28,6 @@ const integrationEnvironment = await resolvePostgresIntegrationEnvironment();
 const pool = new Pool(
   createNodePgPoolConfig({
     databaseUrl: integrationEnvironment.databaseUrl,
-    neonLocalProxy: integrationEnvironment.neonLocalProxy,
   }),
 );
 
@@ -54,7 +53,6 @@ await resetPublicSchema(integrationEnvironment);
 
 const childEnvironment = {
   DATABASE_URL: integrationEnvironment.databaseUrl,
-  NEON_LOCAL_PROXY: 'false',
 };
 await runCommand(
   ['bunx', '--bun', 'drizzle-kit', 'push', '--force'],

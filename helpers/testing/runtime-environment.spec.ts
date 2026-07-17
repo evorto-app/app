@@ -13,11 +13,15 @@ describe('runtime environment ports', () => {
     for (const seed of seeds) {
       const ports = resolveRuntimePorts(seed, {});
 
-      expect(new Set(Object.values(ports)).size, seed).toBe(4);
+      expect(new Set(Object.values(ports)).size, seed).toBe(5);
+      expect(ports.mailpitHostPort, seed).toBeGreaterThanOrEqual(8025);
+      expect(ports.mailpitHostPort, seed).toBeLessThan(8425);
       expect(ports.minioHostPort, seed).toBeGreaterThanOrEqual(9000);
       expect(ports.minioHostPort, seed).toBeLessThan(9400);
       expect(ports.minioConsoleHostPort, seed).toBeGreaterThanOrEqual(9400);
       expect(ports.minioConsoleHostPort, seed).toBeLessThan(9800);
+      expect(ports.postgresHostPort, seed).toBeGreaterThanOrEqual(55_432);
+      expect(ports.postgresHostPort, seed).toBeLessThan(55_832);
     }
   });
 
@@ -25,15 +29,17 @@ describe('runtime environment ports', () => {
     expect(
       resolveRuntimePorts('explicit-overrides', {
         APP_HOST_PORT: '4300',
+        MAILPIT_HOST_PORT: '8200',
         MINIO_CONSOLE_HOST_PORT: '9800',
         MINIO_HOST_PORT: '9300',
-        NEON_LOCAL_HOST_PORT: '56000',
+        POSTGRES_HOST_PORT: '56000',
       }),
     ).toEqual({
       appHostPort: 4300,
+      mailpitHostPort: 8200,
       minioConsoleHostPort: 9800,
       minioHostPort: 9300,
-      neonLocalHostPort: 56_000,
+      postgresHostPort: 56_000,
     });
   });
 

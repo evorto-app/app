@@ -114,6 +114,8 @@ export const GlobalAdminEmailOutboxStatus = literalUnion(
   'sending',
   'sent',
   'failed',
+  'deliveryUnknown',
+  'suppressed',
 );
 
 export const GlobalAdminEmailOutboxKinds = [
@@ -136,6 +138,7 @@ export type GlobalAdminEmailOutboxKind = Schema.Schema.Type<
 export const GlobalAdminEmailOutboxRecord = Schema.Struct({
   attempts: Schema.Number,
   createdAt: Schema.NonEmptyString,
+  deliveryUnknownAt: Schema.NullOr(Schema.NonEmptyString),
   exhaustedAt: Schema.NullOr(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   kind: GlobalAdminEmailOutboxKind,
@@ -143,10 +146,13 @@ export const GlobalAdminEmailOutboxRecord = Schema.Struct({
   lastError: Schema.NullOr(Schema.String),
   maxAttempts: Schema.Number,
   nextAttemptAt: Schema.NonEmptyString,
+  provider: Schema.NullOr(literalUnion('fake', 'mailpit', 'tem')),
+  providerMessageId: Schema.NullOr(Schema.NonEmptyString),
   recipient: Schema.NonEmptyString,
   sentAt: Schema.NullOr(Schema.NonEmptyString),
   status: GlobalAdminEmailOutboxStatus,
   subject: Schema.NonEmptyString,
+  suppressedAt: Schema.NullOr(Schema.NonEmptyString),
   tenantDomain: Schema.NonEmptyString,
   tenantId: Schema.NonEmptyString,
   tenantName: Schema.NonEmptyString,
@@ -157,12 +163,14 @@ export const GlobalAdminEmailOutboxRecord = Schema.Struct({
 export const GlobalAdminEmailOutboxOverview = Schema.Struct({
   items: Schema.Array(GlobalAdminEmailOutboxRecord),
   summary: Schema.Struct({
+    deliveryUnknown: Schema.Number,
     exhausted: Schema.Number,
     failed: Schema.Number,
     queued: Schema.Number,
     sending: Schema.Number,
     sent: Schema.Number,
     staleSending: Schema.Number,
+    suppressed: Schema.Number,
     waitingForRetry: Schema.Number,
   }),
 });

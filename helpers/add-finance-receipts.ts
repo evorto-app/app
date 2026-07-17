@@ -77,6 +77,7 @@ export const addFinanceReceipts = async (
     ...upload,
     consumedAt: now,
     mimeType: 'application/pdf',
+    status: 'consumed' as const,
     storageUrl: 'local-unavailable://receipt',
     tenantId: options.tenantId,
     uploadedAt: now,

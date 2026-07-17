@@ -1,17 +1,22 @@
 # Application Production-Readiness Compliance Ledger
 
-Ledger updated: 2026-07-16
+Ledger updated: 2026-07-17
 
-Unified implementation baseline: `codex/production-readiness-compliance` at
+Last fully validated functional baseline: `codex/production-readiness-compliance` at
 `77b5825492112f89f8a32d99400cf9c2a0563136`
+
+Current Scaleway migration candidate: this branch's ledger-bearing working tree.
+Its exact commit and complete zero-incomplete-outcome gate are recorded only
+after the migration changes are committed and rerun; the historical counts below
+must not be attributed to the uncommitted migration candidate.
 
 `origin/main` at that validation point:
 `ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73`
 (`0` commits behind)
 
-A fresh fetch at the start of consolidation confirmed that this branch was `0`
+A fresh fetch at the start of migration implementation confirmed that this branch was `0`
 commits behind `origin/main` at
-`ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73`. The implementation baseline
+`ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73`. The last fully validated baseline
 contains sealed fixed-bundle transfer pricing, composite ownership constraints,
 exact Stripe refund identity validation, fail-closed legacy-import preflight,
 tenant-safe UI state, settled discount-provider save gates, env-key-only
@@ -25,8 +30,10 @@ Playwright tests. All recorded suites have zero skips, todos, fixmes, expected
 failures, retries, flakes, focused tests, interrupted tests, or other incomplete
 outcomes. Formatting, lint, the production build, and 19/19 Docker lifecycle
 tests also pass. Every Docker-backed run left zero project-labeled containers,
-networks, and volumes. The documentation-only audit consolidation commit after
-this baseline does not change runtime implementation or test behavior.
+networks, and volumes. Those counts remain historical evidence for the
+functional baseline. The Scaleway runtime, provider, infrastructure, and
+delivery changes require their own complete local record before any
+CI-triggering action.
 
 Draft review: [PR #91](https://github.com/evorto-app/app/pull/91)
 
@@ -38,20 +45,24 @@ release gates.
 
 **Not yet ready to declare a complete production replacement.**
 
-The original audit's broad implementation findings are mostly remediated.
-Unified implementation baseline `77b58254921` is locally green across the
+The original audit's broad application findings are mostly remediated. Last
+fully validated functional baseline `77b58254921` is locally green across the
 application, server/helper, PostgreSQL, functional, documentation, Auth0/Google
 Maps, and active/expired live ESNcard gates. Organizer/helper signup,
 fixed-bundle transfer, Stripe-only paid configuration, fail-closed receipt
 evidence/loading, cancellation/refund recovery, locked stale-state checks,
-tenant isolation, and owned Docker/Neon Local cleanup are proven against this
-source tree.
+tenant isolation, and owned Docker cleanup are proven against that source tree.
 
 The application is nevertheless not ready to be declared the production
-replacement. The next release phase is a separately planned migration to a new
-hosting provider, deployment of this version to a new staging environment, and
-a complete authenticated desktop/compact manual Browser acceptance pass in that
-environment. Any defect found there must be fixed, covered durably where
+replacement. The Scaleway staging-first migration is now implemented in source:
+one immutable image starts as web/worker/ops, Terraform defines private
+PostgreSQL 17, registry, buckets, IAM, Secret Manager metadata, Cockpit,
+containers and CRON triggers, and protected workflows define exact-digest
+staging deployment plus disabled production promotion. It is not yet provisioned
+or externally accepted. The next release phase is to bootstrap and deploy
+`staging.evorto.app`, execute restore/drift/rollback drills, and complete the
+authenticated desktop/compact manual Browser acceptance pass there. Any defect
+found must be fixed, covered durably where
 practical, and retested locally before a CI-triggering action. Fly-related work
 is intentionally excluded because it is owned by a separate change.
 
@@ -68,10 +79,42 @@ without loss.
 Other remaining release gates are external or operational: rotate and safely
 provision the six historical Auth0 E2E credentials, protect the live ESNcard
 release environment, publish and build the real Pages documentation artifact,
-prove live email delivery, approve production legal content, configure the
+prove live Scaleway Transactional Email delivery and DNS health, approve
+production legal content, configure the
 chosen `main` protection policy, and prove the first exact-tag release. Google
 Maps remains required production functionality. Cloudflare Images is removed
 and is not a release gate.
+
+## Scaleway migration status
+
+Implemented in the current candidate:
+
+- staging-only default provisioning in `fr-par`, with production absent behind
+  `production_enabled = false` and `PRODUCTION_ENABLED != true`;
+- a single Linux/amd64 image with isolated public web, private bounded worker,
+  and private bounded ops roles;
+- DB-free health, configured-host behavioral readiness, immutable version
+  identity, real-Host tenant resolution, platform-boundary proxy trust, and a
+  bounded/redacted browser-error intake;
+- plain PostgreSQL 17 locally and managed private PostgreSQL 17 in Terraform,
+  verified TLS, bounded pools, separate runtime/schema users, and no RLS;
+- generic Effect ObjectStorage with Scaleway S3, MinIO, and fake providers plus
+  signed receipt upload/finalize/consume/orphan state;
+- generic Effect EmailDelivery with TEM, Mailpit, and fake providers plus
+  terminal `deliveryUnknown` and staging `suppressed` states;
+- Cockpit OTLP traces, structured release-aware logs, private source-map export,
+  SBOM/vulnerability/image-size checks, role-scoped secret reconciliation, and
+  append-only deployment manifests;
+- exact-SHA release gates, safe schema explain/apply, same-digest worker/web
+  deploy, smoke verification, prior-digest image rollback, and a production
+  workflow that cannot provision while disabled; and
+- operator runbooks for bootstrap, DNS/email, rotation, restore, drift,
+  rollback, and full staging Browser acceptance.
+
+Not yet evidenced: a real Scaleway apply, DNS/TEM verification, staging restore,
+drift and rollback drills, live alert delivery, exact staged revision/digest
+proof, or the staged Browser queue. Production resources and traffic remain
+disabled. These are explicit external acceptance gates, not skipped tests.
 
 ## How to read this ledger
 
@@ -101,30 +144,32 @@ capability checks.
 
 ## Finding and gate status
 
-| ID           | Severity | Status            | Area                  | Remaining work                                                                                                                                                                              |
-| ------------ | -------- | ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PROD-002     | P1       | Resolved          | Paid transfer         | Fixed-bundle provenance, validity/bounds, refund identity, and recipient-owned question handling pass PostgreSQL, functional, and documentation coverage.                                   |
-| PROD-003     | P1       | Resolved          | Organizer signup      | Signup, exclusivity, capability, access, profile, cancellation, docs, and the complete baseline gate are green.                                                                             |
-| SEC-003      | P1       | Resolved          | Receipt evidence      | Upload/finalization/approval fail closed on exact retrievable evidence; focused and complete baseline gates are green.                                                                      |
-| DOC-001      | P1       | Resolved          | Cancellation/refund   | The Stripe/add-on/refund-state guide passed the complete local implementation gate.                                                                                                         |
-| ESN-001      | P1       | External          | Live ESNcard          | Current active/expired certification passed 27/27 unit and 9/9 Playwright checks; the protected GitHub environment and secret policy remain absent.                                         |
-| AUTH-001     | P1       | Resolved          | Auth0 integration     | The credential-backed provider suite passed 11/11 with zero incomplete outcomes on the unified implementation baseline.                                                                     |
-| AUTH-002     | P1       | External          | E2E credentials       | Plaintext passwords are removed and auth traces disabled; rotate all six historical passwords and provision local/protected secret values.                                                  |
-| AUTH-003     | P2       | Open              | CI identity custody   | Do not give long-lived Auth0 passwords to PR-controlled code; choose an approved trusted workflow or ephemeral-account design before CI provisioning.                                       |
-| MIG-001      | P1       | Accepted deferral | Legacy migration      | Plan best-effort legacy import only after functional completion and staging acceptance; retain fail-closed preflight and document supported scope, exclusions, reconciliation, and cutover. |
-| PROVIDER-001 | P1       | Resolved          | Google Maps           | The current Auth0/Google Maps integration selection passed 11/11 with zero skips, retries, flakes, or other incomplete outcomes.                                                            |
-| REL-001      | P1       | Candidate         | Release automation    | Knope draft preparation and exact-tag certified publication are implemented; a regenerated first release remains unproven.                                                                  |
-| REL-002      | P1       | External          | Main enforcement      | `main` still requires no checks, approval, or thread resolution; the one-seat review/bypass policy needs an explicit owner decision.                                                        |
-| BROWSER-001  | P1       | Partial           | Manual acceptance     | Local exploratory slices are recorded; complete authenticated desktop/compact acceptance is intentionally sequenced to the new-provider staging environment.                                |
-| LEGAL-001    | P1       | External          | Legal content         | Legal/privacy settings are implemented, but production text and policy approval are not recorded.                                                                                           |
-| OPS-001      | P2       | Resolved          | Email outbox          | Leased delivery is crash-safe; exhausted mail intentionally remains stored and read-only with no recovery action.                                                                           |
-| OPS-002      | P2       | Resolved          | Neon Local lifecycle  | Exact owned functional, documentation, and Auth0 integration branches were deleted and returned HTTP 404.                                                                                   |
-| OPS-003      | P2       | Resolved          | Local containers      | Process-group teardown passes 19/19; every Docker-backed suite ended with zero project-labeled containers, networks, and volumes.                                                           |
-| UX-002       | P2       | Resolved          | Load recovery         | Event, participant, and receipt query failures fail closed with explicit retry; the complete baseline gate is green.                                                                        |
-| UX-004       | P2       | Resolved          | Cancellation safety   | Expected-state RPC/locked checks and no-write tests passed focused and complete baseline gates.                                                                                             |
-| DOC-002      | P2       | Resolved          | Product docs          | The complete documentation baseline passed 52/52 with zero incomplete outcomes; live inbox acceptance remains separately tracked under EMAIL-001.                                           |
-| DOC-003      | P1       | Candidate         | Generated publication | Separate docs/provider/live runtime inputs are green; the combined publisher and real Pages synchronization/build remain.                                                                   |
-| EMAIL-001    | P1       | External          | Live email acceptance | Deterministic outbox behavior is covered, but live Resend delivery to an owned inbox has no credential, domain, or acceptance evidence in this run.                                         |
+| ID           | Severity | Status            | Area                    | Remaining work                                                                                                                                                                              |
+| ------------ | -------- | ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PROD-002     | P1       | Resolved          | Paid transfer           | Fixed-bundle provenance, validity/bounds, refund identity, and recipient-owned question handling pass PostgreSQL, functional, and documentation coverage.                                   |
+| PROD-003     | P1       | Resolved          | Organizer signup        | Signup, exclusivity, capability, access, profile, cancellation, docs, and the complete baseline gate are green.                                                                             |
+| SEC-003      | P1       | Resolved          | Receipt evidence        | Upload/finalization/approval fail closed on exact retrievable evidence; focused and complete baseline gates are green.                                                                      |
+| DOC-001      | P1       | Resolved          | Cancellation/refund     | The Stripe/add-on/refund-state guide passed the complete local implementation gate.                                                                                                         |
+| ESN-001      | P1       | External          | Live ESNcard            | Current active/expired certification passed 27/27 unit and 9/9 Playwright checks; the protected GitHub environment and secret policy remain absent.                                         |
+| AUTH-001     | P1       | Resolved          | Auth0 integration       | The credential-backed provider suite passed 11/11 with zero incomplete outcomes on the unified implementation baseline.                                                                     |
+| AUTH-002     | P1       | External          | E2E credentials         | Plaintext passwords are removed and auth traces disabled; rotate all six historical passwords and provision local/protected secret values.                                                  |
+| AUTH-003     | P2       | Open              | CI identity custody     | Do not give long-lived Auth0 passwords to PR-controlled code; choose an approved trusted workflow or ephemeral-account design before CI provisioning.                                       |
+| MIG-001      | P1       | Accepted deferral | Legacy migration        | Plan best-effort legacy import only after functional completion and staging acceptance; retain fail-closed preflight and document supported scope, exclusions, reconciliation, and cutover. |
+| PROVIDER-001 | P1       | Resolved          | Google Maps             | The current Auth0/Google Maps integration selection passed 11/11 with zero skips, retries, flakes, or other incomplete outcomes.                                                            |
+| REL-001      | P1       | Candidate         | Release automation      | Knope draft preparation and exact-tag certified publication are implemented; a regenerated first release remains unproven.                                                                  |
+| REL-002      | P1       | External          | Main enforcement        | `main` still requires no checks, approval, or thread resolution; the one-seat review/bypass policy needs an explicit owner decision.                                                        |
+| HOST-001     | P1       | Candidate         | Scaleway implementation | Runtime roles, Terraform, deployment workflows, providers, local stack, security/image gates, and runbooks are implemented; the new exact-commit local gate is pending.                     |
+| HOST-002     | P1       | External          | Scaleway acceptance     | Bootstrap/provision staging, configure DNS/TEM, prove restore/drift/rollback/alerts/revision identity, and complete the staged Browser checklist.                                           |
+| BROWSER-001  | P1       | Partial           | Manual acceptance       | Local exploratory slices are recorded; complete authenticated desktop/compact acceptance is intentionally sequenced to the new-provider staging environment.                                |
+| LEGAL-001    | P1       | External          | Legal content           | Legal/privacy settings are implemented, but production text and policy approval are not recorded.                                                                                           |
+| OPS-001      | P2       | Resolved          | Email outbox            | Leased delivery is crash-safe; exhausted mail intentionally remains stored and read-only with no recovery action.                                                                           |
+| OPS-002      | P2       | Resolved          | Local PostgreSQL        | Neon Local plumbing is removed; pinned plain PostgreSQL 17 now uses isolated loopback ports/volumes, guarded reset, resumable initialized state, and disposable Playwright teardown.        |
+| OPS-003      | P2       | Resolved          | Local containers        | Process-group teardown passes 19/19; every Docker-backed suite ended with zero project-labeled containers, networks, and volumes.                                                           |
+| UX-002       | P2       | Resolved          | Load recovery           | Event, participant, and receipt query failures fail closed with explicit retry; the complete baseline gate is green.                                                                        |
+| UX-004       | P2       | Resolved          | Cancellation safety     | Expected-state RPC/locked checks and no-write tests passed focused and complete baseline gates.                                                                                             |
+| DOC-002      | P2       | Resolved          | Product docs            | The complete documentation baseline passed 52/52 with zero incomplete outcomes; live inbox acceptance remains separately tracked under EMAIL-001.                                           |
+| DOC-003      | P1       | Candidate         | Generated publication   | Separate docs/provider/live runtime inputs are green; the combined publisher and real Pages synchronization/build remain.                                                                   |
+| EMAIL-001    | P1       | External          | Live email acceptance   | TEM/Mailpit/fake delivery and terminal unknown/suppressed states are implemented; DNS health and live allowlisted TEM delivery to an owned inbox remain unproven.                           |
 
 MIG-001 is not a blocker to functional completion or new-provider staging. It is
 an accepted post-completion planning item and must not be represented as a
@@ -284,9 +329,9 @@ queued email under the waitlisted account, proves that the message did not
 reserve capacity, leaves the old waitlist row through its focused confirmation,
 registers while capacity remains, and reads back the cancelled waitlist row, new
 confirmed registration, counters, and confirmation email. This closes the
-source-addressable beginner follow-up gap. Real Resend delivery to an owned
-inbox is external acceptance evidence and is not claimed by the deterministic
-outbox journey.
+source-addressable beginner follow-up gap. Real TEM delivery from the verified
+`notifications.evorto.app` domain to an allowlisted owned inbox is external
+acceptance evidence and is not claimed by the deterministic outbox journey.
 
 ### ESN-001 — Live ESNcard certification passes locally but lacks protected release policy
 
@@ -447,7 +492,8 @@ cleanup tooling, dependencies, Compose variables, and test-gate language while
 preserving the separate S3-compatible receipt/object-storage boundary. The
 provider-scope source guard passes 2/2. Any dormant external
 `CLOUDFLARE_IMAGES_API_TOKEN` secret may be removed after confirming no external
-consumer; R2 credentials remain in scope and must not be removed.
+consumer. Cloudflare R2 credentials are also outside the new runtime; Scaleway
+S3 role credentials replace them through protected deployment secrets.
 
 ### REL-001 / REL-002 — Release automation is candidate; enforcement is external
 
@@ -576,37 +622,23 @@ scope. Operators use the tenant, recipient, attempts, timestamp, and last error
 as incident evidence; stale in-flight lease reclamation remains automatic and is
 not an exhausted-email recovery action. OPS-001 is resolved against that scope.
 
-### OPS-002 — Exact ephemeral branch cleanup is validated
+### OPS-002 — Plain PostgreSQL replaces Neon Local
 
-Playwright-owned Compose stacks now have bounded shutdown and provenance rules,
-`docker:resume` refuses incomplete initialization, and the Neon expiration helper
-fails more visibly. Lifecycle behavior is covered in
-[`helpers/testing/docker-lifecycle.spec.ts`](helpers/testing/docker-lifecycle.spec.ts).
+The current candidate removes the Neon API, proxy, branch-expiration helper,
+metadata volume, and `NEON_*` runtime contract. Docker Compose instead pins
+PostgreSQL 17 with a worktree-isolated loopback port and project volume. A
+one-shot setup service drops/recreates only the guarded local `public` schema,
+applies Drizzle, and seeds deterministic data.
 
-A controlled project-scoped reproduction on 2026-07-12 captured Neon Local
-branch `br-frosty-queen-a91tfjko` from the running container metadata. The Neon
-API reported that exact branch ready with expiry
-`2026-07-13T06:35:23Z`, 24 hours after creation. The normal project-scoped
-`docker:stop` then removed every `evorto-f907c8db` container and its network;
-the same exact branch endpoint returned HTTP `404` afterward. This proves that
-the current stop path deletes the branch rather than merely clearing metadata.
-
-At that validated baseline, two named cache volumes remained and did not keep a
-container or remote branch running. The current disposable wrapper instead
-removes project-labeled volumes as part of verified teardown. An inventory also
-found two older ready branches without expiry. Their ownership is not
-established after their source metadata was cleared, so they were not deleted
-and are not attributed to another checkout by guesswork.
-
-The complete exact-commit gate at `e3e252768e4` created and removed its owned
-functional branch `br-snowy-truth-a9i0qqtw` and documentation branch
-`br-bold-recipe-a9pbrnrm`; both exact endpoints returned HTTP 404 afterward and
-no project-labeled container remained. The later Auth0 integration run repeated
-that result for `br-orange-sun-a9oheq9u`. OPS-002 is therefore resolved for the
-validated baseline. Every later full gate must still capture and verify its own
-exact branch IDs. Inventory any older project or branch separately and delete it
-only after confirming ownership; never use broad cleanup that could affect
-another checkout or user-owned stack.
+`docker:resume` refuses missing or unsuccessfully initialized stacks and starts
+only the retained PostgreSQL, MinIO, Mailpit, Stripe, worker, and web container
+IDs without rerunning setup. Playwright's disposable wrapper refuses an existing
+database container, supervises the stack, and removes its project containers,
+network, and volumes on exit. PostgreSQL integration tests accept only the exact
+loopback `evorto_postgres_integration` database with an explicit disposable
+flag; remote databases are rejected before reset. The older exact Neon branch
+deletion evidence remains historical only and is no longer an operational
+requirement or dependency.
 
 ### OPS-003 — Local Compose teardown is runtime-validated
 
@@ -619,8 +651,9 @@ to exit, and only then performs verified project-scoped teardown. Build and
 startup are separate commands, and the Playwright startup allowance matches
 CI's 12-minute build plus 5-minute startup bounds. Ordinary Compose starts no
 longer force Playwright runtime mode, while Playwright-owned and CI starts opt in
-explicitly. Resume starts Stripe first, requires its signing-secret healthcheck
-to pass, and only then starts the app. Lifecycle coverage passes 19/19,
+explicitly. Resume starts PostgreSQL, MinIO, and Mailpit first, then Stripe with
+its signing-secret healthcheck, and only then worker and web. Historical
+lifecycle coverage passes 19/19,
 including a TERM-ignoring descendant, termination-before-teardown ordering, and
 refusal of retained Stripe containers without the required healthcheck.
 
@@ -733,7 +766,8 @@ content. Before executing that cross-repository tool, the publisher requires a
 clean Git repository root, a tracked sync tool and documentation consumer, and
 a HEAD matching the configured upstream tip. The consumer subprocess receives
 only a minimal non-secret environment; Auth0 passwords, management credentials,
-provider identifiers, and Maps, Stripe, and Neon values are not inherited.
+provider identifiers, and Maps, Stripe, database, storage, and email values are
+not inherited.
 
 Focused unit/source verification and TypeScript pass, and the exact
 artifact produced by the Evorto adapter was accepted by the current
@@ -765,8 +799,8 @@ remaining gaps are retained above.
 | CI-001                 | Finance docs are no longer filtered; the baseline runs the full documentation project and completeness reporter: [`e2e-baseline.yml`](.github/workflows/e2e-baseline.yml), [`generated-docs-source.spec.ts`](helpers/testing/generated-docs-source.spec.ts).                                                                                                                              |
 | PROD-003               | Organizer/helper signup, capability, exclusivity, access, cancellation, profile state, and novice guidance passed focused coverage and the complete `e3e252768e4` baseline gate.                                                                                                                                                                                                          |
 | SEC-003                | Receipt upload, finalization, and approval fail closed unless the exact evidence object is retrievable; focused coverage and the complete `e3e252768e4` baseline gate passed.                                                                                                                                                                                                             |
-| AUTH-001               | All 9 credential-backed Auth0 functional and documentation integration tests passed on `e3e252768e4`, followed by exact Neon branch deletion and container cleanup.                                                                                                                                                                                                                       |
-| OPS-002                | The full functional, documentation, and Auth0 integration runs each captured their owned Neon branch; the exact endpoints returned HTTP 404 after cleanup and no project-labeled containers remained.                                                                                                                                                                                     |
+| AUTH-001               | All 9 credential-backed Auth0 functional and documentation integration tests passed on `e3e252768e4`; this remains historical provider evidence while the current plain-PostgreSQL candidate awaits its new exact gate.                                                                                                                                                                   |
+| OPS-002                | Plain PostgreSQL 17 replaces Neon Local with guarded loopback-only resets, resumable initialized Compose state, and verified disposable Playwright ownership/teardown.                                                                                                                                                                                                                    |
 | UX-002                 | Organizer, receipt, user-list, transaction-list, and template-load failures render explicit retryable states; focused coverage and the complete `e3e252768e4` gate passed.                                                                                                                                                                                                                |
 | UX-004                 | Participant, waitlist, and organizer cancellation require confirmation and carry locked expected-state checks that leave protected state unchanged on conflicts; focused and complete gates passed.                                                                                                                                                                                       |
 | TEST-001               | Manual approval now has full free/paid/retry page-backed coverage and a generated guide: [`manual-approval.spec.ts`](tests/specs/events/manual-approval.spec.ts), [`manual-approval.doc.ts`](tests/docs/events/manual-approval.doc.ts).                                                                                                                                                   |
@@ -778,7 +812,7 @@ remaining gaps are retained above.
 | UI-001                 | Success/warning roles are bridged through semantic Material/Tailwind tokens and rendered across themes/contrast modes: [`_semantic-state-colors.scss`](src/_semantic-state-colors.scss), [`semantic-theme-colors.test.ts`](tests/specs/smoke/semantic-theme-colors.test.ts).                                                                                                              |
 | A11Y-001               | Original icon selector, role chip, and icon-action name gaps have native control and accessible-name coverage: [`icon-selector-dialog.component.spec.ts`](src/app/shared/components/controls/icon-selector/icon-selector-dialog/icon-selector-dialog.component.spec.ts), [`role-select.component.spec.ts`](src/app/shared/components/controls/role-select/role-select.component.spec.ts). |
 | TEST-004               | Tenant operation settings and global Email Outbox have persisted readbacks, access states, functional tests, and guides: [`general-settings.spec.ts`](tests/specs/admin/general-settings.spec.ts), [`email-outbox.spec.ts`](tests/specs/admin/email-outbox.spec.ts), [`email-outbox.doc.ts`](tests/docs/admin/email-outbox.doc.ts).                                                       |
-| EFFECT-001, EFFECT-002 | `Schema.Any` is removed from the tenant settings boundary and the Cloudflare R2 Effect test uses the project runtime: [`admin.rpcs.ts`](src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts), [`cloudflare-r2.spec.ts`](src/server/integrations/cloudflare-r2.spec.ts).                                                                                                                       |
+| EFFECT-001, EFFECT-002 | `Schema.Any` is removed from the tenant settings boundary; generic ObjectStorage has Effect-native Scaleway S3/MinIO/fake coverage in [`object-storage.spec.ts`](src/server/integrations/object-storage.spec.ts).                                                                                                                                                                         |
 
 The original TEST-003 gap is covered by the current baseline evidence. PROD-002
 is Candidate only for the new validity-window and bounded-arithmetic hardening.
@@ -901,37 +935,43 @@ Product UI and docs must continue to state these boundaries honestly.
 
 ## Execution order
 
-1. Treat `77b58254921` as the unified functionally verified implementation
-   baseline. Preserve the rule that every CI-triggering action is preceded by a
-   complete green local gate with zero incomplete outcomes.
-2. Plan the migration of the new application version to a different hosting
-   provider. Keep Fly-related work outside this plan, inventory runtime and
-   provider dependencies, define rollback and observability, and make the new
-   staging environment the first deployment target.
-3. Provision and deploy the new staging environment, then complete the durable
+1. Treat `77b58254921` as the last functionally verified historical baseline,
+   not proof for the Scaleway candidate. Commit the unified migration only after
+   its complete local application, provider, Terraform, Linux/amd64 image,
+   security, and zero-incomplete-outcome gate is green. Do not trigger CI first.
+2. Bootstrap the versioned private Terraform state bucket and staging Scaleway
+   project, create deployer/role API keys outside Terraform state, protect the
+   GitHub environments, and add the emitted CNAME plus TEM SPF/DKIM/MX/DMARC
+   records at the retained DNS provider. Keep production disabled and leave Fly
+   configuration untouched.
+3. Deploy the exact accepted main digest to `staging.evorto.app`, then prove
+   release identity, health/readiness, private database/TLS/user separation,
+   alerts, TEM allowlisting, signed receipt uploads, and the documented
+   restore/drift/image-rollback drills. Store append-only evidence.
+4. Complete the durable
    authenticated desktop/compact Browser queue there. Convert defects into
    fixes and regression coverage, rerun the affected complete local gates, and
    redeploy/retest until staged acceptance is recorded. Scanner camera/result
    integration already has accepted deterministic Playwright coverage.
-4. Rotate all six historical Auth0 Playwright passwords and put the rotated
+5. Rotate all six historical Auth0 Playwright passwords and put the rotated
    values in the ignored local `.env`. Do not reuse the values still present in
    Git history. Before any GitHub provisioning, resolve AUTH-003 with a trusted
    workflow or disposable-account design; do not expose the long-lived values
    to pull-request-controlled code.
-5. Run the staged documentation publisher from the green implementation and
+6. Run the staged documentation publisher from the green implementation and
    an explicit current Pages checkout. Verify the 13 generated guide routes,
    page/image inventory, preserved curated routes/assets, and complete Pages site
    build instead of relying on the current two-page partial artifact.
-6. Prove live waitlist email delivery into an owned recipient inbox. The
+7. Prove live allowlisted TEM waitlist delivery from the verified
+   `notifications.evorto.app` domain into an owned recipient inbox. The
    recipient's in-app leave-and-register follow-up is now deterministic and
    page-backed; keep it and the unknown-domain scanner recovery guide current.
-7. Provision and approve the live ESNcard environment with protected active and
+8. Provision and approve the live ESNcard environment with protected active and
    permanently expired identifier secrets, execute exact-commit certification,
    approve production legal text, require the verified checks and review policy
    on `main`, regenerate the stale Knope release pull request, and verify the
-   first exact-tag certified draft publication. Keep deployment work in its
-   separate change.
-8. Only after functional completion and new-staging Browser acceptance, create
+   first exact-tag certified draft publication.
+9. Only after functional completion and new-staging Browser acceptance, create
    the separate best-effort legacy migration plan. Keep the direct current-schema
    target, separate read-only source, and fail-closed preflight. Define what can
    be imported and reconciled honestly; do not bypass the guard or imply complete
@@ -952,10 +992,10 @@ attempted during this audit consolidation.
 
 ## Validation record
 
-### Unified implementation baseline
+### Last fully validated functional baseline
 
-Commit `77b5825492112f89f8a32d99400cf9c2a0563136` is the single current
-implementation baseline. It hardens transfer
+Commit `77b5825492112f89f8a32d99400cf9c2a0563136` is the last fully validated
+functional baseline and predates the current Scaleway migration. It hardens transfer
 discount validity and monetary bounds, seals bundle pricing after recipient
 Checkout begins, validates exact provider refund identity, enforces composite
 tenant/event/registration ownership, fails legacy import closed before data
@@ -1000,6 +1040,17 @@ inspection found no project-labeled containers, networks, or volumes. The six
 historical passwords and two ESNcard identifiers were process-local only and
 were neither printed nor written to tracked files. The following audit
 consolidation commit changes documentation only.
+
+### Scaleway migration candidate
+
+The current candidate changes runtime and infrastructure and therefore does not
+inherit the counts above. Migration-specific source checks, focused role/provider
+tests, Terraform validation/static scanning, shell syntax, workflow lint, and
+the Linux/amd64 runtime image/security/size gate are part of the required local
+record. The final candidate record must also rerun every application,
+PostgreSQL, Playwright baseline/docs/provider, and live ESNcard command listed in
+the root README with zero incomplete outcomes. Until that exact record exists,
+HOST-001 remains Candidate and no CI-triggering action is permitted.
 
 ### Historical baseline and CI confirmation
 
@@ -1061,8 +1112,11 @@ separately above.
 
 ### Explicitly not claimed
 
-- Production replacement is not ready. The new hosting-provider plan, staging
-  deployment, and complete staged Browser acceptance have not happened.
+- Production replacement is not ready. The Scaleway migration is implemented in
+  source, but infrastructure bootstrap/apply, DNS/TEM validation, staging
+  deployment, restore/drift/rollback drills, alert proof, and complete staged
+  Browser acceptance have not happened. Production remains disabled and
+  unprovisioned.
 - Legacy migration is neither complete nor a current functional-completion
   gate. It will be planned only after staged functional acceptance, on a
   best-effort basis; no lossless-history claim is made.
@@ -1090,7 +1144,7 @@ separately above.
 - No production legal approval is recorded.
 - No required-check/review/thread-resolution policy is configured on `main`.
 - The Knope source path is implemented but has not regenerated PR #60 or proved
-  a real exact-tag draft publication. Deployment work exists separately.
+  a real exact-tag draft publication.
 
 These are open release-evidence or policy items, not skipped tests and not
 implied by the green local implementation baseline. Google Maps is required production

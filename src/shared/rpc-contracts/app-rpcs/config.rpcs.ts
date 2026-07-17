@@ -9,7 +9,6 @@ import { BadRequestRpcError } from '../../errors/rpc-errors';
 import { PermissionSchema } from '../../permissions/permissions';
 export const PublicConfig = Schema.Struct({
   googleMapsApiKey: Schema.NullOr(Schema.NonEmptyString),
-  sentryDsn: Schema.NullOr(Schema.NonEmptyString),
 });
 
 export type PublicConfig = Schema.Schema.Type<typeof PublicConfig>;

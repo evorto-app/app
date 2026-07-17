@@ -235,8 +235,11 @@ export class EventOrganize {
     organizerRegistrationApprovalLabel;
   protected readonly organizerRegistrationTransferDisabled =
     organizerRegistrationTransferDisabled;
-  protected readonly receiptOriginalUploadMutation = injectMutation(() =>
-    this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
+  protected readonly receiptCreateUploadMutation = injectMutation(() =>
+    this.rpc.finance.receiptMedia.createUpload.mutationOptions(),
+  );
+  protected readonly receiptFinalizeUploadMutation = injectMutation(() =>
+    this.rpc.finance.receiptMedia.finalizeUpload.mutationOptions(),
   );
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
@@ -244,9 +247,9 @@ export class EventOrganize {
     }),
   );
   protected readonly receiptStatusLabel = receiptStatusLabel;
-
   protected readonly receiptSubmissionActionDisabled =
     receiptSubmissionActionDisabled;
+
   protected readonly receiptSubmissionUnavailableMessage = computed(() => {
     const event = this.event();
     if (!event) {
@@ -259,6 +262,11 @@ export class EventOrganize {
 
     return null;
   });
+  protected readonly receiptUploadPending = computed(
+    () =>
+      this.receiptCreateUploadMutation.isPending() ||
+      this.receiptFinalizeUploadMutation.isPending(),
+  );
   protected readonly registrationGroups = computed(() =>
     groupEventOrganizeRegistrationOptions(
       this.organizerOverviewQuery.data()?.registrationOptions ?? [],
@@ -438,7 +446,7 @@ export class EventOrganize {
       receiptSubmissionActionDisabled({
         submissionUnavailable: !!this.receiptSubmissionUnavailableMessage(),
         submitPending: this.submitReceiptMutation.isPending(),
-        uploadPending: this.receiptOriginalUploadMutation.isPending(),
+        uploadPending: this.receiptUploadPending(),
       })
     ) {
       return;
@@ -482,6 +490,11 @@ export class EventOrganize {
           },
         },
         {
+          onError: (error) => {
+            this.notifications.showError(
+              getErrorMessage(error, 'Failed to submit receipt'),
+            );
+          },
           onSuccess: async () => {
             await this.queryClient.invalidateQueries({
               queryKey: this.rpc.finance.receipts.byEvent.queryKey({
@@ -601,37 +614,33 @@ export class EventOrganize {
     };
   }
 
-  private async readFileAsBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener('error', () => {
-        reject(new Error('Failed to read receipt file'));
-      });
-      reader.addEventListener('load', () => {
-        if (typeof reader.result !== 'string') {
-          reject(new Error('Invalid receipt file payload'));
-          return;
-        }
-        const commaIndex = reader.result.indexOf(',');
-        if (commaIndex === -1) {
-          reject(new Error('Invalid receipt data URL'));
-          return;
-        }
-        resolve(reader.result.slice(commaIndex + 1));
-      });
-      reader.readAsDataURL(file);
-    });
-  }
-
   private async uploadReceiptOriginal(
     file: File,
   ): Promise<{ uploadId: string }> {
-    return this.receiptOriginalUploadMutation.mutateAsync({
+    const upload = await this.receiptCreateUploadMutation.mutateAsync({
       eventId: this.eventId(),
-      fileBase64: await this.readFileAsBase64(file),
       fileName: file.name,
-      fileSizeBytes: file.size,
       mimeType: file.type,
+      sizeBytes: file.size,
+    });
+    const formData = new FormData();
+    for (const [name, value] of Object.entries(upload.fields)) {
+      formData.append(name, value);
+    }
+    formData.append('file', file, file.name);
+
+    const response = await fetch(upload.url, {
+      body: formData,
+      credentials: 'omit',
+      method: 'POST',
+      mode: 'cors',
+    });
+    if (!response.ok) {
+      throw new Error('Object storage rejected the receipt upload');
+    }
+
+    return this.receiptFinalizeUploadMutation.mutateAsync({
+      uploadId: upload.uploadId,
     });
   }
 }

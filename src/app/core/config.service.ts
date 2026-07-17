@@ -51,10 +51,8 @@ export class ConfigService {
 
   private _publicConfig: {
     googleMapsApiKey: null | string;
-    sentryDsn: null | string;
   } = {
     googleMapsApiKey: null,
-    sentryDsn: null,
   };
   private _tenant!: Tenant;
 

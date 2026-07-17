@@ -1,17 +1,24 @@
 import { resetPublicSchema } from './testing/reset-public-schema';
 
-// Docker startup uses this only for disposable dev/test databases so Drizzle
-// can push the current schema from a clean `public` schema without prompts.
-const databaseUrl = process.env['DATABASE_URL'];
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
+const databaseUrlValue = process.env['DATABASE_URL']?.trim();
+const confirmation = process.env['LOCAL_DATABASE_CONFIRM_RESET']?.trim();
+const localHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);
 
-if (!databaseUrl) {
+if (!databaseUrlValue) {
   throw new Error('DATABASE_URL must be configured for schema reset');
 }
-if (!neonLocalProxy) {
+if (confirmation !== 'evorto-local-reset') {
   throw new Error(
-    'Refusing to reset schema without NEON_LOCAL_PROXY=true on a disposable local database',
+    'Set LOCAL_DATABASE_CONFIRM_RESET=evorto-local-reset to confirm a destructive local schema reset',
   );
 }
 
-await resetPublicSchema({ databaseUrl, neonLocalProxy });
+const databaseUrl = new URL(databaseUrlValue);
+const host = databaseUrl.hostname.replace(/^\[(.*)\]$/u, '$1');
+if (!localHosts.has(host)) {
+  throw new Error(
+    `Refusing to reset a non-local database host (${host || 'missing'})`,
+  );
+}
+
+await resetPublicSchema({ databaseUrl: databaseUrl.toString() });

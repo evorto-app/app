@@ -108,7 +108,6 @@ const registrationConfigProviderLayer = ConfigProvider.layer(
     env: {
       BASE_URL: 'https://deployment.example',
       NODE_ENV: 'production',
-      RESEND_API_KEY: 're_test_123',
     },
   }),
 );
@@ -204,7 +203,6 @@ const createContextLayer = ({
         env: {
           BASE_URL: 'https://app.example',
           NODE_ENV: 'production',
-          RESEND_API_KEY: 're_test_123',
           ...(nowIso && { E2E_NOW_ISO: nowIso }),
         },
       }),

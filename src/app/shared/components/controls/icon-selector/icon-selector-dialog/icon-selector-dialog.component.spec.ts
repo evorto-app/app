@@ -24,6 +24,10 @@ describe('IconSelectorDialogComponent accessibility', () => {
     );
     expect(template).toContain('class="sr-only"');
     expect(template).toContain('Select {{ icon.friendlyName }} icon');
+    expect(template).toContain(
+      'class="bg-surface text-on-surface break-all rounded px-2 text-sm"',
+    );
+    expect(template).toContain('class="text-on-surface!">Cancel</button>');
   });
 });
 

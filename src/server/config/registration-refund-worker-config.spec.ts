@@ -26,7 +26,7 @@ describe('registration-refund-worker-config', () => {
       expect(
         yield* readRuntimeMode([
           ['NODE_ENV', 'production'],
-          ['NEON_LOCAL_PROXY', 'false'],
+          ['LOCAL_DATABASE', 'false'],
         ]),
       ).toBe('enabled');
     }),
@@ -38,7 +38,7 @@ describe('registration-refund-worker-config', () => {
         yield* readRuntimeMode([
           ['E2E_NOW_ISO', '2026-07-12T12:00:00.000Z'],
           ['E2E_RUNTIME_MODE', 'playwright'],
-          ['NEON_LOCAL_PROXY', 'true'],
+          ['LOCAL_DATABASE', 'true'],
           ['NODE_ENV', 'development'],
         ]),
       ).toBe('disabledForPlaywright');
@@ -51,7 +51,7 @@ describe('registration-refund-worker-config', () => {
         readRuntimeMode([
           ['E2E_NOW_ISO', '2026-07-12T12:00:00.000Z'],
           ['E2E_RUNTIME_MODE', 'playwright'],
-          ['NEON_LOCAL_PROXY', 'true'],
+          ['LOCAL_DATABASE', 'true'],
           ['NODE_ENV', 'production'],
         ]),
       );
@@ -67,7 +67,7 @@ describe('registration-refund-worker-config', () => {
       for (const entries of [
         [
           ['E2E_RUNTIME_MODE', 'playwright'],
-          ['NEON_LOCAL_PROXY', 'true'],
+          ['LOCAL_DATABASE', 'true'],
           ['NODE_ENV', 'development'],
         ],
         [
@@ -78,7 +78,7 @@ describe('registration-refund-worker-config', () => {
         [
           ['E2E_NOW_ISO', '2026-07-12T12:00:00.000Z'],
           ['E2E_RUNTIME_MODE', 'playwright'],
-          ['NEON_LOCAL_PROXY', 'true'],
+          ['LOCAL_DATABASE', 'true'],
         ],
       ] satisfies readonly (readonly (readonly [string, string])[])[]) {
         const error = yield* Effect.flip(readRuntimeMode(entries));

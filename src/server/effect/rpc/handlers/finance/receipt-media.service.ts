@@ -1,18 +1,20 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Context, Effect, Layer } from 'effect';
 
-import {
-  getSignedReceiptObjectUrlFromR2,
-  receiptObjectExistsInR2,
-  uploadReceiptOriginalToR2,
-} from '../../../../integrations/cloudflare-r2';
+import { ObjectStorage } from '../../../../integrations/object-storage';
 import {
   ReceiptMediaBadRequestError,
   ReceiptMediaServiceUnavailableError,
 } from './finance.errors';
 
-const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
+export const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
+const receiptMimeTypes = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
 
 export interface ReceiptWithStoragePreview {
   attachmentStorageKey: null | string;
@@ -22,6 +24,7 @@ export interface ReceiptWithStoragePreview {
   attachmentUploadedByUserId: string;
   attachmentUploadEventId: string;
   attachmentUploadId: string;
+  attachmentUploadStatus: 'consumed' | 'pending' | 'ready' | 'rejected';
   attachmentUploadTenantId: string;
   eventId: string;
   previewImageUrl: null | string;
@@ -45,8 +48,60 @@ interface ValidReceiptEvidenceBinding {
   storageKey: string;
 }
 
-const isAllowedReceiptMimeType = (mimeType: string): boolean =>
-  mimeType.startsWith('image/') || mimeType === 'application/pdf';
+export const isAllowedReceiptMimeType = (mimeType: string): boolean =>
+  receiptMimeTypes.has(mimeType);
+
+export const validateReceiptUploadMetadata = (input: {
+  mimeType: string;
+  sizeBytes: number;
+}) =>
+  Effect.gen(function* () {
+    if (!isAllowedReceiptMimeType(input.mimeType)) {
+      return yield* Effect.fail(
+        new ReceiptMediaBadRequestError({
+          message: 'Receipts must be JPEG, PNG, WebP, or PDF files',
+        }),
+      );
+    }
+    if (
+      !Number.isSafeInteger(input.sizeBytes) ||
+      input.sizeBytes <= 0 ||
+      input.sizeBytes > MAX_RECEIPT_ORIGINAL_SIZE_BYTES
+    ) {
+      return yield* Effect.fail(
+        new ReceiptMediaBadRequestError({
+          message: 'Receipt file must be between 1 byte and 20 MB',
+        }),
+      );
+    }
+  });
+
+const startsWithBytes = (input: Uint8Array, expected: readonly number[]) =>
+  expected.every((value, index) => input[index] === value);
+
+export const detectReceiptMimeType = (
+  prefix: Uint8Array,
+):
+  'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | undefined => {
+  if (startsWithBytes(prefix, [0xff, 0xd8, 0xff])) {
+    return 'image/jpeg';
+  }
+  if (
+    startsWithBytes(prefix, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  ) {
+    return 'image/png';
+  }
+  if (
+    startsWithBytes(prefix, [0x52, 0x49, 0x46, 0x46]) &&
+    startsWithBytes(prefix.slice(8), [0x57, 0x45, 0x42, 0x50])
+  ) {
+    return 'image/webp';
+  }
+  if (startsWithBytes(prefix, [0x25, 0x50, 0x44, 0x46, 0x2d])) {
+    return 'application/pdf';
+  }
+  return;
+};
 
 const sanitizeFileName = (fileName: string): string =>
   fileName
@@ -72,6 +127,7 @@ export const hasValidReceiptUploadBinding = (
     receipt.attachmentUploadTenantId === receipt.tenantId &&
     receipt.attachmentUploadEventId === receipt.eventId &&
     receipt.attachmentUploadedByUserId === receipt.submittedByUserId &&
+    receipt.attachmentUploadStatus === 'consumed' &&
     receipt.attachmentUploadedAt !== null &&
     receipt.attachmentUploadConsumedAt !== null &&
     receipt.attachmentStorageUrl !== null &&
@@ -228,11 +284,20 @@ export const withSignedReceiptPreviewUrls = <
     concurrency: 8,
   });
 
-interface UploadOriginalInput {
+interface CreateUploadPolicyInput extends ReceiptUploadScope {
+  expiresAt: Date;
+  now: Date;
+  sizeBytes: number;
+}
+
+interface InspectUploadInput extends ReceiptUploadScope {
+  sizeBytes: number;
+  storageKey: string;
+}
+
+interface ReceiptUploadScope {
   eventId: string;
-  fileBase64: string;
   fileName: string;
-  fileSizeBytes: number;
   mimeType: string;
   tenantId: string;
   uploadId: string;
@@ -246,7 +311,7 @@ export const buildReceiptStorageKey = ({
   uploadId,
   userId,
 }: Pick<
-  UploadOriginalInput,
+  ReceiptUploadScope,
   'eventId' | 'fileName' | 'tenantId' | 'uploadId' | 'userId'
 >): string =>
   [
@@ -260,10 +325,11 @@ export const buildReceiptStorageKey = ({
 export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
   '@server/effect/rpc/handlers/finance/ReceiptMediaService',
   {
-    make: Effect.sync(() => {
+    make: Effect.gen(function* () {
+      const objectStorage = yield* ObjectStorage;
       const objectExists = Effect.fn('ReceiptMediaService.objectExists')(
         function* ({ storageKey }: { storageKey: string }) {
-          return yield* receiptObjectExistsInR2({ key: storageKey }).pipe(
+          return yield* objectStorage.exists(storageKey).pipe(
             Effect.mapError(
               (cause) =>
                 new ReceiptMediaServiceUnavailableError({
@@ -284,68 +350,9 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
         expiresInSeconds: number;
         storageKey: string;
       }) {
-        return yield* getSignedReceiptObjectUrlFromR2({
-          expiresInSeconds,
-          key: storageKey,
-        }).pipe(
-          Effect.mapError(
-            (cause) =>
-              new ReceiptMediaServiceUnavailableError({
-                cause,
-                message: 'Receipt storage is unavailable',
-              }),
-          ),
-        );
-      });
-
-      const uploadOriginal = Effect.fn('ReceiptMediaService.uploadOriginal')(
-        function* ({
-          eventId,
-          fileBase64,
-          fileName,
-          fileSizeBytes,
-          mimeType,
-          tenantId,
-          uploadId,
-          userId,
-        }: UploadOriginalInput) {
-          if (!isAllowedReceiptMimeType(mimeType)) {
-            return yield* Effect.fail(
-              new ReceiptMediaBadRequestError({
-                message: 'Unsupported MIME type',
-              }),
-            );
-          }
-
-          const body = Buffer.from(fileBase64, 'base64');
-          if (body.byteLength !== fileSizeBytes) {
-            return yield* Effect.fail(
-              new ReceiptMediaBadRequestError({
-                message: 'Uploaded file size does not match payload metadata',
-              }),
-            );
-          }
-          if (body.byteLength > MAX_RECEIPT_ORIGINAL_SIZE_BYTES) {
-            return yield* Effect.fail(
-              new ReceiptMediaBadRequestError({
-                message: 'File exceeds size limit',
-              }),
-            );
-          }
-
-          const storageKey = buildReceiptStorageKey({
-            eventId,
-            fileName,
-            tenantId,
-            uploadId,
-            userId,
-          });
-
-          const uploaded = yield* uploadReceiptOriginalToR2({
-            body,
-            contentType: mimeType,
-            key: storageKey,
-          }).pipe(
+        return yield* objectStorage
+          .presignGet(storageKey, expiresInSeconds)
+          .pipe(
             Effect.mapError(
               (cause) =>
                 new ReceiptMediaServiceUnavailableError({
@@ -354,25 +361,110 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
                 }),
             ),
           );
-          const exists = yield* objectExists({ storageKey });
-          if (!exists) {
-            return yield* new ReceiptMediaServiceUnavailableError({
-              message: 'Receipt upload could not be verified',
-            });
+      });
+
+      const createUploadPolicy = Effect.fn(
+        'ReceiptMediaService.createUploadPolicy',
+      )(function* (input: CreateUploadPolicyInput) {
+        yield* validateReceiptUploadMetadata(input);
+        if (input.expiresAt.getTime() <= input.now.getTime()) {
+          return yield* Effect.fail(
+            new ReceiptMediaBadRequestError({
+              message: 'Receipt upload expiry must be in the future',
+            }),
+          );
+        }
+
+        const storageKey = buildReceiptStorageKey(input);
+        const signed = yield* objectStorage
+          .presignPost({
+            contentType: input.mimeType,
+            expiresAt: input.expiresAt,
+            key: storageKey,
+            now: input.now,
+            sizeBytes: input.sizeBytes,
+          })
+          .pipe(
+            Effect.mapError(
+              (cause) =>
+                new ReceiptMediaServiceUnavailableError({
+                  cause,
+                  message: 'Receipt storage is unavailable',
+                }),
+            ),
+          );
+
+        return { ...signed, storageKey };
+      });
+
+      const inspectUpload = Effect.fn('ReceiptMediaService.inspectUpload')(
+        function* (input: InspectUploadInput) {
+          if (!isAllowedReceiptMimeType(input.mimeType)) {
+            return yield* Effect.fail(
+              new ReceiptMediaBadRequestError({
+                message: 'Unsupported receipt MIME type',
+              }),
+            );
+          }
+
+          const expectedStorageKey = buildReceiptStorageKey(input);
+          if (input.storageKey !== expectedStorageKey) {
+            return yield* Effect.fail(
+              new ReceiptMediaBadRequestError({
+                message:
+                  'Receipt upload key does not match its authorization scope',
+              }),
+            );
+          }
+
+          const metadata = yield* objectStorage.metadata(input.storageKey).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ReceiptMediaServiceUnavailableError({
+                  cause,
+                  message: 'Receipt storage is unavailable',
+                }),
+            ),
+          );
+          const detectedMimeType = detectReceiptMimeType(metadata.prefix);
+          if (
+            metadata.sizeBytes !== input.sizeBytes ||
+            metadata.sizeBytes <= 0 ||
+            metadata.sizeBytes > MAX_RECEIPT_ORIGINAL_SIZE_BYTES
+          ) {
+            return yield* Effect.fail(
+              new ReceiptMediaBadRequestError({
+                message:
+                  'Uploaded receipt size does not match its signed policy',
+              }),
+            );
+          }
+          if (
+            metadata.contentType !== input.mimeType ||
+            detectedMimeType !== input.mimeType
+          ) {
+            return yield* Effect.fail(
+              new ReceiptMediaBadRequestError({
+                message:
+                  'Uploaded receipt content does not match its declared type',
+              }),
+            );
           }
 
           return {
-            sizeBytes: body.byteLength,
-            storageKey: uploaded.storageKey,
-            storageUrl: uploaded.storageUrl,
+            mimeType: detectedMimeType,
+            sizeBytes: metadata.sizeBytes,
+            storageKey: input.storageKey,
+            storageUrl: metadata.storageUrl,
           };
         },
       );
 
       return {
+        createUploadPolicy,
+        inspectUpload,
         objectExists,
         signedPreviewUrl,
-        uploadOriginal,
       };
     }),
   },
@@ -382,6 +474,9 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
     ReceiptMediaService.make,
   );
 
-  static readonly uploadOriginal = (input: UploadOriginalInput) =>
-    ReceiptMediaService.use((service) => service.uploadOriginal(input));
+  static readonly createUploadPolicy = (input: CreateUploadPolicyInput) =>
+    ReceiptMediaService.use((service) => service.createUploadPolicy(input));
+
+  static readonly inspectUpload = (input: InspectUploadInput) =>
+    ReceiptMediaService.use((service) => service.inspectUpload(input));
 }

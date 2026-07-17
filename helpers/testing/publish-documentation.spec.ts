@@ -165,10 +165,10 @@ describe('documentation publishing', () => {
         E2E_DEFAULT_USER_PASSWORD: 'password',
         E2E_LIVE_ESN_CARD_IDENTIFIER: 'provider-identity',
         HOME: '/tmp/home',
-        NEON_API_KEY: 'neon-secret',
         PATH: '/usr/bin',
         PUBLIC_GOOGLE_MAPS_API_KEY: 'maps-secret',
         STRIPE_API_KEY: 'stripe-secret',
+        TEM_API_TOKEN: 'tem-secret',
       }),
     ).toEqual({ HOME: '/tmp/home', PATH: '/usr/bin' });
   });

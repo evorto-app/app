@@ -35,7 +35,10 @@ export const databaseEffect = <A>(
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
 export const isAllowedReceiptMimeType = (mimeType: string): boolean =>
-  mimeType.startsWith('image/') || mimeType === 'application/pdf';
+  mimeType === 'image/jpeg' ||
+  mimeType === 'image/png' ||
+  mimeType === 'image/webp' ||
+  mimeType === 'application/pdf';
 
 export const resolveTenantSelectableReceiptCountries = (
   tenant: ReceiptCountryConfigTenant,
@@ -79,6 +82,7 @@ export const financeReceiptView = {
   attachmentUploadedByUserId: financeReceiptUploads.uploadedByUserId,
   attachmentUploadEventId: financeReceiptUploads.eventId,
   attachmentUploadId: financeReceiptUploads.id,
+  attachmentUploadStatus: financeReceiptUploads.status,
   attachmentUploadTenantId: financeReceiptUploads.tenantId,
   createdAt: financeReceipts.createdAt,
   currency: financeReceipts.currency,

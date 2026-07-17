@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
 
+import { ObjectStorage } from '../../../../integrations/object-storage';
 import { ReceiptMediaServiceUnavailableError } from './finance.errors';
 import {
   buildReceiptStorageKey,
+  detectReceiptMimeType,
   ensureReceiptEvidenceAvailableForApproval,
   ReceiptMediaService,
   type ReceiptWithStoragePreview,
@@ -20,6 +22,7 @@ const receipt = (
   attachmentUploadedByUserId: 'user-1',
   attachmentUploadEventId: 'event-1',
   attachmentUploadId: 'upload-1',
+  attachmentUploadStatus: 'consumed',
   attachmentUploadTenantId: 'tenant-1',
   eventId: 'event-1',
   previewImageUrl: null,
@@ -43,24 +46,31 @@ const receiptMediaLayer = ({
   }) => Effect.Effect<string, ReceiptMediaServiceUnavailableError>;
 }) =>
   Layer.succeed(ReceiptMediaService)({
+    createUploadPolicy: () => Effect.dieMessage('Unexpected upload policy'),
+    inspectUpload: () => Effect.dieMessage('Unexpected upload inspection'),
     objectExists,
     signedPreviewUrl,
-    uploadOriginal: () => Effect.dieMessage('Unexpected receipt upload'),
   });
 
 describe('ReceiptMediaService', () => {
   it.effect('fails with bad request for unsupported mime type', () =>
     Effect.gen(function* () {
-      const program = ReceiptMediaService.uploadOriginal({
+      const now = new Date('2026-07-16T12:00:00.000Z');
+      const program = ReceiptMediaService.createUploadPolicy({
         eventId: 'event-1',
-        fileBase64: Buffer.from('hello').toString('base64'),
+        expiresAt: new Date('2026-07-16T12:05:00.000Z'),
         fileName: 'receipt.txt',
-        fileSizeBytes: 5,
         mimeType: 'text/plain',
+        now,
+        sizeBytes: 5,
         tenantId: 'tenant-1',
         uploadId: 'upload-1',
         userId: 'user-1',
-      }).pipe(Effect.flip, Effect.provide(ReceiptMediaService.Default));
+      }).pipe(
+        Effect.flip,
+        Effect.provide(ReceiptMediaService.Default),
+        Effect.provide(ObjectStorage.Default),
+      );
 
       const error = yield* program;
       expect(error['_tag']).toBe('ReceiptMediaBadRequestError');
@@ -69,19 +79,22 @@ describe('ReceiptMediaService', () => {
 
   it.effect('fails closed when receipt storage configuration is missing', () =>
     Effect.gen(function* () {
+      const now = new Date('2026-07-16T12:00:00.000Z');
       const input = {
         eventId: 'event-1',
-        fileBase64: Buffer.from('receipt').toString('base64'),
+        expiresAt: new Date('2026-07-16T12:05:00.000Z'),
         fileName: 'receipt.pdf',
-        fileSizeBytes: 7,
         mimeType: 'application/pdf',
+        now,
+        sizeBytes: 7,
         tenantId: 'tenant-1',
         uploadId: 'upload-1',
         userId: 'user-1',
       };
-      const error = yield* ReceiptMediaService.uploadOriginal(input).pipe(
+      const error = yield* ReceiptMediaService.createUploadPolicy(input).pipe(
         Effect.flip,
         Effect.provide(ReceiptMediaService.Default),
+        Effect.provide(ObjectStorage.Default),
         Effect.provideService(
           ConfigProvider.ConfigProvider,
           ConfigProvider.fromEnv({ env: {} }),
@@ -94,6 +107,30 @@ describe('ReceiptMediaService', () => {
       );
     }),
   );
+
+  it('accepts only the four receipt magic-byte signatures', () => {
+    expect(
+      detectReceiptMimeType(new Uint8Array([0xff, 0xd8, 0xff, 0x00])),
+    ).toBe('image/jpeg');
+    expect(
+      detectReceiptMimeType(
+        new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      ),
+    ).toBe('image/png');
+    expect(
+      detectReceiptMimeType(
+        new Uint8Array([
+          0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
+        ]),
+      ),
+    ).toBe('image/webp');
+    expect(detectReceiptMimeType(new TextEncoder().encode('%PDF-1.7'))).toBe(
+      'application/pdf',
+    );
+    expect(detectReceiptMimeType(new TextEncoder().encode('<script>'))).toBe(
+      undefined,
+    );
+  });
 
   it.effect('rejects a foreign-scope binding before checking storage', () =>
     Effect.gen(function* () {

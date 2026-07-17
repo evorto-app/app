@@ -1,7 +1,7 @@
 import { databaseConfig } from '@db/database-config';
 import * as PgClient from '@effect/sql-pg/PgClient';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Context, Effect, Layer } from 'effect';
+import { Context, Effect, Layer, Option, Redacted } from 'effect';
 
 import { createPgClientConfig } from './pg-connection-config';
 import { relations } from './relations';
@@ -10,12 +10,22 @@ const databaseEffect = PgDrizzle.makeWithDefaults({ relations });
 
 const pgClientLayer = Layer.unwrap(
   Effect.gen(function* () {
-    const { DATABASE_URL, NEON_LOCAL_PROXY } = yield* databaseConfig;
+    const config = yield* databaseConfig;
+    const caCertificate = config.DATABASE_TLS_CA_CERTIFICATE.pipe(
+      Option.map((certificate) => Redacted.value(certificate)),
+      Option.getOrUndefined,
+    );
 
     return PgClient.layer(
       createPgClientConfig({
-        databaseUrl: DATABASE_URL,
-        neonLocalProxy: NEON_LOCAL_PROXY,
+        caCertificate,
+        databaseUrl: config.DATABASE_URL,
+        pool: {
+          connectTimeoutMs: config.DATABASE_POOL_CONNECT_TIMEOUT_MS,
+          idleTimeoutMs: config.DATABASE_POOL_IDLE_TIMEOUT_MS,
+          max: config.DATABASE_POOL_MAX,
+          min: config.DATABASE_POOL_MIN,
+        },
       }),
     );
   }),

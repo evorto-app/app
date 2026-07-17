@@ -146,7 +146,7 @@ describe('production provider scope', () => {
       'src/server/config/object-storage-config.ts',
     );
     const objectStorageIntegration = source(
-      'src/server/integrations/cloudflare-r2.ts',
+      'src/server/integrations/object-storage.ts',
     );
     const receiptMedia = source(
       'src/server/effect/rpc/handlers/finance/receipt-media.service.ts',
@@ -183,43 +183,37 @@ describe('production provider scope', () => {
     expect(compose).toContain('S3_PUBLIC_ENDPOINT:');
     expect(objectStorageConfig).toContain('S3_PUBLIC_ENDPOINT');
 
+    expect(objectStorageIntegration).toContain('objectStorageConfig,');
     expect(objectStorageIntegration).toContain(
-      "import { objectStorageConfig } from '../config/object-storage-config';",
+      "from '../config/object-storage-config';",
     );
-    expect(objectStorageIntegration).toContain('export const uploadObjectToR2');
-    expect(objectStorageIntegration).toContain('export const getObjectFromR2');
-    expect(objectStorageIntegration).toContain(
-      'export const receiptObjectExistsInR2',
-    );
-    expect(objectStorageIntegration).toContain(
-      'export const getSignedReceiptObjectUrlFromR2',
-    );
+    expect(objectStorageIntegration).toContain('export class ObjectStorage');
+    expect(objectStorageIntegration).toContain('presignPost');
+    expect(objectStorageIntegration).toContain('metadata');
+    expect(objectStorageIntegration).toContain("acl: 'private'");
     expect(receiptMedia).toContain(
-      "from '../../../../integrations/cloudflare-r2';",
+      "from '../../../../integrations/object-storage';",
     );
-    expect(receiptMedia).toContain('uploadReceiptOriginalToR2({');
-    expect(receiptMedia).toContain('receiptObjectExistsInR2');
-    expect(receiptMedia).toContain('getSignedReceiptObjectUrlFromR2');
+    expect(receiptMedia).toContain('.presignPost({');
+    expect(receiptMedia).toContain('objectStorage.metadata(');
+    expect(receiptMedia).toContain('.presignGet(');
     expect(receiptMedia).toContain('export const buildReceiptStorageKey');
     expect(receiptMedia).toContain("'receipts',");
-    expect(
-      receiptMedia.lastIndexOf('uploadReceiptOriginalToR2({'),
-    ).toBeLessThan(receiptMedia.lastIndexOf('objectExists({ storageKey })'));
     expect(tenantBrandAssets).toContain(
-      "import { uploadObjectToR2 } from './integrations/cloudflare-r2';",
+      "import { ObjectStorage } from './integrations/object-storage';",
     );
     expect(tenantBrandAssets).toContain(
       'return `tenant-assets/${tenantId}/${input.kind}/${input.fileName}`;',
     );
-    expect(tenantBrandAssets).toContain('yield* uploadObjectToR2({');
+    expect(tenantBrandAssets).toContain('yield* ObjectStorage.put({');
     expect(tenantBrandAssetHandler).toContain(
-      "import { getObjectFromR2 } from '../integrations/cloudflare-r2';",
+      "import { ObjectStorage } from '../integrations/object-storage';",
     );
     expect(tenantBrandAssetHandler).toContain(
       'const storageKey = tenantBrandAssetStorageKey({',
     );
     expect(tenantBrandAssetHandler).toContain(
-      'const body = yield* getObjectFromR2({ key: storageKey })',
+      'const body = yield* ObjectStorage.get(storageKey)',
     );
     expect(server).toContain("'/tenant-assets/:tenantId/:kind/:fileName'");
     expect(server).toContain('handleTenantBrandAssetWebRequest(asset)');
@@ -241,7 +235,7 @@ describe('production provider scope', () => {
     }
 
     for (const preservedBehaviorTest of [
-      'src/server/integrations/cloudflare-r2.spec.ts',
+      'src/server/integrations/object-storage.spec.ts',
       'src/server/effect/rpc/handlers/finance/receipt-media.service.spec.ts',
       'src/server/tenant-brand-assets.spec.ts',
       'src/server/http/tenant-brand-asset.web-handler.spec.ts',

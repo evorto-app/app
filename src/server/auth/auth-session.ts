@@ -278,10 +278,7 @@ export const resolveRequestOrigin = (
     getHeaderValue(request.headers, 'x-forwarded-proto') ??
     getHeaderValue(request.headers, 'x-forwarded-protocol') ??
     'http';
-  const host =
-    getHeaderValue(request.headers, 'x-forwarded-host') ??
-    getHeaderValue(request.headers, 'host') ??
-    'localhost:4000';
+  const host = getHeaderValue(request.headers, 'host') ?? 'localhost:4000';
 
   return {
     isSecure: protocol === 'https',

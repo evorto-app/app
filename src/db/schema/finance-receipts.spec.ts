@@ -54,5 +54,12 @@ describe('finance receipt schema', () => {
       'eventId',
       'uploadedByUserId',
     ]);
+    expect(
+      uploadConfig.columns.find((column) => column.name === 'status')?.notNull,
+    ).toBe(true);
+    expect(
+      uploadConfig.columns.find((column) => column.name === 'expiresAt')
+        ?.notNull,
+    ).toBe(true);
   });
 });

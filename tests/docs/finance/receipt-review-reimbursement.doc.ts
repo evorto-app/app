@@ -43,7 +43,7 @@ test('Review and reimburse receipts @finance', async ({
   const receiptFileName = `receipt-review-doc-${seedDate.getTime()}.pdf`;
   const missingEvidenceReceiptId = getId();
   const missingEvidenceFileName = `receipt-missing-evidence-doc-${seedDate.getTime()}.pdf`;
-  const organizerCommunicationEmail = `delivered+receipt-doc-${receiptId}@resend.dev`;
+  const organizerCommunicationEmail = `delivered+receipt-doc-${receiptId}@notifications.example.test`;
   const approvalNotificationIdempotencyKey = `receipt-reviewed/${tenant.id}/${receiptId}/approved`;
   const rejectionNotificationIdempotencyKey = `receipt-reviewed/${tenant.id}/${missingEvidenceReceiptId}/rejected`;
   const missingEvidenceRejectionReason =

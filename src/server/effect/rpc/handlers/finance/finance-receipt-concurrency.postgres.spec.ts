@@ -30,7 +30,6 @@ const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
-const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
 const lockObservationTimeoutMs = 30_000;
 const lockPollIntervalMs = 50;
 const postgresConcurrencyTestTimeoutMs = 60_000;
@@ -42,10 +41,7 @@ const makeDatabaseServiceLayer = (url: string) =>
     Layer.provide(
       ConfigProvider.layer(
         ConfigProvider.fromEnv({
-          env: Object.fromEntries([
-            ['DATABASE_URL', url],
-            ['NEON_LOCAL_PROXY', String(neonLocalProxy)],
-          ]),
+          env: Object.fromEntries([['DATABASE_URL', url]]),
         }),
       ),
     ),
@@ -106,7 +102,7 @@ describe('receipt review and reimbursement serialization', () => {
   };
 
   beforeAll(() => {
-    pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
+    pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     database = drizzle({ client: pool, relations });
   });
 
@@ -202,6 +198,7 @@ describe('receipt review and reimbursement serialization', () => {
       id: receiptUploadId,
       mimeType: 'image/png',
       sizeBytes: 7,
+      status: 'consumed',
       storageKey: buildReceiptStorageKey({
         eventId,
         fileName: 'receipt.png',

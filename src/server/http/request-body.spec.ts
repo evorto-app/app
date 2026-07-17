@@ -261,8 +261,10 @@ describe('readRequestBody', () => {
     expect(adapterSource).toContain('readNodeRequestBody(request, maxBytes)');
     expect(adapterSource).toContain('discardNodeRequestBody(request)');
     expect(adapterSource).not.toContain('drainNodeRequestBody');
+    expect(adapterSource).not.toContain('createWebRequestFromNodeRequest');
+    expect(adapterSource).not.toContain('nodeRequestAbortSignal');
     expect(adapterSource.indexOf('readNodeRequestBody')).toBeLessThan(
-      adapterSource.lastIndexOf('createWebRequestFromNodeRequest'),
+      adapterSource.lastIndexOf('new Request('),
     );
   });
 });

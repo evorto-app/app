@@ -324,6 +324,9 @@ describe('event organizer query-state template', () => {
     expect(source).toContain(
       'Receipt history must load before a receipt can be added.',
     );
+    expect(source).toContain(
+      "getErrorMessage(error, 'Failed to submit receipt')",
+    );
   });
 
   it('binds organizer cancellation to the confirmed participant state', () => {

@@ -16,7 +16,10 @@ At a high level:
 - Data is persisted in Postgres through Drizzle.
 - Payments and refunds are handled through Stripe.
 - Auth is handled through Auth0 for now.
-- Blob/object storage is used for uploaded files such as receipts.
+- The `ObjectStorage` Effect service uses private Scaleway S3 in hosted
+  environments, MinIO locally, and a fake in unit tests.
+- The `EmailDelivery` Effect service uses Scaleway Transactional Email in
+  hosted environments, Mailpit locally, and a fake in unit tests.
 - Tenants are resolved from domains.
 - Playwright drives regression tests and generated product documentation.
 
@@ -316,13 +319,51 @@ The local runtime should make dependencies easy to start and isolate.
 Expected local dependency stack:
 
 - Docker Compose
-- Neon Local for ephemeral Postgres branches
+- pinned PostgreSQL 17 with worktree-isolated ports and volumes
 - MinIO for blob storage
+- Mailpit for transactional email inspection
+- Stripe CLI for test-mode webhooks
+- separate web and polling-worker processes built from the same image
 - app server on a configurable local port where possible
 
 The project should support multiple worktrees running in parallel. Worktree-local generated env/runtime configuration should avoid collisions in Docker project names and service ports.
 
 The app port may remain constrained by Auth0 callback configuration, but the architecture should not make parallel worktrees harder than necessary.
+
+## Hosted Runtime and Delivery
+
+Scaleway staging in `fr-par` is the first hosted target. The same immutable
+Linux/amd64 image starts as exactly one role:
+
+- `web` exposes public HTTP, RPC, and SSR and runs no background loops;
+- `worker` is private and exposes only bounded idempotent email, checkout,
+  refund, and receipt-orphan operations invoked by CRON triggers;
+- `ops` is private and exposes only schema explain/apply and confirmed staging
+  reset-and-seed operations. It does not expose arbitrary commands.
+
+All roles reach PostgreSQL 17 over a private network with verified TLS and
+bounded pools. Static infrastructure is Terraform-owned; protected GitHub
+deployment workflows own immutable image revisions and synchronized
+role-scoped secret values. Staging uses `staging.evorto.app`. Production is
+defined as `alpha.evorto.app` but remains unprovisioned behind an explicit
+disabled gate until staging acceptance and a separate enablement decision.
+
+The server resolves tenants from the real `Host` header, does not accept
+`X-Forwarded-Host` as tenant authority, and trusts forwarded scheme only at the
+configured platform boundary. `/healthz` remains DB-free, `/readyz` performs a
+behavioral SSR probe against the configured tenant host, and `/version` proves
+environment, revision, and image digest. Effect OpenTelemetry exports traces to
+Scaleway Cockpit; native structured container logs carry the same release
+identity. Sentry is not part of the runtime.
+
+One private, versioned, encrypted application-data bucket holds tenant assets
+and receipts. Browser receipt uploads use a five-minute exact-key signed POST
+policy followed by server-side authorization, object size/magic-byte
+verification, and atomic finalize/consume state. Public media hosting and
+rich-text media processing are deliberately outside this platform slice.
+
+Operational details, secret boundaries, DNS records, and acceptance drills live
+in `infrastructure/scaleway/README.md`.
 
 ## Common Change Areas
 
