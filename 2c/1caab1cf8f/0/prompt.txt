@@ -1,0 +1,112 @@
+Okay, we should get the local changes commited and the audit unified then
+
+Legacy migration will be planned only when we are functionally complete, then it is on a best effort basis.
+
+Next we will plan a migration for the new version to a differen hosting providerder and then manual browser testing in that new staging environment
+
+---
+
+# Files mentioned by the user:
+
+## PLAN (1).md: /Users/hedde/Downloads/PLAN (1).md
+
+## My request for Codex:
+Give this plan to move the hosting to scaleway a once over please and ask questions if things are unclear
+
+---
+
+PLEASE IMPLEMENT THIS PLAN:
+# Scaleway Hosting Migration
+
+## Summary and locked decisions
+
+- Migrate staging first to Scaleway `fr-par`; keep production infrastructure defined but disabled and unprovisioned behind `PRODUCTION_ENABLED=false`.
+- Expose one tenant hostname per environment: `staging.evorto.app` initially and `alpha.evorto.app` for future production. Retain the current DNS provider and add only the required CNAME and email records. Scaleway supports this without an authoritative DNS transfer; document its 50-custom-domain container limit as a future scaling gate. [Custom domains](https://www.scaleway.com/en/docs/serverless-containers/how-to/add-a-custom-domain-to-a-container), [container limits](https://www.scaleway.com/en/docs/serverless-containers/reference-content/containers-limitations/)
+- Replace Neon Local with plain PostgreSQL 17 before the first staging deployment.
+- Remove Sentry immediately. Extend the existing Effect OpenTelemetry integration to Scaleway Cockpit.
+- Move Resend delivery to Scaleway Transactional Email using `Evorto <no-reply@notifications.evorto.app>`.
+- Introduce secure browser-to-Object-Storage receipt uploads now. Do not build rich-text media processing, public media hosting, Sharp, Edge Services, or a Cloudflare Images replacement.
+- Keep server-side authorization as the source of truth; add no RLS.
+- Leave Fly-related configuration untouched. Legacy data migration remains a separate, best-effort project after functional completion.
+
+## Application and runtime changes
+
+1. Split the single process using `APP_ROLE=web|worker|ops`, while building one immutable Linux/amd64 image:
+
+   - `web`: HTTP/RPC/SSR only; no background loops.
+   - `worker`: private authenticated container with bounded, idempotent endpoints for email delivery, expired-checkout cleanup, Stripe refund processing, and receipt-orphan cleanup. Configure separate CRON triggers with explicit paths and JSON arguments; Scaleway injects CRON arguments into the HTTP request body. [CRON triggers](https://www.scaleway.com/en/docs/serverless-containers/how-to/add-trigger-to-a-container/)
+   - `ops`: private authenticated container exposing only `schema-explain`, `schema-apply`, and `seed-staging`; no arbitrary command execution.
+   - Locally, run the worker in polling mode as a separate Compose service. Use CRON-triggered HTTP mode on Scaleway.
+   - Use private-network egress from all roles to PostgreSQL. Do not use Serverless Jobs because they currently lack VPC connectivity. [Container private networking](https://www.scaleway.com/en/docs/serverless-containers/reference-content/containers-private-networks/), [Jobs limitations](https://www.scaleway.com/en/docs/serverless-jobs/faq/)
+   - Package pinned Drizzle schema tooling into the final image and enforce an uncompressed image-size gate below 1 GB.
+
+2. Harden runtime interfaces:
+
+   - Retain DB-free `GET /healthz`.
+   - Harden `GET /readyz` to perform the existing behavioral SSR check using `READINESS_TENANT_HOST`, independent of Scaleway’s generated hostname.
+   - Add no-store `GET /version` returning `{ environment, revision, imageDigest }`.
+   - Resolve tenants from the real `Host` header, reject or ignore `X-Forwarded-Host`, and trust `X-Forwarded-Proto` only from the platform boundary.
+   - Add `POST /telemetry/browser-errors`: same-origin JSON only, 8 KiB maximum, redacted and truncated fields, instance-local deduplication/rate limiting, structured logging, and a `204` response.
+   - Add `APP_ENVIRONMENT`, `APP_REVISION`, `APP_IMAGE_DIGEST`, `READINESS_TENANT_HOST`, `WORKER_TRIGGER_MODE`, and bounded DB-pool settings. Remove Neon, Resend, and Sentry variables. Avoid application variables beginning with Scaleway’s reserved `SCW_` prefix.
+
+3. Refactor provider integrations:
+
+   - Replace R2-specific storage naming with an Effect `ObjectStorage` service backed by Scaleway S3, MinIO locally, and a fake in tests. Preserve server-mediated tenant-brand uploads.
+   - Use one private application-data bucket for tenant assets and receipts, with SSE-ONE, versioning, lifecycle rules, and exact-origin CORS. Maintain separate private buckets for Terraform state and deployment metadata. [SSE-ONE](https://www.scaleway.com/en/docs/object-storage/how-to/enable-sse-one/), [versioning](https://www.scaleway.com/en/docs/object-storage/how-to/use-bucket-versioning/), [lifecycle rules](https://www.scaleway.com/en/docs/object-storage/how-to/manage-lifecycle-rules/)
+   - Replace the base64 receipt RPC with:
+     - `createUpload({ eventId, fileName, mimeType, sizeBytes }) → { uploadId, url, fields, expiresAt }`
+     - `finalizeUpload({ uploadId }) → finalized upload`
+   - `createUpload` authorizes the user/tenant/event, creates a five-minute pending record, and signs an exact-key POST policy with type and size constraints. `finalizeUpload` reauthorizes, checks object size and magic bytes, permits only JPEG, PNG, WebP, and PDF, and becomes atomically idempotent. Receipt submission may consume only a ready upload bound to the same user, tenant, and event. Track `pending|ready|rejected|consumed`; clean expired orphans after a safety grace period. [Signed POST uploads](https://www.scaleway.com/en/docs/object-storage/api-cli/post-object)
+   - Introduce an Effect `EmailDelivery` service with TEM, Mailpit, and fake implementations. Preserve leases, attempts, backoff, and exhaustion history; rename provider-specific message fields to `provider` and `providerMessageId`.
+   - Add terminal `deliveryUnknown` for ambiguous post-dispatch failures and `suppressed` for staging recipients outside the protected allowlist. Never retry `deliveryUnknown`; keep exhausted and unknown emails read-only. Configure SPF, DKIM, MX, and DMARC-compatible records for `notifications.evorto.app`, preserving per-tenant Reply-To. [TEM setup](https://www.scaleway.com/en/docs/transactional-email/quickstart), [TEM API](https://www.scaleway.com/en/developers/api/transactional-email/emails)
+
+4. Replace local infrastructure:
+
+   - Use pinned PostgreSQL 17 with worktree-isolated ports and volumes; remove Neon API, proxy, expiration, and `NEON_*` plumbing.
+   - Retain MinIO and Stripe CLI, add Mailpit, and preserve `docker:start`, `docker:resume`, `docker:stop`, database, and E2E workflows.
+   - Keep destructive reset commands guarded to local hosts plus an explicit confirmation flag.
+
+## Scaleway infrastructure and delivery
+
+1. Terraform:
+
+   - Bootstrap a versioned private state bucket separately, then use the S3 backend with conditional lockfiles. [Scaleway Terraform backend](https://registry.terraform.io/providers/scaleway/scaleway/latest/docs/guides/backend_guide), [conditional writes](https://www.scaleway.com/en/docs/object-storage/api-cli/using-conditional-writes/)
+   - Define `evorto-staging` with VPC/private network, registry, PostgreSQL, IAM, Secret Manager, Cockpit, buckets, and the three container roles.
+   - Start staging PostgreSQL 17 as private-only `DB-DEV-S`, verified TLS, encryption at rest, separate least-privilege runtime/schema users, bounded connection pools, required extensions, daily backups retained seven days, and tested restoration.
+   - Define—but do not provision—`evorto-production` with HA `DB-POP2-2C-8G`, daily backups retained 30 days, a 24-hour RPO, and `alpha.evorto.app`. Measure restoration time during drills rather than promising an untested RTO. [Database responsibility and encryption](https://www.scaleway.com/en/docs/managed-databases-for-postgresql-and-mysql/reference-content/shared-responsibility-model/), [backups](https://www.scaleway.com/en/docs/managed-databases-for-postgresql-and-mysql/how-to/manage-backups/)
+   - Initially size containers at 560 mCPU/1 GB. Staging web uses min 0/max 3; worker and ops min 0/max 1. Future production web uses min 1/max 3.
+   - Keep static infrastructure in Terraform, but let deployment workflows own image revisions and secret environment values. Because Serverless Container secrets are not directly linked to Secret Manager, sync role-scoped secret values during deployment without placing them in Terraform state; mask logs and configure `ignore_changes` accordingly. [Container secret model](https://www.scaleway.com/en/docs/serverless-containers/concepts/)
+
+2. Observability and secrets:
+
+   - Extend existing Effect OTel with OTLP/HTTP trace export to Cockpit: 100% sampling in staging and 10% in production. Use native structured container logs with environment, role, revision, image digest, and request ID. [Cockpit traces](https://www.scaleway.com/en/docs/cockpit/how-to/activate-push-traces/), [container monitoring](https://www.scaleway.com/en/docs/serverless-containers/how-to/monitor-container/)
+   - Store private source maps outside the runtime image for 90 days, keyed by revision and digest.
+   - Configure alerts for 5xx/readiness failures, restarts, worker/ops failures, database saturation, storage/CPU, and billing.
+   - Scope secrets separately: web receives auth/session/Stripe webhook/runtime DB/storage; worker receives runtime DB/Stripe/TEM/storage; ops receives schema DB credentials. Rotate static IAM/API credentials on a documented schedule.
+
+3. CI and deployment:
+
+   - Normal PR/main CI runs format checking, lint, unit suites, PostgreSQL integration, build, Terraform validation/static scanning, release metadata checks, Linux/amd64 image build, SBOM, vulnerability scan, and image-size gate, ending in one required `CI/gate`.
+   - Keep protected credential/provider E2E separate from ordinary PR CI. PRs receive no Scaleway deployment credentials and use no `pull_request_target`.
+   - Deploy staging only after the exact `main` SHA passes both `CI/gate` and the protected baseline. Support automatic, manual, and 30-minute reconciliation triggers with deployment concurrency that never cancels an active deployment.
+   - Build once as `sha-<fullsha>`, resolve the digest, store source maps/SBOM and an append-only deployment manifest containing commit, digest, schema hash, workflow, and timestamp.
+   - Reconcile Terraform and secrets; deploy `ops` at the selected digest; run Drizzle explain and reject destructive schema plans; apply only backward-compatible schema changes. A staging reset requires a separate confirmed workflow.
+   - Deploy worker and web at the same digest, inject revision/digest metadata, and verify health, readiness, version, SSR/RPC, Auth0, Stripe test mode, TEM allowlisting, receipt uploads, tenant resolution, and `noindex`.
+   - On failure after traffic changes, redeploy the prior image digest. Database changes remain forward-only and backward compatible.
+   - Define a disabled production workflow that accepts only a successful staging manifest, copies the exact digest to the production registry without rebuilding, requires protected-environment approval, applies a safe schema plan, deploys, and smokes the release.
+
+## Verification and acceptance
+
+- Before any CI-triggering push, run the complete local equivalent with no filtering: format check, lint, all server/app unit suites, build, PostgreSQL integration, Playwright baseline/docs/integration projects, Terraform checks, Linux/amd64 image/security/size checks, the clean 11-test provider suite, and live ESNcard release certification.
+- Every collected test must pass: zero failures, skips, todos, fixmes, expected failures, retries/flakes, interruptions, or focused tests. Keep both ESNcard identifiers exclusively in local dotenv files or protected secrets.
+- Add focused tests for role isolation; worker idempotency and concurrency; Host spoofing; configured-host readiness; version metadata; telemetry redaction; TEM retry/unknown/suppressed states; TLS/pool/user separation; and signed-upload wrong-tenant, expiry, MIME spoofing, oversize, public-ACL, concurrent-finalize, and orphan scenarios.
+- After staging deployment, manually test anonymous/events, free and paid registration, add-ons, waitlists, cancellation, transfer, organizer operations, tenant/platform administration, receipts, Maps, and live providers in Browser. For the scanner, use a deterministic registration-result URL unless reliable camera emulation is straightforward; inspect console and network failures throughout.
+- Acceptance requires a successful restore drill, drift-reconciliation test, image rollback test, exact revision/digest proof, and confirmation that runtime artifacts contain no secrets, private source maps, Sentry, Neon, Resend, R2-specific, or Cloudflare Images dependencies.
+
+## Assumptions and deferred work
+
+- Staging is public but contains seeded/test data only and is marked `noindex`.
+- Existing Auth0, Stripe, Google Maps, Font Awesome, ESNcard, and Icons8 dependencies remain.
+- Paid event transactions remain Stripe-only; hosting work does not alter the established registration, add-on, refund, or transfer rules.
+- No RLS, Fly changes, legacy data migration, public media platform, or rich-text media pipeline is included.
+- Production resources and traffic remain disabled until staging browser testing, restore evidence, release certification, and a separate production-enablement decision are complete.
