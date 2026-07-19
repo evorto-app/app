@@ -256,6 +256,9 @@ describe('CI quality source', () => {
     expect(source).toContain('run: bun run format:check');
     expect(source).toContain('bun run lint');
     expect(source).toContain('git diff --exit-code');
+    expect(source).toContain(
+      'run: bunx playwright install --with-deps chromium',
+    );
     expect(source).toContain('bun run test:unit:server');
     expect(source).toContain('name: PostgreSQL integration tests');
     expect(source).toContain('postgres:17.10-alpine3.23@sha256:');
@@ -263,6 +266,14 @@ describe('CI quality source', () => {
     expect(source).toContain('bun run test:integration:postgres');
     expect(source).toMatch(/run: bun run test:unit\n/u);
     expect(source).toContain('bun run build:app');
+
+    const imageSecurityJob = source.slice(
+      source.indexOf('  image-security:'),
+      source.indexOf('  ci-gate:'),
+    );
+    expect(imageSecurityJob).toContain('name: Setup Bun');
+    expect(imageSecurityJob).toContain('bun-version: "1.3.14"');
+    expect(imageSecurityJob).toContain('bun run image:verify');
   });
 
   it('lints repository-owned tooling without traversing vendored sources', () => {

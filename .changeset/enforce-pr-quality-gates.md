@@ -12,3 +12,5 @@ fixme, expected-failure, interrupted, focused, retried, or flaky outcomes;
 missing disposable-database configuration fails loudly, and CI only confirms an
 already-green local result. GitHub release publication also waits for successful
 PR Quality and E2E Baseline main-push runs for the exact release merge commit.
+CI provisions Chromium for browser-backed security unit tests and Bun for the
+runtime-image verification step instead of relying on runner-global tools.
