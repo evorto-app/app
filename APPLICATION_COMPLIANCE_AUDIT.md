@@ -64,7 +64,8 @@ or externally accepted. The next release phase is to bootstrap and deploy
 authenticated desktop/compact manual Browser acceptance pass there. Any defect
 found must be fixed, covered durably where
 practical, and retested locally before a CI-triggering action. Fly-related work
-is intentionally excluded because it is owned by a separate change.
+is no longer a parallel dependency: the legacy Fly app, workflow, token, and
+tracked configuration were retired before the Scaleway staging cutover.
 
 Legacy data migration is not a prerequisite for functional completion. MIG-001
 is an accepted sequencing decision: after the new staging environment is
@@ -514,10 +515,10 @@ enabled mechanically without deciding reviewer/team ownership and bypass
 policy. Configure and verify the chosen requirements in GitHub rather than
 inferring them from workflow YAML.
 
-Fly deployment behavior and environment hardening are intentionally excluded
-because a separate deployment change is planned. The unified implementation
-does not modify the Fly workflow, and this audit makes no claim that the
-separate deployment work is complete.
+The legacy Fly deployment is retired. The `evorto` app was destroyed after
+confirming it had no volumes or managed PostgreSQL cluster, the GitHub workflow
+was disabled and removed, and the Fly deployment token was deleted. Scaleway is
+the only application hosting path defined by this repository.
 
 The unified implementation removes the release placeholder. Knope now uses
 regex-backed package versioning, single-package `default` change files, and an
@@ -942,8 +943,8 @@ Product UI and docs must continue to state these boundaries honestly.
 2. Bootstrap the versioned private Terraform state bucket and staging Scaleway
    project, create deployer/role API keys outside Terraform state, protect the
    GitHub environments, and add the emitted CNAME plus TEM SPF/DKIM/MX/DMARC
-   records at the retained DNS provider. Keep production disabled and leave Fly
-   configuration untouched.
+   records at the retained DNS provider. Keep production disabled; the retired
+   Fly deployment must not be restored as an alternate release path.
 3. Deploy the exact accepted main digest to `staging.evorto.app`, then prove
    release identity, health/readiness, private database/TLS/user separation,
    alerts, TEM allowlisting, signed receipt uploads, and the documented

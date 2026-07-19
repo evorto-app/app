@@ -53,7 +53,7 @@ describe('tenant outbound URL', () => {
   );
 
   it.effect(
-    'derives the tenant origin for a Fly-like runtime with NODE_ENV unset',
+    'derives the tenant origin for a hosted runtime with NODE_ENV unset',
     () =>
       Effect.gen(function* () {
         expect(yield* tenantOutboundRootUrl(tenant)).toBe(
@@ -61,7 +61,7 @@ describe('tenant outbound URL', () => {
         );
       }).pipe(
         provideEnvironment({
-          BASE_URL: 'https://evorto.fly.dev',
+          BASE_URL: 'https://staging.evorto.app',
         }),
       ),
   );

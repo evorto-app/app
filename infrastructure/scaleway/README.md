@@ -7,9 +7,9 @@ Production is described by the same module but remains absent while
 `PRODUCTION_ENABLED` is not exactly `true`.
 
 The application remains the authorization boundary. The database has separate
-runtime and schema users, but no row-level security policies. Fly configuration
-is intentionally outside this migration. Legacy data migration is a later,
-best-effort project after functional completion.
+runtime and schema users, but no row-level security policies. The legacy Fly
+application and deployment configuration are retired. Legacy data migration is
+a later, best-effort project after functional completion.
 
 ## Ownership split
 

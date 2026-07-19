@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -18,6 +18,25 @@ const between = (contents: string, start: string, end?: string): string => {
 };
 
 describe('Scaleway hosting source', () => {
+  it('retires the legacy Fly deployment surface and hostname', () => {
+    for (const removedPath of [
+      '.github/workflows/fly-deploy.yml',
+      'fly.toml',
+    ]) {
+      expect(existsSync(path.join(repositoryRoot, removedPath))).toBe(false);
+    }
+
+    for (const currentSource of [
+      source('angular.json'),
+      source('migration/index.ts'),
+      source('public/robots.txt'),
+      source('public/sitemap.xml'),
+      source('src/db/setup-database.ts'),
+    ]) {
+      expect(currentSource).not.toContain('evorto.fly.dev');
+    }
+  });
+
   it('keeps production defined but disabled until an explicit protected promotion', () => {
     const main = source('infrastructure/scaleway/main.tf');
     const variables = source('infrastructure/scaleway/variables.tf');

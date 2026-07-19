@@ -22,7 +22,7 @@ Environment Variables
   - When `true`, if a tenant with the target domain exists, migration continues using it.
 - `MIGRATE_TENANTS`
   - Comma‑separated `oldShortName:newDomain` pairs.
-  - Example: `MIGRATE_TENANTS="tumi:localhost,tumi:evorto.fly.dev"`
+  - Example: `MIGRATE_TENANTS="tumi:localhost,tumi:staging.evorto.app"`
 - `MIGRATE_FEATURES`
   - Comma‑separated subset of: `users,tenants,roles,assignments,templates,events`.
   - Assignments require roles, templates require roles, and events require both

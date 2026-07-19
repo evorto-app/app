@@ -69,7 +69,7 @@ describe('platform authority source', () => {
     );
     const databaseDeploymentBoundary = [
       auditSchema,
-      readSource('.github/workflows/fly-deploy.yml'),
+      readSource('.github/workflows/scaleway-staging.yml'),
       readSource('helpers/reset-database-schema.ts'),
       readSource('migration/index.ts'),
       readSource('migration/migrator-database.ts'),

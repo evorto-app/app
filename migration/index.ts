@@ -47,7 +47,7 @@ async function runMigration(database: ScriptDatabaseClient, stripe: Stripe) {
   const allowReuseTenant =
     process.env['MIGRATION_ALLOW_REUSE_TENANT'] !== 'false';
   const features = parseMigrationFeatures(process.env['MIGRATE_FEATURES']);
-  const tenantsEnv = process.env['MIGRATE_TENANTS']; // e.g. "tumi:localhost,tumi:evorto.fly.dev"
+  const tenantsEnv = process.env['MIGRATE_TENANTS']; // e.g. "tumi:localhost,tumi:staging.evorto.app"
   const tenantPairs = tenantsEnv
     ? tenantsEnv
         .split(',')
@@ -59,7 +59,7 @@ async function runMigration(database: ScriptDatabaseClient, stripe: Stripe) {
         })
     : [
         { oldShortName: 'tumi', newDomain: 'localhost' },
-        { oldShortName: 'tumi', newDomain: 'evorto.fly.dev' },
+        { oldShortName: 'tumi', newDomain: 'staging.evorto.app' },
       ];
 
   const migrationTenants: Array<{

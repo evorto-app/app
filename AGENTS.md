@@ -128,8 +128,8 @@ package scripts instead of bare `dotenv` shell commands.
 
 ## Deployment and Schema
 
-- The Fly deploy workflow may apply the latest Drizzle schema before releasing
-  the new app image. Do not flag that ordering by itself.
+- Scaleway deployments explain and apply the Drizzle schema through the private
+  `ops` role before releasing the worker and web roles at the same digest.
 - Review schema changes for compatibility with the currently deployed app. Use
   expand/contract steps for destructive or otherwise backward-incompatible
   changes unless the release is explicitly coordinated as a maintenance window.

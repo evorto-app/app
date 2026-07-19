@@ -353,7 +353,7 @@ describe('evaluateRuntimePreflight', () => {
       expect.arrayContaining([
         'localhost',
         '127.0.0.1',
-        'evorto.fly.dev',
+        'staging.evorto.app',
         '*.evorto.app',
       ]),
     );
