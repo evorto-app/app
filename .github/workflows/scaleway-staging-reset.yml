@@ -20,7 +20,7 @@ jobs:
     name: Confirmed bounded staging reset
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: scaleway-staging
+    environment: scaleway-staging-reset
     env:
       SCW_DEFAULT_ORGANIZATION_ID: ${{ vars.SCW_ORGANIZATION_ID }}
       SCW_DEFAULT_REGION: fr-par

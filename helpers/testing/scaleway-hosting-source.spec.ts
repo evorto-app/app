@@ -285,6 +285,7 @@ describe('Scaleway hosting source', () => {
     expect(reset).toContain(
       'if [ "${CONFIRMATION}" != "reset-and-seed-staging" ]; then',
     );
+    expect(reset).toContain('environment: scaleway-staging-reset');
     expect(reset).toContain('/internal/ops/seed-staging');
     expect(runtimeVerifier).toContain('maximum_size_bytes=1000000000');
     expect(runtimeVerifier).toContain("'api\\.resend\\.com|cloudflare[_-]r2");
