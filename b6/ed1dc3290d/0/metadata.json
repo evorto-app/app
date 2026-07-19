@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b6ed1dc3290d",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-19T17:16:10.062735Z",
+  "branch": "codex/stabilize-event-review-e2e",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/stabilize-event-review-docs.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "ba1d62d3240e",
+  "checkpoint_transcript_start": 128347,
+  "transcript_lines_at_start": 128347,
+  "token_usage": {
+    "input_tokens": 298519,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 14980352,
+    "output_tokens": 11560,
+    "api_call_count": 136
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-19T17:16:05.132484Z",
+    "agent_lines": 8,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 8,
+    "total_lines_changed": 8,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
