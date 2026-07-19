@@ -13,6 +13,7 @@ import {
 import { Context, Effect, Layer, Option } from 'effect';
 
 import { type User } from '../../../../../types/custom/user';
+import { PlatformOperationContext } from './platform-operation-context';
 
 const rpcAccessEffect = Effect.sync(() => {
   const requireContext = Effect.fn('RpcAccess.requireContext')(
@@ -59,7 +60,21 @@ const rpcAccessEffect = Effect.sync(() => {
             }),
           );
         }
-        if (!includesPermission(permission, context.permissions)) {
+        const platformOperation = yield* Effect.serviceOption(
+          PlatformOperationContext,
+        );
+        const hasPlatformCapability = Option.match(platformOperation, {
+          onNone: () => false,
+          onSome: (operation) =>
+            operation.targetTenantId === context.tenant.id &&
+            operation.authority.actorId ===
+              context.platformAuthority?.actorId &&
+            operation.allowedPermissions.includes(permission),
+        });
+        if (
+          !includesPermission(permission, context.permissions) &&
+          !hasPlatformCapability
+        ) {
           return yield* Effect.fail(
             new RpcForbiddenError({
               message: 'Missing required permission',

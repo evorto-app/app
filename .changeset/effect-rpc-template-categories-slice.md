@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Move template category APIs from tRPC to Effect RPC

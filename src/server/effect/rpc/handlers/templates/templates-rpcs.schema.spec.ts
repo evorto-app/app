@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   TemplateFindOneRecord,
+  TemplateGraphInput,
+  TemplateGraphRecord,
   TemplateSimpleInput,
 } from '../../../../../shared/rpc-contracts/app-rpcs/templates.rpcs';
 
@@ -15,26 +17,32 @@ const validSimpleTemplateInput = {
   },
   location: null,
   organizerRegistration: {
+    cancellationDeadlineHoursBeforeStart: null,
     closeRegistrationOffset: 24,
     isPaid: false,
     openRegistrationOffset: 168,
     price: 0,
+    refundFeesOnCancellation: null,
     registrationMode: 'fcfs' as const,
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
     title: 'Organizer registration',
+    transferDeadlineHoursBeforeStart: null,
   },
   participantRegistration: {
+    cancellationDeadlineHoursBeforeStart: 96,
     closeRegistrationOffset: 24,
     isPaid: false,
     openRegistrationOffset: 168,
     price: 0,
+    refundFeesOnCancellation: false,
     registrationMode: 'fcfs' as const,
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
     title: 'Participant registration',
+    transferDeadlineHoursBeforeStart: 12,
   },
   title: 'Template',
 };
@@ -45,10 +53,11 @@ const validSimpleTemplateAddonInput = {
   allowPurchaseDuringEvent: false,
   allowPurchaseDuringRegistration: true,
   description: 'Optional dinner ticket',
+  includedQuantity: 1,
   isPaid: true,
   maxQuantityPerUser: 2,
+  optionalPurchaseQuantity: 1,
   price: 1200,
-  quantity: 1,
   registrationOptionKind: 'participant' as const,
   stripeTaxRateId: 'txr-1',
   title: 'Dinner',
@@ -131,7 +140,8 @@ describe('templates RPC location schema', () => {
             price: 1200,
             registrationOptions: [
               {
-                quantity: 1,
+                includedQuantity: 1,
+                optionalPurchaseQuantity: 1,
                 registrationOptionId: 'template-option-1',
               },
             ],
@@ -227,6 +237,144 @@ describe('templates RPC location schema', () => {
           name: 'Broken Place',
           type: 'online',
         },
+      }),
+    ).toThrow();
+  });
+});
+
+describe('templates RPC registration policy overrides', () => {
+  it('accepts nullable or nonnegative template option overrides', () => {
+    const decoded = Schema.decodeUnknownSync(TemplateSimpleInput)(
+      validSimpleTemplateInput,
+    );
+
+    expect(decoded.organizerRegistration).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: null,
+      refundFeesOnCancellation: null,
+      transferDeadlineHoursBeforeStart: null,
+    });
+    expect(decoded.participantRegistration).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: 96,
+      refundFeesOnCancellation: false,
+      transferDeadlineHoursBeforeStart: 12,
+    });
+  });
+
+  it('rejects negative template option deadline overrides', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateSimpleInput)({
+        ...validSimpleTemplateInput,
+        participantRegistration: {
+          ...validSimpleTemplateInput.participantRegistration,
+          transferDeadlineHoursBeforeStart: -1,
+        },
+      }),
+    ).toThrow();
+  });
+});
+
+describe('templates RPC full graph schemas', () => {
+  const graphInput = {
+    addOns: [],
+    categoryId: 'category-1',
+    description: '<p>Useful event template description</p>',
+    icon: {
+      iconColor: 0,
+      iconName: 'calendar:fas',
+    },
+    location: null,
+    planningTips: null,
+    questions: [],
+    registrationOptions: [
+      {
+        cancellationDeadlineHoursBeforeStart: null,
+        closeRegistrationOffset: 24,
+        description: null,
+        esnCardDiscountedPrice: null,
+        isPaid: false,
+        key: 'organizer',
+        openRegistrationOffset: 168,
+        organizingRegistration: true,
+        price: 0,
+        refundFeesOnCancellation: null,
+        registeredDescription: null,
+        registrationMode: 'fcfs',
+        roleIds: [],
+        spots: 10,
+        stripeTaxRateId: null,
+        title: 'Organizer registration',
+        transferDeadlineHoursBeforeStart: null,
+      },
+      {
+        cancellationDeadlineHoursBeforeStart: null,
+        closeRegistrationOffset: 24,
+        description: null,
+        esnCardDiscountedPrice: null,
+        isPaid: false,
+        key: 'participant',
+        openRegistrationOffset: 168,
+        organizingRegistration: false,
+        price: 0,
+        refundFeesOnCancellation: null,
+        registeredDescription: null,
+        registrationMode: 'application',
+        roleIds: [],
+        spots: 20,
+        stripeTaxRateId: null,
+        title: 'Participant registration',
+        transferDeadlineHoursBeforeStart: null,
+      },
+    ],
+    simpleModeEnabled: true,
+    title: 'Template',
+    unlisted: false,
+  } as const;
+
+  it('accepts a writable ordinary tenant template graph', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateGraphInput)(graphInput),
+    ).not.toThrow();
+  });
+
+  it('keeps legacy random allocation readable but rejects it from graph writes', () => {
+    const persistedRecord = {
+      ...validTemplateFindOneRecord,
+      registrationOptions: [
+        {
+          cancellationDeadlineHoursBeforeStart: null,
+          closeRegistrationOffset: 24,
+          description: null,
+          esnCardDiscountedPrice: null,
+          id: 'option-1',
+          isPaid: false,
+          openRegistrationOffset: 168,
+          organizingRegistration: false,
+          price: 0,
+          refundFeesOnCancellation: null,
+          registeredDescription: null,
+          registrationMode: 'random',
+          roleIds: [],
+          roles: [],
+          spots: 20,
+          stripeTaxRateId: null,
+          title: 'Legacy random registration',
+          transferDeadlineHoursBeforeStart: null,
+        },
+      ],
+      simpleModeEnabled: false,
+      unlisted: false,
+    };
+
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateGraphRecord)(persistedRecord),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...graphInput,
+        registrationOptions: graphInput.registrationOptions.map(
+          (option, index) =>
+            index === 1 ? { ...option, registrationMode: 'random' } : option,
+        ),
       }),
     ).toThrow();
   });

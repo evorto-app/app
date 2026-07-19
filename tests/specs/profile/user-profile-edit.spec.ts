@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { Locator } from '@playwright/test';
 
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -7,6 +8,12 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 test.setTimeout(120_000);
 
 test.use({ storageState: userStateFile });
+
+const fillControlledTextField = async (field: Locator, value: string) => {
+  await expect(field).not.toHaveClass(/mat-input-server/);
+  await field.fill(value);
+  await expect(field).toHaveValue(value);
+};
 
 test('profile edit persists notification email and reimbursement details', async ({
   database,
@@ -34,27 +41,56 @@ test('profile edit persists notification email and reimbursement details', async
   try {
     await page.goto('/profile');
 
-    await expect(
-      page.getByRole('button', { name: 'Edit profile' }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Edit profile' }).click();
+    const editProfileButton = page.getByRole('button', {
+      name: 'Edit profile',
+    });
+    await expect(editProfileButton).toBeVisible();
+    // SSR exposes the button before Angular attaches its live click listener.
+    // Event replay removes `jsaction` once the hydrated action is interactive.
+    await expect(editProfileButton).not.toHaveAttribute('jsaction', /click/);
+    await editProfileButton.click();
 
-    const editDialog = page.locator('mat-dialog-container');
+    const editDialog = page.getByRole('dialog', { name: 'Edit profile' });
     await expect(editDialog).toBeVisible();
-    await page.getByRole('textbox', { name: 'First name' }).fill('');
-    await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
-    await page
-      .getByRole('textbox', { name: 'First name' })
-      .fill(originalUser.firstName);
+    const firstNameInput = editDialog.getByRole('textbox', {
+      exact: true,
+      name: 'First name',
+    });
+    const notificationEmailInput = editDialog.getByRole('textbox', {
+      exact: true,
+      name: 'Notification email',
+    });
+    const ibanInput = editDialog.getByRole('textbox', {
+      exact: true,
+      name: 'IBAN (for reimbursements)',
+    });
+    const paypalEmailInput = editDialog.getByRole('textbox', {
+      exact: true,
+      name: 'PayPal email (for reimbursements)',
+    });
+    const saveButton = editDialog.getByRole('button', {
+      exact: true,
+      name: 'Save',
+    });
 
-    await page
-      .getByRole('textbox', { name: 'Notification email' })
-      .fill(notificationEmail);
-    await page.getByRole('textbox', { name: 'IBAN' }).fill(` ${iban} `);
-    await page
-      .getByRole('textbox', { name: 'PayPal email' })
-      .fill(` ${paypalEmail} `);
-    await page.getByRole('button', { name: 'Save' }).click();
+    await fillControlledTextField(firstNameInput, '');
+    await expect(saveButton).toBeDisabled();
+    await fillControlledTextField(firstNameInput, originalUser.firstName);
+    await fillControlledTextField(notificationEmailInput, notificationEmail);
+    await fillControlledTextField(ibanInput, ` ${iban} `);
+    await fillControlledTextField(paypalEmailInput, ` ${paypalEmail} `);
+
+    // Keep every signal-backed field stable through the final form update.
+    await expect(firstNameInput).toHaveValue(originalUser.firstName);
+    await expect(notificationEmailInput).toHaveValue(notificationEmail);
+    await expect(ibanInput).toHaveValue(` ${iban} `);
+    await expect(paypalEmailInput).toHaveValue(` ${paypalEmail} `);
+    await expect(editDialog.locator('form')).not.toHaveAttribute(
+      'jsaction',
+      /submit/,
+    );
+    await expect(saveButton).toBeEnabled();
+    await saveButton.click();
 
     await expect(editDialog).toHaveCount(0);
     await expect(

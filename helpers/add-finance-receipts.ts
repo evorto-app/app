@@ -1,4 +1,5 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { createHash } from 'node:crypto';
 
 import { buildReceiptStorageKey } from '@server/effect/rpc/handlers/finance/receipt-media.service';
 
@@ -11,6 +12,7 @@ import { usersToAuthenticate } from './user-data';
 export const addFinanceReceipts = async (
   database: NodePgDatabase<typeof relations>,
   options: {
+    currency: 'AUD' | 'CZK' | 'EUR';
     eventIds: string[];
     tenantId: string;
   },
@@ -76,6 +78,7 @@ export const addFinanceReceipts = async (
     ...upload,
     consumedAt: now,
     mimeType: 'application/pdf',
+    status: 'consumed' as const,
     storageUrl: 'local-unavailable://receipt',
     tenantId: options.tenantId,
     uploadedAt: now,
@@ -85,6 +88,7 @@ export const addFinanceReceipts = async (
     receiptUploads.map((upload) => ({
       ...upload,
       storageKey: buildReceiptStorageKey({
+        contentDigest: createHash('sha256').update(upload.id).digest('hex'),
         eventId: upload.eventId,
         fileName: upload.fileName,
         tenantId: options.tenantId,
@@ -101,6 +105,7 @@ export const addFinanceReceipts = async (
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 42_000,
       attachmentUploadId: kitchenSuppliesUploadId,
+      currency: options.currency,
       depositAmount: 0,
       eventId: eventA,
       hasAlcohol: false,
@@ -119,6 +124,7 @@ export const addFinanceReceipts = async (
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 48_000,
       attachmentUploadId: venueDepositUploadId,
+      currency: options.currency,
       depositAmount: 1000,
       eventId: eventB ?? eventA,
       hasAlcohol: true,
@@ -139,6 +145,7 @@ export const addFinanceReceipts = async (
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 21_000,
       attachmentUploadId: transportTicketUploadId,
+      currency: options.currency,
       depositAmount: 0,
       eventId: eventC ?? eventA,
       hasAlcohol: true,
@@ -159,6 +166,7 @@ export const addFinanceReceipts = async (
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 30_000,
       attachmentUploadId: profileReceiptUploadId,
+      currency: options.currency,
       depositAmount: 0,
       eventId: eventA,
       hasAlcohol: false,

@@ -1,0 +1,193 @@
+@let option = optionForm();
+<fieldset class="border-outline-variant grid gap-4 border-t pt-4">
+  <legend class="title-small pr-3">
+    {{
+      option.title().value().trim() ||
+        (option.organizingRegistration().value()
+          ? "Organizing option"
+          : "Registration option")
+    }}
+  </legend>
+
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    @if (simpleMode()) {
+      <p class="body-small text-on-surface-variant">
+        {{
+          option.organizingRegistration().value()
+            ? "Organizing registration"
+            : "Non-organizing registration"
+        }}
+      </p>
+    } @else {
+      <mat-checkbox [formField]="option.organizingRegistration">
+        Organizing option
+      </mat-checkbox>
+      <button
+        mat-button
+        type="button"
+        [disabled]="referenceCount() > 0"
+        (click)="remove.emit()"
+      >
+        <fa-duotone-icon [icon]="faTrashCan" />
+        Remove option
+      </button>
+    }
+  </div>
+  @if (!simpleMode() && referenceCount() > 0) {
+    <p class="body-small text-on-surface-variant">
+      Reassign this option's questions and remove it from any add-ons before
+      removing the option.
+    </p>
+  }
+
+  <mat-form-field>
+    <mat-label>Registration option name</mat-label>
+    <input matInput [formField]="option.title" />
+    @for (error of option.title().errors(); track error) {
+      <mat-error>{{ error.message }}</mat-error>
+    }
+  </mat-form-field>
+
+  <div class="grid gap-4 @md:grid-cols-2">
+    <section class="grid gap-2">
+      <span class="text-on-surface-variant text-sm">Description</span>
+      <app-editor [control]="option.description" />
+    </section>
+    <section class="grid gap-2">
+      <span class="text-on-surface-variant text-sm">
+        Description for registered users
+      </span>
+      <app-editor [control]="option.registeredDescription" />
+    </section>
+  </div>
+
+  <app-role-select [formField]="option.roleIds" />
+
+  <div class="grid gap-4 @sm:grid-cols-2">
+    <mat-form-field>
+      <mat-label>Registration mode</mat-label>
+      <mat-select [formField]="option.registrationMode">
+        @for (mode of registrationModes; track mode) {
+          <mat-option [value]="mode">{{
+            registrationModeLabel(mode)
+          }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Spots</mat-label>
+      <input matInput type="number" [formField]="option.spots" />
+      @for (error of option.spots().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+  </div>
+
+  <div class="grid gap-4 @sm:grid-cols-2">
+    <div class="grid gap-2">
+      <span class="text-on-surface-variant text-sm">
+        Registration opens before the event
+      </span>
+      <app-duration-selector
+        [formField]="option.openRegistrationOffset"
+        hint="How long before the event registration opens"
+      />
+    </div>
+    <div class="grid gap-2">
+      <span class="text-on-surface-variant text-sm">
+        Registration closes before the event
+      </span>
+      <app-duration-selector
+        [formField]="option.closeRegistrationOffset"
+        hint="How long before the event registration closes"
+      />
+    </div>
+  </div>
+
+  <div class="grid gap-4 @sm:grid-cols-2">
+    <mat-form-field>
+      <mat-label>Cancellation deadline (hours before)</mat-label>
+      <input
+        matInput
+        type="number"
+        placeholder="Use organization default"
+        [formField]="option.cancellationDeadlineHoursBeforeStart"
+      />
+      @for (
+        error of option.cancellationDeadlineHoursBeforeStart().errors();
+        track error
+      ) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Transfer deadline (hours before)</mat-label>
+      <input
+        matInput
+        type="number"
+        placeholder="Use organization default"
+        [formField]="option.transferDeadlineHoursBeforeStart"
+      />
+      @for (
+        error of option.transferDeadlineHoursBeforeStart().errors();
+        track error
+      ) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+  </div>
+
+  <mat-checkbox [formField]="option.isPaid">Enable payment</mat-checkbox>
+  <p class="text-on-surface-variant text-sm">
+    Paid options require a connected Stripe account.
+  </p>
+  @if (!option.price().hidden()) {
+    <div class="grid gap-4 @sm:grid-cols-2">
+      <app-currency-amount-input
+        label="Price"
+        [currencyCode]="currencyCode()"
+        [formField]="option.price"
+        [minimumMinorUnits]="1"
+      />
+      <mat-form-field>
+        <mat-label>Inclusive tax rate</mat-label>
+        <mat-select [formField]="option.stripeTaxRateId">
+          @if (taxRateState() === "loading") {
+            <mat-option disabled>Loading tax rates...</mat-option>
+          } @else if (taxRateState() === "error") {
+            <mat-option disabled>Failed to load tax rates</mat-option>
+          } @else {
+            @for (rate of taxRates(); track rate.id) {
+              <mat-option [value]="rate.stripeTaxRateId">
+                {{ rate.displayName || rate.stripeTaxRateId }} —
+                {{ rate.percentage ?? "?" }}%
+              </mat-option>
+            } @empty {
+              <mat-option disabled>No active inclusive tax rates</mat-option>
+            }
+          }
+        </mat-select>
+        @for (error of option.stripeTaxRateId().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
+      </mat-form-field>
+    </div>
+    @if (esnEnabled()) {
+      <app-currency-amount-input
+        hint="Leave blank to disable the discount."
+        label="ESNcard price"
+        [allowEmpty]="true"
+        [currencyCode]="currencyCode()"
+        [formField]="option.esnCardDiscountedPrice"
+      />
+    }
+    <mat-form-field>
+      <mat-label>Payment fees after cancellation</mat-label>
+      <mat-select [formField]="option.refundFeesOnCancellation">
+        <mat-option value="default">Use organization default</mat-option>
+        <mat-option value="refund">Refund payment fees</mat-option>
+        <mat-option value="doNotRefund">Do not refund payment fees</mat-option>
+      </mat-select>
+    </mat-form-field>
+  }
+</fieldset>

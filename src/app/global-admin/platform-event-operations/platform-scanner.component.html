@@ -1,0 +1,426 @@
+<app-platform-tenant-page-header
+  title="Registration support"
+  [tenantId]="tenantId()"
+/>
+
+<section class="mb-6 grid gap-3 border-l-4 border-primary pl-4">
+  <h2 class="title-small">Find an attendee registration</h2>
+  <p class="body-medium text-on-surface-variant">
+    Paste the attendee's ticket link or registration ID to review their event
+    access, help with check-in, or resolve a registration issue for this
+    organization.
+  </p>
+  <form
+    class="flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-start"
+    (submit)="openLookup($event)"
+  >
+    <mat-form-field class="grow">
+      <mat-label>Ticket link or registration ID</mat-label>
+      <input
+        matInput
+        [disabled]="!lookupInteractive()"
+        [value]="lookupValue()"
+        (input)="setLookupValue($event)"
+      />
+      @if (lookupError()) {
+        <mat-error>{{ lookupError() }}</mat-error>
+      }
+    </mat-form-field>
+    <button
+      class="sm:mt-2"
+      mat-flat-button
+      type="submit"
+      [disabled]="!lookupInteractive()"
+    >
+      Open registration
+    </button>
+  </form>
+</section>
+
+@if (registrationId()) {
+  @if (registrationQuery.isPending()) {
+    <p role="status">Loading registration...</p>
+  } @else if (registrationQuery.isError()) {
+    <section
+      class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
+      role="alert"
+    >
+      <p>
+        This registration could not be loaded. Check the ticket link or
+        registration ID and try again.
+      </p>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="registrationQuery.isFetching()"
+        (click)="registrationQuery.refetch()"
+      >
+        {{ registrationQuery.isFetching() ? "Retrying..." : "Try again" }}
+      </button>
+    </section>
+  } @else if (registrationQuery.isSuccess()) {
+    @let registration = registrationQuery.data();
+    <section class="mb-8 grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="headline-small">
+            {{ registration.attendee.firstName }}
+            {{ registration.attendee.lastName }}
+          </h2>
+          <span class="label-small bg-surface-container rounded px-2 py-1">
+            {{ platformRegistrationStatusLabel(registration.status) }}
+          </span>
+        </div>
+        <p class="body-medium text-on-surface-variant mt-1">
+          {{ registration.attendee.email }}
+        </p>
+
+        @if (targetTenantOptionsQuery.isError()) {
+          <section
+            class="bg-error-container text-on-error-container mt-4 grid justify-items-start gap-3 p-3"
+            role="alert"
+          >
+            <p>
+              Dates cannot be shown in the organization's time zone right now.
+            </p>
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="targetTenantOptionsQuery.isFetching()"
+              (click)="targetTenantOptionsQuery.refetch()"
+            >
+              {{
+                targetTenantOptionsQuery.isFetching()
+                  ? "Retrying..."
+                  : "Try again"
+              }}
+            </button>
+          </section>
+        }
+
+        <dl class="mt-5 grid gap-3 sm:grid-cols-2">
+          <div>
+            <dt class="label-medium text-on-surface-variant">Event</dt>
+            <dd class="body-medium">{{ registration.event.title }}</dd>
+          </div>
+          <div>
+            <dt class="label-medium text-on-surface-variant">Starts</dt>
+            <dd class="body-medium">
+              @if (targetTenantOptionsQuery.isSuccess()) {
+                {{ displayDateTime(registration.event.start) }} ·
+                {{ targetTenantOptionsQuery.data().timezone }}
+              } @else if (targetTenantOptionsQuery.isError()) {
+                <span>Time unavailable</span>
+              } @else {
+                <span role="status">Loading organization time zone...</span>
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="label-medium text-on-surface-variant">Option</dt>
+            <dd class="body-medium">
+              {{ registration.registrationOptionTitle }}
+            </dd>
+          </div>
+          <div>
+            <dt class="label-medium text-on-surface-variant">Check-in</dt>
+            <dd class="body-medium">
+              @if (!registration.checkInTime) {
+                Not checked in
+              } @else if (targetTenantOptionsQuery.isSuccess()) {
+                {{ displayDateTime(registration.checkInTime) }} ·
+                {{ targetTenantOptionsQuery.data().timezone }}
+              } @else if (targetTenantOptionsQuery.isError()) {
+                <span>Time unavailable</span>
+              } @else {
+                <span role="status">Loading organization time zone...</span>
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="label-medium text-on-surface-variant">Guests</dt>
+            <dd class="body-medium">
+              {{ registration.checkedInGuestCount }} of
+              {{ registration.guestCount }} checked in
+            </dd>
+          </div>
+        </dl>
+
+        @let registrationStatusIssue =
+          platformRegistrationStatusIssueCopy(registration.status);
+        @if (registrationStatusIssue) {
+          <p
+            class="bg-error-container text-on-error-container mt-4 p-3"
+            role="alert"
+          >
+            <span class="title-small block">
+              {{ registrationStatusIssue.title }}
+            </span>
+            <span>{{ registrationStatusIssue.body }}</span>
+          </p>
+        } @else if (registration.checkInTimingIssue) {
+          <p class="bg-tertiary-container text-on-tertiary-container mt-4 p-3">
+            Check-in opens one hour before the event starts.
+          </p>
+        } @else if (!registration.allowCheckIn) {
+          <p class="bg-surface-container mt-4 p-3">
+            The attendee and all registered guests are already checked in.
+          </p>
+        }
+      </div>
+
+      <aside class="border-outline-variant border-l pl-5">
+        <h3 class="title-medium">Help with this registration</h3>
+        <p class="body-small text-on-surface-variant mt-1">
+          Use these actions only when supporting this organization. Your reason
+          and the resulting registration change are saved in the change history.
+        </p>
+
+        <section class="border-outline-variant mt-4 border-t pt-4">
+          <h4 class="label-large">Cancellation policy</h4>
+          <dl class="body-small mt-2 grid gap-2">
+            <div>
+              <dt class="text-on-surface-variant">Participant deadline</dt>
+              <dd>
+                @if (targetTenantOptionsQuery.isSuccess()) {
+                  {{ displayDateTime(registration.cancellation.deadline) }} ·
+                  {{ targetTenantOptionsQuery.data().timezone }}
+                } @else if (targetTenantOptionsQuery.isError()) {
+                  <span>Time unavailable</span>
+                } @else {
+                  <span role="status">Loading organization time zone...</span>
+                }
+              </dd>
+            </div>
+            <div>
+              <dt class="text-on-surface-variant">Refund</dt>
+              <dd>
+                @if (registration.cancellation.refund.required) {
+                  @if (registration.cancellation.refund.amount !== null) {
+                    {{ formatRefundAmount(registration) }} refund. Payment fees
+                    are
+                    {{
+                      registration.cancellation.refund.feesIncluded
+                        ? "included"
+                        : "excluded"
+                    }}
+                    .
+                  } @else {
+                    The refund will be calculated from the original payment when
+                    you cancel.
+                  }
+                } @else {
+                  No payment to refund
+                }
+              </dd>
+            </div>
+          </dl>
+          @if (registration.cancellation.deadlinePassed) {
+            <p
+              class="bg-tertiary-container text-on-tertiary-container mt-3 p-3"
+            >
+              The participant deadline has passed. You can still cancel before
+              the event starts; the reason is saved in the change history.
+            </p>
+          }
+          @if (registration.cancellation.blockedReason) {
+            <p class="bg-error-container text-on-error-container mt-3 p-3">
+              {{ registration.cancellation.blockedReason }}
+            </p>
+          }
+        </section>
+
+        <mat-form-field class="mt-4 w-full">
+          <mat-label>Reason for this action</mat-label>
+          <textarea
+            matInput
+            rows="3"
+            [value]="reason()"
+            (input)="setReason($event)"
+          ></textarea>
+          <mat-hint
+            >Required before approving, checking in, or cancelling</mat-hint
+          >
+        </mat-form-field>
+
+        @if (registration.manualApprovalAvailable) {
+          <section class="border-outline-variant border-t py-4">
+            <h4 class="label-large">Manual approval</h4>
+            <p class="body-small text-on-surface-variant mt-1">
+              @if (registration.paymentPending) {
+                Finish the attendee's existing payment before taking another
+                action.
+              } @else {
+                Approve this application. Paid registrations will remain pending
+                while the attendee completes payment.
+              }
+            </p>
+            <button
+              class="mt-3 w-full"
+              mat-flat-button
+              type="button"
+              [disabled]="!reason().trim() || anyActionPending()"
+              (click)="approve()"
+            >
+              {{
+                approveMutation.isPending()
+                  ? "Approving..."
+                  : registration.paymentPending
+                    ? "Resume approval setup"
+                    : "Approve"
+              }}
+            </button>
+          </section>
+        } @else if (registration.paymentPending) {
+          <p class="bg-tertiary-container text-on-tertiary-container mb-4 p-3">
+            Approval is complete and attendee payment is pending.
+          </p>
+        }
+
+        @if (registration.allowCheckIn) {
+          <section class="border-outline-variant border-t py-4">
+            <h4 class="label-large">Check-in</h4>
+            @if (registration.remainingGuestCount > 0) {
+              <mat-form-field class="mt-3 w-full">
+                <mat-label>Guests to check in now</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  step="1"
+                  [max]="registration.remainingGuestCount"
+                  [value]="guestCheckInValue()"
+                  [attr.aria-invalid]="guestCheckInIssue() ? true : null"
+                  [attr.aria-describedby]="
+                    guestCheckInIssue() ? 'guest-check-in-issue' : null
+                  "
+                  (input)="setGuestCount($event)"
+                />
+                <mat-hint
+                  >{{ registration.remainingGuestCount }} guests
+                  remain</mat-hint
+                >
+              </mat-form-field>
+            }
+            @if (guestCheckInIssue()) {
+              <p
+                id="guest-check-in-issue"
+                class="body-small text-error mb-3"
+                role="alert"
+              >
+                {{ guestCheckInIssue() }}
+              </p>
+            }
+            <button
+              class="w-full"
+              mat-flat-button
+              type="button"
+              [disabled]="
+                !reason().trim() ||
+                anyActionPending() ||
+                guestCheckInIssue().length > 0
+              "
+              (click)="checkIn()"
+            >
+              {{ checkInMutation.isPending() ? "Checking in..." : "Check in" }}
+            </button>
+          </section>
+        }
+
+        @if (registration.cancellation.available) {
+          <section class="border-outline-variant border-t pt-4">
+            <h4 class="label-large">Cancel registration</h4>
+            <p class="body-small text-on-surface-variant mt-1">
+              This releases the attendee and guest spots, cancels remaining
+              add-on units, starts any required refund, and notifies the
+              attendee.
+            </p>
+            <button
+              class="mt-3 w-full"
+              mat-stroked-button
+              type="button"
+              [disabled]="!reason().trim() || anyActionPending()"
+              (click)="cancel()"
+            >
+              {{
+                cancelMutation.isPending()
+                  ? "Cancelling..."
+                  : "Cancel registration"
+              }}
+            </button>
+          </section>
+        }
+      </aside>
+    </section>
+  }
+}
+
+<section class="border-outline-variant border-t pt-6">
+  <div class="mb-3 flex flex-wrap items-center gap-2">
+    <h2 class="title-medium">
+      {{ eventId() ? "Event registrations" : "Recent registrations" }}
+    </h2>
+    <span class="body-small text-on-surface-variant">First 100 results</span>
+    <span class="grow"></span>
+    <a
+      mat-button
+      [routerLink]="['/global-admin/tenants', tenantId(), 'events']"
+    >
+      Events
+    </a>
+  </div>
+  @if (registrationsQuery.isPending()) {
+    <p role="status">Loading registrations...</p>
+  } @else if (registrationsQuery.isError()) {
+    <div
+      class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
+      role="alert"
+    >
+      <p>Registrations for this organization could not be loaded.</p>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="registrationsQuery.isFetching()"
+        (click)="registrationsQuery.refetch()"
+      >
+        {{ registrationsQuery.isFetching() ? "Retrying..." : "Try again" }}
+      </button>
+    </div>
+  } @else if (registrationsQuery.isSuccess()) {
+    <div class="divide-outline-variant divide-y">
+      @for (registration of registrationsQuery.data(); track registration.id) {
+        <article
+          class="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+        >
+          <div>
+            <p class="body-medium">
+              {{ registration.attendee.firstName }}
+              {{ registration.attendee.lastName }}
+            </p>
+            <p class="body-small text-on-surface-variant">
+              {{ registration.event.title }} ·
+              {{ registration.registrationOptionTitle }} ·
+              {{ platformRegistrationStatusLabel(registration.status) }}
+            </p>
+          </div>
+          <a
+            mat-button
+            [routerLink]="[
+              '/global-admin/tenants',
+              tenantId(),
+              'scanner',
+              registration.id,
+            ]"
+          >
+            Open registration
+          </a>
+        </article>
+      } @empty {
+        <p class="body-medium text-on-surface-variant py-4">
+          No registrations found.
+        </p>
+      }
+    </div>
+  }
+</section>

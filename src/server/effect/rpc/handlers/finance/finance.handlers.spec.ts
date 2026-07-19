@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@effect/vitest';
+import { describe, expect, it, vi } from '@effect/vitest';
 import { TransactionRollbackError } from 'drizzle-orm';
 import { Effect, Layer } from 'effect';
 
@@ -12,6 +12,7 @@ import {
   RpcRequestContext,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
+import { ReceiptMediaServiceUnavailableError } from '../../../../../shared/rpc-contracts/app-rpcs/finance.errors';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { financeReceiptSubmitterEmail } from './finance-receipts.handlers';
 import { financeHandlers } from './finance.handlers';
@@ -75,11 +76,23 @@ const createContextLayer = (
     Layer.succeed(
       ReceiptMediaService,
       (options.receiptMediaService ?? {
-        uploadOriginal: () =>
+        createUploadPolicy: () =>
           Effect.succeed({
-            storageKey: 'receipts/tenant-1/event-1/user-1/file.png',
-            storageUrl: 'local-unavailable://receipt',
+            fields: { key: 'receipts/example.png' },
+            storageKey: 'receipts/example.png',
+            url: 'https://storage.example.test/bucket',
           }),
+        discardPromotedUpload: () => Effect.void,
+        inspectUpload: () =>
+          Effect.succeed({
+            mimeType: 'image/png',
+            sizeBytes: 7,
+            storageKey: 'receipts/example.png',
+            storageUrl: 's3://bucket/receipts/example.png',
+          }),
+        objectExists: () => Effect.succeed(false),
+        signedPreviewUrl: () =>
+          Effect.succeed('https://signed.example.test/receipt'),
       }) as never,
     ),
   );
@@ -87,10 +100,9 @@ const createContextLayer = (
 
 const uploadInput = {
   eventId: 'event-1',
-  fileBase64: Buffer.from('receipt').toString('base64'),
   fileName: 'receipt.png',
-  fileSizeBytes: 7,
   mimeType: 'image/png',
+  sizeBytes: 7,
 };
 
 const receiptFieldsInput = {
@@ -238,6 +250,98 @@ const databaseWithReceiptUploadLifecycle = (steps: string[]) => {
   };
 };
 
+const databaseWithPendingReceiptUpload = () => {
+  let updatedValues: unknown;
+  const updateQuery = {
+    returning: () =>
+      Effect.succeed([
+        {
+          fileName: 'receipt.png',
+          id: 'upload-1',
+          mimeType: 'image/png',
+          sizeBytes: 7,
+        },
+      ]),
+    set: (values: unknown) => {
+      updatedValues = values;
+      return updateQuery;
+    },
+    where: () => updateQuery,
+  };
+
+  return {
+    database: {
+      query: {
+        financeReceiptUploads: {
+          findFirst: () =>
+            Effect.succeed({
+              eventId: 'event-1',
+              expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+              fileName: 'receipt.png',
+              id: 'upload-1',
+              mimeType: 'image/png',
+              sizeBytes: 7,
+              status: 'pending' as const,
+              storageKey:
+                'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png',
+            }),
+        },
+      },
+      update: (table: unknown) => {
+        expect(table).toBe(financeReceiptUploads);
+        return updateQuery;
+      },
+    },
+    updatedValues: () => updatedValues,
+  };
+};
+
+const databaseWithConcurrentReceiptUpload = (winnerStorageKey: string) => {
+  const pendingStorageKey =
+    'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png';
+  let loadCount = 0;
+  const updateQuery = {
+    returning: () => Effect.succeed([]),
+    set: () => updateQuery,
+    where: () => updateQuery,
+  };
+
+  return {
+    query: {
+      financeReceiptUploads: {
+        findFirst: () =>
+          Effect.succeed(
+            loadCount++ === 0
+              ? {
+                  eventId: 'event-1',
+                  expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+                  fileName: 'receipt.png',
+                  id: 'upload-1',
+                  mimeType: 'image/png',
+                  sizeBytes: 7,
+                  status: 'pending' as const,
+                  storageKey: pendingStorageKey,
+                }
+              : {
+                  eventId: 'event-1',
+                  expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+                  fileName: 'receipt.png',
+                  id: 'upload-1',
+                  mimeType: 'image/png',
+                  sizeBytes: 7,
+                  status: 'ready' as const,
+                  storageKey: winnerStorageKey,
+                },
+          ),
+      },
+    },
+    update: (table: unknown) => {
+      expect(table).toBe(financeReceiptUploads);
+      return updateQuery;
+    },
+  };
+};
+
 const databaseWithSubmittedReceipt = () => ({
   select: () => ({
     from: () => ({
@@ -267,35 +371,49 @@ const databaseWithSubmittedReceipt = () => ({
 
 const databaseWithReviewReceiptStatus = (
   status: 'approved' | 'refunded' | 'rejected' | 'submitted',
-) => ({
-  select: () => ({
-    from: () => ({
-      innerJoin: () => ({
-        innerJoin: () => ({
-          where: () => ({
-            limit: () =>
-              Effect.succeed([
-                {
-                  eventTitle: 'City tour',
-                  id: 'receipt-1',
-                  status,
-                  submittedByCommunicationEmail: null,
-                  submittedByEmail: 'alice@example.com',
-                },
-              ]),
-          }),
-        }),
-      }),
-    }),
-  }),
-  update: () =>
-    Effect.die(
-      new Error('receipt review update should not run after validation fails'),
-    ),
-});
+) => {
+  const evidenceQuery = {
+    from: () => evidenceQuery,
+    innerJoin: () => evidenceQuery,
+    limit: () => Effect.succeed([{ ...submittedReceiptRow, status }]),
+    where: () => evidenceQuery,
+  };
+  const reviewQuery = {
+    for: () =>
+      Effect.succeed([
+        {
+          eventTitle: 'City tour',
+          id: 'receipt-1',
+          status,
+          submittedByCommunicationEmail: null,
+          submittedByEmail: 'alice@example.com',
+        },
+      ]),
+    from: () => reviewQuery,
+    innerJoin: () => reviewQuery,
+    limit: () => reviewQuery,
+    where: () => reviewQuery,
+  };
+  const tx = {
+    select: () => reviewQuery,
+    update: () =>
+      Effect.die(
+        new Error(
+          'receipt review update should not run after validation fails',
+        ),
+      ),
+  };
+
+  return {
+    select: () => evidenceQuery,
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
+  };
+};
 
 const databaseWithRefundableReceipts = (
   receipts: {
+    currency: 'AUD' | 'CZK' | 'EUR';
     eventId: string;
     id: string;
     submittedByUserId: string;
@@ -303,21 +421,16 @@ const databaseWithRefundableReceipts = (
   }[],
 ) => {
   const receiptQuery = {
+    for: () => Effect.succeed(receipts),
     from: () => receiptQuery,
-    select: () => receiptQuery,
-    where: () => Effect.succeed(receipts),
+    orderBy: () => receiptQuery,
+    where: () => receiptQuery,
   };
+  const tx = { select: () => receiptQuery };
 
   return {
-    query: {
-      users: {
-        findFirst: () =>
-          Effect.die(new Error('payout user lookup should not run')),
-      },
-    },
-    select: () => receiptQuery,
-    transaction: () =>
-      Effect.die(new Error('reimbursement transaction should not run')),
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
   };
 };
 
@@ -327,34 +440,40 @@ const databaseWithRefundableReceiptForPayout = (payoutUser: {
   paypalEmail: null | string;
 }) => {
   const receiptQuery = {
-    from: () => receiptQuery,
-    select: () => receiptQuery,
-    where: () =>
+    for: () =>
       Effect.succeed([
         {
+          currency: 'EUR' as const,
           eventId: 'event-1',
           id: 'receipt-1',
           submittedByUserId: payoutUser.id,
           totalAmount: 100,
         },
       ]),
+    from: () => receiptQuery,
+    orderBy: () => receiptQuery,
+    where: () => receiptQuery,
+  };
+  const payoutQuery = {
+    for: () => Effect.succeed([payoutUser]),
+    from: () => payoutQuery,
+    where: () => payoutQuery,
+  };
+  let selectCount = 0;
+  const tx = {
+    select: () => (selectCount++ === 0 ? receiptQuery : payoutQuery),
   };
 
   return {
-    query: {
-      users: {
-        findFirst: () => Effect.succeed(payoutUser),
-      },
-    },
-    select: () => receiptQuery,
-    transaction: () =>
-      Effect.die(new Error('reimbursement transaction should not run')),
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
   };
 };
 
 const databaseWithRefundPreconditionRace = () => {
   const receipts = [
     {
+      currency: 'EUR' as const,
       eventId: 'event-1',
       id: 'receipt-1',
       submittedByUserId: 'user-1',
@@ -362,9 +481,22 @@ const databaseWithRefundPreconditionRace = () => {
     },
   ];
   const receiptQuery = {
+    for: () => Effect.succeed(receipts),
     from: () => receiptQuery,
-    select: () => receiptQuery,
-    where: () => Effect.succeed(receipts),
+    orderBy: () => receiptQuery,
+    where: () => receiptQuery,
+  };
+  const payoutQuery = {
+    for: () =>
+      Effect.succeed([
+        {
+          iban: 'NL91ABNA0417164300',
+          id: 'user-1',
+          paypalEmail: null,
+        },
+      ]),
+    from: () => payoutQuery,
+    where: () => payoutQuery,
   };
   const insertQuery = {
     returning: () => Effect.succeed([{ id: 'transaction-1' }]),
@@ -375,26 +507,83 @@ const databaseWithRefundPreconditionRace = () => {
     set: () => updateQuery,
     where: () => updateQuery,
   };
+  let selectCount = 0;
   const tx = {
     insert: () => insertQuery,
-    rollback: () => Effect.die(new TransactionRollbackError()),
+    select: () => (selectCount++ === 0 ? receiptQuery : payoutQuery),
     update: () => updateQuery,
   };
 
   return {
-    query: {
-      users: {
-        findFirst: () =>
-          Effect.succeed({
-            iban: 'NL91ABNA0417164300',
-            id: 'user-1',
-            paypalEmail: null,
-          }),
-      },
-    },
-    select: () => receiptQuery,
     transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
       run(tx),
+  };
+};
+
+const databaseWithSuccessfulRefund = () => {
+  const operations: string[] = [];
+  let insertedTransaction: Record<string, unknown> | undefined;
+  const receiptQuery = {
+    for: (lock: string) => {
+      operations.push(`receipts:${lock}`);
+      return Effect.succeed([
+        {
+          currency: 'CZK' as const,
+          eventId: 'event-1',
+          id: 'receipt-1',
+          submittedByUserId: 'user-1',
+          totalAmount: 125,
+        },
+      ]);
+    },
+    from: () => receiptQuery,
+    orderBy: () => receiptQuery,
+    where: () => receiptQuery,
+  };
+  const payoutQuery = {
+    for: (lock: string) => {
+      operations.push(`payout:${lock}`);
+      return Effect.succeed([
+        {
+          iban: 'NL91ABNA0417164300',
+          id: 'user-1',
+          paypalEmail: null,
+        },
+      ]);
+    },
+    from: () => payoutQuery,
+    where: () => payoutQuery,
+  };
+  const insertQuery = {
+    returning: () => Effect.succeed([{ id: 'transaction-1' }]),
+    values: (values: Record<string, unknown>) => {
+      operations.push('transaction:insert');
+      insertedTransaction = values;
+      return insertQuery;
+    },
+  };
+  const updateQuery = {
+    returning: () => {
+      operations.push('receipt:update');
+      return Effect.succeed([{ id: 'receipt-1' }]);
+    },
+    set: () => updateQuery,
+    where: () => updateQuery,
+  };
+  let selectCount = 0;
+  const tx = {
+    insert: () => insertQuery,
+    select: () => (selectCount++ === 0 ? receiptQuery : payoutQuery),
+    update: () => updateQuery,
+  };
+
+  return {
+    database: {
+      transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+        run(tx),
+    },
+    insertedTransaction: () => insertedTransaction,
+    operations,
   };
 };
 
@@ -409,8 +598,10 @@ const submittedReceiptRow = {
   attachmentUploadedByUserId: 'user-1',
   attachmentUploadEventId: 'event-1',
   attachmentUploadId: 'upload-1',
+  attachmentUploadStatus: 'consumed' as const,
   attachmentUploadTenantId: 'tenant-1',
   createdAt: new Date('2026-05-19T10:00:00.000Z'),
+  currency: 'AUD' as const,
   depositAmount: 0,
   eventId: 'event-1',
   eventStart: new Date('2026-05-18T18:00:00.000Z'),
@@ -433,11 +624,13 @@ const submittedReceiptRow = {
   updatedAt: new Date('2026-05-19T10:00:00.000Z'),
 };
 
-const databaseWithMyReceipts = () => {
+const databaseWithMyReceipts = (
+  rows: readonly (typeof submittedReceiptRow)[] = [submittedReceiptRow],
+) => {
   const query = {
     from: () => query,
     innerJoin: () => query,
-    orderBy: () => Effect.succeed([submittedReceiptRow]),
+    orderBy: () => Effect.succeed(rows),
     select: () => query,
     where: () => query,
   };
@@ -470,10 +663,108 @@ const databaseWithPendingReceipts = () => {
   };
 };
 
+const databaseWithReceiptReviewLifecycle = ({
+  lockedEvidence = {
+    ...submittedReceiptRow,
+    attachmentStorageKey:
+      'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
+    attachmentStorageUrl: 'https://storage.example.test/receipt.png',
+  },
+  preflightEvidence = {
+    ...submittedReceiptRow,
+    attachmentStorageKey:
+      'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
+    attachmentStorageUrl: 'https://storage.example.test/receipt.png',
+  },
+}: {
+  lockedEvidence?: typeof submittedReceiptRow;
+  preflightEvidence?: typeof submittedReceiptRow;
+} = {}) => {
+  const operations: string[] = [];
+  const preflightQuery = {
+    from: () => preflightQuery,
+    innerJoin: () => preflightQuery,
+    limit: () => {
+      operations.push('preflight');
+      return Effect.succeed([preflightEvidence]);
+    },
+    where: () => preflightQuery,
+  };
+  const lockedReceiptQuery = {
+    for: () => {
+      operations.push('receipt:lock');
+      return Effect.succeed([
+        {
+          attachmentUploadId: 'upload-1',
+          eventTitle: 'City tour',
+          id: 'receipt-1',
+          status: 'submitted' as const,
+          submittedByCommunicationEmail: null,
+          submittedByEmail: 'alice@example.com',
+        },
+      ]);
+    },
+    from: () => lockedReceiptQuery,
+    innerJoin: () => lockedReceiptQuery,
+    limit: () => lockedReceiptQuery,
+    where: () => lockedReceiptQuery,
+  };
+  const lockedEvidenceQuery = {
+    for: () => {
+      operations.push('evidence:lock');
+      return Effect.succeed([lockedEvidence]);
+    },
+    from: () => lockedEvidenceQuery,
+    innerJoin: () => lockedEvidenceQuery,
+    limit: () => lockedEvidenceQuery,
+    where: () => lockedEvidenceQuery,
+  };
+  let updatedStatus: 'approved' | 'rejected' = 'approved';
+  const updateQuery = {
+    returning: () => {
+      operations.push('receipt:update');
+      return Effect.succeed([{ id: 'receipt-1', status: updatedStatus }]);
+    },
+    set: (values: { status: 'approved' | 'rejected' }) => {
+      updatedStatus = values.status;
+      return updateQuery;
+    },
+    where: () => updateQuery,
+  };
+  const emailQuery = {
+    onConflictDoNothing: () => {
+      operations.push('email:enqueue');
+      return Effect.succeed([]);
+    },
+    values: () => emailQuery,
+  };
+  let selectCount = 0;
+  const transaction = {
+    insert: () => emailQuery,
+    select: () =>
+      selectCount++ === 0 ? lockedReceiptQuery : lockedEvidenceQuery,
+    update: () => updateQuery,
+  };
+
+  return {
+    database: {
+      select: () => preflightQuery,
+      transaction: (
+        run: (transaction: typeof transaction) => Effect.Effect<unknown>,
+      ) => {
+        operations.push('transaction:start');
+        return run(transaction);
+      },
+    },
+    operations,
+  };
+};
+
 describe('financeHandlers composition', () => {
   it('contains the full finance rpc handler set', () => {
     expect(Object.keys(financeHandlers).toSorted()).toEqual([
-      'finance.receiptMedia.uploadOriginal',
+      'finance.receiptMedia.createUpload',
+      'finance.receiptMedia.finalizeUpload',
       'finance.receipts.byEvent',
       'finance.receipts.createRefund',
       'finance.receipts.findOneForApproval',
@@ -510,6 +801,40 @@ describe('finance profile receipt reads', () => {
   });
 
   it.effect(
+    'returns current-user receipt media for an exact scoped upload binding',
+    () =>
+      Effect.gen(function* () {
+        const attachmentStorageKey =
+          'receipts/tenant-1/event-1/user-1/upload-1-receipt.png';
+        const result = yield* financeHandlers['finance.receipts.my'](
+          undefined,
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer([], {
+              database: databaseWithMyReceipts([
+                {
+                  ...submittedReceiptRow,
+                  attachmentStorageKey,
+                  attachmentStorageUrl: 'local-unavailable://receipt',
+                },
+              ]),
+            }),
+          ),
+        );
+
+        expect(result).toEqual([
+          expect.objectContaining({
+            attachmentStorageKey,
+            currency: 'AUD',
+            id: 'receipt-1',
+            previewImageUrl: null,
+          }),
+        ]);
+      }),
+  );
+
+  it.effect(
     'fails closed for invalid upload bindings in current-user receipt rows',
     () =>
       Effect.gen(function* () {
@@ -531,6 +856,7 @@ describe('finance profile receipt reads', () => {
             attachmentMimeType: 'image/png',
             attachmentStorageKey: null,
             createdAt: '2026-05-19T10:00:00.000Z',
+            currency: 'AUD',
             depositAmount: 0,
             eventId: 'event-1',
             eventStart: '2026-05-18T18:00:00.000Z',
@@ -585,19 +911,21 @@ describe('finance receipt media permissions', () => {
   it.effect('rejects receipt uploads without receipt-submit access', () =>
     Effect.gen(function* () {
       let isUploadCalled = false;
-      const error = yield* financeHandlers[
-        'finance.receiptMedia.uploadOriginal'
-      ](uploadInput, { headers: {} } as never).pipe(
+      const error = yield* financeHandlers['finance.receiptMedia.createUpload'](
+        uploadInput,
+        { headers: {} } as never,
+      ).pipe(
         Effect.flip,
         Effect.provide(
           createContextLayer([], {
             database: databaseWithNoOrganizerReceiptAccess(),
             receiptMediaService: {
-              uploadOriginal: () => {
+              createUploadPolicy: () => {
                 isUploadCalled = true;
                 return Effect.succeed({
+                  fields: {},
                   storageKey: 'receipts/tenant-1/event-1/user-1/file.png',
-                  storageUrl: 'local-unavailable://receipt',
+                  url: 'https://storage.example.test/bucket',
                 });
               },
             },
@@ -616,18 +944,19 @@ describe('finance receipt media permissions', () => {
       let capturedInput: unknown;
       const lifecycleSteps: string[] = [];
       const result = yield* financeHandlers[
-        'finance.receiptMedia.uploadOriginal'
+        'finance.receiptMedia.createUpload'
       ](uploadInput, { headers: {} } as never).pipe(
         Effect.provide(
           createContextLayer(['events:organizeAll'], {
             database: databaseWithReceiptUploadLifecycle(lifecycleSteps),
             receiptMediaService: {
-              uploadOriginal: (input: unknown) => {
+              createUploadPolicy: (input: unknown) => {
                 capturedInput = input;
                 lifecycleSteps.push('storage');
                 return Effect.succeed({
+                  fields: { key: 'receipts/example.png' },
                   storageKey: 'receipts/tenant-1/event-1/user-1/file.png',
-                  storageUrl: 'local-unavailable://receipt',
+                  url: 'https://storage.example.test/bucket',
                 });
               },
             },
@@ -644,10 +973,124 @@ describe('finance receipt media permissions', () => {
         }),
       );
       expect(result).toEqual({
+        expiresAt: expect.any(String),
+        fields: { key: 'receipts/example.png' },
         uploadId: expect.any(String),
+        url: 'https://storage.example.test/bucket',
       });
-      expect(lifecycleSteps).toEqual(['preflight', 'storage', 'finalize']);
+      expect(lifecycleSteps).toEqual(['preflight', 'storage']);
     }),
+  );
+
+  it.effect(
+    'does not finalize an upload when receipt storage is unavailable',
+    () =>
+      Effect.gen(function* () {
+        const lifecycleSteps: string[] = [];
+        const error = yield* financeHandlers[
+          'finance.receiptMedia.createUpload'
+        ](uploadInput, { headers: {} } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: databaseWithReceiptUploadLifecycle(lifecycleSteps),
+              receiptMediaService: {
+                createUploadPolicy: () =>
+                  Effect.fail(
+                    new ReceiptMediaServiceUnavailableError({
+                      message: 'Receipt storage is unavailable',
+                    }),
+                  ),
+                objectExists: () => Effect.succeed(false),
+                signedPreviewUrl: () =>
+                  Effect.succeed('https://signed.example.test/receipt'),
+              },
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(lifecycleSteps).toEqual(['preflight']);
+      }),
+  );
+
+  it.effect(
+    'records the promoted immutable key when finalizing an upload',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithPendingReceiptUpload();
+        const finalStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
+
+        const result = yield* financeHandlers[
+          'finance.receiptMedia.finalizeUpload'
+        ]({ uploadId: 'upload-1' }, { headers: {} } as never).pipe(
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: fixture.database,
+              receiptMediaService: {
+                inspectUpload: () =>
+                  Effect.succeed({
+                    mimeType: 'image/png',
+                    sizeBytes: 7,
+                    storageKey: finalStorageKey,
+                    storageUrl: `s3://bucket/${finalStorageKey}`,
+                  }),
+              },
+            }),
+          ),
+        );
+
+        expect(result).toEqual({
+          fileName: 'receipt.png',
+          mimeType: 'image/png',
+          sizeBytes: 7,
+          uploadId: 'upload-1',
+        });
+        expect(fixture.updatedValues()).toEqual(
+          expect.objectContaining({ storageKey: finalStorageKey }),
+        );
+      }),
+  );
+
+  it.effect(
+    'discards a losing promoted object after a concurrent finalization wins',
+    () =>
+      Effect.gen(function* () {
+        const winnerStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
+        const losingStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'b'.repeat(64)}-receipt.png`;
+        const discarded: string[] = [];
+
+        const result = yield* financeHandlers[
+          'finance.receiptMedia.finalizeUpload'
+        ]({ uploadId: 'upload-1' }, { headers: {} } as never).pipe(
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: databaseWithConcurrentReceiptUpload(winnerStorageKey),
+              receiptMediaService: {
+                discardPromotedUpload: (storageKey: string) =>
+                  Effect.sync(() => {
+                    discarded.push(storageKey);
+                  }),
+                inspectUpload: () =>
+                  Effect.succeed({
+                    mimeType: 'image/png',
+                    sizeBytes: 7,
+                    storageKey: losingStorageKey,
+                    storageUrl: `s3://bucket/${losingStorageKey}`,
+                  }),
+              },
+            }),
+          ),
+        );
+
+        expect(result).toEqual({
+          fileName: 'receipt.png',
+          mimeType: 'image/png',
+          sizeBytes: 7,
+          uploadId: 'upload-1',
+        });
+        expect(discarded).toEqual([losingStorageKey]);
+      }),
   );
 });
 
@@ -669,6 +1112,46 @@ describe('finance transaction permissions', () => {
 
 describe('finance receipt reimbursement', () => {
   it.effect(
+    'locks the recorded amount, currency, status, and payout details before recording reimbursement',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithSuccessfulRefund();
+
+        const result = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-1'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: fixture.database,
+            }),
+          ),
+        );
+
+        expect(result).toEqual({
+          receiptCount: 1,
+          totalAmount: 125,
+          transactionId: 'transaction-1',
+        });
+        expect(fixture.insertedTransaction()).toMatchObject({
+          amount: -125,
+          currency: 'CZK',
+          targetUserId: 'user-1',
+        });
+        expect(fixture.operations).toEqual([
+          'receipts:update',
+          'payout:share',
+          'transaction:insert',
+          'receipt:update',
+        ]);
+      }),
+  );
+
+  it.effect(
     'rejects reimbursement records when selected receipts have mixed submitters',
     () =>
       Effect.gen(function* () {
@@ -685,12 +1168,14 @@ describe('finance receipt reimbursement', () => {
             createContextLayer(['finance:refundReceipts'], {
               database: databaseWithRefundableReceipts([
                 {
+                  currency: 'EUR',
                   eventId: 'event-1',
                   id: 'receipt-1',
                   submittedByUserId: 'user-1',
                   totalAmount: 100,
                 },
                 {
+                  currency: 'EUR',
                   eventId: 'event-1',
                   id: 'receipt-2',
                   submittedByUserId: 'user-2',
@@ -703,6 +1188,79 @@ describe('finance receipt reimbursement', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('mismatchedSubmitter');
+      }),
+  );
+
+  it.effect(
+    'rejects reimbursement records that mix recorded receipt currencies',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-eur', 'receipt-czk'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceipts([
+                {
+                  currency: 'EUR',
+                  eventId: 'event-1',
+                  id: 'receipt-eur',
+                  submittedByUserId: 'user-1',
+                  totalAmount: 100,
+                },
+                {
+                  currency: 'CZK',
+                  eventId: 'event-1',
+                  id: 'receipt-czk',
+                  submittedByUserId: 'user-1',
+                  totalAmount: 200,
+                },
+              ]),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('mismatchedReceiptCurrency');
+      }),
+  );
+
+  it.effect(
+    'rejects zero-value reimbursements before recording a refund transaction',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-1'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceipts([
+                {
+                  currency: 'EUR',
+                  eventId: 'event-1',
+                  id: 'receipt-1',
+                  submittedByUserId: 'user-1',
+                  totalAmount: 0,
+                },
+              ]),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('invalidReimbursementTotal');
       }),
   );
 
@@ -819,6 +1377,286 @@ describe('finance receipt reimbursement', () => {
   );
 });
 
+describe('finance receipt approval evidence', () => {
+  it.effect(
+    'approves only after HEAD succeeds and revalidates the locked binding',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithReceiptReviewLifecycle();
+        const result = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            status: 'approved',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: fixture.database,
+              receiptMediaService: {
+                createUploadPolicy: () =>
+                  Effect.dieMessage('Unexpected receipt upload'),
+                objectExists: ({ storageKey }: { storageKey: string }) =>
+                  Effect.sync(() => {
+                    expect(storageKey).toBe(
+                      'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
+                    );
+                    fixture.operations.push('storage:head');
+                    return true;
+                  }),
+                signedPreviewUrl: () =>
+                  Effect.succeed('https://signed.example.test/receipt'),
+              },
+            }),
+          ),
+        );
+
+        expect(result).toEqual({ id: 'receipt-1', status: 'approved' });
+        expect(fixture.operations).toEqual([
+          'preflight',
+          'storage:head',
+          'transaction:start',
+          'receipt:lock',
+          'evidence:lock',
+          'receipt:update',
+          'email:enqueue',
+        ]);
+      }),
+  );
+
+  it.effect('blocks approval when the exact object is missing', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithReceiptReviewLifecycle();
+      const error = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          status: 'approved',
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: fixture.database,
+            receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
+              objectExists: () => Effect.succeed(false),
+              signedPreviewUrl: () =>
+                Effect.succeed('https://signed.example.test/receipt'),
+            },
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(fixture.operations).toEqual(['preflight']);
+    }),
+  );
+
+  it.effect('blocks approval when the exact object cannot be signed', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithReceiptReviewLifecycle();
+      const error = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          status: 'approved',
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: fixture.database,
+            receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
+              objectExists: () => Effect.succeed(true),
+              signedPreviewUrl: () =>
+                Effect.fail(
+                  new ReceiptMediaServiceUnavailableError({
+                    message: 'Receipt storage is unavailable',
+                  }),
+                ),
+            },
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(fixture.operations).toEqual(['preflight']);
+    }),
+  );
+
+  it.effect('rejects a foreign-scope key without sending it to storage', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithReceiptReviewLifecycle({
+        preflightEvidence: submittedReceiptRow,
+      });
+      const objectExists = vi.fn(() => Effect.succeed(true));
+      const error = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          status: 'approved',
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: fixture.database,
+            receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
+              objectExists,
+              signedPreviewUrl: () =>
+                Effect.succeed('https://signed.example.test/receipt'),
+            },
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(objectExists).not.toHaveBeenCalled();
+      expect(fixture.operations).toEqual(['preflight']);
+    }),
+  );
+
+  it.effect(
+    'rejects a same-scope key for a different upload without checking storage',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithReceiptReviewLifecycle({
+          preflightEvidence: {
+            ...submittedReceiptRow,
+            attachmentStorageKey:
+              'receipts/tenant-1/event-1/user-1/upload-2-receipt.png',
+            attachmentStorageUrl:
+              'https://storage.example.test/upload-2-receipt.png',
+          },
+        });
+        const objectExists = vi.fn(() => Effect.succeed(true));
+        const error = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            status: 'approved',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: fixture.database,
+              receiptMediaService: {
+                createUploadPolicy: () =>
+                  Effect.dieMessage('Unexpected receipt upload'),
+                objectExists,
+                signedPreviewUrl: () =>
+                  Effect.succeed('https://signed.example.test/receipt'),
+              },
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('receiptEvidenceUnavailable');
+        expect(objectExists).not.toHaveBeenCalled();
+        expect(fixture.operations).toEqual(['preflight']);
+      }),
+  );
+
+  it.effect('refuses approval when the evidence key changes after HEAD', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithReceiptReviewLifecycle({
+        lockedEvidence: {
+          ...submittedReceiptRow,
+          attachmentStorageKey:
+            'receipts/tenant-1/event-1/user-1/upload-1-replaced.png',
+          attachmentStorageUrl:
+            'https://storage.example.test/upload-1-replaced.png',
+        },
+      });
+      const error = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          status: 'approved',
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: fixture.database,
+            receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
+              objectExists: () => Effect.succeed(true),
+              signedPreviewUrl: () =>
+                Effect.succeed('https://signed.example.test/receipt'),
+            },
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(fixture.operations).toEqual([
+        'preflight',
+        'transaction:start',
+        'receipt:lock',
+        'evidence:lock',
+      ]);
+    }),
+  );
+
+  it.effect('allows rejection without storage evidence', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithReceiptReviewLifecycle();
+      const objectExists = vi.fn(() => Effect.succeed(false));
+      const result = yield* financeHandlers['finance.receipts.review'](
+        {
+          ...receiptFieldsInput,
+          id: 'receipt-1',
+          rejectionReason: 'The attachment cannot be reviewed',
+          status: 'rejected',
+        },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.provide(
+          createContextLayer(['finance:approveReceipts'], {
+            database: fixture.database,
+            receiptMediaService: {
+              createUploadPolicy: () =>
+                Effect.dieMessage('Unexpected receipt upload'),
+              objectExists,
+              signedPreviewUrl: () =>
+                Effect.succeed('https://signed.example.test/receipt'),
+            },
+          }),
+        ),
+      );
+
+      expect(result).toEqual({ id: 'receipt-1', status: 'rejected' });
+      expect(objectExists).not.toHaveBeenCalled();
+      expect(fixture.operations).toEqual([
+        'transaction:start',
+        'receipt:lock',
+        'receipt:update',
+        'email:enqueue',
+      ]);
+    }),
+  );
+});
+
 describe('finance receipt amount validation', () => {
   it.effect('allows receipt submissions before the event has ended', () =>
     Effect.gen(function* () {
@@ -840,10 +1678,12 @@ describe('finance receipt amount validation', () => {
       expect(result).toEqual({ id: 'receipt-1' });
       expect(receiptDatabase.consumedValues()).toEqual({
         consumedAt: expect.any(Date),
+        status: 'consumed',
       });
       expect(receiptDatabase.insertedValues()).toEqual(
         expect.objectContaining({
           attachmentUploadId: 'upload-1',
+          currency: 'EUR',
           eventId: 'event-1',
           status: 'submitted',
           submittedByUserId: 'user-1',
@@ -977,6 +1817,31 @@ describe('finance receipt amount validation', () => {
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.reason).toBe('refundedReceipt');
     }),
+  );
+
+  it.effect.each(['approved', 'rejected'] as const)(
+    'rejects review updates for already %s receipts',
+    (status) =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            status: 'approved',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: databaseWithReviewReceiptStatus(status),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('receiptAlreadyReviewed');
+      }),
   );
 
   it.effect('requires a rejection reason when rejecting receipts', () =>

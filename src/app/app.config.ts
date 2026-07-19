@@ -1,18 +1,21 @@
+import { registerLocaleData } from '@angular/common';
 import {
   provideHttpClient,
   withFetch,
   withInterceptors,
 } from '@angular/common/http';
+import localeDe from '@angular/common/locales/de';
 import {
   ApplicationConfig,
   DEFAULT_CURRENCY_CODE,
   ErrorHandler,
   inject,
+  LOCALE_ID,
   provideAppInitializer,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { isDevMode } from '@angular/core';
 import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
+import { DateAdapter, MAT_DATE_LOCALE } from '@angular/material/core';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
 import {
   provideClientHydration,
@@ -21,7 +24,6 @@ import {
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import {
   provideRouter,
-  Router,
   withComponentInputBinding,
   withRouterConfig,
   withViewTransitions,
@@ -30,20 +32,24 @@ import {
   provideEffectHttpClient,
   provideEffectRpcProtocolHttpLayer,
 } from '@heddendorp/effect-platform-angular';
-import * as Sentry from '@sentry/angular';
-import {
-  provideTanStackQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
-import { withDevtools } from '@tanstack/angular-query-experimental/devtools';
 
+import { TENANT_FORMATTING_LOCALE } from '../types/custom/tenant';
 import { routes } from './app.routes';
+import { appQueryProviders } from './core/app-query-client';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
+import { BrowserErrorHandler } from './core/browser-error-handler';
 import { ConfigService } from './core/config.service';
 import { AppRpc, resolveRpcUrl } from './core/effect-rpc-angular-client';
+import { TENANT_DATE_PIPE_TIMEZONE } from './core/tenant-date.pipe';
+import { TenantLuxonDateAdapter } from './core/tenant-luxon-date-adapter';
+import {
+  tenantCurrencyCode,
+  tenantDatePipeTimezone,
+} from './core/tenant-runtime';
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideAppInitializer(() => registerLocaleData(localeDe)),
     provideAnimationsAsync(),
     provideZonelessChangeDetection(),
     provideRouter(
@@ -56,16 +62,26 @@ export const appConfig: ApplicationConfig = {
     provideEffectHttpClient(),
     provideEffectRpcProtocolHttpLayer({ url: resolveRpcUrl }),
     provideClientHydration(withEventReplay()),
-    // Enable TanStack Query devtools only in dev mode
-    provideTanStackQuery(
-      new QueryClient(),
-      ...(isDevMode() ? ([withDevtools()] as const) : ([] as const)),
-    ),
+    appQueryProviders,
     AppRpc.providers,
     provideLuxonDateAdapter(),
-    // provideCloudflareLoader(
-    //   'https://imagedelivery.net/DxTiV2GJoeCDYZ1DN5RPUA/',
-    // ),
+    {
+      provide: DateAdapter,
+      useClass: TenantLuxonDateAdapter,
+    },
+    {
+      provide: MAT_DATE_LOCALE,
+      useValue: TENANT_FORMATTING_LOCALE,
+    },
+    {
+      provide: LOCALE_ID,
+      useValue: TENANT_FORMATTING_LOCALE,
+    },
+    {
+      deps: [ConfigService],
+      provide: TENANT_DATE_PIPE_TIMEZONE,
+      useFactory: tenantDatePipeTimezone,
+    },
     {
       provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,
       useValue: {
@@ -74,21 +90,16 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: ErrorHandler,
-      useValue: Sentry.createErrorHandler(),
-    },
-    {
-      deps: [Router],
-      provide: Sentry.TraceService,
+      useClass: BrowserErrorHandler,
     },
     provideAppInitializer(async () => {
-      inject(Sentry.TraceService);
       const config = inject(ConfigService);
       await config.initialize();
     }),
     {
       deps: [ConfigService],
       provide: DEFAULT_CURRENCY_CODE,
-      useFactory: (config: ConfigService) => config.tenant.currency,
+      useFactory: tenantCurrencyCode,
     },
   ],
 };

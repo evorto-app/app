@@ -2,13 +2,28 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
+  EventGraphAddonInput,
+  EventGraphEditRecord,
+  EventGraphRegistrationOptionInput,
+  EventReviewStatus,
+  EventsApproveRegistrationResult,
+  EventsCancelEventRegistration,
+  EventsCancellableRegistrationStatus,
+  EventsCancelRegistration,
+  EventsCreateRegistrationOptionInput,
   EventsFindOneAddon,
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
   EventsJoinWaitlistPayload,
+  EventsOutgoingRegistrationTransferRecord,
+  EventsPreviewEventRegistrationTransfer,
+  EventsPurchaseRegistrationAddonPayload,
+  EventsPurchaseRegistrationAddonResult,
   EventsRegisterForEventPayload,
+  EventsRegistrationAddonRecord,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
+  EventsTransferEventRegistration,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { EventLocation } from '../../../../../types/location';
 
@@ -40,6 +55,26 @@ describe('events RPC location schema', () => {
 });
 
 describe('events RPC registration status schema', () => {
+  it('represents source-owner refund progress after ticket ownership moves', () => {
+    for (const refundStatus of [
+      'completed',
+      'needsAttention',
+      'notRequired',
+      'processing',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsOutgoingRegistrationTransferRecord)({
+          currency: 'EUR',
+          refundAmount: refundStatus === 'notRequired' ? 0 : 1200,
+          refundStatus,
+          registrationOptionTitle: 'Participant',
+          transferId: 'transfer-1',
+          transferredAt: '2026-08-01T17:00:00.000Z',
+        }),
+      ).not.toThrow();
+    }
+  });
+
   it('accepts every persisted registration status', () => {
     for (const status of ['CANCELLED', 'CONFIRMED', 'PENDING', 'WAITLIST']) {
       expect(() =>
@@ -51,14 +86,20 @@ describe('events RPC registration status schema', () => {
   it('rejects unknown active registration statuses', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+        activeTransfer: null,
         addonPurchases: [],
+        cancellationAvailable: true,
+        cancellationBlockedReason: 'none',
         guestCount: 0,
         id: 'registration-1',
+        organizingRegistration: false,
         paymentPending: false,
+        registrationAddOns: [],
         registrationOptionId: 'option-1',
         registrationOptionTitle: 'Participant',
         status: 'UNKNOWN',
         transferAvailable: false,
+        transferBlockedReason: 'registrationStatus',
       }),
     ).toThrow();
   });
@@ -66,6 +107,7 @@ describe('events RPC registration status schema', () => {
   it('carries purchased add-ons on active registration records', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+        activeTransfer: null,
         addonPurchases: [
           {
             quantity: 2,
@@ -73,13 +115,159 @@ describe('events RPC registration status schema', () => {
             unitPrice: 500,
           },
         ],
+        cancellationAvailable: false,
+        cancellationBlockedReason: 'checkedIn',
         guestCount: 0,
         id: 'registration-1',
+        organizingRegistration: false,
         paymentPending: false,
+        registrationAddOns: [],
         registrationOptionId: 'option-1',
         registrationOptionTitle: 'Participant',
         status: 'CONFIRMED',
-        transferAvailable: false,
+        transferAvailable: true,
+        transferBlockedReason: 'none',
+      }),
+    ).not.toThrow();
+  });
+
+  it('represents transfer blockers enforced by the offer flow', () => {
+    for (const transferBlockedReason of [
+      'activeTransfer',
+      'addonPaymentPending',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+          activeTransfer: null,
+          addonPurchases: [],
+          cancellationAvailable: false,
+          cancellationBlockedReason: 'deadlinePassed',
+          guestCount: 0,
+          id: 'registration-1',
+          organizingRegistration: false,
+          paymentPending: false,
+          registrationAddOns: [],
+          registrationOptionId: 'option-1',
+          registrationOptionTitle: 'Participant',
+          status: 'CONFIRMED',
+          transferAvailable: false,
+          transferBlockedReason,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('represents every active transfer state in the owner registration response', () => {
+    for (const status of [
+      'checkout_pending',
+      'open',
+      'refund_pending',
+      'refund_failed',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+          activeTransfer: {
+            expiresAt: '2026-08-01T17:00:00.000Z',
+            refundLifecycle:
+              status === 'refund_failed'
+                ? { state: 'needsAttention' }
+                : status === 'refund_pending'
+                  ? { state: 'processing' }
+                  : null,
+            registrationSide: 'source',
+            status,
+            transferId: 'transfer-1',
+          },
+          addonPurchases: [],
+          cancellationAvailable: true,
+          cancellationBlockedReason: 'none',
+          guestCount: 0,
+          id: 'registration-1',
+          organizingRegistration: false,
+          paymentPending: false,
+          registrationAddOns: [],
+          registrationOptionId: 'option-1',
+          registrationOptionTitle: 'Participant',
+          status: 'CONFIRMED',
+          transferAvailable: false,
+          transferBlockedReason: 'activeTransfer',
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('carries comprehensive participant add-on state without Stripe identifiers', () => {
+    const record = Schema.decodeUnknownSync(EventsRegistrationAddonRecord)({
+      addOnId: 'addon-1',
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      cancelledQuantity: 1,
+      currency: 'EUR',
+      currentPurchaseWindow: 'beforeEvent',
+      description: 'Workshop materials',
+      includedQuantity: 1,
+      isPaid: true,
+      maxPurchasableQuantity: 1,
+      maxQuantityPerUser: 4,
+      nextPurchaseTaxRateDisplayName: 'VAT',
+      nextPurchaseTaxRateInclusive: false,
+      nextPurchaseTaxRatePercentage: '19',
+      nextPurchaseUnitGrossAmount: 595,
+      nextPurchaseUnitPrice: 500,
+      nextPurchaseUnitTaxAmount: 95,
+      optionalPurchaseQuantity: 3,
+      pendingCheckoutExpiresAt: '2026-08-01T17:00:00.000Z',
+      pendingCheckoutUrl: null,
+      pendingOperationKey: 'purchase-addon-1',
+      pendingQuantity: 1,
+      purchaseAvailable: false,
+      purchaseBlockedReason: 'paymentPending',
+      purchaseStatus: 'paymentPending',
+      redeemedQuantity: 1,
+      remainingQuantity: 1,
+      settledPurchasedQuantity: 1,
+      title: 'Workshop kit',
+      totalAvailableQuantity: 8,
+      totalQuantity: 2,
+    });
+
+    expect(record).not.toHaveProperty('stripeAccountId');
+    expect(record).not.toHaveProperty('stripeTaxRateId');
+    expect(record.pendingOperationKey).toBe('purchase-addon-1');
+  });
+
+  it('limits purchase input to participant intent and distinguishes result variants', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonPayload)({
+        addOnId: 'addon-1',
+        operationKey: 'purchase-addon-1',
+        pinnedNowIso: '2026-08-01T12:00:00.000Z',
+        price: 1,
+        quantity: 2,
+        registrationId: 'registration-1',
+        stripeAccountId: 'acct_secret',
+        tenantId: 'tenant-other',
+        userId: 'user-other',
+      }),
+    ).toEqual({
+      addOnId: 'addon-1',
+      operationKey: 'purchase-addon-1',
+      quantity: 2,
+      registrationId: 'registration-1',
+    });
+    expect(() =>
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonResult)({
+        orderId: 'order-1',
+        status: 'completed',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonResult)({
+        checkoutUrl: 'https://checkout.stripe.com/session',
+        expiresAt: '2026-08-01T17:00:00.000Z',
+        orderId: 'order-2',
+        status: 'checkoutRequired',
       }),
     ).not.toThrow();
   });
@@ -89,7 +277,7 @@ describe('events RPC registration status schema', () => {
       Schema.decodeUnknownSync(EventsGetOrganizeOverviewUser)({
         addonPurchases: [
           {
-            quantity: 1,
+            quantity: 3,
             title: 'Dinner',
             unitPrice: 1500,
           },
@@ -105,16 +293,209 @@ describe('events RPC registration status schema', () => {
         lastName: 'Cipant',
         manualApprovalAvailable: false,
         paymentPending: false,
+        paymentSetupRequired: false,
         registrationId: 'registration-1',
         status: 'CONFIRMED',
-        transferAvailable: true,
         userId: 'user-1',
       }),
     ).not.toThrow();
   });
 });
 
+describe('events RPC cancellation precondition schema', () => {
+  it('accepts only cancellable registration statuses', () => {
+    for (const status of ['CONFIRMED', 'PENDING', 'WAITLIST']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsCancellableRegistrationStatus)(status),
+      ).not.toThrow();
+    }
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCancellableRegistrationStatus)(
+        'CANCELLED',
+      ),
+    ).toThrow();
+  });
+
+  it('requires the confirmed status and payment state on both cancellation RPCs', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCancelRegistration.payloadSchema)({
+        expectedPaymentPending: false,
+        expectedStatus: 'CONFIRMED',
+        registrationId: 'registration-1',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCancelEventRegistration.payloadSchema)({
+        eventId: 'event-1',
+        expectedPaymentPending: true,
+        expectedStatus: 'PENDING',
+        registrationId: 'registration-1',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCancelRegistration.payloadSchema)({
+        expectedStatus: 'CONFIRMED',
+        registrationId: 'registration-1',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('events organizer direct-transfer preview schema', () => {
+  it('accepts the authoritative fixed-bundle and zero-payment preview', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(
+        EventsPreviewEventRegistrationTransfer.successSchema,
+      )({
+        bundle: {
+          addOns: [
+            {
+              cancelledQuantity: 0,
+              currentUnitPrice: 0,
+              description: 'Workshop materials',
+              id: 'addon-1',
+              includedQuantity: 1,
+              purchasedQuantity: 1,
+              quantity: 2,
+              redeemedQuantity: 1,
+              remainingQuantity: 1,
+              title: 'Workshop kit',
+            },
+          ],
+          checkedInGuestCount: 1,
+          checkInTime: '2026-07-12T16:00:00.000Z',
+          guestCount: 2,
+          guestUnitPrice: 0,
+        },
+        completionMode: 'databaseOnly',
+        currency: 'EUR',
+        previewVersion: 'preview-version-1',
+        pricing: {
+          appliedDiscountedPrice: 0,
+          appliedDiscountType: 'esnCard',
+          discountAmount: 1200,
+          recipientBundlePrice: 0,
+          recipientRegistrationPrice: 0,
+          sourceRefundAmountDue: 0,
+        },
+        recipient: {
+          email: 'recipient@example.com',
+          firstName: 'Target',
+          id: 'target-user-1',
+          lastName: 'Recipient',
+        },
+        registrationOption: {
+          currentPrice: 1200,
+          id: 'option-1',
+          title: 'Participant',
+        },
+        source: {
+          email: 'source@example.com',
+          firstName: 'Source',
+          id: 'source-user-1',
+          lastName: 'Owner',
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('requires the reviewed preview version when confirming', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsTransferEventRegistration.payloadSchema)({
+        eventId: 'event-1',
+        previewVersion: 'preview-version-1',
+        registrationId: 'registration-1',
+        targetUserId: 'target-user-1',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsTransferEventRegistration.payloadSchema)({
+        eventId: 'event-1',
+        registrationId: 'registration-1',
+        targetUserId: 'target-user-1',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('events RPC approval result schema', () => {
+  it('accepts confirmed and payment-pending approval outcomes', () => {
+    for (const status of ['confirmed', 'paymentPending']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsApproveRegistrationResult)({ status }),
+      ).not.toThrow();
+    }
+  });
+
+  it('rejects approval outcomes outside the public contract', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsApproveRegistrationResult)({
+        status: 'pending',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('events RPC review lifecycle schema', () => {
+  it('exposes only draft, pending-review, and published persistence states', () => {
+    for (const status of ['APPROVED', 'DRAFT', 'PENDING_REVIEW']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventReviewStatus)(status),
+      ).not.toThrow();
+    }
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventReviewStatus)('REJECTED'),
+    ).toThrow();
+  });
+});
+
 describe('events RPC registration option schema', () => {
+  const writableRegistrationOption = {
+    closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+    description: null,
+    isPaid: false,
+    openRegistrationTime: '2026-09-10T12:00:00.000Z',
+    organizingRegistration: false,
+    price: 0,
+    registeredDescription: null,
+    registrationMode: 'fcfs',
+    roleIds: [],
+    spots: 10,
+    stripeTaxRateId: null,
+    title: 'Participant',
+  };
+
+  it('defaults event option policy overrides to tenant inheritance', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)(
+        writableRegistrationOption,
+      ),
+    ).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: null,
+      refundFeesOnCancellation: null,
+      transferDeadlineHoursBeforeStart: null,
+    });
+  });
+
+  it('accepts nonnegative event option overrides and rejects negative deadlines', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)({
+        ...writableRegistrationOption,
+        cancellationDeadlineHoursBeforeStart: 96,
+        refundFeesOnCancellation: false,
+        transferDeadlineHoursBeforeStart: 12,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)({
+        ...writableRegistrationOption,
+        transferDeadlineHoursBeforeStart: -1,
+      }),
+    ).toThrow();
+  });
+
   it('carries inclusive tax-rate label details for paid event cards', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsFindOneRegistrationOption)({
@@ -170,7 +551,8 @@ describe('events RPC add-on schema', () => {
         price: 1500,
         registrationOptions: [
           {
-            quantity: 1,
+            includedQuantity: 1,
+            optionalPurchaseQuantity: 1,
             registrationOptionId: 'option-1',
           },
         ],
@@ -179,6 +561,123 @@ describe('events RPC add-on schema', () => {
         taxRatePercentage: '19',
         title: 'Equipment rental',
         totalAvailableQuantity: 20,
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('events RPC editable graph schema', () => {
+  const writableOption = {
+    cancellationDeadlineHoursBeforeStart: null,
+    closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+    description: null,
+    esnCardDiscountedPrice: null,
+    id: 'option-1',
+    isPaid: false,
+    key: 'option-1',
+    openRegistrationTime: '2026-09-10T12:00:00.000Z',
+    organizingRegistration: false,
+    price: 0,
+    refundFeesOnCancellation: null,
+    registeredDescription: null,
+    registrationMode: 'fcfs',
+    roleIds: ['role-1'],
+    spots: 10,
+    stripeTaxRateId: null,
+    title: 'Participant',
+    transferDeadlineHoursBeforeStart: null,
+  };
+
+  it('accepts event-owned mode and the complete editable graph', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphEditRecord)({
+        addOns: [
+          {
+            allowMultiple: true,
+            allowPurchaseBeforeEvent: true,
+            allowPurchaseDuringEvent: false,
+            allowPurchaseDuringRegistration: true,
+            description: null,
+            id: 'addon-1',
+            isPaid: false,
+            maxQuantityPerUser: 2,
+            price: 0,
+            registrationOptions: [
+              {
+                includedQuantity: 1,
+                optionalPurchaseQuantity: 1,
+                registrationOptionId: 'option-1',
+              },
+            ],
+            stripeTaxRateId: null,
+            title: 'Equipment',
+            totalAvailableQuantity: 20,
+          },
+        ],
+        description: '<p>Event description</p>',
+        end: '2026-09-20T14:00:00.000Z',
+        icon: { iconColor: 0, iconName: 'calendar:fas' },
+        id: 'event-1',
+        location: null,
+        questions: [
+          {
+            description: null,
+            id: 'question-1',
+            registrationOptionId: 'option-1',
+            required: false,
+            sortOrder: 0,
+            title: 'Dietary requirements',
+          },
+        ],
+        registrationOptions: [
+          {
+            ...writableOption,
+            registrationMode: 'random',
+          },
+        ],
+        simpleModeEnabled: false,
+        start: '2026-09-20T12:00:00.000Z',
+        title: 'Event',
+      }),
+    ).not.toThrow();
+  });
+
+  it('keeps legacy random readable but rejects it in graph writes', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)({
+        ...writableOption,
+        registrationMode: 'random',
+      }),
+    ).toThrow();
+  });
+
+  it('accepts distinct included and optional quantities per option mapping', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphAddonInput)({
+        allowMultiple: true,
+        allowPurchaseBeforeEvent: true,
+        allowPurchaseDuringEvent: true,
+        allowPurchaseDuringRegistration: true,
+        description: null,
+        isPaid: false,
+        key: 'addon-1',
+        maxQuantityPerUser: 3,
+        price: 0,
+        registrationOptions: [
+          {
+            includedQuantity: 2,
+            optionalPurchaseQuantity: 1,
+            registrationOptionKey: 'option-1',
+          },
+          {
+            includedQuantity: 0,
+            optionalPurchaseQuantity: 3,
+            registrationOptionKey: 'option-2',
+          },
+        ],
+        stripeTaxRateId: null,
+        title: 'Equipment',
+        totalAvailableQuantity: 30,
       }),
     ).not.toThrow();
   });

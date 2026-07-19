@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   foreignKey,
@@ -12,6 +13,7 @@ import {
 
 import { eventInstances } from './event-instances';
 import { modelOfTenant } from './model';
+import { currencyEnum } from './tenants';
 import { transactions } from './transactions';
 import { users } from './users';
 
@@ -22,6 +24,11 @@ export const financeReceiptStatus = pgEnum('finance_receipt_status', [
   'refunded',
 ]);
 
+export const financeReceiptUploadStatus = pgEnum(
+  'finance_receipt_upload_status',
+  ['pending', 'ready', 'rejected', 'consumed'],
+);
+
 export const financeReceiptUploads = pgTable(
   'finance_receipt_uploads',
   {
@@ -30,9 +37,14 @@ export const financeReceiptUploads = pgTable(
     eventId: varchar({ length: 20 })
       .notNull()
       .references(() => eventInstances.id),
+    expiresAt: timestamp()
+      .notNull()
+      .default(sql`now() + interval '5 minutes'`),
     fileName: text().notNull(),
     mimeType: text().notNull(),
+    rejectionReason: text(),
     sizeBytes: integer().notNull(),
+    status: financeReceiptUploadStatus().notNull().default('pending'),
     storageKey: text().notNull().unique(),
     storageUrl: text(),
     uploadedAt: timestamp(),
@@ -59,6 +71,7 @@ export const financeReceipts = pgTable(
     attachmentMimeType: text().notNull(),
     attachmentSizeBytes: integer().notNull(),
     attachmentUploadId: varchar({ length: 20 }).notNull(),
+    currency: currencyEnum().notNull(),
     depositAmount: integer().notNull().default(0),
     eventId: varchar({ length: 20 })
       .notNull()

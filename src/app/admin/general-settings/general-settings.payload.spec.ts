@@ -3,12 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   GeneralSettingsModel,
   generalSettingsPayloadFromModel,
-  requiresLocaleMoneyRuntimeReload,
+  requiresRuntimeSettingsReload,
 } from './general-settings.payload';
 
 const settingsModel: GeneralSettingsModel = {
   allowOther: true,
   buyEsnCardUrl: ' https://esncard.org/ ',
+  cancellationDeadlineHoursBeforeStart: 72.8,
   currency: 'CZK',
   defaultLocation: {
     address: 'Amsterdam, Netherlands',
@@ -26,12 +27,10 @@ const settingsModel: GeneralSettingsModel = {
   faviconUrl: ' https://cdn.example.org/favicon.ico ',
   legalNoticeText: ' Tenant imprint text ',
   legalNoticeUrl: ' https://section.example.org/imprint ',
-  locale: 'en-US',
   logoUrl: ' https://cdn.example.org/logo.svg ',
   maxActiveRegistrationsPerUser: 4.8,
-  privacyPolicyText: ' Tenant privacy text ',
-  privacyPolicyUrl: ' https://section.example.org/privacy ',
   receiptCountries: ['DE', 'NL'],
+  refundFeesOnCancellation: false,
   seoDescription: ' Public tenant description ',
   seoTitle: ' Public tenant title ',
   stripeAccountId: ' acct_123 ',
@@ -39,6 +38,7 @@ const settingsModel: GeneralSettingsModel = {
   termsUrl: ' https://section.example.org/terms ',
   theme: 'esn',
   timezone: 'Europe/Prague',
+  transferDeadlineHoursBeforeStart: 12.9,
 };
 
 describe('generalSettingsPayloadFromModel', () => {
@@ -46,6 +46,7 @@ describe('generalSettingsPayloadFromModel', () => {
     expect(generalSettingsPayloadFromModel(settingsModel)).toEqual({
       allowOther: true,
       buyEsnCardUrl: 'https://esncard.org/',
+      cancellationDeadlineHoursBeforeStart: 72,
       currency: 'CZK',
       defaultLocation: settingsModel.defaultLocation,
       emailSenderEmail: 'events@section.example.org',
@@ -54,12 +55,10 @@ describe('generalSettingsPayloadFromModel', () => {
       faviconUrl: 'https://cdn.example.org/favicon.ico',
       legalNoticeText: 'Tenant imprint text',
       legalNoticeUrl: 'https://section.example.org/imprint',
-      locale: 'en-US',
       logoUrl: 'https://cdn.example.org/logo.svg',
       maxActiveRegistrationsPerUser: 4,
-      privacyPolicyText: 'Tenant privacy text',
-      privacyPolicyUrl: 'https://section.example.org/privacy',
       receiptCountries: ['DE', 'NL'],
+      refundFeesOnCancellation: false,
       seoDescription: 'Public tenant description',
       seoTitle: 'Public tenant title',
       stripeAccountId: 'acct_123',
@@ -67,6 +66,7 @@ describe('generalSettingsPayloadFromModel', () => {
       termsUrl: 'https://section.example.org/terms',
       theme: 'esn',
       timezone: 'Europe/Prague',
+      transferDeadlineHoursBeforeStart: 12,
     });
   });
 
@@ -75,6 +75,7 @@ describe('generalSettingsPayloadFromModel', () => {
       generalSettingsPayloadFromModel({
         ...settingsModel,
         buyEsnCardUrl: ' ',
+        cancellationDeadlineHoursBeforeStart: -72,
         defaultLocation: null,
         emailSenderEmail: '',
         emailSenderName: '',
@@ -83,17 +84,17 @@ describe('generalSettingsPayloadFromModel', () => {
         legalNoticeUrl: '',
         logoUrl: '',
         maxActiveRegistrationsPerUser: -3,
-        privacyPolicyText: '',
-        privacyPolicyUrl: '',
         seoDescription: '',
         seoTitle: '',
         stripeAccountId: '',
         termsText: '',
         termsUrl: '',
+        transferDeadlineHoursBeforeStart: -12,
       }),
     ).toEqual({
       allowOther: true,
       buyEsnCardUrl: undefined,
+      cancellationDeadlineHoursBeforeStart: 0,
       currency: 'CZK',
       defaultLocation: null,
       emailSenderEmail: undefined,
@@ -102,12 +103,10 @@ describe('generalSettingsPayloadFromModel', () => {
       faviconUrl: undefined,
       legalNoticeText: undefined,
       legalNoticeUrl: undefined,
-      locale: 'en-US',
       logoUrl: undefined,
       maxActiveRegistrationsPerUser: 0,
-      privacyPolicyText: undefined,
-      privacyPolicyUrl: undefined,
       receiptCountries: ['DE', 'NL'],
+      refundFeesOnCancellation: false,
       seoDescription: undefined,
       seoTitle: undefined,
       stripeAccountId: undefined,
@@ -115,47 +114,37 @@ describe('generalSettingsPayloadFromModel', () => {
       termsUrl: undefined,
       theme: 'esn',
       timezone: 'Europe/Prague',
+      transferDeadlineHoursBeforeStart: 0,
     });
   });
 });
 
-describe('requiresLocaleMoneyRuntimeReload', () => {
+describe('requiresRuntimeSettingsReload', () => {
   const currentTenant = {
     currency: 'EUR' as const,
-    locale: 'en-GB' as const,
     timezone: 'Europe/Berlin' as const,
   };
 
-  it('does not require a reload when locale and money settings stay the same', () => {
+  it('does not require a reload when currency and timezone stay the same', () => {
     expect(
-      requiresLocaleMoneyRuntimeReload(currentTenant, {
+      requiresRuntimeSettingsReload(currentTenant, {
         currency: 'EUR',
-        locale: 'en-GB',
         timezone: 'Europe/Berlin',
       }),
     ).toBe(false);
   });
 
-  it('requires a reload when currency, locale, or timezone changes', () => {
+  it('requires a reload when currency or timezone changes', () => {
     expect(
-      requiresLocaleMoneyRuntimeReload(currentTenant, {
+      requiresRuntimeSettingsReload(currentTenant, {
         currency: 'CZK',
-        locale: 'en-GB',
         timezone: 'Europe/Berlin',
       }),
     ).toBe(true);
     expect(
-      requiresLocaleMoneyRuntimeReload(currentTenant, {
+      requiresRuntimeSettingsReload(currentTenant, {
         currency: 'EUR',
-        locale: 'en-US',
-        timezone: 'Europe/Berlin',
-      }),
-    ).toBe(true);
-    expect(
-      requiresLocaleMoneyRuntimeReload(currentTenant, {
-        currency: 'EUR',
-        locale: 'en-GB',
-        timezone: 'Europe/Prague',
+        timezone: 'America/New_York',
       }),
     ).toBe(true);
   });

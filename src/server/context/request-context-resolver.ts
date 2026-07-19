@@ -4,12 +4,13 @@ import { uniq } from 'es-toolkit';
 import { Database, type DatabaseClient } from '../../db';
 import { getPreparedStatements } from '../../db/prepared-statements';
 import {
-  ALL_PERMISSIONS,
   partitionTenantRolePermissions,
   type Permission,
 } from '../../shared/permissions/permissions';
 import { type Authentication } from '../../types/custom/authentication';
+import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
+import { hasCurrentTenantOnboarding } from '../onboarding/tenant-onboarding.service';
 
 // Keep backward-compatible permission aliases while migrating toward a single
 // canonical set. This avoids breaking handlers that still check the old value.
@@ -36,7 +37,9 @@ const localEndToEndGlobalAdminOverrideEnabled = (): boolean =>
   process.env['NODE_ENV'] === 'development' ||
   process.env['NODE_ENV'] === 'test';
 
-const resolveGlobalAdminPermissions = (oidcUser: unknown): Permission[] => {
+export const resolvePlatformAuthority = (
+  oidcUser: unknown,
+): PlatformAdministratorAuthority | undefined => {
   const user = asRecord(oidcUser);
   const appMetadata =
     asRecord(user?.['evorto.app/app_metadata']) ??
@@ -48,10 +51,18 @@ const resolveGlobalAdminPermissions = (oidcUser: unknown): Permission[] => {
     auth0Id !== undefined &&
     configuredLocalEndToEndGlobalAdminAuth0Ids().includes(auth0Id);
 
-  return appMetadata?.['globalAdmin'] === true ||
-    configuredLocalEndToEndGlobalAdmin
-    ? [...ALL_PERMISSIONS, 'globalAdmin:manageTenants']
-    : [];
+  const isPlatformAdministrator =
+    appMetadata?.['platformAdministrator'] === true ||
+    appMetadata?.['globalAdmin'] === true ||
+    configuredLocalEndToEndGlobalAdmin;
+
+  return isPlatformAdministrator && auth0Id
+    ? PlatformAdministratorAuthority.make({
+        actorEmail: asString(user?.['email']) ?? null,
+        actorId: auth0Id,
+        kind: 'platformAdministrator',
+      })
+    : undefined;
 };
 
 export const resolveRequestPermissions = (input: {
@@ -67,7 +78,9 @@ export const resolveRequestPermissions = (input: {
   ).accepted;
 
   return normalizePermissions([
-    ...resolveGlobalAdminPermissions(input.oidcUser),
+    ...(resolvePlatformAuthority(input.oidcUser)
+      ? (['globalAdmin:manageTenants'] as const)
+      : []),
     ...tenantPermissions,
   ]);
 };
@@ -122,10 +135,8 @@ const findTenantByDomain = (domain: string) =>
   );
 
 export const resolveAuthenticationContext = (input: {
-  appSessionCookie: string | undefined;
   isAuthenticated: boolean;
 }): Authentication => ({
-  cookie: input.appSessionCookie,
   isAuthenticated: input.isAuthenticated,
 });
 
@@ -172,11 +183,19 @@ export const resolveTenantContext = (input: {
     };
   });
 
-export const resolveUserContext = (input: {
-  isAuthenticated: boolean;
-  oidcUser: unknown;
+const resolveCurrentTenantOnboarding = (input: {
   tenantId: string;
-}) =>
+  userId: string;
+}) => databaseEffect((database) => hasCurrentTenantOnboarding(database, input));
+
+export const resolveUserContext = (
+  input: {
+    isAuthenticated: boolean;
+    oidcUser: unknown;
+    tenantId: string;
+  },
+  resolveOnboardingComplete = resolveCurrentTenantOnboarding,
+) =>
   Effect.gen(function* () {
     if (!input.isAuthenticated) {
       return;
@@ -199,6 +218,14 @@ export const resolveUserContext = (input: {
     }
 
     if (user.tenantAssignments.length === 0) {
+      return;
+    }
+
+    const onboardingComplete = yield* resolveOnboardingComplete({
+      tenantId: input.tenantId,
+      userId: user.id,
+    });
+    if (!onboardingComplete) {
       return;
     }
 
@@ -251,6 +278,7 @@ export const resolveUserContext = (input: {
     return {
       ...user,
       attributes,
+      homeTenantName: user.homeTenant?.name,
       permissions: normalizePermissions(permissions),
       roleIds,
     };

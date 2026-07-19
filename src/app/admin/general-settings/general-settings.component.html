@@ -13,33 +13,11 @@
         <a class="underline" routerLink="/admin/tax-rates">Tax Rates</a> page.
       </p>
 
-      <section
-        class="border-outline-variant bg-surface-container-low mb-6 rounded-xl border p-4"
-      >
-        <h2 class="title-small mb-2">Deferred settings</h2>
-        <p class="text-on-surface-variant mb-3 text-sm">
-          These tenant settings are part of the broader relaunch/onboarding
-          scope, but they are not fully editable from this page yet.
-        </p>
-        <dl class="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
-          @for (row of deferredTenantSettingsRows; track row.label) {
-            <div>
-              <dt class="text-on-surface-variant text-xs uppercase">
-                {{ row.label }}
-              </dt>
-              <dd class="text-sm">{{ row.value }}</dd>
-            </div>
-          }
-        </dl>
-      </section>
-
       <section class="mb-6">
-        <h2 class="title-small mb-2">Tenant identity</h2>
+        <h2 class="title-small mb-2">Organization</h2>
         <p class="text-on-surface-variant mb-3 text-sm">
-          These values identify the active tenant for operators and support.
-          Tenant name and primary domain are read-only here. The secure HTTPS
-          origin for outbound links is derived from the normalized primary
-          domain.
+          Your organization name and public domain are managed by a platform
+          administrator. Contact support if either needs to change.
         </p>
         <dl class="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
           @for (row of tenantIdentityRows(); track row.label) {
@@ -60,7 +38,7 @@
       >
         <h2 class="title-small mb-2">Operations settings</h2>
         <p class="text-on-surface-variant mb-3 text-sm">
-          Event reviews are handled by users with the events:review capability.
+          Users with event-review access can review submitted events.
         </p>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <mat-form-field>
@@ -89,6 +67,10 @@
               [formField]="settingsForm.stripeAccountId"
               placeholder="acct_..."
             />
+            <mat-hint>
+              Disconnecting requires every event and template option and add-on
+              to be free.
+            </mat-hint>
           </mat-form-field>
           <mat-form-field>
             <mat-label>Active registration limit</mat-label>
@@ -97,8 +79,53 @@
               type="number"
               [formField]="settingsForm.maxActiveRegistrationsPerUser"
             />
-            <mat-hint>Use 0 for no tenant-wide limit.</mat-hint>
+            <mat-hint>Use 0 for no organization-wide limit.</mat-hint>
           </mat-form-field>
+          <mat-form-field>
+            <mat-label>Transfer deadline before event (hours)</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="settingsForm.transferDeadlineHoursBeforeStart"
+            />
+            <mat-hint>
+              How many hours before an event starts registration transfers
+              close. Use 0 to allow transfers until the start time.
+            </mat-hint>
+            @if (
+              settingsForm.transferDeadlineHoursBeforeStart().touched() &&
+              settingsForm.transferDeadlineHoursBeforeStart().invalid()
+            ) {
+              <mat-error>Enter zero or more hours.</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Cancellation deadline before event (hours)</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="settingsForm.cancellationDeadlineHoursBeforeStart"
+            />
+            <mat-hint>
+              How many hours before an event starts participant cancellations
+              close. The default 120 hours is five days.
+            </mat-hint>
+            @if (
+              settingsForm.cancellationDeadlineHoursBeforeStart().touched() &&
+              settingsForm.cancellationDeadlineHoursBeforeStart().invalid()
+            ) {
+              <mat-error>Enter zero or more hours.</mat-error>
+            }
+          </mat-form-field>
+        </div>
+        <div class="mt-2">
+          <mat-slide-toggle [formField]="settingsForm.refundFeesOnCancellation">
+            Refund fees on cancellation
+          </mat-slide-toggle>
+          <p class="text-on-surface-variant mt-1 text-xs">
+            When enabled, eligible cancellation refunds include refundable
+            payment fees.
+          </p>
         </div>
       </section>
 
@@ -121,12 +148,12 @@
         </mat-select>
       </mat-form-field>
 
-      <h3 class="title-small mb-2 mt-6">Locale and money</h3>
+      <h3 class="title-small mb-2 mt-6">Currency and business time</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
-        These values are used for tenant currency, date/time display, and local
-        scheduling assumptions.
+        Money uses your organization's currency. Dates and times use its
+        timezone.
       </p>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <mat-form-field>
           <mat-label>Currency</mat-label>
           <mat-select [formField]="settingsForm.currency">
@@ -134,30 +161,32 @@
               <mat-option [value]="currency">{{ currency }}</mat-option>
             }
           </mat-select>
-        </mat-form-field>
-
-        <mat-form-field>
-          <mat-label>Locale</mat-label>
-          <mat-select [formField]="settingsForm.locale">
-            @for (locale of localeOptions; track locale) {
-              <mat-option [value]="locale">{{ locale }}</mat-option>
-            }
-          </mat-select>
+          <mat-hint>
+            Applies to new event and finance records. It is locked after
+            templates, events, receipts, or transactions exist.
+          </mat-hint>
         </mat-form-field>
 
         <mat-form-field>
           <mat-label>Timezone</mat-label>
-          <mat-select [formField]="settingsForm.timezone">
-            @for (timezone of timezoneOptions; track timezone) {
-              <mat-option [value]="timezone">{{ timezone }}</mat-option>
-            }
-          </mat-select>
+          <input
+            matInput
+            [formField]="settingsForm.timezone"
+            placeholder="Europe/Berlin"
+          />
+          <mat-hint>Choose the city or region used for event times.</mat-hint>
+          @if (
+            settingsForm.timezone().touched() &&
+            settingsForm.timezone().invalid()
+          ) {
+            <mat-error>Enter a recognized city or region timezone.</mat-error>
+          }
         </mat-form-field>
       </div>
 
       <h3 class="title-small mb-2 mt-6">Brand assets</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
-        Upload tenant assets or paste externally hosted URLs. The favicon
+        Upload organization assets or paste externally hosted URLs. The favicon
         updates the browser tab icon.
       </p>
       <mat-form-field>
@@ -172,7 +201,7 @@
         #logoAssetInput
         type="file"
         class="hidden"
-        aria-label="Upload tenant logo file"
+        aria-label="Upload organization logo file"
         accept="image/png,image/jpeg,image/webp,image/gif"
         (change)="uploadBrandAsset('logo', $event)"
       />
@@ -200,7 +229,7 @@
         #faviconAssetInput
         type="file"
         class="hidden"
-        aria-label="Upload tenant favicon file"
+        aria-label="Upload organization favicon file"
         accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"
         (change)="uploadBrandAsset('favicon', $event)"
       />
@@ -221,14 +250,15 @@
 
       <h3 class="title-small mb-2 mt-6">Search preview</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
-        Set the default title and description used for tenant-level pages.
+        Set the default title and description for your organization's public
+        pages.
       </p>
       <mat-form-field>
         <mat-label>SEO title</mat-label>
         <input
           matInput
           [formField]="settingsForm.seoTitle"
-          placeholder="Tenant name or public site title"
+          placeholder="Organization name or public site title"
         />
       </mat-form-field>
       <mat-form-field>
@@ -243,9 +273,8 @@
 
       <h3 class="title-small mb-2 mt-6">Legal pages</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
-        Configure tenant-specific public legal pages. Use an external URL when
-        the page is handled elsewhere, or add hosted text for Evorto to publish
-        the page locally.
+        Use an external URL when a page is handled elsewhere, or add text for
+        Evorto to publish it.
       </p>
       <mat-form-field>
         <mat-label>Imprint / legal notice URL</mat-label>
@@ -264,23 +293,14 @@
           placeholder="Legal notice text shown at /legal/imprint"
         ></textarea>
       </mat-form-field>
-      <mat-form-field>
-        <mat-label>Privacy policy URL</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.privacyPolicyUrl"
-          placeholder="https://section.example.org/privacy"
-        />
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Hosted privacy policy text</mat-label>
-        <textarea
-          matInput
-          rows="5"
-          [formField]="settingsForm.privacyPolicyText"
-          placeholder="Privacy policy text shown at /legal/privacy"
-        ></textarea>
-      </mat-form-field>
+      <div class="bg-surface-container-low mb-4 rounded-lg p-3">
+        <p class="text-on-surface-variant text-sm">
+          The privacy policy and onboarding questions are managed together in
+          <a class="underline" routerLink="/admin/onboarding"
+            >Member onboarding</a
+          >. Publishing a new privacy policy asks every member to accept it.
+        </p>
+      </div>
       <mat-form-field>
         <mat-label>Terms URL</mat-label>
         <input
@@ -320,7 +340,7 @@
         Adds an “Other” option for receipts outside the selected countries.
       </p>
 
-      <h3 class="title-small mb-2 mt-6">Discount providers</h3>
+      <h3 class="title-small mb-2 mt-6">Discount cards</h3>
       <div class="mb-4">
         <mat-slide-toggle [formField]="settingsForm.esnCardEnabled">
           ESN Card discounts

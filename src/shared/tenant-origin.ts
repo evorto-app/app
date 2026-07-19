@@ -97,3 +97,27 @@ export const resolveTenantPublicOrigin = ({
 
   return tenantOrigin;
 };
+
+export const buildTenantPublicUrl = ({
+  baseUrl,
+  nodeEnvironment,
+  path,
+  primaryDomain,
+}: {
+  baseUrl: string | undefined;
+  nodeEnvironment: string | undefined;
+  path: string;
+  primaryDomain: string;
+}): string => {
+  const origin = resolveTenantPublicOrigin({
+    baseUrl,
+    nodeEnvironment,
+    primaryDomain,
+  });
+  const url = new URL(path, `${origin}/`);
+  if (url.origin !== origin) {
+    throw new Error('Tenant public path must stay on the tenant origin');
+  }
+
+  return url.toString();
+};

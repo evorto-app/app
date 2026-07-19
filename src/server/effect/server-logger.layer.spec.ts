@@ -1,46 +1,44 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Option } from 'effect';
 
-import { resolveServerLogLevel } from './server-logger.layer';
+import {
+  resolveServerLogFormat,
+  serverReleaseLogAnnotations,
+} from './server-logger.layer';
 
-describe('server-logger.layer', () => {
-  it('prefers an explicit server log level', () => {
-    expect(
-      resolveServerLogLevel({
-        ACTIONS_STEP_DEBUG: false,
-        CI: false,
-        SERVER_LOG_LEVEL: Option.some('Error'),
-      }),
-    ).toBe('Error');
+describe('server logger', () => {
+  it('uses readable local logs and structured container logs', () => {
+    expect(resolveServerLogFormat('local')).toBe('pretty');
+    expect(resolveServerLogFormat('staging')).toBe('json');
+    expect(resolveServerLogFormat('production')).toBe('json');
   });
 
-  it('elevates CI to warning when no explicit log level is configured', () => {
+  it('attaches immutable release identity to every container log record', () => {
     expect(
-      resolveServerLogLevel({
-        ACTIONS_STEP_DEBUG: false,
-        CI: true,
-        SERVER_LOG_LEVEL: Option.none(),
+      serverReleaseLogAnnotations({
+        APP_BOOTSTRAP: false,
+        APP_ENVIRONMENT: 'staging',
+        APP_IMAGE_DIGEST: Option.some('sha256:digest'),
+        APP_REVISION: Option.some('revision'),
+        APP_ROLE: 'worker',
       }),
-    ).toBe('Warn');
+    ).toEqual({
+      environment: 'staging',
+      imageDigest: 'sha256:digest',
+      revision: 'revision',
+      role: 'worker',
+    });
   });
 
-  it('elevates GitHub step debug to debug when no explicit log level is configured', () => {
+  it('marks absent local release metadata explicitly', () => {
     expect(
-      resolveServerLogLevel({
-        ACTIONS_STEP_DEBUG: true,
-        CI: false,
-        SERVER_LOG_LEVEL: Option.none(),
+      serverReleaseLogAnnotations({
+        APP_BOOTSTRAP: false,
+        APP_ENVIRONMENT: 'local',
+        APP_IMAGE_DIGEST: Option.none(),
+        APP_REVISION: Option.none(),
+        APP_ROLE: 'web',
       }),
-    ).toBe('Debug');
-  });
-
-  it('defaults to info when no explicit log level or CI debug flags are set', () => {
-    expect(
-      resolveServerLogLevel({
-        ACTIONS_STEP_DEBUG: false,
-        CI: false,
-        SERVER_LOG_LEVEL: Option.none(),
-      }),
-    ).toBe('Info');
+    ).toMatchObject({ imageDigest: 'unknown', revision: 'unknown' });
   });
 });

@@ -47,6 +47,7 @@ Thumbs.db
 !.env.example
 !.env.template
 .neon_local/
+.sentryclirc
 
 # Playwright
 /test-results/
@@ -60,7 +61,13 @@ Thumbs.db
 # windsurf rules
 .windsurfrules
 
-# Sentry Config File
-.sentryclirc
+# Terraform local state and developer backend configuration
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infrastructure/scaleway/backend.hcl
+infrastructure/scaleway/*.auto.tfvars
+infrastructure/scaleway/bootstrap/*.auto.tfvars
 
 repomix-output.md

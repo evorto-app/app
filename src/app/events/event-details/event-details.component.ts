@@ -1,12 +1,19 @@
-import type { EventReviewStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import type {
+  EventReviewStatus,
+  EventsOutgoingRegistrationTransferRecord,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
+import { CurrencyPipe } from '@angular/common';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   effect,
   inject,
+  Injectable,
   input,
+  signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -33,6 +40,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
@@ -57,26 +65,122 @@ export const registrationOptionsState = (event: {
     : 'none';
 };
 
+export const outgoingRegistrationTransferCopy = (
+  transfer: Pick<EventsOutgoingRegistrationTransferRecord, 'refundStatus'>,
+): {
+  nextStep: string;
+  summary: string;
+  title: string;
+  tone: 'error' | 'info' | 'success';
+} => {
+  switch (transfer.refundStatus) {
+    case 'completed': {
+      return {
+        nextStep: 'No action is needed.',
+        summary:
+          'This transfer moved the ticket to its recipient, and all refunds due to you completed.',
+        title: 'Transfer refund completed',
+        tone: 'success',
+      };
+    }
+    case 'needsAttention': {
+      return {
+        nextStep:
+          'Contact an organizer for an update. Do not pay or register again to retry the refund.',
+        summary:
+          'This transfer moved the ticket to its recipient, but one or more refunds due to you may not have reached you.',
+        title: 'Transfer refund needs attention',
+        tone: 'error',
+      };
+    }
+    case 'notRequired': {
+      return {
+        nextStep: 'No action is needed.',
+        summary:
+          'This transfer moved the ticket to its recipient. No refund was due for this transfer.',
+        title: 'Ticket transfer completed',
+        tone: 'success',
+      };
+    }
+    case 'processing': {
+      return {
+        nextStep:
+          'No action is needed. Do not pay or register again to retry the refund.',
+        summary:
+          'This transfer moved the ticket to its recipient, and one or more refunds due to you are being processed.',
+        title: 'Transfer refund is processing',
+        tone: 'info',
+      };
+    }
+  }
+};
+
+export const eventRegistrationOptionGroups = <
+  TOption extends { organizingRegistration: boolean },
+>(
+  registrationOptions: readonly TOption[],
+): {
+  organizerOptions: readonly TOption[];
+  participantOptions: readonly TOption[];
+} => ({
+  organizerOptions: registrationOptions.filter(
+    (option) => option.organizingRegistration,
+  ),
+  participantOptions: registrationOptions.filter(
+    (option) => !option.organizingRegistration,
+  ),
+});
+
 export const eventReviewActionDisabled = ({
   canReview,
+  controlsInteractive,
   mutationPending,
   status,
 }: {
   canReview: boolean;
+  controlsInteractive: boolean;
   mutationPending: boolean;
   status: EventReviewStatus;
-}): boolean => !canReview || status !== 'PENDING_REVIEW' || mutationPending;
+}): boolean =>
+  !controlsInteractive ||
+  !canReview ||
+  status !== 'PENDING_REVIEW' ||
+  mutationPending;
 
 export const eventSubmitForReviewActionDisabled = ({
   canEdit,
+  controlsInteractive,
   mutationPending,
   status,
 }: {
   canEdit: boolean;
+  controlsInteractive: boolean;
   mutationPending: boolean;
   status: EventReviewStatus;
 }): boolean =>
-  !canEdit || (status !== 'DRAFT' && status !== 'REJECTED') || mutationPending;
+  !controlsInteractive || !canEdit || status !== 'DRAFT' || mutationPending;
+
+export const eventCanEdit = ({
+  canEditAll,
+  isCreator,
+  status,
+}: {
+  canEditAll: boolean;
+  isCreator: boolean;
+  status: EventReviewStatus;
+}): boolean => status === 'DRAFT' && (canEditAll || isCreator);
+
+export const eventCanSeeStatus = ({
+  canEdit,
+  canReview,
+  canSeeDrafts,
+  isCreator,
+}: {
+  canEdit: boolean;
+  canReview: boolean;
+  canSeeDrafts: boolean;
+  isCreator: boolean;
+}): boolean => canReview || canEdit || canSeeDrafts || isCreator;
 
 export const eventAddonPurchaseTiming = (addOn: {
   allowPurchaseBeforeEvent: boolean;
@@ -104,7 +208,10 @@ export const eventRegistrationOptionTitle = (
 export const eventAddonsForRegistrationOption = <
   TAddOn extends {
     allowPurchaseDuringRegistration: boolean;
-    registrationOptions: readonly { registrationOptionId: string }[];
+    registrationOptions: readonly {
+      includedQuantity: number;
+      registrationOptionId: string;
+    }[];
   },
 >(
   event: {
@@ -112,17 +219,73 @@ export const eventAddonsForRegistrationOption = <
   },
   registrationOptionId: string,
 ) =>
-  event.addOns.filter(
-    (addOn) =>
-      addOn.allowPurchaseDuringRegistration &&
-      addOn.registrationOptions.some(
-        (option) => option.registrationOptionId === registrationOptionId,
-      ),
-  );
+  event.addOns.filter((addOn) => {
+    const mapping = addOn.registrationOptions.find(
+      (option) => option.registrationOptionId === registrationOptionId,
+    );
+    return (
+      !!mapping &&
+      (addOn.allowPurchaseDuringRegistration || mapping.includedQuantity > 0)
+    );
+  });
+
+@Injectable({ providedIn: 'root' })
+export class EventDetailsOperations {
+  private readonly rpc = AppRpc.injectClient();
+
+  canOrganize(eventId: string) {
+    return this.rpc.events.canOrganize.queryOptions({ eventId });
+  }
+
+  eventListFilter() {
+    return this.rpc.queryFilter(['events', 'eventList']);
+  }
+
+  eventQueryKey(id: string) {
+    return this.rpc.events.findOne.queryKey({ id });
+  }
+
+  findEvent(id: string) {
+    return this.rpc.events.findOne.queryOptions({ id });
+  }
+
+  myCards() {
+    return this.rpc.discounts.getMyCards.queryOptions();
+  }
+
+  pendingReviewsFilter() {
+    return this.rpc.queryFilter(['events', 'getPendingReviews']);
+  }
+
+  registrationStatus(eventId: string) {
+    return this.rpc.events.getRegistrationStatus.queryOptions({ eventId });
+  }
+
+  reviewEvent() {
+    return this.rpc.events.reviewEvent.mutationOptions();
+  }
+
+  self() {
+    return this.rpc.users.maybeSelf.queryOptions();
+  }
+
+  submitForReview() {
+    return this.rpc.events.submitForReview.mutationOptions();
+  }
+
+  updateListing() {
+    return this.rpc.events.updateListing.mutationOptions();
+  }
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[attr.aria-busy]': '!controlsInteractive() || null',
+  },
   imports: [
+    CurrencyPipe,
+    TenantDatePipe,
     MatButtonModule,
     MatMenuModule,
     RouterLink,
@@ -157,32 +320,30 @@ export const eventAddonsForRegistrationOption = <
 })
 export class EventDetailsComponent {
   public eventId = input.required<string>();
-  private readonly rpc = AppRpc.injectClient();
+  private readonly operations = inject(EventDetailsOperations);
   protected readonly eventQuery = injectQuery(() =>
-    this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
+    this.operations.findEvent(this.eventId()),
   );
-  protected readonly selfQery = injectQuery(() =>
-    this.rpc.users.maybeSelf.queryOptions(),
-  );
+  protected readonly selfQery = injectQuery(() => this.operations.self());
+  private readonly isEventCreator = computed(() => {
+    const event = this.eventQuery.data();
+    const self = this.selfQery.data();
+    return !!event && !!self && event.creatorId === self.id;
+  });
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
     const event = this.eventQuery.data();
-    if (!event || (event.status !== 'DRAFT' && event.status !== 'REJECTED')) {
+    if (!event) {
       return false;
     }
-    const editAllPermission =
-      this.permissions.hasPermission('events:editAll')();
-    if (editAllPermission) {
-      return true;
-    }
-    const self = this.selfQery.data();
-    if (!self) {
-      return false;
-    }
-    return event.creatorId === self.id;
+    return eventCanEdit({
+      canEditAll: this.permissions.hasPermission('events:editAll')(),
+      isCreator: this.isEventCreator(),
+      status: event.status,
+    });
   });
   protected readonly canOrganizeQuery = injectQuery(() =>
-    this.rpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
+    this.operations.canOrganize(this.eventId()),
   );
   protected readonly canOrganize = computed(() => {
     return this.canOrganizeQuery.isSuccess()
@@ -192,13 +353,15 @@ export class EventDetailsComponent {
   protected readonly canReview =
     this.permissions.hasPermission('events:review');
   protected readonly canSeeStatus = computed(() => {
-    const canReview = this.permissions.hasPermission('events:review')();
-    const canEdit = this.canEdit();
-    const canSeeDrafts = this.permissions.hasPermission('events:seeDrafts')();
-    return canReview || canEdit || canSeeDrafts;
+    return eventCanSeeStatus({
+      canEdit: this.canEdit(),
+      canReview: this.canReview(),
+      canSeeDrafts: this.permissions.hasPermission('events:seeDrafts')(),
+      isCreator: this.isEventCreator(),
+    });
   });
   protected readonly myCardsQuery = injectQuery(() =>
-    this.rpc.discounts.getMyCards.queryOptions(),
+    this.operations.myCards(),
   );
   private readonly config = inject(ConfigService);
   protected readonly cardExpiresBeforeEvent = computed(() => {
@@ -219,6 +382,7 @@ export class EventDetailsComponent {
     if (!latestValidTo) return false;
     return latestValidTo <= new Date(event.start);
   });
+  protected readonly controlsInteractive = signal(false);
   protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
   protected readonly eventAddonsForRegistrationOption =
     eventAddonsForRegistrationOption;
@@ -235,30 +399,37 @@ export class EventDetailsComponent {
     eventSubmitForReviewActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly outgoingRegistrationTransferCopy =
+    outgoingRegistrationTransferCopy;
+  protected readonly registrationOptionGroups = computed(() =>
+    eventRegistrationOptionGroups(
+      this.eventQuery.data()?.registrationOptions ?? [],
+    ),
+  );
   protected readonly registrationOptionsState = computed(() => {
     const event = this.eventQuery.data();
     return event ? registrationOptionsState(event) : 'none';
   });
   protected readonly registrationOptionTitle = eventRegistrationOptionTitle;
   protected readonly registrationStatusQuery = injectQuery(() =>
-    this.rpc.events.getRegistrationStatus.queryOptions({
-      eventId: this.eventId(),
-    }),
+    this.operations.registrationStatus(this.eventId()),
   );
   protected readonly reviewMutation = injectMutation(() =>
-    this.rpc.events.reviewEvent.mutationOptions(),
+    this.operations.reviewEvent(),
   );
   protected readonly submitForReviewMutation = injectMutation(() =>
-    this.rpc.events.submitForReview.mutationOptions(),
+    this.operations.submitForReview(),
   );
   protected readonly updateListingMutation = injectMutation(() =>
-    this.rpc.events.updateListing.mutationOptions(),
+    this.operations.updateListing(),
   );
   private dialog = inject(MatDialog);
   private notifications = inject(NotificationService);
   private queryClient = inject(QueryClient);
 
   constructor() {
+    afterNextRender(() => this.controlsInteractive.set(true));
+
     effect(() => {
       const event = this.eventQuery.data();
       if (event) {
@@ -269,10 +440,14 @@ export class EventDetailsComponent {
   }
 
   async updateVisibility() {
+    if (!this.controlsInteractive() || !this.eventQuery.isSuccess()) return;
+
+    const event = this.eventQuery.data();
+
     const unlisted = await firstValueFrom(
       this.dialog
         .open(UpdateVisibilityDialogComponent, {
-          data: { event: this.eventQuery.data() },
+          data: { event },
         })
         .afterClosed(),
     );
@@ -309,6 +484,7 @@ export class EventDetailsComponent {
       !event ||
       eventReviewActionDisabled({
         canReview: this.canReview(),
+        controlsInteractive: this.controlsInteractive(),
         mutationPending: this.reviewMutation.isPending(),
         status: event.status,
       })
@@ -355,6 +531,7 @@ export class EventDetailsComponent {
       !event ||
       eventSubmitForReviewActionDisabled({
         canEdit: this.canEdit(),
+        controlsInteractive: this.controlsInteractive(),
         mutationPending: this.submitForReviewMutation.isPending(),
         status: event.status,
       })
@@ -404,13 +581,11 @@ export class EventDetailsComponent {
 
   private async refreshReviewState(): Promise<void> {
     await this.queryClient.invalidateQueries({
-      queryKey: this.rpc.events.findOne.queryKey({ id: this.eventId() }),
+      queryKey: this.operations.eventQueryKey(this.eventId()),
     });
+    await this.queryClient.invalidateQueries(this.operations.eventListFilter());
     await this.queryClient.invalidateQueries(
-      this.rpc.queryFilter(['events', 'eventList']),
-    );
-    await this.queryClient.invalidateQueries(
-      this.rpc.queryFilter(['events', 'getPendingReviews']),
+      this.operations.pendingReviewsFilter(),
     );
   }
 }

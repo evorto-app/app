@@ -14,10 +14,12 @@ import { Pool } from 'pg';
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
 import { formatConfigError } from '../../../src/server/config/config-error';
+import { readProtectedEnvironmentValue } from '../protected-values';
 import {
   auth0ManagementEnvironment,
   playwrightEnvironmentConfig,
 } from '../config/environment';
+import { withProtectedValueCaptureOptions } from '../utils/fill-protected-value';
 
 const dedupeLength = 4;
 const createDedupeId = init({ length: dedupeLength });
@@ -61,6 +63,10 @@ interface BaseFixtures {
     lastName: string;
     password: string;
   };
+  registerDatabaseCleanup: (
+    cleanup: (database: NodePgDatabase<typeof relations>) => Promise<void>,
+  ) => void;
+  protectedValueCapturePolicy: void;
   seedDate: Date;
   testClock: DateTime;
   tenantDomain?: string;
@@ -68,12 +74,7 @@ interface BaseFixtures {
 
 export const test = base.extend<BaseFixtures>({
   database: async ({}, use) => {
-    const pool = new Pool(
-      createNodePgPoolConfig({
-        databaseUrl,
-        neonLocalProxy: environment.NEON_LOCAL_PROXY,
-      }),
-    );
+    const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     const database = drizzle({
       client: pool,
       relations,
@@ -105,7 +106,9 @@ export const test = base.extend<BaseFixtures>({
       domain: 'tumi-dev.eu.auth0.com',
     });
     const email = `test-${createDedupeId()}@evorto.app`;
-    const password = `notsecure-${createDedupeId()}1!`;
+    const password = readProtectedEnvironmentValue(
+      'E2E_TRANSIENT_AUTH0_USER_PASSWORD',
+    );
     const firstName = randFirstName();
     const lastName = randLastName();
 
@@ -136,17 +139,20 @@ export const test = base.extend<BaseFixtures>({
         return;
       }
       const realDate = Date;
+      const startedAt = performance.now();
+      const currentTime = () =>
+        Math.floor(value + (performance.now() - startedAt));
       class FixedDate extends realDate {
         constructor(...args: [] | ConstructorParameters<typeof realDate>) {
           if (args.length === 0) {
-            super(value);
+            super(currentTime());
             return;
           }
           super(...args);
         }
 
         static override now() {
-          return value;
+          return currentTime();
         }
       }
 
@@ -182,6 +188,42 @@ export const test = base.extend<BaseFixtures>({
     });
     await use(page);
   },
+  protectedValueCapturePolicy: [
+    async ({ contextOptions, screenshot, trace, video }, use) => {
+      await withProtectedValueCaptureOptions(
+        {
+          contextOptions,
+          screenshot,
+          trace,
+          video,
+        },
+        () => use(),
+      );
+    },
+    { auto: true },
+  ],
+  registerDatabaseCleanup: [
+    async ({ database }, use) => {
+      const cleanups: Array<
+        (database: NodePgDatabase<typeof relations>) => Promise<void>
+      > = [];
+      await use((cleanup) => cleanups.push(cleanup));
+
+      const errors: unknown[] = [];
+      for (const cleanup of cleanups.toReversed()) {
+        try {
+          await cleanup(database);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+
+      if (errors.length > 0) {
+        throw new AggregateError(errors, 'Database test cleanup failed');
+      }
+    },
+    { timeout: 60_000 },
+  ],
   seedDate: [
     async ({}, use) => {
       await use(getSeedDate());

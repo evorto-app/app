@@ -10,7 +10,9 @@ import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { Tenant } from '../../../types/custom/tenant';
 import {
+  RpcBadRequestError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
@@ -60,6 +62,7 @@ export const FinanceReceiptBaseRecord = Schema.Struct({
   attachmentMimeType: Schema.NonEmptyString,
   attachmentStorageKey: Schema.NullOr(Schema.NonEmptyString),
   createdAt: Schema.NonEmptyString,
+  currency: Tenant.fields.currency,
   depositAmount: Schema.Number,
   eventId: Schema.NonEmptyString,
   hasAlcohol: Schema.Boolean,
@@ -115,6 +118,7 @@ export const FinanceReceiptForApprovalRecord = extendStruct(
   Schema.Struct({
     eventStart: Schema.NonEmptyString,
     eventTitle: Schema.NonEmptyString,
+    receiptEvidenceAvailable: Schema.Boolean,
   }),
 );
 export type FinanceReceiptForApprovalRecord = Schema.Schema.Type<
@@ -145,6 +149,7 @@ export type FinanceReceiptRefundableRecord = Schema.Schema.Type<
 >;
 
 export const FinanceReceiptRefundGroupRecord = Schema.Struct({
+  currency: Tenant.fields.currency,
   payout: Schema.Struct({
     iban: Schema.NullOr(Schema.NonEmptyString),
     paypalEmail: Schema.NullOr(Schema.NonEmptyString),
@@ -247,24 +252,44 @@ export const FinanceReceiptsSubmit = asRpcMutation(
   }),
 );
 
-export const FinanceReceiptMediaUploadOriginal = asRpcMutation(
-  Rpc.make('finance.receiptMedia.uploadOriginal', {
-    error: Schema.Union([
-      ReceiptMediaBadRequestError,
-      ReceiptMediaInternalError,
-      ReceiptMediaServiceUnavailableError,
-      FinanceResourceNotFoundError,
-      RpcForbiddenError,
-      RpcUnauthorizedError,
-    ]),
+const FinanceReceiptMediaError = Schema.Union([
+  RpcBadRequestError,
+  ReceiptMediaBadRequestError,
+  ReceiptMediaInternalError,
+  ReceiptMediaServiceUnavailableError,
+  FinanceResourceNotFoundError,
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+]);
+
+export const FinanceReceiptMediaCreateUpload = asRpcMutation(
+  Rpc.make('finance.receiptMedia.createUpload', {
+    error: FinanceReceiptMediaError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
-      fileBase64: Schema.NonEmptyString,
       fileName: Schema.NonEmptyString,
-      fileSizeBytes: positiveNumber,
       mimeType: Schema.NonEmptyString,
+      sizeBytes: positiveNumber,
     }),
     success: Schema.Struct({
+      expiresAt: Schema.NonEmptyString,
+      fields: Schema.Record(Schema.String, Schema.String),
+      uploadId: Schema.NonEmptyString,
+      url: Schema.NonEmptyString,
+    }),
+  }),
+);
+
+export const FinanceReceiptMediaFinalizeUpload = asRpcMutation(
+  Rpc.make('finance.receiptMedia.finalizeUpload', {
+    error: FinanceReceiptMediaError,
+    payload: Schema.Struct({
+      uploadId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      fileName: Schema.NonEmptyString,
+      mimeType: Schema.NonEmptyString,
+      sizeBytes: positiveNumber,
       uploadId: Schema.NonEmptyString,
     }),
   }),
@@ -275,6 +300,7 @@ export const FinanceTransactionRecord = Schema.Struct({
   appFee: Schema.NullOr(Schema.Number),
   comment: Schema.NullOr(Schema.String),
   createdAt: Schema.NonEmptyString,
+  currency: Tenant.fields.currency,
   id: Schema.NonEmptyString,
   method: literalUnion('cash', 'paypal', 'stripe', 'transfer'),
   status: literalUnion('cancelled', 'pending', 'successful'),
@@ -299,7 +325,8 @@ export const FinanceTransactionsFindMany = asRpcQuery(
 );
 
 export class FinanceRpcs extends RpcGroup.make(
-  FinanceReceiptMediaUploadOriginal,
+  FinanceReceiptMediaCreateUpload,
+  FinanceReceiptMediaFinalizeUpload,
   FinanceReceiptsByEvent,
   FinanceReceiptsCreateRefund,
   FinanceReceiptsFindOneForApproval,

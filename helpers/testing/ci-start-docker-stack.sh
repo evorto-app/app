@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export E2E_RUNTIME_MODE=playwright
+
 run_docker_preflight() {
   bun run env:runtime
   timeout 2m node_modules/.bin/dotenv -c dev -- docker compose config --quiet
@@ -25,7 +27,7 @@ build_and_start_compose() {
   start_status=1
   for attempt in 1 2; do
     set +e
-    timeout 12m node_modules/.bin/dotenv -c dev -- docker compose build --progress=plain db-setup evorto
+    timeout 12m node_modules/.bin/dotenv -c dev -- docker compose build --progress=plain db-setup worker evorto
     build_status=$?
     if [ "${build_status}" = "0" ]; then
       timeout 5m node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d
@@ -41,18 +43,17 @@ build_and_start_compose() {
       break
     fi
     if [ "${start_status}" = "124" ]; then
-      echo "::warning::Docker Compose build/start timed out. Pruning builder state and retrying once."
+      echo "::warning::Docker Compose build/start timed out. Cleaning project-scoped Compose objects and retrying once."
     else
-      echo "::warning::Docker Compose build/start failed with status ${start_status}. Pruning builder state and retrying once."
+      echo "::warning::Docker Compose build/start failed with status ${start_status}. Cleaning project-scoped Compose objects and retrying once."
     fi
     timeout 90s node_modules/.bin/dotenv -c dev -- docker compose down --timeout 60 --remove-orphans || true
-    docker builder prune -af || true
   done
   if [ "${start_status}" = "124" ]; then
     echo "::error::Docker Compose build/start timed out before the workflow step timeout"
   fi
   node_modules/.bin/dotenv -c dev -- docker compose ps || true
-  node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db db-expiration db-setup minio minio-init evorto stripe || true
+  node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto || true
   return "${start_status}"
 }
 

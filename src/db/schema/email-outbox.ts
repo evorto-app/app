@@ -15,11 +15,23 @@ export const emailOutboxStatus = pgEnum('email_outbox_status', [
   'sending',
   'sent',
   'failed',
+  'deliveryUnknown',
+  'suppressed',
+]);
+
+export const emailDeliveryProvider = pgEnum('email_delivery_provider', [
+  'fake',
+  'mailpit',
+  'tem',
 ]);
 
 export const emailOutboxKind = pgEnum('email_outbox_kind', [
   'manualApproval',
   'receiptReviewed',
+  'registrationCancelled',
+  'registrationConfirmed',
+  'registrationTransferred',
+  'waitlistSpotAvailable',
 ]);
 
 export const emailOutbox = pgTable(
@@ -27,6 +39,9 @@ export const emailOutbox = pgTable(
   {
     ...modelOfTenant,
     attempts: integer().notNull().default(0),
+    claimLeaseExpiresAt: timestamp('claim_lease_expires_at'),
+    claimLeaseId: text('claim_lease_id'),
+    deliveryUnknownAt: timestamp('delivery_unknown_at'),
     exhaustedAt: timestamp('exhausted_at'),
     fromEmail: text('from_email').notNull(),
     fromName: text('from_name').notNull(),
@@ -37,16 +52,22 @@ export const emailOutbox = pgTable(
     lastError: text('last_error'),
     maxAttempts: integer('max_attempts').notNull().default(8),
     nextAttemptAt: timestamp('next_attempt_at').notNull().defaultNow(),
+    provider: emailDeliveryProvider(),
+    providerMessageId: text('provider_message_id'),
     replyToEmail: text('reply_to_email'),
     replyToName: text('reply_to_name'),
-    resendEmailId: text('resend_email_id'),
     sentAt: timestamp('sent_at'),
     status: emailOutboxStatus().notNull().default('queued'),
     subject: text().notNull(),
+    suppressedAt: timestamp('suppressed_at'),
     text: text().notNull(),
     toEmail: text('to_email').notNull(),
   },
   (table) => ({
+    claimLeaseIndex: index('email_outbox_claim_lease_idx').on(
+      table.status,
+      table.claimLeaseExpiresAt,
+    ),
     idempotencyKeyUnique: unique().on(table.idempotencyKey),
     nextAttemptIndex: index('email_outbox_next_attempt_idx').on(
       table.status,

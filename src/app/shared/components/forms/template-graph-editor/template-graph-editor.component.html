@@ -1,0 +1,179 @@
+@let form = graphForm();
+<section class="grid gap-6" aria-labelledby="registration-configuration-title">
+  <div class="grid gap-3">
+    <div>
+      <h2 id="registration-configuration-title" class="title-large">
+        Registration configuration
+      </h2>
+      <p class="body-small text-on-surface-variant mt-1">
+        Simple configuration keeps one organizing and one non-organizing option.
+        Advanced configuration lets you add registration options and choose
+        which registration options can use each reusable add-on.
+      </p>
+    </div>
+    <div
+      class="flex flex-wrap gap-2"
+      role="group"
+      aria-label="Configuration mode"
+    >
+      <button
+        mat-stroked-button
+        type="button"
+        [attr.aria-pressed]="isSimpleMode()"
+        (click)="requestMode('simple')"
+      >
+        Use simple configuration
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        [attr.aria-pressed]="!isSimpleMode()"
+        (click)="requestMode('advanced')"
+      >
+        Use advanced configuration
+      </button>
+    </div>
+    @if (modeBlockMessage()) {
+      <p
+        class="bg-error-container text-on-error-container p-3"
+        role="alert"
+        data-testid="template-graph-mode-error"
+      >
+        {{ modeBlockMessage() }}
+      </p>
+    }
+  </div>
+
+  @if (!isSimpleMode()) {
+    @for (warning of optionKindWarnings(); track warning) {
+      <p
+        class="border-outline-variant bg-surface-container-low text-on-surface border p-3"
+        role="status"
+        data-testid="template-graph-warning"
+      >
+        {{ warning }}
+      </p>
+    }
+  }
+
+  <section class="grid gap-4" aria-labelledby="registration-options-title">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h3 id="registration-options-title" class="title-medium">
+        Registration options
+      </h3>
+      @if (!isSimpleMode()) {
+        <button mat-button type="button" (click)="addRegistrationOption()">
+          <fa-duotone-icon [icon]="faPlus" />
+          Add registration option
+        </button>
+      }
+    </div>
+    <div class="grid gap-6 xl:grid-cols-2">
+      @for (
+        option of form.registrationOptions;
+        track option;
+        let index = $index
+      ) {
+        <app-template-registration-option-editor
+          [currencyCode]="tenantCurrency()"
+          [esnEnabled]="esnEnabled()"
+          [optionForm]="option"
+          [referenceCount]="registrationReferenceCount(option.key().value())"
+          [simpleMode]="isSimpleMode()"
+          [taxRates]="taxRates()"
+          [taxRateState]="taxRateState()"
+          (remove)="removeRegistrationOption(index)"
+        />
+      } @empty {
+        <p class="body-medium text-on-surface-variant">
+          No registration options configured. This is allowed in advanced mode.
+        </p>
+      }
+    </div>
+  </section>
+
+  @if (!isSimpleMode()) {
+    <section
+      class="border-outline-variant grid gap-4 border-t pt-6"
+      aria-labelledby="template-add-ons-title"
+      data-testid="template-addons-section"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 id="template-add-ons-title" class="title-medium">
+            Reusable add-ons
+          </h3>
+          <p class="body-small text-on-surface-variant mt-1">
+            Each registration option has its own included units and optional
+            purchases.
+          </p>
+        </div>
+        <button mat-button type="button" (click)="addAddOn()">
+          <fa-duotone-icon [icon]="faPlus" />
+          Add add-on
+        </button>
+      </div>
+      <div class="grid gap-6">
+        @for (addOn of form.addOns; track addOn; let index = $index) {
+          <app-template-addon-editor
+            [addOnForm]="addOn"
+            [currencyCode]="tenantCurrency()"
+            [optionChoices]="optionChoices()"
+            [taxRates]="taxRates()"
+            [taxRateState]="taxRateState()"
+            (addMapping)="addAddOnMapping(index)"
+            (remove)="removeAddOn(index)"
+            (removeMapping)="removeAddOnMapping(index, $event)"
+          />
+        } @empty {
+          <p class="body-medium text-on-surface-variant">
+            No add-ons configured.
+          </p>
+        }
+      </div>
+    </section>
+  }
+
+  <section
+    class="border-outline-variant grid gap-4 border-t pt-6"
+    aria-labelledby="template-questions-title"
+  >
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 id="template-questions-title" class="title-medium">
+          Registration questions
+        </h3>
+        <p class="body-small text-on-surface-variant mt-1">
+          Every question belongs to one concrete registration option.
+        </p>
+      </div>
+      <button
+        mat-button
+        type="button"
+        [disabled]="optionChoices().length === 0"
+        (click)="addQuestion()"
+      >
+        <fa-duotone-icon [icon]="faPlus" />
+        Add question
+      </button>
+    </div>
+    @if (optionChoices().length === 0) {
+      <p class="body-small text-on-surface-variant">
+        Add a registration option before adding questions.
+      </p>
+    }
+    <div class="grid gap-6">
+      @for (question of form.questions; track question; let index = $index) {
+        <app-template-question-editor
+          [optionChoices]="optionChoices()"
+          [questionForm]="question"
+          (remove)="removeQuestion(index)"
+        />
+      } @empty {
+        <p class="body-medium text-on-surface-variant">
+          No registration questions configured.
+        </p>
+      }
+    </div>
+  </section>
+</section>

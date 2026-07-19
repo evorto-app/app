@@ -1,5 +1,6 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -20,6 +21,7 @@ import { interval, map } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 
 export interface EventRegistrationAddonView {
@@ -29,7 +31,8 @@ export interface EventRegistrationAddonView {
   maxQuantityPerUser: number;
   price: number;
   registrationOptions: readonly {
-    quantity: number;
+    includedQuantity: number;
+    optionalPurchaseQuantity: number;
     registrationOptionId: string;
   }[];
   taxRateDisplayName?: null | string;
@@ -81,6 +84,19 @@ export const registrationOptionAudienceCopy = (
   label: string;
   primaryAction: string;
 } => {
+  if (
+    option.organizingRegistration &&
+    option.registrationMode === 'application'
+  ) {
+    return {
+      actionSuffix: 'apply as organizer/helper',
+      helperText:
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+      label: 'Organizer/helper application',
+      primaryAction: 'Apply as organizer/helper',
+    };
+  }
+
   if (option.organizingRegistration) {
     return {
       actionSuffix: 'sign up as organizer/helper',
@@ -94,7 +110,7 @@ export const registrationOptionAudienceCopy = (
     return {
       actionSuffix: 'apply',
       helperText:
-        'Use this option when you are attending the event. Organizers approve applications before spots are confirmed.',
+        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
       label: 'Manual approval option',
       primaryAction: 'Apply for approval',
     };
@@ -148,16 +164,20 @@ export const registrationOptionSelectedTotalPrice = (
 export const registrationAddonPurchasePayload = (
   addOns: readonly Pick<
     EventRegistrationAddonView,
-    'id' | 'registrationOptions'
+    'allowPurchaseDuringRegistration' | 'id' | 'registrationOptions'
   >[],
   selections: Readonly<Record<string, number>>,
   registrationOptionId: string,
 ): { addOnId: string; quantity: number }[] =>
   addOns
-    .filter((addOn) =>
-      addOn.registrationOptions.some(
-        (option) => option.registrationOptionId === registrationOptionId,
-      ),
+    .filter(
+      (addOn) =>
+        addOn.allowPurchaseDuringRegistration &&
+        addOn.registrationOptions.some(
+          (option) =>
+            option.registrationOptionId === registrationOptionId &&
+            option.optionalPurchaseQuantity > 0,
+        ),
     )
     .map((addOn) => ({
       addOnId: addOn.id,
@@ -168,29 +188,63 @@ export const registrationAddonPurchasePayload = (
 export const registrationAddonMaxSelectableQuantity = (
   addOn: Pick<
     EventRegistrationAddonView,
-    'maxQuantityPerUser' | 'registrationOptions' | 'totalAvailableQuantity'
+    | 'allowPurchaseDuringRegistration'
+    | 'maxQuantityPerUser'
+    | 'registrationOptions'
+    | 'totalAvailableQuantity'
   >,
   registrationOptionId: string,
 ): number => {
-  const attachedQuantity =
-    addOn.registrationOptions.find(
-      (option) => option.registrationOptionId === registrationOptionId,
-    )?.quantity ?? 0;
+  const attachment = addOn.registrationOptions.find(
+    (option) => option.registrationOptionId === registrationOptionId,
+  );
 
-  if (attachedQuantity <= 0) {
+  if (
+    !addOn.allowPurchaseDuringRegistration ||
+    !attachment ||
+    attachment.optionalPurchaseQuantity <= 0
+  ) {
     return 0;
   }
 
   return Math.min(
-    addOn.maxQuantityPerUser,
-    Math.floor(addOn.totalAvailableQuantity / attachedQuantity),
+    attachment.optionalPurchaseQuantity,
+    Math.max(0, addOn.maxQuantityPerUser),
+    Math.max(0, addOn.totalAvailableQuantity - attachment.includedQuantity),
   );
 };
+
+export const registrationAddonIsSoldOut = (
+  addOn: Pick<
+    EventRegistrationAddonView,
+    | 'allowPurchaseDuringRegistration'
+    | 'maxQuantityPerUser'
+    | 'registrationOptions'
+    | 'totalAvailableQuantity'
+  >,
+  registrationOptionId: string,
+): boolean => {
+  const attachment = addOn.registrationOptions.find(
+    (option) => option.registrationOptionId === registrationOptionId,
+  );
+
+  return (
+    addOn.allowPurchaseDuringRegistration &&
+    attachment !== undefined &&
+    attachment.optionalPurchaseQuantity > 0 &&
+    registrationAddonMaxSelectableQuantity(addOn, registrationOptionId) === 0
+  );
+};
+
+export const registrationAddonSoldOutLabel = (
+  includedQuantity: number,
+): 'Extra items sold out' | 'Sold out' =>
+  includedQuantity > 0 ? 'Extra items sold out' : 'Sold out';
 
 export const registrationAddonSelectedTotalPrice = (
   addOns: readonly Pick<
     EventRegistrationAddonView,
-    'id' | 'price' | 'registrationOptions'
+    'allowPurchaseDuringRegistration' | 'id' | 'price' | 'registrationOptions'
   >[],
   selections: Readonly<Record<string, number>>,
   registrationOptionId: string,
@@ -198,14 +252,12 @@ export const registrationAddonSelectedTotalPrice = (
   let total = 0;
 
   for (const addOn of addOns) {
-    const attachedQuantity =
-      addOn.registrationOptions.find(
-        (option) => option.registrationOptionId === registrationOptionId,
-      )?.quantity ?? 0;
-    total +=
-      addOn.price *
-      attachedQuantity *
-      Math.max(0, Math.trunc(selections[addOn.id] ?? 0));
+    if (!addOn.allowPurchaseDuringRegistration) continue;
+    const attachment = addOn.registrationOptions.find(
+      (option) => option.registrationOptionId === registrationOptionId,
+    );
+    if (!attachment || attachment.optionalPurchaseQuantity <= 0) continue;
+    total += addOn.price * Math.max(0, Math.trunc(selections[addOn.id] ?? 0));
   }
 
   return total;
@@ -231,9 +283,13 @@ export const registrationQuestionsMissingRequired = (
   );
 
 export const registrationOptionWriteActionDisabled = (input: {
+  controlsInteractive: boolean;
   missingRequiredAnswers?: boolean;
   mutationPending: boolean;
-}): boolean => input.mutationPending || input.missingRequiredAnswers === true;
+}): boolean =>
+  !input.controlsInteractive ||
+  input.mutationPending ||
+  input.missingRequiredAnswers === true;
 
 export const registrationOptionAvailability = (
   option: Pick<
@@ -253,12 +309,15 @@ export const registrationOptionAvailability = (
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[attr.aria-busy]': '!controlsInteractive() || mutationPending()',
+  },
   imports: [
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
     CurrencyPipe,
-    DatePipe,
+    TenantDatePipe,
     PriceWithTaxComponent,
   ],
   selector: 'app-event-registration-option',
@@ -269,6 +328,7 @@ export class EventRegistrationOptionComponent {
   public readonly addOns = input<readonly EventRegistrationAddonView[]>([]);
   public readonly registrationOption =
     input.required<EventRegistrationOptionView>();
+  protected readonly addonSoldOutLabel = registrationAddonSoldOutLabel;
   protected readonly audienceCopy = computed(() =>
     registrationOptionAudienceCopy(this.registrationOption()),
   );
@@ -279,6 +339,7 @@ export class EventRegistrationOptionComponent {
   protected readonly availableSpots = computed(() =>
     registrationOptionAvailableSpots(this.registrationOption()),
   );
+  protected readonly controlsInteractive = signal(false);
   protected readonly full = computed(() => {
     const option = this.registrationOption();
     return (
@@ -327,6 +388,9 @@ export class EventRegistrationOptionComponent {
       this.registrationOption().registrationMode !== 'application' &&
       this.selectedTotalPrice() > 0,
   );
+  protected readonly registrationModeSupported = computed(
+    () => this.registrationOption().registrationMode !== 'random',
+  );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
   });
@@ -358,11 +422,25 @@ export class EventRegistrationOptionComponent {
       stripeTaxRateId: option.stripeTaxRateId ?? null,
     };
   });
+
   protected readonly waitlistAvailable = computed(() => {
     return registrationOptionCanJoinWaitlist(this.registrationOption());
   });
 
   private queryClient = inject(QueryClient);
+
+  constructor() {
+    afterNextRender(() => this.controlsInteractive.set(true));
+  }
+
+  addonIncludedQuantity(addOn: EventRegistrationAddonView): number {
+    return (
+      addOn.registrationOptions.find(
+        (option) =>
+          option.registrationOptionId === this.registrationOption().id,
+      )?.includedQuantity ?? 0
+    );
+  }
 
   addonMaxQuantity(addOn: EventRegistrationAddonView): number {
     return registrationAddonMaxSelectableQuantity(
@@ -373,6 +451,10 @@ export class EventRegistrationOptionComponent {
 
   addonQuantity(addOnId: string): number {
     return this.addonSelections()[addOnId] ?? 0;
+  }
+
+  addonSoldOut(addOn: EventRegistrationAddonView): boolean {
+    return registrationAddonIsSoldOut(addOn, this.registrationOption().id);
   }
 
   addonTaxRate(addOn: {
@@ -390,6 +472,7 @@ export class EventRegistrationOptionComponent {
   joinWaitlist(registrationOption: { eventId: string; id: string }) {
     if (
       registrationOptionWriteActionDisabled({
+        controlsInteractive: this.controlsInteractive(),
         missingRequiredAnswers:
           this.registrationQuestionAnswersMissingRequired(),
         mutationPending: this.mutationPending(),
@@ -409,16 +492,7 @@ export class EventRegistrationOptionComponent {
       },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.getRegistrationStatus.queryKey({
-              eventId: registrationOption.eventId,
-            }),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.findOne.queryKey({
-              id: registrationOption.eventId,
-            }),
-          });
+          await this.refreshRegistrationState(registrationOption.eventId);
         },
       },
     );
@@ -427,6 +501,7 @@ export class EventRegistrationOptionComponent {
   register(registrationOption: { eventId: string; id: string }) {
     if (
       registrationOptionWriteActionDisabled({
+        controlsInteractive: this.controlsInteractive(),
         missingRequiredAnswers:
           this.registrationQuestionAnswersMissingRequired(),
         mutationPending: this.mutationPending(),
@@ -452,16 +527,7 @@ export class EventRegistrationOptionComponent {
       },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.getRegistrationStatus.queryKey({
-              eventId: registrationOption.eventId,
-            }),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.findOne.queryKey({
-              id: registrationOption.eventId,
-            }),
-          });
+          await this.refreshRegistrationState(registrationOption.eventId);
         },
       },
     );
@@ -520,5 +586,25 @@ export class EventRegistrationOptionComponent {
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Unknown error');
+  }
+
+  private async refreshRegistrationState(eventId: string): Promise<void> {
+    await Promise.all([
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.events.getRegistrationStatus.queryKey({ eventId }),
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.events.findOne.queryKey({ id: eventId }),
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.events.canOrganize.queryKey({ eventId }),
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.users.canUseScanner.queryKey(),
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.users.events.queryKey(),
+      }),
+    ]);
   }
 }

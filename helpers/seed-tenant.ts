@@ -1,5 +1,6 @@
 import type { InferInsertModel } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { SupportedTenantCurrency } from '../src/types/custom/tenant';
 
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
@@ -75,7 +76,7 @@ export interface SeedTenantResult {
       waitlistSpots: number;
     }[];
     start: Date;
-    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     tenantId: string;
     title: string;
     unlisted: boolean;
@@ -110,8 +111,8 @@ export interface SeedTenantResult {
     id: string;
     questions: {
       id: string;
-      registrationOptionKind: 'organizer' | 'participant';
       registrationOptionId: string;
+      registrationOptionKind: 'organizer' | 'participant';
       required: boolean;
       title: string;
     }[];
@@ -120,9 +121,11 @@ export interface SeedTenantResult {
     title: string;
   }[];
   tenant: {
+    currency: SupportedTenantCurrency;
     domain: string;
     id: string;
     name: string;
+    stripeAccountId: null | string;
   };
 }
 
@@ -178,9 +181,9 @@ export async function seedTenant(
   );
 
   const tenantInput: Partial<InferInsertModel<typeof schema.tenants>> = {
-    ...(resolvedStripeAccountId
-      ? { stripeAccountId: resolvedStripeAccountId }
-      : {}),
+    ...(resolvedStripeAccountId && {
+      stripeAccountId: resolvedStripeAccountId,
+    }),
   };
   if (typeof resolvedDomain === 'string') {
     tenantInput.domain = resolvedDomain;
@@ -256,6 +259,7 @@ export async function seedTenant(
     };
   });
   await addFinanceReceipts(database, {
+    currency: tenant.currency,
     eventIds: seededEvents.events.map((event) => event.id),
     tenantId: tenant.id,
   });
@@ -326,9 +330,11 @@ export async function seedTenant(
       title: t.title,
     })),
     tenant: {
+      currency: tenant.currency,
       domain: tenant.domain,
       id: tenant.id,
       name: tenant.name,
+      stripeAccountId: tenant.stripeAccountId,
     },
   } satisfies SeedTenantResult;
 }

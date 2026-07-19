@@ -1,11 +1,15 @@
 export { adminHandlers } from './admin.handlers';
 export { configHandlers } from './config.handlers';
 export { discountHandlers } from './discounts.handlers';
-export { editorMediaHandlers } from './editor-media.handlers';
 export { eventHandlers } from './events/events.handlers';
 export { financeHandlers } from './finance/finance.handlers';
 export { globalAdminHandlers } from './global-admin.handlers';
 export { iconHandlers } from './icons.handlers';
+export { onboardingHandlers } from './onboarding.handlers';
+export { platformTenantAdminHandlers } from './platform/platform-tenant-admin.handlers';
+export { platformTenantFinanceHandlers } from './platform/platform-tenant-finance.handlers';
+export { platformHandlers } from './platform/platform.handlers';
+export { registrationTransferHandlers } from './registration-transfers.handlers';
 export { roleHandlers } from './roles.handlers';
 export { taxRateHandlers } from './tax-rates.handlers';
 export { templateCategoryHandlers } from './template-categories.handlers';

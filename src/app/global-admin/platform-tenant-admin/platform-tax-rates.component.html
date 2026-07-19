@@ -1,0 +1,94 @@
+<app-platform-tenant-page-header
+  title="Organization tax rates"
+  [tenantId]="tenantId()"
+/>
+
+@if (ratesQuery.isPending()) {
+  <p role="status" aria-live="polite" class="body-medium">
+    Loading Stripe tax rates...
+  </p>
+} @else if (ratesQuery.isError()) {
+  <div role="alert" class="bg-error-container text-on-error-container p-4">
+    <p class="body-medium">Stripe tax rates could not be loaded.</p>
+    <p class="body-small mt-1">
+      The organization needs a connected Stripe account before rates can be
+      imported.
+    </p>
+    <button mat-stroked-button type="button" (click)="ratesQuery.refetch()">
+      Try again
+    </button>
+  </div>
+} @else if (ratesQuery.isSuccess()) {
+  <div class="overflow-x-auto border-y border-outline-variant">
+    <table mat-table [dataSource]="ratesQuery.data()">
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Tax rate</th>
+        <td mat-cell *matCellDef="let rate">
+          <div>{{ rate.displayName || "Unnamed rate" }}</div>
+          <div class="body-small text-on-surface-variant font-mono">
+            {{ rate.id }}
+          </div>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="percentage">
+        <th mat-header-cell *matHeaderCellDef>Rate</th>
+        <td mat-cell *matCellDef="let rate">
+          {{ rate.percentage === null ? "—" : rate.percentage + "%" }}
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="jurisdiction">
+        <th mat-header-cell *matHeaderCellDef>Jurisdiction</th>
+        <td mat-cell *matCellDef="let rate">
+          {{ rate.country || "—" }}
+          @if (rate.state) {
+            · {{ rate.state }}
+          }
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="imported">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let rate">
+          {{ rate.imported ? "Imported" : "Available" }}
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+
+  <form class="mt-6 max-w-2xl" (submit)="importRates($event)">
+    <h2 class="title-medium">Import active inclusive rates</h2>
+    <mat-form-field class="mt-4 w-full">
+      <mat-label>Tax rates</mat-label>
+      <mat-select multiple [formField]="importForm.ids">
+        @for (rate of ratesQuery.data(); track rate.id) {
+          <mat-option [value]="rate.id" [disabled]="rate.imported">
+            {{ rate.displayName || rate.id }} ·
+            {{
+              rate.percentage === null ? "Unknown rate" : rate.percentage + "%"
+            }}
+          </mat-option>
+        }
+      </mat-select>
+      @for (error of importForm.ids().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label>Operational reason</mat-label>
+      <textarea matInput rows="3" [formField]="importForm.reason"></textarea>
+      @for (error of importForm.reason().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <div class="flex justify-end">
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="importForm().invalid() || importMutation.isPending()"
+      >
+        {{ importMutation.isPending() ? "Importing..." : "Import selected" }}
+      </button>
+    </div>
+  </form>
+}

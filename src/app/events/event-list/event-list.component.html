@@ -18,13 +18,20 @@
         Create Event
       </a>
       <button
+        type="button"
         mat-icon-button
+        aria-label="Filter events"
         (click)="openFilterPanel()"
         *appIfAnyPermission="['events:seeDrafts', 'events:seeUnlisted']"
       >
         <fa-icon [icon]="faFilter" />
       </button>
-      <button type="button" mat-icon-button [matMenuTriggerFor]="menu">
+      <button
+        type="button"
+        mat-icon-button
+        aria-label="Open event list actions"
+        [matMenuTriggerFor]="menu"
+      >
         <fa-icon [icon]="faEllipsisVertical" />
       </button>
       <mat-menu #menu="matMenu">
@@ -44,12 +51,33 @@
     >
       @if (eventQuery.isPending()) {
         <div
+          role="status"
+          aria-live="polite"
           class="bg-surface text-on-surface animate-pulse rounded-2xl px-4 py-2"
         >
-          <p class="headline-small">Loading…</p>
+          <p class="headline-small">Loading events…</p>
         </div>
       } @else if (eventQuery.isError()) {
-        <p>Error: {{ eventErrorMessage() }}</p>
+        <div
+          role="alert"
+          class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+        >
+          <div>
+            <h2 class="title-medium">Events could not be loaded</h2>
+            <p class="body-medium mt-1">
+              Event discovery is temporarily unavailable. Check your connection
+              and try again.
+            </p>
+          </div>
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="eventQuery.isFetching()"
+            (click)="eventQuery.refetch()"
+          >
+            {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+          </button>
+        </div>
       } @else if (eventQuery.isSuccess()) {
         @for (day of eventQuery.data(); track day.day) {
           <p
@@ -69,7 +97,7 @@
                 @case ("DRAFT") {
                   <div class="absolute right-0 top-0 h-16 w-16">
                     <div
-                      class="body-small bg-warn text-on-warn absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
+                      class="body-small bg-warning text-on-warning absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
                     >
                       draft
                     </div>
@@ -81,15 +109,6 @@
                       class="body-small bg-tertiary-container text-on-tertiary-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
                     >
                       pending review
-                    </div>
-                  </div>
-                }
-                @case ("REJECTED") {
-                  <div class="absolute right-0 top-0 h-16 w-16">
-                    <div
-                      class="body-small bg-error-container text-on-error-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
-                    >
-                      rejected
                     </div>
                   </div>
                 }

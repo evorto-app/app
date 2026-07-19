@@ -25,8 +25,8 @@ const trustedReceiptPreviewHost = (hostname: string): boolean =>
   hostname === 'localhost' ||
   hostname === '127.0.0.1' ||
   hostname === '::1' ||
-  hostname.endsWith('.amazonaws.com') ||
-  hostname.endsWith('.r2.cloudflarestorage.com');
+  hostname === 's3.fr-par.scw.cloud' ||
+  hostname.endsWith('.s3.fr-par.scw.cloud');
 
 export function isSafeReceiptPreviewUrl(
   previewUrl: null | string,

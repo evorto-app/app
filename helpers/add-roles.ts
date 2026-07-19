@@ -107,9 +107,11 @@ export const addUsersToRoles = async (
     if (!userTenantId) {
       throw new Error('User not found');
     }
-    return { roleId: a.roleId, userTenantId } as InferInsertModel<
-      typeof schema.rolesToTenantUsers
-    >;
+    return {
+      roleId: a.roleId,
+      tenantId: tenant.id,
+      userTenantId,
+    } satisfies InferInsertModel<typeof schema.rolesToTenantUsers>;
   });
 
   await database.insert(schema.rolesToTenantUsers).values(roleAssignments);
@@ -151,11 +153,13 @@ export const addExampleUsers = async (
       tenantAssignmentsToAdd.push(userToTenant);
       roleAssignmentsToAdd.push({
         roleId: role.id,
+        tenantId: tenant.id,
         userTenantId: userToTenant.id,
       });
       if (!role.defaultUserRole) {
         roleAssignmentsToAdd.push({
           roleId: defaultUserRole.id,
+          tenantId: tenant.id,
           userTenantId: userToTenant.id,
         });
       }

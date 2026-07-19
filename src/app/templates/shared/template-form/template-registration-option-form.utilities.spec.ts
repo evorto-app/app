@@ -11,6 +11,7 @@ describe('toTemplateRegistrationSubmitData', () => {
     expect(
       toTemplateRegistrationSubmitData(
         createTemplateRegistrationFormModel({
+          cancellationDeadlineHoursBeforeStart: 96,
           description: '<p>Public copy</p>',
           esnCardDiscountedPrice: 1900,
           isPaid: true,
@@ -18,10 +19,12 @@ describe('toTemplateRegistrationSubmitData', () => {
           registeredDescription: '<p>Private copy</p>',
           stripeTaxRateId: 'txr_vat_19',
           title: 'Early bird',
+          transferDeadlineHoursBeforeStart: 24,
         }),
       ),
     ).toEqual(
       expect.objectContaining({
+        cancellationDeadlineHoursBeforeStart: 96,
         description: '<p>Public copy</p>',
         esnCardDiscountedPrice: 1900,
         isPaid: true,
@@ -29,6 +32,7 @@ describe('toTemplateRegistrationSubmitData', () => {
         registeredDescription: '<p>Private copy</p>',
         stripeTaxRateId: 'txr_vat_19',
         title: 'Early bird',
+        transferDeadlineHoursBeforeStart: 24,
       }),
     );
   });
@@ -128,6 +132,27 @@ describe('toTemplateRegistrationSubmitData', () => {
 });
 
 describe('mergeTemplateRegistrationFormOverrides', () => {
+  it('preserves explicit nullable policy overrides through edit and submit', () => {
+    const merged = mergeTemplateRegistrationFormOverrides(
+      {
+        cancellationDeadlineHoursBeforeStart: null,
+        refundFeesOnCancellation: null,
+        transferDeadlineHoursBeforeStart: null,
+      },
+      createTemplateRegistrationFormModel({
+        cancellationDeadlineHoursBeforeStart: 96,
+        refundFeesOnCancellation: false,
+        transferDeadlineHoursBeforeStart: 24,
+      }),
+    );
+
+    expect(toTemplateRegistrationSubmitData(merged)).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: null,
+      refundFeesOnCancellation: null,
+      transferDeadlineHoursBeforeStart: null,
+    });
+  });
+
   it('clears a previous ESNcard discounted price when the server value is null', () => {
     expect(
       mergeTemplateRegistrationFormOverrides(

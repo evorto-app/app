@@ -1,0 +1,965 @@
+<app-platform-tenant-page-header
+  [title]="templateId() ? 'Edit event template' : 'Create event template'"
+  [tenantId]="tenantId()"
+/>
+
+@if (
+  optionsQuery.isPending() ||
+  rolesQuery.isPending() ||
+  (templateId() && templateQuery.isPending())
+) {
+  <p role="status" aria-live="polite">Loading template editor...</p>
+} @else if (
+  optionsQuery.isError() || rolesQuery.isError() || templateQuery.isError()
+) {
+  <section
+    class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
+    role="alert"
+  >
+    <p>Template data, categories, or organization roles could not be loaded.</p>
+    <p class="body-small">
+      No changes can be saved until the template, categories, and organization
+      roles finish loading.
+    </p>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="editorDataRetrying()"
+      (click)="retryEditorData()"
+    >
+      {{ editorDataRetrying() ? "Retrying..." : "Try again" }}
+    </button>
+  </section>
+} @else if (editorLoadError()) {
+  <section class="bg-error-container text-on-error-container p-4" role="alert">
+    {{ editorLoadError() }}
+  </section>
+} @else {
+  <form
+    class="grid max-w-6xl gap-8"
+    data-testid="platform-template-editor"
+    (submit)="save($event)"
+  >
+    <section class="grid gap-4" aria-labelledby="template-details-title">
+      <h2 id="template-details-title" class="title-medium">Template details</h2>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <mat-form-field>
+          <mat-label>Category</mat-label>
+          <mat-select [formField]="templateForm.categoryId">
+            @if (templateForm.categoryId().value(); as selectedCategoryId) {
+              @if (!categoryIsAvailable(selectedCategoryId)) {
+                <mat-option [value]="selectedCategoryId">
+                  Previously selected category (no longer available)
+                </mat-option>
+              }
+            }
+            @for (
+              category of optionsQuery.data()?.categories ?? [];
+              track category.id
+            ) {
+              <mat-option [value]="category.id">
+                {{ category.title }}
+              </mat-option>
+            }
+          </mat-select>
+          @for (error of templateForm.categoryId().errors(); track error) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Title</mat-label>
+          <input matInput [formField]="templateForm.title" />
+          @for (error of templateForm.title().errors(); track error) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <mat-form-field>
+        <mat-label>Icon</mat-label>
+        <mat-select
+          [value]="templateForm.iconName().value()"
+          (selectionChange)="selectIcon($event.value)"
+        >
+          <mat-select-trigger>
+            <span class="flex items-center gap-2">
+              <app-icon size="24" [iconCommonName]="selectedIcon()" />
+              {{ selectedIconLabel() }}
+            </span>
+          </mat-select-trigger>
+          @if (!iconIsAvailable(templateForm.iconName().value())) {
+            <mat-option [value]="templateForm.iconName().value()">
+              <span class="flex items-center gap-2">
+                <app-icon size="24" [iconCommonName]="selectedIcon()" />
+                {{ selectedIconLabel() }}
+              </span>
+            </mat-option>
+          }
+          @for (
+            choice of optionsQuery.data()?.iconChoices ?? [];
+            track choice.id
+          ) {
+            <mat-option [value]="choice.commonName">
+              <span class="flex items-center gap-2">
+                <app-icon
+                  size="24"
+                  [iconCommonName]="iconChoiceValue(choice)"
+                />
+                {{ choice.friendlyName }}
+              </span>
+            </mat-option>
+          }
+        </mat-select>
+        @for (error of templateForm.iconName().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
+      </mat-form-field>
+
+      <section class="grid gap-2" aria-labelledby="template-description-label">
+        <span
+          id="template-description-label"
+          class="text-on-surface-variant text-sm"
+        >
+          Description
+        </span>
+        <app-editor [control]="templateForm.description" />
+        @for (error of templateForm.description().errors(); track error) {
+          <p class="body-small text-error" role="alert">
+            {{ error.message }}
+          </p>
+        }
+      </section>
+
+      <mat-form-field>
+        <mat-label>Organizer planning tips</mat-label>
+        <textarea
+          matInput
+          rows="4"
+          [formField]="templateForm.planningTips"
+        ></textarea>
+      </mat-form-field>
+
+      <div class="grid gap-3">
+        <div>
+          <h2 class="title-medium">Registration configuration</h2>
+          <p class="body-small text-on-surface-variant mt-1">
+            Simple configuration keeps one organizing and one non-organizing
+            option. Advanced configuration lets you add registration options and
+            choose which registration options can use each reusable add-on.
+          </p>
+        </div>
+        <div
+          class="flex flex-wrap gap-2"
+          role="group"
+          aria-label="Configuration mode"
+        >
+          <button
+            mat-stroked-button
+            type="button"
+            [attr.aria-pressed]="isSimpleMode()"
+            (click)="requestMode('simple')"
+          >
+            Use simple configuration
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            [attr.aria-pressed]="!isSimpleMode()"
+            (click)="requestMode('advanced')"
+          >
+            Use advanced configuration
+          </button>
+        </div>
+        @if (modeBlockMessage()) {
+          <p
+            class="bg-error-container text-on-error-container p-3"
+            role="alert"
+            data-testid="platform-template-mode-error"
+          >
+            {{ modeBlockMessage() }}
+          </p>
+        }
+        <mat-checkbox [formField]="templateForm.unlisted">
+          Hide this template from the standard template list
+        </mat-checkbox>
+      </div>
+    </section>
+
+    <section
+      class="border-outline-variant grid gap-4 border-t pt-6"
+      aria-labelledby="template-location-title"
+    >
+      <h2 id="template-location-title" class="title-medium">Location</h2>
+      <app-location-selector-field
+        [value]="selectedLocation()"
+        (valueChange)="setLocation($event)"
+      />
+    </section>
+
+    <section
+      class="border-outline-variant grid gap-5 border-t pt-6"
+      aria-labelledby="registration-options-title"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="registration-options-title" class="title-medium">
+            Registration options
+          </h2>
+          <p class="body-small text-on-surface-variant mt-1">
+            Registration options, their add-ons, and questions are saved
+            together. The operational reason is added to the change history.
+          </p>
+          @if (targetTenantQuery.isPending()) {
+            <p class="body-small text-on-surface-variant mt-2" role="status">
+              Paid controls are unavailable while the organization's Stripe
+              status is loading.
+            </p>
+          } @else if (targetTenantQuery.isError()) {
+            <div class="mt-2" role="alert">
+              <p class="body-small text-error">
+                Paid controls are unavailable because the organization's Stripe
+                status could not be loaded. Existing payment data is preserved.
+              </p>
+              <button
+                class="mt-2"
+                mat-stroked-button
+                type="button"
+                [disabled]="targetTenantQuery.isFetching()"
+                (click)="targetTenantQuery.refetch()"
+              >
+                {{
+                  targetTenantQuery.isFetching() ? "Retrying..." : "Try again"
+                }}
+              </button>
+            </div>
+          } @else if (!targetTenantQuery.data()) {
+            <p class="body-small text-error mt-2" role="alert">
+              Paid controls are unavailable because the organization could not
+              be found. Existing payment data is preserved.
+            </p>
+          } @else if (stripeDisconnected()) {
+            <p class="body-small text-on-surface-variant mt-2" role="status">
+              Paid controls are unavailable because the organization has no
+              connected Stripe account. Saving keeps registration options and
+              add-ons free.
+            </p>
+          }
+          @if (stripeConnected() && taxRatesQuery.isPending()) {
+            <p class="body-small text-on-surface-variant mt-2" role="status">
+              Loading the organization's tax rates. Paid prices cannot be
+              configured yet.
+            </p>
+          } @else if (stripeConnected() && taxRatesQuery.isError()) {
+            <div class="mt-2" role="alert">
+              <p class="body-small text-error">
+                Tax rates could not be loaded. Paid prices cannot be configured
+                until you try again.
+              </p>
+              <button
+                class="mt-2"
+                mat-stroked-button
+                type="button"
+                [disabled]="taxRatesQuery.isFetching()"
+                (click)="taxRatesQuery.refetch()"
+              >
+                {{ taxRatesQuery.isFetching() ? "Retrying..." : "Try again" }}
+              </button>
+            </div>
+          }
+        </div>
+        @if (!isSimpleMode()) {
+          <button mat-button type="button" (click)="addRegistrationOption()">
+            <fa-duotone-icon [icon]="faPlus" />
+            Add option
+          </button>
+        }
+      </div>
+
+      <div class="grid gap-8 xl:grid-cols-2">
+        @for (
+          registration of templateForm.registrationOptions;
+          track registration;
+          let registrationIndex = $index
+        ) {
+          <fieldset class="border-outline-variant grid gap-4 border-t pt-4">
+            <legend class="title-small pr-3">
+              Registration option {{ registrationIndex + 1 }}
+            </legend>
+
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              @if (isSimpleMode()) {
+                <p class="body-small text-on-surface-variant">
+                  {{
+                    registration.organizingRegistration().value()
+                      ? "Organizing registration"
+                      : "Non-organizing registration"
+                  }}
+                </p>
+              } @else {
+                <mat-checkbox [formField]="registration.organizingRegistration">
+                  Organizer option
+                </mat-checkbox>
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="
+                    registrationReferenceCount(registration.key().value()) > 0
+                  "
+                  (click)="removeRegistrationOption(registrationIndex)"
+                >
+                  <fa-duotone-icon [icon]="faTrashCan" />
+                  Remove option
+                </button>
+              }
+            </div>
+            @if (
+              !isSimpleMode() &&
+              registrationReferenceCount(registration.key().value()) > 0
+            ) {
+              <p class="body-small text-on-surface-variant">
+                Reassign this option's questions and remove it from any add-ons
+                before removing the option.
+              </p>
+            }
+
+            <mat-form-field>
+              <mat-label>Option title</mat-label>
+              <input matInput [formField]="registration.title" />
+              @for (error of registration.title().errors(); track error) {
+                <mat-error>{{ error.message }}</mat-error>
+              }
+            </mat-form-field>
+
+            <section class="grid gap-2">
+              <span class="text-on-surface-variant text-sm">
+                Description before registration
+              </span>
+              <app-editor [control]="registration.description" />
+              @for (error of registration.description().errors(); track error) {
+                <p class="body-small text-error" role="alert">
+                  {{ error.message }}
+                </p>
+              }
+            </section>
+
+            <section class="grid gap-2">
+              <span class="text-on-surface-variant text-sm">
+                Description after registration
+              </span>
+              <app-editor [control]="registration.registeredDescription" />
+              @for (
+                error of registration.registeredDescription().errors();
+                track error
+              ) {
+                <p class="body-small text-error" role="alert">
+                  {{ error.message }}
+                </p>
+              }
+            </section>
+
+            <mat-form-field>
+              <mat-label>Eligible organization roles</mat-label>
+              <mat-select multiple [formField]="registration.roleIds">
+                @for (
+                  missingRoleId of missingRoleIds(
+                    registration.roleIds().value()
+                  );
+                  track missingRoleId
+                ) {
+                  <mat-option [value]="missingRoleId">
+                    Previously selected organization role (no longer available)
+                  </mat-option>
+                }
+                @for (role of rolesQuery.data() ?? []; track role.id) {
+                  <mat-option [value]="role.id">
+                    {{ roleLabel(role) }}
+                  </mat-option>
+                }
+              </mat-select>
+              @for (error of registration.roleIds().errors(); track error) {
+                <mat-error>{{ error.message }}</mat-error>
+              }
+            </mat-form-field>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <mat-form-field>
+                <mat-label>Allocation</mat-label>
+                <mat-select [formField]="registration.registrationMode">
+                  <mat-option value="fcfs">
+                    First come, first served
+                  </mat-option>
+                  <mat-option value="application"> Manual approval </mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field>
+                <mat-label>Spots</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  [formField]="registration.spots"
+                />
+                @for (error of registration.spots().errors(); track error) {
+                  <mat-error>{{ error.message }}</mat-error>
+                }
+              </mat-form-field>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <mat-form-field>
+                <mat-label>Open hours before event</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  [formField]="registration.openRegistrationOffset"
+                />
+                @for (
+                  error of registration.openRegistrationOffset().errors();
+                  track error
+                ) {
+                  <mat-error>{{ error.message }}</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Close hours before event</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  [formField]="registration.closeRegistrationOffset"
+                />
+                @for (
+                  error of registration.closeRegistrationOffset().errors();
+                  track error
+                ) {
+                  <mat-error>{{ error.message }}</mat-error>
+                }
+              </mat-form-field>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <mat-form-field>
+                <mat-label>Cancellation deadline (hours before)</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  [formField]="
+                    registration.cancellationDeadlineHoursBeforeStart
+                  "
+                />
+                <mat-hint
+                  >Leave blank to use the organization default.</mat-hint
+                >
+                @for (
+                  error of registration
+                    .cancellationDeadlineHoursBeforeStart()
+                    .errors();
+                  track error
+                ) {
+                  <mat-error>{{ error.message }}</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Transfer deadline (hours before)</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  [formField]="registration.transferDeadlineHoursBeforeStart"
+                />
+                <mat-hint
+                  >Leave blank to use the organization default.</mat-hint
+                >
+                @for (
+                  error of registration
+                    .transferDeadlineHoursBeforeStart()
+                    .errors();
+                  track error
+                ) {
+                  <mat-error>{{ error.message }}</mat-error>
+                }
+              </mat-form-field>
+            </div>
+
+            <mat-checkbox [formField]="registration.isPaid">
+              Enable payment
+            </mat-checkbox>
+
+            @if (!registration.price().hidden()) {
+              <div class="grid gap-4 sm:grid-cols-2">
+                <app-currency-amount-input
+                  label="Price"
+                  [currencyCode]="targetTenantCurrency()"
+                  [formField]="registration.price"
+                  [minimumMinorUnits]="1"
+                />
+
+                <mat-form-field>
+                  <mat-label>Inclusive tax rate</mat-label>
+                  <mat-select [formField]="registration.stripeTaxRateId">
+                    @if (
+                      registration.stripeTaxRateId().value();
+                      as selectedTaxRateId
+                    ) {
+                      @if (!taxRateIsAvailable(selectedTaxRateId)) {
+                        <mat-option [value]="selectedTaxRateId">
+                          Previously selected tax rate (no longer available)
+                        </mat-option>
+                      }
+                    }
+                    @if (taxRatesQuery.isPending()) {
+                      <mat-option disabled>Loading tax rates...</mat-option>
+                    } @else if (taxRatesQuery.isError()) {
+                      <mat-option disabled>
+                        Stripe tax rates are unavailable
+                      </mat-option>
+                    } @else {
+                      @for (rate of availableTaxRates(); track rate.id) {
+                        <mat-option [value]="rate.id">
+                          {{ taxRateLabel(rate) }}
+                        </mat-option>
+                      }
+                    }
+                  </mat-select>
+                  <mat-hint>
+                    Only active inclusive tax rates from this organization are
+                    available.
+                  </mat-hint>
+                  @for (
+                    error of registration.stripeTaxRateId().errors();
+                    track error
+                  ) {
+                    <mat-error>{{ error.message }}</mat-error>
+                  }
+                </mat-form-field>
+              </div>
+
+              @if (esnCardEnabled()) {
+                <app-currency-amount-input
+                  hint="Leave blank to disable the discount."
+                  label="ESNcard discounted price"
+                  [allowEmpty]="true"
+                  [currencyCode]="targetTenantCurrency()"
+                  [formField]="registration.esnCardDiscountedPrice"
+                />
+              }
+
+              <mat-form-field>
+                <mat-label>Payment fees after cancellation</mat-label>
+                <mat-select [formField]="registration.refundFeesOnCancellation">
+                  <mat-option value="default"
+                    >Use organization default</mat-option
+                  >
+                  <mat-option value="refund">Refund payment fees</mat-option>
+                  <mat-option value="doNotRefund">
+                    Do not refund payment fees
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+            }
+          </fieldset>
+        }
+      </div>
+    </section>
+
+    @if (!isSimpleMode()) {
+      <section
+        class="border-outline-variant grid gap-4 border-t pt-6"
+        aria-labelledby="template-add-ons-title"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="template-add-ons-title" class="title-medium">
+              Reusable add-ons
+            </h2>
+            <p class="body-small text-on-surface-variant mt-1">
+              Purchase windows and quantities are saved exactly as configured.
+            </p>
+          </div>
+          <button mat-button type="button" (click)="addAddOn()">
+            <fa-duotone-icon [icon]="faPlus" />
+            Add add-on
+          </button>
+        </div>
+
+        <div class="grid gap-6">
+          @for (addOn of templateForm.addOns; track addOn; let index = $index) {
+            <fieldset class="border-outline-variant grid gap-4 border-t pt-4">
+              <legend class="title-small pr-3">Add-on {{ index + 1 }}</legend>
+
+              <div class="flex items-start gap-3">
+                <div class="grid grow gap-4">
+                  <mat-form-field>
+                    <mat-label>Title</mat-label>
+                    <input matInput [formField]="addOn.title" />
+                    @for (error of addOn.title().errors(); track error) {
+                      <mat-error>{{ error.message }}</mat-error>
+                    }
+                  </mat-form-field>
+                </div>
+                <button
+                  mat-icon-button
+                  type="button"
+                  aria-label="Remove add-on"
+                  title="Remove add-on"
+                  (click)="removeAddOn(index)"
+                >
+                  <fa-duotone-icon [icon]="faTrashCan" />
+                </button>
+              </div>
+
+              <mat-form-field>
+                <mat-label>Description</mat-label>
+                <textarea
+                  matInput
+                  rows="3"
+                  [formField]="addOn.description"
+                ></textarea>
+                @for (error of addOn.description().errors(); track error) {
+                  <mat-error>{{ error.message }}</mat-error>
+                }
+              </mat-form-field>
+
+              <section
+                class="grid gap-3"
+                aria-label="Registration options available for this add-on"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <h3 class="title-small">
+                    Available with registration options
+                  </h3>
+                  <button
+                    mat-button
+                    type="button"
+                    [disabled]="
+                      addOn.registrationOptions.length >=
+                      templateForm.registrationOptions.length
+                    "
+                    (click)="addAddOnMapping(index)"
+                  >
+                    <fa-duotone-icon [icon]="faPlus" />
+                    Add registration option
+                  </button>
+                </div>
+                @for (
+                  mapping of addOn.registrationOptions;
+                  track mapping;
+                  let mappingIndex = $index
+                ) {
+                  <div
+                    class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem_10rem_auto]"
+                  >
+                    <mat-form-field>
+                      <mat-label>Registration option</mat-label>
+                      <mat-select [formField]="mapping.registrationOptionKey">
+                        @for (
+                          option of templateForm.registrationOptions;
+                          track option
+                        ) {
+                          <mat-option [value]="option.key().value()">
+                            {{ registrationOptionLabel(option.key().value()) }}
+                          </mat-option>
+                        }
+                      </mat-select>
+                      @for (
+                        error of mapping.registrationOptionKey().errors();
+                        track error
+                      ) {
+                        <mat-error>{{ error.message }}</mat-error>
+                      }
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Included quantity</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        [formField]="mapping.includedQuantity"
+                      />
+                      @for (
+                        error of mapping.includedQuantity().errors();
+                        track error
+                      ) {
+                        <mat-error>{{ error.message }}</mat-error>
+                      }
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Optional purchase quantity</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        [formField]="mapping.optionalPurchaseQuantity"
+                      />
+                      @for (
+                        error of mapping.optionalPurchaseQuantity().errors();
+                        track error
+                      ) {
+                        <mat-error>{{ error.message }}</mat-error>
+                      }
+                    </mat-form-field>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      aria-label="Remove registration option from add-on"
+                      title="Remove registration option from add-on"
+                      (click)="removeAddOnMapping(index, mappingIndex)"
+                    >
+                      <fa-duotone-icon [icon]="faTrashCan" />
+                    </button>
+                  </div>
+                } @empty {
+                  <p class="body-small text-on-surface-variant">
+                    This add-on is not available with any registration option.
+                  </p>
+                }
+                @for (
+                  error of addOn.registrationOptions().errors();
+                  track error
+                ) {
+                  <p class="body-small text-error" role="alert">
+                    {{ error.message }}
+                  </p>
+                }
+              </section>
+
+              <div class="grid gap-4 sm:grid-cols-2">
+                <mat-form-field>
+                  <mat-label>Available quantity</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [formField]="addOn.totalAvailableQuantity"
+                  />
+                  @for (
+                    error of addOn.totalAvailableQuantity().errors();
+                    track error
+                  ) {
+                    <mat-error>{{ error.message }}</mat-error>
+                  }
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Maximum per user</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [formField]="addOn.maxQuantityPerUser"
+                  />
+                  @for (
+                    error of addOn.maxQuantityPerUser().errors();
+                    track error
+                  ) {
+                    <mat-error>{{ error.message }}</mat-error>
+                  }
+                </mat-form-field>
+              </div>
+
+              <div class="grid gap-2 sm:grid-cols-2">
+                <mat-checkbox [formField]="addOn.allowMultiple">
+                  Allow multiple purchases per user
+                </mat-checkbox>
+                <mat-checkbox
+                  [formField]="addOn.allowPurchaseDuringRegistration"
+                >
+                  Available during registration
+                </mat-checkbox>
+                <mat-checkbox [formField]="addOn.allowPurchaseBeforeEvent">
+                  Available after registration and before the event
+                </mat-checkbox>
+                <mat-checkbox [formField]="addOn.allowPurchaseDuringEvent">
+                  Available during the event
+                </mat-checkbox>
+                @for (
+                  error of addOn.allowPurchaseDuringRegistration().errors();
+                  track error
+                ) {
+                  <p class="body-small text-error sm:col-span-2" role="alert">
+                    {{ error.message }}
+                  </p>
+                }
+              </div>
+
+              <mat-checkbox [formField]="addOn.isPaid">
+                Enable payment
+              </mat-checkbox>
+
+              @if (!addOn.price().hidden()) {
+                <div class="grid gap-4 md:grid-cols-2">
+                  <app-currency-amount-input
+                    label="Price"
+                    [currencyCode]="targetTenantCurrency()"
+                    [formField]="addOn.price"
+                    [minimumMinorUnits]="1"
+                  />
+                  <mat-form-field>
+                    <mat-label>Inclusive tax rate</mat-label>
+                    <mat-select [formField]="addOn.stripeTaxRateId">
+                      @if (
+                        addOn.stripeTaxRateId().value();
+                        as selectedTaxRateId
+                      ) {
+                        @if (!taxRateIsAvailable(selectedTaxRateId)) {
+                          <mat-option [value]="selectedTaxRateId">
+                            Previously selected tax rate (no longer available)
+                          </mat-option>
+                        }
+                      }
+                      @if (taxRatesQuery.isPending()) {
+                        <mat-option disabled>Loading tax rates...</mat-option>
+                      } @else if (taxRatesQuery.isError()) {
+                        <mat-option disabled>
+                          Stripe tax rates are unavailable
+                        </mat-option>
+                      } @else {
+                        @for (rate of availableTaxRates(); track rate.id) {
+                          <mat-option [value]="rate.id">
+                            {{ taxRateLabel(rate) }}
+                          </mat-option>
+                        }
+                      }
+                    </mat-select>
+                    @for (
+                      error of addOn.stripeTaxRateId().errors();
+                      track error
+                    ) {
+                      <mat-error>{{ error.message }}</mat-error>
+                    }
+                  </mat-form-field>
+                </div>
+              }
+            </fieldset>
+          } @empty {
+            <p class="body-medium text-on-surface-variant">
+              No add-ons configured.
+            </p>
+          }
+        </div>
+      </section>
+    }
+
+    <section
+      class="border-outline-variant grid gap-4 border-t pt-6"
+      aria-labelledby="template-questions-title"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="template-questions-title" class="title-medium">
+          Registration questions
+        </h2>
+        <button mat-button type="button" (click)="addQuestion()">
+          <fa-duotone-icon [icon]="faPlus" />
+          Add question
+        </button>
+      </div>
+
+      <div class="grid gap-6">
+        @for (
+          question of templateForm.questions;
+          track question;
+          let index = $index
+        ) {
+          <fieldset class="border-outline-variant grid gap-4 border-t pt-4">
+            <legend class="title-small pr-3">Question {{ index + 1 }}</legend>
+            <div class="flex items-start gap-3">
+              <div
+                class="grid grow gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem]"
+              >
+                <mat-form-field>
+                  <mat-label>Question</mat-label>
+                  <input matInput [formField]="question.title" />
+                  @for (error of question.title().errors(); track error) {
+                    <mat-error>{{ error.message }}</mat-error>
+                  }
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Ask during</mat-label>
+                  <mat-select [formField]="question.registrationOptionKey">
+                    @for (
+                      option of templateForm.registrationOptions;
+                      track option
+                    ) {
+                      <mat-option [value]="option.key().value()">
+                        {{ registrationOptionLabel(option.key().value()) }}
+                      </mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Sort order</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [formField]="question.sortOrder"
+                  />
+                  @for (error of question.sortOrder().errors(); track error) {
+                    <mat-error>{{ error.message }}</mat-error>
+                  }
+                </mat-form-field>
+              </div>
+              <button
+                mat-icon-button
+                type="button"
+                aria-label="Remove question"
+                title="Remove question"
+                (click)="removeQuestion(index)"
+              >
+                <fa-duotone-icon [icon]="faTrashCan" />
+              </button>
+            </div>
+            <mat-form-field>
+              <mat-label>Help text</mat-label>
+              <textarea
+                matInput
+                rows="3"
+                [formField]="question.description"
+              ></textarea>
+            </mat-form-field>
+            <mat-checkbox [formField]="question.required">
+              Require an answer
+            </mat-checkbox>
+          </fieldset>
+        } @empty {
+          <p class="body-medium text-on-surface-variant">
+            No registration questions configured.
+          </p>
+        }
+      </div>
+    </section>
+
+    <section class="border-outline-variant grid gap-4 border-t pt-6">
+      <mat-form-field>
+        <mat-label>Operational reason</mat-label>
+        <textarea
+          matInput
+          rows="3"
+          [formField]="templateForm.reason"
+        ></textarea>
+        <mat-hint>
+          Required. This explanation is saved with the template's change
+          history.
+        </mat-hint>
+        @for (error of templateForm.reason().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
+      </mat-form-field>
+
+      <div class="flex flex-wrap justify-end gap-2">
+        <a
+          mat-button
+          [routerLink]="['/global-admin/tenants', tenantId(), 'templates']"
+        >
+          Cancel
+        </a>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="
+            templateForm().invalid() ||
+            templateForm().submitting() ||
+            !editorDataReady() ||
+            mutationPending()
+          "
+        >
+          {{ mutationPending() ? "Saving..." : "Save template" }}
+        </button>
+      </div>
+    </section>
+  </form>
+}

@@ -1,12 +1,15 @@
-import { AngularAppEngine, createRequestHandler } from '@angular/ssr';
-import * as OtelResource from '@effect/opentelemetry/Resource';
-import * as OtelTracer from '@effect/opentelemetry/Tracer';
+import type { IncomingMessage } from 'node:http';
+
+import { AngularAppEngine } from '@angular/ssr';
+import {
+  createNodeRequestHandler,
+  writeResponseToNodeResponse,
+} from '@angular/ssr/node';
 import * as BunFileSystem from '@effect/platform-bun/BunFileSystem';
 import * as BunHttpServer from '@effect/platform-bun/BunHttpServer';
 import * as BunRuntime from '@effect/platform-bun/BunRuntime';
-import * as Sentry from '@sentry/bun';
 import { ConfigProvider, FileSystem, Path } from 'effect';
-import { Effect, Context as EffectContext, Fiber, Layer, Option } from 'effect';
+import { Effect, Fiber, Layer, Option, Schema } from 'effect';
 import {
   HttpRouter as HttpLayerRouter,
   HttpServerError,
@@ -25,48 +28,121 @@ import {
   toAbsoluteRequestUrl,
 } from './server/auth/auth-session';
 import { formatConfigError } from './server/config/config-error';
-import { makeRuntimeConfigProvider } from './server/config/provider';
-import { RuntimeConfig } from './server/config/runtime-config';
 import {
-  serverNetworkConfig,
-  serverTelemetryConfig,
-} from './server/config/server-config';
+  deploymentConfig,
+  DeploymentRuntimeConfig,
+} from './server/config/deployment-config';
+import { makeRuntimeConfigProvider } from './server/config/provider';
+import { registrationRefundWorkerRuntimeModeConfig } from './server/config/registration-refund-worker-config';
+import { RuntimeConfig } from './server/config/runtime-config';
+import { serverNetworkConfig } from './server/config/server-config';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
-import { toRpcHttpServerRequest } from './server/effect/rpc/app-rpcs.request-handler';
+import {
+  MAX_RPC_BODY_SIZE_BYTES,
+  toRpcHttpServerRequest,
+} from './server/effect/rpc/app-rpcs.request-handler';
 import {
   appRpcHttpAppLayer,
   handleAppRpcHttpRequest,
 } from './server/effect/rpc/app-rpcs.web-handler';
 import { serverLoggerLayer } from './server/effect/server-logger.layer';
+import { serverTelemetryLayer } from './server/effect/server-telemetry.layer';
+import {
+  processReceiptOrphans,
+  runReceiptOrphanCleanupWorker,
+} from './server/finance/receipt-orphan-cleanup';
+import {
+  APPLICATION_READINESS_PATH,
+  createApplicationReadinessResponse,
+  createApplicationReadinessSsrRequest,
+} from './server/http/application-readiness';
+import {
+  handleBrowserErrorTelemetryWebRequest,
+  MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES,
+} from './server/http/browser-error-telemetry.web-handler';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
+import {
+  handleInternalJsonTriggerWebRequest,
+  handleInternalTriggerWebRequest,
+  type InternalTriggerArguments,
+  MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES,
+} from './server/http/internal-trigger.web-handler';
+import { resolveNodeRequestBoundary } from './server/http/node-request-boundary';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
+import {
+  discardNodeRequestBody,
+  readNodeRequestBody,
+  registerPrebufferedRequestBody,
+  RequestBodyInvalidContentLengthError,
+  RequestBodyReadError,
+  requestBodyStreamFromBuffer,
+  RequestBodyTooLargeError,
+} from './server/http/request-body';
 import { applySecurityHeaders } from './server/http/security-headers';
-import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
+import { makeServerResponseMiddleware } from './server/http/server-response.middleware';
+import {
+  handleStripeWebhookWebRequest,
+  MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES,
+} from './server/http/stripe-webhook.web-handler';
 import { handleTenantBrandAssetWebRequest } from './server/http/tenant-brand-asset.web-handler';
-import { runEmailOutboxProcessor } from './server/notifications/email-delivery';
+import { createUnknownTenantResponse } from './server/http/unknown-tenant-response';
+import { createVersionWebResponse } from './server/http/version.web-handler';
+import { EmailDelivery } from './server/integrations/email-delivery';
+import { ObjectStorage } from './server/integrations/object-storage';
+import {
+  processDueEmailOutbox,
+  runEmailOutboxProcessor,
+} from './server/notifications/email-delivery';
+import {
+  applySchema,
+  explainSchema,
+  seedStaging,
+} from './server/ops/schema-operations';
+import {
+  launchRegistrationRefundWorker,
+  processDueRegistrationRefundClaims,
+  runRegistrationRefundWorker,
+} from './server/payments/registration-refund';
+import {
+  processExpiredRegistrationCheckouts,
+  runExpiredRegistrationCheckoutCleanupWorker,
+} from './server/registrations/expired-checkout-cleanup';
+import { validateRuntimeRoleConfiguration } from './server/runtime/runtime-role';
 import { stripeClientLayer } from './server/stripe-client';
+import { sanitizeRelativeRedirectPath } from './shared/auth-redirect';
 
 const angularApp = new AngularAppEngine();
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
 const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
-
-const sanitizeRedirectPath = (value: null | string) => {
-  if (!value) {
-    return;
-  }
-
-  if (
-    !value.startsWith('/') ||
-    value.startsWith('//') ||
-    value.includes('://')
-  ) {
-    return;
-  }
-
-  return value;
-};
+const rpcPath = '/rpc';
+const stripeWebhookPath = '/webhooks/stripe';
+const browserErrorTelemetryPath = '/telemetry/browser-errors';
+const workerEmailDeliveryPath = '/internal/worker/email-delivery';
+const workerExpiredCheckoutCleanupPath =
+  '/internal/worker/expired-checkout-cleanup';
+const workerReceiptOrphanCleanupPath =
+  '/internal/worker/receipt-orphan-cleanup';
+const workerStripeRefundPath = '/internal/worker/stripe-refunds';
+const opsSchemaExplainPath = '/internal/ops/schema-explain';
+const opsSchemaApplyPath = '/internal/ops/schema-apply';
+const opsSeedStagingPath = '/internal/ops/seed-staging';
+const requestHandlerRuntimeConfigProvider = await Effect.runPromise(
+  makeRuntimeConfigProvider(),
+);
+const requestBoundaryDeployment = await Effect.runPromise(
+  deploymentConfig.parse(requestHandlerRuntimeConfigProvider),
+);
+const internalTriggerPaths = new Set([
+  opsSchemaApplyPath,
+  opsSchemaExplainPath,
+  opsSeedStagingPath,
+  workerEmailDeliveryPath,
+  workerExpiredCheckoutCleanupPath,
+  workerReceiptOrphanCleanupPath,
+  workerStripeRefundPath,
+]);
 
 const isStaticMethod = (method: string) =>
   method === 'GET' || method === 'HEAD';
@@ -194,7 +270,7 @@ const extractTenantBrandAsset = (
   };
 };
 
-const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
+const renderSsrWeb = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
     const requestContextOption = yield* resolveHttpRequestContext(
@@ -207,7 +283,7 @@ const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
       ),
     );
     if (Option.isNone(requestContextOption)) {
-      return notFoundServerResponse;
+      return null;
     }
     const requestContext = requestContextOption.value;
 
@@ -216,10 +292,17 @@ const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
       angularApp.handle(webRequest, requestContext),
     );
 
-    return renderedResponse
-      ? HttpServerResponse.fromWeb(renderedResponse)
-      : notFoundServerResponse;
+    return renderedResponse;
   });
+
+const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
+  renderSsrWeb(request).pipe(
+    Effect.map((renderedResponse) =>
+      renderedResponse
+        ? HttpServerResponse.fromWeb(renderedResponse)
+        : createUnknownTenantResponse(request.method),
+    ),
+  );
 
 const healthRouteLayer = HttpLayerRouter.add('*', '/healthz', (request) =>
   Effect.gen(function* () {
@@ -241,6 +324,195 @@ const healthRouteLayer = HttpLayerRouter.add('*', '/healthz', (request) =>
   }),
 );
 
+const applicationReadinessRouteLayer = HttpLayerRouter.add(
+  'GET',
+  APPLICATION_READINESS_PATH,
+  (request) =>
+    Effect.gen(function* () {
+      const deployment = yield* DeploymentRuntimeConfig;
+      const readinessWebRequest = yield* HttpServerRequest.toWeb(request);
+      const ssrWebRequest = createApplicationReadinessSsrRequest(
+        readinessWebRequest,
+        Option.getOrUndefined(deployment.READINESS_TENANT_HOST),
+      );
+      const ssrResponse = yield* renderSsrWeb(
+        HttpServerRequest.fromWeb(ssrWebRequest),
+      );
+      const readinessResponse = yield* Effect.tryPromise(() =>
+        createApplicationReadinessResponse(ssrResponse),
+      );
+
+      return HttpServerResponse.fromWeb(readinessResponse);
+    }),
+);
+
+const versionRouteLayer = HttpLayerRouter.add('GET', '/version', () =>
+  Effect.gen(function* () {
+    const deployment = yield* DeploymentRuntimeConfig;
+    return HttpServerResponse.fromWeb(
+      createVersionWebResponse({
+        environment: deployment.APP_ENVIRONMENT,
+        imageDigest: Option.getOrElse(
+          deployment.APP_IMAGE_DIGEST,
+          () => 'development',
+        ),
+        revision: Option.getOrElse(
+          deployment.APP_REVISION,
+          () => 'development',
+        ),
+      }),
+    );
+  }),
+);
+
+const browserErrorTelemetryRouteLayer = HttpLayerRouter.add(
+  'POST',
+  browserErrorTelemetryPath,
+  (request) =>
+    Effect.gen(function* () {
+      const webRequest = yield* HttpServerRequest.toWeb(request);
+      const response = yield* handleBrowserErrorTelemetryWebRequest(webRequest);
+      return HttpServerResponse.fromWeb(response);
+    }),
+);
+
+const handleWorkerTrigger = <A, E, R>(
+  request: HttpServerRequest.HttpServerRequest,
+  operation: (arguments_: InternalTriggerArguments) => Effect.Effect<A, E, R>,
+) =>
+  Effect.gen(function* () {
+    const deployment = yield* DeploymentRuntimeConfig;
+    const runtimeRole = yield* validateRuntimeRoleConfiguration(deployment);
+    if (runtimeRole.role !== 'worker' || runtimeRole.triggerMode !== 'http') {
+      return yield* Effect.fail(new HttpServerError.RouteNotFound({ request }));
+    }
+
+    const webRequest = yield* HttpServerRequest.toWeb(request);
+    const webResponse = yield* handleInternalTriggerWebRequest(
+      webRequest,
+      operation,
+    );
+    return HttpServerResponse.fromWeb(webResponse);
+  });
+
+const workerEmailDeliveryRouteLayer = HttpLayerRouter.add(
+  'POST',
+  workerEmailDeliveryPath,
+  (request) =>
+    handleWorkerTrigger(request, ({ limit }) =>
+      processDueEmailOutbox(limit ?? 10).pipe(
+        Effect.map((processed) => ({ processed })),
+      ),
+    ),
+);
+
+const workerExpiredCheckoutCleanupRouteLayer = HttpLayerRouter.add(
+  'POST',
+  workerExpiredCheckoutCleanupPath,
+  (request) =>
+    handleWorkerTrigger(request, ({ limit }) =>
+      processExpiredRegistrationCheckouts(
+        limit === undefined ? {} : { batchSize: limit },
+      ),
+    ),
+);
+
+const workerStripeRefundRouteLayer = HttpLayerRouter.add(
+  'POST',
+  workerStripeRefundPath,
+  (request) =>
+    handleWorkerTrigger(request, ({ limit }) =>
+      processDueRegistrationRefundClaims(limit),
+    ),
+);
+
+const workerReceiptOrphanCleanupRouteLayer = HttpLayerRouter.add(
+  'POST',
+  workerReceiptOrphanCleanupPath,
+  (request) =>
+    handleWorkerTrigger(request, ({ limit }) =>
+      processReceiptOrphans(limit === undefined ? {} : { batchSize: limit }),
+    ),
+);
+
+const EmptyOpsArguments = Schema.Struct({});
+const ApplySchemaArguments = Schema.Struct({
+  planDigest: Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/u)),
+});
+const SeedStagingArguments = Schema.Struct({
+  confirmation: Schema.Literal('reset-and-seed-staging'),
+});
+
+const handleOpsTrigger = <S extends Schema.Constraint, A, E, R>(
+  request: HttpServerRequest.HttpServerRequest,
+  schema: S,
+  operation: (arguments_: S['Type']) => Effect.Effect<A, E, R>,
+) =>
+  Effect.gen(function* () {
+    const deployment = yield* DeploymentRuntimeConfig;
+    const runtimeRole = yield* validateRuntimeRoleConfiguration(deployment);
+    if (runtimeRole.role !== 'ops') {
+      return yield* Effect.fail(new HttpServerError.RouteNotFound({ request }));
+    }
+
+    const webRequest = yield* HttpServerRequest.toWeb(request);
+    const webResponse = yield* handleInternalJsonTriggerWebRequest(
+      webRequest,
+      schema,
+      operation,
+    );
+    return HttpServerResponse.fromWeb(webResponse);
+  });
+
+const opsSchemaExplainRouteLayer = HttpLayerRouter.add(
+  'POST',
+  opsSchemaExplainPath,
+  (request) =>
+    handleOpsTrigger(request, EmptyOpsArguments, () =>
+      Effect.gen(function* () {
+        const deployment = yield* DeploymentRuntimeConfig;
+        const plan = yield* explainSchema();
+        return {
+          digest: plan.digest,
+          safe: plan.safe,
+          schemaHash: Option.getOrElse(
+            deployment.APP_SCHEMA_HASH,
+            () => 'unconfigured',
+          ),
+          statementTypes: plan.statementTypes,
+          unsafeReasons: plan.unsafeReasons,
+        };
+      }),
+    ),
+);
+
+const opsSchemaApplyRouteLayer = HttpLayerRouter.add(
+  'POST',
+  opsSchemaApplyPath,
+  (request) =>
+    handleOpsTrigger(request, ApplySchemaArguments, ({ planDigest }) =>
+      applySchema(planDigest),
+    ),
+);
+
+const opsSeedStagingRouteLayer = HttpLayerRouter.add(
+  'POST',
+  opsSeedStagingPath,
+  (request) =>
+    handleOpsTrigger(request, SeedStagingArguments, ({ confirmation }) =>
+      Effect.gen(function* () {
+        const deployment = yield* DeploymentRuntimeConfig;
+        if (deployment.APP_ENVIRONMENT !== 'staging') {
+          return {
+            reason: 'staging-only' as const,
+            seeded: false as const,
+          };
+        }
+        return yield* seedStaging(confirmation);
+      }),
+    ),
+);
+
 const loginRouteLayer = HttpLayerRouter.add('GET', '/login', (request) =>
   handleLoginRequest(request),
 );
@@ -260,7 +532,9 @@ const forwardLoginRouteLayer = HttpLayerRouter.add(
     Effect.sync(() => {
       const requestUrl = toAbsoluteRequestUrl(request);
       const redirectPath =
-        sanitizeRedirectPath(requestUrl.searchParams.get('redirectUrl')) ?? '/';
+        sanitizeRelativeRedirectPath(
+          requestUrl.searchParams.get('redirectUrl'),
+        ) ?? '/';
 
       const target = new URL('/login', requestUrl.origin);
       target.searchParams.set('redirectUrl', redirectPath);
@@ -325,7 +599,7 @@ const tenantBrandAssetRouteLayer = HttpLayerRouter.add(
 
 const stripeWebhookRouteLayer = HttpLayerRouter.add(
   'POST',
-  '/webhooks/stripe',
+  stripeWebhookPath,
   (request) =>
     Effect.gen(function* () {
       const webRequest = yield* HttpServerRequest.toWeb(request);
@@ -335,7 +609,7 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
     }),
 );
 
-const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
+const rpcRouteLayer = HttpLayerRouter.add('POST', rpcPath, (request) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
     const requestContextOption = yield* resolveHttpRequestContext(
@@ -353,13 +627,45 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
     const requestContext = requestContextOption.value;
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
-    const rpcRequest = yield* toRpcHttpServerRequest(
+    return yield* toRpcHttpServerRequest(
       webRequest,
       requestContext,
       getRequestAuthData(authSession),
+    ).pipe(
+      Effect.flatMap((rpcRequest) => handleAppRpcHttpRequest(rpcRequest)),
+      Effect.catchTags({
+        RequestBodyInvalidContentLengthError: (error) =>
+          Effect.logWarning('RPC request has invalid Content-Length').pipe(
+            Effect.annotateLogs({ contentLength: error.contentLength }),
+            Effect.as(
+              HttpServerResponse.text('Invalid Content-Length', {
+                status: 400,
+              }),
+            ),
+          ),
+        RequestBodyReadError: (error) =>
+          Effect.logWarning('Failed to read RPC request body').pipe(
+            Effect.annotateLogs({
+              error:
+                error.cause instanceof Error
+                  ? error.cause.message
+                  : String(error.cause),
+            }),
+            Effect.as(
+              HttpServerResponse.text('Unable to read request body', {
+                status: 400,
+              }),
+            ),
+          ),
+        RequestBodyTooLargeError: (error) =>
+          Effect.logWarning('RPC request body exceeded route limit').pipe(
+            Effect.annotateLogs({ maxBytes: error.maxBytes }),
+            Effect.as(
+              HttpServerResponse.text('Payload too large', { status: 413 }),
+            ),
+          ),
+      }),
     );
-
-    return yield* handleAppRpcHttpRequest(rpcRequest);
   }),
 );
 
@@ -378,14 +684,39 @@ const staticAndAngularCatchAllLayer = HttpLayerRouter.add('*', '*', (request) =>
   }),
 );
 
-const securityHeadersMiddlewareLayer = HttpLayerRouter.middleware(
+const responseMiddlewareLayer = HttpLayerRouter.middleware<{
+  handles: unknown;
+}>()(
   (effect) =>
-    effect.pipe(Effect.map((response) => applySecurityHeaders(response))),
+    makeServerResponseMiddleware(effect, {
+      applicationEnvironment: requestBoundaryDeployment.APP_ENVIRONMENT,
+    }),
   { global: true },
 );
 
-const routesLayer = Layer.mergeAll(
+const bootstrapReadinessRouteLayer = HttpLayerRouter.add(
+  'GET',
+  APPLICATION_READINESS_PATH,
+  () =>
+    Effect.succeed(
+      HttpServerResponse.empty({
+        headers: { 'Cache-Control': 'no-store' },
+        status: 204,
+      }),
+    ),
+);
+
+const bootstrapRoutesLayer = Layer.mergeAll(
   healthRouteLayer,
+  bootstrapReadinessRouteLayer,
+  responseMiddlewareLayer,
+);
+
+const webRoutesLayer = Layer.mergeAll(
+  healthRouteLayer,
+  applicationReadinessRouteLayer,
+  versionRouteLayer,
+  browserErrorTelemetryRouteLayer,
   loginRouteLayer,
   callbackRouteLayer,
   logoutRouteLayer,
@@ -395,98 +726,37 @@ const routesLayer = Layer.mergeAll(
   stripeWebhookRouteLayer,
   rpcRouteLayer,
   staticAndAngularCatchAllLayer,
-  securityHeadersMiddlewareLayer,
+  responseMiddlewareLayer,
 );
 
-const createInternalErrorResponse = (
-  request: HttpServerRequest.HttpServerRequest,
-) => {
-  const acceptHeader = request.headers['accept'] ?? '';
-  if (typeof acceptHeader === 'string' && acceptHeader.includes('text/html')) {
-    return HttpServerResponse.redirect('/500', { status: 303 });
-  }
+const workerRoutesLayer = Layer.mergeAll(
+  healthRouteLayer,
+  versionRouteLayer,
+  workerEmailDeliveryRouteLayer,
+  workerExpiredCheckoutCleanupRouteLayer,
+  workerReceiptOrphanCleanupRouteLayer,
+  workerStripeRefundRouteLayer,
+  responseMiddlewareLayer,
+);
+const configuredWorkerRoutesLayer = workerRoutesLayer.pipe(
+  Layer.provide(EmailDelivery.Default),
+);
 
-  return HttpServerResponse.jsonUnsafe(
-    { error: 'Internal Server Error' },
-    { status: 500 },
-  );
-};
-
-const withSsrFallback = <E, R>(
-  effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
-) =>
-  effect.pipe(
-    Effect.catch((error) =>
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest;
-
-        if (error instanceof HttpServerError.RouteNotFound) {
-          return notFoundServerResponse;
-        }
-
-        yield* Effect.logError('Unhandled server error').pipe(
-          Effect.annotateLogs({
-            error:
-              error instanceof Error
-                ? {
-                    message: error.message,
-                    name: error.name,
-                    stack: error.stack,
-                  }
-                : String(error),
-          }),
-        );
-        Sentry.captureException(error);
-        return createInternalErrorResponse(request);
-      }),
-    ),
-    Effect.catchDefect((defect) =>
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest;
-
-        yield* Effect.logError('Unhandled server defect').pipe(
-          Effect.annotateLogs({
-            error:
-              defect instanceof Error
-                ? {
-                    message: defect.message,
-                    name: defect.name,
-                    stack: defect.stack,
-                  }
-                : String(defect),
-          }),
-        );
-        Sentry.captureException(defect);
-        return createInternalErrorResponse(request);
-      }),
-    ),
-  );
+const opsRoutesLayer = Layer.mergeAll(
+  healthRouteLayer,
+  versionRouteLayer,
+  opsSchemaExplainRouteLayer,
+  opsSchemaApplyRouteLayer,
+  opsSeedStagingRouteLayer,
+  responseMiddlewareLayer,
+);
 
 const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
-const otelLayer = Layer.unwrap(
-  Effect.gen(function* () {
-    const { PACKAGE_VERSION } = yield* serverTelemetryConfig;
-
-    return OtelTracer.layerGlobal.pipe(
-      Layer.provide(
-        OtelResource.layer({
-          serviceName: 'evorto-server',
-          ...Option.match(PACKAGE_VERSION, {
-            onNone: () => ({}),
-            onSome: (serviceVersion) => ({ serviceVersion }),
-          }),
-        }),
-      ),
-    );
-  }),
-);
+const otelLayer = serverTelemetryLayer;
 
 let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
-const requestHandlerRuntimeConfigProvider = await Effect.runPromise(
-  makeRuntimeConfigProvider(),
-);
 
 const getRequestHandler = () => {
   if (cachedRequestHandler) {
@@ -501,41 +771,171 @@ const getRequestHandler = () => {
     BunFileSystem.layer,
     Path.layer,
     keyValueStoreLayer,
+    ObjectStorage.Default,
     otelLayer,
     serverLoggerLayer,
     appRpcHttpAppLayer,
     stripeClientLayer,
+    DeploymentRuntimeConfig.Default,
     RuntimeConfig.Default,
     ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
   );
-  const handlerAppLayer = routesLayer.pipe(
-    Layer.provide(handlerRuntimeLayer),
-    Layer.provide(configuredDatabaseLayer),
+  const requestRuntimeLayer = handlerRuntimeLayer.pipe(
+    Layer.provideMerge(configuredDatabaseLayer),
   );
-  const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
-    handlerAppLayer,
-    {
-      middleware: withSsrFallback,
-    },
+  const handlerAppLayer = webRoutesLayer.pipe(
+    HttpLayerRouter.provideRequest(requestRuntimeLayer),
   );
-  const handlerContext = EffectContext.empty() as Parameters<
-    typeof serverHandler
-  >[1];
+  const { handler: serverHandler } =
+    HttpLayerRouter.toWebHandler(handlerAppLayer);
 
-  cachedRequestHandler = (request: Request) =>
-    serverHandler(request, handlerContext);
+  cachedRequestHandler = (request: Request) => serverHandler(request);
 
   return cachedRequestHandler;
 };
 
-const requestHandler = createRequestHandler((request) =>
-  getRequestHandler()(request),
+const requestPathname = (url: string | undefined) => {
+  try {
+    return new URL(url ?? '/', 'http://localhost').pathname;
+  } catch {
+    return '/';
+  }
+};
+
+const requestBodyLimit = (method: string, pathname: string) => {
+  if (method !== 'POST') {
+    return;
+  }
+  const normalizedPathname = pathname.replace(/\/+$/u, '') || '/';
+  if (normalizedPathname === rpcPath) {
+    return MAX_RPC_BODY_SIZE_BYTES;
+  }
+  if (normalizedPathname === stripeWebhookPath) {
+    return MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES;
+  }
+  if (normalizedPathname === browserErrorTelemetryPath) {
+    return MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES;
+  }
+  if (internalTriggerPaths.has(normalizedPathname)) {
+    return MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES;
+  }
+  return;
+};
+
+const requestBodyErrorResponse = (error: unknown) => {
+  let response: HttpServerResponse.HttpServerResponse | undefined;
+  if (error instanceof RequestBodyInvalidContentLengthError) {
+    response = HttpServerResponse.text('Invalid Content-Length', {
+      status: 400,
+    });
+  } else if (error instanceof RequestBodyReadError) {
+    response = HttpServerResponse.text('Unable to read request body', {
+      status: 400,
+    });
+  } else if (error instanceof RequestBodyTooLargeError) {
+    response = HttpServerResponse.text('Payload too large', { status: 413 });
+  }
+
+  return response
+    ? HttpServerResponse.toWeb(applySecurityHeaders(response))
+    : undefined;
+};
+
+const nodeRequestHeaders = (request: IncomingMessage) => {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(request.headers)) {
+    if (typeof value === 'string') {
+      headers.append(name, value);
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        headers.append(name, item);
+      }
+    }
+  }
+  return headers;
+};
+
+const toNodeWebRequest = async (request: IncomingMessage) => {
+  const method = request.method ?? 'GET';
+  const headers = nodeRequestHeaders(request);
+  const requestBoundary = resolveNodeRequestBoundary({
+    headers,
+    requestTarget: request.url,
+    socketEncrypted:
+      'encrypted' in request.socket && request.socket.encrypted === true,
+    trustPlatformProxy: requestBoundaryDeployment.TRUST_PLATFORM_PROXY,
+  });
+  if (!requestBoundary) {
+    discardNodeRequestBody(request);
+    return HttpServerResponse.toWeb(
+      applySecurityHeaders(
+        HttpServerResponse.text('Invalid Host or request target', {
+          status: 400,
+        }),
+      ),
+    );
+  }
+
+  if (method === 'GET' || method === 'HEAD') {
+    return new Request(requestBoundary.url, {
+      headers: requestBoundary.headers,
+      method,
+    });
+  }
+
+  const maxBytes = requestBodyLimit(method, requestPathname(request.url));
+  if (maxBytes === undefined) {
+    // The Effect router has no other body-bearing routes. Fail closed before
+    // adapting the raw Node stream, and never wait for an untrusted body to
+    // reach EOF merely to return the route's not-found response.
+    discardNodeRequestBody(request);
+    return HttpServerResponse.toWeb(
+      applySecurityHeaders(notFoundServerResponse),
+    );
+  }
+
+  const body = await Effect.runPromise(readNodeRequestBody(request, maxBytes));
+
+  const webRequestInit = {
+    body: requestBodyStreamFromBuffer(body),
+    duplex: 'half',
+    headers: requestBoundary.headers,
+    method,
+  } satisfies RequestInit & { duplex: 'half' };
+
+  return registerPrebufferedRequestBody(
+    new Request(requestBoundary.url, webRequestInit),
+    body,
+  );
+};
+
+const requestHandler = createNodeRequestHandler(
+  async (request, response, next) => {
+    try {
+      const adaptedRequest = await toNodeWebRequest(request);
+      const webResponse =
+        adaptedRequest instanceof Response
+          ? adaptedRequest
+          : await getRequestHandler()(adaptedRequest);
+      await writeResponseToNodeResponse(webResponse, response);
+    } catch (error) {
+      const errorResponse = requestBodyErrorResponse(error);
+      if (errorResponse) {
+        await writeResponseToNodeResponse(errorResponse, response);
+        return;
+      }
+      next(error);
+    }
+  },
 );
 
 export { requestHandler as reqHandler };
 
 const serveEffect = Effect.gen(function* () {
   const configuredDatabaseLayer = databaseLayer.pipe(
+    Layer.provide(ConfigProvider.layer(requestHandlerRuntimeConfigProvider)),
+  );
+  const configuredStripeClientLayer = stripeClientLayer.pipe(
     Layer.provide(ConfigProvider.layer(requestHandlerRuntimeConfigProvider)),
   );
   const configuredServerConfig = serverNetworkConfig
@@ -548,44 +948,135 @@ const serveEffect = Effect.gen(function* () {
           ),
       ),
     );
-  const { PORT: port } = yield* configuredServerConfig;
-
-  const serverLayer = HttpLayerRouter.serve(routesLayer, {
-    middleware: withSsrFallback,
-  }).pipe(
-    Layer.provide(
-      Layer.mergeAll(
-        BunHttpServer.layer({ port }),
-        BunFileSystem.layer,
-        Path.layer,
-        keyValueStoreLayer,
-        otelLayer,
-        serverLoggerLayer,
-        appRpcHttpAppLayer,
-        stripeClientLayer,
-        RuntimeConfig.Default,
-        ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
+  const configuredDeployment = deploymentConfig
+    .parse(requestHandlerRuntimeConfigProvider)
+    .pipe(
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid deployment configuration:\n${formatConfigError(error)}`,
+          ),
       ),
-    ),
+    );
+  const deployment = yield* configuredDeployment;
+  const runtimeRole = yield* validateRuntimeRoleConfiguration(deployment);
+
+  if (runtimeRole.role === 'worker' && runtimeRole.triggerMode === 'poll') {
+    return yield* Effect.scoped(
+      Effect.gen(function* () {
+        const registrationRefundWorkerMode =
+          yield* registrationRefundWorkerRuntimeModeConfig
+            .parse(requestHandlerRuntimeConfigProvider)
+            .pipe(
+              Effect.mapError(
+                (error) =>
+                  new Error(
+                    `Invalid registration refund worker configuration:\n${formatConfigError(error)}`,
+                  ),
+              ),
+            );
+        const databaseContext = yield* Layer.build(configuredDatabaseLayer);
+        const stripeClientContext = yield* Layer.build(
+          configuredStripeClientLayer,
+        );
+        const configProviderLayer = ConfigProvider.layer(
+          requestHandlerRuntimeConfigProvider,
+        );
+        const emailDeliveryContext = yield* Layer.build(
+          EmailDelivery.Default.pipe(Layer.provide(configProviderLayer)),
+        );
+
+        yield* runEmailOutboxProcessor.pipe(
+          Effect.provide(databaseContext),
+          Effect.provide(emailDeliveryContext),
+          Effect.forkScoped,
+        );
+        yield* runExpiredRegistrationCheckoutCleanupWorker.pipe(
+          Effect.provide(databaseContext),
+          Effect.provide(stripeClientContext),
+          Effect.forkScoped,
+        );
+        yield* launchRegistrationRefundWorker(
+          registrationRefundWorkerMode,
+          runRegistrationRefundWorker.pipe(
+            Effect.provide(databaseContext),
+            Effect.provide(stripeClientContext),
+          ),
+        );
+        yield* runReceiptOrphanCleanupWorker.pipe(
+          Effect.provide(databaseContext),
+          Effect.provide(ObjectStorage.Default),
+          Effect.provide(configProviderLayer),
+          Effect.forkScoped,
+        );
+        yield* Effect.logInfo('Polling worker started').pipe(
+          Effect.annotateLogs({ role: runtimeRole.role }),
+        );
+        return yield* Effect.never;
+      }),
+    );
+  }
+
+  const { PORT: port } = yield* configuredServerConfig;
+  const commonRuntimeLayer = Layer.mergeAll(
+    BunHttpServer.layer({ port }),
+    otelLayer,
+    serverLoggerLayer,
+    DeploymentRuntimeConfig.Default,
+    ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
   );
+  const serverLayer = runtimeRole.bootstrap
+    ? HttpLayerRouter.serve(bootstrapRoutesLayer).pipe(
+        Layer.provide(commonRuntimeLayer),
+      )
+    : runtimeRole.role === 'web'
+      ? HttpLayerRouter.serve(webRoutesLayer).pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              commonRuntimeLayer,
+              BunFileSystem.layer,
+              Path.layer,
+              keyValueStoreLayer,
+              ObjectStorage.Default,
+              appRpcHttpAppLayer,
+              stripeClientLayer,
+              RuntimeConfig.Default,
+            ),
+          ),
+        )
+      : runtimeRole.role === 'worker'
+        ? HttpLayerRouter.serve(configuredWorkerRoutesLayer).pipe(
+            Layer.provide(
+              Layer.mergeAll(
+                commonRuntimeLayer,
+                ObjectStorage.Default,
+                stripeClientLayer,
+              ),
+            ),
+          )
+        : HttpLayerRouter.serve(opsRoutesLayer).pipe(
+            Layer.provide(commonRuntimeLayer),
+          );
 
   return yield* Effect.scoped(
     Effect.gen(function* () {
-      const databaseContext = yield* Layer.build(configuredDatabaseLayer);
-      const serverFiber = yield* Layer.launch(serverLayer).pipe(
-        Effect.provide(databaseContext),
-        Effect.forkScoped,
-      );
-      yield* runEmailOutboxProcessor.pipe(
-        Effect.provide(databaseContext),
-        Effect.provide(
-          ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
-        ),
-        Effect.forkScoped,
-      );
+      const serverFiber =
+        runtimeRole.bootstrap || runtimeRole.role === 'ops'
+          ? yield* Layer.launch(serverLayer).pipe(Effect.forkScoped)
+          : yield* Effect.gen(function* () {
+              const databaseContext = yield* Layer.build(
+                configuredDatabaseLayer,
+              );
+              return yield* Layer.launch(serverLayer).pipe(
+                Effect.provide(databaseContext),
+                Effect.forkScoped,
+              );
+            });
       yield* Effect.logInfo('Bun Effect server listening').pipe(
         Effect.annotateLogs({
+          bootstrap: runtimeRole.bootstrap,
           port,
+          role: runtimeRole.role,
           url: `http://localhost:${port}`,
         }),
       );

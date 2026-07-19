@@ -21,11 +21,12 @@ test('Manage template categories', async ({
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="User permissions" %}
-For this guide, we assume you have an account with all required permissions. These are:
-- **templates:manageCategories**: This permission is required to create and manage template categories.
+You need **Manage template categories** access to create and edit categories.
 {% /callout %}
 Template categories are used to group templates together. You can create categories and assign templates to them.
 Users will have an easier time finding the templates they are looking for with good grouping.
+
+Users who can view templates without **Manage template categories** access can still open the category overview through **View categories**. The page is read-only for them: create and edit actions are hidden, and the page explains which permission an administrator needs to grant.
 
 Start by navigating to the **Manage categories** page under **Templates**. Here you can see an overview of the existing template categories.
 Click on _Create category_ to create a new category.`,
@@ -34,12 +35,17 @@ Click on _Create category_ to create a new category.`,
     await page.getByRole('link', { name: 'Manage categories' }).click();
     const categoriesTable = page.getByRole('table');
     await expect(categoriesTable).toBeVisible();
-    await takeScreenshot(
-      testInfo,
-      page.getByRole('button', { name: 'Create category' }),
-      page,
+    const createCategoryButton = page.getByRole('button', {
+      name: 'Create category',
+    });
+    await takeScreenshot(testInfo, createCategoryButton, page);
+    await expect(createCategoryButton).not.toHaveAttribute(
+      'jsaction',
+      /click/,
+      { timeout: 15_000 },
     );
-    await page.getByRole('button', { name: 'Create category' }).click();
+    await expect(createCategoryButton).toBeEnabled();
+    await createCategoryButton.click();
     await expect(
       page.getByRole('textbox', { name: 'Category title' }),
     ).toBeVisible();
@@ -76,7 +82,14 @@ To edit the name of a category, just find it in the list and click the _Edit_ bu
 After you have changed the name, click on _Save_ to save your changes.`,
     });
 
-    await categoryRow.getByRole('button', { name: 'Edit' }).click();
+    const editCategoryButton = categoryRow.getByRole('button', {
+      name: 'Edit',
+    });
+    await expect(editCategoryButton).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 15_000,
+    });
+    await expect(editCategoryButton).toBeEnabled();
+    await editCategoryButton.click();
     await expect(
       page.getByRole('textbox', { name: 'Category title' }),
     ).toBeVisible();

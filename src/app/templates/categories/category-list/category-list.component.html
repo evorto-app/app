@@ -5,16 +5,26 @@
   <h1 class="title-large">Template Categories</h1>
 </div>
 
-<button
-  mat-fab
-  extended
-  (click)="openCategoryCreationDialog()"
-  [disabled]="categoryActionDisabled()"
-  class="fab-fixed"
->
-  <fa-duotone-icon [icon]="faPlus" />
-  Create category
-</button>
+@if (canManageCategories()) {
+  <button
+    mat-fab
+    extended
+    (click)="openCategoryCreationDialog()"
+    [disabled]="categoryActionDisabled()"
+    class="fab-fixed"
+  >
+    <fa-duotone-icon [icon]="faPlus" />
+    Create category
+  </button>
+} @else {
+  <p
+    role="status"
+    class="bg-surface-container text-on-surface mb-4 rounded-xl p-4"
+  >
+    You can view template categories. To create or edit them, ask an
+    administrator for the Manage template categories permission.
+  </p>
+}
 
 <main>
   @if (templateCategoryGroupsQuery.isPending()) {
@@ -28,14 +38,16 @@
   } @else if (templateCategoryGroupsQuery.isSuccess()) {
     @if (templateCategoryGroupsQuery.data().length === 0) {
       <p>No categories found</p>
-      <button
-        mat-flat-button
-        type="button"
-        (click)="openCategoryCreationDialog()"
-        [disabled]="categoryActionDisabled()"
-      >
-        Create a new category
-      </button>
+      @if (canManageCategories()) {
+        <button
+          mat-flat-button
+          type="button"
+          (click)="openCategoryCreationDialog()"
+          [disabled]="categoryActionDisabled()"
+        >
+          Create a new category
+        </button>
+      }
     } @else {
       <div class="overflow-x-auto overflow-y-hidden rounded-2xl">
         <table
@@ -64,24 +76,26 @@
             </td>
           </ng-container>
 
-          <ng-container matColumnDef="actions">
-            <th
-              mat-header-cell
-              *matHeaderCellDef
-              class="label-large w-24 text-right"
-            >
-              Actions
-            </th>
-            <td mat-cell *matCellDef="let element" class="text-right">
-              <button
-                mat-button
-                (click)="openCategoryEditDialog(element)"
-                [disabled]="categoryActionDisabled()"
+          @if (canManageCategories()) {
+            <ng-container matColumnDef="actions">
+              <th
+                mat-header-cell
+                *matHeaderCellDef
+                class="label-large w-24 text-right"
               >
-                Edit
-              </button>
-            </td>
-          </ng-container>
+                Actions
+              </th>
+              <td mat-cell *matCellDef="let element" class="text-right">
+                <button
+                  mat-button
+                  (click)="openCategoryEditDialog(element)"
+                  [disabled]="categoryActionDisabled()"
+                >
+                  Edit
+                </button>
+              </td>
+            </ng-container>
+          }
 
           <tr mat-header-row *matHeaderRowDef="columnsToDisplay()"></tr>
           <tr mat-row *matRowDef="let row; columns: columnsToDisplay()"></tr>

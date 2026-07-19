@@ -70,7 +70,20 @@ class DocumentationReporter implements Reporter {
       return;
     }
 
-    for (const doc of this.registry.getDocuments()) {
+    const documents = this.registry.getDocuments();
+    const incompleteDocuments = documents.filter(
+      (doc) =>
+        doc.sections.length === 0 &&
+        doc.filePath?.includes(`${path.sep}tests${path.sep}docs${path.sep}`),
+    );
+    if (incompleteDocuments.length > 0) {
+      console.error(
+        `[docs-reporter] ${incompleteDocuments.length} selected documentation group(s) produced no product documentation: ${incompleteDocuments.map((doc) => doc.filePath ?? doc.folderName).join(', ')}`,
+      );
+      return { status: 'failed' as const };
+    }
+
+    for (const doc of documents) {
       if (doc.sections.length === 0) continue;
 
       const sections = [...doc.sections].sort((a, b) => {

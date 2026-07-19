@@ -25,21 +25,30 @@ export const fillTemplateBasics = async (
     .then(() => true)
     .catch(() => false);
   if (hasIconPicker) {
+    // SSR exposes the control before Angular attaches its live click listener.
+    // Event replay removes `jsaction` once the hydrated action is interactive.
+    await expect(changeIconButton).not.toHaveAttribute('jsaction', /click/);
     await changeIconButton.click();
     await expect(
       page.getByRole('heading', { name: 'Select an Icon' }),
     ).toBeVisible();
-    await page.locator('app-icon-selector-dialog').getByText('Alps').click();
+    await page
+      .locator('app-icon-selector-dialog')
+      .getByRole('button', { name: 'Select Alps icon' })
+      .click();
   }
 
   if (description !== null) {
     const placeholder = page.getByTestId('rich-editor-placeholder').first();
     if (await placeholder.isVisible()) {
+      await expect(placeholder).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
       await placeholder.click();
     }
 
     const editor = page.getByTestId('rich-editor-content').first();
-    await expect(editor).toBeVisible();
+    await expect(editor).toBeVisible({ timeout: 20_000 });
     await editor.fill(description);
   }
 

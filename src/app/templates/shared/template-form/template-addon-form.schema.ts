@@ -14,22 +14,43 @@ export const templateAddonFormSchema = schema<TemplateAddonFormModel>(
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.maxQuantityPerUser, 1);
     min(form.price, 0);
-    min(form.quantity, 1);
+    min(form.includedQuantity, 0);
+    min(form.optionalPurchaseQuantity, 0);
     min(form.totalAvailableQuantity, 1);
     required(form.maxQuantityPerUser);
     required(form.price);
-    required(form.quantity);
+    required(form.includedQuantity);
+    required(form.optionalPurchaseQuantity);
     required(form.registrationOptionKind);
     required(form.stripeTaxRateId, {
       when: ({ valueOf }) => valueOf(form.isPaid),
     });
     required(form.title);
     required(form.totalAvailableQuantity);
-    validate(form.quantity, ({ value, valueOf }) => {
-      if (value() > valueOf(form.totalAvailableQuantity)) {
+    validate(form.includedQuantity, ({ value, valueOf }) => {
+      if (
+        value() + valueOf(form.optionalPurchaseQuantity) >
+        valueOf(form.totalAvailableQuantity)
+      ) {
         return {
           kind: 'max',
-          message: 'Included quantity cannot exceed available quantity.',
+          message:
+            'Included and optional quantities cannot exceed available stock.',
+        };
+      }
+      return;
+    });
+    validate(form.optionalPurchaseQuantity, ({ value, valueOf }) => {
+      if (value() > valueOf(form.maxQuantityPerUser)) {
+        return {
+          kind: 'max',
+          message: 'Optional quantity cannot exceed max per user.',
+        };
+      }
+      if (value() + valueOf(form.includedQuantity) === 0) {
+        return {
+          kind: 'required',
+          message: 'Configure an included or optional quantity.',
         };
       }
       return;

@@ -1,19 +1,26 @@
+import {
+  DEFAULT_E2E_NOW_ISO,
+  DEFAULT_E2E_SEED_KEY,
+} from '@shared/testing/deterministic-test-defaults';
 import { Config, ConfigProvider, Effect, Option } from 'effect';
 import path from 'node:path';
 
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
-const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
-const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
 const INTEGRATION_PROJECT_NAMES = [
   'docs-integration',
   'local-chrome-integration',
+] as const;
+const LIVE_PROVIDER_PROJECT_NAMES = [
+  'docs-live-esncard',
+  'local-chrome-live-esncard',
 ] as const;
 const PLAYWRIGHT_PROJECT_NAMES = [
   'setup',
   'local-chrome-baseline',
   'docs-baseline',
   ...INTEGRATION_PROJECT_NAMES,
+  ...LIVE_PROVIDER_PROJECT_NAMES,
 ] as const;
 const SELECTED_PLAYWRIGHT_PROJECTS_ENV = 'E2E_SELECTED_PROJECTS';
 const PLAYWRIGHT_BROWSER_CHANNELS = ['chromium', 'chrome'] as const;
@@ -23,7 +30,7 @@ const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
   CLIENT_SECRET: 'playwright-list-client-secret',
   ISSUER_BASE_URL: 'https://playwright-list.invalid',
   SECRET: 'playwright-list-secret',
-  STRIPE_API_KEY: 'sk_test_playwright_list',
+  STRIPE_API_KEY: 'playwright-list-stripe-api-key',
   STRIPE_TEST_ACCOUNT_ID: 'acct_playwright_list',
   STRIPE_WEBHOOK_SECRET: 'whsec_playwright_list',
 } as const;
@@ -163,13 +170,6 @@ export const testRuntimeConfigState = Config.all({
   CI: Config.boolean('CI').pipe(Config.withDefault(false)),
   CLIENT_ID: optionalTrimmedString('CLIENT_ID'),
   CLIENT_SECRET: optionalTrimmedString('CLIENT_SECRET'),
-  CLOUDFLARE_ACCOUNT_ID: optionalTrimmedString('CLOUDFLARE_ACCOUNT_ID'),
-  CLOUDFLARE_IMAGES_API_TOKEN: optionalTrimmedString(
-    'CLOUDFLARE_IMAGES_API_TOKEN',
-  ),
-  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalTrimmedString(
-    'CLOUDFLARE_IMAGES_DELIVERY_HASH',
-  ),
   DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
   DOCS_IMG_OUT_DIR: optionalTrimmedString('DOCS_IMG_OUT_DIR').pipe(
     Config.map((value) =>
@@ -191,7 +191,7 @@ export const testRuntimeConfigState = Config.all({
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
     Config.map((value) =>
       Option.match(value, {
-        onNone: () => DEFAULT_TEST_CLOCK_ISO,
+        onNone: () => DEFAULT_E2E_NOW_ISO,
         onSome: (nowIso) => nowIso,
       }),
     ),
@@ -199,17 +199,20 @@ export const testRuntimeConfigState = Config.all({
   E2E_SEED_KEY: optionalTrimmedString('E2E_SEED_KEY').pipe(
     Config.map((value) =>
       Option.match(value, {
-        onNone: () => DEFAULT_TEST_SEED_KEY,
+        onNone: () => DEFAULT_E2E_SEED_KEY,
         onSome: (seedKey) => seedKey,
       }),
     ),
   ),
   E2E_SELECTED_PROJECTS: selectedProjectNamesConfig,
-  ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
-  NEON_LOCAL_PROXY: Config.boolean('NEON_LOCAL_PROXY').pipe(
-    Config.withDefault(false),
+  E2E_USE_DOCKER_STACK: Config.boolean('E2E_USE_DOCKER_STACK').pipe(
+    Config.withDefault(true),
   ),
+  ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
   NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
+  PUBLIC_GOOGLE_MAPS_API_KEY: optionalTrimmedString(
+    'PUBLIC_GOOGLE_MAPS_API_KEY',
+  ),
   S3_ACCESS_KEY_ID: optionalTrimmedString('S3_ACCESS_KEY_ID'),
   S3_BUCKET: optionalTrimmedString('S3_BUCKET'),
   S3_ENDPOINT: optionalTrimmedString('S3_ENDPOINT'),
@@ -294,11 +297,6 @@ const validateCiEnvironment = (
     return Effect.void;
   }
 
-  const requiresIntegrationEnvironment =
-    requiresIntegrationOnlyPlaywrightEnvironment(
-      argv,
-      state.E2E_SELECTED_PROJECTS,
-    );
   const errors = collectMissingFieldErrors([
     ['S3_ACCESS_KEY_ID', Option.isSome(state.S3_ACCESS_KEY_ID)],
     ['S3_BUCKET', Option.isSome(state.S3_BUCKET)],
@@ -307,30 +305,39 @@ const validateCiEnvironment = (
     ['S3_SECRET_ACCESS_KEY', Option.isSome(state.S3_SECRET_ACCESS_KEY)],
     ['STRIPE_WEBHOOK_SECRET', Option.isSome(state.STRIPE_WEBHOOK_SECRET)],
     ['STRIPE_TEST_ACCOUNT_ID', Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)],
+  ]);
+
+  return errors.length > 0
+    ? Effect.fail(combineMissingDataErrors(errors))
+    : Effect.void;
+};
+
+const validateIntegrationEnvironment = (
+  state: TestRuntimeConfigState,
+  argv: readonly string[] = process.argv,
+) => {
+  if (
+    isPlaywrightListOnly(argv) ||
+    !requiresIntegrationOnlyPlaywrightEnvironment(
+      argv,
+      state.E2E_SELECTED_PROJECTS,
+    )
+  ) {
+    return Effect.void;
+  }
+
+  const errors = collectMissingFieldErrors([
     [
       'AUTH0_MANAGEMENT_CLIENT_ID',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID),
+      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID),
     ],
     [
       'AUTH0_MANAGEMENT_CLIENT_SECRET',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
+      Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
     ],
     [
-      'CLOUDFLARE_ACCOUNT_ID',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.CLOUDFLARE_ACCOUNT_ID),
-    ],
-    [
-      'CLOUDFLARE_IMAGES_API_TOKEN',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.CLOUDFLARE_IMAGES_API_TOKEN),
-    ],
-    [
-      'CLOUDFLARE_IMAGES_DELIVERY_HASH',
-      !requiresIntegrationEnvironment ||
-        Option.isSome(state.CLOUDFLARE_IMAGES_DELIVERY_HASH),
+      'PUBLIC_GOOGLE_MAPS_API_KEY',
+      Option.isSome(state.PUBLIC_GOOGLE_MAPS_API_KEY),
     ],
   ]);
 
@@ -345,6 +352,7 @@ export const makePlaywrightEnvironmentConfig = (
   Effect.gen(function* () {
     const state = yield* testRuntimeConfigState;
     yield* validateCiEnvironment(state, argv);
+    yield* validateIntegrationEnvironment(state, argv);
     const listOnly = isPlaywrightListOnly(argv);
 
     const errors = [

@@ -26,7 +26,7 @@ export const eventEditGuard: CanActivateFn = async (route) => {
     if (!canEdit) {
       return router.createUrlTree(['/403']);
     }
-    if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
+    if (event.status !== 'DRAFT') {
       return router.createUrlTree(['/events', eventId], {
         queryParams: { error: 'event-locked' },
       });

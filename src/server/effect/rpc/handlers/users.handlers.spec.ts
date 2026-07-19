@@ -1,17 +1,19 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import { DateTime } from 'luxon';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import {
-  rolesToTenantUsers,
-  users,
-  usersToTenants,
-} from '../../../../db/schema';
+import { rolesToTenantUsers, users } from '../../../../db/schema';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
-import { normalizeUsersFindManySearch, userHandlers } from './users.handlers';
+import {
+  normalizeUsersFindManySearch,
+  resolveProfileRefundState,
+  tenantDayBounds,
+  userHandlers,
+} from './users.handlers';
 
 const createTenant = () => ({
   currency: 'EUR' as const,
@@ -49,20 +51,6 @@ const createUser = () => ({
   roleIds: [],
 });
 
-const createCreateAccountHeaders = (
-  tenant = createTenant(),
-  authData?: { email?: string; sub?: string },
-) => ({
-  [RPC_CONTEXT_HEADERS.AUTH_DATA]: encodeRpcContextHeaderJson(
-    authData ?? {
-      email: 'alice@example.com',
-      sub: 'auth0|alice',
-    },
-  ),
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-});
-
 const createUserHandlerHeaders = ({
   permissions = [],
   tenant = createTenant(),
@@ -81,20 +69,125 @@ const createUserHandlerHeaders = ({
   }),
 });
 
-const returningInsert = <A>(result: A) => ({
-  onConflictDoNothing: () => ({
-    returning: () => Effect.succeed(result),
+const membershipLockSelect = (membershipId?: string) => () => ({
+  from: () => ({
+    where: () => ({
+      for: () => Effect.succeed(membershipId ? [{ id: membershipId }] : []),
+    }),
   }),
-  returning: () => Effect.succeed(result),
 });
 
 describe('userHandlers', () => {
+  it('uses tenant-local DST boundaries for scanner business days', () => {
+    const { end, start } = tenantDayBounds(
+      'Europe/Berlin',
+      DateTime.fromISO('2026-03-29T12:00:00.000Z', { zone: 'utc' }),
+    );
+
+    expect(start.toISOString()).toBe('2026-03-28T23:00:00.000Z');
+    expect(end.toISOString()).toBe('2026-03-29T21:59:59.999Z');
+  });
+
   it('normalizes user-list search input for the server query', () => {
     expect(normalizeUsersFindManySearch()).toBeUndefined();
     expect(normalizeUsersFindManySearch(' '.repeat(3))).toBeUndefined();
     expect(normalizeUsersFindManySearch(' alice@example.com ')).toBe(
       '%alice@example.com%',
     );
+  });
+
+  it('derives participant-safe refund progress without exposing provider errors', () => {
+    const pendingRefund = {
+      method: 'stripe',
+      status: 'pending',
+      stripeRefundAttempts: 0,
+      stripeRefundClaimLeaseExpiresAt: null,
+      stripeRefundClaimLeaseId: null,
+      stripeRefundGeneration: 0,
+      stripeRefundMaxAttempts: 8,
+      stripeRefundNextAttemptAt: new Date('2026-01-01T10:05:00.000Z'),
+      stripeRefundRequeuedAt: null,
+      stripeRefundStatus: null,
+    };
+
+    expect(resolveProfileRefundState(pendingRefund)).toBe('pending');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundAttempts: 1,
+      }),
+    ).toBe('retrying');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundGeneration: 1,
+      }),
+    ).toBe('retrying');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundRequeuedAt: new Date('2026-01-01T10:04:00.000Z'),
+      }),
+    ).toBe('retrying');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundNextAttemptAt: null,
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundAttempts: 1,
+        stripeRefundClaimLeaseExpiresAt: new Date('2026-01-01T10:06:00.000Z'),
+        stripeRefundClaimLeaseId: 'lease-1',
+        stripeRefundNextAttemptAt: null,
+      }),
+    ).toBe('retrying');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundAttempts: 8,
+        stripeRefundNextAttemptAt: null,
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundAttempts: 8,
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundClaimLeaseId: 'partial-lease',
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundStatus: 'requires_action',
+      }),
+    ).toBe('actionRequired');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        stripeRefundStatus: 'failed',
+      }),
+    ).toBe('needsAttention');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        status: 'successful',
+        stripeRefundStatus: 'succeeded',
+      }),
+    ).toBe('succeeded');
+    expect(
+      resolveProfileRefundState({
+        ...pendingRefund,
+        method: 'cash',
+      }),
+    ).toBe('needsAttention');
   });
 
   it.effect('assignRoles requires users:assignRoles permission', () =>
@@ -116,19 +209,13 @@ describe('userHandlers', () => {
       const database = {
         transaction: (
           callback: (tx: {
-            query: {
-              usersToTenants: {
-                findFirst: () => Effect.Effect<null>;
-              };
-            };
+            execute: () => Effect.Effect<void>;
+            select: ReturnType<typeof membershipLockSelect>;
           }) => Effect.Effect<unknown>,
         ) =>
           callback({
-            query: {
-              usersToTenants: {
-                findFirst: () => Effect.succeed(null),
-              },
-            },
+            execute: () => Effect.void,
+            select: membershipLockSelect(),
           }),
       };
 
@@ -157,25 +244,23 @@ describe('userHandlers', () => {
       const database = {
         transaction: (
           callback: (tx: {
+            execute: () => Effect.Effect<void>;
             query: {
               roles: {
                 findMany: () => Effect.Effect<{ id: string }[]>;
               };
-              usersToTenants: {
-                findFirst: () => Effect.Effect<{ id: string }>;
-              };
             };
+            select: ReturnType<typeof membershipLockSelect>;
           }) => Effect.Effect<unknown>,
         ) =>
           callback({
+            execute: () => Effect.void,
             query: {
               roles: {
                 findMany: () => Effect.succeed([{ id: 'role-1' }]),
               },
-              usersToTenants: {
-                findFirst: () => Effect.succeed({ id: 'membership-2' }),
-              },
             },
+            select: membershipLockSelect('membership-2'),
           }),
       };
 
@@ -210,20 +295,14 @@ describe('userHandlers', () => {
           transaction: (
             callback: (tx: {
               delete: typeof deleteRoles;
-              query: {
-                usersToTenants: {
-                  findFirst: () => Effect.Effect<{ id: string }>;
-                };
-              };
+              execute: () => Effect.Effect<void>;
+              select: ReturnType<typeof membershipLockSelect>;
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
               delete: deleteRoles,
-              query: {
-                usersToTenants: {
-                  findFirst: () => Effect.succeed({ id: 'membership-1' }),
-                },
-              },
+              execute: () => Effect.void,
+              select: membershipLockSelect('membership-1'),
             }),
         };
 
@@ -260,6 +339,7 @@ describe('userHandlers', () => {
               delete: (table: unknown) => {
                 where: typeof deleteWhere;
               };
+              execute: () => Effect.Effect<void>;
               insert: (table: unknown) => {
                 values: typeof insertValues;
               };
@@ -267,10 +347,8 @@ describe('userHandlers', () => {
                 roles: {
                   findMany: () => Effect.Effect<{ id: string }[]>;
                 };
-                usersToTenants: {
-                  findFirst: () => Effect.Effect<{ id: string }>;
-                };
               };
+              select: ReturnType<typeof membershipLockSelect>;
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
@@ -278,6 +356,7 @@ describe('userHandlers', () => {
                 expect(table).toBe(rolesToTenantUsers);
                 return { where: deleteWhere };
               },
+              execute: () => Effect.void,
               insert: (table) => {
                 expect(table).toBe(rolesToTenantUsers);
                 return { values: insertValues };
@@ -287,10 +366,8 @@ describe('userHandlers', () => {
                   findMany: () =>
                     Effect.succeed([{ id: 'role-1' }, { id: 'role-2' }]),
                 },
-                usersToTenants: {
-                  findFirst: () => Effect.succeed({ id: 'membership-2' }),
-                },
               },
+              select: membershipLockSelect('membership-2'),
             }),
         };
 
@@ -312,10 +389,12 @@ describe('userHandlers', () => {
         expect(insertValues).toHaveBeenCalledWith([
           {
             roleId: 'role-1',
+            tenantId: 'tenant-1',
             userTenantId: 'membership-2',
           },
           {
             roleId: 'role-2',
+            tenantId: 'tenant-1',
             userTenantId: 'membership-2',
           },
         ]);
@@ -406,296 +485,6 @@ describe('userHandlers', () => {
       }),
   );
 
-  it.effect(
-    'createAccount creates the user, tenant assignment, and default roles transactionally',
-    () =>
-      Effect.gen(function* () {
-        const inserts: unknown[] = [];
-        const tx = {
-          insert: (table: unknown) => ({
-            values: (value: unknown) => {
-              inserts.push({ table, value });
-              if (table === rolesToTenantUsers) {
-                return Effect.void;
-              }
-              if (table === users) {
-                return returningInsert([{ id: 'created-user-1' }]);
-              }
-              if (table === usersToTenants) {
-                return returningInsert([{ id: 'membership-1' }]);
-              }
-              return returningInsert([]);
-            },
-          }),
-          query: {
-            roles: {
-              findMany: () =>
-                Effect.succeed([{ id: 'role-1' }, { id: 'role-2' }]),
-            },
-            users: {
-              findFirst: () => Effect.succeed(null),
-            },
-            usersToTenants: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-        expect(inserts).toEqual([
-          {
-            table: users,
-            value: {
-              auth0Id: 'auth0|alice',
-              communicationEmail: 'notify@example.com',
-              email: 'alice@example.com',
-              firstName: 'Alice',
-              lastName: 'Doe',
-            },
-          },
-          {
-            table: usersToTenants,
-            value: {
-              tenantId: 'tenant-1',
-              userId: 'created-user-1',
-            },
-          },
-          {
-            table: rolesToTenantUsers,
-            value: [
-              {
-                roleId: 'role-1',
-                userTenantId: 'membership-1',
-              },
-              {
-                roleId: 'role-2',
-                userTenantId: 'membership-1',
-              },
-            ],
-          },
-        ]);
-      }),
-  );
-
-  it.effect(
-    'createAccount attaches an existing global user to this tenant',
-    () =>
-      Effect.gen(function* () {
-        const inserts: unknown[] = [];
-        const tx = {
-          insert: (table: unknown) => ({
-            values: (value: unknown) => {
-              inserts.push({ table, value });
-              if (table === usersToTenants) {
-                return returningInsert([{ id: 'membership-1' }]);
-              }
-              return returningInsert([]);
-            },
-          }),
-          query: {
-            roles: {
-              findMany: () => Effect.succeed([]),
-            },
-            users: {
-              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
-            },
-            usersToTenants: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-        expect(inserts).toEqual([
-          {
-            table: usersToTenants,
-            value: {
-              tenantId: 'tenant-1',
-              userId: 'existing-user-1',
-            },
-          },
-        ]);
-      }),
-  );
-
-  it.effect(
-    'createAccount attaches a user created by a concurrent request',
-    () =>
-      Effect.gen(function* () {
-        const inserts: unknown[] = [];
-        const findUser = vi
-          .fn()
-          .mockReturnValueOnce(Effect.succeed(null))
-          .mockReturnValueOnce(Effect.succeed({ id: 'concurrent-user-1' }));
-        const tx = {
-          insert: (table: unknown) => ({
-            values: (value: unknown) => {
-              inserts.push({ table, value });
-              if (table === users) {
-                return returningInsert([]);
-              }
-              if (table === usersToTenants) {
-                return returningInsert([{ id: 'membership-1' }]);
-              }
-              return returningInsert([]);
-            },
-          }),
-          query: {
-            roles: {
-              findMany: () => Effect.succeed([]),
-            },
-            users: {
-              findFirst: findUser,
-            },
-            usersToTenants: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-        expect(findUser).toHaveBeenCalledTimes(2);
-        expect(inserts).toEqual([
-          {
-            table: users,
-            value: {
-              auth0Id: 'auth0|alice',
-              communicationEmail: 'notify@example.com',
-              email: 'alice@example.com',
-              firstName: 'Alice',
-              lastName: 'Doe',
-            },
-          },
-          {
-            table: usersToTenants,
-            value: {
-              tenantId: 'tenant-1',
-              userId: 'concurrent-user-1',
-            },
-          },
-        ]);
-      }),
-  );
-
-  it.effect(
-    'createAccount returns a conflict when a concurrent request claims this tenant',
-    () =>
-      Effect.gen(function* () {
-        const findTenantAssignment = vi
-          .fn()
-          .mockReturnValueOnce(Effect.succeed(null))
-          .mockReturnValueOnce(Effect.succeed({ id: 'membership-1' }));
-        const tx = {
-          insert: (table: unknown) => ({
-            values: () => {
-              if (table === usersToTenants) {
-                return returningInsert([]);
-              }
-              return returningInsert([]);
-            },
-          }),
-          query: {
-            roles: {
-              findMany: () => Effect.succeed([]),
-            },
-            users: {
-              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
-            },
-            usersToTenants: {
-              findFirst: findTenantAssignment,
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        const error = yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(Layer.succeed(Database, database as never)),
-        );
-
-        expect(findTenantAssignment).toHaveBeenCalledTimes(2);
-        expect(error['_tag']).toBe('UserConflictError');
-        expect(error.message).toBe('User account already exists');
-      }),
-  );
-
-  it.effect(
-    'createAccount rejects an existing user already in this tenant',
-    () =>
-      Effect.gen(function* () {
-        const tx = {
-          query: {
-            users: {
-              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
-            },
-            usersToTenants: {
-              findFirst: () => Effect.succeed({ id: 'membership-1' }),
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        const error = yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(Layer.succeed(Database, database as never)),
-        );
-
-        expect(error['_tag']).toBe('UserConflictError');
-        expect(error.message).toBe('User account already exists');
-      }),
-  );
-
   it.effect('users.events returns only events from user registrations', () =>
     Effect.gen(function* () {
       const tenant = createTenant();
@@ -721,6 +510,7 @@ describe('userHandlers', () => {
             guestCount: 0,
             id: 'registration-waitlist',
             registrationOption: {
+              organizingRegistration: false,
               title: 'Waitlist option',
             },
             status: 'WAITLIST',
@@ -740,6 +530,7 @@ describe('userHandlers', () => {
             guestCount: 0,
             id: 'registration-cancelled-payment',
             registrationOption: {
+              organizingRegistration: false,
               title: 'Participant',
             },
             status: 'PENDING',
@@ -749,6 +540,63 @@ describe('userHandlers', () => {
                 status: 'cancelled',
                 stripeCheckoutUrl: null,
                 type: 'registration',
+              },
+            ],
+          },
+          {
+            addonPurchases: [],
+            checkInTime: null,
+            event: {
+              description: 'cancelled with refund',
+              end: new Date('2026-01-20T11:00:00.000Z'),
+              id: 'event-cancelled-refund',
+              start: new Date('2026-01-20T10:00:00.000Z'),
+              title: 'Cancelled Refund Event',
+            },
+            eventId: 'event-cancelled-refund',
+            guestCount: 0,
+            id: 'registration-cancelled-refund',
+            registrationOption: {
+              organizingRegistration: false,
+              title: 'Participant',
+            },
+            status: 'CANCELLED',
+            transactions: [
+              {
+                amount: 2500,
+                currency: 'EUR',
+                method: 'stripe',
+                sourceTransaction: null,
+                status: 'successful',
+                stripeCheckoutUrl: null,
+                stripeRefundAttempts: 0,
+                stripeRefundClaimLeaseExpiresAt: null,
+                stripeRefundClaimLeaseId: null,
+                stripeRefundGeneration: 0,
+                stripeRefundMaxAttempts: 8,
+                stripeRefundNextAttemptAt: null,
+                stripeRefundRequeuedAt: null,
+                stripeRefundStatus: null,
+                type: 'registration',
+                updatedAt: new Date('2026-01-20T09:00:00.000Z'),
+              },
+              {
+                amount: -2500,
+                currency: 'EUR',
+                method: 'stripe',
+                sourceTransaction: { type: 'registration' },
+                status: 'pending',
+                stripeCheckoutUrl: null,
+                stripeRefundAttempts: 2,
+                stripeRefundClaimLeaseExpiresAt: null,
+                stripeRefundClaimLeaseId: null,
+                stripeRefundGeneration: 0,
+                stripeRefundMaxAttempts: 8,
+                stripeRefundNextAttemptAt: new Date('2026-01-20T10:10:00.000Z'),
+                stripeRefundRequeuedAt: null,
+                stripeRefundStatus: null,
+                type: 'refund',
+                updatedAt: new Date('2026-01-20T10:05:00.000Z'),
               },
             ],
           },
@@ -774,6 +622,7 @@ describe('userHandlers', () => {
             guestCount: 2,
             id: 'registration-2',
             registrationOption: {
+              organizingRegistration: false,
               title: 'Standard',
             },
             status: 'PENDING',
@@ -800,6 +649,7 @@ describe('userHandlers', () => {
             guestCount: 0,
             id: 'registration-1',
             registrationOption: {
+              organizingRegistration: false,
               title: 'Participant',
             },
             status: 'CONFIRMED',
@@ -819,6 +669,15 @@ describe('userHandlers', () => {
           eventRegistrations: {
             findMany: findRegistrations,
           },
+          transactions: {
+            findMany: vi.fn(() =>
+              Effect.succeed([
+                {
+                  eventRegistrationId: 'registration-cancelled-refund',
+                },
+              ]),
+            ),
+          },
         },
       };
 
@@ -832,12 +691,25 @@ describe('userHandlers', () => {
       expect(findRegistrations).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            status: {
-              NOT: 'CANCELLED',
-            },
+            OR: [
+              { status: { NOT: 'CANCELLED' } },
+              {
+                id: { in: ['registration-cancelled-refund'] },
+                status: 'CANCELLED',
+              },
+            ],
             tenantId: tenant.id,
             userId: user.id,
           },
+        }),
+      );
+      expect(findRegistrations).toHaveBeenCalledWith(
+        expect.objectContaining({
+          with: expect.objectContaining({
+            transactions: expect.objectContaining({
+              where: { targetUserId: user.id },
+            }),
+          }),
         }),
       );
       expect(result).toEqual([
@@ -849,7 +721,9 @@ describe('userHandlers', () => {
           end: '2026-01-01T11:00:00.000Z',
           eventId: 'event-waitlist',
           guestCount: 0,
+          organizingRegistration: false,
           paymentState: 'notRequired',
+          refunds: [],
           registrationId: 'registration-waitlist',
           registrationOptionTitle: 'Waitlist option',
           start: '2026-01-01T10:00:00.000Z',
@@ -864,12 +738,39 @@ describe('userHandlers', () => {
           end: '2026-01-15T11:00:00.000Z',
           eventId: 'event-cancelled-payment',
           guestCount: 0,
+          organizingRegistration: false,
           paymentState: 'cancelled',
+          refunds: [],
           registrationId: 'registration-cancelled-payment',
           registrationOptionTitle: 'Participant',
           start: '2026-01-15T10:00:00.000Z',
           status: 'PENDING',
           title: 'Cancelled Payment Event',
+        },
+        {
+          addonPurchases: [],
+          checkInTime: null,
+          checkoutUrl: null,
+          description: 'cancelled with refund',
+          end: '2026-01-20T11:00:00.000Z',
+          eventId: 'event-cancelled-refund',
+          guestCount: 0,
+          organizingRegistration: false,
+          paymentState: 'recorded',
+          refunds: [
+            {
+              amount: 2500,
+              currency: 'EUR',
+              source: 'registration',
+              state: 'retrying',
+              updatedAt: '2026-01-20T10:05:00.000Z',
+            },
+          ],
+          registrationId: 'registration-cancelled-refund',
+          registrationOptionTitle: 'Participant',
+          start: '2026-01-20T10:00:00.000Z',
+          status: 'CANCELLED',
+          title: 'Cancelled Refund Event',
         },
         {
           addonPurchases: [],
@@ -879,7 +780,9 @@ describe('userHandlers', () => {
           end: '2026-02-01T11:00:00.000Z',
           eventId: 'event-1',
           guestCount: 0,
+          organizingRegistration: false,
           paymentState: 'recorded',
+          refunds: [],
           registrationId: 'registration-1',
           registrationOptionTitle: 'Participant',
           start: '2026-02-01T10:00:00.000Z',
@@ -900,7 +803,9 @@ describe('userHandlers', () => {
           end: '2026-03-01T11:00:00.000Z',
           eventId: 'event-2',
           guestCount: 2,
+          organizingRegistration: false,
           paymentState: 'pending',
+          refunds: [],
           registrationId: 'registration-2',
           registrationOptionTitle: 'Standard',
           start: '2026-03-01T10:00:00.000Z',
@@ -941,6 +846,9 @@ describe('userHandlers', () => {
                     transactions: [],
                   },
                 ]),
+            },
+            transactions: {
+              findMany: () => Effect.succeed([]),
             },
           },
         };

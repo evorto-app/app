@@ -1,5 +1,33 @@
 <div class="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr] lg:p-4">
   <div class="grid gap-4">
+    @if (browsingOutsideHomeTenant()) {
+      <section
+        role="status"
+        class="bg-warning-container text-on-warning-container grid gap-3 rounded-xl p-4"
+      >
+        <div>
+          <h2 class="title-medium">You are browsing another organization</h2>
+          <p class="body-medium mt-1">
+            Your home organization is
+            {{ profileUser()?.homeTenantName ?? "another organization" }}.
+            Joining this organization did not change that preference.
+          </p>
+        </div>
+        <button
+          type="button"
+          mat-stroked-button
+          class="justify-self-start"
+          [disabled]="setHomeTenantMutation.isPending()"
+          (click)="setCurrentTenantAsHome()"
+        >
+          {{
+            setHomeTenantMutation.isPending()
+              ? "Changing..."
+              : "Make this my home organization"
+          }}
+        </button>
+      </section>
+    }
     <section class="bg-surface-container-high text-on-surface rounded-2xl p-4">
       @if (profileUser(); as user) {
         <div class="space-y-2">
@@ -61,12 +89,31 @@
           <h2 class="title-medium">Account Actions</h2>
           <p class="text-on-surface-variant text-sm">
             Manage your global profile details, notification email,
-            reimbursement details, and session actions.
+            reimbursement details, private registration transfers, and session
+            actions.
           </p>
-          <a href="/logout" mat-stroked-button class="flex items-center gap-2">
-            <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
-            Logout
-          </a>
+          <div class="flex flex-wrap gap-2">
+            <a
+              mat-flat-button
+              [routerLink]="profileTransferClaimPath"
+              class="flex items-center gap-2"
+            >
+              <fa-duotone-icon [icon]="faTicket" class="mr-2" />
+              Claim transfer
+            </a>
+            <a
+              href="/logout"
+              mat-stroked-button
+              class="flex items-center gap-2"
+            >
+              <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
+              Logout
+            </a>
+          </div>
+          <p class="body-small text-on-surface-variant">
+            Received a private code? Use Claim transfer to review the complete
+            registration bundle before accepting it.
+          </p>
         </div>
       }
       @case ("events") {
@@ -103,6 +150,12 @@
                       </span>
                     </div>
                     <dl class="grid gap-1 text-sm">
+                      <div>
+                        <dt class="text-on-surface-variant inline">Type:</dt>
+                        <dd class="inline">
+                          {{ profileEventAudienceLabel(event) }}
+                        </dd>
+                      </div>
                       <div>
                         <dt class="text-on-surface-variant inline">Option:</dt>
                         <dd class="inline">
@@ -152,6 +205,26 @@
                           {{ registrationPaymentLabel(event.paymentState) }}
                         </dd>
                       </div>
+                      @if (event.refunds.length > 0) {
+                        <div>
+                          <dt class="text-on-surface-variant">Refunds:</dt>
+                          <dd class="grid gap-1">
+                            @for (refund of event.refunds; track $index) {
+                              <span>
+                                {{
+                                  registrationRefundSourceLabel(refund.source)
+                                }}:
+                                {{ registrationRefundStateLabel(refund.state) }}
+                                ·
+                                {{
+                                  refund.amount / 100
+                                    | currency: refund.currency
+                                }}
+                              </span>
+                            }
+                          </dd>
+                        </div>
+                      }
                       @if (profileEventNextStepLabel(event); as nextStep) {
                         <div>
                           <dt class="text-on-surface-variant inline">
@@ -163,7 +236,7 @@
                       @if (event.status === "CONFIRMED" && !event.checkInTime) {
                         <div>
                           <dt class="text-on-surface-variant inline">
-                            Ticket:
+                            {{ profileEventPassLabel(event) }}:
                           </dt>
                           <dd class="inline">Available on the event page.</dd>
                         </div>
@@ -359,7 +432,7 @@
             </div>
           } @else {
             <p class="text-on-surface-variant text-sm">
-              Discount cards are not enabled for this tenant.
+              Discount cards are not enabled for this organization.
             </p>
           }
         </div>
@@ -394,7 +467,7 @@
                     <span
                       class="rounded bg-surface px-2 py-1 text-xs uppercase"
                     >
-                      {{ profileReceiptStatusLabel(receipt.status) }}
+                      {{ receiptStatusLabel(receipt.status) }}
                     </span>
                   </div>
                   <p class="text-on-surface-variant text-sm">
@@ -402,7 +475,7 @@
                     {{ receipt.receiptDate | date: "mediumDate" }}
                   </p>
                   <p class="text-sm">
-                    {{ profileReceiptAmountLabel(receipt.totalAmount) }}
+                    {{ receipt.totalAmount | receiptAmount: receipt.currency }}
                   </p>
                 </article>
               }

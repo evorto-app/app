@@ -3,6 +3,7 @@ import type { Headers } from 'effect/unstable/http';
 import { Context } from 'effect';
 import { RpcMiddleware } from 'effect/unstable/rpc';
 
+import { type PlatformAdministratorAuthority } from '../../../types/custom/platform-authority';
 import { Tenant } from '../../../types/custom/tenant';
 import { User } from '../../../types/custom/user';
 import { type Permission } from '../../permissions/permissions';
@@ -14,6 +15,7 @@ export interface RpcRequestContextShape {
   authData: Record<string, unknown> | UsersAuthData;
   authenticated: boolean;
   permissions: readonly Permission[];
+  platformAuthority?: null | PlatformAdministratorAuthority;
   tenant: Tenant;
   user: null | User;
   userAssigned: boolean;

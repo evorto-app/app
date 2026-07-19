@@ -54,12 +54,51 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     transactions: r.many.transactions(),
   },
+  eventRegistrationAddonFulfillmentEvents: {
+    actor: r.one.users({
+      from: r.eventRegistrationAddonFulfillmentEvents.actorUserId,
+      optional: true,
+      to: r.users.id,
+    }),
+    purchase: r.one.eventRegistrationAddonPurchases({
+      from: r.eventRegistrationAddonFulfillmentEvents.purchaseId,
+      optional: false,
+      to: r.eventRegistrationAddonPurchases.id,
+    }),
+    tenant: r.one.tenants({
+      from: r.eventRegistrationAddonFulfillmentEvents.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+  },
+  eventRegistrationAddonPurchaseOrders: {
+    addOn: r.one.eventAddons({
+      from: r.eventRegistrationAddonPurchaseOrders.addonId,
+      optional: false,
+      to: r.eventAddons.id,
+    }),
+    registration: r.one.eventRegistrations({
+      from: r.eventRegistrationAddonPurchaseOrders.registrationId,
+      optional: false,
+      to: r.eventRegistrations.id,
+    }),
+    requestedBy: r.one.users({
+      from: r.eventRegistrationAddonPurchaseOrders.requestedByUserId,
+      optional: false,
+      to: r.users.id,
+    }),
+    transaction: r.one.transactions({
+      from: r.eventRegistrationAddonPurchaseOrders.transactionId,
+      to: r.transactions.id,
+    }),
+  },
   eventRegistrationAddonPurchases: {
     addOn: r.one.eventAddons({
       from: r.eventRegistrationAddonPurchases.addonId,
       optional: false,
       to: r.eventAddons.id,
     }),
+    fulfillmentEvents: r.many.eventRegistrationAddonFulfillmentEvents(),
     registration: r.one.eventRegistrations({
       from: r.eventRegistrationAddonPurchases.registrationId,
       optional: false,
@@ -111,6 +150,7 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   eventRegistrations: {
+    addonPurchaseOrders: r.many.eventRegistrationAddonPurchaseOrders(),
     addonPurchases: r.many.eventRegistrationAddonPurchases(),
     event: r.one.eventInstances({
       from: r.eventRegistrations.eventId,
@@ -286,6 +326,9 @@ export const relations = defineRelations(schema, (r) => ({
     events: r.many.eventInstances(),
     financeReceipts: r.many.financeReceipts(),
     financeReceiptUploads: r.many.financeReceiptUploads(),
+    homeUsers: r.many.users({
+      alias: 'users_homeTenantId_tenants_id',
+    }),
     icons: r.many.icons(),
     roles: r.many.roles(),
     stripeTaxRates: r.many.tenantStripeTaxRates(),
@@ -312,7 +355,15 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.transactions.eventRegistrationId,
       to: r.eventRegistrations.id,
     }),
+    refundClaims: r.many.transactions({
+      from: r.transactions.id,
+      to: r.transactions.sourceTransactionId,
+    }),
     refundedFinanceReceipts: r.many.financeReceipts(),
+    sourceTransaction: r.one.transactions({
+      from: r.transactions.sourceTransactionId,
+      to: r.transactions.id,
+    }),
     tenant: r.one.tenants({
       from: r.transactions.tenantId,
       optional: false,
@@ -348,6 +399,11 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     financeReceiptUploads_uploadedByUserId: r.many.financeReceiptUploads({
       alias: 'financeReceiptUploads_uploadedByUserId_users_id',
+    }),
+    homeTenant: r.one.tenants({
+      alias: 'users_homeTenantId_tenants_id',
+      from: r.users.homeTenantId,
+      to: r.tenants.id,
     }),
     tenantAssignments: r.many.usersToTenants(),
     tenants: r.many.tenants(),

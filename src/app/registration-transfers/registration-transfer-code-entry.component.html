@@ -1,0 +1,30 @@
+<main class="mx-auto grid w-full max-w-xl gap-6 px-4 py-10 sm:px-6">
+  <header class="grid gap-2">
+    <p class="label-large text-primary">Registration transfer</p>
+    <h1 class="headline-medium">Enter a private claim code</h1>
+    <p class="body-large text-on-surface-variant">
+      Use the code sent by the current registration owner. A code can be claimed
+      by only one eligible organization member, so keep it private.
+    </p>
+  </header>
+
+  <form class="grid gap-4" (submit)="continue($event)">
+    <mat-form-field>
+      <mat-label>Claim code</mat-label>
+      <input
+        matInput
+        autocomplete="off"
+        spellcheck="false"
+        [formField]="codeForm.credential"
+      />
+      <mat-hint>Paste the complete code, including its hyphens.</mat-hint>
+    </mat-form-field>
+    <button
+      mat-flat-button
+      type="submit"
+      [disabled]="codeForm().invalid() || codeForm().submitting()"
+    >
+      Review transfer
+    </button>
+  </form>
+</main>

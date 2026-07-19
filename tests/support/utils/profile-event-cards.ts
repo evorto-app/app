@@ -254,16 +254,24 @@ export const seedProfileEventCards = async ({
   await database.insert(schema.eventRegistrationAddonPurchases).values([
     {
       addonId: confirmedAddonId,
+      eventId: confirmedEventId,
       id: confirmedAddonPurchaseId,
+      purchasedQuantity: 2,
       quantity: 2,
       registrationId: confirmedRegistrationId,
+      registrationOptionId: confirmedEventOptionId,
+      tenantId: seeded.tenant.id,
       unitPrice: 0,
     },
     {
       addonId: checkedInAddonId,
+      eventId: checkedInEventId,
       id: checkedInAddonPurchaseId,
+      purchasedQuantity: 1,
       quantity: 1,
       registrationId: checkedInRegistrationId,
+      registrationOptionId: checkedInEventOptionId,
+      tenantId: seeded.tenant.id,
       unitPrice: 0,
     },
   ]);

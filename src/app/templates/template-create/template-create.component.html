@@ -1,93 +1,79 @@
-<div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
+<div class="mb-4 flex items-center gap-2">
+  <a
+    routerLink="/templates"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to templates"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">Create template</h1>
 </div>
-<main class="flex flex-col gap-4">
-  <form (submit)="onSubmit($event)" class="text-on-surface flex flex-col gap-6">
-    <div class="bg-surface rounded-2xl p-4">
-      <app-template-general-form
-        [generalForm]="templateForm"
-        [iconUsage]="iconUsage"
-      />
-    </div>
-
-    <div class="bg-surface rounded-2xl p-4">
-      <h2 class="mb-4 text-lg font-semibold">Simple Registration Setup</h2>
-      <p class="mb-4 text-sm">
-        This is the simple registration mode, which creates one registration
-        option for organizers and one for participants.
-      </p>
-
-      <div class="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-        <app-template-registration-option-form
-          class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
-          [esnEnabled]="esnEnabled()"
-          [registrationForm]="templateForm.organizerRegistration"
-          [registrationModes]="registrationModes"
+<main>
+  @if (!defaultsReady()) {
+    <p role="status" aria-live="polite">Preparing template defaults...</p>
+  } @else {
+    <form
+      class="text-on-surface grid max-w-6xl gap-6"
+      (submit)="onSubmit($event)"
+    >
+      <section
+        class="border-outline-variant bg-surface grid gap-4 rounded-lg border p-4"
+        aria-labelledby="template-details-title"
+      >
+        <h2 id="template-details-title" class="title-medium">
+          Template details
+        </h2>
+        <app-template-general-form
+          [generalForm]="templateForm"
+          [iconUsage]="iconUsage"
         />
-        <app-template-registration-option-form
-          class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
-          [esnEnabled]="esnEnabled()"
-          [registrationForm]="templateForm.participantRegistration"
-          [registrationModes]="registrationModes"
-        />
-      </div>
-    </div>
+        <mat-checkbox [formField]="templateForm.unlisted">
+          Hide this template from the standard template list
+        </mat-checkbox>
+      </section>
 
-    <section class="bg-surface rounded-2xl p-4">
-      <div class="mb-4 flex items-center justify-between gap-4">
-        <h2 class="text-lg font-semibold">Reusable add-ons</h2>
-        <button type="button" mat-button (click)="addTemplateAddOn()">
-          <fa-duotone-icon [icon]="faPlus" />
-          Add add-on
-        </button>
-      </div>
-
-      <div class="grid gap-4">
-        @for (addOn of templateForm.addOns; track addOn; let index = $index) {
-          <app-template-addon-form
-            class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
-            [addOnForm]="addOn"
-            (remove)="removeTemplateAddOn(index)"
-          />
-        } @empty {
-          <p class="text-on-surface-variant text-sm">No add-ons configured.</p>
-        }
-      </div>
-    </section>
-
-    <section class="bg-surface rounded-2xl p-4">
-      <div class="mb-4 flex items-center justify-between gap-4">
-        <h2 class="text-lg font-semibold">Registration questions</h2>
-        <button type="button" mat-button (click)="addTemplateQuestion()">
-          <fa-duotone-icon [icon]="faPlus" />
-          Add question
-        </button>
-      </div>
-
-      <div class="grid gap-4">
-        @for (
-          question of templateForm.questions;
-          track question;
-          let index = $index
-        ) {
-          <app-template-question-form
-            class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
-            [questionForm]="question"
-            (remove)="removeTemplateQuestion(index)"
-          />
-        } @empty {
-          <p class="text-on-surface-variant text-sm">
-            No registration questions configured.
+      <section class="border-outline-variant bg-surface rounded-lg border p-4">
+        @if (!stripeConnectionKnown()) {
+          <p class="text-on-surface-variant mb-4 text-sm" role="status">
+            Paid controls are unavailable while the organization's Stripe status
+            is loading.
+          </p>
+        } @else if (paidControlsUnavailable()) {
+          <p class="text-on-surface-variant mb-4 text-sm" role="status">
+            Paid controls are unavailable because this organization has no
+            connected Stripe account. Saving keeps registration options and
+            add-ons free.
           </p>
         }
-      </div>
-    </section>
+        <app-template-graph-editor
+          [defaultParticipantRoleIds]="defaultParticipantRoleIds()"
+          [esnEnabled]="esnEnabled()"
+          [graphForm]="templateForm"
+          [taxRates]="taxRatesQuery.data() ?? []"
+          [taxRateState]="taxRateState()"
+        />
+      </section>
 
-    <button type="submit" mat-button [disabled]="!canSubmit()">
-      Save template
-    </button>
-  </form>
+      @if (createTemplateMutation.isError()) {
+        <div class="text-error grid gap-1" role="alert">
+          <p>The template could not be saved.</p>
+          <p>Your entries are still here. Review them and try again.</p>
+        </div>
+      }
+
+      <div class="flex justify-end">
+        <button
+          mat-flat-button
+          type="submit"
+          data-testid="save-template-graph"
+          [disabled]="!canSubmit()"
+        >
+          {{
+            createTemplateMutation.isPending() ? "Saving..." : "Save template"
+          }}
+        </button>
+      </div>
+    </form>
+  }
 </main>

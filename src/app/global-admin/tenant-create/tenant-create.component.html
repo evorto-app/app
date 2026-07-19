@@ -2,34 +2,18 @@
   <a
     routerLink="/global-admin/tenants"
     mat-icon-button
-    aria-label="Back to tenants"
+    aria-label="Back to organizations"
   >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
-  <h1 class="title-large">Create tenant</h1>
+  <h1 class="title-large">Create organization</h1>
   <div class="grow"></div>
 </div>
 
 <section class="bg-surface text-on-surface rounded-2xl p-4">
   <form class="grid grid-cols-1 gap-3" (submit)="createTenant($event)">
-    <aside
-      class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
-    >
-      <div class="flex items-start gap-3">
-        <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
-        <div class="grid gap-2">
-          <h2 class="title-small">Relaunch tenant scope</h2>
-          <ul class="body-medium list-disc space-y-1 pl-5">
-            @for (item of relaunchScopeItems; track item) {
-              <li>{{ item }}</li>
-            }
-          </ul>
-        </div>
-      </div>
-    </aside>
-
     <mat-form-field>
-      <mat-label>Tenant name</mat-label>
+      <mat-label>Organization name</mat-label>
       <input matInput [formField]="tenantForm.name" />
     </mat-form-field>
 
@@ -40,10 +24,7 @@
         [formField]="tenantForm.domain"
         placeholder="section.example.org"
       />
-      <mat-hint
-        >One primary host. Checkout returns and transactional links use the
-        secure HTTPS origin derived from this normalized domain.</mat-hint
-      >
+      <mat-hint>Public links and payment returns use this domain.</mat-hint>
     </mat-form-field>
 
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -65,21 +46,12 @@
       </mat-form-field>
     </div>
 
-    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
       <mat-form-field>
         <mat-label>Currency</mat-label>
         <mat-select [formField]="tenantForm.currency">
           @for (currency of currencyOptions; track currency) {
             <mat-option [value]="currency">{{ currency }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field>
-        <mat-label>Locale</mat-label>
-        <mat-select [formField]="tenantForm.locale">
-          @for (locale of localeOptions; track locale) {
-            <mat-option [value]="locale">{{ locale }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -94,11 +66,46 @@
       </mat-form-field>
     </div>
 
+    <fieldset class="border-outline-variant grid gap-3 border-t pt-4">
+      <legend class="title-medium mb-2">Initial privacy policy</legend>
+      <p class="body-medium text-on-surface-variant">
+        Add policy text or an HTTP or HTTPS policy URL so the first organization
+        member can complete onboarding.
+      </p>
+      <mat-form-field>
+        <mat-label>Privacy policy text</mat-label>
+        <textarea
+          matInput
+          rows="5"
+          [formField]="initialPrivacyPolicyForm.privacyPolicyText"
+        ></textarea>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Privacy policy URL</mat-label>
+        <input
+          matInput
+          type="url"
+          placeholder="https://section.example.org/privacy"
+          [formField]="initialPrivacyPolicyForm.privacyPolicyUrl"
+        />
+      </mat-form-field>
+    </fieldset>
+
+    <mat-form-field>
+      <mat-label>Reason for platform change</mat-label>
+      <textarea matInput rows="3" [formField]="tenantForm.reason"></textarea>
+      <mat-hint>
+        Required. This explanation is saved in the organization's change
+        history.
+      </mat-hint>
+    </mat-form-field>
+
     @let createTenantDisabled =
       tenantSubmitDisabled({
         formInvalid: tenantForm().invalid(),
         formSubmitting: tenantForm().submitting(),
-        mutationPending: createTenantMutation.isPending(),
+        mutationPending:
+          createTenantMutation.isPending() || !hasInitialPrivacyPolicy(),
       });
     <div class="mt-2 flex flex-wrap gap-2">
       <button
@@ -107,7 +114,7 @@
         [attr.disabled]="createTenantDisabled ? '' : null"
         [disabled]="createTenantDisabled"
       >
-        Create tenant
+        Create organization
       </button>
       <a mat-button routerLink="/global-admin/tenants">Cancel</a>
     </div>

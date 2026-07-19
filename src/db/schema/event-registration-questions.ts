@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -12,6 +13,9 @@ import { createId } from '../create-id';
 import { eventInstances } from './event-instances';
 import { eventRegistrationOptions } from './event-registration-options';
 import { templateRegistrationQuestions } from './template-registration-questions';
+
+export const eventRegistrationQuestionOwnerUniqueConstraintName =
+  'event_registration_questions_id_event_option_unique';
 
 export const eventRegistrationQuestions = pgTable(
   'event_registration_questions',
@@ -45,5 +49,8 @@ export const eventRegistrationQuestions = pgTable(
     byEventId: index().on(table.eventId),
     byRegistrationOptionId: index().on(table.registrationOptionId),
     bySourceTemplateQuestionId: index().on(table.sourceTemplateQuestionId),
+    ownerIdentity: unique(
+      eventRegistrationQuestionOwnerUniqueConstraintName,
+    ).on(table.id, table.eventId, table.registrationOptionId),
   }),
 );

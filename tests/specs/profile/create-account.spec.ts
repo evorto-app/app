@@ -5,6 +5,7 @@ import { expect } from '@playwright/test';
 import * as schema from '../../../src/db/schema';
 import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
 import { test } from '../../support/fixtures/base-test';
+import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 
 const hasManagementEnvironment = Effect.runSync(
   hasAuth0ManagementEnvironment.pipe(
@@ -14,6 +15,8 @@ const hasManagementEnvironment = Effect.runSync(
     ),
   ),
 );
+
+test.use({ screenshot: 'off', trace: 'off', video: 'off' });
 
 test('creates tenant account for a new Auth0 user @needs-auth0-management', async ({
   database,
@@ -49,30 +52,31 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     await page.getByRole('link', { name: 'Login' }).click();
     await page.getByLabel('Email address').waitFor({ state: 'visible' });
     await page.getByLabel('Email address').fill(newUser.email);
-    await page
-      .getByRole('textbox', { name: 'Password' })
-      .fill(newUser.password);
+    await fillProtectedValue(
+      page.getByRole('textbox', { name: 'Password' }),
+      'E2E_TRANSIENT_AUTH0_USER_PASSWORD',
+    );
     await page.getByRole('button', { exact: true, name: 'Continue' }).click();
 
     const acceptButton = page.getByRole('button', {
       exact: true,
       name: 'Accept',
     });
-    const createAccountButton = page.getByRole('button', {
+    const joinTenantButton = page.getByRole('button', {
       exact: true,
-      name: 'Create Account',
+      name: 'Join organization',
     });
-    await expect(acceptButton.or(createAccountButton).first()).toBeVisible({
+    await expect(acceptButton.or(joinTenantButton).first()).toBeVisible({
       timeout: 15_000,
     });
     if (await acceptButton.isVisible()) {
       await acceptButton.click();
     }
-    await expect(createAccountButton).toBeVisible({ timeout: 15_000 });
+    await expect(joinTenantButton).toBeVisible({ timeout: 15_000 });
 
     const createAccountForm = page
       .locator('form')
-      .filter({ has: createAccountButton })
+      .filter({ has: joinTenantButton })
       .first();
     await expect(
       createAccountForm.getByRole('textbox', { name: 'First name' }),
@@ -84,7 +88,10 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       createAccountForm.getByRole('textbox', { name: 'Notification email' }),
     ).toHaveValue(newUser.email);
 
-    await createAccountButton.click();
+    await createAccountForm
+      .getByRole('checkbox', { name: /I accept .* current privacy policy/ })
+      .check();
+    await joinTenantButton.click();
     await expect(
       page.getByRole('heading', {
         level: 1,
@@ -103,6 +110,7 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       communicationEmail: newUser.email,
       email: newUser.email,
       firstName: newUser.firstName,
+      homeTenantId: expect.any(String),
       lastName: newUser.lastName,
     });
 
@@ -120,6 +128,25 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       throw new Error('Expected account creation to join the current tenant');
     }
     createdTenantUserId = tenantUser.id;
+    expect(createdUser.homeTenantId).toBe(currentTenant.id);
+
+    const currentPolicy =
+      await database.query.tenantPrivacyPolicyVersions.findFirst({
+        orderBy: { version: 'desc' },
+        where: { tenantId: currentTenant.id },
+      });
+    if (!currentPolicy) {
+      throw new Error('Expected seeded tenant privacy policy');
+    }
+    expect(
+      await database.query.tenantPrivacyPolicyAcceptances.findFirst({
+        where: {
+          policyVersionId: currentPolicy.id,
+          tenantId: currentTenant.id,
+          userId: createdUser.id,
+        },
+      }),
+    ).toBeDefined();
 
     const roleAssignments = await database.query.rolesToTenantUsers.findMany({
       where: { userTenantId: tenantUser.id },
@@ -127,6 +154,14 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     expect(roleAssignments.length).toBeGreaterThan(0);
   } finally {
     if (createdUserId) {
+      await database
+        .delete(schema.tenantOnboardingQuestionAnswers)
+        .where(
+          eq(schema.tenantOnboardingQuestionAnswers.userId, createdUserId),
+        );
+      await database
+        .delete(schema.tenantPrivacyPolicyAcceptances)
+        .where(eq(schema.tenantPrivacyPolicyAcceptances.userId, createdUserId));
       const tenantUsers = await database.query.usersToTenants.findMany({
         where: { userId: createdUserId },
       });

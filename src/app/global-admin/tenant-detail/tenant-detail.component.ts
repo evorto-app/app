@@ -52,6 +52,6 @@ export class TenantDetailComponent {
   protected readonly tenantRows = globalAdminTenantRows;
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to load tenant');
+    return getErrorMessage(error, 'Failed to load organization');
   }
 }

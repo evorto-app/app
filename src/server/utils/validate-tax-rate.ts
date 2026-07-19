@@ -67,22 +67,28 @@ const validationSuccess = (
 /**
  * Get all compatible (inclusive & active) tax rates for a tenant
  */
-export function getCompatibleTaxRates(
-  database: DatabaseClient,
-  tenantId: string,
-) {
-  return database.query.tenantStripeTaxRates.findMany({
-    orderBy: (table, { asc }) => [
-      asc(table.displayName),
-      asc(table.stripeTaxRateId),
-    ],
-    where: {
-      active: true,
-      inclusive: true,
-      tenantId: tenantId,
-    },
-  });
-}
+export const getCompatibleTaxRates = Effect.fn('getCompatibleTaxRates')(
+  function* (database: DatabaseClient, tenantId: string) {
+    const tenant = yield* database.query.tenants.findFirst({
+      columns: { stripeAccountId: true },
+      where: { id: tenantId },
+    });
+    if (!tenant?.stripeAccountId) return [];
+
+    return yield* database.query.tenantStripeTaxRates.findMany({
+      orderBy: (table, { asc }) => [
+        asc(table.displayName),
+        asc(table.stripeTaxRateId),
+      ],
+      where: {
+        active: true,
+        inclusive: true,
+        stripeAccountId: tenant.stripeAccountId,
+        tenantId,
+      },
+    });
+  },
+);
 
 /**
  * Check if tenant has any compatible tax rates available
@@ -127,8 +133,19 @@ export const validateTaxRate = (
 
     // If paid option with tax rate, validate it's compatible
     if (input.isPaid && input.stripeTaxRateId) {
+      const tenant = yield* database.query.tenants.findFirst({
+        columns: { stripeAccountId: true },
+        where: { id: input.tenantId },
+      });
+      if (!tenant?.stripeAccountId) {
+        return validationError(
+          TAX_RATE_ERROR_CODES.ERR_INCOMPATIBLE_TAX_RATE,
+          'Selected tax rate is not available for this tenant',
+        );
+      }
       const taxRate = yield* database.query.tenantStripeTaxRates.findFirst({
         where: {
+          stripeAccountId: tenant.stripeAccountId,
           stripeTaxRateId: input.stripeTaxRateId,
           tenantId: input.tenantId,
         },

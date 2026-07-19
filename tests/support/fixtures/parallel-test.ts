@@ -38,7 +38,7 @@ interface BaseFixtures {
       waitlistSpots: number;
     }[];
     start: Date;
-    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     title: string;
     unlisted: boolean;
   }[];
@@ -89,11 +89,7 @@ interface BaseFixtures {
     tenantId: string;
     title: string;
   }[];
-  tenant: {
-    domain: string;
-    id: string;
-    name: string;
-  };
+  tenant: SeedTenantResult['tenant'];
   tenantDomain: string;
 }
 

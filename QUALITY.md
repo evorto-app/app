@@ -209,17 +209,84 @@ the durable Playwright and generated-documentation coverage.
    and undo, and guest check-in.
 4. **Tenant administration and finance:** inspect settings, roles, finance
    navigation, receipt review, reimbursement recording, and tax-rate access.
-5. **Global administration:** inspect tenant list/detail/create/edit behavior
-   and the stated custom-domain and impersonation boundaries.
-6. **Live ESNcard provider:** run
-   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` as a
-   release requirement, then inspect the add, refresh, remove, and provider UX.
+5. **Platform administration:** inspect tenant list/detail/create/edit behavior,
+   target-scoped event/template/registration, user-role, finance/refund, and tax
+   operations, plus the stated custom-domain and impersonation boundaries. For
+   scanner review, prefer a deterministic registration-result URL; emulate a
+   camera in Playwright only when the browser path is straightforward and
+   reliable.
+6. **Required production providers:** the Release workflow must complete the
+   protected **Production Provider Certification** job. It runs the Auth0
+   Management and Google Maps integration projects before active-card add,
+   refresh, remove, expired-card status, and provider-error UX. Use its manual
+   dispatch for rotation checks. Local ESNcard certification runs with
+   `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard:release`
+   and must pass the same fail-closed credential preflight plus the provider
+   error unit check. A missing identifier fails the run; live-provider coverage
+   is never converted into a skipped test.
 
 ## Done Criteria
 
+### Local-first CI gate
+
+Before any push, PR update, or other action that can trigger CI, run the full
+local equivalent of every CI test suite that the change will trigger. The local
+run must complete entirely: every collected test passes, with zero failures,
+skips, todos, fixmes, expected failures, retries/flakes, interrupted tests, or
+focused tests. A suite that omits tests because a database, external service,
+environment variable, or credential is unavailable does not satisfy this gate.
+Resolve the dependency and rerun locally before CI is attempted. CI is
+confirmation of an already-green local result, not the first place to discover
+whether the complete suite passes.
+
+The canonical, unfiltered repository-owned Vitest and Playwright commands
+enforce completeness within each collected suite at runtime: skipped, todo,
+interrupted, expected-failure, retried/flaky, or focused tests make the run
+fail. Any caller-forwarded selector beyond a canonical package script that
+reduces collection is diagnostic-only and never counts as final gate evidence,
+including file arguments, `--filter`, `--grep`, `--grep-invert`, `--include`,
+`--last-failed`, `--related`, project, shard, `--changed`, or reporter
+overrides. Run the complete PR-equivalent command set documented in `README.md`;
+one selected suite or a clean source scan never replaces the complete runtime
+result. Before any push, PR update, merge, or release that triggers provider
+certification, run both `bun run test:e2e:integration` with the approved Auth0
+Management and Google Maps credentials and
+`bun run test:e2e:live-esncard:release` with the protected live-provider
+active and permanently expired identifiers. The live ESNcard provider portion
+is not the whole provider gate. Both commands must finish locally with
+every collected test passing and zero incomplete outcomes before CI is
+attempted. Cloudflare Images is being removed and is not a release gate.
+
+Stripe tax-rate metadata has non-null account ownership in the fresh target
+schema. Event, template, tax-rate import, and account-rotation writers must take
+the same tenant-row lock before changing paid or tax-rate configuration. Legacy
+data transfer must fail closed unless provider verification can assign exact
+account ownership; nullable staging rows and production backfills are not a
+supported release path.
+
+Repository-owned workflows pin every external action to a reviewed full commit
+SHA and retain a readable release/tag comment. Workflow- and job-level
+environment blocks must not contain Actions secrets: validate required values
+before checkout/tool setup, then expose each secret only to the install, build,
+runtime, or certification step that needs it. Copilot cloud-agent runtime
+credentials belong in GitHub Agents secrets/variables, not broad setup-workflow
+environment.
+
+Docker-backed Playwright follows explicit ownership. When Playwright starts
+`docker:webserver`, that process removes its own project-scoped Compose objects
+on exit or shutdown. When `reuseExistingServer` finds a running app, Playwright
+does not own that stack and leaves it running. A final gate must not trust an
+unknown reused server: stop it and let the gate start a fresh stack, or start
+the exact checkout being pushed and verify that provenance explicitly.
+`/readyz` proves behavior, not commit identity. `docker:resume` is valid only
+for an already initialized plain PostgreSQL/MinIO/Mailpit/Stripe/web/worker
+Compose project whose one-shot database and bucket setup completed
+successfully. Use `docker:start` for an intentional schema reset and reseed;
+the disposable Playwright-owned stack removes its project volumes on exit.
+
 For a typical change, before finishing:
 
-- relevant tests pass
+- the local-first CI gate passes for every CI suite the change will trigger
 - lint/format expectations are satisfied
 - new or changed behavior has tests where practical
 - Browser walkthrough was performed for UI behavior changes
@@ -249,7 +316,8 @@ For a new feature:
 For a refactor:
 
 - keep behavior unchanged
-- run targeted tests
+- run targeted tests during the edit loop, then the complete local-first CI
+  gate before any CI-triggering action
 - avoid changing product behavior accidentally
 - mention if any product behavior changed intentionally
 

@@ -16,7 +16,10 @@ At a high level:
 - Data is persisted in Postgres through Drizzle.
 - Payments and refunds are handled through Stripe.
 - Auth is handled through Auth0 for now.
-- Blob/object storage is used for uploaded files such as receipts.
+- The `ObjectStorage` Effect service uses private Scaleway S3 in hosted
+  environments, MinIO locally, and a fake in unit tests.
+- The `EmailDelivery` Effect service uses Scaleway Transactional Email in
+  hosted environments, Mailpit locally, and a fake in unit tests.
 - Tenants are resolved from domains.
 - Playwright drives regression tests and generated product documentation.
 
@@ -162,6 +165,8 @@ High-risk data areas:
 - Stripe payment/refund mapping
 - guest quantities
 - add-on entitlement, redemption, cancellation, and stock state
+- transfer-bundle identity across registration, add-on quantities, source
+  payments, and fulfillment history
 - check-in state
 - receipt persistence
 - event archival
@@ -200,9 +205,11 @@ Changing auth provider is possible in the future, but not an incidental task.
 Platform administrators are independent platform principals. They may perform
 any platform operation for any tenant at any time without a tenant membership.
 Keep that authority explicit in the request context and audit trail rather than
-silently reusing a tenant user's identity or roles. Record immutable actor,
-target tenant, action, before/after data, reason, and timestamp for every
-cross-tenant platform action.
+silently reusing a tenant user's identity or roles. Record actor, target tenant,
+action, before/after data, reason, and timestamp in application/API append-only
+audit entries for every cross-tenant platform action. Authorization remains in
+the Effect server layer; the database schema does not install RLS policies or
+privilege-revocation hooks for this boundary.
 
 ## Payment Boundary
 
@@ -210,11 +217,53 @@ Stripe is the source of truth for payment state.
 
 Evorto should use local payment data only as application state derived from Stripe and app workflow needs.
 
-Payments belong to each tenant's configured Stripe Connect account. Every
-tenant payment, customer, Checkout, payment-intent, expiry, and refund call
-must pass that account as the connected-account context. Evorto adds only its
+New payments belong to each tenant's currently configured Stripe Connect
+account. Each persisted payment retains its owning account across later account
+rotation, and every expiry or refund call must use that original account as the
+connected-account context. Customer, Checkout, and payment-intent calls use the
+account that owns the relevant payment workflow. Evorto adds only its
 application fee; tenant payment and cancellation settings remain tenant-owned,
 with narrower registration-option overrides where configured.
+
+Mutable event/template tax-rate bindings are scoped to the current Connect
+account. Disconnect is rejected while any binding remains. Account rotation
+preloads the replacement account's active inclusive rates, requires one exact
+normalized semantic match for each distinct source rate, then atomically
+replaces tenant tax metadata and remaps all event/template registration-option
+and add-on bindings. Missing or ambiguous matches fail before mutation, so an
+account change cannot silently drop or alter tax behavior.
+
+Event registrations and add-ons have no non-Stripe paid path. Without a
+connected Stripe account, persisted and editable registration options and
+add-ons must be free. Manual finance transactions used by other workflows do
+not authorize cash or manually settled event payments.
+
+A registration transfer is one atomic bundle boundary: the registration plus
+all included, free, and purchased add-ons, their fixed quantities, original
+source-payment allocations, guest/check-in state, and fulfillment history.
+Claiming a transfer must not accept recipient-selected add-on omissions or guest
+changes. Price the unchanged bundle from current base prices and the recipient's
+current discounts, refund each original Stripe source for its exact remaining
+refundable amount after prior successful refunds, and calculate the recipient
+payment independently. Only a wholly free bundle with no refund obligation may
+complete database-only.
+
+Participant-question answers are recipient-owned data, not bundle state. The
+server permits immediate direct reassignment only when the free/no-refund
+bundle's registration option has no participant questions. Otherwise it routes
+the transfer through the private recipient claim, which validates current
+questions and atomically replaces any source answers with the recipient's own.
+
+Transfer ownership and refund provenance use an application-append-only
+acquisition ledger. Production server code inserts ownership epochs,
+acquisition-owned payments, priced components, refund allocations, and exact
+refund-plan provenance, but does not update or delete them. Composite `NO ACTION`
+foreign keys make source registration, payment, lot, transfer, and refund
+evidence fail closed against cascading deletion. PostgreSQL does not currently
+deny direct updates or deletes by the database owner; operational schema resets
+and test cleanup may remove ledger rows. Resolve the current acquisition under
+the tenant-scoped registration lock. Authorization remains in the server
+Effect/RPC boundary; this design does not add PostgreSQL RLS.
 
 High-risk payment flows:
 
@@ -239,6 +288,19 @@ the transactional outbox before delivery through the configured provider. Do
 not bypass the outbox for template rendering, delivery, idempotency, retries, or
 failure observability.
 
+An exhausted outbox row remains stored and read-only. The current product does
+not expose an exhausted-email requeue or correction mutation.
+
+## Location and Image Provider Boundary
+
+Google Maps is required production infrastructure for location search and place
+details. Keep provider/configuration failures explicit, and require live
+credential-backed verification before release.
+
+Cloudflare Images is being removed and is not a release dependency. Do not add
+new Cloudflare Images product coupling or treat its credentials/tests as a
+release gate while removal is in progress.
+
 ## Storage Boundary
 
 Object/blob storage is used for uploaded files such as receipts.
@@ -257,13 +319,51 @@ The local runtime should make dependencies easy to start and isolate.
 Expected local dependency stack:
 
 - Docker Compose
-- Neon Local for ephemeral Postgres branches
+- pinned PostgreSQL 17 with worktree-isolated ports and volumes
 - MinIO for blob storage
+- Mailpit for transactional email inspection
+- Stripe CLI for test-mode webhooks
+- separate web and polling-worker processes built from the same image
 - app server on a configurable local port where possible
 
 The project should support multiple worktrees running in parallel. Worktree-local generated env/runtime configuration should avoid collisions in Docker project names and service ports.
 
 The app port may remain constrained by Auth0 callback configuration, but the architecture should not make parallel worktrees harder than necessary.
+
+## Hosted Runtime and Delivery
+
+Scaleway staging in `fr-par` is the first hosted target. The same immutable
+Linux/amd64 image starts as exactly one role:
+
+- `web` exposes public HTTP, RPC, and SSR and runs no background loops;
+- `worker` is private and exposes only bounded idempotent email, checkout,
+  refund, and receipt-orphan operations invoked by CRON triggers;
+- `ops` is private and exposes only schema explain/apply and confirmed staging
+  reset-and-seed operations. It does not expose arbitrary commands.
+
+All roles reach PostgreSQL 17 over a private network with verified TLS and
+bounded pools. Static infrastructure is Terraform-owned; protected GitHub
+deployment workflows own immutable image revisions and synchronized
+role-scoped secret values. Staging uses `staging.evorto.app`. Production is
+defined as `alpha.evorto.app` but remains unprovisioned behind an explicit
+disabled gate until staging acceptance and a separate enablement decision.
+
+The server resolves tenants from the real `Host` header, does not accept
+`X-Forwarded-Host` as tenant authority, and trusts forwarded scheme only at the
+configured platform boundary. `/healthz` remains DB-free, `/readyz` performs a
+behavioral SSR probe against the configured tenant host, and `/version` proves
+environment, revision, and image digest. Effect OpenTelemetry exports traces to
+Scaleway Cockpit; native structured container logs carry the same release
+identity. Sentry is not part of the runtime.
+
+One private, versioned, encrypted application-data bucket holds tenant assets
+and receipts. Browser receipt uploads use a five-minute exact-key signed POST
+policy followed by server-side authorization, object size/magic-byte
+verification, and atomic finalize/consume state. Public media hosting and
+rich-text media processing are deliberately outside this platform slice.
+
+Operational details, secret boundaries, DNS records, and acceptance drills live
+in `infrastructure/scaleway/README.md`.
 
 ## Common Change Areas
 
@@ -372,6 +472,10 @@ that require organizer/check-in access. Unilateral registration or add-on
 cancellation/refund is a distinct capability and must be checked server-side on
 every mutation. Refund creation remains Stripe-connected-account work and must
 not refund included units or already redeemed/cancelled quantities twice.
+
+Transfer uses the same settled entitlement graph as one inseparable bundle.
+Recipient flows may collect current eligibility answers and payment, but may not
+reselect add-ons, rewrite quantities, or discard fulfillment history.
 
 Raise this when: changing schema, event setup UI, checkout, capacity, discounts, waitlists, guests, or check-in.
 

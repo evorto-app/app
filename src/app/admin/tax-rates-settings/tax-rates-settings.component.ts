@@ -92,11 +92,10 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
           />
           <h2 class="title-medium mb-2">No tax rates imported</h2>
           <p class="body-medium text-on-surface-variant mb-4 text-center">
-            Import tax rates from your payment provider to enable paid
-            registration options.
+            Import tax rates from Stripe to enable paid registration options.
           </p>
           <button mat-button color="primary" (click)="openImportDialog()">
-            Import Your First Tax Rate
+            Import your first tax rate
           </button>
         </div>
       }

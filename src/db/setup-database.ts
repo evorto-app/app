@@ -44,8 +44,8 @@ export async function setupDatabase(
   if (!onlyDevelopmentTenants) {
     developmentTenants.push(
       {
-        domain: 'evorto.fly.dev',
-        name: 'Fly Deployment',
+        domain: 'staging.evorto.app',
+        name: 'Evorto staging',
         ...(stripeTestAccountId && { stripeAccountId: stripeTestAccountId }),
       },
       {

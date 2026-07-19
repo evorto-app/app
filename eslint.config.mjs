@@ -19,13 +19,15 @@ const baseConfig = [
   eslintConfigPrettier,
 ];
 
+const toolingFiles = ["*.config.ts", "helpers/**/*.ts", "migration/**/*.ts"];
+
 export default defineConfig(
   {
     ignores: ["repos/**/*"],
   },
   {
     files: ["**/*.ts"],
-    ignores: ["old/**/*", "tests/**/*"],
+    ignores: ["old/**/*", "tests/**/*", ...toolingFiles],
     extends: [baseConfig, ...angular.configs.tsRecommended],
     plugins: {
       "unused-imports": unusedImports,
@@ -87,6 +89,48 @@ export default defineConfig(
       "unicorn/prefer-uint8array-base64": "off",
       "unicorn/require-array-sort-compare": "off",
       "unicorn/throw-new-error": "off",
+    },
+  },
+  // Node-side repository tooling shares TypeScript correctness rules with the
+  // application without inheriting Angular, UI naming, or deterministic
+  // sort-order rules that are specific to production source.
+  {
+    files: toolingFiles,
+    extends: [
+      eslint.configs.recommended,
+      ...tseslint.configs.strict,
+      eslintConfigPrettier,
+    ],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+      },
+    },
+    plugins: {
+      unicorn: eslintPluginUnicorn,
+    },
+    rules: {
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-invalid-void-type": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          vars: "all",
+          varsIgnorePattern: "^_",
+          args: "after-used",
+          argsIgnorePattern: "^_",
+        },
+      ],
+      "unicorn/no-process-exit": "error",
+    },
+  },
+  // Legacy one-shot migration inputs carry source-data invariants that are
+  // asserted at their existing transformation sites. Keep the wider strict
+  // tooling profile while avoiding a behavior-changing migration rewrite.
+  {
+    files: ["migration/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
   // Prevent src/ code from importing helpers (development/testing only)

@@ -1,36 +1,32 @@
 import { adminStateFile, userStateFile } from '../../../helpers/user-data';
 import { eq } from 'drizzle-orm';
+import type { Page } from '@playwright/test';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
-const findApprovedListedEvent = (
+const requireApprovedListedEvent = (
   events: {
     id: string;
     start: Date;
-    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     title: string;
     unlisted: boolean;
   }[],
-  visibleAfter: Date,
-) =>
-  events.find(
-    (event) =>
-      event.status === 'APPROVED' &&
-      !event.unlisted &&
-      event.start > visibleAfter,
-  );
-
-const requireApprovedListedEvent = (
-  events: Parameters<typeof findApprovedListedEvent>[0],
-  visibleAfter: Date,
+  eventId: string,
 ) => {
-  const listed = findApprovedListedEvent(events, visibleAfter);
-  if (!listed) {
+  const event = events.find((candidate) => candidate.id === eventId);
+  if (!event || event.status !== 'APPROVED' || event.unlisted) {
     throw new Error(
-      'Expected an approved listed event after the list start filter',
+      `Expected seeded scenario event "${eventId}" to be approved and listed`,
     );
   }
-  return listed;
+  return event;
+};
+
+const waitForEventCard = async (page: Page, eventId: string) => {
+  const eventCard = page.locator(`a[href="/events/${eventId}"]`);
+  await expect(eventCard).toBeVisible({ timeout: 15_000 });
+  return eventCard;
 };
 
 test.describe('Unlisted events visibility', () => {
@@ -40,9 +36,16 @@ test.describe('Unlisted events visibility', () => {
     database,
     events,
     page,
-    testClock,
+    seeded,
   }) => {
-    const event = requireApprovedListedEvent(events, testClock.toJSDate());
+    const event = requireApprovedListedEvent(
+      events,
+      seeded.scenario.events.freeOpen.eventId,
+    );
+    const controlEvent = requireApprovedListedEvent(
+      events,
+      seeded.scenario.events.paidOpen.eventId,
+    );
 
     try {
       await database
@@ -51,6 +54,7 @@ test.describe('Unlisted events visibility', () => {
         .where(eq(schema.eventInstances.id, event.id));
 
       await page.goto('/events');
+      await waitForEventCard(page, controlEvent.id);
       await expect(page.getByRole('link', { name: event.title })).toHaveCount(
         0,
       );
@@ -69,9 +73,12 @@ test.describe('Unlisted events visibility', () => {
     database,
     events,
     page,
-    testClock,
+    seeded,
   }) => {
-    const event = requireApprovedListedEvent(events, testClock.toJSDate());
+    const event = requireApprovedListedEvent(
+      events,
+      seeded.scenario.events.freeOpen.eventId,
+    );
 
     try {
       await database
@@ -82,7 +89,7 @@ test.describe('Unlisted events visibility', () => {
       await page.goto(`/events/${event.id}`);
       await expect(
         page.getByRole('heading', { name: event.title }),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 15_000 });
     } finally {
       await database
         .update(schema.eventInstances)
@@ -99,9 +106,12 @@ test.describe('Admin can see unlisted', () => {
     database,
     events,
     page,
-    testClock,
+    seeded,
   }) => {
-    const event = requireApprovedListedEvent(events, testClock.toJSDate());
+    const event = requireApprovedListedEvent(
+      events,
+      seeded.scenario.events.freeOpen.eventId,
+    );
 
     try {
       await database
@@ -110,8 +120,7 @@ test.describe('Admin can see unlisted', () => {
         .where(eq(schema.eventInstances.id, event.id));
 
       await page.goto('/events');
-      const eventCard = page.locator(`a[href="/events/${event.id}"]`);
-      await expect(eventCard).toBeVisible();
+      const eventCard = await waitForEventCard(page, event.id);
       await expect(
         eventCard.getByText('unlisted', { exact: true }),
       ).toBeVisible();

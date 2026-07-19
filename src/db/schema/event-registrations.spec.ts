@@ -1,5 +1,11 @@
 import { describe, expect, it } from '@effect/vitest';
+import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 import { readFileSync } from 'node:fs';
+
+import {
+  activeEventRegistrationUniqueIndexName,
+  eventRegistrations,
+} from './index';
 
 describe('event registration schema', () => {
   it('does not expose legacy paymentStatus state', () => {
@@ -116,6 +122,28 @@ describe('event registration schema', () => {
     );
     expect(transactionsSource).toContain(
       '.where(sql`${table.eventRegistrationId} IS NOT NULL`)',
+    );
+  });
+
+  it('models the active-registration invariant as a partial global event-user index', () => {
+    const tableConfig = getTableConfig(eventRegistrations);
+    const activeRegistrationIndex = tableConfig.indexes.find(
+      (index) => index.config.name === activeEventRegistrationUniqueIndexName,
+    );
+
+    expect(activeRegistrationIndex).toBeDefined();
+    expect(activeRegistrationIndex?.config.unique).toBe(true);
+    expect(
+      activeRegistrationIndex?.config.columns.map((column) => column.name),
+    ).toEqual(['eventId', 'userId']);
+
+    const predicate = activeRegistrationIndex?.config.where;
+    expect(predicate).toBeDefined();
+    if (!predicate) {
+      throw new Error('Expected active registration index predicate');
+    }
+    expect(new PgDialect().sqlToQuery(predicate).sql).toBe(
+      `"event_registrations"."status" <> 'CANCELLED'`,
     );
   });
 });

@@ -21,6 +21,8 @@ export const createEventFormModelFromTemplate = (
     location: template.location ?? null,
     registrationOptions: template.registrationOptions.map((option) =>
       createRegistrationOptionFormModel({
+        cancellationDeadlineHoursBeforeStart:
+          option.cancellationDeadlineHoursBeforeStart,
         closeRegistrationTime: startDateTime.minus({
           hours: option.closeRegistrationOffset,
         }),
@@ -33,12 +35,15 @@ export const createEventFormModelFromTemplate = (
         }),
         organizingRegistration: option.organizingRegistration,
         price: option.price,
+        refundFeesOnCancellation: option.refundFeesOnCancellation,
         registeredDescription: option.registeredDescription ?? '',
         registrationMode: option.registrationMode,
         roleIds: [...(option.roleIds ?? [])],
         spots: option.spots,
         stripeTaxRateId: option.stripeTaxRateId ?? null,
         title: option.title,
+        transferDeadlineHoursBeforeStart:
+          option.transferDeadlineHoursBeforeStart,
       }),
     ),
     start: startDateTime,

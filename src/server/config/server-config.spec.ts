@@ -19,7 +19,7 @@ const readServerConfig = (provider: ConfigProvider.ConfigProvider) =>
 const providerFromEntries = (entries: readonly (readonly [string, string])[]) =>
   ConfigProvider.fromEnv({ env: Object.fromEntries(entries) });
 
-const requiredServerEntries = [['RESEND_API_KEY', 're_test_123']] as const;
+const requiredServerEntries: readonly (readonly [string, string])[] = [];
 
 describe('server-config', () => {
   it.effect('only reads PUBLIC_GOOGLE_MAPS_API_KEY', () =>
@@ -77,13 +77,11 @@ describe('server-config', () => {
       }),
   );
 
-  it.effect('requires a Resend API key', () =>
+  it.effect('does not require provider credentials for web configuration', () =>
     Effect.gen(function* () {
-      const error = yield* Effect.flip(
-        readServerConfig(providerFromEntries([])),
-      );
+      const config = yield* readServerConfig(providerFromEntries([]));
 
-      expect(error.message).toMatch(/RESEND_API_KEY/);
+      expect(config.PUBLIC_GOOGLE_MAPS_API_KEY).toEqual(Option.none());
     }),
   );
 });

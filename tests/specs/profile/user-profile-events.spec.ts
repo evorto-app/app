@@ -89,7 +89,7 @@ test('profile event cards show implemented registration actions', async ({
     ).toBeVisible();
     await expect(
       waitlistCard.getByText(
-        'Open the event page for waitlist details and the leave-waitlist action.',
+        'Open the event page for waitlist details and current cancellation status.',
       ),
     ).toBeVisible();
     await expect(
@@ -108,9 +108,12 @@ test('profile event cards show implemented registration actions', async ({
     await expect(checkedInCard.getByText('Checked in:')).toBeVisible();
     await expect(
       checkedInCard.getByText(
-        'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
+        'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
       ),
     ).toBeVisible();
+    await expect(checkedInCard).not.toContainText(
+      'transfer is no longer available after check-in',
+    );
     await expect(
       checkedInCard.getByText('Available on the event page.'),
     ).toHaveCount(0);

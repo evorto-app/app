@@ -1,8 +1,6 @@
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -23,7 +21,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
-import { getErrorMessage } from '../../core/error-message';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventFilterDialogComponent } from '../event-filter-dialog/event-filter-dialog.component';
@@ -39,7 +37,7 @@ import { EventListService } from '../event-list.service';
     IconComponent,
     RouterOutlet,
     RouterLinkActive,
-    DatePipe,
+    TenantDatePipe,
     MatButtonToggleModule,
     MatTooltipModule,
     MatDialogModule,
@@ -57,12 +55,6 @@ export class EventListComponent {
   protected readonly canSeeDrafts = this.eventListService.canSeeDrafts;
   protected readonly canSeeUnlisted = this.eventListService.canSeeUnlisted;
   protected readonly eventQuery = this.eventListService.eventQuery;
-  protected readonly eventErrorMessage = computed(() => {
-    const error = this.eventQuery.error();
-    return error
-      ? getErrorMessage(error, 'Failed to load events')
-      : 'Failed to load events';
-  });
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faEyeSlash = faEyeSlash;

@@ -18,6 +18,14 @@ The relaunch target is a full production replacement, not a prototype. Core work
 - **Role-based eligibility**: access to registration options should be modeled through tenant roles and capabilities, not scattered special-case flags.
 - **Account-required registration**: anonymous users may browse eligible listed events, but registration requires an account.
 - **Stripe is the payment source of truth**: local state may mirror payment details for app behavior, but payment lifecycle changes must respect Stripe state and webhooks.
+- **Paid event activity is Stripe-only**: event registrations and add-ons may
+  charge money only through the tenant's connected Stripe account. Without
+  Stripe, every registration option and add-on must be free.
+- **A transfer preserves one inseparable bundle**: the registration and every
+  included, free, and purchased add-on move together with their quantities and
+  fulfillment history. Registration guest quantities and check-in history are
+  part of that same bundle. A recipient cannot omit, replace, or re-quantity its
+  contents.
 - **Templates preserve organizational memory**: repeated events should be easy to recreate without losing reusable event knowledge.
 - **No hidden deliverables**: a new user-facing feature or page is not complete if it can only be reached by typing a URL.
 - **Documentation is part of the product**: essential flows should be documented for users and admins, preferably through Playwright-generated documentation.
@@ -92,6 +100,20 @@ Platform administrators are platform principals, not tenant roles. They may
 perform any platform operation for any tenant at any time without a tenant
 membership. Their access must remain explicit and auditable; it must not depend
 on silently pretending to be a tenant user.
+
+Each platform operation names its target tenant explicitly. Every platform
+mutation requires an operational reason and records the Auth0 platform actor,
+target tenant, action, timestamp, and typed before/after state in the same
+transaction as the domain change. A platform-created event must name an active
+target-tenant member as its attributed owner; that attribution does not turn
+the platform actor into a tenant user.
+
+Platform authority does not replace participant identity. Participant profile
+and home views, joining or leaving a tenant, submitting personal receipts, and
+self-service registration transfer or resale remain participant-owned flows.
+Platform tools may operate on target-tenant records only through dedicated
+target-scoped contracts; they must never merge tenant-role permissions into the
+platform principal.
 
 ## Core Workflows
 
@@ -176,6 +198,9 @@ Important rules:
 - A role-ineligible user who follows a direct event link sees an explicit
   ineligible state and no registration action rather than a misleading empty
   registration area.
+- A tenant without a connected Stripe account may configure and run only free
+  registration options and free add-ons. Cash, bank-transfer, or other manual
+  event-payment records are not supported payment paths.
 
 Registration should support:
 
@@ -191,10 +216,13 @@ Registration should support:
 - transfer/resale of a registration
 - limits on how many events a person can register for in a configured time frame
 
-Cancellation and transfer timing, plus whether payment fees are refunded, are
-tenant configuration defaults. A registration option may explicitly override
-those defaults. New tenants seed transfer until the event starts, cancellation
-until five days before the event, and fee refund enabled.
+Cancellation and transfer timing are tenant configuration defaults. Whether
+payment fees are refunded applies to ordinary cancellation only; transfer
+refunds bring each source payment's cumulative successful refunds to its exact
+original Stripe amount. A registration option may explicitly override timing
+and cancellation-fee defaults. New tenants seed transfer until the event starts,
+cancellation until five days before the event, and cancellation fee refund
+enabled.
 
 ### Simple and advanced registration configuration
 
@@ -209,8 +237,9 @@ starts as a snapshot of its template's mode and options, then remains
 independently editable; later template edits never rewrite an existing event.
 Moving from simple to advanced preserves the current options. Every mode change
 requires an explicit warning/confirmation. Moving from advanced to simple is
-allowed only after the user has reduced the configuration to exactly one
-organizing and one non-organizing option. Advanced setup warns when either
+allowed only after the user has saved the advanced configuration with exactly
+one organizing and one non-organizing option; the mode change is a separate
+save and never silently replaces option IDs. Advanced setup warns when either
 category is missing but does not block saving or publishing: operational events
 without registrations remain valid.
 
@@ -247,6 +276,13 @@ unredeemed add-on units with or without a refund; redeemed units stay part of
 the fulfillment record. Refunds apply only to the optional purchased portion,
 not to included units.
 
+For transfer or resale, the registration and all of its add-on entitlements are
+one fixed bundle. Included, free optional, and purchased quantities, together
+with redemption, cancellation, and undo history, transfer unchanged. The
+recipient reviews that bundle but cannot remove an add-on or change its settled
+quantity as part of claiming the transfer. Registration guest quantity and
+check-in history are preserved too.
+
 Guests remain a dedicated registration feature rather than ordinary stock
 add-ons. They consume the selected option's capacity, use that option's guest
 price rule, and support partial guest check-in. They may share low-level
@@ -262,8 +298,12 @@ For example, an ESN-card discount should not create a separate capacity pool unl
 ESN-card behavior should be opt-in because not every tenant is an ESN section.
 An ESNcard identity belongs to the global user, while each tenant decides
 whether its own ESNcard program is enabled. An enabled program requires live
-external add, refresh, and remove verification; it is not a credential-gated
-deferred integration.
+external active-card add, refresh, and remove verification plus a permanently
+expired-card state check; it is not a credential-gated deferred integration.
+
+During transfer, source-user discounts do not transfer. Evorto recalculates the
+fixed bundle from its current base prices, then applies only discounts for which
+the recipient is currently eligible.
 
 ## Waitlists
 
@@ -290,21 +330,50 @@ The intended workflow:
 
 1. Existing participant creates a transfer link or code.
 2. New participant signs in and uses the link/code.
-3. New participant completes the entire current flow for that registration
-   option, including its current price, questions, and eligibility checks.
-4. After that flow succeeds, the new registration is confirmed.
-5. Existing participant's registration is cancelled and refunded through
-   Stripe.
+3. Evorto shows the registration plus every included, free, and purchased
+   add-on as one fixed bundle. The recipient cannot omit add-ons, change guest
+   count, or alter any quantity or fulfillment/check-in history.
+4. Evorto rechecks the recipient's current eligibility and questions, prices
+   the fixed bundle from current base prices, and then applies the recipient's
+   current eligible discounts. The source participant's discounts never carry
+   over.
+5. The recipient's payment is calculated independently from the source refund.
+   A transfer is database-only only when the entire bundle is free and no source
+   refund is required; every other supported transfer uses Stripe.
+6. After the recipient flow succeeds, the existing registration remains
+   confirmed under the recipient's ownership with its identity, all bundle
+   quantities, and fulfillment/check-in history unchanged.
+7. The source participant no longer owns the registration and receives the
+   exact remaining refundable amount from every original Stripe registration
+   and purchased-add-on payment after prior successful refunds.
+
+Previous participant-question answers are never part of the transfer bundle.
+An immediate organizer or participant reassignment is available only when the
+whole bundle is free, no source refund is required, and the registration option
+has no participant questions. When current questions exist, the recipient must
+use the private link/code claim so they can provide their own answers before
+ownership changes.
 
 The goal is to let users transfer spots without trusting each other directly.
 
-Payments and refunds for a tenant use that tenant's Stripe Connect account. The
-application submits the tenant account id with the Stripe request and adds only
-the platform application fee; all other payment and cancellation configuration
-belongs to the tenant, subject to the registration-option override rules.
-When an option does not refund fees, it refunds the payment amount less the
-applicable fees so the tenant is net zero; a fee-refund option returns the full
-configured refundable amount.
+New payments for a tenant use its currently configured Stripe Connect account.
+Every refund uses the persisted owning Connect account of its original Stripe
+payment, even if the tenant rotated accounts afterward. The application submits
+that payment-owning account with each Stripe request and adds only the platform
+application fee; all other payment and cancellation configuration belongs to
+the tenant, subject to the registration-option override rules. The ordinary
+cancellation fee policy does not reduce a transfer refund: each source
+registration or add-on payment is refunded until its total refunds equal the
+exact original Stripe amount.
+
+Stripe tax-rate IDs are account-owned configuration. Disconnecting remains
+blocked while paid event or template configuration exists. For an account
+rotation, the replacement Stripe account must already contain exactly one
+active, inclusive rate with the same normalized percentage, display name,
+country, and state as each assigned source rate. Evorto rejects a missing or
+ambiguous match; otherwise it atomically imports the replacement metadata and
+remaps every event and template registration-option and add-on binding without
+changing its tax semantics.
 
 ## Check-in
 
@@ -395,6 +464,12 @@ Agents must not bypass capability checks or make authorization behavior more per
 
 Stripe is the source of truth for payment state.
 
+Stripe is also the only supported payment rail for event registrations and
+add-ons. If a tenant has no connected Stripe account, its event registration
+options and add-ons must be free. Do not introduce cash, bank-transfer, or
+manually settled paid-event paths; manual finance records for other workflows
+must not be presented as event-payment support.
+
 Evorto may duplicate relevant Stripe data locally for app behavior, reporting, and user experience, but agents should treat payment lifecycle logic, webhook handling, refunds, checkout expiry, and transfer/resale flows as high-risk areas.
 
 Each tenant owns its payments through its configured Stripe Connect account.
@@ -428,6 +503,10 @@ Customer-facing email templates are rendered with React Email. Rendering stays
 separate from transactional delivery: templates enter the durable outbox and
 retain its recipient, idempotency, retry, and failure-observability rules.
 
+After automatic delivery exhausts its retry budget, the outbox row remains
+stored and read-only for operational evidence. No exhausted-email recovery
+action is required for the current product scope.
+
 In scope:
 
 - successful registration confirmation with an authenticated ticket link
@@ -444,6 +523,16 @@ Not in scope for now:
 - checkout expiry emails
 - transfer-started emails
 - receipt-submitted emails
+
+## Required Production Integrations
+
+Google Maps location search and place details are required production
+functionality. Production readiness therefore requires approved configuration,
+live provider verification, and fail-visible empty/error behavior.
+
+Cloudflare Images is being removed. It is not supported production scope and is
+not a release gate; removal work must not be replaced with new Cloudflare Images
+test obligations.
 
 ## Tenant Customization
 
@@ -473,7 +562,11 @@ amounts keep their recorded currency. Timezone governs event scheduling,
 registration and check-in windows, and tenant-facing date/time display. Both
 must be applied consistently in SSR and browser rendering. A tenant
 administrator cannot change either after event or payment data exists; a
-platform-administrator override must be explicit and auditable.
+platform-administrator override must be explicit and auditable. Because event
+and template prices are stored as minor units under the tenant currency, an
+in-place platform currency override is rejected once template, event, receipt,
+or transaction data exists until a dedicated currency migration workflow is
+available.
 
 Stripe branding is handled in Stripe where possible.
 

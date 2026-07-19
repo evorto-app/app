@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Stabilize Bun template flows and docs e2e reliability

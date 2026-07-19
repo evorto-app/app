@@ -73,12 +73,12 @@
               "msgpackr-extract",
               "node-domexception"
             ],
-            "externalDependencies": ["@sentry/profiling-node", "skia-canvas"],
+            "externalDependencies": ["skia-canvas"],
             "security": {
               "allowedHosts": [
                 "localhost",
                 "127.0.0.1",
-                "evorto.fly.dev",
+                "staging.evorto.app",
                 "evorto.app",
                 "*.evorto.app"
               ]
@@ -130,6 +130,11 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "include": ["src/app/**/*.spec.ts", "src/shared/**/*.spec.ts"],
+            "reporters": [
+              "default",
+              "helpers/testing/complete-vitest-run-reporter.ts"
+            ],
+            "runnerConfig": "vitest.angular.config.ts",
             "tsConfig": "tsconfig.spec.json"
           }
         },
@@ -137,6 +142,9 @@
           "builder": "@angular-eslint/builder:lint",
           "options": {
             "lintFilePatterns": [
+              "*.config.ts",
+              "helpers/**/*.ts",
+              "migration/**/*.ts",
               "src/**/*.ts",
               "src/**/*.html",
               "tests/**/*.ts"

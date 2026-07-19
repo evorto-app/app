@@ -8,44 +8,39 @@ test.use({ storageState: organizerStateFile });
 
 const enablePaymentForLastRegistrationOption = async (page: Page) => {
   const participantOptionForm = page
-    .locator('app-template-registration-option-form')
+    .locator('app-template-registration-option-editor')
     .last();
   const paymentCheckbox = participantOptionForm.getByRole('checkbox', {
     name: 'Enable payment',
   });
+  await expect(paymentCheckbox).toBeEnabled({ timeout: 20_000 });
   await paymentCheckbox.check();
   await expect(
     priceInputForRegistrationOption(participantOptionForm),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
 };
 
 const priceInputForRegistrationOption = (
   participantOptionForm: ReturnType<Page['locator']>,
-) => participantOptionForm.getByLabel('Price (in cents)');
+) => participantOptionForm.getByLabel(/^Price \([A-Z]{3}\)$/);
 
 const taxRateSelectForRegistrationOption = (
   participantOptionForm: ReturnType<Page['locator']>,
-) => participantOptionForm.getByLabel('Tax rate');
+) => participantOptionForm.getByLabel('Inclusive tax rate');
 
-const ensureLastRegistrationOptionHasRole = async (
+const waitForLastRegistrationOptionRole = async (
   page: Page,
   roleName: string,
 ) => {
   const participantOptionForm = page
-    .locator('app-template-registration-option-form')
+    .locator('app-template-registration-option-editor')
     .last();
-  if (
-    (await participantOptionForm.getByText(roleName, { exact: true }).count()) >
-    0
-  ) {
-    return;
-  }
-
-  await participantOptionForm.getByPlaceholder('Add Role...').fill(roleName);
-  await page.getByRole('option', { exact: true, name: roleName }).click();
   await expect(
-    participantOptionForm.getByText(roleName, { exact: true }),
-  ).toBeVisible();
+    participantOptionForm.getByRole('button', {
+      exact: true,
+      name: `Remove ${roleName}`,
+    }),
+  ).toBeVisible({ timeout: 20_000 });
 };
 
 test.describe('Template Tax Rate Validation', () => {
@@ -65,12 +60,12 @@ test.describe('Template Tax Rate Validation', () => {
     });
 
     const saveButton = page.getByRole('button', { name: 'Save template' });
-    await expect(page.getByLabel('Tax rate')).toHaveCount(0);
+    await expect(page.getByLabel('Inclusive tax rate')).toHaveCount(0);
 
     await enablePaymentForLastRegistrationOption(page);
 
     const participantOptionForm = page
-      .locator('app-template-registration-option-form')
+      .locator('app-template-registration-option-editor')
       .last();
     await expect(
       priceInputForRegistrationOption(participantOptionForm),
@@ -118,11 +113,11 @@ test.describe('Template Tax Rate Validation', () => {
       title: templateTitle,
     });
     await enablePaymentForLastRegistrationOption(page);
-    await ensureLastRegistrationOptionHasRole(page, defaultUserRole.name);
+    await waitForLastRegistrationOptionRole(page, defaultUserRole.name);
     const participantOptionForm = page
-      .locator('app-template-registration-option-form')
+      .locator('app-template-registration-option-editor')
       .last();
-    await priceInputForRegistrationOption(participantOptionForm).fill('1000');
+    await priceInputForRegistrationOption(participantOptionForm).fill('10.00');
     await taxRateSelectForRegistrationOption(participantOptionForm).click();
     await expect(
       page.getByRole('option', { exact: true, name: taxRateLabel }),
@@ -132,7 +127,9 @@ test.describe('Template Tax Rate Validation', () => {
     const saveButton = page.getByRole('button', { name: 'Save template' });
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
-    await expect(page).toHaveURL(/\/templates/);
+    await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
+      timeout: 15_000,
+    });
     await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
   });
 });

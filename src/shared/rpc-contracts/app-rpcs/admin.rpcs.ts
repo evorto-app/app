@@ -6,6 +6,7 @@ import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
+import { GoogleLocation } from '../../../types/location';
 import { TenantRolePermissionSchema } from '../../permissions/permissions';
 import { AdminRoleRpcError, AdminTenantRpcError } from './admin.errors';
 
@@ -232,20 +233,19 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
 export const AdminTenantUpdateSettingsInput = Schema.Struct({
   allowOther: Schema.Boolean,
   buyEsnCardUrl: Schema.optional(UrlString),
+  cancellationDeadlineHoursBeforeStart: nonNegativeNumber,
   currency: Tenant.fields.currency,
-  defaultLocation: Schema.NullOr(Schema.Any),
+  defaultLocation: Schema.NullOr(GoogleLocation),
   emailSenderEmail: Schema.optional(OptionalSenderEmail),
   emailSenderName: Schema.optional(Schema.NonEmptyString),
   esnCardEnabled: Schema.Boolean,
   faviconUrl: Schema.optional(TenantBrandAssetUrlString),
   legalNoticeText: Schema.optional(Schema.String),
   legalNoticeUrl: Schema.optional(UrlString),
-  locale: Tenant.fields.locale,
   logoUrl: Schema.optional(TenantBrandAssetUrlString),
   maxActiveRegistrationsPerUser: nonNegativeNumber,
-  privacyPolicyText: Schema.optional(Schema.String),
-  privacyPolicyUrl: Schema.optional(UrlString),
   receiptCountries: Schema.Array(Schema.NonEmptyString),
+  refundFeesOnCancellation: Schema.Boolean,
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
   stripeAccountId: Schema.optional(Schema.NonEmptyString),
@@ -253,6 +253,7 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   termsUrl: Schema.optional(UrlString),
   theme: literalUnion('evorto', 'esn'),
   timezone: Tenant.fields.timezone,
+  transferDeadlineHoursBeforeStart: nonNegativeNumber,
 });
 
 export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<

@@ -3,9 +3,17 @@ import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 
 import { type Context as RequestContext } from '../../../types/custom/context';
 import {
+  readRequestBody,
+  requestBodyStreamFromBuffer,
+} from '../../http/request-body';
+import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from './rpc-context-headers';
+
+// The largest RPC upload is a 20 MiB receipt encoded as base64. This leaves
+// room for that encoding and the RPC envelope while bounding the whole batch.
+export const MAX_RPC_BODY_SIZE_BYTES = 32 * 1024 * 1024;
 
 const buildRpcUser = (context: RequestContext) => {
   if (!context.user) {
@@ -18,6 +26,8 @@ const buildRpcUser = (context: RequestContext) => {
     communicationEmail: context.user.communicationEmail,
     email: context.user.email,
     firstName: context.user.firstName,
+    homeTenantId: context.user.homeTenantId,
+    homeTenantName: context.user.homeTenantName,
     iban: context.user.iban,
     id: context.user.id,
     lastName: context.user.lastName,
@@ -44,6 +54,10 @@ const withRpcContextHeaders = (
     encodeRpcContextHeaderJson(context.permissions),
   );
   headers.set(
+    RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY,
+    encodeRpcContextHeaderJson(context.platformAuthority ?? null),
+  );
+  headers.set(
     RPC_CONTEXT_HEADERS.USER,
     encodeRpcContextHeaderJson(user ?? null),
   );
@@ -63,7 +77,7 @@ const withRpcContextHeaders = (
 const toRequestWithHeaders = (
   request: Request,
   headers: Headers,
-  body?: BodyInit,
+  body?: ArrayBuffer,
 ): Request => {
   const init: RequestInit = {
     headers,
@@ -74,7 +88,13 @@ const toRequestWithHeaders = (
     return new Request(request.url, init);
   }
 
-  return new Request(request.url, { ...init, body });
+  const bodyInit = {
+    ...init,
+    body: requestBodyStreamFromBuffer(body),
+    duplex: 'half',
+  } satisfies RequestInit & { duplex: 'half' };
+
+  return new Request(request.url, bodyInit);
 };
 
 export const toRpcHttpServerRequest = (
@@ -90,8 +110,9 @@ export const toRpcHttpServerRequest = (
       return HttpServerRequest.fromWeb(toRequestWithHeaders(request, headers));
     }
 
-    // Non-GET requests can only be read once; buffer before cloning.
-    const body = yield* Effect.tryPromise(() => request.arrayBuffer());
+    // Non-GET requests can only be read once; buffer within the route limit
+    // before cloning the request with its trusted context headers.
+    const body = yield* readRequestBody(request, MAX_RPC_BODY_SIZE_BYTES);
     return HttpServerRequest.fromWeb(
       toRequestWithHeaders(request, headers, body),
     );

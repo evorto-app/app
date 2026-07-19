@@ -13,14 +13,13 @@ import {
   inArray,
   isNotNull,
   isNull,
-  not,
   TransactionRollbackError,
 } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
-import { Database } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventInstances,
   financeReceipts,
@@ -40,9 +39,32 @@ import {
   validateReceiptCountryForTenant,
 } from './finance.shared';
 import {
+  ensureReceiptEvidenceAvailableForApproval,
+  hasValidReceiptUploadBinding,
   withSignedReceiptPreviewUrl,
   withSignedReceiptPreviewUrls,
 } from './receipt-media.service';
+
+const financeDatabaseEffect = <A>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
+): Effect.Effect<
+  A,
+  | FinanceReceiptNotFoundError
+  | FinanceResourceNotFoundError
+  | RpcBadRequestError,
+  Database
+> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        error instanceof FinanceReceiptNotFoundError ||
+        error instanceof FinanceResourceNotFoundError ||
+        error instanceof RpcBadRequestError
+          ? Effect.fail(error)
+          : Effect.die(error),
+      ),
+    ),
+  );
 
 const isTransactionRollbackError = (
   error: unknown,
@@ -55,6 +77,46 @@ const financeReceiptUploadJoin = and(
   eq(financeReceipts.eventId, financeReceiptUploads.eventId),
   eq(financeReceipts.submittedByUserId, financeReceiptUploads.uploadedByUserId),
 );
+
+const loadReceiptEvidenceForApproval = Effect.fn(
+  'FinanceReceipts.loadReceiptEvidenceForApproval',
+)(function* (tenantId: string, receiptId: string) {
+  const receiptRows = yield* databaseEffect((database) =>
+    database
+      .select(financeReceiptView)
+      .from(financeReceipts)
+      .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
+      .where(
+        and(
+          eq(financeReceipts.id, receiptId),
+          eq(financeReceipts.tenantId, tenantId),
+        ),
+      )
+      .limit(1),
+  );
+  const receipt = receiptRows[0];
+  if (!receipt) {
+    return yield* new FinanceReceiptNotFoundError({
+      id: receiptId,
+      message: 'Receipt not found',
+      resource: 'receipt',
+    });
+  }
+  if (receipt.status !== 'submitted') {
+    return yield* new RpcBadRequestError({
+      message:
+        receipt.status === 'refunded'
+          ? 'Refunded receipts cannot be reviewed again'
+          : 'Only submitted receipts can be reviewed',
+      reason:
+        receipt.status === 'refunded'
+          ? 'refundedReceipt'
+          : 'receiptAlreadyReviewed',
+    });
+  }
+
+  return yield* ensureReceiptEvidenceAvailableForApproval(receipt);
+});
 
 export const financeReceiptSubmitterEmail = (submitter: {
   submittedByCommunicationEmail: null | string;
@@ -112,126 +174,144 @@ export const financeReceiptsHandlers = {
       yield* RpcAccess.ensurePermission('finance:refundReceipts');
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
-      const receipts = yield* databaseEffect((database) =>
-        database
-          .select({
-            eventId: financeReceipts.eventId,
-            id: financeReceipts.id,
-            submittedByUserId: financeReceipts.submittedByUserId,
-            totalAmount: financeReceipts.totalAmount,
-          })
-          .from(financeReceipts)
-          .where(
-            and(
-              eq(financeReceipts.tenantId, tenant.id),
-              inArray(financeReceipts.id, input.receiptIds),
-              eq(financeReceipts.status, 'approved'),
-            ),
-          ),
-      );
-      if (receipts.length !== input.receiptIds.length) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Some receipts are missing or not refundable',
-            reason: 'receiptCountMismatch',
-          }),
-        );
+      const receiptIds = [...new Set(input.receiptIds)];
+      if (receiptIds.length !== input.receiptIds.length) {
+        return yield* new RpcBadRequestError({
+          message: 'Duplicate receipt ids are not allowed',
+          reason: 'duplicateReceiptIds',
+        });
       }
 
-      const targetUserId = receipts[0]?.submittedByUserId;
-      if (!targetUserId) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Refund target user is missing',
-            reason: 'missingTargetUser',
-          }),
-        );
-      }
-      if (
-        receipts.some((receipt) => receipt.submittedByUserId !== targetUserId)
-      ) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Refund receipts must belong to the same submitter',
-            reason: 'mismatchedSubmitter',
-          }),
-        );
-      }
-
-      const payoutUser = yield* databaseEffect((database) =>
-        database.query.users.findFirst({
-          columns: {
-            iban: true,
-            id: true,
-            paypalEmail: true,
-          },
-          where: {
-            id: targetUserId,
-          },
-        }),
-      );
-      if (!payoutUser) {
-        return yield* Effect.fail(
-          new FinanceResourceNotFoundError({
-            id: targetUserId,
-            message: 'Reimbursement recipient not found',
-            resource: 'payoutUser',
-          }),
-        );
-      }
-      if (input.payoutType === 'iban' && !payoutUser.iban) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Reimbursement recipient is missing an IBAN',
-            reason: 'missingIban',
-          }),
-        );
-      }
-      if (input.payoutType === 'paypal' && !payoutUser.paypalEmail) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message:
-              'Reimbursement recipient is missing a PayPal email address',
-            reason: 'missingPaypal',
-          }),
-        );
-      }
-
-      const expectedPayoutReference =
-        input.payoutType === 'paypal'
-          ? payoutUser.paypalEmail
-          : payoutUser.iban;
-      if (
-        !expectedPayoutReference ||
-        input.payoutReference !== expectedPayoutReference
-      ) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Payout reference does not match the selected recipient',
-            reason: 'payoutReferenceMismatch',
-          }),
-        );
-      }
-
-      const totalAmount = receipts.reduce(
-        (sum, receipt) => sum + receipt.totalAmount,
-        0,
-      );
-      const uniqueEventIds = [
-        ...new Set(receipts.map((receipt) => receipt.eventId)),
-      ];
-      const eventId = uniqueEventIds.length === 1 ? uniqueEventIds[0] : null;
-
-      let transactionFailure: null | RpcBadRequestError = null;
-      const createdTransaction = yield* databaseEffect((database) =>
+      return yield* financeDatabaseEffect((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
+            const receipts = yield* tx
+              .select({
+                currency: financeReceipts.currency,
+                eventId: financeReceipts.eventId,
+                id: financeReceipts.id,
+                submittedByUserId: financeReceipts.submittedByUserId,
+                totalAmount: financeReceipts.totalAmount,
+              })
+              .from(financeReceipts)
+              .where(
+                and(
+                  eq(financeReceipts.tenantId, tenant.id),
+                  inArray(financeReceipts.id, receiptIds),
+                  eq(financeReceipts.status, 'approved'),
+                ),
+              )
+              .orderBy(financeReceipts.id)
+              .for('update');
+            if (receipts.length !== receiptIds.length) {
+              return yield* new RpcBadRequestError({
+                message: 'Some receipts are missing or not refundable',
+                reason: 'receiptCountMismatch',
+              });
+            }
+
+            const targetUserId = receipts[0]?.submittedByUserId;
+            if (!targetUserId) {
+              return yield* new RpcBadRequestError({
+                message: 'Refund target user is missing',
+                reason: 'missingTargetUser',
+              });
+            }
+            if (
+              receipts.some(
+                (receipt) => receipt.submittedByUserId !== targetUserId,
+              )
+            ) {
+              return yield* new RpcBadRequestError({
+                message: 'Refund receipts must belong to the same submitter',
+                reason: 'mismatchedSubmitter',
+              });
+            }
+
+            const receiptCurrency = receipts[0]?.currency;
+            if (!receiptCurrency) {
+              return yield* new RpcBadRequestError({
+                message: 'Refund receipt currency is missing',
+                reason: 'missingReceiptCurrency',
+              });
+            }
+            if (
+              receipts.some((receipt) => receipt.currency !== receiptCurrency)
+            ) {
+              return yield* new RpcBadRequestError({
+                message: 'Refund receipts must use the same recorded currency',
+                reason: 'mismatchedReceiptCurrency',
+              });
+            }
+
+            const totalAmount = receipts.reduce(
+              (sum, receipt) => sum + receipt.totalAmount,
+              0,
+            );
+            if (totalAmount <= 0) {
+              return yield* new RpcBadRequestError({
+                message: 'Reimbursement total must be positive',
+                reason: 'invalidReimbursementTotal',
+              });
+            }
+
+            const payoutUsers = yield* tx
+              .select({
+                iban: users.iban,
+                id: users.id,
+                paypalEmail: users.paypalEmail,
+              })
+              .from(users)
+              .where(eq(users.id, targetUserId))
+              .for('share');
+            const payoutUser = payoutUsers[0];
+            if (!payoutUser) {
+              return yield* new FinanceResourceNotFoundError({
+                id: targetUserId,
+                message: 'Reimbursement recipient not found',
+                resource: 'payoutUser',
+              });
+            }
+            if (input.payoutType === 'iban' && !payoutUser.iban) {
+              return yield* new RpcBadRequestError({
+                message: 'Reimbursement recipient is missing an IBAN',
+                reason: 'missingIban',
+              });
+            }
+            if (input.payoutType === 'paypal' && !payoutUser.paypalEmail) {
+              return yield* new RpcBadRequestError({
+                message:
+                  'Reimbursement recipient is missing a PayPal email address',
+                reason: 'missingPaypal',
+              });
+            }
+
+            const expectedPayoutReference =
+              input.payoutType === 'paypal'
+                ? payoutUser.paypalEmail
+                : payoutUser.iban;
+            if (
+              !expectedPayoutReference ||
+              input.payoutReference !== expectedPayoutReference
+            ) {
+              return yield* new RpcBadRequestError({
+                message:
+                  'Payout reference does not match the selected recipient',
+                reason: 'payoutReferenceMismatch',
+              });
+            }
+
+            const uniqueEventIds = [
+              ...new Set(receipts.map((receipt) => receipt.eventId)),
+            ];
+            const eventId =
+              uniqueEventIds.length === 1 ? uniqueEventIds[0] : null;
             const insertedTransactions = yield* tx
               .insert(transactions)
               .values({
                 amount: -Math.abs(totalAmount),
-                comment: `Receipt reimbursement record (${input.payoutType}) for ${receipts.length} receipt(s) across events: ${uniqueEventIds.join(', ')}`,
-                currency: tenant.currency,
+                comment: `Receipt reimbursement record (${input.payoutType}) for ${receiptIds.length} receipt(s) across events: ${uniqueEventIds.join(', ')}`,
+                currency: receiptCurrency,
                 eventId,
                 executiveUserId: user.id,
                 manuallyCreated: true,
@@ -244,8 +324,8 @@ export const financeReceiptsHandlers = {
               .returning({
                 id: transactions.id,
               });
-            const transaction = insertedTransactions[0];
-            if (!transaction) {
+            const createdTransaction = insertedTransactions[0];
+            if (!createdTransaction) {
               return yield* Effect.die(
                 new Error(
                   `Refund transaction insert returned no rows for target user ${targetUserId}`,
@@ -258,13 +338,13 @@ export const financeReceiptsHandlers = {
               .set({
                 refundedAt: new Date(),
                 refundedByUserId: user.id,
-                refundTransactionId: transaction.id,
+                refundTransactionId: createdTransaction.id,
                 status: 'refunded',
               })
               .where(
                 and(
                   eq(financeReceipts.tenantId, tenant.id),
-                  inArray(financeReceipts.id, input.receiptIds),
+                  inArray(financeReceipts.id, receiptIds),
                   eq(financeReceipts.status, 'approved'),
                   eq(financeReceipts.submittedByUserId, targetUserId),
                 ),
@@ -273,37 +353,21 @@ export const financeReceiptsHandlers = {
                 id: financeReceipts.id,
               });
 
-            if (updatedReceipts.length !== input.receiptIds.length) {
-              transactionFailure = new RpcBadRequestError({
+            if (updatedReceipts.length !== receiptIds.length) {
+              return yield* new RpcBadRequestError({
                 message: 'Receipt reimbursement preconditions failed',
                 reason: 'receiptRefundPreconditionFailed',
               });
-              yield* tx.rollback();
             }
 
-            return transaction;
+            return {
+              receiptCount: receiptIds.length,
+              totalAmount,
+              transactionId: createdTransaction.id,
+            };
           }),
         ),
-      ).pipe(
-        Effect.catchDefect((defect) => {
-          if (!isTransactionRollbackError(defect)) {
-            return Effect.die(defect);
-          }
-          return transactionFailure === null
-            ? Effect.die(
-                new Error(
-                  'Transaction rollback triggered without a tracked failure',
-                ),
-              )
-            : Effect.fail(transactionFailure);
-        }),
       );
-
-      return {
-        receiptCount: receipts.length,
-        totalAmount,
-        transactionId: createdTransaction.id,
-      };
     }),
   'finance.receipts.findOneForApproval': ({ id }, _options) =>
     Effect.gen(function* () {
@@ -351,6 +415,7 @@ export const financeReceiptsHandlers = {
         ...normalizeFinanceReceiptBaseRecord(signedReceipt),
         eventStart: signedReceipt.eventStart.toISOString(),
         eventTitle: signedReceipt.eventTitle,
+        receiptEvidenceAvailable: signedReceipt.receiptEvidenceAvailable,
         submittedByEmail: financeReceiptSubmitterEmail(signedReceipt),
         submittedByFirstName: signedReceipt.submittedByFirstName,
         submittedByLastName: signedReceipt.submittedByLastName,
@@ -503,6 +568,7 @@ export const financeReceiptsHandlers = {
       const groupedByUser = new Map<
         string,
         {
+          currency: 'AUD' | 'CZK' | 'EUR';
           payout: {
             iban: null | string;
             paypalEmail: null | string;
@@ -513,6 +579,7 @@ export const financeReceiptsHandlers = {
             attachmentMimeType: string;
             attachmentStorageKey: null | string;
             createdAt: string;
+            currency: 'AUD' | 'CZK' | 'EUR';
             depositAmount: number;
             eventId: string;
             eventStart: string;
@@ -558,14 +625,16 @@ export const financeReceiptsHandlers = {
           submittedByLastName: receipt.submittedByLastName,
         };
 
-        const existing = groupedByUser.get(receipt.submittedByUserId);
+        const groupKey = `${receipt.submittedByUserId}\u{0}${receipt.currency}`;
+        const existing = groupedByUser.get(groupKey);
         if (existing) {
           existing.receipts.push(normalizedReceipt);
           existing.totalAmount += receipt.totalAmount;
           continue;
         }
 
-        groupedByUser.set(receipt.submittedByUserId, {
+        groupedByUser.set(groupKey, {
+          currency: receipt.currency,
           payout: {
             iban: receipt.recipientIban ?? null,
             paypalEmail: receipt.recipientPaypalEmail ?? null,
@@ -586,48 +655,6 @@ export const financeReceiptsHandlers = {
       yield* RpcAccess.ensurePermission('finance:approveReceipts');
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
-      const receipt = yield* databaseEffect((database) =>
-        database
-          .select({
-            eventTitle: eventInstances.title,
-            id: financeReceipts.id,
-            status: financeReceipts.status,
-            submittedByCommunicationEmail: users.communicationEmail,
-            submittedByEmail: users.email,
-          })
-          .from(financeReceipts)
-          .innerJoin(users, eq(financeReceipts.submittedByUserId, users.id))
-          .innerJoin(
-            eventInstances,
-            eq(financeReceipts.eventId, eventInstances.id),
-          )
-          .where(
-            and(
-              eq(financeReceipts.id, input.id),
-              eq(financeReceipts.tenantId, tenant.id),
-            ),
-          )
-          .limit(1),
-      );
-      const receiptRecord = receipt[0];
-      if (!receiptRecord) {
-        return yield* Effect.fail(
-          new FinanceReceiptNotFoundError({
-            id: input.id,
-            message: 'Receipt not found',
-            resource: 'receipt',
-          }),
-        );
-      }
-      if (receiptRecord.status === 'refunded') {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Refunded receipts cannot be reviewed again',
-            reason: 'refundedReceipt',
-          }),
-        );
-      }
-
       const depositAmount = input.hasDeposit ? input.depositAmount : 0;
       const alcoholAmount = input.hasAlcohol ? input.alcoholAmount : 0;
       const purchaseCountry = validateReceiptCountryForTenant(
@@ -677,78 +704,161 @@ export const financeReceiptsHandlers = {
         );
       }
 
-      const updatedReceipts = yield* Database.use((database) =>
-        database
-          .transaction((tx) =>
-            Effect.gen(function* () {
-              const updatedRows = yield* tx
-                .update(financeReceipts)
-                .set({
-                  alcoholAmount,
-                  depositAmount,
-                  hasAlcohol: input.hasAlcohol,
-                  hasDeposit: input.hasDeposit,
-                  purchaseCountry,
-                  receiptDate,
+      const approvalEvidence =
+        input.status === 'approved'
+          ? yield* loadReceiptEvidenceForApproval(tenant.id, input.id)
+          : null;
 
-                  rejectionReason:
-                    input.status === 'rejected'
-                      ? (input.rejectionReason ?? null)
-                      : null,
-                  reviewedAt: new Date(),
-                  reviewedByUserId: user.id,
-                  status: input.status,
-                  taxAmount: input.taxAmount,
-                  totalAmount: input.totalAmount,
-                })
+      return yield* financeDatabaseEffect((database) =>
+        database.transaction((tx) =>
+          Effect.gen(function* () {
+            const receiptRows = yield* tx
+              .select({
+                attachmentUploadId: financeReceipts.attachmentUploadId,
+                eventTitle: eventInstances.title,
+                id: financeReceipts.id,
+                status: financeReceipts.status,
+                submittedByCommunicationEmail: users.communicationEmail,
+                submittedByEmail: users.email,
+              })
+              .from(financeReceipts)
+              .innerJoin(users, eq(financeReceipts.submittedByUserId, users.id))
+              .innerJoin(
+                eventInstances,
+                eq(financeReceipts.eventId, eventInstances.id),
+              )
+              .where(
+                and(
+                  eq(financeReceipts.id, input.id),
+                  eq(financeReceipts.tenantId, tenant.id),
+                ),
+              )
+              .limit(1)
+              .for('update', { of: financeReceipts });
+            const receiptRecord = receiptRows[0];
+            if (!receiptRecord) {
+              return yield* new FinanceReceiptNotFoundError({
+                id: input.id,
+                message: 'Receipt not found',
+                resource: 'receipt',
+              });
+            }
+            if (receiptRecord.status !== 'submitted') {
+              return yield* new RpcBadRequestError({
+                message:
+                  receiptRecord.status === 'refunded'
+                    ? 'Refunded receipts cannot be reviewed again'
+                    : 'Only submitted receipts can be reviewed',
+                reason:
+                  receiptRecord.status === 'refunded'
+                    ? 'refundedReceipt'
+                    : 'receiptAlreadyReviewed',
+              });
+            }
+            if (
+              approvalEvidence &&
+              receiptRecord.attachmentUploadId !==
+                approvalEvidence.attachmentUploadId
+            ) {
+              return yield* new RpcBadRequestError({
+                message: 'Receipt evidence changed before approval',
+                reason: 'receiptEvidenceUnavailable',
+              });
+            }
+            if (approvalEvidence) {
+              const lockedEvidenceRows = yield* tx
+                .select(financeReceiptView)
+                .from(financeReceipts)
+                .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
                 .where(
                   and(
-                    eq(financeReceipts.tenantId, tenant.id),
                     eq(financeReceipts.id, input.id),
-                    not(eq(financeReceipts.status, 'refunded')),
+                    eq(financeReceipts.tenantId, tenant.id),
+                    eq(
+                      financeReceipts.attachmentUploadId,
+                      approvalEvidence.attachmentUploadId,
+                    ),
                   ),
                 )
-                .returning({
-                  id: financeReceipts.id,
-                  status: financeReceipts.status,
+                .limit(1)
+                .for('share', { of: financeReceiptUploads });
+              const lockedEvidence = lockedEvidenceRows[0];
+              if (
+                !lockedEvidence ||
+                !hasValidReceiptUploadBinding(lockedEvidence) ||
+                lockedEvidence.attachmentStorageKey !==
+                  approvalEvidence.storageKey
+              ) {
+                return yield* new RpcBadRequestError({
+                  message: 'Receipt evidence changed before approval',
+                  reason: 'receiptEvidenceUnavailable',
                 });
-              const updatedRow = updatedRows[0];
-              if (!updatedRow) {
-                return [];
               }
+            }
 
-              yield* enqueueReceiptReviewedEmail(tx, {
-                eventTitle: receiptRecord.eventTitle,
-                receiptId: updatedRow.id,
+            const updatedRows = yield* tx
+              .update(financeReceipts)
+              .set({
+                alcoholAmount,
+                depositAmount,
+                hasAlcohol: input.hasAlcohol,
+                hasDeposit: input.hasDeposit,
+                purchaseCountry,
+                receiptDate,
                 rejectionReason:
                   input.status === 'rejected'
                     ? (input.rejectionReason ?? null)
                     : null,
+                reviewedAt: new Date(),
+                reviewedByUserId: user.id,
                 status: input.status,
-                tenant,
-                to: financeReceiptSubmitterEmail(receiptRecord),
+                taxAmount: input.taxAmount,
+                totalAmount: input.totalAmount,
+              })
+              .where(
+                and(
+                  eq(financeReceipts.tenantId, tenant.id),
+                  eq(financeReceipts.id, input.id),
+                  eq(financeReceipts.status, 'submitted'),
+                  approvalEvidence
+                    ? eq(
+                        financeReceipts.attachmentUploadId,
+                        approvalEvidence.attachmentUploadId,
+                      )
+                    : undefined,
+                ),
+              )
+              .returning({
+                id: financeReceipts.id,
+                status: financeReceipts.status,
               });
+            const updated = updatedRows[0];
+            if (!updated) {
+              return yield* new RpcBadRequestError({
+                message: 'Receipt review preconditions changed',
+                reason: 'receiptReviewPreconditionFailed',
+              });
+            }
 
-              return updatedRows;
-            }),
-          )
-          .pipe(Effect.orDie),
-      );
-      const updated = updatedReceipts[0];
-      if (!updated) {
-        return yield* Effect.fail(
-          new FinanceReceiptNotFoundError({
-            id: input.id,
-            message: 'Receipt not found',
-            resource: 'receipt',
+            yield* enqueueReceiptReviewedEmail(tx, {
+              eventTitle: receiptRecord.eventTitle,
+              receiptId: updated.id,
+              rejectionReason:
+                input.status === 'rejected'
+                  ? (input.rejectionReason ?? null)
+                  : null,
+              status: input.status,
+              tenant,
+              to: financeReceiptSubmitterEmail(receiptRecord),
+            });
+
+            return {
+              id: updated.id,
+              status: updated.status,
+            };
           }),
-        );
-      }
-
-      return {
-        id: updated.id,
-        status: updated.status,
-      };
+        ),
+      );
     }),
   'finance.receipts.submit': (input, _options) =>
     Effect.gen(function* () {
@@ -851,6 +961,7 @@ export const financeReceiptsHandlers = {
                   eq(financeReceiptUploads.tenantId, tenant.id),
                   eq(financeReceiptUploads.eventId, input.eventId),
                   eq(financeReceiptUploads.uploadedByUserId, user.id),
+                  eq(financeReceiptUploads.status, 'ready'),
                   isNotNull(financeReceiptUploads.uploadedAt),
                   isNull(financeReceiptUploads.consumedAt),
                 ),
@@ -890,13 +1001,14 @@ export const financeReceiptsHandlers = {
 
             const consumedUploads = yield* tx
               .update(financeReceiptUploads)
-              .set({ consumedAt: new Date() })
+              .set({ consumedAt: new Date(), status: 'consumed' })
               .where(
                 and(
                   eq(financeReceiptUploads.id, upload.id),
                   eq(financeReceiptUploads.tenantId, tenant.id),
                   eq(financeReceiptUploads.eventId, input.eventId),
                   eq(financeReceiptUploads.uploadedByUserId, user.id),
+                  eq(financeReceiptUploads.status, 'ready'),
                   isNotNull(financeReceiptUploads.uploadedAt),
                   isNull(financeReceiptUploads.consumedAt),
                 ),
@@ -918,6 +1030,7 @@ export const financeReceiptsHandlers = {
                 attachmentMimeType: upload.mimeType,
                 attachmentSizeBytes: upload.sizeBytes,
                 attachmentUploadId: upload.id,
+                currency: tenant.currency,
                 depositAmount,
                 eventId: input.eventId,
                 hasAlcohol: input.fields.hasAlcohol,

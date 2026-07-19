@@ -1,0 +1,297 @@
+name: PR Quality
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-notes:
+    name: Knope and change files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Knope
+        uses: knope-dev/action@19617851f9f13ab2f27a05989c55efb18aca3675 # v2.1.2
+        with:
+          version: 0.23.0
+
+      - name: Validate Knope configuration and change files
+        run: knope --validate
+
+  postgres-integration:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: true
+      POSTGRES_INTEGRATION_DATABASE_URL: postgresql://evorto:integration@localhost:5432/evorto_postgres_integration
+      POSTGRES_INTEGRATION_DISPOSABLE: "true"
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.23@sha256:8189a1f6e40904781fc9e2612687877791d21679866db58b1de996b31fc312e4
+        env:
+          POSTGRES_DB: evorto_postgres_integration
+          POSTGRES_PASSWORD: integration
+          POSTGRES_USER: evorto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U evorto -d evorto_postgres_integration"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Validate required configuration
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: |
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.15.0"
+
+      - name: Install dependencies
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then
+              exit 0
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "::error::Dependency installation failed after 3 attempts"
+              exit 1
+            fi
+            retry_delay_seconds=$((attempt * 15))
+            echo "::warning::Dependency installation attempt ${attempt} failed; retrying in ${retry_delay_seconds}s"
+            sleep "${retry_delay_seconds}"
+          done
+
+      - name: Run PostgreSQL integration tests
+        run: bun run test:integration:postgres
+
+  code-quality:
+    name: Lint, unit tests, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: true
+    steps:
+      - name: Validate required configuration
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: |
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.15.0"
+
+      - name: Install dependencies
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then
+              exit 0
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "::error::Dependency installation failed after 3 attempts"
+              exit 1
+            fi
+            retry_delay_seconds=$((attempt * 15))
+            echo "::warning::Dependency installation attempt ${attempt} failed; retrying in ${retry_delay_seconds}s"
+            sleep "${retry_delay_seconds}"
+          done
+
+      - name: Install Playwright browser for browser-backed security tests
+        run: bunx playwright install --with-deps chromium
+
+      - name: Check formatting
+        run: bun run format:check
+
+      - name: Lint without uncommitted fixes
+        run: |
+          bun run lint
+          git diff --exit-code
+
+      - name: Run server unit tests
+        run: bun run test:unit:server
+
+      - name: Run application unit tests
+        run: bun run test:unit
+
+      - name: Build application
+        run: bun run build:app
+
+  terraform:
+    name: Terraform validation and static scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.15.8
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infrastructure/scaleway
+
+      - name: Validate platform Terraform
+        run: |
+          terraform -chdir=infrastructure/scaleway init -backend=false -input=false
+          terraform -chdir=infrastructure/scaleway validate
+
+      - name: Validate state bootstrap Terraform
+        run: |
+          terraform -chdir=infrastructure/scaleway/bootstrap init -backend=false -input=false
+          terraform -chdir=infrastructure/scaleway/bootstrap validate
+
+      - name: Scan Terraform configuration
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: infrastructure/scaleway
+          version: v0.70.0
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true
+
+  image-security:
+    name: Linux image, SBOM, vulnerabilities, and size
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: true
+    steps:
+      - name: Validate required configuration
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: |
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+
+      - name: Build immutable Linux amd64 image once
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --secret id=FONT_AWESOME_TOKEN,env=FONT_AWESOME_TOKEN \
+            --tag "evorto-ci:${GITHUB_SHA}" \
+            .
+
+      - name: Verify image size and runtime artifacts
+        run: bun run image:verify -- "evorto-ci:${GITHUB_SHA}"
+
+      - name: Verify private source-map export target
+        env:
+          FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+        run: |
+          mkdir -p source-map-export
+          docker build \
+            --platform linux/amd64 \
+            --secret id=FONT_AWESOME_TOKEN,env=FONT_AWESOME_TOKEN \
+            --target source-maps \
+            --output type=local,dest=source-map-export \
+            .
+          test -s source-map-export/source-maps.tar.gz
+
+      - name: Generate image SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: evorto-ci:${{ github.sha }}
+          syft-version: v1.44.0
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+
+      - name: Scan image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: evorto-ci:${{ github.sha }}
+          version: v0.70.0
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.spdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+  ci-gate:
+    name: CI/gate
+    if: always()
+    needs:
+      - release-notes
+      - postgres-integration
+      - code-quality
+      - terraform
+      - image-security
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every quality job to pass
+        env:
+          QUALITY_RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          if [ "${QUALITY_RESULTS}" != "success,success,success,success,success" ]; then
+            echo "::error::At least one required quality job did not succeed: ${QUALITY_RESULTS}"
+            exit 1
+          fi

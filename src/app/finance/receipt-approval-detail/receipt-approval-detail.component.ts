@@ -40,6 +40,9 @@ export const receiptReviewSuccessMessage = (
 export const receiptReviewNotificationNotice =
   'Approving or rejecting this receipt queues an email to the submitter after saving.';
 
+export const receiptEvidenceUnavailableNotice =
+  'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.';
+
 export const receiptReviewActionDisabled = ({
   formInvalid,
   mutationPending,
@@ -49,6 +52,28 @@ export const receiptReviewActionDisabled = ({
   mutationPending: boolean;
   receiptPending: boolean;
 }): boolean => formInvalid || receiptPending || mutationPending;
+
+export const receiptApprovalDisabled = ({
+  evidenceAvailable,
+  ...reviewState
+}: {
+  evidenceAvailable: boolean;
+  formInvalid: boolean;
+  mutationPending: boolean;
+  receiptPending: boolean;
+}): boolean => !evidenceAvailable || receiptReviewActionDisabled(reviewState);
+
+export const receiptRejectionDisabled = ({
+  rejectionReason,
+  ...reviewState
+}: {
+  formInvalid: boolean;
+  mutationPending: boolean;
+  receiptPending: boolean;
+  rejectionReason: string;
+}): boolean =>
+  rejectionReason.trim().length === 0 ||
+  receiptReviewActionDisabled(reviewState);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -102,7 +127,10 @@ export class ReceiptApprovalDetailComponent {
     return receipt.attachmentMimeType === 'application/pdf';
   });
 
-  protected readonly receiptReviewActionDisabled = receiptReviewActionDisabled;
+  protected readonly receiptApprovalDisabled = receiptApprovalDisabled;
+  protected readonly receiptEvidenceUnavailableNotice =
+    receiptEvidenceUnavailableNotice;
+  protected readonly receiptRejectionDisabled = receiptRejectionDisabled;
   protected readonly receiptReviewNotificationNotice =
     receiptReviewNotificationNotice;
   protected readonly rejectionReason = signal('');
@@ -168,16 +196,31 @@ export class ReceiptApprovalDetailComponent {
   }
 
   private async review(status: 'approved' | 'rejected'): Promise<void> {
+    const receiptId = this.receiptId();
     const formInvalid = this.form.invalid;
-    if (
-      receiptReviewActionDisabled({
-        formInvalid,
-        mutationPending: this.reviewMutation.isPending(),
-        receiptPending: this.receiptQuery.isPending(),
-      })
-    ) {
+    const reviewState = {
+      formInvalid,
+      mutationPending: this.reviewMutation.isPending(),
+      receiptPending: this.receiptQuery.isPending(),
+    };
+    const evidenceAvailable =
+      this.receiptQuery.data()?.receiptEvidenceAvailable ?? false;
+    const rejectionReason = this.rejectionReason().trim();
+    const actionDisabled =
+      status === 'approved'
+        ? receiptApprovalDisabled({ evidenceAvailable, ...reviewState })
+        : receiptRejectionDisabled({ rejectionReason, ...reviewState });
+    if (actionDisabled) {
       if (formInvalid || this.receiptQuery.isPending()) {
         this.form.markAllAsTouched();
+      }
+      if (status === 'approved' && !evidenceAvailable) {
+        this.notifications.showError(receiptEvidenceUnavailableNotice);
+      }
+      if (status === 'rejected' && rejectionReason.length === 0) {
+        this.notifications.showError(
+          'Enter the reason that will be shown to the submitter.',
+        );
       }
       return;
     }
@@ -210,50 +253,51 @@ export class ReceiptApprovalDetailComponent {
     }
 
     try {
-      await this.reviewMutation.mutateAsync(
-        {
-          alcoholAmount,
-          depositAmount,
-          hasAlcohol: value.hasAlcohol,
-          hasDeposit: value.hasDeposit,
-          id: this.receiptId(),
-          purchaseCountry: value.purchaseCountry,
-          receiptDate: receiptDate.toISOString(),
-          rejectionReason:
-            status === 'rejected'
-              ? this.rejectionReason().trim() || null
-              : null,
-          status,
-          taxAmount,
-          totalAmount,
-        },
-        {
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter([
-                'finance',
-                'receipts.pendingApprovalGrouped',
-              ]),
-            );
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter([
-                'finance',
-                'receipts.refundableGroupedByRecipient',
-              ]),
-            );
-            await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.finance.receipts.findOneForApproval.queryKey({
-                id: this.receiptId(),
-              }),
-            });
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['finance', 'receipts.byEvent']),
-            );
-          },
-        },
-      );
+      await this.reviewMutation.mutateAsync({
+        alcoholAmount,
+        depositAmount,
+        hasAlcohol: value.hasAlcohol,
+        hasDeposit: value.hasDeposit,
+        id: receiptId,
+        purchaseCountry: value.purchaseCountry,
+        receiptDate: receiptDate.toISOString(),
+        rejectionReason: status === 'rejected' ? rejectionReason : null,
+        status,
+        taxAmount,
+        totalAmount,
+      });
+      await Promise.all([
+        this.queryClient.invalidateQueries({
+          ...this.rpc.queryFilter([
+            'finance',
+            'receipts.pendingApprovalGrouped',
+          ]),
+          refetchType: 'none',
+        }),
+        this.queryClient.invalidateQueries({
+          ...this.rpc.queryFilter([
+            'finance',
+            'receipts.refundableGroupedByRecipient',
+          ]),
+          refetchType: 'none',
+        }),
+        this.queryClient.invalidateQueries({
+          ...this.rpc.queryFilter(['finance', 'receipts.byEvent']),
+          refetchType: 'none',
+        }),
+      ]);
       this.notifications.showSuccess(receiptReviewSuccessMessage(status));
-      await this.router.navigate(['/finance/receipts-approval']);
+      const navigated = await this.router.navigate([
+        '/finance/receipts-approval',
+      ]);
+      if (navigated) {
+        this.queryClient.removeQueries({
+          exact: true,
+          queryKey: this.rpc.finance.receipts.findOneForApproval.queryKey({
+            id: receiptId,
+          }),
+        });
+      }
     } catch (error) {
       this.notifications.showError(
         getErrorMessage(error, 'Failed to review receipt'),

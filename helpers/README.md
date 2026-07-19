@@ -40,6 +40,9 @@ The seeding approach is deterministic, but not every profile has the same goal:
      - `past`
      - `draft`
    - Playwright tests should use those handles directly.
+   - Scanner specs and generated check-in docs use `past` with an explicit
+     confirmed participant registration so camera entry, partial guest arrival,
+     duplicate scans, and organizer totals are deterministic.
 
 3. **Pinned Clock + Seed Key**
    - `seed-clock.ts` honors `E2E_NOW_ISO` when provided.
@@ -73,32 +76,68 @@ This will:
 
 `bun run db:reset` now uses the same generated `.env.dev` plus `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract.
 
-The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
-
-Docker Compose now also runs one-shot `db-expiration` and `db-setup`
-containers before `evorto` starts. `bun run docker:start`,
+Docker Compose runs a pinned PostgreSQL 17 container plus one-shot `db-setup`
+before `evorto` and the polling worker start. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run
-`docker compose down` first, then run the equivalent of `bun run db:reset`
-against the Docker database during stack startup. That Docker reset path drops
-and recreates the `public` schema before running Drizzle so the one-shot
-container cannot get stuck on non-TTY confirmation prompts from older local
-branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
-`docker compose down` deletes the branch, and `db-expiration` immediately sets
-a short Neon branch expiration as a fallback for interrupted local or CI
-shutdowns. Playwright `webServer` uses `bun run docker:webserver`, which starts
-the foreground Compose stack without forcing `docker compose down` first. Use
-`bun run docker:resume` only for an already initialized stack when you want to
-bring stopped containers back without recreating them. Use `bun run docker:ps`
-to inspect the generated worktree Compose project; bare `docker compose ps` can
-point at the wrong project because it does not preload `.env.dev`. The package
-scripts preload the needed environment with `dotenv -c dev` before invoking
-Docker.
+`docker compose down --timeout 60 --remove-orphans` first, then run the
+equivalent of `bun run db:reset` against the Docker database during stack
+startup. That path drops and recreates `public`, applies Drizzle, and seeds the
+local dataset without an interactive confirmation. PostgreSQL data, Mailpit
+messages, and the Stripe signing secret use project-scoped named volumes;
+MinIO data is container-local for the disposable test stack.
+
+The generated `E2E_USE_DOCKER_STACK=true` environment makes Playwright use
+`bun run docker:webserver`. That wrapper refuses to take ownership when an
+existing project database container is present, builds and starts the full
+stack, and uses
+`--abort-on-container-failure` so a failed one-shot setup service ends startup
+immediately, while successful one-shot services leave the long-running app
+stack active. The wrapper traps process exit and Playwright shutdown signals,
+then runs the project-scoped
+`docker compose down --timeout 60 --remove-orphans --volumes` so stopped
+containers, networks, and disposable named volumes do not linger. Each Compose
+teardown call has a 90-second wall-clock watchdog, and each container, network,
+or volume verification call has a 10-second watchdog.
+Playwright allows five minutes for both teardown attempts, watchdog termination
+grace, verification, removal, and an additional shutdown buffer. When it reuses
+a stack that was already serving the app, it never starts that wrapper and the
+user-owned stack remains running. Resume an initialized stopped project with
+`bun run docker:resume`, or use `bun run docker:start` for an intentional reset.
+
+An explicitly supplied `E2E_USE_DOCKER_STACK=false` uses
+`helpers/testing/host-e2e-webserver.sh`. The caller owns its database. The host
+wrapper starts or temporarily
+resumes only the current worktree's MinIO container, initializes its bucket,
+and exports the same loopback S3 endpoint and credentials to the Angular server
+that receipt fixtures use. It restores a previously stopped MinIO container and
+removes a MinIO container it created after the host server stops; it never calls
+Compose teardown or mutates unrelated services or projects. Existing host app
+servers are not reused in this mode because their storage configuration cannot
+be proven after startup.
+
+`bun run docker:resume` requires the existing `db`, `minio`, `mailpit`,
+`stripe`, `worker`, and `evorto` containers plus successful `db-setup` and
+`minio-init` containers. It starts retained container IDs directly, waits for
+database, object storage, email, and Stripe health, then starts worker and web.
+It never reruns schema reset/seeding or bucket initialization. If any container
+is missing or a one-shot setup failed, use `bun run docker:start` for an
+intentional fresh reset instead.
+
+Use `bun run docker:ps` to inspect the generated worktree Compose project; bare
+`docker compose ps` can point at the wrong project because it does not preload
+`.env.dev`. The package scripts preload the needed environment with
+`dotenv -c dev` before invoking Docker.
 
 Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
 host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's
 internal listener (`http://localhost:4200`). Server-side rendering uses
 `SSR_RPC_ORIGIN` for in-container RPC calls; browser-side RPC calls still use the
-normal `/rpc` relative path.
+normal `/rpc` relative path. The generated runtime environment and app container
+set `NODE_ENV=development` explicitly so tenant outbound URLs may use the
+worktree's loopback `BASE_URL`, including its mapped port. The generated runtime
+environment also supplies the shared deterministic `E2E_NOW_ISO` and
+`E2E_SEED_KEY` values to database seeding and the app container so seeded event
+windows and server timing decisions use the same clock.
 
 Auth0 callback URLs are configured outside this repository. The runtime helper
 may generate a non-4200 app port for worktree isolation, but authenticated local
@@ -115,7 +154,7 @@ app metadata claims, not tenant roles.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
-containers, including Neon Local, Auth0, Stripe, the app session secret, and
+containers, including Auth0, Stripe, the app session secret, and
 Font Awesome package registry access for premium and brand icons. It also
 reports local tooling readiness such as Bun, Docker Compose, Compose config
 validation, Playwright CLI availability, and whether the matching Playwright
@@ -135,6 +174,14 @@ Use the tracked `.env.example` file as the no-secret checklist for values that
 belong in your untracked `.env` or exported shell environment. Do not add real
 secret values to `.env.example`, `.env.dev.local`, or `.env.dev`.
 
+The same non-mutating preflight has an `esncard-release` target. Local Docker
+treats `E2E_LIVE_ESN_CARD_IDENTIFIER` and
+`E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` as optional, while
+`bun helpers/testing/runtime-preflight.ts esncard-release` treats the approved
+active and permanently expired non-production identifiers as required and
+reports only their variable names and purposes, never their values. The release
+workflow invokes this target before the live provider journey.
+
 Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration
 flows against the intended connected test account.
@@ -153,7 +200,8 @@ registrations, and at least one checked-in aggregate for scanner review.
 The Docker Stripe CLI listener writes its generated webhook signing secret into
 a shared Docker volume. The app container reads that file through
 `STRIPE_WEBHOOK_SECRET_FILE`, so local paid checkout webhooks use the same
-runtime secret that Stripe CLI generated for the listener session.
+runtime secret that Stripe CLI generated for the listener session. Compose
+waits for the secret file to become nonempty before starting the app container.
 
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 

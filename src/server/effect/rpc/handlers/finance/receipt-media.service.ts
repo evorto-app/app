@@ -1,19 +1,21 @@
-import { formatConfigError } from '@server/config/config-error';
-import { objectStorageConfig } from '@server/config/object-storage-config';
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Context, Effect, Layer } from 'effect';
+import { createHash } from 'node:crypto';
 
-import {
-  getSignedReceiptObjectUrlFromR2,
-  uploadReceiptOriginalToR2,
-} from '../../../../integrations/cloudflare-r2';
+import { ObjectStorage } from '../../../../integrations/object-storage';
 import {
   ReceiptMediaBadRequestError,
-  ReceiptMediaInternalError,
+  ReceiptMediaServiceUnavailableError,
 } from './finance.errors';
 
-const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
+export const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
-const LOCAL_RECEIPT_STORAGE_URL_PREFIX = 'local-unavailable://';
+const receiptMimeTypes = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
 
 export interface ReceiptWithStoragePreview {
   attachmentStorageKey: null | string;
@@ -23,11 +25,16 @@ export interface ReceiptWithStoragePreview {
   attachmentUploadedByUserId: string;
   attachmentUploadEventId: string;
   attachmentUploadId: string;
+  attachmentUploadStatus: 'consumed' | 'pending' | 'ready' | 'rejected';
   attachmentUploadTenantId: string;
   eventId: string;
   previewImageUrl: null | string;
   submittedByUserId: string;
   tenantId: string;
+}
+
+interface AvailableReceiptEvidence extends ValidReceiptEvidenceBinding {
+  signedPreviewUrl: string;
 }
 
 interface ReceiptWithValidStoragePreview extends ReceiptWithStoragePreview {
@@ -37,28 +44,71 @@ interface ReceiptWithValidStoragePreview extends ReceiptWithStoragePreview {
   attachmentUploadedAt: Date;
 }
 
-const isAllowedReceiptMimeType = (mimeType: string): boolean =>
-  mimeType.startsWith('image/') || mimeType === 'application/pdf';
+interface ValidReceiptEvidenceBinding {
+  attachmentUploadId: string;
+  storageKey: string;
+}
+
+export const isAllowedReceiptMimeType = (mimeType: string): boolean =>
+  receiptMimeTypes.has(mimeType);
+
+export const validateReceiptUploadMetadata = (input: {
+  mimeType: string;
+  sizeBytes: number;
+}) =>
+  Effect.gen(function* () {
+    if (!isAllowedReceiptMimeType(input.mimeType)) {
+      return yield* Effect.fail(
+        new ReceiptMediaBadRequestError({
+          message: 'Receipts must be JPEG, PNG, WebP, or PDF files',
+        }),
+      );
+    }
+    if (
+      !Number.isSafeInteger(input.sizeBytes) ||
+      input.sizeBytes <= 0 ||
+      input.sizeBytes > MAX_RECEIPT_ORIGINAL_SIZE_BYTES
+    ) {
+      return yield* Effect.fail(
+        new ReceiptMediaBadRequestError({
+          message: 'Receipt file must be between 1 byte and 20 MB',
+        }),
+      );
+    }
+  });
+
+const startsWithBytes = (input: Uint8Array, expected: readonly number[]) =>
+  expected.every((value, index) => input[index] === value);
+
+export const detectReceiptMimeType = (
+  prefix: Uint8Array,
+):
+  'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | undefined => {
+  if (startsWithBytes(prefix, [0xff, 0xd8, 0xff])) {
+    return 'image/jpeg';
+  }
+  if (
+    startsWithBytes(prefix, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  ) {
+    return 'image/png';
+  }
+  if (
+    startsWithBytes(prefix, [0x52, 0x49, 0x46, 0x46]) &&
+    startsWithBytes(prefix.slice(8), [0x57, 0x45, 0x42, 0x50])
+  ) {
+    return 'image/webp';
+  }
+  if (startsWithBytes(prefix, [0x25, 0x50, 0x44, 0x46, 0x2d])) {
+    return 'application/pdf';
+  }
+  return;
+};
 
 const sanitizeFileName = (fileName: string): string =>
   fileName
     .trim()
     .replaceAll(/[^A-Za-z0-9._-]+/g, '-')
     .slice(0, 120) || 'receipt';
-
-const isObjectStorageConfigured = objectStorageConfig.pipe(
-  Effect.as(true),
-  // False positive: this is Effect error-channel handling, not a Promise chain.
-  // eslint-disable-next-line unicorn/prefer-top-level-await
-  Effect.catch((error) =>
-    Effect.logWarning('Object storage configuration unavailable').pipe(
-      Effect.annotateLogs({
-        error: formatConfigError(error),
-      }),
-      Effect.as(false),
-    ),
-  ),
-);
 
 export const hasValidReceiptUploadBinding = (
   receipt: ReceiptWithStoragePreview,
@@ -72,12 +122,13 @@ export const hasValidReceiptUploadBinding = (
     receipt.tenantId,
     receipt.eventId,
     receipt.submittedByUserId,
-    '',
+    `${receipt.attachmentUploadId}-`,
   ].join('/');
   return (
     receipt.attachmentUploadTenantId === receipt.tenantId &&
     receipt.attachmentUploadEventId === receipt.eventId &&
     receipt.attachmentUploadedByUserId === receipt.submittedByUserId &&
+    receipt.attachmentUploadStatus === 'consumed' &&
     receipt.attachmentUploadedAt !== null &&
     receipt.attachmentUploadConsumedAt !== null &&
     receipt.attachmentStorageUrl !== null &&
@@ -86,59 +137,142 @@ export const hasValidReceiptUploadBinding = (
   );
 };
 
+const validReceiptEvidenceBinding = (
+  receipt: ReceiptWithStoragePreview,
+): null | ValidReceiptEvidenceBinding =>
+  hasValidReceiptUploadBinding(receipt)
+    ? {
+        attachmentUploadId: receipt.attachmentUploadId,
+        storageKey: receipt.attachmentStorageKey,
+      }
+    : null;
+
+const logReceiptEvidenceFailure = (
+  message: string,
+  receipt: ReceiptWithStoragePreview,
+  error?: unknown,
+) =>
+  Effect.logWarning(message).pipe(
+    Effect.annotateLogs({
+      attachmentUploadId: receipt.attachmentUploadId,
+      ...(error !== undefined && {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      eventId: receipt.eventId,
+      submittedByUserId: receipt.submittedByUserId,
+      tenantId: receipt.tenantId,
+    }),
+  );
+
+const verifyBoundReceiptEvidence = Effect.fn(
+  'ReceiptMedia.verifyBoundReceiptEvidence',
+)(function* (
+  receipt: ReceiptWithStoragePreview,
+  binding: ValidReceiptEvidenceBinding,
+) {
+  const receiptMedia = yield* ReceiptMediaService;
+  const exists = yield* receiptMedia
+    .objectExists({ storageKey: binding.storageKey })
+    .pipe(
+      Effect.tapError((error) =>
+        logReceiptEvidenceFailure(
+          'Receipt evidence availability check failed',
+          receipt,
+          error,
+        ),
+      ),
+      Effect.orElseSucceed(() => false),
+    );
+  if (!exists) {
+    return null;
+  }
+
+  const signedPreviewUrl = yield* receiptMedia
+    .signedPreviewUrl({
+      expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
+      storageKey: binding.storageKey,
+    })
+    .pipe(
+      Effect.tapError((error) =>
+        logReceiptEvidenceFailure(
+          'Failed to sign receipt preview URL',
+          receipt,
+          error,
+        ),
+      ),
+      Effect.orElseSucceed(() => null),
+    );
+  if (signedPreviewUrl === null) {
+    return null;
+  }
+
+  return {
+    ...binding,
+    signedPreviewUrl,
+  } satisfies AvailableReceiptEvidence;
+});
+
+export const ensureReceiptEvidenceAvailableForApproval = Effect.fn(
+  'ReceiptMedia.ensureReceiptEvidenceAvailableForApproval',
+)(function* (receipt: ReceiptWithStoragePreview) {
+  const binding = validReceiptEvidenceBinding(receipt);
+  if (!binding) {
+    yield* logReceiptEvidenceFailure(
+      'Refusing receipt approval with an invalid upload binding',
+      receipt,
+    );
+    return yield* new RpcBadRequestError({
+      message:
+        'Receipt evidence is unavailable or does not match this submission',
+      reason: 'receiptEvidenceUnavailable',
+    });
+  }
+
+  const evidence = yield* verifyBoundReceiptEvidence(receipt, binding);
+  if (!evidence) {
+    return yield* new RpcBadRequestError({
+      message: 'Receipt evidence is unavailable and cannot be approved',
+      reason: 'receiptEvidenceUnavailable',
+    });
+  }
+
+  return binding;
+});
+
 export const withSignedReceiptPreviewUrl = <
   T extends ReceiptWithStoragePreview,
 >(
   receipt: T,
 ) =>
   Effect.gen(function* () {
-    if (!hasValidReceiptUploadBinding(receipt)) {
-      yield* Effect.logWarning(
+    const binding = validReceiptEvidenceBinding(receipt);
+    if (!binding) {
+      yield* logReceiptEvidenceFailure(
         'Refusing to sign receipt preview with an invalid upload binding',
-      ).pipe(
-        Effect.annotateLogs({
-          attachmentUploadId: receipt.attachmentUploadId,
-          eventId: receipt.eventId,
-          submittedByUserId: receipt.submittedByUserId,
-          tenantId: receipt.tenantId,
-        }),
+        receipt,
       );
 
       return {
         ...receipt,
         attachmentStorageKey: null,
         previewImageUrl: null,
+        receiptEvidenceAvailable: false,
       };
     }
 
-    const receiptStorageKey = receipt.attachmentStorageKey;
-    if (
-      receipt.attachmentStorageUrl.startsWith(LOCAL_RECEIPT_STORAGE_URL_PREFIX)
-    ) {
+    const evidence = yield* verifyBoundReceiptEvidence(receipt, binding);
+    if (!evidence) {
       return {
         ...receipt,
         previewImageUrl: null,
+        receiptEvidenceAvailable: false,
       };
     }
 
-    const signedPreviewUrl = yield* getSignedReceiptObjectUrlFromR2({
-      expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
-      key: receiptStorageKey,
-    }).pipe(
-      Effect.tapError((error) =>
-        Effect.logWarning('Failed to sign receipt preview URL').pipe(
-          Effect.annotateLogs({
-            error: error instanceof Error ? error.message : String(error),
-            receiptStorageKey,
-          }),
-        ),
-      ),
-      Effect.orElseSucceed(() => null),
-    );
-
     return {
       ...receipt,
-      previewImageUrl: signedPreviewUrl,
+      previewImageUrl: evidence.signedPreviewUrl,
+      receiptEvidenceAvailable: true,
     };
   });
 
@@ -148,120 +282,251 @@ export const withSignedReceiptPreviewUrls = <
   receipts: readonly T[],
 ) =>
   Effect.forEach(receipts, (receipt) => withSignedReceiptPreviewUrl(receipt), {
-    concurrency: 'unbounded',
+    concurrency: 8,
   });
 
-interface UploadOriginalInput {
+interface CreateUploadPolicyInput extends ReceiptUploadScope {
+  expiresAt: Date;
+  now: Date;
+  sizeBytes: number;
+}
+
+interface FinalReceiptStorageScope extends ReceiptUploadScope {
+  contentDigest: string;
+}
+
+interface InspectUploadInput extends ReceiptUploadScope {
+  sizeBytes: number;
+  storageKey: string;
+}
+
+interface ReceiptUploadScope {
   eventId: string;
-  fileBase64: string;
   fileName: string;
-  fileSizeBytes: number;
   mimeType: string;
   tenantId: string;
   uploadId: string;
   userId: string;
 }
 
-export const buildReceiptStorageKey = ({
+export const buildReceiptUploadStorageKey = ({
   eventId,
   fileName,
   tenantId,
   uploadId,
   userId,
 }: Pick<
-  UploadOriginalInput,
+  ReceiptUploadScope,
   'eventId' | 'fileName' | 'tenantId' | 'uploadId' | 'userId'
 >): string =>
   [
-    'receipts',
+    'receipt-uploads',
     tenantId,
     eventId,
     userId,
     `${uploadId}-${sanitizeFileName(fileName)}`,
   ].join('/');
 
+export const buildReceiptStorageKey = ({
+  contentDigest,
+  eventId,
+  fileName,
+  tenantId,
+  uploadId,
+  userId,
+}: Pick<
+  FinalReceiptStorageScope,
+  'contentDigest' | 'eventId' | 'fileName' | 'tenantId' | 'uploadId' | 'userId'
+>): string => {
+  if (!/^[0-9a-f]{64}$/u.test(contentDigest)) {
+    throw new Error('Receipt content digest must be a lowercase SHA-256 hash');
+  }
+
+  return [
+    'receipts',
+    tenantId,
+    eventId,
+    userId,
+    `${uploadId}-${contentDigest}-${sanitizeFileName(fileName)}`,
+  ].join('/');
+};
+
 export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
   '@server/effect/rpc/handlers/finance/ReceiptMediaService',
   {
-    make: Effect.sync(() => {
-      const uploadOriginal = Effect.fn('ReceiptMediaService.uploadOriginal')(
-        function* ({
-          eventId,
-          fileBase64,
-          fileName,
-          fileSizeBytes,
-          mimeType,
-          tenantId,
-          uploadId,
-          userId,
-        }: UploadOriginalInput) {
-          if (!isAllowedReceiptMimeType(mimeType)) {
+    make: Effect.gen(function* () {
+      const objectStorage = yield* ObjectStorage;
+      const objectExists = Effect.fn('ReceiptMediaService.objectExists')(
+        function* ({ storageKey }: { storageKey: string }) {
+          return yield* objectStorage.exists(storageKey).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ReceiptMediaServiceUnavailableError({
+                  cause,
+                  message: 'Receipt storage is unavailable',
+                }),
+            ),
+          );
+        },
+      );
+
+      const signedPreviewUrl = Effect.fn(
+        'ReceiptMediaService.signedPreviewUrl',
+      )(function* ({
+        expiresInSeconds,
+        storageKey,
+      }: {
+        expiresInSeconds: number;
+        storageKey: string;
+      }) {
+        return yield* objectStorage
+          .presignGet(storageKey, expiresInSeconds)
+          .pipe(
+            Effect.mapError(
+              (cause) =>
+                new ReceiptMediaServiceUnavailableError({
+                  cause,
+                  message: 'Receipt storage is unavailable',
+                }),
+            ),
+          );
+      });
+
+      const createUploadPolicy = Effect.fn(
+        'ReceiptMediaService.createUploadPolicy',
+      )(function* (input: CreateUploadPolicyInput) {
+        yield* validateReceiptUploadMetadata(input);
+        if (input.expiresAt.getTime() <= input.now.getTime()) {
+          return yield* Effect.fail(
+            new ReceiptMediaBadRequestError({
+              message: 'Receipt upload expiry must be in the future',
+            }),
+          );
+        }
+
+        const storageKey = buildReceiptUploadStorageKey(input);
+        const signed = yield* objectStorage
+          .presignPost({
+            contentType: input.mimeType,
+            expiresAt: input.expiresAt,
+            key: storageKey,
+            now: input.now,
+            sizeBytes: input.sizeBytes,
+          })
+          .pipe(
+            Effect.mapError(
+              (cause) =>
+                new ReceiptMediaServiceUnavailableError({
+                  cause,
+                  message: 'Receipt storage is unavailable',
+                }),
+            ),
+          );
+
+        return { ...signed, storageKey };
+      });
+
+      const discardPromotedUpload = Effect.fn(
+        'ReceiptMediaService.discardPromotedUpload',
+      )(function* (storageKey: string) {
+        yield* objectStorage.deleteObject(storageKey).pipe(
+          Effect.retry({ times: 3 }),
+          Effect.mapError(
+            (cause) =>
+              new ReceiptMediaServiceUnavailableError({
+                cause,
+                message: 'Receipt storage is unavailable',
+              }),
+          ),
+        );
+      });
+
+      const inspectUpload = Effect.fn('ReceiptMediaService.inspectUpload')(
+        function* (input: InspectUploadInput) {
+          if (!isAllowedReceiptMimeType(input.mimeType)) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
-                message: 'Unsupported MIME type',
+                message: 'Unsupported receipt MIME type',
               }),
             );
           }
 
-          const body = Buffer.from(fileBase64, 'base64');
-          if (body.byteLength !== fileSizeBytes) {
+          const expectedStorageKey = buildReceiptUploadStorageKey(input);
+          if (input.storageKey !== expectedStorageKey) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
-                message: 'Uploaded file size does not match payload metadata',
+                message:
+                  'Receipt upload key does not match its authorization scope',
               }),
             );
           }
-          if (body.byteLength > MAX_RECEIPT_ORIGINAL_SIZE_BYTES) {
+
+          const body = yield* objectStorage.get(input.storageKey).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ReceiptMediaServiceUnavailableError({
+                  cause,
+                  message: 'Receipt storage is unavailable',
+                }),
+            ),
+          );
+          const detectedMimeType = detectReceiptMimeType(body.slice(0, 16));
+          if (
+            body.byteLength !== input.sizeBytes ||
+            body.byteLength <= 0 ||
+            body.byteLength > MAX_RECEIPT_ORIGINAL_SIZE_BYTES
+          ) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
-                message: 'File exceeds size limit',
+                message:
+                  'Uploaded receipt size does not match its signed policy',
+              }),
+            );
+          }
+          if (detectedMimeType !== input.mimeType) {
+            return yield* Effect.fail(
+              new ReceiptMediaBadRequestError({
+                message:
+                  'Uploaded receipt content does not match its declared type',
               }),
             );
           }
 
           const storageKey = buildReceiptStorageKey({
-            eventId,
-            fileName,
-            tenantId,
-            uploadId,
-            userId,
+            ...input,
+            contentDigest: createHash('sha256').update(body).digest('hex'),
           });
-
-          const uploaded = yield* uploadReceiptOriginalToR2({
-            body,
-            contentType: mimeType,
-            key: storageKey,
-          }).pipe(
-            Effect.mapError(
-              () =>
-                new ReceiptMediaInternalError({
-                  message: 'Failed to upload file',
-                }),
-            ),
-            Effect.catch((error) =>
-              isObjectStorageConfigured.pipe(
-                Effect.flatMap((configured) =>
-                  configured
-                    ? Effect.fail(error)
-                    : Effect.succeed({
-                        storageKey,
-                        storageUrl: 'local-unavailable://receipt',
-                      }),
-                ),
+          const stored = yield* objectStorage
+            .put({
+              body,
+              contentType: detectedMimeType,
+              key: storageKey,
+            })
+            .pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ReceiptMediaServiceUnavailableError({
+                    cause,
+                    message: 'Receipt storage is unavailable',
+                  }),
               ),
-            ),
-          );
+            );
 
           return {
+            mimeType: detectedMimeType,
             sizeBytes: body.byteLength,
-            storageKey: uploaded.storageKey,
-            storageUrl: uploaded.storageUrl,
+            storageKey: stored.storageKey,
+            storageUrl: stored.storageUrl,
           };
         },
       );
 
       return {
-        uploadOriginal,
+        createUploadPolicy,
+        discardPromotedUpload,
+        inspectUpload,
+        objectExists,
+        signedPreviewUrl,
       };
     }),
   },
@@ -271,6 +536,14 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
     ReceiptMediaService.make,
   );
 
-  static readonly uploadOriginal = (input: UploadOriginalInput) =>
-    ReceiptMediaService.use((service) => service.uploadOriginal(input));
+  static readonly createUploadPolicy = (input: CreateUploadPolicyInput) =>
+    ReceiptMediaService.use((service) => service.createUploadPolicy(input));
+
+  static readonly discardPromotedUpload = (storageKey: string) =>
+    ReceiptMediaService.use((service) =>
+      service.discardPromotedUpload(storageKey),
+    );
+
+  static readonly inspectUpload = (input: InspectUploadInput) =>
+    ReceiptMediaService.use((service) => service.inspectUpload(input));
 }

@@ -1,8 +1,13 @@
 import { defineConfig } from 'drizzle-kit';
 
+const legacyDatabaseUrl = process.env['LEGACY_DATABASE_URL'];
+if (!legacyDatabaseUrl) {
+  throw new Error('LEGACY_DATABASE_URL must be configured');
+}
+
 export default defineConfig({
   dbCredentials: {
-    url: process.env['NEON_PROD_CONNECTION']!,
+    url: legacyDatabaseUrl,
   },
   dialect: 'postgresql',
   out: './old/drizzle',

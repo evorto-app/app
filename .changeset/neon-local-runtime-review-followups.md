@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Tighten Neon Local CI wiring and TLS guardrails

@@ -12,6 +12,7 @@ describe('template event add-on schema', () => {
     const schemaIndexSource = readSource('index.ts');
     const eventAddonSource = readSource('event-addons.ts');
     const templateAddonSource = readSource('template-event-addons.ts');
+    const templateOptionSource = readSource('template-registration-options.ts');
 
     expect(schemaIndexSource).toContain(
       "export * from './template-event-addons'",
@@ -20,9 +21,29 @@ describe('template event add-on schema', () => {
     expect(schemaIndexSource).toContain(
       "export * from './event-registration-addon-purchases'",
     );
-    expect(templateAddonSource).toContain("pgTable('template_event_addons'");
-    expect(eventAddonSource).toContain("pgTable('event_addons'");
+    expect(templateAddonSource).toContain("'template_event_addons'");
+    expect(templateAddonSource).toContain(
+      'templateAddonTemplateIdentityUniqueConstraintName',
+    );
+    expect(eventAddonSource).toContain("'event_addons'");
     expect(eventAddonSource).toContain("'addon_to_event_registration_options'");
+    expect(eventAddonSource).toContain('includedQuantity');
+    expect(eventAddonSource).toContain('optionalPurchaseQuantity');
+    expect(eventAddonSource).toContain(
+      'addon_to_event_registration_options_quantity_present',
+    );
+    expect(eventAddonSource).not.toContain('quantity: integer().notNull()');
+    expect(eventAddonSource).toContain('eventId: varchar');
+    expect(templateOptionSource).toContain(
+      "'addon_to_template_registration_options'",
+    );
+    expect(templateOptionSource).toContain('includedQuantity');
+    expect(templateOptionSource).toContain('optionalPurchaseQuantity');
+    expect(templateOptionSource).toContain(
+      'addon_to_template_options_quantity_present',
+    );
+    expect(templateOptionSource).not.toContain('quantity: integer().notNull()');
+    expect(templateOptionSource).toContain('templateId: varchar');
     expect(addonPurchaseSource).toContain(
       "'event_registration_addon_purchases'",
     );

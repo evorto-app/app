@@ -12,6 +12,7 @@ import {
   templateRegistrationOptions,
   templateRegistrationQuestions,
 } from '../../../../../db/schema';
+import { lockTenantRoleGraph } from '../../../../roles/tenant-role-graph';
 import {
   isMeaningfulRichTextHtml,
   sanitizeRichTextHtml,
@@ -115,12 +116,15 @@ export const buildRegistrationOptionInsert = ({
   templateId: string;
 }): TemplateRegistrationOptionInsert => {
   return {
+    cancellationDeadlineHoursBeforeStart:
+      input.cancellationDeadlineHoursBeforeStart,
     closeRegistrationOffset: input.closeRegistrationOffset,
     description: optionalRichTextOrNull(input.description),
     isPaid: input.isPaid,
     openRegistrationOffset: input.openRegistrationOffset,
     organizingRegistration,
     price: input.price,
+    refundFeesOnCancellation: input.refundFeesOnCancellation,
     registeredDescription: optionalRichTextOrNull(input.registeredDescription),
     registrationMode: input.registrationMode,
     roleIds: [...input.roleIds],
@@ -128,6 +132,7 @@ export const buildRegistrationOptionInsert = ({
     stripeTaxRateId: input.stripeTaxRateId ?? null,
     templateId,
     title: input.title.trim(),
+    transferDeadlineHoursBeforeStart: input.transferDeadlineHoursBeforeStart,
   };
 };
 
@@ -179,18 +184,22 @@ export const buildTemplateAddonRegistrationOptionInsert = ({
   addonId,
   organizerRegistrationOptionId,
   participantRegistrationOptionId,
+  templateId,
 }: {
   addon: SimpleTemplateAddonInput;
   addonId: string;
   organizerRegistrationOptionId: string;
   participantRegistrationOptionId: string;
+  templateId: string;
 }): AddonToTemplateRegistrationOptionInsert => ({
   addonId,
-  quantity: addon.quantity,
+  includedQuantity: addon.includedQuantity,
+  optionalPurchaseQuantity: addon.optionalPurchaseQuantity,
   registrationOptionId:
     addon.registrationOptionKind === 'organizer'
       ? organizerRegistrationOptionId
       : participantRegistrationOptionId,
+  templateId,
 });
 
 export const buildTemplateQuestionInsert = ({
@@ -251,6 +260,24 @@ const validateRegistrationOffsetOrdering = ({
     return Effect.fail(
       new TemplateSimpleBadRequestError({
         message: `${kind} registration must open before it closes`,
+      }),
+    );
+  }
+
+  return Effect.void;
+};
+
+const validateRegistrationPrice = ({
+  kind,
+  registration,
+}: {
+  kind: 'organizer' | 'participant';
+  registration: SimpleTemplateRegistrationInput;
+}) => {
+  if (registration.isPaid && registration.price <= 0) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: `${kind} paid registration requires a positive price`,
       }),
     );
   }
@@ -321,7 +348,16 @@ const validateTemplateAddon = ({
     );
   }
 
+  if (addon.isPaid && addon.price <= 0) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: 'Paid template add-ons require a positive price',
+      }),
+    );
+  }
+
   if (
+    addon.optionalPurchaseQuantity > 0 &&
     !addon.allowPurchaseBeforeEvent &&
     !addon.allowPurchaseDuringEvent &&
     !addon.allowPurchaseDuringRegistration
@@ -333,21 +369,24 @@ const validateTemplateAddon = ({
     );
   }
 
-  if (addon.quantity > addon.totalAvailableQuantity) {
+  if (
+    addon.includedQuantity + addon.optionalPurchaseQuantity === 0 ||
+    addon.includedQuantity + addon.optionalPurchaseQuantity >
+      addon.totalAvailableQuantity
+  ) {
     return Effect.fail(
       new TemplateSimpleBadRequestError({
-        message: 'Template add-on registration quantity exceeds total quantity',
+        message:
+          'Template add-on included and optional quantities must fit available stock',
       }),
     );
   }
 
-  if (
-    addon.maxQuantityPerUser >
-    Math.floor(addon.totalAvailableQuantity / addon.quantity)
-  ) {
+  if (addon.optionalPurchaseQuantity > addon.maxQuantityPerUser) {
     return Effect.fail(
       new TemplateSimpleBadRequestError({
-        message: 'Template add-on user quantity exceeds total quantity',
+        message:
+          'Template add-on optional quantity exceeds the per-user purchase limit',
       }),
     );
   }
@@ -492,6 +531,14 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           kind: 'participant',
           registration: input.participantRegistration,
         });
+        yield* validateRegistrationPrice({
+          kind: 'organizer',
+          registration: input.organizerRegistration,
+        });
+        yield* validateRegistrationPrice({
+          kind: 'participant',
+          registration: input.participantRegistration,
+        });
 
         yield* validateTemplateCategory();
         yield* validateRegistrationRoles();
@@ -616,6 +663,7 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
                 addonId: insertedAddOn.id,
                 organizerRegistrationOptionId,
                 participantRegistrationOptionId,
+                templateId,
               }),
             ),
           );
@@ -667,6 +715,9 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
         input,
         tenantId,
       }: CreateSimpleTemplateArguments) {
+        yield* databaseEffect((database) =>
+          lockTenantRoleGraph(database, tenantId),
+        );
         const { sanitizedDescription } = yield* validateSimpleTemplateInput({
           esnCardEnabled,
           input,
@@ -785,6 +836,9 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
         input,
         tenantId,
       }: UpdateSimpleTemplateArguments) {
+        yield* databaseEffect((database) =>
+          lockTenantRoleGraph(database, tenantId),
+        );
         const { sanitizedDescription } = yield* validateSimpleTemplateInput({
           esnCardEnabled,
           input,
@@ -825,6 +879,9 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           database
             .update(templateRegistrationOptions)
             .set({
+              cancellationDeadlineHoursBeforeStart:
+                input.organizerRegistration
+                  .cancellationDeadlineHoursBeforeStart,
               closeRegistrationOffset:
                 input.organizerRegistration.closeRegistrationOffset,
               description: optionalRichTextOrNull(
@@ -834,6 +891,8 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               openRegistrationOffset:
                 input.organizerRegistration.openRegistrationOffset,
               price: input.organizerRegistration.price,
+              refundFeesOnCancellation:
+                input.organizerRegistration.refundFeesOnCancellation,
               registeredDescription: optionalRichTextOrNull(
                 input.organizerRegistration.registeredDescription,
               ),
@@ -843,6 +902,8 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               stripeTaxRateId:
                 input.organizerRegistration.stripeTaxRateId ?? null,
               title: input.organizerRegistration.title.trim(),
+              transferDeadlineHoursBeforeStart:
+                input.organizerRegistration.transferDeadlineHoursBeforeStart,
             })
             .where(
               and(
@@ -859,6 +920,9 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           database
             .update(templateRegistrationOptions)
             .set({
+              cancellationDeadlineHoursBeforeStart:
+                input.participantRegistration
+                  .cancellationDeadlineHoursBeforeStart,
               closeRegistrationOffset:
                 input.participantRegistration.closeRegistrationOffset,
               description: optionalRichTextOrNull(
@@ -868,6 +932,8 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               openRegistrationOffset:
                 input.participantRegistration.openRegistrationOffset,
               price: input.participantRegistration.price,
+              refundFeesOnCancellation:
+                input.participantRegistration.refundFeesOnCancellation,
               registeredDescription: optionalRichTextOrNull(
                 input.participantRegistration.registeredDescription,
               ),
@@ -877,6 +943,8 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               stripeTaxRateId:
                 input.participantRegistration.stripeTaxRateId ?? null,
               title: input.participantRegistration.title.trim(),
+              transferDeadlineHoursBeforeStart:
+                input.participantRegistration.transferDeadlineHoursBeforeStart,
             })
             .where(
               and(

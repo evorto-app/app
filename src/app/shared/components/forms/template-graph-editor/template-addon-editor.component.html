@@ -1,0 +1,198 @@
+@let addOn = addOnForm();
+<fieldset class="border-outline-variant grid gap-4 border-t pt-4">
+  <legend class="title-small pr-3">
+    {{ addOn.title().value().trim() || "Add-on" }}
+  </legend>
+
+  <div class="flex items-start gap-3">
+    <mat-form-field class="grow">
+      <mat-label>Add-on name</mat-label>
+      <input matInput [formField]="addOn.title" />
+      @for (error of addOn.title().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <button
+      mat-icon-button
+      type="button"
+      aria-label="Remove add-on"
+      title="Remove add-on"
+      (click)="remove.emit()"
+    >
+      <fa-duotone-icon [icon]="faTrashCan" />
+    </button>
+  </div>
+
+  <mat-form-field>
+    <mat-label>Description</mat-label>
+    <textarea matInput rows="3" [formField]="addOn.description"></textarea>
+    @for (error of addOn.description().errors(); track error) {
+      <mat-error>{{ error.message }}</mat-error>
+    }
+  </mat-form-field>
+
+  <section
+    class="grid gap-3"
+    aria-label="Registration options available for this add-on"
+  >
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h4 class="title-small">Available with registration options</h4>
+      <button
+        mat-button
+        type="button"
+        [disabled]="addOn.registrationOptions.length >= optionChoices().length"
+        (click)="addMapping.emit()"
+      >
+        <fa-duotone-icon [icon]="faPlus" />
+        Add registration option
+      </button>
+    </div>
+    @for (
+      mapping of addOn.registrationOptions;
+      track mapping;
+      let mappingIndex = $index
+    ) {
+      <div
+        class="grid gap-3 @lg:grid-cols-[minmax(0,1fr)_10rem_10rem_auto]"
+        data-testid="template-addon-mapping"
+      >
+        <mat-form-field>
+          <mat-label>Registration option</mat-label>
+          <mat-select [formField]="mapping.registrationOptionKey">
+            @for (option of optionChoices(); track option.key) {
+              <mat-option [value]="option.key">{{ option.title }}</mat-option>
+            }
+          </mat-select>
+          @for (
+            error of mapping.registrationOptionKey().errors();
+            track error
+          ) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Included quantity</mat-label>
+          <input
+            matInput
+            type="number"
+            [formField]="mapping.includedQuantity"
+          />
+          @for (error of mapping.includedQuantity().errors(); track error) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Optional purchase quantity</mat-label>
+          <input
+            matInput
+            type="number"
+            [formField]="mapping.optionalPurchaseQuantity"
+          />
+          @for (
+            error of mapping.optionalPurchaseQuantity().errors();
+            track error
+          ) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+        <button
+          mat-icon-button
+          type="button"
+          aria-label="Remove registration option from add-on"
+          title="Remove registration option from add-on"
+          (click)="removeMapping.emit(mappingIndex)"
+        >
+          <fa-duotone-icon [icon]="faTrashCan" />
+        </button>
+      </div>
+    } @empty {
+      <p class="body-small text-on-surface-variant">
+        This add-on is not available with any registration option.
+      </p>
+    }
+    @for (error of addOn.registrationOptions().errors(); track error) {
+      <p class="body-small text-error" role="alert">{{ error.message }}</p>
+    }
+  </section>
+
+  <div class="grid gap-4 @sm:grid-cols-2">
+    <mat-form-field>
+      <mat-label>Available quantity</mat-label>
+      <input
+        matInput
+        type="number"
+        [formField]="addOn.totalAvailableQuantity"
+      />
+      @for (error of addOn.totalAvailableQuantity().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Maximum per user</mat-label>
+      <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+      @for (error of addOn.maxQuantityPerUser().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+  </div>
+
+  <div class="grid gap-2 @sm:grid-cols-2">
+    <mat-checkbox [formField]="addOn.allowMultiple">
+      Allow multiple purchases per user
+    </mat-checkbox>
+    <mat-checkbox [formField]="addOn.allowPurchaseDuringRegistration">
+      Available during registration
+    </mat-checkbox>
+    <mat-checkbox [formField]="addOn.allowPurchaseBeforeEvent">
+      Available after registration and before the event
+    </mat-checkbox>
+    <mat-checkbox [formField]="addOn.allowPurchaseDuringEvent">
+      Available during the event
+    </mat-checkbox>
+    @for (
+      error of addOn.allowPurchaseDuringRegistration().errors();
+      track error
+    ) {
+      <p class="body-small text-error @sm:col-span-2" role="alert">
+        {{ error.message }}
+      </p>
+    }
+  </div>
+
+  <mat-checkbox [formField]="addOn.isPaid">Enable payment</mat-checkbox>
+  <p class="text-on-surface-variant text-sm">
+    Paid add-ons require a connected Stripe account.
+  </p>
+  @if (!addOn.price().hidden()) {
+    <div class="grid gap-4 @sm:grid-cols-2">
+      <app-currency-amount-input
+        label="Unit price"
+        [currencyCode]="currencyCode()"
+        [formField]="addOn.price"
+        [minimumMinorUnits]="1"
+      />
+      <mat-form-field>
+        <mat-label>Inclusive tax rate</mat-label>
+        <mat-select [formField]="addOn.stripeTaxRateId">
+          @if (taxRateState() === "loading") {
+            <mat-option disabled>Loading tax rates...</mat-option>
+          } @else if (taxRateState() === "error") {
+            <mat-option disabled>Failed to load tax rates</mat-option>
+          } @else {
+            @for (rate of taxRates(); track rate.id) {
+              <mat-option [value]="rate.stripeTaxRateId">
+                {{ rate.displayName || rate.stripeTaxRateId }} —
+                {{ rate.percentage ?? "?" }}%
+              </mat-option>
+            } @empty {
+              <mat-option disabled>No active inclusive tax rates</mat-option>
+            }
+          }
+        </mat-select>
+        @for (error of addOn.stripeTaxRateId().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
+      </mat-form-field>
+    </div>
+  }
+</fieldset>

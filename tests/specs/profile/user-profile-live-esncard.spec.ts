@@ -3,26 +3,45 @@ import { and, eq } from 'drizzle-orm';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 
 const liveEsnCardIdentifier =
   process.env['E2E_LIVE_ESN_CARD_IDENTIFIER']?.trim();
+const expiredEsnCardIdentifier =
+  process.env['E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER']?.trim();
 const seededEsnCardIdentifier = 'TEST-ESN-0001';
 
 test.setTimeout(120_000);
 
-test.use({ storageState: userStateFile });
-test.skip(
-  !liveEsnCardIdentifier,
-  'E2E_LIVE_ESN_CARD_IDENTIFIER is required for live ESNcard provider coverage',
-);
+// The identifier is an approved non-production credential. Keep it out of
+// traces and value-bearing assertions even though GitHub masks secret logs.
+test.use({
+  screenshot: 'off',
+  storageState: userStateFile,
+  trace: 'off',
+  video: 'off',
+});
 
-test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async ({
+test('verifies active and expired ESN cards through the live provider @needs-live-esncard', async ({
   database,
   discounts,
   page,
   tenant,
 }) => {
   void discounts;
+  if (!liveEsnCardIdentifier) {
+    throw new Error(
+      'E2E_LIVE_ESN_CARD_IDENTIFIER is required for live ESNcard provider coverage',
+    );
+  }
+  if (!expiredEsnCardIdentifier) {
+    throw new Error(
+      'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER is required for live expired-card provider coverage',
+    );
+  }
+  if (expiredEsnCardIdentifier === liveEsnCardIdentifier) {
+    throw new Error('Active and expired ESNcard identifiers must be different');
+  }
   const regularUser = usersToAuthenticate.find(
     (user) => user.stateFile === userStateFile,
   );
@@ -66,6 +85,7 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
       .where(
         and(
           eq(schema.userDiscountCards.userId, regularUser.id),
+          eq(schema.userDiscountCards.tenantId, tenant.id),
           eq(schema.userDiscountCards.type, 'esnCard'),
         ),
       );
@@ -77,19 +97,19 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('No discount cards on file.')).toBeVisible();
 
-    await page
-      .getByRole('textbox', { name: 'ESN card number' })
-      .fill(liveEsnCardIdentifier!);
+    await fillProtectedValue(
+      page.getByRole('textbox', { name: 'ESN card number' }),
+      'E2E_LIVE_ESN_CARD_IDENTIFIER',
+      { trim: true },
+    );
     await page.getByRole('button', { name: 'Save ESN card' }).click();
 
-    await expect(page.getByText(liveEsnCardIdentifier!)).toBeVisible({
+    await expect(page.getByText(/Status: Verified/)).toBeVisible({
       timeout: 20_000,
     });
-    await expect(page.getByText(/Status: Verified/)).toBeVisible();
 
     const savedCard = await database.query.userDiscountCards.findFirst({
       where: {
-        identifier: liveEsnCardIdentifier!,
         tenantId: tenant.id,
         type: 'esnCard',
         userId: regularUser.id,
@@ -97,13 +117,13 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
     });
     expect(savedCard).toEqual(
       expect.objectContaining({
-        identifier: liveEsnCardIdentifier,
         status: 'verified',
         tenantId: tenant.id,
         type: 'esnCard',
         userId: regularUser.id,
       }),
     );
+    expect(savedCard?.identifier === liveEsnCardIdentifier).toBe(true);
     expect(savedCard?.lastCheckedAt).toBeInstanceOf(Date);
 
     await page.getByRole('button', { name: 'Refresh' }).click();
@@ -113,19 +133,20 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
 
     const refreshedCard = await database.query.userDiscountCards.findFirst({
       where: {
-        identifier: liveEsnCardIdentifier!,
+        tenantId: tenant.id,
         type: 'esnCard',
         userId: regularUser.id,
       },
     });
     expect(refreshedCard).toEqual(
       expect.objectContaining({
-        identifier: liveEsnCardIdentifier,
         status: 'verified',
+        tenantId: tenant.id,
         type: 'esnCard',
         userId: regularUser.id,
       }),
     );
+    expect(refreshedCard?.identifier === liveEsnCardIdentifier).toBe(true);
     expect(refreshedCard?.lastCheckedAt).toBeInstanceOf(Date);
 
     await page.getByRole('button', { name: 'Remove' }).click();
@@ -135,12 +156,85 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
 
     const removedCard = await database.query.userDiscountCards.findFirst({
       where: {
-        identifier: liveEsnCardIdentifier!,
+        tenantId: tenant.id,
         type: 'esnCard',
         userId: regularUser.id,
       },
     });
     expect(removedCard).toBeUndefined();
+
+    await fillProtectedValue(
+      page.getByRole('textbox', { name: 'ESN card number' }),
+      'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER',
+      { trim: true },
+    );
+    await page.getByRole('button', { name: 'Save ESN card' }).click();
+
+    await expect(page.getByText(/Status: Expired/)).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const savedExpiredCard = await database.query.userDiscountCards.findFirst({
+      where: {
+        tenantId: tenant.id,
+        type: 'esnCard',
+        userId: regularUser.id,
+      },
+    });
+    expect(savedExpiredCard).toEqual(
+      expect.objectContaining({
+        status: 'expired',
+        tenantId: tenant.id,
+        type: 'esnCard',
+        userId: regularUser.id,
+      }),
+    );
+    expect(savedExpiredCard?.identifier === expiredEsnCardIdentifier).toBe(
+      true,
+    );
+    expect(savedExpiredCard?.lastCheckedAt).toBeInstanceOf(Date);
+
+    await page.getByRole('button', { name: 'Refresh' }).click();
+    await expect(page.getByText(/Status: Expired/)).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const refreshedExpiredCard =
+      await database.query.userDiscountCards.findFirst({
+        where: {
+          tenantId: tenant.id,
+          type: 'esnCard',
+          userId: regularUser.id,
+        },
+      });
+    expect(refreshedExpiredCard).toEqual(
+      expect.objectContaining({
+        status: 'expired',
+        tenantId: tenant.id,
+        type: 'esnCard',
+        userId: regularUser.id,
+      }),
+    );
+    expect(refreshedExpiredCard?.identifier === expiredEsnCardIdentifier).toBe(
+      true,
+    );
+    expect(refreshedExpiredCard?.lastCheckedAt).toBeInstanceOf(Date);
+
+    await page.getByRole('button', { name: 'Remove' }).click();
+    await expect(page.getByText('No discount cards on file.')).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const removedExpiredCard = await database.query.userDiscountCards.findFirst(
+      {
+        where: {
+          tenantId: tenant.id,
+          type: 'esnCard',
+          userId: regularUser.id,
+        },
+      },
+    );
+    expect(removedExpiredCard).toBeUndefined();
   } finally {
     await restoreSeededCard();
   }

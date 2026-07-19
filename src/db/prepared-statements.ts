@@ -25,6 +25,11 @@ const buildPreparedStatements = (database: DatabaseClient) => ({
     .findFirst({
       where: { auth0Id: sql.placeholder('auth0Id') },
       with: {
+        homeTenant: {
+          columns: {
+            name: true,
+          },
+        },
         tenantAssignments: {
           where: {
             tenantId: sql.placeholder('tenantId'),

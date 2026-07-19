@@ -93,6 +93,22 @@ export const routes: Routes = [
     path: 'create-account',
   },
   {
+    canActivate: [userAccountGuard, authGuard],
+    loadComponent: () =>
+      import('./registration-transfers/registration-transfer-code-entry.component').then(
+        (m) => m.RegistrationTransferCodeEntryComponent,
+      ),
+    path: 'registration-transfers',
+  },
+  {
+    canActivate: [userAccountGuard, authGuard],
+    loadComponent: () =>
+      import('./registration-transfers/registration-transfer-claim.component').then(
+        (m) => m.RegistrationTransferClaimComponent,
+      ),
+    path: 'registration-transfers/:credential',
+  },
+  {
     loadComponent: () =>
       import('./core/error/error.component').then((m) => m.ErrorComponent),
     path: '500',

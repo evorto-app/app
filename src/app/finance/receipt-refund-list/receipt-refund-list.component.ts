@@ -1,4 +1,3 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -20,12 +19,15 @@ import {
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
+import { ReceiptAmountPipe } from '../shared/receipt-amount.pipe';
 import {
   isSafeReceiptPreviewUrl,
   ReceiptPreviewDialogComponent,
 } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
 export type ReceiptReimbursementPayoutType = 'iban' | 'paypal';
+type ReceiptCurrency = 'AUD' | 'CZK' | 'EUR';
 
 interface ReceiptReimbursementPayoutDetails {
   iban: null | string;
@@ -34,6 +36,9 @@ interface ReceiptReimbursementPayoutDetails {
 
 export const receiptReimbursementManualNotice =
   'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.';
+
+export const receiptReimbursementMissingPayoutNotice =
+  'This person has no payout details. Ask them to add an IBAN or PayPal address to their profile before recording a reimbursement.';
 
 export function receiptReimbursementCanRecord(
   selectedReceiptIds: readonly string[],
@@ -49,6 +54,12 @@ export function receiptReimbursementCanRecord(
     : Boolean(payout.paypalEmail);
 }
 
+export function receiptReimbursementHasPayoutDetails(
+  payout: ReceiptReimbursementPayoutDetails,
+): boolean {
+  return Boolean(payout.iban || payout.paypalEmail);
+}
+
 export function receiptReimbursementPayoutDetailLabel(
   payoutType: ReceiptReimbursementPayoutType,
   payoutReference: null | string,
@@ -57,11 +68,26 @@ export function receiptReimbursementPayoutDetailLabel(
   return `${label}: ${payoutReference || 'not set'}`;
 }
 
+export function receiptReimbursementReceiptSelectionLabel(receipt: {
+  attachmentFileName: string;
+  eventTitle: string;
+}): string {
+  return `Select receipt ${receipt.attachmentFileName} for ${receipt.eventTitle}`;
+}
+
 export function receiptReimbursementRecordDisabled(input: {
   canRecord: boolean;
   mutationPending: boolean;
 }): boolean {
   return !input.canRecord || input.mutationPending;
+}
+
+export function receiptReimbursementSelectAllLabel(group: {
+  currency: ReceiptCurrency;
+  submittedByFirstName: string;
+  submittedByLastName: string;
+}): string {
+  return `Select all ${group.currency} receipts for ${group.submittedByFirstName} ${group.submittedByLastName}`;
 }
 
 export function receiptReimbursementSelectedTotal(
@@ -74,15 +100,20 @@ export function receiptReimbursementSelectedTotal(
     .reduce((sum, receipt) => sum + receipt.totalAmount, 0);
 }
 
+export const receiptReimbursementGroupKey = (group: {
+  currency: ReceiptCurrency;
+  submittedByUserId: string;
+}): string => `${group.submittedByUserId}:${group.currency}`;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
-    DecimalPipe,
+    TenantDatePipe,
     MatButtonModule,
     MatCheckboxModule,
     MatSelectModule,
     MatTableModule,
+    ReceiptAmountPipe,
   ],
   selector: 'app-receipt-refund-list',
   styles: ``,
@@ -97,12 +128,20 @@ export class ReceiptRefundListComponent {
     'totalAmount',
     'preview',
   ];
+  protected readonly receiptReimbursementHasPayoutDetails =
+    receiptReimbursementHasPayoutDetails;
   protected readonly receiptReimbursementManualNotice =
     receiptReimbursementManualNotice;
+  protected readonly receiptReimbursementMissingPayoutNotice =
+    receiptReimbursementMissingPayoutNotice;
   protected readonly receiptReimbursementPayoutDetailLabel =
     receiptReimbursementPayoutDetailLabel;
+  protected readonly receiptReimbursementReceiptSelectionLabel =
+    receiptReimbursementReceiptSelectionLabel;
   protected readonly receiptReimbursementRecordDisabled =
     receiptReimbursementRecordDisabled;
+  protected readonly receiptReimbursementSelectAllLabel =
+    receiptReimbursementSelectAllLabel;
   private readonly rpc = AppRpc.injectClient();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),
@@ -111,13 +150,15 @@ export class ReceiptRefundListComponent {
     this.rpc.finance.receipts.createRefund.mutationOptions(),
   );
 
+  protected readonly reimbursementGroupKey = receiptReimbursementGroupKey;
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
+
   private readonly payoutTypeByRecipient = signal<
     Record<string, ReceiptReimbursementPayoutType>
   >({});
-
   private readonly queryClient = inject(QueryClient);
+
   private readonly selectionByRecipient = signal<
     Record<string, Record<string, boolean>>
   >({});
@@ -136,10 +177,11 @@ export class ReceiptRefundListComponent {
         const next = { ...current };
 
         for (const group of groups) {
-          if (next[group.submittedByUserId]) {
+          const groupKey = receiptReimbursementGroupKey(group);
+          if (next[groupKey]) {
             continue;
           }
-          next[group.submittedByUserId] = group.payout.iban ? 'iban' : 'paypal';
+          next[groupKey] = group.payout.iban ? 'iban' : 'paypal';
           hasChanges = true;
         }
 
@@ -231,14 +273,13 @@ export class ReceiptRefundListComponent {
   }
 
   protected async refundRecipient(group: {
+    currency: ReceiptCurrency;
     payout: { iban: null | string; paypalEmail: null | string };
     submittedByUserId: string;
   }): Promise<void> {
-    const receiptIds = this.selectedReceiptIds(group.submittedByUserId);
-    const payoutType = this.getPayoutType(
-      group.submittedByUserId,
-      group.payout,
-    );
+    const groupKey = receiptReimbursementGroupKey(group);
+    const receiptIds = this.selectedReceiptIds(groupKey);
+    const payoutType = this.getPayoutType(groupKey, group.payout);
     const payoutReference =
       payoutType === 'iban' ? group.payout.iban : group.payout.paypalEmail;
     if (
@@ -303,7 +344,7 @@ export class ReceiptRefundListComponent {
       this.notifications.showSuccess('Reimbursement transaction recorded');
       this.selectionByRecipient.update((current) => ({
         ...current,
-        [group.submittedByUserId]: {},
+        [groupKey]: {},
       }));
     } catch (error) {
       this.notifications.showError(

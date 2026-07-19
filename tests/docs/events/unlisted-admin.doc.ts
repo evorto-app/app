@@ -24,8 +24,8 @@ test('Admin: manage unlisted events', async ({
     body: `
 {% callout type="note" title="Permissions" %}
 To change listing, an admin needs:
-- \`events:changeListing\` (toggle the unlisted flag)
-- \`events:seeUnlisted\` (to see unlisted events in lists)
+- **Change event listing** access
+- **View unlisted events** access
 {% /callout %}
 
 # Managing Unlisted Events (Admin)
@@ -53,7 +53,11 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   );
 
   // Open menu and update listing
-  await page.getByRole('button', { name: /open event actions|menu/i }).click();
+  const eventActionsButton = page.getByRole('button', {
+    name: /open event actions|menu/i,
+  });
+  await expect(eventActionsButton).toBeEnabled({ timeout: 20_000 });
+  await eventActionsButton.click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
   await page.getByRole('switch', { name: /Unlisted/ }).click();
   await expect(
@@ -79,7 +83,8 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   );
 
   // Restore original state (toggle back to listed) to keep environment clean
-  await page.getByRole('button', { name: /open event actions|menu/i }).click();
+  await expect(eventActionsButton).toBeEnabled({ timeout: 20_000 });
+  await eventActionsButton.click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
   const toggle = page.getByRole('switch', { name: /Unlisted/ });
   if (await toggle.isChecked()) {

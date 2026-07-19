@@ -45,6 +45,10 @@ export const taxRateHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
+      const stripeAccountId = tenant.stripeAccountId;
+      if (!stripeAccountId) {
+        return [];
+      }
       const activeTaxRates = yield* databaseEffect((database) =>
         database.query.tenantStripeTaxRates.findMany({
           columns: {
@@ -62,6 +66,7 @@ export const taxRateHandlers = {
           where: {
             active: true,
             inclusive: true,
+            stripeAccountId,
             tenantId: tenant.id,
           },
         }),

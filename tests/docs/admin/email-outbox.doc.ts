@@ -1,0 +1,161 @@
+import type { Page } from '@playwright/test';
+
+import { gaStateFile } from '../../../helpers/user-data';
+import { expect, test } from '../../support/fixtures/parallel-test';
+import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import {
+  type EmailOutboxScenarioItem,
+  seedEmailOutboxScenario,
+} from '../../support/utils/email-outbox-scenario';
+
+test.use({ storageState: gaStateFile });
+
+// Parallel documentation runs can spend most of the default project timeout in
+// tenant seeding before Playwright creates this page. Keep the release gate
+// deterministic on slower local Docker runtimes.
+test.setTimeout(120_000);
+
+const outboxRow = (page: Page, item: EmailOutboxScenarioItem) =>
+  page
+    .getByRole('heading', { name: 'Delivery details' })
+    .locator('..')
+    .locator(':scope > div')
+    .filter({ has: page.getByRole('heading', { name: item.subject }) });
+
+test('Review global email delivery health @admin @globalAdmin', async ({
+  database,
+  page,
+  tenant,
+}, testInfo) => {
+  const scenario = await seedEmailOutboxScenario({ database, tenant });
+
+  try {
+    await page.goto('/global-admin');
+
+    await testInfo.attach('markdown', {
+      body: `
+{% callout type="note" title="Platform authority" %}
+You must be signed in as a platform administrator. Organization roles, including an organization's ordinary Admin role, do not grant access to this cross-organization page.
+{% /callout %}
+
+# Review Global Email Delivery Health
+
+The **Email outbox** is an operational overview across every organization. Use it to understand whether Evorto has queued an email, is currently delivering it, will retry it, or has exhausted delivery attempts. The page does not expose message bodies or a manual retry control.
+`,
+    });
+
+    await expect(
+      page.getByRole('heading', {
+        level: 1,
+        name: 'Platform administration',
+      }),
+    ).toBeVisible();
+    await page.getByRole('link', { name: 'Email outbox' }).click();
+    await expect(page).toHaveURL(/\/global-admin\/email-outbox$/);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Email outbox' }),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText('Queued', { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Sending', { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Failed', { exact: true }).first(),
+    ).toBeVisible();
+    await expect(page.getByText('Sent', { exact: true }).first()).toBeVisible();
+    await expect(
+      page
+        .getByText('Sent', { exact: true })
+        .first()
+        .locator('..')
+        .locator('.headline-small'),
+    ).toHaveText(/^[1-9]\d*$/);
+
+    const queuedRow = outboxRow(page, scenario.queued);
+    const retryRow = outboxRow(page, scenario.retry);
+    const sendingRow = outboxRow(page, scenario.sending);
+    const exhaustedRow = outboxRow(page, scenario.exhausted);
+    await expect(queuedRow).toContainText('Queued');
+    await expect(queuedRow).toContainText('0/8');
+    await expect(queuedRow).toContainText('Not attempted');
+    await expect(retryRow).toContainText('Queued');
+    await expect(retryRow).toContainText('2/8');
+    await expect(retryRow).toContainText('Temporary provider timeout');
+    await expect(sendingRow).toContainText('Sending');
+    await expect(sendingRow).toContainText('1/8');
+    await expect(exhaustedRow).toContainText('Failed');
+    await expect(exhaustedRow).toContainText('8/8');
+    await expect(exhaustedRow).toContainText('Recipient address was rejected');
+    await expect(
+      exhaustedRow.getByText('Retries ended', { exact: true }),
+    ).toBeVisible();
+    await expect(exhaustedRow).toContainText(
+      'Automatic retries ended. Stored as read-only history.',
+    );
+    await expect(exhaustedRow.getByText('Next attempt')).toHaveCount(0);
+    await expect(
+      page.getByRole('heading', { name: 'Email delivery status' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'Exhausted emails remain stored as read-only history. Automatic retries have ended; no recovery action is required.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: scenario.sent.subject }),
+    ).toHaveCount(0);
+
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-email-outbox'),
+      page,
+      'Global email outbox delivery states',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+## Read the overview before the delivery details
+
+The four totals at the top count **Queued**, **Sending**, **Failed**, and **Sent** emails globally. They are not limited to your current organization. The **Email delivery status** banner summarizes exhausted failures and emails that have stayed in **Sending** for too long.
+
+The **Delivery details** list is a fixed operational filter, not an interactive search:
+
+- It shows the 100 most recently updated **queued**, **sending**, and **failed** rows.
+- It omits successfully **sent** rows even though the Sent total still includes them.
+- When there are no active rows, the list says **No queued, sending, or failed emails.**
+
+Each active row identifies the organization name and primary address, recipient, email kind, attempt count, last attempt, and last delivery error when one exists. Rows still eligible for automatic delivery show **Next attempt**; exhausted rows instead show that automatic retries ended and remain stored as read-only history. Check the organization before contacting its team: this is a cross-organization surface.
+
+## Interpret delivery states
+
+- **Queued, 0/8, Not attempted** means the email is waiting for its first delivery attempt.
+- **Queued** with a prior attempt and a **Last error** means an automatic retry is scheduled for **Next attempt**. Wait until that time, then use **Refresh** to read the latest state.
+- **Sending** means a delivery attempt is in progress. Do not infer that the email is permanently stuck from a brief **Sending** state; refresh later to check the outcome.
+- **Failed**, attempts equal to the maximum, and a **Retries ended** timestamp means automatic retries have stopped. The row remains stored as read-only history and intentionally has no **Next attempt** or recovery action. Record the organization, recipient, and last error for incident investigation.
+
+There is currently no organization/status search control and no manual retry button on this page. **Refresh** only reloads the overview; it does not send or requeue an email.
+`,
+    });
+
+    await page.getByRole('button', { name: 'Refresh' }).click();
+    await expect(outboxRow(page, scenario.retry)).toContainText(
+      'Temporary provider timeout',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+## Access denial and safe follow-up
+
+A signed-in user without platform administrator authority is redirected to the forbidden page when opening **Email outbox** directly. Do not grant a broad organization role as a workaround; platform access is separate.
+
+For an exhausted row, capture the organization, recipient, attempt count, and last error while investigating the delivery or data problem. Do not expect a recovery action on this page. For a queued retry or an active **Sending** row, refresh later so automatic delivery can finish before manual investigation.
+`,
+    });
+  } finally {
+    await scenario.cleanup();
+  }
+});

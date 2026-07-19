@@ -1,0 +1,396 @@
+<main class="mx-auto grid w-full max-w-3xl gap-6 px-4 py-8 sm:px-6">
+  <header class="grid gap-2">
+    <p class="label-large text-primary">Registration transfer</p>
+    <h1 class="headline-medium">Review before you claim</h1>
+    <p class="body-large text-on-surface-variant">
+      The registration, guest count, and every included, free, or purchased
+      add-on transfer together as one fixed bundle. Current prices and your
+      eligible discount are recalculated for you.
+    </p>
+  </header>
+
+  @if (claimQuery.isPending()) {
+    <div class="grid min-h-48 place-items-center">
+      <mat-spinner diameter="40" aria-label="Loading transfer" />
+    </div>
+  } @else if (claimQuery.isError()) {
+    @let lookupError = lookupErrorCopy(claimQuery.error());
+    <section
+      class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-5"
+      role="alert"
+    >
+      <h2 class="title-medium">{{ lookupError.title }}</h2>
+      <p>{{ lookupError.body }}</p>
+      <div class="flex flex-wrap gap-2">
+        @if (lookupError.retryable) {
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="claimQuery.refetch()"
+            [disabled]="claimQuery.isFetching()"
+          >
+            {{ claimQuery.isFetching() ? "Trying again…" : "Try again" }}
+          </button>
+        }
+        <a mat-stroked-button routerLink="/registration-transfers">
+          Enter another code
+        </a>
+      </div>
+    </section>
+  } @else if (claimQuery.data(); as claim) {
+    <section class="bg-surface-container-low grid gap-4 rounded-xl p-5">
+      <div class="grid gap-1">
+        <h2 class="title-large">{{ claim.event.title }}</h2>
+        <p class="body-medium text-on-surface-variant">
+          {{ claim.event.start | date: "medium" }}
+        </p>
+      </div>
+      <div
+        class="grid gap-1 border-t border-outline-variant pt-4 sm:grid-cols-2"
+      >
+        <div>
+          <p class="label-medium text-on-surface-variant">
+            Registration option
+          </p>
+          <p class="body-large">{{ claim.registrationOption.title }}</p>
+        </div>
+        <dl class="grid gap-2">
+          <div class="grid grid-cols-[1fr_auto] gap-4">
+            <dt class="label-medium text-on-surface-variant">
+              Current base price
+            </dt>
+            <dd class="body-medium text-right">
+              {{
+                claim.registrationOption.basePrice / 100
+                  | currency: claim.registrationOption.currency
+              }}
+            </dd>
+          </div>
+          @if (
+            claim.registrationOption.appliedDiscountType === "esnCard" &&
+            claim.registrationOption.discountAmount !== null
+          ) {
+            <div class="grid grid-cols-[1fr_auto] gap-4">
+              <dt class="label-medium text-on-surface-variant">
+                Your current ESNcard discount
+              </dt>
+              <dd class="body-medium text-right">
+                −{{
+                  claim.registrationOption.discountAmount / 100
+                    | currency: claim.registrationOption.currency
+                }}
+              </dd>
+            </div>
+          }
+          <div
+            class="grid grid-cols-[1fr_auto] gap-4 border-t border-outline-variant pt-2"
+          >
+            <dt class="grid gap-1">
+              <span class="label-medium text-on-surface-variant">
+                Your current registration price
+              </span>
+              <span class="body-small text-on-surface-variant">
+                Includes the add-on units marked Included below.
+              </span>
+            </dt>
+            <dd class="body-large text-right">
+              {{
+                claim.registrationOption.currentPrice / 100
+                  | currency: claim.registrationOption.currency
+              }}
+            </dd>
+          </div>
+        </dl>
+      </div>
+      <div class="grid gap-3 border-t border-outline-variant pt-4">
+        <div>
+          <h3 class="title-medium">Fixed bundle contents</h3>
+          <p class="body-small text-on-surface-variant mt-1">
+            These quantities and their existing check-in and use history
+            transfer together and cannot be removed or changed.
+          </p>
+        </div>
+        <dl class="grid gap-3">
+          <div class="grid gap-1 sm:grid-cols-[1fr_auto] sm:gap-4">
+            <dt class="body-medium">Registration</dt>
+            <dd class="body-medium sm:text-right">
+              1 × {{ claim.registrationOption.title }}
+            </dd>
+          </div>
+          <div class="grid gap-1 sm:grid-cols-[1fr_auto] sm:gap-4">
+            <dt class="body-medium">Guests</dt>
+            <dd class="body-medium sm:text-right">
+              @if (claim.bundle.guestCount > 0) {
+                {{ claim.bundle.guestCount }} ×
+                {{
+                  claim.bundle.guestUnitPrice / 100
+                    | currency: claim.registrationOption.currency
+                }}
+              } @else {
+                None
+              }
+            </dd>
+          </div>
+          <div
+            class="grid gap-1 border-t border-outline-variant pt-3 sm:grid-cols-[1fr_auto] sm:gap-4"
+          >
+            <dt class="body-medium">Registration check-in</dt>
+            <dd class="body-medium sm:text-right">
+              @if (claim.bundle.checkInTime) {
+                Checked in {{ claim.bundle.checkInTime | date: "medium" }}
+              } @else {
+                Not checked in
+              }
+            </dd>
+          </div>
+          <div class="grid gap-1 sm:grid-cols-[1fr_auto] sm:gap-4">
+            <dt class="body-medium">Guests checked in</dt>
+            <dd class="body-medium sm:text-right">
+              {{ claim.bundle.checkedInGuestCount }} of
+              {{ claim.bundle.guestCount }}
+            </dd>
+          </div>
+          @for (addOn of claim.bundle.addOns; track addOn.id) {
+            <div
+              class="grid gap-1 border-t border-outline-variant pt-3 sm:grid-cols-[1fr_auto] sm:gap-4"
+            >
+              <dt class="grid gap-1">
+                <span class="body-medium">{{ addOn.title }}</span>
+                @if (addOn.description) {
+                  <span class="body-small text-on-surface-variant">
+                    {{ addOn.description }}
+                  </span>
+                }
+              </dt>
+              <dd class="body-medium grid gap-2 sm:min-w-48 sm:text-right">
+                <span>{{ addOn.quantity }} total</span>
+                <dl
+                  class="body-small grid grid-cols-[1fr_auto] gap-x-3 gap-y-1"
+                >
+                  @if (addOn.includedQuantity > 0) {
+                    <div class="contents">
+                      <dt class="text-on-surface-variant">
+                        Included in registration price
+                      </dt>
+                      <dd>{{ addOn.includedQuantity }}</dd>
+                    </div>
+                  }
+                  @if (addOn.purchasedQuantity > 0) {
+                    <div class="contents">
+                      <dt class="text-on-surface-variant">
+                        Purchased at current unit price
+                      </dt>
+                      <dd>
+                        {{ addOn.purchasedQuantity }} ×
+                        {{
+                          addOn.currentUnitPrice / 100
+                            | currency: claim.registrationOption.currency
+                        }}
+                      </dd>
+                    </div>
+                  }
+                  <div class="contents">
+                    <dt class="text-on-surface-variant">Available to use</dt>
+                    <dd>{{ addOn.remainingQuantity }}</dd>
+                  </div>
+                  <div class="contents">
+                    <dt class="text-on-surface-variant">Redeemed</dt>
+                    <dd>{{ addOn.redeemedQuantity }}</dd>
+                  </div>
+                  <div class="contents">
+                    <dt class="text-on-surface-variant">Cancelled</dt>
+                    <dd>{{ addOn.cancelledQuantity }}</dd>
+                  </div>
+                </dl>
+              </dd>
+            </div>
+          } @empty {
+            <div
+              class="grid gap-1 border-t border-outline-variant pt-3 sm:grid-cols-[1fr_auto] sm:gap-4"
+            >
+              <dt class="body-medium">Add-ons</dt>
+              <dd class="body-medium sm:text-right">None</dd>
+            </div>
+          }
+          <div
+            class="grid grid-cols-[1fr_auto] gap-4 border-t border-outline-variant pt-4"
+          >
+            <dt class="title-medium">Total due</dt>
+            <dd class="title-medium text-right">
+              @if (claim.recipientBundlePrice === 0) {
+                Free
+              } @else {
+                {{
+                  claim.recipientBundlePrice / 100
+                    | currency: claim.registrationOption.currency
+                }}
+              }
+            </dd>
+          </div>
+        </dl>
+      </div>
+      <p class="body-small text-on-surface-variant">
+        Claim before {{ claim.expiresAt | date: "medium" }}. A paid claim keeps
+        this offer bound to the fixed bundle until Checkout finishes.
+      </p>
+    </section>
+
+    @if (statusCopy(claim.status, claim.refundLifecycle); as state) {
+      <section
+        class="grid gap-3 rounded-xl p-5"
+        [class.bg-error-container]="state.tone === 'error'"
+        [class.text-on-error-container]="state.tone === 'error'"
+        [class.bg-primary-container]="state.tone === 'success'"
+        [class.text-on-primary-container]="state.tone === 'success'"
+        [class.bg-surface-container-high]="state.tone === 'info'"
+        [attr.role]="state.tone === 'error' ? 'alert' : 'status'"
+      >
+        <h2 class="title-medium">{{ state.title }}</h2>
+        <p class="body-medium">{{ state.body }}</p>
+        @if (claim.status === "checkout_pending") {
+          <button
+            mat-flat-button
+            type="button"
+            (click)="retryCheckout()"
+            [disabled]="retryMutation.isPending()"
+          >
+            {{
+              retryMutation.isPending()
+                ? "Preparing Checkout…"
+                : "Continue payment"
+            }}
+          </button>
+        } @else if (
+          claim.status === "completed" ||
+          claim.status === "refund_pending" ||
+          claim.status === "refund_failed"
+        ) {
+          <a mat-flat-button [routerLink]="['/events', claim.event.id]">
+            Open event
+          </a>
+        }
+      </section>
+    }
+
+    @if (claim.status === "open") {
+      <form
+        class="grid gap-6"
+        [attr.aria-busy]="claimMutation.isPending() || null"
+        (submit)="submitClaim($event)"
+      >
+        <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          @if (claimMutation.isPending()) {
+            Claiming registration. Please wait.
+          }
+        </p>
+        @if (claim.registrationOption.questions.length > 0) {
+          <section
+            class="grid gap-4"
+            aria-labelledby="transfer-questions-heading"
+          >
+            <div>
+              <h2 id="transfer-questions-heading" class="title-medium">
+                Current registration questions
+              </h2>
+              <p class="body-small text-on-surface-variant mt-1">
+                Answer for yourself. Required answers are checked again when you
+                submit.
+              </p>
+            </div>
+            @for (
+              answerField of claimForm.answers;
+              track answerField;
+              let questionIndex = $index
+            ) {
+              @let question = claim.registrationOption.questions[questionIndex];
+              @if (question) {
+                <mat-form-field>
+                  <mat-label>{{ question.title }}</mat-label>
+                  <textarea
+                    matInput
+                    rows="3"
+                    [formField]="answerField.answer"
+                  ></textarea>
+                  @if (question.description) {
+                    <mat-hint>{{ question.description }}</mat-hint>
+                  }
+                  @if (
+                    answerField.answer().touched() &&
+                    answerField.answer().invalid()
+                  ) {
+                    @for (error of answerField.answer().errors(); track error) {
+                      <mat-error>{{ error.message }}</mat-error>
+                    }
+                  }
+                </mat-form-field>
+              }
+            }
+          </section>
+        }
+
+        <section class="bg-surface-container-high grid gap-2 rounded-xl p-4">
+          <h2 class="title-small">What happens next</h2>
+          <p class="body-small text-on-surface-variant">
+            Evorto checks the latest fixed bundle, total due, and any refund
+            before changing ownership. If payment is due, Stripe Checkout opens
+            and the bundle stays with its current owner until payment succeeds.
+            A free claim continues without a payment step.
+          </p>
+        </section>
+
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="
+            claimForm().invalid() ||
+            claimForm().submitting() ||
+            claimMutation.isPending()
+          "
+        >
+          {{ claimMutation.isPending() ? "Claiming…" : "Claim registration" }}
+        </button>
+      </form>
+    }
+
+    @if (claimMutation.isError()) {
+      <section
+        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        role="alert"
+      >
+        <h2 class="title-medium">Claim did not complete</h2>
+        <p>We could not complete the transfer. Nothing changed.</p>
+        <p class="body-small">
+          Refresh to check the transfer's current status before trying again.
+        </p>
+      </section>
+    }
+    @if (unsafeCheckout()) {
+      <section
+        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        role="alert"
+      >
+        <h2 class="title-medium">Checkout could not be opened</h2>
+        <p>
+          The payment link could not be verified as Stripe Checkout. For your
+          security, nothing was opened.
+        </p>
+        <p class="body-small">
+          Refresh to check the latest status before trying again.
+        </p>
+      </section>
+    } @else if (retryMutation.isError()) {
+      <section
+        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        role="alert"
+      >
+        <h2 class="title-medium">Checkout could not be reopened</h2>
+        <p>
+          We could not reopen Stripe Checkout. Your transfer has not changed.
+        </p>
+        <p class="body-small">
+          Select Continue payment again, or refresh to check the latest status.
+        </p>
+      </section>
+    }
+  }
+</main>

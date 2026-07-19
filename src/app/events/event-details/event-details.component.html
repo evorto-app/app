@@ -24,6 +24,7 @@
           *appIfAnyPermission="['events:changeListing']"
           mat-icon-button
           [matMenuTriggerFor]="menu"
+          [disabled]="!controlsInteractive() || !eventQuery.isSuccess()"
           aria-label="Open event actions"
         >
           <fa-duotone-icon [icon]="faEllipsisVertical" />
@@ -60,7 +61,7 @@
   >
     @if (eventQuery.isSuccess() && cardExpiresBeforeEvent()) {
       <div
-        class="bg-warn-container text-on-warn-container rounded px-3 py-2 body-small"
+        class="bg-warning-container text-on-warning-container rounded px-3 py-2 body-small"
       >
         Your discount card expires before the event starts. Discounted prices
         may not apply.
@@ -107,12 +108,13 @@
                 [disabled]="
                   eventReviewActionDisabled({
                     canReview: canReview(),
+                    controlsInteractive: controlsInteractive(),
                     mutationPending: reviewMutation.isPending(),
                     status: eventQuery.data().status,
                   })
                 "
               >
-                Reject
+                Return to draft
               </button>
               <button
                 matButton="filled"
@@ -120,6 +122,7 @@
                 [disabled]="
                   eventReviewActionDisabled({
                     canReview: canReview(),
+                    controlsInteractive: controlsInteractive(),
                     mutationPending: reviewMutation.isPending(),
                     status: eventQuery.data().status,
                   })
@@ -133,17 +136,14 @@
               <a matButton="tonal" routerLink="edit"> Edit Event </a>
             }
 
-            @if (
-              canEdit() &&
-              (eventQuery.data().status === "DRAFT" ||
-                eventQuery.data().status === "REJECTED")
-            ) {
+            @if (canEdit() && eventQuery.data().status === "DRAFT") {
               <button
                 matButton="filled"
                 (click)="submitForReview()"
                 [disabled]="
                   eventSubmitForReviewActionDisabled({
                     canEdit: canEdit(),
+                    controlsInteractive: controlsInteractive(),
                     mutationPending: submitForReviewMutation.isPending(),
                     status: eventQuery.data().status,
                   })
@@ -163,8 +163,25 @@
         <h2 class="title-medium">Loading event ...</h2>
       </div>
     } @else if (eventQuery.isError()) {
-      <div class="bg-error-container text-on-error-container rounded-2xl p-4">
-        Failed to load event.
+      <div
+        role="alert"
+        class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+      >
+        <div>
+          <h2 class="title-medium">Event could not be loaded</h2>
+          <p class="body-medium mt-1">
+            The event details are temporarily unavailable. Check your connection
+            and try again.
+          </p>
+        </div>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="eventQuery.isFetching()"
+          (click)="eventQuery.refetch()"
+        >
+          {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+        </button>
       </div>
     } @else if (eventQuery.isSuccess()) {
       <div class="flex flex-col gap-4">
@@ -234,7 +251,10 @@
                                 option.registrationOptionId
                               )
                             }}
-                            ({{ option.quantity }}){{ $last ? "" : ", " }}
+                            ({{ option.includedQuantity }} included,
+                            {{ option.optionalPurchaseQuantity }} optional){{
+                              $last ? "" : ", "
+                            }}
                           </span>
                         }
                       </dd>
@@ -254,33 +274,184 @@
             </div>
           } @else if (registrationStatusQuery.isError()) {
             <div
-              class="bg-error-container text-on-error-container rounded-2xl p-4"
+              role="alert"
+              class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
             >
-              <h3 class="title-small">Failed to load registration status.</h3>
+              <div>
+                <h3 class="title-small">
+                  Registration actions are temporarily unavailable
+                </h3>
+                <p class="body-medium mt-1">
+                  You can still review the event details. Try loading your
+                  registration status again to register or manage an existing
+                  registration.
+                </p>
+              </div>
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="registrationStatusQuery.isFetching()"
+                (click)="registrationStatusQuery.refetch()"
+              >
+                {{
+                  registrationStatusQuery.isFetching()
+                    ? "Retrying…"
+                    : "Try again"
+                }}
+              </button>
             </div>
           } @else if (registrationStatusQuery.isSuccess()) {
+            @if (registrationStatusQuery.data().outgoingTransfers.length > 0) {
+              <section
+                aria-label="Transferred registrations"
+                class="grid gap-3"
+              >
+                <div>
+                  <h3 class="title-medium">Transferred registrations</h3>
+                  <p class="body-medium text-on-surface-variant mt-1">
+                    These are transfers you previously sent. Review their refund
+                    history here. If a ticket later returned to you, its current
+                    ticket and actions appear separately below.
+                  </p>
+                </div>
+                @for (
+                  transfer of registrationStatusQuery.data().outgoingTransfers;
+                  track transfer.transferId
+                ) {
+                  @let statusCopy = outgoingRegistrationTransferCopy(transfer);
+                  <article
+                    data-testid="outgoing-registration-transfer"
+                    class="grid gap-3 rounded-xl p-4"
+                    [class.bg-error-container]="statusCopy.tone === 'error'"
+                    [class.text-on-error-container]="
+                      statusCopy.tone === 'error'
+                    "
+                    [class.bg-surface-container-high]="
+                      statusCopy.tone !== 'error'
+                    "
+                    [class.text-on-surface]="statusCopy.tone !== 'error'"
+                    [attr.role]="
+                      statusCopy.tone === 'error' ? 'alert' : 'status'
+                    "
+                  >
+                    <div>
+                      <h4 class="title-small">{{ statusCopy.title }}</h4>
+                      <p
+                        class="body-small mt-1"
+                        [class.text-on-error-container]="
+                          statusCopy.tone === 'error'
+                        "
+                        [class.text-on-surface-variant]="
+                          statusCopy.tone !== 'error'
+                        "
+                      >
+                        {{ transfer.registrationOptionTitle }}
+                      </p>
+                      <time
+                        class="body-small mt-1 block"
+                        [attr.datetime]="transfer.transferredAt"
+                      >
+                        Transferred
+                        {{ transfer.transferredAt | date: "medium" }}
+                      </time>
+                    </div>
+                    <p class="body-medium">{{ statusCopy.summary }}</p>
+                    @if (transfer.refundAmount > 0) {
+                      <dl class="grid grid-cols-[auto_1fr] gap-x-3">
+                        <dt class="text-on-surface-variant">
+                          Total refund for this transfer
+                        </dt>
+                        <dd class="font-medium">
+                          {{
+                            transfer.refundAmount / 100
+                              | currency: transfer.currency
+                          }}
+                        </dd>
+                      </dl>
+                    }
+                    <p class="body-medium">{{ statusCopy.nextStep }}</p>
+                  </article>
+                }
+              </section>
+            }
             @if (registrationStatusQuery.data().isRegistered) {
               <app-event-active-registration
+                [eventId]="eventId()"
                 [registrations]="registrationStatusQuery.data().registrations"
               />
             } @else {
               @switch (registrationOptionsState()) {
                 @case ("visible") {
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    @for (
-                      registrationOption of eventQuery.data()
-                        .registrationOptions;
-                      track registrationOption.id
+                  <div class="grid gap-6">
+                    @if (
+                      registrationOptionGroups().organizerOptions.length > 0
                     ) {
-                      <app-event-registration-option
-                        [addOns]="
-                          eventAddonsForRegistrationOption(
-                            eventQuery.data(),
-                            registrationOption.id
-                          )
-                        "
-                        [registrationOption]="registrationOption"
-                      />
+                      <section
+                        aria-label="Organizer/helper opportunities"
+                        class="border-outline-variant grid gap-4 rounded-xl border p-4"
+                      >
+                        <div class="grid gap-1">
+                          <p class="title-medium">
+                            Organizer/helper opportunities
+                          </p>
+                          <p class="body-medium text-on-surface-variant">
+                            Confirmed organizer/helper registrations grant event
+                            management access. Applications require approval and
+                            any required payment first.
+                          </p>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          @for (
+                            registrationOption of registrationOptionGroups()
+                              .organizerOptions;
+                            track registrationOption.id
+                          ) {
+                            <app-event-registration-option
+                              [addOns]="
+                                eventAddonsForRegistrationOption(
+                                  eventQuery.data(),
+                                  registrationOption.id
+                                )
+                              "
+                              [registrationOption]="registrationOption"
+                            />
+                          }
+                        </div>
+                      </section>
+                    }
+                    @if (
+                      registrationOptionGroups().participantOptions.length > 0
+                    ) {
+                      <section
+                        aria-label="Participant registration options"
+                        class="grid gap-4"
+                      >
+                        <div class="grid gap-1">
+                          <p class="title-medium">
+                            Participant registration options
+                          </p>
+                          <p class="body-medium text-on-surface-variant">
+                            Choose how you want to attend this event.
+                          </p>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          @for (
+                            registrationOption of registrationOptionGroups()
+                              .participantOptions;
+                            track registrationOption.id
+                          ) {
+                            <app-event-registration-option
+                              [addOns]="
+                                eventAddonsForRegistrationOption(
+                                  eventQuery.data(),
+                                  registrationOption.id
+                                )
+                              "
+                              [registrationOption]="registrationOption"
+                            />
+                          }
+                        </div>
+                      </section>
                     }
                   </div>
                 }

@@ -17,6 +17,7 @@
   }
   <div class="grow"></div>
   <button
+    *appIfPermission="'templates:editAll'"
     title="menu"
     mat-icon-button
     [matMenuTriggerFor]="menu"
@@ -25,9 +26,16 @@
     <fa-duotone-icon [icon]="faEllipsisVertical" />
   </button>
   <mat-menu #menu="matMenu">
-    <a mat-menu-item routerLink="edit">Edit template</a>
+    <a mat-menu-item routerLink="edit" *appIfPermission="'templates:editAll'">
+      Edit template
+    </a>
   </mat-menu>
-  <button mat-button routerLink="edit" class="hidden! lg:block!">
+  <button
+    mat-button
+    routerLink="edit"
+    *appIfPermission="'templates:editAll'"
+    class="hidden! lg:block!"
+  >
     Edit template
   </button>
 </div>
@@ -36,7 +44,13 @@
   <p>Error: {{ errorMessage(templateQuery.error()) }}</p>
 } @else if (templateQuery.isSuccess()) {
   @let template = templateQuery.data();
-  <a mat-fab extended routerLink="create-event" class="fab-fixed">
+  <a
+    mat-fab
+    extended
+    routerLink="create-event"
+    *appIfPermission="'events:create'"
+    class="fab-fixed"
+  >
     <fa-duotone-icon [icon]="faPlus" />
     Create event
   </a>
@@ -125,7 +139,8 @@
                               option.registrationOptionId
                             )
                           }}
-                          ({{ option.quantity }})
+                          ({{ option.includedQuantity }} included,
+                          {{ option.optionalPurchaseQuantity }} optional)
                         </span>
                       } @empty {
                         <span>None</span>

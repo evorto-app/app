@@ -30,7 +30,7 @@
   @let overview = outboxQuery.data();
   @let summary = overview.summary;
 
-  <section class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  <section class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
     <div class="bg-surface text-on-surface rounded-lg p-4">
       <p class="text-on-surface-variant text-xs uppercase">Queued</p>
       <p class="headline-small">{{ summary.queued }}</p>
@@ -47,20 +47,44 @@
       <p class="text-on-surface-variant text-xs uppercase">Sent</p>
       <p class="headline-small">{{ summary.sent }}</p>
     </div>
+    <div class="bg-surface text-on-surface rounded-lg p-4">
+      <p class="text-on-surface-variant text-xs uppercase">Unknown</p>
+      <p class="headline-small">{{ summary.deliveryUnknown }}</p>
+    </div>
+    <div class="bg-surface text-on-surface rounded-lg p-4">
+      <p class="text-on-surface-variant text-xs uppercase">Suppressed</p>
+      <p class="headline-small">{{ summary.suppressed }}</p>
+    </div>
   </section>
 
   @if (
-    summary.failed > 0 || summary.staleSending > 0 || summary.exhausted > 0
+    summary.failed > 0 ||
+    summary.staleSending > 0 ||
+    summary.exhausted > 0 ||
+    summary.deliveryUnknown > 0
   ) {
     <div class="bg-error-container text-on-error-container mb-4 rounded-lg p-4">
       <div class="flex items-center gap-3">
         <fa-duotone-icon [icon]="faCircleExclamation" size="lg" />
         <div>
-          <h2 class="title-medium">Email delivery needs attention</h2>
+          <h2 class="title-medium">Email delivery status</h2>
           <p class="body-medium">
             {{ summary.failed }} failed, {{ summary.exhausted }} exhausted,
+            {{ summary.deliveryUnknown }} with an unknown delivery outcome,
             {{ summary.staleSending }} stuck in sending.
           </p>
+          @if (summary.exhausted > 0) {
+            <p class="body-medium mt-1">
+              Exhausted emails remain stored as read-only history. Automatic
+              retries have ended; no recovery action is required.
+            </p>
+          }
+          @if (summary.deliveryUnknown > 0) {
+            <p class="body-medium mt-1">
+              Unknown deliveries are retained as read-only history and are never
+              retried automatically, which prevents duplicate messages.
+            </p>
+          }
         </div>
       </div>
     </div>
@@ -88,7 +112,7 @@
   }
 
   <section class="grid gap-3">
-    <h2 class="title-medium">Rows needing delivery</h2>
+    <h2 class="title-medium">Delivery details</h2>
     @for (item of overview.items; track item.id) {
       <div class="bg-surface text-on-surface rounded-lg p-4">
         <div class="flex flex-wrap items-start gap-3">
@@ -101,29 +125,64 @@
           <div class="grow"></div>
           <span
             class="rounded px-2 py-1 text-xs"
-            [class.bg-error-container]="item.status === 'failed'"
-            [class.text-on-error-container]="item.status === 'failed'"
-            [class.bg-secondary-container]="item.status !== 'failed'"
-            [class.text-on-secondary-container]="item.status !== 'failed'"
+            [class.text-on-error-container]="
+              item.status === 'failed' || item.status === 'deliveryUnknown'
+            "
+            [class.bg-error-container]="
+              item.status === 'failed' || item.status === 'deliveryUnknown'
+            "
+            [class.bg-secondary-container]="
+              item.status !== 'failed' && item.status !== 'deliveryUnknown'
+            "
+            [class.text-on-secondary-container]="
+              item.status !== 'failed' && item.status !== 'deliveryUnknown'
+            "
           >
             {{ statusLabel[item.status] }}
           </span>
         </div>
         <dl class="mt-3 grid gap-x-6 gap-y-2 text-sm md:grid-cols-2">
           <div>
-            <dt class="text-on-surface-variant text-xs uppercase">Tenant</dt>
+            <dt class="text-on-surface-variant text-xs uppercase">
+              Organization
+            </dt>
             <dd>{{ item.tenantName }} ({{ item.tenantDomain }})</dd>
           </div>
           <div>
             <dt class="text-on-surface-variant text-xs uppercase">Attempts</dt>
             <dd>{{ item.attempts }}/{{ item.maxAttempts }}</dd>
           </div>
-          <div>
-            <dt class="text-on-surface-variant text-xs uppercase">
-              Next attempt
-            </dt>
-            <dd>{{ item.nextAttemptAt | date: "medium" }}</dd>
-          </div>
+          @if (item.exhaustedAt) {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Delivery
+              </dt>
+              <dd>Automatic retries ended. Stored as read-only history.</dd>
+            </div>
+          } @else if (item.deliveryUnknownAt) {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Delivery
+              </dt>
+              <dd>Outcome unknown. Stored read-only; no automatic retry.</dd>
+            </div>
+          } @else if (item.suppressedAt) {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Delivery
+              </dt>
+              <dd>Suppressed by the protected staging recipient allowlist.</dd>
+            </div>
+          } @else {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Next attempt
+              </dt>
+              <dd>
+                {{ item.nextAttemptAt | date: "medium" : item.tenantTimezone }}
+              </dd>
+            </div>
+          }
           <div>
             <dt class="text-on-surface-variant text-xs uppercase">
               Last attempt
@@ -131,11 +190,24 @@
             <dd>
               {{
                 item.lastAttemptAt
-                  ? (item.lastAttemptAt | date: "medium")
+                  ? (item.lastAttemptAt | date: "medium" : item.tenantTimezone)
                   : "Not attempted"
               }}
             </dd>
           </div>
+          @if (item.provider) {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Provider
+              </dt>
+              <dd>
+                {{ item.provider }}
+                @if (item.providerMessageId) {
+                  ({{ item.providerMessageId }})
+                }
+              </dd>
+            </div>
+          }
           @if (item.lastError) {
             <div class="md:col-span-2">
               <dt class="text-on-surface-variant text-xs uppercase">
@@ -147,16 +219,18 @@
           @if (item.exhaustedAt) {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
-                Exhausted
+                Retries ended
               </dt>
-              <dd>{{ item.exhaustedAt | date: "medium" }}</dd>
+              <dd>
+                {{ item.exhaustedAt | date: "medium" : item.tenantTimezone }}
+              </dd>
             </div>
           }
         </dl>
       </div>
     } @empty {
       <div class="bg-surface text-on-surface rounded-lg p-4">
-        <p class="body-medium">No queued, sending, or failed email rows.</p>
+        <p class="body-medium">No queued, sending, or failed emails.</p>
       </div>
     }
   </section>

@@ -25,7 +25,6 @@ test('profile discounts show seeded ESN card state and block invalid saves', asy
 
   const profilePage = page.locator('app-user-profile');
   await expect(profilePage).toBeVisible();
-  await page.getByRole('button', { name: 'Discounts' }).click();
   await expect(
     page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
   ).toBeVisible({ timeout: 15_000 });

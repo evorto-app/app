@@ -1,79 +1,276 @@
-<div class="flex flex-col gap-4 p-4">
-  <div class="flex flex-row items-start justify-between">
-    <h1 class="title-large">Welcome 👋🏼</h1>
-    <a href="/logout" mat-stroked-button>Log out</a>
-  </div>
-  <p>
-    Create an account to start using the app. If you do not want to create an
-    account, you can <a href="/logout" class="underline">log out</a>.
-  </p>
-  @if (authDataQuery.isPending()) {
-    <div
-      class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
-    >
-      <h2 class="title-medium">Loading ...</h2>
+<main class="mx-auto grid w-full max-w-3xl gap-4 p-4 lg:p-6">
+  <header class="flex items-start justify-between gap-4">
+    <div>
+      <h1 class="title-large">Complete organization setup</h1>
+      <p class="body-medium text-on-surface-variant mt-1">
+        Review this organization's current requirements before continuing.
+      </p>
     </div>
-  } @else if (authDataQuery.isSuccess()) {
-    @if (isAuthEmailVerifiedForAccountCreation(authDataQuery.data())) {
+    <a href="/logout" mat-stroked-button>Log out</a>
+  </header>
+
+  @if (authDataQuery.isPending() || onboardingRequirementsQuery.isPending()) {
+    <section
+      role="status"
+      aria-live="polite"
+      class="bg-surface-container text-on-surface grid gap-2 rounded-xl p-4"
+    >
+      <h2 class="title-medium">Loading organization requirements...</h2>
+    </section>
+  } @else if (
+    authDataQuery.isError() || onboardingRequirementsQuery.isError()
+  ) {
+    <section
+      role="alert"
+      class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-4"
+    >
+      <div>
+        <h2 class="title-medium">Organization setup could not be loaded</h2>
+        <p class="body-medium mt-1">
+          Your verified login details or this organization's current
+          requirements are unavailable. Try again, or log out and sign in again
+          if the problem continues.
+        </p>
+      </div>
+      <button
+        mat-stroked-button
+        type="button"
+        class="justify-self-start"
+        [disabled]="
+          authDataQuery.isFetching() || onboardingRequirementsQuery.isFetching()
+        "
+        (click)="authDataQuery.refetch(); onboardingRequirementsQuery.refetch()"
+      >
+        {{
+          authDataQuery.isFetching() || onboardingRequirementsQuery.isFetching()
+            ? "Retrying..."
+            : "Try again"
+        }}
+      </button>
+    </section>
+  } @else if (
+    authDataQuery.isSuccess() && onboardingRequirementsQuery.isSuccess()
+  ) {
+    @let requirements = onboardingRequirementsQuery.data();
+    @if (!isAuthEmailVerifiedForAccountCreation(authDataQuery.data())) {
+      <section
+        role="alert"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-4"
+      >
+        <div>
+          <h2 class="title-medium">Your email is not verified</h2>
+          <p class="body-medium mt-1">
+            Verify your login email, then check again to continue setup.
+          </p>
+        </div>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          [disabled]="authDataQuery.isFetching()"
+          (click)="authDataQuery.refetch()"
+        >
+          {{ authDataQuery.isFetching() ? "Checking..." : "Check again" }}
+        </button>
+      </section>
+    } @else if (!requirements.policy) {
+      <section
+        role="alert"
+        class="bg-error-container text-on-error-container rounded-xl p-4"
+      >
+        <h2 class="title-medium">Organization setup is not configured</h2>
+        <p class="body-medium mt-1">
+          {{ requirements.tenantName }} has not published a privacy policy yet.
+          Contact an organization administrator before continuing.
+        </p>
+      </section>
+    } @else {
       <form
-        class="bg-surface text-on-surface flex flex-col gap-4 rounded-2xl p-4"
+        class="bg-surface text-on-surface grid gap-6 rounded-xl p-4 lg:p-6"
         (submit)="onSubmit($event)"
       >
-        <mat-form-field>
-          <mat-label>First name</mat-label>
-          <input matInput [formField]="accountForm.firstName" />
-        </mat-form-field>
+        <section class="grid gap-4" aria-labelledby="profile-details-heading">
+          <div>
+            <h2 id="profile-details-heading" class="title-medium">
+              Profile details
+            </h2>
+            <p class="body-medium text-on-surface-variant mt-1">
+              Your notification email is used for event and finance messages.
+            </p>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2">
+            <mat-form-field>
+              <mat-label>First name</mat-label>
+              <input
+                matInput
+                autocomplete="given-name"
+                [formField]="accountForm.firstName"
+              />
+            </mat-form-field>
 
-        <mat-form-field>
-          <mat-label>Last name</mat-label>
-          <input matInput [formField]="accountForm.lastName" />
-        </mat-form-field>
+            <mat-form-field>
+              <mat-label>Last name</mat-label>
+              <input
+                matInput
+                autocomplete="family-name"
+                [formField]="accountForm.lastName"
+              />
+            </mat-form-field>
+          </div>
 
-        <mat-form-field>
-          <mat-label>Notification email</mat-label>
-          <input
-            matInput
-            type="email"
-            autocomplete="email"
-            [formField]="accountForm.communicationEmail"
-          />
-          <mat-hint>Address where you receive notifications</mat-hint>
-        </mat-form-field>
-        @if (
-          accountForm.communicationEmail().touched() &&
-          accountForm.communicationEmail().invalid()
-        ) {
-          <p class="text-error text-sm">
-            Enter the email address where event and finance notifications should
-            be sent.
-          </p>
+          <mat-form-field>
+            <mat-label>Notification email</mat-label>
+            <input
+              matInput
+              type="email"
+              autocomplete="email"
+              data-testid="communication-email"
+              [formField]="accountForm.communicationEmail"
+            />
+            <mat-hint>Address where you receive notifications</mat-hint>
+            @if (
+              accountForm.communicationEmail().touched() &&
+              accountForm.communicationEmail().invalid()
+            ) {
+              @for (
+                error of accountForm.communicationEmail().errors();
+                track error
+              ) {
+                <mat-error>{{ error.message }}</mat-error>
+              }
+            }
+          </mat-form-field>
+        </section>
+
+        @if (requirements.questions.length > 0) {
+          <section
+            class="grid gap-4"
+            aria-labelledby="tenant-questions-heading"
+          >
+            <div>
+              <h2 id="tenant-questions-heading" class="title-medium">
+                {{ requirements.tenantName }} questions
+              </h2>
+              <p class="body-medium text-on-surface-variant mt-1">
+                Every question is required and your submitted answers are kept
+                in the organization's onboarding history.
+              </p>
+            </div>
+
+            @for (
+              answerField of accountForm.answers;
+              track answerField;
+              let questionIndex = $index
+            ) {
+              @let question = requirements.questions[questionIndex];
+              @if (question) {
+                @if (question.type === "selection") {
+                  <mat-form-field>
+                    <mat-label>{{ question.prompt }}</mat-label>
+                    <mat-select [formField]="answerField.value">
+                      @for (option of question.options; track option) {
+                        <mat-option [value]="option">{{ option }}</mat-option>
+                      }
+                    </mat-select>
+                    @if (
+                      answerField.value().touched() &&
+                      answerField.value().invalid()
+                    ) {
+                      @for (
+                        error of answerField.value().errors();
+                        track error
+                      ) {
+                        <mat-error>{{ error.message }}</mat-error>
+                      }
+                    }
+                  </mat-form-field>
+                } @else {
+                  <mat-form-field>
+                    <mat-label>{{ question.prompt }}</mat-label>
+                    <input
+                      matInput
+                      [attr.data-question-id]="question.id"
+                      [formField]="answerField.value"
+                    />
+                    <mat-hint>Maximum 250 characters</mat-hint>
+                    @if (
+                      answerField.value().touched() &&
+                      answerField.value().invalid()
+                    ) {
+                      @for (
+                        error of answerField.value().errors();
+                        track error
+                      ) {
+                        <mat-error>{{ error.message }}</mat-error>
+                      }
+                    }
+                  </mat-form-field>
+                }
+              }
+            }
+          </section>
         }
 
+        <section
+          class="bg-surface-container-low grid gap-3 rounded-lg p-4"
+          aria-labelledby="privacy-policy-heading"
+        >
+          <div>
+            <h2 id="privacy-policy-heading" class="title-medium">
+              Privacy policy version {{ requirements.policy.version }}
+            </h2>
+            @if (requirements.policy.privacyPolicyText) {
+              <p class="body-medium mt-2 whitespace-pre-line">
+                {{ requirements.policy.privacyPolicyText }}
+              </p>
+            }
+            @if (requirements.policy.privacyPolicyUrl) {
+              <a
+                class="text-primary mt-2 inline-block underline"
+                [href]="requirements.policy.privacyPolicyUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open the full privacy policy
+              </a>
+            }
+          </div>
+          <mat-checkbox [formField]="accountForm.acceptedPrivacyPolicy">
+            I accept {{ requirements.tenantName }}'s current privacy policy.
+          </mat-checkbox>
+          <p class="body-small text-on-surface-variant">
+            You must accept a future policy version before you can continue in
+            this organization.
+          </p>
+        </section>
+
         @if (accountError()) {
-          <p class="text-error text-sm" role="alert">{{ accountError() }}</p>
+          <p class="text-error body-medium" role="alert">
+            {{ accountError() }}
+          </p>
         }
 
         <button
           mat-flat-button
           type="submit"
+          class="justify-self-start"
           [disabled]="
             createAccountSubmitDisabled({
               formInvalid: accountForm().invalid(),
               formSubmitting: accountForm().submitting(),
-              mutationPending: createAccountMutation.isPending(),
+              mutationPending: completeOnboardingMutation.isPending(),
             })
           "
         >
-          Create Account
+          {{
+            completeOnboardingMutation.isPending()
+              ? "Saving..."
+              : requirements.hasMembership
+                ? "Confirm and continue"
+                : "Join organization"
+          }}
         </button>
       </form>
-    } @else {
-      <div class="bg-error text-on-error rounded-2xl p-4">
-        <h2 class="title-medium mb-4">Your email is not verified</h2>
-        <p class="body-medium">
-          Please check your inbox and return here once your email was verified.
-        </p>
-      </div>
     }
   }
-</div>
+</main>

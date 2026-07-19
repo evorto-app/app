@@ -1,7 +1,11 @@
 import { and, eq } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import * as schema from '../../../src/db/schema';
+import { relations } from '../../../src/db/relations';
 import { getId } from '../../../helpers/get-id';
+
+type TestDatabase = NodePgDatabase<typeof relations>;
 
 // Seeds a free add-on directly for browser flows that need deterministic
 // add-on purchases without depending on a full organizer authoring journey.
@@ -13,14 +17,7 @@ export const seedFreeRegistrationAddon = async ({
   title = 'Snack voucher',
 }: {
   addonId: string;
-  database: {
-    delete: (table: unknown) => {
-      where: (condition: unknown) => Promise<unknown>;
-    };
-    insert: (table: unknown) => {
-      values: (value: unknown) => Promise<unknown>;
-    };
-  };
+  database: TestDatabase;
   eventId: string;
   registrationOptionId: string;
   title?: string;
@@ -43,7 +40,9 @@ export const seedFreeRegistrationAddon = async ({
 
   await database.insert(schema.addonToEventRegistrationOptions).values({
     addonId,
-    quantity: 1,
+    eventId,
+    includedQuantity: 0,
+    optionalPurchaseQuantity: 3,
     registrationOptionId,
   });
 };
@@ -55,14 +54,7 @@ export const seedRequiredRegistrationQuestion = async ({
   registrationOptionId,
   title = 'Anything organizers should know?',
 }: {
-  database: {
-    delete: (table: unknown) => {
-      where: (condition: unknown) => Promise<unknown>;
-    };
-    insert: (table: unknown) => {
-      values: (value: unknown) => Promise<unknown>;
-    };
-  };
+  database: TestDatabase;
   description?: string;
   eventId: string;
   registrationOptionId: string;

@@ -46,6 +46,16 @@ describe('validateEsnCard', () => {
     });
   });
 
+  it('preserves an expired provider status as an ineligible card state', async () => {
+    const fetchImpl = createFetchMock([{ status: 'expired' }]);
+
+    await expect(
+      validateEsnCard({ fetchImpl, identifier: 'EXPIRED-ESN-123' }),
+    ).resolves.toEqual({
+      status: 'expired',
+    });
+  });
+
   it('distinguishes provider failures from invalid cards', async () => {
     const fetchImpl = createFetchMock(
       { error: 'temporarily unavailable' },

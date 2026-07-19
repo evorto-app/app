@@ -1,19 +1,25 @@
-import type Stripe from 'stripe';
-
 import { describe, expect, it } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../db';
 import * as dbSchema from '../../db/schema';
 import { StripeClient } from '../stripe-client';
 import {
+  asyncCheckoutFailureAction,
+  checkoutSessionBindingsMatch,
+  decodeStripeRefundWebhookObject,
   handleStripeWebhookWebRequest,
+  isSupportedStripeWebhookEventType,
+  MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES,
   MAX_STRIPE_WEBHOOK_SIZE_BYTES,
   type PersistedCheckoutSessionBinding,
+  prepareStripeWebhookRequest,
   readStripeWebhookBody,
   runCheckoutWebhookTransition,
+  stripeEventOwnsPersistedAccount,
   validateCheckoutSessionBinding,
 } from './stripe-webhook.web-handler';
 
@@ -22,6 +28,7 @@ const persistedBinding = {
   id: 'transaction-1',
   method: 'stripe',
   status: 'pending',
+  stripeAccountId: 'acct_tenant',
   stripeCheckoutSessionId: 'checkout-1',
   stripePaymentIntentId: null,
   tenantId: 'tenant-1',
@@ -46,10 +53,20 @@ const handlerSource = readFileSync(
   fileURLToPath(new URL('stripe-webhook.web-handler.ts', import.meta.url)),
   'utf8',
 );
+const registrationCheckoutCompletionSource = readFileSync(
+  fileURLToPath(
+    new URL(
+      '../registrations/registration-checkout-completion.ts',
+      import.meta.url,
+    ),
+  ),
+  'utf8',
+);
 
+const stripeWebhookSecret = 'whsec_test';
 const stripeWebhookConfigLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
-    env: { STRIPE_WEBHOOK_SECRET: 'whsec_test' },
+    env: { STRIPE_WEBHOOK_SECRET: stripeWebhookSecret },
   }),
 );
 
@@ -162,6 +179,7 @@ describe('validateCheckoutSessionBinding', () => {
       stripeAccountId: 'acct_tenant',
       tenantId: 'tenant-1',
       transactionId: 'transaction-1',
+      transactionType: 'registration',
       type: 'resolved',
     });
   });
@@ -173,6 +191,42 @@ describe('validateCheckoutSessionBinding', () => {
         metadata: null,
       }),
     ).toMatchObject({ type: 'resolved' });
+  });
+
+  it('dispatches add-on Checkout only from an exact persisted add-on transaction', () => {
+    const addonBinding = validateCheckoutSessionBinding({
+      ...validBindingInput,
+      persisted: { ...persistedBinding, type: 'addon' },
+    });
+
+    expect(addonBinding).toMatchObject({
+      transactionId: 'transaction-1',
+      transactionType: 'addon',
+      type: 'resolved',
+    });
+    if (addonBinding.type !== 'resolved') {
+      throw new Error('Expected an exact add-on Checkout binding');
+    }
+
+    expect(checkoutSessionBindingsMatch(addonBinding, addonBinding)).toBe(true);
+    expect(
+      checkoutSessionBindingsMatch(addonBinding, {
+        ...addonBinding,
+        paymentIntentId: 'pi_foreign',
+      }),
+    ).toBe(false);
+    expect(
+      checkoutSessionBindingsMatch(addonBinding, {
+        ...addonBinding,
+        stripeAccountId: 'acct_foreign',
+      }),
+    ).toBe(false);
+    expect(
+      checkoutSessionBindingsMatch(addonBinding, {
+        ...addonBinding,
+        transactionType: 'registration',
+      }),
+    ).toBe(false);
   });
 
   it('rejects partial or conflicting metadata', () => {
@@ -194,6 +248,12 @@ describe('validateCheckoutSessionBinding', () => {
   });
 
   it('rejects a missing or mismatched connected account', () => {
+    expect(
+      validateCheckoutSessionBinding({
+        ...validBindingInput,
+        persisted: { ...persistedBinding, stripeAccountId: null },
+      }),
+    ).toMatchObject({ type: 'invalid-binding' });
     expect(
       validateCheckoutSessionBinding({
         ...validBindingInput,
@@ -266,6 +326,368 @@ describe('validateCheckoutSessionBinding', () => {
       }),
     ).toEqual({ type: 'state-conflict' });
   });
+});
+
+describe('Stripe refund webhook payloads', () => {
+  it.effect('decodes the refund fields used for ownership reconciliation', () =>
+    Effect.gen(function* () {
+      const refund = yield* decodeStripeRefundWebhookObject({
+        amount: 1900,
+        charge: 'ch_source',
+        currency: 'eur',
+        id: 're_valid',
+        metadata: {
+          refundClaimId: 'refund-claim-1',
+          refundGeneration: '0',
+          registrationId: 'registration-1',
+          sourceTransactionId: 'transaction-1',
+          tenantId: 'tenant-1',
+        },
+        object: 'refund',
+        payment_intent: 'pi_source',
+        status: 'pending',
+      });
+
+      expect(refund).toMatchObject({
+        amount: 1900,
+        id: 're_valid',
+        object: 'refund',
+        status: 'pending',
+      });
+    }),
+  );
+
+  it.effect(
+    'rejects a signed refund event carrying the wrong object shape',
+    () =>
+      Effect.gen(function* () {
+        const payload = JSON.stringify({
+          account: 'acct_tenant',
+          api_version: '2026-06-24.dahlia',
+          created: 1_700_000_000,
+          data: {
+            object: {
+              amount: 1900,
+              charge: 'ch_source',
+              currency: 'eur',
+              id: 're_invalid',
+              metadata: { refundClaimId: 'refund-claim-1' },
+              object: 'charge',
+              payment_intent: 'pi_source',
+              status: 'pending',
+            },
+          },
+          id: 'evt_invalid_refund',
+          livemode: false,
+          object: 'event',
+          pending_webhooks: 1,
+          request: null,
+          type: 'refund.updated',
+        });
+        const signature = Stripe.webhooks.generateTestHeaderString({
+          payload,
+          secret: stripeWebhookSecret,
+        });
+        const response = yield* handleStripeWebhookWebRequest(
+          new Request('https://tenant.example.com/webhooks/stripe', {
+            body: payload,
+            headers: { 'stripe-signature': signature },
+            method: 'POST',
+          }),
+        ).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Layer.mock(Database)({}),
+              Layer.succeed(StripeClient, new Stripe('sk_test_webhook_shape')),
+              stripeWebhookConfigLayer,
+            ),
+          ),
+        );
+
+        expect(response.status).toBe(400);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Invalid refund payload',
+        );
+      }),
+  );
+
+  it.effect(
+    'persists a signed provider refund despite unrelated claim-like metadata',
+    () =>
+      Effect.gen(function* () {
+        let persistedRefund: Record<string, unknown> | undefined;
+        const source = {
+          amount: 2500,
+          currency: 'EUR' as const,
+          eventId: 'event-1',
+          eventRegistrationId: 'registration-1',
+          id: 'transaction-1',
+          status: 'successful' as const,
+          stripeAccountId: 'acct_tenant',
+          stripeChargeId: 'ch_source',
+          stripePaymentIntentId: 'pi_source',
+          targetUserId: 'attendee-1',
+          tenantId: 'tenant-1',
+        };
+        const tx = {
+          insert: () => ({
+            values: (values: Record<string, unknown>) => ({
+              onConflictDoNothing: () => ({
+                returning: () => {
+                  persistedRefund = values;
+                  return Effect.succeed([{ id: values['id'] }]);
+                },
+              }),
+            }),
+          }),
+          select: (selection: Record<string, unknown>) => ({
+            from: () => ({
+              where: () => {
+                const rows =
+                  'stripeRefundAttempts' in selection
+                    ? []
+                    : 'refundOperationKey' in selection
+                      ? persistedRefund
+                        ? [persistedRefund]
+                        : []
+                      : [source];
+                return {
+                  for: () => Effect.succeed(rows),
+                  orderBy: () => ({ for: () => Effect.succeed(rows) }),
+                };
+              },
+            }),
+          }),
+          update: () => ({
+            set: (values: Record<string, unknown>) => ({
+              where: () => ({
+                returning: () => {
+                  persistedRefund = { ...persistedRefund, ...values };
+                  return Effect.succeed([{ id: persistedRefund['id'] }]);
+                },
+              }),
+            }),
+          }),
+        };
+        const database = {
+          delete: () => ({ where: () => Effect.succeed([]) }),
+          insert: (table: unknown) => ({
+            values: () => ({
+              onConflictDoNothing: () => ({
+                returning: () =>
+                  table === dbSchema.stripeWebhookEvents
+                    ? Effect.succeed([
+                        {
+                          status: 'processing',
+                          stripeEventId: 'evt_provider_refund',
+                        },
+                      ])
+                    : Effect.succeed([]),
+              }),
+            }),
+          }),
+          transaction: (run: (transaction: typeof tx) => unknown) => run(tx),
+          update: () => ({
+            set: () => ({ where: () => Effect.succeed([]) }),
+          }),
+        };
+        const payload = JSON.stringify({
+          account: 'acct_tenant',
+          api_version: '2026-06-24.dahlia',
+          created: 1_700_000_000,
+          data: {
+            object: {
+              amount: 900,
+              charge: 'ch_source',
+              currency: 'eur',
+              id: 're_provider',
+              metadata: { refundClaimId: 'copied-unrelated-claim' },
+              object: 'refund',
+              payment_intent: 'pi_source',
+              status: 'succeeded',
+            },
+          },
+          id: 'evt_provider_refund',
+          livemode: false,
+          object: 'event',
+          pending_webhooks: 1,
+          request: null,
+          type: 'refund.created',
+        });
+        const signature = Stripe.webhooks.generateTestHeaderString({
+          payload,
+          secret: stripeWebhookSecret,
+        });
+
+        const response = yield* handleStripeWebhookWebRequest(
+          new Request('https://tenant.example.com/webhooks/stripe', {
+            body: payload,
+            headers: { 'stripe-signature': signature },
+            method: 'POST',
+          }),
+        ).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Layer.succeed(Database, database as never),
+              Layer.succeed(
+                StripeClient,
+                new Stripe('sk_test_provider_refund'),
+              ),
+              stripeWebhookConfigLayer,
+            ),
+          ),
+        );
+
+        expect(response.status).toBe(200);
+        expect(yield* Effect.promise(() => response.text())).toBe('Success');
+        expect(persistedRefund).toMatchObject({
+          amount: -900,
+          sourceTransactionId: 'transaction-1',
+          status: 'successful',
+          stripeAccountId: 'acct_tenant',
+          stripeRefundId: 're_provider',
+          stripeRefundStatus: 'succeeded',
+          tenantId: 'tenant-1',
+        });
+      }),
+  );
+
+  it.effect(
+    'releases the webhook claim while the matching source checkout is still pending',
+    () =>
+      Effect.gen(function* () {
+        const deletedTables: unknown[] = [];
+        const updatedTables: unknown[] = [];
+        let providerInsertCount = 0;
+        const source = {
+          amount: 2500,
+          currency: 'EUR' as const,
+          eventId: 'event-1',
+          eventRegistrationId: 'registration-1',
+          id: 'transaction-1',
+          status: 'pending' as const,
+          stripeAccountId: 'acct_tenant',
+          stripeChargeId: 'ch_source',
+          stripePaymentIntentId: 'pi_source',
+          targetUserId: 'attendee-1',
+          tenantId: 'tenant-1',
+        };
+        const tx = {
+          insert: () => ({
+            values: () => ({
+              onConflictDoNothing: () => ({
+                returning: () => {
+                  providerInsertCount += 1;
+                  return Effect.succeed([{ id: 'unexpected-provider-refund' }]);
+                },
+              }),
+            }),
+          }),
+          select: (selection: Record<string, unknown>) => ({
+            from: () => ({
+              where: () => {
+                const rows =
+                  'stripeRefundAttempts' in selection
+                    ? []
+                    : 'stripeChargeId' in selection
+                      ? [source]
+                      : [];
+                return {
+                  for: () => Effect.succeed(rows),
+                  orderBy: () => ({ for: () => Effect.succeed(rows) }),
+                };
+              },
+            }),
+          }),
+        };
+        const database = {
+          delete: (table: unknown) => ({
+            where: () => {
+              deletedTables.push(table);
+              return Effect.succeed([]);
+            },
+          }),
+          insert: (table: unknown) => ({
+            values: () => ({
+              onConflictDoNothing: () => ({
+                returning: () =>
+                  table === dbSchema.stripeWebhookEvents
+                    ? Effect.succeed([
+                        {
+                          status: 'processing',
+                          stripeEventId: 'evt_provider_pending_source',
+                        },
+                      ])
+                    : Effect.succeed([]),
+              }),
+            }),
+          }),
+          transaction: (run: (transaction: typeof tx) => unknown) => run(tx),
+          update: (table: unknown) => ({
+            set: () => ({
+              where: () => {
+                updatedTables.push(table);
+                return Effect.succeed([]);
+              },
+            }),
+          }),
+        };
+        const payload = JSON.stringify({
+          account: 'acct_tenant',
+          api_version: '2026-06-24.dahlia',
+          created: 1_700_000_000,
+          data: {
+            object: {
+              amount: 900,
+              charge: 'ch_source',
+              currency: 'eur',
+              id: 're_provider_pending_source',
+              metadata: {},
+              object: 'refund',
+              payment_intent: 'pi_source',
+              status: 'succeeded',
+            },
+          },
+          id: 'evt_provider_pending_source',
+          livemode: false,
+          object: 'event',
+          pending_webhooks: 1,
+          request: null,
+          type: 'refund.created',
+        });
+        const signature = Stripe.webhooks.generateTestHeaderString({
+          payload,
+          secret: stripeWebhookSecret,
+        });
+
+        const response = yield* handleStripeWebhookWebRequest(
+          new Request('https://tenant.example.com/webhooks/stripe', {
+            body: payload,
+            headers: { 'stripe-signature': signature },
+            method: 'POST',
+          }),
+        ).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Layer.succeed(Database, database as never),
+              Layer.succeed(
+                StripeClient,
+                new Stripe('sk_test_provider_pending_source'),
+              ),
+              stripeWebhookConfigLayer,
+            ),
+          ),
+        );
+
+        expect(response.status).toBe(409);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Refund source payment is not finalized',
+        );
+        expect(providerInsertCount).toBe(0);
+        expect(deletedTables).toEqual([dbSchema.stripeWebhookEvents]);
+        expect(updatedTables).toEqual([]);
+      }),
+  );
 });
 
 describe('checkout expiry replay', () => {
@@ -384,37 +806,86 @@ describe('checkout expiry replay', () => {
 });
 
 describe('runCheckoutWebhookTransition', () => {
-  it.each([
-    [
-      'completion',
-      "case 'checkout.session.completed':",
-      "case 'checkout.session.expired':",
-    ],
-    ['expiry', "case 'checkout.session.expired':", 'default: {'],
-  ])(
-    'locks the exact %s registration row before running the guarded transition',
-    (_name, startMarker, endMarker) => {
-      const transitionSource = handlerSource.slice(
-        handlerSource.indexOf(startMarker),
-        handlerSource.indexOf(endMarker),
-      );
-      const registrationLock = transitionSource.indexOf(".for('update')");
-      const transactionUpdate = transitionSource.indexOf(
-        '.update(schema.transactions)',
-      );
-      const registrationUpdate = transitionSource.indexOf(
-        '.update(schema.eventRegistrations)',
-      );
-      const optionUpdate = transitionSource.indexOf(
-        '.update(schema.eventRegistrationOptions)',
-      );
+  it('delegates completion to the registration-first locked finalizer', () => {
+    const completionCase = handlerSource.slice(
+      handlerSource.indexOf("case 'checkout.session.completed':"),
+      handlerSource.indexOf("case 'checkout.session.expired':"),
+    );
+    const completionTransaction = registrationCheckoutCompletionSource.slice(
+      registrationCheckoutCompletionSource.indexOf(
+        'return yield* Database.use',
+      ),
+    );
+    const registrationLock = completionTransaction.indexOf(
+      '.from(eventRegistrations)',
+    );
+    const registrationForUpdate = completionTransaction.indexOf(
+      ".for('update')",
+      registrationLock,
+    );
+    const transactionLock = completionTransaction.indexOf(
+      '.from(transactions)',
+      registrationForUpdate,
+    );
+    const transactionForUpdate = completionTransaction.indexOf(
+      ".for('update')",
+      transactionLock,
+    );
+    const transactionUpdate = completionTransaction.indexOf(
+      '.update(transactions)',
+      transactionForUpdate,
+    );
+    const registrationUpdate = completionTransaction.indexOf(
+      '.update(eventRegistrations)',
+      transactionUpdate,
+    );
+    const optionUpdate = completionTransaction.indexOf(
+      '.update(eventRegistrationOptions)',
+      registrationUpdate,
+    );
 
-      expect(registrationLock).toBeGreaterThanOrEqual(0);
-      expect(transactionUpdate).toBeGreaterThanOrEqual(0);
-      expect(registrationUpdate).toBeGreaterThanOrEqual(0);
-      expect(optionUpdate).toBeGreaterThanOrEqual(0);
-    },
-  );
+    expect(completionCase).toContain('completePaidRegistrationCheckout(');
+    expect(completionCase).toContain("error.kind === 'stateConflict'");
+    expect(completionCase).toContain("error.kind === 'invalidBinding'");
+    expect(registrationCheckoutCompletionSource).toContain(
+      'paymentIntent.id !== paymentIntentId',
+    );
+    expect(registrationCheckoutCompletionSource).toContain(
+      'Stripe payment intent is missing during checkout completion',
+    );
+    expect(registrationLock).toBeGreaterThanOrEqual(0);
+    expect(registrationForUpdate).toBeGreaterThan(registrationLock);
+    expect(transactionLock).toBeGreaterThan(registrationForUpdate);
+    expect(transactionForUpdate).toBeGreaterThan(transactionLock);
+    expect(transactionUpdate).toBeGreaterThan(transactionForUpdate);
+    expect(registrationUpdate).toBeGreaterThan(transactionUpdate);
+    expect(optionUpdate).toBeGreaterThan(registrationUpdate);
+    expect(completionTransaction).toContain(
+      'stripeCheckoutCancellationRequestedAt: null',
+    );
+  });
+
+  it('locks the exact expiry registration row before running the guarded transition', () => {
+    const transitionSource = handlerSource.slice(
+      handlerSource.indexOf("case 'checkout.session.expired':"),
+      handlerSource.indexOf('default: {'),
+    );
+    const registrationLock = transitionSource.indexOf(".for('update')");
+    const transactionUpdate = transitionSource.indexOf(
+      '.update(schema.transactions)',
+    );
+    const registrationUpdate = transitionSource.indexOf(
+      '.update(schema.eventRegistrations)',
+    );
+    const optionUpdate = transitionSource.indexOf(
+      '.update(schema.eventRegistrationOptions)',
+    );
+
+    expect(registrationLock).toBeGreaterThanOrEqual(0);
+    expect(transactionUpdate).toBeGreaterThanOrEqual(0);
+    expect(registrationUpdate).toBeGreaterThanOrEqual(0);
+    expect(optionUpdate).toBeGreaterThanOrEqual(0);
+  });
 
   it('orders checkout-expiry add-on releases before updating stock rows', () => {
     const expirySource = handlerSource.slice(
@@ -501,5 +972,179 @@ describe('runCheckoutWebhookTransition', () => {
         expect(error._tag).toBe('StripeWebhookStateConflictError');
         expect(order).toEqual(['registration-lock', 'transaction-update']);
       }),
+  );
+});
+
+const createStreamRequest = (
+  chunks: readonly Uint8Array[],
+  headers: HeadersInit = {},
+) => {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(chunk);
+      }
+      controller.close();
+    },
+  });
+  const init = {
+    body,
+    duplex: 'half',
+    headers: {
+      'stripe-signature': 'test-signature',
+      ...Object.fromEntries(new Headers(headers)),
+    },
+    method: 'POST',
+  } satisfies RequestInit & { duplex: 'half' };
+
+  return new Request('https://tenant.example.com/webhooks/stripe', init);
+};
+
+describe('prepareStripeWebhookRequest', () => {
+  it('routes delayed payment success and failure through durable webhook claims', () => {
+    expect(
+      isSupportedStripeWebhookEventType(
+        'checkout.session.async_payment_succeeded',
+      ),
+    ).toBe(true);
+    expect(
+      isSupportedStripeWebhookEventType(
+        'checkout.session.async_payment_failed',
+      ),
+    ).toBe(true);
+    expect(asyncCheckoutFailureAction({ status: 'open' })).toBe('keepOpen');
+    expect(
+      asyncCheckoutFailureAction({
+        payment_status: 'paid',
+        status: 'complete',
+      }),
+    ).toBe('complete');
+    expect(
+      asyncCheckoutFailureAction({
+        payment_status: 'unpaid',
+        status: 'complete',
+      }),
+    ).toBe('cancel');
+    expect(asyncCheckoutFailureAction({ status: 'expired' })).toBe('cancel');
+  });
+
+  it('requires an exact persisted Connect account match', () => {
+    expect(stripeEventOwnsPersistedAccount('acct_1', 'acct_1')).toBe(true);
+    expect(stripeEventOwnsPersistedAccount('acct_other', 'acct_1')).toBe(false);
+    expect(stripeEventOwnsPersistedAccount(undefined, 'acct_1')).toBe(false);
+    expect(stripeEventOwnsPersistedAccount('acct_1', null)).toBe(false);
+  });
+
+  it.effect('does not read an unsigned webhook body', () =>
+    Effect.gen(function* () {
+      const body = new ReadableStream<Uint8Array>({
+        pull() {
+          throw new Error('body should not be read');
+        },
+      });
+      const init = {
+        body,
+        duplex: 'half',
+        method: 'POST',
+      } satisfies RequestInit & { duplex: 'half' };
+      const request = new Request(
+        'https://tenant.example.com/webhooks/stripe',
+        init,
+      );
+
+      const response = yield* prepareStripeWebhookRequest(request);
+
+      expect(response).toBeInstanceOf(Response);
+      if (response instanceof Response) {
+        expect(response.status).toBe(400);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'No signature',
+        );
+      }
+    }),
+  );
+
+  it.effect('rejects a webhook declared above the route limit', () =>
+    Effect.gen(function* () {
+      const request = createStreamRequest([new Uint8Array([1])], {
+        'content-length': String(MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES + 1),
+      });
+
+      const response = yield* prepareStripeWebhookRequest(request);
+
+      expect(response).toBeInstanceOf(Response);
+      if (response instanceof Response) {
+        expect(response.status).toBe(413);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Payload too large',
+        );
+      }
+    }),
+  );
+
+  it.effect(
+    'rejects an oversized streamed webhook without Content-Length',
+    () =>
+      Effect.gen(function* () {
+        const request = createStreamRequest([
+          new Uint8Array(MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES + 1),
+        ]);
+        expect(request.headers.get('content-length')).toBeNull();
+
+        const response = yield* prepareStripeWebhookRequest(request);
+
+        expect(response).toBeInstanceOf(Response);
+        if (response instanceof Response) {
+          expect(response.status).toBe(413);
+        }
+      }),
+  );
+
+  it.effect('does not trust a smaller webhook Content-Length', () =>
+    Effect.gen(function* () {
+      const request = createStreamRequest(
+        [new Uint8Array(MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES + 1)],
+        { 'content-length': '1' },
+      );
+
+      const response = yield* prepareStripeWebhookRequest(request);
+
+      expect(response).toBeInstanceOf(Response);
+      if (response instanceof Response) {
+        expect(response.status).toBe(413);
+      }
+    }),
+  );
+
+  it.effect('accepts a signed webhook within the route limit', () =>
+    Effect.gen(function* () {
+      const request = createStreamRequest([new TextEncoder().encode('{}')]);
+
+      const prepared = yield* prepareStripeWebhookRequest(request);
+
+      expect(prepared).not.toBeInstanceOf(Response);
+      if (!(prepared instanceof Response)) {
+        expect(prepared.signature).toBe('test-signature');
+        expect(new TextDecoder().decode(prepared.rawBody)).toBe('{}');
+      }
+    }),
+  );
+
+  it.effect('rejects an invalid webhook Content-Length', () =>
+    Effect.gen(function* () {
+      const request = createStreamRequest([new TextEncoder().encode('{}')], {
+        'content-length': 'invalid',
+      });
+
+      const response = yield* prepareStripeWebhookRequest(request);
+
+      expect(response).toBeInstanceOf(Response);
+      if (response instanceof Response) {
+        expect(response.status).toBe(400);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Invalid Content-Length',
+        );
+      }
+    }),
   );
 });

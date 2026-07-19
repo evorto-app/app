@@ -1,0 +1,211 @@
+@let option = optionForm();
+<article class="border-outline-variant bg-surface rounded-xl border p-4">
+  <div class="mb-4 flex flex-wrap items-start gap-3">
+    <mat-form-field class="min-w-56 flex-1">
+      <mat-label>Option name</mat-label>
+      <input matInput [formField]="option.title" />
+      @if (option.title().touched() && option.title().errors()[0]; as error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    @if (removable()) {
+      <button
+        type="button"
+        mat-button
+        class="mt-1"
+        (click)="removeRequested.emit()"
+      >
+        Remove option
+      </button>
+    }
+  </div>
+
+  <div class="grid gap-5">
+    <section class="grid gap-4 md:grid-cols-2">
+      <mat-form-field>
+        <mat-label>Registration mode</mat-label>
+        <mat-select [formField]="option.registrationMode">
+          @for (mode of registrationModes; track mode) {
+            <mat-option [value]="mode">{{
+              registrationModeLabel(mode)
+            }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Capacity</mat-label>
+        <input matInput type="number" [formField]="option.spots" />
+        @if (option.spots().touched() && option.spots().errors()[0]; as error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
+      </mat-form-field>
+
+      @if (simpleMode()) {
+        <p class="text-on-surface-variant self-center text-sm">
+          @if (option.organizingRegistration().value()) {
+            Organizing option
+          } @else {
+            Non-organizing option
+          }
+        </p>
+      } @else {
+        <mat-checkbox [formField]="option.organizingRegistration">
+          Organizing or helper option
+        </mat-checkbox>
+      }
+    </section>
+
+    <section class="grid gap-2">
+      <h3 class="title-medium">Eligible roles</h3>
+      <app-role-select [formField]="option.roleIds" />
+    </section>
+
+    <section class="grid gap-4">
+      <h3 class="title-medium">Registration window</h3>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <mat-form-field>
+          <mat-label>Opens on</mat-label>
+          <input
+            matInput
+            [matDatepicker]="openDatePicker"
+            [formField]="option.openRegistrationTime"
+          />
+          <mat-datepicker-toggle matIconSuffix [for]="openDatePicker" />
+          <mat-datepicker #openDatePicker />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Opening time</mat-label>
+          <input
+            matInput
+            [matTimepicker]="openTimePicker"
+            [formField]="option.openRegistrationTime"
+          />
+          <mat-timepicker #openTimePicker />
+          <mat-timepicker-toggle matSuffix [for]="openTimePicker" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Closes on</mat-label>
+          <input
+            matInput
+            [matDatepicker]="closeDatePicker"
+            [formField]="option.closeRegistrationTime"
+          />
+          <mat-datepicker-toggle matIconSuffix [for]="closeDatePicker" />
+          <mat-datepicker #closeDatePicker />
+          @if (
+            option.closeRegistrationTime().touched() &&
+              option.closeRegistrationTime().errors()[0];
+            as error
+          ) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Closing time</mat-label>
+          <input
+            matInput
+            [matTimepicker]="closeTimePicker"
+            [formField]="option.closeRegistrationTime"
+          />
+          <mat-timepicker #closeTimePicker />
+          <mat-timepicker-toggle matSuffix [for]="closeTimePicker" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="grid gap-3">
+      <mat-checkbox [formField]="option.isPaid">Paid option</mat-checkbox>
+      <p class="text-on-surface-variant text-sm">
+        Paid options require a connected Stripe account.
+      </p>
+      @if (!option.price().hidden()) {
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <app-currency-amount-input
+            label="Price"
+            [currencyCode]="currencyCode()"
+            [formField]="option.price"
+            [minimumMinorUnits]="1"
+          />
+
+          @if (esnEnabled()) {
+            <app-currency-amount-input
+              hint="Leave blank to disable the discount."
+              label="ESNcard price"
+              [allowEmpty]="true"
+              [currencyCode]="currencyCode()"
+              [formField]="option.esnCardDiscountedPrice"
+            />
+          }
+
+          <mat-form-field>
+            <mat-label>Tax rate</mat-label>
+            <mat-select [formField]="option.stripeTaxRateId">
+              @if (taxRatesQuery.isPending()) {
+                <mat-option disabled>Loading tax rates...</mat-option>
+              } @else if (taxRatesQuery.isSuccess()) {
+                @for (rate of taxRatesQuery.data(); track rate.id) {
+                  <mat-option [value]="rate.stripeTaxRateId">
+                    {{ rate.displayName || rate.stripeTaxRateId }} —
+                    {{ rate.percentage ?? "?" }}%
+                  </mat-option>
+                }
+              } @else {
+                <mat-option disabled>Failed to load tax rates</mat-option>
+              }
+            </mat-select>
+            <mat-hint>Inclusive tax; the shown price is final.</mat-hint>
+            @if (
+              option.stripeTaxRateId().touched() &&
+                option.stripeTaxRateId().errors()[0];
+              as error
+            ) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
+          </mat-form-field>
+        </div>
+      }
+    </section>
+
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <mat-form-field>
+        <mat-label>Cancellation deadline (hours before start)</mat-label>
+        <input
+          matInput
+          type="number"
+          [formField]="option.cancellationDeadlineHoursBeforeStart"
+          placeholder="Organization default"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Transfer deadline (hours before start)</mat-label>
+        <input
+          matInput
+          type="number"
+          [formField]="option.transferDeadlineHoursBeforeStart"
+          placeholder="Organization default"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Refund payment fees</mat-label>
+        <mat-select [formField]="option.refundFeesOnCancellation">
+          <mat-option [value]="null">Organization default</mat-option>
+          <mat-option [value]="true">Refund fees</mat-option>
+          <mat-option [value]="false">Keep fees</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </section>
+
+    <section class="grid gap-2">
+      <span class="text-on-surface-variant text-sm">Public description</span>
+      <app-editor [control]="option.description" />
+    </section>
+
+    <section class="grid gap-2">
+      <span class="text-on-surface-variant text-sm">
+        Description for registered users
+      </span>
+      <app-editor [control]="option.registeredDescription" />
+    </section>
+  </div>
+</article>

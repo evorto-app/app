@@ -44,7 +44,11 @@
           <div
             class="bg-surface-container text-on-surface-variant flex min-h-64 items-center justify-center rounded-xl p-4"
           >
-            No preview image available
+            {{
+              receipt.receiptEvidenceAvailable
+                ? "No preview available"
+                : "Receipt evidence unavailable"
+            }}
           </div>
         }
         <p class="text-on-surface-variant mt-3 text-sm">
@@ -59,13 +63,22 @@
         >
           {{ receiptReviewNotificationNotice }}
         </p>
+        @if (!receipt.receiptEvidenceAvailable) {
+          <p
+            role="alert"
+            class="bg-error-container text-on-error-container mb-4 rounded-xl p-3 text-sm"
+          >
+            {{ receiptEvidenceUnavailableNotice }}
+          </p>
+        }
         <app-receipt-form-fields
+          [currencyCode]="receipt.currency"
           [form]="form"
           [selectableCountries]="selectableCountries"
         />
 
         <mat-form-field class="mt-4 w-full">
-          <mat-label>Rejection reason</mat-label>
+          <mat-label>Reason shown to the submitter</mat-label>
           <textarea
             #reasonInput
             matInput
@@ -73,6 +86,7 @@
             [value]="rejectionReason()"
             (input)="updateRejectionReason(reasonInput.value)"
           ></textarea>
+          <mat-hint>Required when rejecting this receipt.</mat-hint>
         </mat-form-field>
 
         <div class="mt-4 flex flex-wrap justify-end gap-2">
@@ -81,9 +95,10 @@
             color="warn"
             (click)="reject()"
             [disabled]="
-              receiptReviewActionDisabled({
+              receiptRejectionDisabled({
                 formInvalid: form.invalid,
                 mutationPending: reviewMutation.isPending(),
+                rejectionReason: rejectionReason(),
                 receiptPending: receiptQuery.isPending(),
               })
             "
@@ -96,7 +111,8 @@
             color="primary"
             (click)="approve()"
             [disabled]="
-              receiptReviewActionDisabled({
+              receiptApprovalDisabled({
+                evidenceAvailable: receipt.receiptEvidenceAvailable,
                 formInvalid: form.invalid,
                 mutationPending: reviewMutation.isPending(),
                 receiptPending: receiptQuery.isPending(),

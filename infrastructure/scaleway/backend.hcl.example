@@ -1,0 +1,4 @@
+bucket = "evorto-terraform-state-replace-with-unique-suffix"
+
+# Supply backend credentials only through AWS_ACCESS_KEY_ID and
+# AWS_SECRET_ACCESS_KEY. Never place them in this file or Terraform variables.

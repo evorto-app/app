@@ -10,7 +10,7 @@
       <h1 class="title-large">Event templates</h1>
       <div class="grow"></div>
       <a mat-button routerLink="categories" class="hidden! lg:flex!">
-        Manage categories
+        {{ canManageCategories() ? "Manage categories" : "View categories" }}
       </a>
       <button
         class="lg:hidden!"
@@ -21,7 +21,9 @@
         <fa-duotone-icon [icon]="faEllipsisVertical" />
       </button>
       <mat-menu #menu="matMenu">
-        <a routerLink="categories" mat-menu-item>Manage categories</a>
+        <a routerLink="categories" mat-menu-item>
+          {{ canManageCategories() ? "Manage categories" : "View categories" }}
+        </a>
         <!-- <a routerLink="../create" mat-menu-item>Create template</a> -->
       </mat-menu>
     </div>
@@ -37,7 +39,12 @@
       } @else if (templateQuery.isError()) {
         <p>Error: {{ templateQueryErrorMessage() }}</p>
       } @else if (templateQuery.isSuccess()) {
-        <a mat-flat-button routerLink="create" class="hidden! lg:flex!">
+        <a
+          mat-flat-button
+          routerLink="create"
+          *appIfPermission="'templates:create'"
+          class="hidden! lg:flex!"
+        >
           Create template
         </a>
         @for (
@@ -62,7 +69,11 @@
               </a>
             } @empty {
               <p>No templates found in this category</p>
-              <a mat-button routerLink="create/{{ templateCategory.id }}">
+              <a
+                mat-button
+                routerLink="create/{{ templateCategory.id }}"
+                *appIfPermission="'templates:create'"
+              >
                 Add template to this category
               </a>
             }
@@ -83,6 +94,7 @@
 
 <a
   routerLink="create"
+  *appIfPermission="'templates:create'"
   class="fab-fixed {{ outletActive() ? 'hidden!' : 'block' }} lg:hidden!"
   mat-fab
   extended

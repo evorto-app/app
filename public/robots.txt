@@ -1,6 +1,5 @@
 User-agent: *
 Allow: /
 
-# Sitemap (update to your canonical domain)
-Sitemap: https://evorto.fly.dev/sitemap.xml
-
+# Future production canonical domain. Staging responses remain noindex.
+Sitemap: https://alpha.evorto.app/sitemap.xml

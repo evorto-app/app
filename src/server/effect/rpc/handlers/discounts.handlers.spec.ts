@@ -103,11 +103,10 @@ describe('discountHandlers', () => {
     }),
   );
 
-  it.effect('upsertMyCard updates an existing tenant user card', () => {
+  it.effect('upsertMyCard returns an expired provider state', () => {
     const originalAdapter = Adapters.esnCard;
     const validate = vi.fn(async () => ({
-      status: 'verified' as const,
-      validTo: new Date('2026-12-31T00:00:00.000Z'),
+      status: 'expired' as const,
     }));
     Adapters.esnCard = { validate };
 
@@ -134,9 +133,9 @@ describe('discountHandlers', () => {
               {
                 id: 'card-1',
                 identifier: 'ESN-123',
-                status: 'verified' as const,
+                status: 'expired' as const,
                 type: 'esnCard' as const,
-                validTo: new Date('2026-12-31T00:00:00.000Z'),
+                validTo: null,
               },
             ]),
         }),
@@ -183,9 +182,9 @@ describe('discountHandlers', () => {
       expect(card).toEqual({
         id: 'card-1',
         identifier: 'ESN-123',
-        status: 'verified',
+        status: 'expired',
         type: 'esnCard',
-        validTo: '2026-12-31T00:00:00.000Z',
+        validTo: null,
       });
       expect(insertedValues).not.toHaveBeenCalled();
       expect(validate).toHaveBeenCalledWith({
@@ -195,8 +194,8 @@ describe('discountHandlers', () => {
       expect(updateSet).toHaveBeenCalledWith(
         expect.objectContaining({
           identifier: 'ESN-123',
-          status: 'verified',
-          validTo: new Date('2026-12-31T00:00:00.000Z'),
+          status: 'expired',
+          validTo: undefined,
         }),
       );
       expect(findFirst).toHaveBeenNthCalledWith(

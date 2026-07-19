@@ -13,10 +13,12 @@ import {
 import { test } from '../../support/fixtures/base-test';
 import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 
 // test.use({ storageState: defaultStateFile });
 
-// Skip this journey if Auth0 Management credentials are not configured
+// Keep credential discovery separate from test registration. The integration
+// journey fails its explicit precondition instead of being skipped or omitted.
 const hasManagementEnvironment = Effect.runSync(
   hasAuth0ManagementEnvironment.pipe(
     Effect.provideService(
@@ -26,10 +28,19 @@ const hasManagementEnvironment = Effect.runSync(
   ),
 );
 
-test('Understand tenant account creation', async ({}, testInfo) => {
+test.use({ screenshot: 'off', trace: 'off', video: 'off' });
+
+test('Understand organization account setup', async ({}, testInfo) => {
   expect(
     createAccountModelFromAuthData(
-      { communicationEmail: '', firstName: '', lastName: '' },
+      {
+        acceptedPrivacyPolicy: false,
+        answers: [],
+        communicationEmail: '',
+        firstName: '',
+        lastName: '',
+        policyVersionId: '',
+      },
       {
         email: ' new-user@example.org ',
         email_verified: true,
@@ -38,20 +49,29 @@ test('Understand tenant account creation', async ({}, testInfo) => {
       },
     ),
   ).toEqual({
+    acceptedPrivacyPolicy: false,
+    answers: [],
     communicationEmail: 'new-user@example.org',
     firstName: 'New',
     lastName: 'User',
+    policyVersionId: '',
   });
   expect(
     createAccountPayloadFromModel({
+      acceptedPrivacyPolicy: true,
+      answers: [{ questionId: 'question-1', value: ' Exchange student ' }],
       communicationEmail: ' notify@example.org ',
       firstName: ' New ',
       lastName: ' User ',
+      policyVersionId: 'policy-1',
     }),
   ).toEqual({
+    acceptedPrivacyPolicy: true,
+    answers: [{ questionId: 'question-1', value: 'Exchange student' }],
     communicationEmail: 'notify@example.org',
     firstName: 'New',
     lastName: 'User',
+    policyVersionId: 'policy-1',
   });
   expect(isAuthEmailVerifiedForAccountCreation({ email_verified: true })).toBe(
     true,
@@ -68,22 +88,22 @@ test('Understand tenant account creation', async ({}, testInfo) => {
   ).toBe(true);
   expect(
     createAccountErrorMessage({
-      _tag: 'UserConflictError',
-      message: 'User account already exists',
+      _tag: 'TenantOnboardingRequirementsChangedError',
+      message: 'Requirements changed; review and submit again',
     }),
-  ).toBe('User account already exists');
+  ).toBe('Requirements changed; review and submit again');
 
   await testInfo.attach('markdown', {
     body: `
-# Tenant Account Creation
+# Organization Setup and Privacy Acceptance
 
-Authenticated users who do not yet have an Evorto account for the current tenant are sent to **Create Account** before protected tenant pages. The form is shown only after the Auth0 email address is explicitly verified.
+Signed-in users who have not completed the current organization requirements are sent to **Complete organization setup** before protected pages. This applies to a first organization join, newly published privacy-policy versions, and newly required questions. The form is shown only after the sign-in email address is verified.
 
-The account form pre-fills first name, last name, and **Notification email** from Auth0 data when available. Evorto stores the notification email as the user-managed communication address for event and finance messages; it may differ from the Auth0 login email shown later on the profile page.
+The account form pre-fills first name, last name, and **Notification email** from the sign-in account when available. Evorto uses the notification email for event and finance messages; it may differ from the sign-in email shown later on the profile page.
 
-Before submitting, the form trims first name, last name, and notification email. It stays disabled while invalid, already submitting, or waiting for the account-creation mutation, so slow tenant-join writes cannot be double-submitted. If account creation fails, the page shows a retryable server error instead of silently losing the submit attempt.
+Before submitting, the form trims first name, last name, notification email, and question answers. The button stays unavailable until every required field is valid and the current policy is accepted. If requirements change while the page is open, Evorto keeps matching answers and asks you to review the latest version.
 
-Creating the account joins the current tenant and grants the tenant's default user roles. Existing global users with the same Auth0 id join the current tenant instead of creating a duplicate global user.
+Completing setup records the accepted privacy-policy version and submitted answers, adds you to the current organization, and grants its standard member access. If your login already belongs to another organization, Evorto adds the same account here instead of creating a duplicate. Your original home organization stays unchanged until you deliberately change it from your profile.
 `,
   });
 });
@@ -109,7 +129,7 @@ test.describe('Auth0-backed account creation docs', () => {
       await testInfo.attach('markdown', {
         body: `
 {% callout type="note" title="For first time visits" %}
-This guide assumes that you are authenticated by Auth0 but do not yet have an Evorto account for the current tenant. Creating the account connects your global login to this tenant and grants the tenant's default user roles.
+This guide assumes that you are signed in but have not completed setup for the current organization. Completing setup records the current privacy-policy acceptance and adds your account to the organization with its standard member access.
 {% /callout %}
 ## Login
 Open the app page and click on the **Login** link.`,
@@ -137,49 +157,53 @@ Open the app page and click on the **Login** link.`,
       await page.getByRole('link', { name: 'Login' }).click();
       await testInfo.attach('markdown', {
         body: `
-After starting the login flow, sign in with the account you want to use for this tenant. This integration guide uses a generated demo user because Auth0 account creation requires Auth0 Management credentials.
+After starting the login flow, sign in with the account you want to use for this organization.
 
-If your Auth0 email address is not verified yet, Evorto asks you to verify it before the tenant account form is shown.`,
+If your login email address is not verified yet, Evorto asks you to verify it before the organization setup form is shown.`,
       });
       await page.getByLabel('Email address').waitFor({ state: 'visible' });
       await takeScreenshot(testInfo, page.getByLabel('Email address'), page);
       await page.getByLabel('Email address').fill(newUser.email);
-      await page
-        .getByRole('textbox', { name: 'Password' })
-        .fill(newUser.password);
+      await fillProtectedValue(
+        page.getByRole('textbox', { name: 'Password' }),
+        'E2E_TRANSIENT_AUTH0_USER_PASSWORD',
+      );
       await page.getByRole('button', { exact: true, name: 'Continue' }).click();
       const acceptButton = page.getByRole('button', {
         exact: true,
         name: 'Accept',
       });
-      const createAccountButton = page.getByRole('button', {
+      const joinTenantButton = page.getByRole('button', {
         exact: true,
-        name: 'Create Account',
+        name: 'Join organization',
       });
-      await expect(acceptButton.or(createAccountButton).first()).toBeVisible({
+      await expect(acceptButton.or(joinTenantButton).first()).toBeVisible({
         timeout: 15000,
       });
       if (await acceptButton.isVisible()) {
         await acceptButton.click();
       }
-      await expect(createAccountButton).toBeVisible({ timeout: 15000 });
+      await expect(joinTenantButton).toBeVisible({ timeout: 15000 });
 
       await testInfo.attach('markdown', {
         body: `
-Review the prefilled first name, last name, and **Notification email** address, then click **Create Account**. Evorto stores the notification email as your editable communication address for event and finance messages, and the form only submits when that address has an email shape.
+Review the prefilled first name, last name, and **Notification email** address. Read the organization's current privacy policy and accept it before clicking **Join organization**. Evorto stores both the exact accepted policy version and the notification email as your editable communication address for event and finance messages.
 
-If the same global login already exists for another tenant, this step joins the current tenant instead of creating a duplicate global user. If account creation fails, the form shows the server error and lets you retry after resolving the issue.`,
+If the organization asks onboarding questions, every current question must be answered. If your login already belongs to another organization, this step adds the same account here. If setup fails or the policy changes while the form is open, Evorto explains what needs attention and lets you review the current requirements before retrying.`,
       });
       const createAccountForm = page
         .locator('form')
-        .filter({ has: createAccountButton })
+        .filter({ has: joinTenantButton })
         .first();
       await createAccountForm.waitFor({ state: 'visible' });
       await expect(
         createAccountForm.getByRole('textbox', { name: 'Notification email' }),
       ).toBeVisible();
       await takeScreenshot(testInfo, createAccountForm, page);
-      await createAccountButton.click();
+      await createAccountForm
+        .getByRole('checkbox', { name: /I accept .* current privacy policy/ })
+        .check();
+      await joinTenantButton.click();
       await expect(
         page.getByRole('heading', {
           level: 1,
@@ -200,6 +224,7 @@ If the same global login already exists for another tenant, this step joins the 
         communicationEmail: newUser.email,
         email: newUser.email,
         firstName: newUser.firstName,
+        homeTenantId: expect.any(String),
         lastName: newUser.lastName,
       });
 
@@ -219,6 +244,25 @@ If the same global login already exists for another tenant, this step joins the 
         );
       }
       createdTenantUserId = tenantUser.id;
+      expect(createdUser.homeTenantId).toBe(currentTenant.id);
+
+      const currentPolicy =
+        await database.query.tenantPrivacyPolicyVersions.findFirst({
+          orderBy: { version: 'desc' },
+          where: { tenantId: currentTenant.id },
+        });
+      if (!currentPolicy) {
+        throw new Error('Expected seeded tenant privacy policy');
+      }
+      expect(
+        await database.query.tenantPrivacyPolicyAcceptances.findFirst({
+          where: {
+            policyVersionId: currentPolicy.id,
+            tenantId: currentTenant.id,
+            userId: createdUser.id,
+          },
+        }),
+      ).toBeDefined();
 
       const roleAssignments = await database.query.rolesToTenantUsers.findMany({
         where: { userTenantId: tenantUser.id },
@@ -227,10 +271,20 @@ If the same global login already exists for another tenant, this step joins the 
 
       await testInfo.attach('markdown', {
         body: `
-You should now be on your profile page for the current tenant. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
+You should now be on your profile page for the current organization. Your membership, standard access, policy acceptance, and first home organization are saved together. From here you can review your profile, manage discount cards when the organization supports them, and register for events.`,
       });
     } finally {
       if (createdUserId) {
+        await database
+          .delete(schema.tenantOnboardingQuestionAnswers)
+          .where(
+            eq(schema.tenantOnboardingQuestionAnswers.userId, createdUserId),
+          );
+        await database
+          .delete(schema.tenantPrivacyPolicyAcceptances)
+          .where(
+            eq(schema.tenantPrivacyPolicyAcceptances.userId, createdUserId),
+          );
         const tenantUsers = await database.query.usersToTenants.findMany({
           where: { userId: createdUserId },
         });

@@ -36,6 +36,7 @@ import {
   tenantStripeTaxRates,
 } from '../../../../../db/schema';
 import { RpcAccess } from '../shared/rpc-access.service';
+import { loadEventGraphDetail } from './event-graph.loader';
 import {
   canEditEvent,
   databaseEffect,
@@ -43,82 +44,148 @@ import {
   isEsnCardEnabled,
 } from './events.shared';
 
-const hasSuccessfulPaidRegistrationTransaction = (
-  transactionsToCheck: readonly {
-    amount: number;
-    status: string;
-  }[],
-) =>
-  transactionsToCheck.some(
-    (transaction) =>
-      transaction.status === 'successful' && transaction.amount > 0,
+export const eventOrganizeCapabilities = ({
+  confirmedOrganizerRegistration,
+  permissions,
+}: {
+  confirmedOrganizerRegistration: boolean;
+  permissions: readonly Permission[];
+}) => {
+  const canManageRegistrations =
+    includesPermission('events:organizeAll', permissions) ||
+    confirmedOrganizerRegistration;
+
+  return {
+    canApproveRegistrations: canManageRegistrations,
+    canCancelRegistrations:
+      canManageRegistrations &&
+      includesPermission('events:cancelRegistrations', permissions),
+    canTransferRegistrations: canManageRegistrations,
+    canViewOverview:
+      canManageRegistrations ||
+      includesPermission('finance:manageReceipts', permissions),
+  };
+};
+
+export const organizeOverviewAccessAllowed = (input: {
+  confirmedOrganizerRegistration: boolean;
+  permissions: readonly Permission[];
+}): boolean => eventOrganizeCapabilities(input).canViewOverview;
+
+const canOrganizeEvent = Effect.fn('Events.canOrganizeEvent')(function* ({
+  eventId,
+  permissions,
+  tenantId,
+  userId,
+}: {
+  eventId: string;
+  permissions: readonly Permission[];
+  tenantId: string;
+  userId: string;
+}) {
+  if (
+    organizeOverviewAccessAllowed({
+      confirmedOrganizerRegistration: false,
+      permissions,
+    })
+  ) {
+    return true;
+  }
+
+  const registrations = yield* databaseEffect((database) =>
+    database
+      .select({
+        id: eventRegistrations.id,
+      })
+      .from(eventRegistrations)
+      .innerJoin(
+        eventRegistrationOptions,
+        eq(
+          eventRegistrations.registrationOptionId,
+          eventRegistrationOptions.id,
+        ),
+      )
+      .where(
+        and(
+          eq(eventRegistrations.tenantId, tenantId),
+          eq(eventRegistrations.eventId, eventId),
+          eq(eventRegistrations.userId, userId),
+          eq(eventRegistrations.status, 'CONFIRMED'),
+          eq(eventRegistrationOptions.organizingRegistration, true),
+        ),
+      )
+      .limit(1),
   );
 
-export const organizerRegistrationTransferAvailable = ({
-  checkInTime,
-  eventStart,
+  return organizeOverviewAccessAllowed({
+    confirmedOrganizerRegistration: registrations.length > 0,
+    permissions,
+  });
+});
+
+export const organizerRegistrationApprovalState = ({
+  registrationMode,
+  registrationStatus,
   transactions,
 }: {
-  checkInTime: Date | null;
-  eventStart: Date | null;
+  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
   transactions: readonly {
-    amount: number;
     status: string;
+    stripeCheckoutSessionId: null | string;
+    type: string;
   }[];
-}) =>
-  checkInTime === null &&
-  eventStart !== null &&
-  eventStart > new Date() &&
-  !hasSuccessfulPaidRegistrationTransaction(transactions);
+}) => {
+  const pendingRegistrationPayment = transactions.find(
+    (transaction) =>
+      transaction.type === 'registration' && transaction.status === 'pending',
+  );
+  const paymentSetupRequired =
+    pendingRegistrationPayment?.stripeCheckoutSessionId === null;
+
+  return {
+    manualApprovalAvailable:
+      registrationStatus === 'PENDING' &&
+      registrationMode === 'application' &&
+      (!pendingRegistrationPayment || paymentSetupRequired),
+    paymentPending: pendingRegistrationPayment !== undefined,
+    paymentSetupRequired,
+  };
+};
 
 const canInspectTenantEvents = (permissions: readonly Permission[]): boolean =>
   includesPermission('globalAdmin:manageTenants', permissions);
 
-export const canOrganizeEvent = Effect.fn('events.canOrganizeEvent')(
-  function* ({
-    eventId,
-    tenantId,
-    user,
-  }: {
-    eventId: string;
-    tenantId: string;
-    user: { id: string; permissions: readonly Permission[] };
-  }) {
-    if (
-      includesPermission('events:organizeAll', user.permissions) ||
-      includesPermission('finance:manageReceipts', user.permissions)
-    ) {
-      return true;
+export const groupEventsByTenantDay = <EventRecord extends { start: string }>(
+  events: readonly EventRecord[],
+  timezone: string,
+): { day: string; events: EventRecord[] }[] => {
+  const groupedEvents = new Map<
+    string,
+    { day: string; events: EventRecord[] }
+  >();
+
+  for (const event of events) {
+    const tenantStart = DateTime.fromISO(event.start, { zone: timezone });
+    const dayKey = tenantStart.toISODate();
+    if (!tenantStart.isValid || dayKey === null) {
+      throw new Error(`Invalid event start instant: ${event.start}`);
     }
 
-    const registrations = yield* databaseEffect((database) =>
-      database
-        .select({
-          id: eventRegistrations.id,
-        })
-        .from(eventRegistrations)
-        .innerJoin(
-          eventRegistrationOptions,
-          eq(
-            eventRegistrations.registrationOptionId,
-            eventRegistrationOptions.id,
-          ),
-        )
-        .where(
-          and(
-            eq(eventRegistrations.tenantId, tenantId),
-            eq(eventRegistrations.eventId, eventId),
-            eq(eventRegistrations.userId, user.id),
-            eq(eventRegistrations.status, 'CONFIRMED'),
-            eq(eventRegistrationOptions.organizingRegistration, true),
-          ),
-        )
-        .limit(1),
-    );
+    const currentGroup = groupedEvents.get(dayKey);
+    if (currentGroup) {
+      currentGroup.events.push(event);
+      continue;
+    }
 
-    return registrations.length > 0;
-  },
-);
+    groupedEvents.set(dayKey, {
+      day: tenantStart.startOf('day').toJSDate().toISOString(),
+      events: [event],
+    });
+  }
+
+  return [...groupedEvents.values()];
+};
 
 export const eventQueryHandlers = {
   'events.canOrganize': ({ eventId }, _options) =>
@@ -129,8 +196,9 @@ export const eventQueryHandlers = {
 
       return yield* canOrganizeEvent({
         eventId,
+        permissions: user.permissions,
         tenantId: tenant.id,
-        user,
+        userId: user.id,
       });
     }),
   'events.eventList': (input, _options) =>
@@ -273,19 +341,55 @@ export const eventQueryHandlers = {
         userRegistered: Boolean(event.userRegistered),
       }));
 
-      const groupedEvents = new Map<string, typeof eventRecords>();
-
-      for (const event of eventRecords) {
-        const day = DateTime.fromISO(event.start).toFormat('yyyy-MM-dd');
-        const currentEvents = groupedEvents.get(day) ?? [];
-        currentEvents.push(event);
-        groupedEvents.set(day, currentEvents);
+      return groupEventsByTenantDay(eventRecords, tenant.timezone);
+    }),
+  'events.findGraphForEdit': ({ id }, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+      const event = yield* databaseEffect((database) =>
+        database.query.eventInstances.findFirst({
+          columns: {
+            creatorId: true,
+            status: true,
+          },
+          where: { id, tenantId: tenant.id },
+        }),
+      );
+      if (!event) {
+        return yield* Effect.fail(
+          new EventNotFoundError({ id, message: 'Event not found' }),
+        );
+      }
+      if (
+        !canEditEvent({
+          creatorId: event.creatorId,
+          permissions: user.permissions,
+          userId: user.id,
+        })
+      ) {
+        return yield* Effect.fail(
+          new RpcForbiddenError({ message: 'Forbidden' }),
+        );
+      }
+      if (event.status !== 'DRAFT') {
+        return yield* Effect.fail(
+          new EventConflictError({
+            message: 'Event cannot be edited in its current state',
+          }),
+        );
       }
 
-      return [...groupedEvents].map(([day, events]) => ({
-        day: DateTime.fromFormat(day, 'yyyy-MM-dd').toJSDate().toISOString(),
-        events,
-      }));
+      const graph = yield* databaseEffect((database) =>
+        loadEventGraphDetail(database, tenant.id, id),
+      );
+      if (!graph) {
+        return yield* Effect.fail(
+          new EventNotFoundError({ id, message: 'Event not found' }),
+        );
+      }
+      return graph;
     }),
   'events.findOne': ({ id }, _options) =>
     Effect.gen(function* () {
@@ -434,10 +538,13 @@ export const eventQueryHandlers = {
                     eventAddons.allowPurchaseDuringRegistration,
                   description: eventAddons.description,
                   id: eventAddons.id,
+                  includedQuantity:
+                    addonToEventRegistrationOptions.includedQuantity,
                   isPaid: eventAddons.isPaid,
                   maxQuantityPerUser: eventAddons.maxQuantityPerUser,
+                  optionalPurchaseQuantity:
+                    addonToEventRegistrationOptions.optionalPurchaseQuantity,
                   price: eventAddons.price,
-                  quantity: addonToEventRegistrationOptions.quantity,
                   registrationOptionId:
                     addonToEventRegistrationOptions.registrationOptionId,
                   stripeTaxRateId: eventAddons.stripeTaxRateId,
@@ -545,6 +652,10 @@ export const eventQueryHandlers = {
                 .where(
                   and(
                     eq(tenantStripeTaxRates.tenantId, tenant.id),
+                    eq(
+                      tenantStripeTaxRates.stripeAccountId,
+                      tenant.stripeAccountId ?? '',
+                    ),
                     inArray(tenantStripeTaxRates.stripeTaxRateId, taxRateIds),
                   ),
                 ),
@@ -577,7 +688,8 @@ export const eventQueryHandlers = {
           maxQuantityPerUser: number;
           price: number;
           registrationOptions: {
-            quantity: number;
+            includedQuantity: number;
+            optionalPurchaseQuantity: number;
             registrationOptionId: string;
           }[];
           stripeTaxRateId: null | string;
@@ -610,7 +722,8 @@ export const eventQueryHandlers = {
           totalAvailableQuantity: addOn.totalAvailableQuantity,
         };
         current.registrationOptions.push({
-          quantity: addOn.quantity,
+          includedQuantity: addOn.includedQuantity,
+          optionalPurchaseQuantity: addOn.optionalPurchaseQuantity,
           registrationOptionId: addOn.registrationOptionId,
         });
         addOnsById.set(addOn.id, current);
@@ -629,6 +742,7 @@ export const eventQueryHandlers = {
             },
             where: {
               status: 'verified',
+              tenantId: tenant.id,
               type: 'esnCard',
               userId: user.id,
             },
@@ -743,6 +857,7 @@ export const eventQueryHandlers = {
           with: {
             registrationOptions: {
               columns: {
+                cancellationDeadlineHoursBeforeStart: true,
                 closeRegistrationTime: true,
                 description: true,
                 id: true,
@@ -750,12 +865,14 @@ export const eventQueryHandlers = {
                 openRegistrationTime: true,
                 organizingRegistration: true,
                 price: true,
+                refundFeesOnCancellation: true,
                 registeredDescription: true,
                 registrationMode: true,
                 roleIds: true,
                 spots: true,
                 stripeTaxRateId: true,
                 title: true,
+                transferDeadlineHoursBeforeStart: true,
               },
             },
           },
@@ -777,7 +894,7 @@ export const eventQueryHandlers = {
         );
       }
 
-      if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
+      if (event.status !== 'DRAFT') {
         return yield* Effect.fail(
           new EventConflictError({
             message: 'Event cannot be edited in its current state',
@@ -824,6 +941,8 @@ export const eventQueryHandlers = {
         id: event.id,
         location: event.location ?? null,
         registrationOptions: event.registrationOptions.map((option) => ({
+          cancellationDeadlineHoursBeforeStart:
+            option.cancellationDeadlineHoursBeforeStart,
           closeRegistrationTime: option.closeRegistrationTime.toISOString(),
           description: option.description ?? null,
           esnCardDiscountedPrice:
@@ -833,12 +952,15 @@ export const eventQueryHandlers = {
           openRegistrationTime: option.openRegistrationTime.toISOString(),
           organizingRegistration: option.organizingRegistration,
           price: option.price,
+          refundFeesOnCancellation: option.refundFeesOnCancellation,
           registeredDescription: option.registeredDescription ?? null,
           registrationMode: option.registrationMode,
           roleIds: [...option.roleIds],
           spots: option.spots,
           stripeTaxRateId: option.stripeTaxRateId ?? null,
           title: option.title,
+          transferDeadlineHoursBeforeStart:
+            option.transferDeadlineHoursBeforeStart,
         })),
         start: event.start.toISOString(),
         title: event.title,
@@ -852,8 +974,9 @@ export const eventQueryHandlers = {
 
       const canOrganize = yield* canOrganizeEvent({
         eventId,
+        permissions: user.permissions,
         tenantId: tenant.id,
-        user,
+        userId: user.id,
       });
       if (!canOrganize) {
         return yield* Effect.fail(
@@ -863,6 +986,24 @@ export const eventQueryHandlers = {
           }),
         );
       }
+
+      const registrationOptionAggregates = yield* databaseEffect((database) =>
+        database
+          .select({
+            checkedInSpots: eventRegistrationOptions.checkedInSpots,
+            confirmedSpots: eventRegistrationOptions.confirmedSpots,
+            spots: eventRegistrationOptions.spots,
+          })
+          .from(eventRegistrationOptions)
+          .innerJoin(
+            eventInstances,
+            and(
+              eq(eventInstances.id, eventRegistrationOptions.eventId),
+              eq(eventInstances.tenantId, tenant.id),
+            ),
+          )
+          .where(eq(eventRegistrationOptions.eventId, eventId)),
+      );
 
       const registrations = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findMany({
@@ -895,11 +1036,6 @@ export const eventQueryHandlers = {
                 },
               },
             },
-            event: {
-              columns: {
-                start: true,
-              },
-            },
             registrationOption: {
               columns: {
                 id: true,
@@ -913,6 +1049,8 @@ export const eventQueryHandlers = {
               columns: {
                 amount: true,
                 status: true,
+                stripeCheckoutSessionId: true,
+                type: true,
               },
               where: {
                 type: 'registration',
@@ -938,6 +1076,15 @@ export const eventQueryHandlers = {
               registration.registrationOption.registrationMode ===
                 'application')),
       );
+      const capabilities = eventOrganizeCapabilities({
+        confirmedOrganizerRegistration: registrationsWithRelations.some(
+          (registration) =>
+            registration.status === 'CONFIRMED' &&
+            registration.user.id === user.id &&
+            registration.registrationOption.organizingRegistration,
+        ),
+        permissions: user.permissions,
+      });
 
       type Registration = (typeof registrationsWithRelations)[number];
       const groupedRegistrations = groupBy(
@@ -962,101 +1109,111 @@ export const eventQueryHandlers = {
         );
       });
 
-      return sortedOptions.map(([registrationOptionId, registrationRows]) => {
-        const sortedUsers = registrationRows
-          .toSorted((registrationA, registrationB) => {
-            if (
-              (registrationA.checkInTime === null) !==
-              (registrationB.checkInTime === null)
-            ) {
-              return registrationA.checkInTime === null ? -1 : 1;
-            }
+      const registrationOptions = sortedOptions.map(
+        ([registrationOptionId, registrationRows]) => {
+          const sortedUsers = registrationRows
+            .toSorted((registrationA, registrationB) => {
+              if (
+                (registrationA.checkInTime === null) !==
+                (registrationB.checkInTime === null)
+              ) {
+                return registrationA.checkInTime === null ? -1 : 1;
+              }
 
-            const firstNameCompare = registrationA.user.firstName.localeCompare(
-              registrationB.user.firstName,
-            );
-            if (firstNameCompare !== 0) {
-              return firstNameCompare;
-            }
+              const firstNameCompare =
+                registrationA.user.firstName.localeCompare(
+                  registrationB.user.firstName,
+                );
+              if (firstNameCompare !== 0) {
+                return firstNameCompare;
+              }
 
-            return registrationA.user.lastName.localeCompare(
-              registrationB.user.lastName,
-            );
-          })
-          .map((registration) => {
-            const registrationOption = registration.registrationOption;
-            const discountedPriceFromTransaction =
-              registration.transactions.find(
-                (transaction) => transaction.amount < registrationOption.price,
-              )?.amount;
-            const appliedDiscountedPrice =
-              registration.appliedDiscountedPrice ??
-              discountedPriceFromTransaction ??
-              null;
-            const appliedDiscountType =
-              registration.appliedDiscountType ??
-              (appliedDiscountedPrice === null ? null : ('esnCard' as const));
-            const basePriceAtRegistration =
-              registration.basePriceAtRegistration ??
-              (appliedDiscountedPrice === null
-                ? null
-                : registrationOption.price);
-            const discountAmount =
-              registration.discountAmount ??
-              (appliedDiscountedPrice === null
-                ? null
-                : registrationOption.price - appliedDiscountedPrice);
+              return registrationA.user.lastName.localeCompare(
+                registrationB.user.lastName,
+              );
+            })
+            .map((registration) => {
+              const registrationOption = registration.registrationOption;
+              const approvalState = organizerRegistrationApprovalState({
+                registrationMode: registrationOption.registrationMode,
+                registrationStatus: registration.status,
+                transactions: registration.transactions,
+              });
+              const discountedPriceFromTransaction =
+                registration.transactions.find(
+                  (transaction) =>
+                    transaction.amount < registrationOption.price,
+                )?.amount;
+              const appliedDiscountedPrice =
+                registration.appliedDiscountedPrice ??
+                discountedPriceFromTransaction ??
+                null;
+              const appliedDiscountType =
+                registration.appliedDiscountType ??
+                (appliedDiscountedPrice === null ? null : ('esnCard' as const));
+              const basePriceAtRegistration =
+                registration.basePriceAtRegistration ??
+                (appliedDiscountedPrice === null
+                  ? null
+                  : registrationOption.price);
+              const discountAmount =
+                registration.discountAmount ??
+                (appliedDiscountedPrice === null
+                  ? null
+                  : registrationOption.price - appliedDiscountedPrice);
 
-            return {
-              addonPurchases: registration.addonPurchases.flatMap((purchase) =>
-                purchase.addOn
-                  ? [
-                      {
-                        quantity: purchase.quantity,
-                        title: purchase.addOn.title,
-                        unitPrice: purchase.unitPrice,
-                      },
-                    ]
-                  : [],
-              ),
-              appliedDiscountedPrice,
-              appliedDiscountType,
-              basePriceAtRegistration,
-              checkedIn: registration.checkInTime !== null,
-              checkInTime: registration.checkInTime?.toISOString() ?? null,
-              discountAmount,
-              email: registration.user.email,
-              firstName: registration.user.firstName,
-              lastName: registration.user.lastName,
-              manualApprovalAvailable:
-                registration.status === 'PENDING' &&
-                registration.registrationOption.registrationMode ===
-                  'application' &&
-                registration.transactions.every(
-                  (transaction) => transaction.status !== 'pending',
+              return {
+                addonPurchases: registration.addonPurchases.flatMap(
+                  (purchase) =>
+                    purchase.addOn
+                      ? [
+                          {
+                            quantity: purchase.quantity,
+                            title: purchase.addOn.title,
+                            unitPrice: purchase.unitPrice,
+                          },
+                        ]
+                      : [],
                 ),
-              paymentPending: registration.transactions.some(
-                (transaction) => transaction.status === 'pending',
-              ),
-              registrationId: registration.id,
-              status: registration.status,
-              transferAvailable:
-                organizerRegistrationTransferAvailable({
-                  checkInTime: registration.checkInTime,
-                  eventStart: registration.event?.start ?? null,
-                  transactions: registration.transactions,
-                }) && registration.status === 'CONFIRMED',
-              userId: registration.user.id,
-            };
-          });
+                appliedDiscountedPrice,
+                appliedDiscountType,
+                basePriceAtRegistration,
+                checkedIn: registration.checkInTime !== null,
+                checkInTime: registration.checkInTime?.toISOString() ?? null,
+                discountAmount,
+                email: registration.user.email,
+                firstName: registration.user.firstName,
+                lastName: registration.user.lastName,
+                ...approvalState,
+                registrationId: registration.id,
+                status: registration.status,
+                userId: registration.user.id,
+              };
+            });
 
-        return {
-          organizingRegistration:
-            registrationRows[0].registrationOption.organizingRegistration,
-          registrationOptionId,
-          registrationOptionTitle: registrationRows[0].registrationOption.title,
-          users: sortedUsers,
-        };
-      });
+          return {
+            canApproveRegistrations: capabilities.canApproveRegistrations,
+            canCancelRegistrations: capabilities.canCancelRegistrations,
+            canTransferRegistrations: capabilities.canTransferRegistrations,
+            organizingRegistration:
+              registrationRows[0].registrationOption.organizingRegistration,
+            registrationOptionId,
+            registrationOptionTitle:
+              registrationRows[0].registrationOption.title,
+            users: sortedUsers,
+          };
+        },
+      );
+      const stats = { capacity: 0, checkedIn: 0, registered: 0 };
+      for (const option of registrationOptionAggregates) {
+        stats.capacity += option.spots;
+        stats.checkedIn += option.checkedInSpots;
+        stats.registered += option.confirmedSpots;
+      }
+
+      return {
+        registrationOptions,
+        stats,
+      };
     }),
 } satisfies Partial<AppRpcHandlers>;

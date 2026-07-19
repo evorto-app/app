@@ -1,5 +1,6 @@
 import {
   BadRequestForbiddenInternalUnauthorizedRpcError,
+  RpcBadRequestError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
@@ -14,6 +15,7 @@ export class AdminRoleNotFoundError extends Schema.TaggedErrorClass<AdminRoleNot
 ) {}
 
 export const AdminRoleRpcError = Schema.Union([
+  RpcBadRequestError,
   RpcForbiddenError,
   AdminRoleNotFoundError,
   RpcUnauthorizedError,

@@ -35,7 +35,10 @@ export const databaseEffect = <A>(
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
 export const isAllowedReceiptMimeType = (mimeType: string): boolean =>
-  mimeType.startsWith('image/') || mimeType === 'application/pdf';
+  mimeType === 'image/jpeg' ||
+  mimeType === 'image/png' ||
+  mimeType === 'image/webp' ||
+  mimeType === 'application/pdf';
 
 export const resolveTenantSelectableReceiptCountries = (
   tenant: ReceiptCountryConfigTenant,
@@ -79,8 +82,10 @@ export const financeReceiptView = {
   attachmentUploadedByUserId: financeReceiptUploads.uploadedByUserId,
   attachmentUploadEventId: financeReceiptUploads.eventId,
   attachmentUploadId: financeReceiptUploads.id,
+  attachmentUploadStatus: financeReceiptUploads.status,
   attachmentUploadTenantId: financeReceiptUploads.tenantId,
   createdAt: financeReceipts.createdAt,
+  currency: financeReceipts.currency,
   depositAmount: financeReceipts.depositAmount,
   eventId: financeReceipts.eventId,
   hasAlcohol: financeReceipts.hasAlcohol,
@@ -107,6 +112,7 @@ export const normalizeFinanceReceiptBaseRecord = (receipt: {
   attachmentMimeType: string;
   attachmentStorageKey: null | string;
   createdAt: Date;
+  currency: 'AUD' | 'CZK' | 'EUR';
   depositAmount: number;
   eventId: string;
   hasAlcohol: boolean;
@@ -130,6 +136,7 @@ export const normalizeFinanceReceiptBaseRecord = (receipt: {
   attachmentMimeType: receipt.attachmentMimeType,
   attachmentStorageKey: receipt.attachmentStorageKey ?? null,
   createdAt: receipt.createdAt.toISOString(),
+  currency: receipt.currency,
   depositAmount: receipt.depositAmount,
   eventId: receipt.eventId,
   hasAlcohol: receipt.hasAlcohol,
@@ -154,6 +161,7 @@ export const normalizeFinanceTransactionRecord = (transaction: {
   appFee: null | number;
   comment: null | string;
   createdAt: Date;
+  currency: 'AUD' | 'CZK' | 'EUR';
   id: string;
   method: 'cash' | 'paypal' | 'stripe' | 'transfer';
   status: 'cancelled' | 'pending' | 'successful';
@@ -163,6 +171,7 @@ export const normalizeFinanceTransactionRecord = (transaction: {
   appFee: transaction.appFee ?? null,
   comment: transaction.comment ?? null,
   createdAt: transaction.createdAt.toISOString(),
+  currency: transaction.currency,
   id: transaction.id,
   method: transaction.method,
   status: transaction.status,

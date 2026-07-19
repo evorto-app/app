@@ -3,9 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { isSafeReceiptPreviewUrl } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 import {
   receiptReimbursementCanRecord,
+  receiptReimbursementGroupKey,
+  receiptReimbursementHasPayoutDetails,
   receiptReimbursementManualNotice,
+  receiptReimbursementMissingPayoutNotice,
   receiptReimbursementPayoutDetailLabel,
+  receiptReimbursementReceiptSelectionLabel,
   receiptReimbursementRecordDisabled,
+  receiptReimbursementSelectAllLabel,
   receiptReimbursementSelectedTotal,
 } from './receipt-refund-list.component';
 
@@ -14,7 +19,7 @@ describe('isSafeReceiptPreviewUrl', () => {
     expect(isSafeReceiptPreviewUrl('/receipt-preview/file.pdf')).toBe(true);
     expect(
       isSafeReceiptPreviewUrl(
-        'https://receipt-bucket.s3.amazonaws.com/signed/file.pdf?token=abc',
+        'https://receipt-bucket.s3.fr-par.scw.cloud/signed/file.pdf?token=abc',
       ),
     ).toBe(true);
     expect(isSafeReceiptPreviewUrl('http://localhost:9000/receipt.pdf')).toBe(
@@ -32,6 +37,9 @@ describe('isSafeReceiptPreviewUrl', () => {
     expect(isSafeReceiptPreviewUrl('https://evil.example.test/receipt')).toBe(
       false,
     );
+    expect(
+      isSafeReceiptPreviewUrl('https://objects.example.test/receipt.pdf'),
+    ).toBe(false);
   });
 });
 
@@ -69,6 +77,44 @@ describe('receiptReimbursementCanRecord', () => {
         'paypal',
       ),
     ).toBe(true);
+  });
+});
+
+describe('receiptReimbursementHasPayoutDetails', () => {
+  it('reports whether the recipient has at least one usable payout method', () => {
+    expect(
+      receiptReimbursementHasPayoutDetails({
+        iban: null,
+        paypalEmail: null,
+      }),
+    ).toBe(false);
+    expect(
+      receiptReimbursementHasPayoutDetails({
+        iban: 'DE123',
+        paypalEmail: null,
+      }),
+    ).toBe(true);
+    expect(receiptReimbursementMissingPayoutNotice).toContain(
+      'before recording a reimbursement',
+    );
+  });
+});
+
+describe('receipt reimbursement selection labels', () => {
+  it('identifies the recipient, currency, receipt, and event for checkbox controls', () => {
+    expect(
+      receiptReimbursementSelectAllLabel({
+        currency: 'EUR',
+        submittedByFirstName: 'Ada',
+        submittedByLastName: 'Lovelace',
+      }),
+    ).toBe('Select all EUR receipts for Ada Lovelace');
+    expect(
+      receiptReimbursementReceiptSelectionLabel({
+        attachmentFileName: 'receipt.pdf',
+        eventTitle: 'Welcome Week',
+      }),
+    ).toBe('Select receipt receipt.pdf for Welcome Week');
   });
 });
 
@@ -124,5 +170,21 @@ describe('receiptReimbursementSelectedTotal', () => {
         ['receipt-1', 'receipt-3'],
       ),
     ).toBe(2298);
+  });
+});
+
+describe('receiptReimbursementGroupKey', () => {
+  it("keeps one recipient's reimbursement state separate per currency", () => {
+    expect(
+      receiptReimbursementGroupKey({
+        currency: 'EUR',
+        submittedByUserId: 'user-1',
+      }),
+    ).not.toBe(
+      receiptReimbursementGroupKey({
+        currency: 'CZK',
+        submittedByUserId: 'user-1',
+      }),
+    );
   });
 });

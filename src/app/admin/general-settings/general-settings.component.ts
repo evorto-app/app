@@ -9,7 +9,15 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { form, FormField, submit } from '@angular/forms/signals';
+import {
+  form,
+  FormField,
+  min,
+  required,
+  schema,
+  submit,
+  validate,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -30,23 +38,19 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import {
+  isIanaTimezone,
   supportedTenantCurrencies,
-  supportedTenantLocales,
-  supportedTenantTimezones,
 } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
-import {
-  tenantIdentityRows as buildTenantIdentityRows,
-  deferredTenantSettingsRows,
-} from './general-settings.identity';
+import { tenantIdentityRows as buildTenantIdentityRows } from './general-settings.identity';
 import {
   GeneralSettingsModel,
   generalSettingsPayloadFromModel,
-  requiresLocaleMoneyRuntimeReload,
+  requiresRuntimeSettingsReload,
 } from './general-settings.payload';
 
 export const generalSettingsSaveDisabled = ({
@@ -66,6 +70,60 @@ export const generalSettingsBrandAssetUploadDisabled = ({
   mutationPending: boolean;
   uploadingBrandAsset: AdminTenantBrandAssetKind | null;
 }): boolean => uploadingBrandAsset !== null || mutationPending;
+
+export const tenantTimezoneValidationError = (timezone: string) =>
+  isIanaTimezone(timezone)
+    ? undefined
+    : {
+        kind: 'ianaTimezone',
+        message: 'Enter a recognized city or region timezone.',
+      };
+
+export const generalSettingsFormSchema = schema<GeneralSettingsModel>(
+  (settings) => {
+    required(settings.cancellationDeadlineHoursBeforeStart, {
+      message: 'Enter a cancellation deadline.',
+    });
+    min(settings.cancellationDeadlineHoursBeforeStart, 0, {
+      message: 'Enter zero or more hours.',
+    });
+    required(settings.transferDeadlineHoursBeforeStart, {
+      message: 'Enter a transfer deadline.',
+    });
+    min(settings.transferDeadlineHoursBeforeStart, 0, {
+      message: 'Enter zero or more hours.',
+    });
+    validate(settings.timezone, ({ value }) =>
+      tenantTimezoneValidationError(value()),
+    );
+  },
+);
+
+export const createGeneralSettingsFormModel = (): GeneralSettingsModel => ({
+  allowOther: false,
+  buyEsnCardUrl: '',
+  cancellationDeadlineHoursBeforeStart: 120,
+  currency: 'EUR',
+  defaultLocation: null,
+  emailSenderEmail: '',
+  emailSenderName: '',
+  esnCardEnabled: false,
+  faviconUrl: '',
+  legalNoticeText: '',
+  legalNoticeUrl: '',
+  logoUrl: '',
+  maxActiveRegistrationsPerUser: 0,
+  receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
+  refundFeesOnCancellation: true,
+  seoDescription: '',
+  seoTitle: '',
+  stripeAccountId: '',
+  termsText: '',
+  termsUrl: '',
+  theme: 'evorto',
+  timezone: 'Europe/Berlin',
+  transferDeadlineHoursBeforeStart: 0,
+});
 
 const tenantBrandAssetClientMaxSizeBytes = 5 * 1024 * 1024;
 const tenantBrandAssetClientMimeTypes = {
@@ -117,38 +175,15 @@ export class GeneralSettingsComponent {
     }),
   );
   protected readonly currencyOptions = supportedTenantCurrencies;
-  protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faUpload = faUpload;
   protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
-  protected readonly localeOptions = supportedTenantLocales;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
-  protected readonly settingsModel = signal<GeneralSettingsModel>({
-    allowOther: false,
-    buyEsnCardUrl: '',
-    currency: 'EUR',
-    defaultLocation: null,
-    emailSenderEmail: '',
-    emailSenderName: '',
-    esnCardEnabled: false,
-    faviconUrl: '',
-    legalNoticeText: '',
-    legalNoticeUrl: '',
-    locale: 'en-GB',
-    logoUrl: '',
-    maxActiveRegistrationsPerUser: 0,
-    privacyPolicyText: '',
-    privacyPolicyUrl: '',
-    receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
-    seoDescription: '',
-    seoTitle: '',
-    stripeAccountId: '',
-    termsText: '',
-    termsUrl: '',
-    theme: 'evorto',
-    timezone: 'Europe/Berlin',
-  });
-  protected readonly settingsForm = form(this.settingsModel);
+  protected readonly settingsModel = signal(createGeneralSettingsFormModel());
+  protected readonly settingsForm = form(
+    this.settingsModel,
+    generalSettingsFormSchema,
+  );
   private readonly configService = inject(ConfigService);
   private readonly currentTenant = computed(
     () => this.configService.tenantSignal() ?? this.configService.tenant,
@@ -157,7 +192,6 @@ export class GeneralSettingsComponent {
     const tenant = this.currentTenant();
     return tenant ? buildTenantIdentityRows(tenant) : [];
   });
-  protected readonly timezoneOptions = supportedTenantTimezones;
   private readonly document = inject(DOCUMENT);
 
   private readonly notifications = inject(NotificationService);
@@ -175,6 +209,8 @@ export class GeneralSettingsComponent {
           buyEsnCardUrl:
             currentTenant.discountProviders?.esnCard?.config?.buyEsnCardUrl ??
             '',
+          cancellationDeadlineHoursBeforeStart:
+            currentTenant.cancellationDeadlineHoursBeforeStart,
           currency: currentTenant.currency,
           defaultLocation: currentTenant.defaultLocation ?? null,
           emailSenderEmail: currentTenant.emailSenderEmail ?? '',
@@ -184,13 +220,11 @@ export class GeneralSettingsComponent {
           faviconUrl: currentTenant.faviconUrl ?? '',
           legalNoticeText: currentTenant.legalNoticeText ?? '',
           legalNoticeUrl: currentTenant.legalNoticeUrl ?? '',
-          locale: currentTenant.locale,
           logoUrl: currentTenant.logoUrl ?? '',
           maxActiveRegistrationsPerUser:
             currentTenant.maxActiveRegistrationsPerUser ?? 0,
-          privacyPolicyText: currentTenant.privacyPolicyText ?? '',
-          privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
+          refundFeesOnCancellation: currentTenant.refundFeesOnCancellation,
           seoDescription: currentTenant.seoDescription ?? '',
           seoTitle: currentTenant.seoTitle ?? '',
           stripeAccountId: currentTenant.stripeAccountId ?? '',
@@ -198,6 +232,8 @@ export class GeneralSettingsComponent {
           termsUrl: currentTenant.termsUrl ?? '',
           theme: currentTenant.theme,
           timezone: currentTenant.timezone,
+          transferDeadlineHoursBeforeStart:
+            currentTenant.transferDeadlineHoursBeforeStart,
         });
       }
     });
@@ -217,7 +253,7 @@ export class GeneralSettingsComponent {
 
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
-      const reloadRequired = requiresLocaleMoneyRuntimeReload(
+      const reloadRequired = requiresRuntimeSettingsReload(
         this.configService.tenant,
         settings,
       );
@@ -237,15 +273,15 @@ export class GeneralSettingsComponent {
         );
         this.notifications.showSuccess(
           reloadRequired
-            ? 'Tenant settings updated. Reloading to apply locale and money settings.'
-            : 'Tenant settings updated',
+            ? 'Organization settings updated. Reloading to apply currency and timezone settings.'
+            : 'Organization settings updated',
         );
         if (reloadRequired) {
           this.document.defaultView?.location.reload();
         }
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update tenant settings'),
+          getErrorMessage(error, 'Failed to update organization settings'),
         );
       }
     });

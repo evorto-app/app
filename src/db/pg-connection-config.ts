@@ -1,16 +1,23 @@
-import type { PgClientConfig } from '@effect/sql-pg/PgClient';
-import type { ConnectionOptions } from 'node:tls';
+import type { PgPoolConfig } from '@effect/sql-pg/PgClient';
 import type { PoolConfig } from 'pg';
 
 import { Redacted } from 'effect';
 import { types } from 'pg';
 
-export const neonLocalSslConfig = {
-  rejectUnauthorized: false,
-} satisfies ConnectionOptions;
-const neonLocalHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);
-const normalizeDatabaseHost = (host: string) =>
-  host.replace(/^\[(.*)\]$/, '$1');
+export interface DatabasePoolSettings {
+  readonly connectTimeoutMs: number;
+  readonly idleTimeoutMs: number;
+  readonly max: number;
+  readonly min: number;
+}
+
+export const defaultDatabasePoolSettings = {
+  connectTimeoutMs: 10_000,
+  idleTimeoutMs: 30_000,
+  max: 5,
+  min: 0,
+} satisfies DatabasePoolSettings;
+
 const dateTimeTypeIds = new Set([
   1082, 1114, 1115, 1182, 1184, 1185, 1186, 1187, 1231,
 ]);
@@ -25,111 +32,57 @@ const pgTypes = {
   },
 };
 
-const assertNeonLocalHost = (host: string) => {
-  const normalizedHost = normalizeDatabaseHost(host);
-
-  if (neonLocalHosts.has(normalizedHost)) {
-    return;
+const validatePoolSettings = (
+  pool: DatabasePoolSettings,
+): DatabasePoolSettings => {
+  if (pool.min > pool.max) {
+    throw new Error('DATABASE_POOL_MIN cannot exceed DATABASE_POOL_MAX');
   }
-
-  throw new Error(
-    `NEON_LOCAL_PROXY only supports localhost or docker db hosts. Received "${host}".`,
-  );
-};
-
-const parseDatabaseUrl = (databaseUrl: string) => {
-  const databaseUrlObject = new URL(databaseUrl);
-
-  if (
-    databaseUrlObject.protocol !== 'postgres:' &&
-    databaseUrlObject.protocol !== 'postgresql:'
-  ) {
-    throw new Error(
-      `DATABASE_URL must use postgres or postgresql scheme. Received "${databaseUrlObject.protocol}".`,
-    );
-  }
-
-  const database = databaseUrlObject.pathname.replace(/^\/+/, '');
-
-  if (!database) {
-    throw new Error('DATABASE_URL must include a database name');
-  }
-
-  return {
-    database,
-    host: normalizeDatabaseHost(databaseUrlObject.hostname),
-    password: decodeURIComponent(databaseUrlObject.password),
-    port: Number.parseInt(databaseUrlObject.port || '5432', 10),
-    user: decodeURIComponent(databaseUrlObject.username),
-  };
-};
-
-export const parseNeonLocalDatabaseUrl = (databaseUrl: string) => {
-  const parsed = parseDatabaseUrl(databaseUrl);
-  assertNeonLocalHost(parsed.host);
-  return parsed;
+  return pool;
 };
 
 export const createPgClientConfig = ({
+  caCertificate,
   databaseUrl,
-  neonLocalProxy,
+  pool = defaultDatabasePoolSettings,
 }: {
+  caCertificate?: string | undefined;
   databaseUrl: string;
-  neonLocalProxy: boolean;
-}): Pick<
-  PgClientConfig,
-  | 'database'
-  | 'host'
-  | 'password'
-  | 'port'
-  | 'ssl'
-  | 'types'
-  | 'url'
-  | 'username'
-> => {
-  if (!neonLocalProxy) {
-    return {
-      types: pgTypes,
-      url: Redacted.make(databaseUrl),
-    };
-  }
-
-  const { database, host, password, port, user } =
-    parseNeonLocalDatabaseUrl(databaseUrl);
-
+  pool?: DatabasePoolSettings;
+}): PgPoolConfig => {
+  const boundedPool = validatePoolSettings(pool);
   return {
-    database,
-    host,
-    password: Redacted.make(password),
-    port,
-    ssl: neonLocalSslConfig,
+    connectTimeout: boundedPool.connectTimeoutMs,
+    idleTimeout: boundedPool.idleTimeoutMs,
+    maxConnections: boundedPool.max,
+    minConnections: boundedPool.min,
+    ...(caCertificate && {
+      ssl: { ca: caCertificate, rejectUnauthorized: true },
+    }),
     types: pgTypes,
-    username: user,
+    url: Redacted.make(databaseUrl),
   };
 };
 
 export const createNodePgPoolConfig = ({
+  caCertificate,
   databaseUrl,
-  neonLocalProxy,
+  pool = defaultDatabasePoolSettings,
 }: {
+  caCertificate?: string | undefined;
   databaseUrl: string;
-  neonLocalProxy: boolean;
+  pool?: DatabasePoolSettings;
 }): PoolConfig => {
-  if (!neonLocalProxy) {
-    return {
-      connectionString: databaseUrl,
-    };
-  }
-
-  const { database, host, password, port, user } =
-    parseNeonLocalDatabaseUrl(databaseUrl);
-
+  const boundedPool = validatePoolSettings(pool);
   return {
-    database,
-    host,
-    password,
-    port,
-    ssl: neonLocalSslConfig,
-    user,
+    connectionString: databaseUrl,
+    connectionTimeoutMillis: boundedPool.connectTimeoutMs,
+    idleTimeoutMillis: boundedPool.idleTimeoutMs,
+    max: boundedPool.max,
+    min: boundedPool.min,
+    ...(caCertificate && {
+      ssl: { ca: caCertificate, rejectUnauthorized: true },
+    }),
+    types: pgTypes,
   };
 };

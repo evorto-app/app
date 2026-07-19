@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
+  Injectable,
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -26,6 +27,33 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
 
+interface UserListFilter {
+  readonly limit?: number;
+  readonly offset?: number;
+  readonly search?: string;
+}
+
+@Injectable({ providedIn: 'root' })
+export class UserListOperations {
+  private readonly rpc = AppRpc.injectClient();
+
+  assignRoles() {
+    return this.rpc.users.assignRoles.mutationOptions();
+  }
+
+  findRoles() {
+    return this.rpc.roles.findMany.queryOptions({});
+  }
+
+  findUsers(filter: UserListFilter) {
+    return this.rpc.users.findMany.queryOptions(filter);
+  }
+
+  usersFilter() {
+    return this.rpc.queryFilter(['users', 'findMany']);
+  }
+}
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -44,9 +72,9 @@ import { PermissionsService } from '../../core/permissions.service';
   templateUrl: './user-list.component.html',
 })
 export class UserListComponent {
-  private readonly rpc = AppRpc.injectClient();
+  private readonly operations = inject(UserListOperations);
   protected readonly assignRolesMutation = injectMutation(() =>
-    this.rpc.users.assignRoles.mutationOptions(),
+    this.operations.assignRoles(),
   );
   private readonly permissions = inject(PermissionsService);
   protected readonly canAssignRoles =
@@ -60,15 +88,11 @@ export class UserListComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly pageIndex = signal(0);
   protected readonly roleOptionsQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({}),
+    this.operations.findRoles(),
   );
-  private readonly filterInput = signal<{
-    limit?: number;
-    offset?: number;
-    search?: string;
-  }>({});
+  private readonly filterInput = signal<UserListFilter>({});
   protected readonly usersQuery = injectQuery(() =>
-    this.rpc.users.findMany.queryOptions(this.filterInput()),
+    this.operations.findUsers(this.filterInput()),
   );
 
   private readonly notifications = inject(NotificationService);
@@ -102,9 +126,7 @@ export class UserListComponent {
         roleIds: [...roleIds],
         userId,
       });
-      await this.queryClient.invalidateQueries(
-        this.rpc.queryFilter(['users', 'findMany']),
-      );
+      await this.queryClient.invalidateQueries(this.operations.usersFilter());
       this.notifications.showSuccess('User roles updated');
     } catch (error) {
       this.notifications.showError(

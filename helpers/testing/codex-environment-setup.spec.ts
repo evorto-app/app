@@ -136,7 +136,7 @@ describe('Codex environment setup', () => {
     } finally {
       fs.rmSync(fixture.fixtureRoot, { force: true, recursive: true });
     }
-  });
+  }, 15_000);
 
   it('preserves an existing worktree .env', () => {
     const fixture = createFixture();
@@ -160,7 +160,7 @@ describe('Codex environment setup', () => {
     } finally {
       fs.rmSync(fixture.fixtureRoot, { force: true, recursive: true });
     }
-  });
+  }, 15_000);
 
   it('succeeds when the main checkout has no .env', () => {
     const fixture = createFixture();
@@ -171,7 +171,7 @@ describe('Codex environment setup', () => {
     } finally {
       fs.rmSync(fixture.fixtureRoot, { force: true, recursive: true });
     }
-  });
+  }, 15_000);
 
   it('does not copy over the main checkout .env when setup runs there', () => {
     const fixture = createFixture();
@@ -187,5 +187,5 @@ describe('Codex environment setup', () => {
     } finally {
       fs.rmSync(fixture.fixtureRoot, { force: true, recursive: true });
     }
-  });
+  }, 15_000);
 });

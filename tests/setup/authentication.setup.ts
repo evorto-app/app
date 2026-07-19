@@ -3,12 +3,14 @@ import path from 'node:path';
 
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { test as setup } from '../support/fixtures/base-test';
+import { fillProtectedValue } from '../support/utils/fill-protected-value';
 
 const runtimePath = path.resolve('.e2e-runtime.json');
 const loginRedirectTimeoutMs = 20_000;
 
 setup.describe.configure({ mode: 'serial' });
 setup.setTimeout(60_000);
+setup.use({ screenshot: 'off', trace: 'off', video: 'off' });
 
 const readRuntime = (): { tenantDomain?: string } | undefined => {
   if (!fs.existsSync(runtimePath)) {
@@ -58,9 +60,10 @@ for (const userData of usersToAuthenticate) {
     await page
       .locator('input[name="username"], input[type="email"]')
       .fill(userData.email);
-    await page
-      .locator('input[name="password"], input[type="password"]')
-      .fill(userData.password);
+    await fillProtectedValue(
+      page.locator('input[name="password"], input[type="password"]'),
+      userData.passwordVariable,
+    );
     await page.getByRole('button', { exact: true, name: 'Continue' }).click();
 
     const eventsPathPattern = /\/events(\?.*)?$/;

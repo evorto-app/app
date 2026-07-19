@@ -1,5 +1,5 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <h1 class="title-large">Tenants</h1>
+  <h1 class="title-large">Organizations</h1>
   <div class="grow"></div>
   <a
     mat-fab
@@ -8,7 +8,7 @@
     routerLink="/global-admin/tenants/create"
   >
     <fa-duotone-icon [icon]="faPlus" />
-    <span>Create tenant</span>
+    <span>Create organization</span>
   </a>
 </div>
 @if (tenantQuery.isPending()) {
@@ -27,15 +27,15 @@
 } @else if (tenantQuery.isSuccess()) {
   @if (tenantQuery.data().length === 0) {
     <div class="bg-surface text-on-surface rounded-2xl p-4">
-      <h2 class="title-medium">No tenants found</h2>
+      <h2 class="title-medium">No organizations found</h2>
     </div>
   } @else {
     <mat-form-field class="mb-3 w-full sm:max-w-sm" appearance="outline">
-      <mat-label>Search tenants</mat-label>
+      <mat-label>Search organizations</mat-label>
       <input
         matInput
         type="search"
-        aria-label="Search tenants"
+        aria-label="Search organizations"
         autocomplete="off"
         [value]="tenantSearch()"
         (input)="updateTenantSearch($event)"
@@ -49,7 +49,7 @@
           <div class="grow"></div>
           <a mat-button [routerLink]="['/global-admin/tenants', tenant.id]">
             <fa-duotone-icon [icon]="faArrowRight" class="mr-2" />
-            Review tenant
+            Review organization
           </a>
         </div>
         <dl class="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
@@ -58,11 +58,7 @@
               <dt class="text-on-surface-variant text-xs uppercase">
                 {{ row.label }}
               </dt>
-              <dd
-                class="break-words"
-                [class.font-mono]="row.monospace"
-                [class.text-xs]="row.monospace"
-              >
+              <dd class="break-words">
                 {{ row.value }}
               </dd>
             </div>
@@ -71,7 +67,7 @@
       </div>
     } @empty {
       <div class="bg-surface text-on-surface rounded-2xl p-4">
-        <h2 class="title-medium">No tenants match this search</h2>
+        <h2 class="title-medium">No organizations match this search</h2>
       </div>
     }
   }

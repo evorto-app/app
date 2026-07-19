@@ -36,7 +36,7 @@
         [matDatepicker]="startDatePicker"
         [formField]="form.openRegistrationTime"
       />
-      <mat-hint>MM/DD/YYYY</mat-hint>
+      <mat-hint>DD.MM.YYYY</mat-hint>
       <mat-datepicker-toggle matIconSuffix [for]="startDatePicker" />
       <mat-datepicker #startDatePicker />
     </mat-form-field>
@@ -59,7 +59,7 @@
         [matDatepicker]="endDatePicker"
         [formField]="form.closeRegistrationTime"
       />
-      <mat-hint>MM/DD/YYYY</mat-hint>
+      <mat-hint>DD.MM.YYYY</mat-hint>
       <mat-datepicker-toggle matIconSuffix [for]="endDatePicker" />
       <mat-datepicker #endDatePicker />
     </mat-form-field>
@@ -82,25 +82,21 @@
 
   @if (!form.price().hidden()) {
     <div class="grid gap-4">
-      <mat-form-field class="w-full">
-        <mat-label>Price (in cents)</mat-label>
-        <input matInput type="number" [formField]="form.price" />
-        <mat-hint>{{ form.price().value() | currency }}</mat-hint>
-      </mat-form-field>
+      <app-currency-amount-input
+        label="Price"
+        [currencyCode]="tenantCurrency()"
+        [formField]="form.price"
+        [minimumMinorUnits]="1"
+      />
 
       @if (esnEnabled()) {
-        <mat-form-field class="w-full">
-          <mat-label>ESNcard discounted price (in cents)</mat-label>
-          <input
-            matInput
-            type="number"
-            [formField]="form.esnCardDiscountedPrice"
-            placeholder="Optional"
-          />
-          <mat-hint>
-            Leave empty to disable ESNcard pricing for this option.
-          </mat-hint>
-        </mat-form-field>
+        <app-currency-amount-input
+          hint="Leave blank to disable the discount."
+          label="ESNcard price"
+          [allowEmpty]="true"
+          [currencyCode]="tenantCurrency()"
+          [formField]="form.esnCardDiscountedPrice"
+        />
       }
 
       <mat-form-field class="w-full">

@@ -1,107 +1,255 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, InjectionToken } from '@angular/core';
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 import consola from 'consola/browser';
+import { Effect, Schema } from 'effect';
 
 import { GoogleLocationType } from '../../types/location';
 import { ConfigService } from './config.service';
 
-type GoogleMapsLibrary = Awaited<ReturnType<typeof google.maps.importLibrary>>;
+export type GooglePlaceReference = Pick<
+  google.maps.places.Place,
+  'displayName' | 'fetchFields' | 'formattedAddress' | 'id' | 'location'
+>;
+
+export type LocationSearchError =
+  LocationConfigurationError | LocationProviderError;
+
+export interface LocationSuggestion {
+  readonly mainText: string;
+  readonly place: GooglePlaceReference;
+  readonly placeId: string;
+  readonly secondaryText?: string;
+}
+
+type GoogleMapsLibrary = Awaited<ReturnType<typeof importLibrary>>;
+
+interface GoogleMapsLoader {
+  readonly importLibrary: typeof importLibrary;
+  readonly setOptions: typeof setOptions;
+}
+
+const LocationProviderOperation = Schema.Literals([
+  'initialize',
+  'placeDetails',
+  'search',
+]);
+
+export class LocationConfigurationError extends Schema.TaggedErrorClass<LocationConfigurationError>()(
+  'LocationConfigurationError',
+  {
+    setting: Schema.Literal('PUBLIC_GOOGLE_MAPS_API_KEY'),
+  },
+) {}
+
+export class LocationProviderError extends Schema.TaggedErrorClass<LocationProviderError>()(
+  'LocationProviderError',
+  {
+    cause: Schema.Defect(),
+    operation: LocationProviderOperation,
+  },
+) {}
+
+export const GOOGLE_MAPS_LOADER = new InjectionToken<GoogleMapsLoader>(
+  'GoogleMapsLoader',
+  {
+    factory: () => ({ importLibrary, setOptions }),
+    providedIn: 'root',
+  },
+);
 
 const isPlacesLibrary = (
   library: GoogleMapsLibrary,
 ): library is google.maps.PlacesLibrary =>
   'AutocompleteSuggestion' in library && 'AutocompleteSessionToken' in library;
 
-@Injectable({
-  providedIn: 'root',
-})
-export class LocationSearch {
-  private _autocompleteService?: typeof google.maps.places.AutocompleteSuggestion;
-  private _sessionToken?: google.maps.places.AutocompleteSessionToken;
-  private readonly config = inject(ConfigService);
-  private optionsSet = false;
-  async getPlaceDetails(
-    place: google.maps.places.Place,
-  ): Promise<GoogleLocationType> {
-    await place.fetchFields({
-      fields: ['displayName', 'formattedAddress', 'location'],
-    });
-    return {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      address: place.formattedAddress!,
-      coordinates: {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        lat: place.location!.lat(),
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        lng: place.location!.lng(),
-      },
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      name: place.displayName!,
-      placeId: place.id,
-      type: 'google',
-    };
-  }
+const makeLocationSearchOperations = (
+  config: ConfigService,
+  loader: GoogleMapsLoader,
+) => {
+  let autocompleteService:
+    typeof google.maps.places.AutocompleteSuggestion | undefined;
+  let sessionToken: google.maps.places.AutocompleteSessionToken | undefined;
+  let optionsSet = false;
 
-  async search(
+  const getPlaceDetails = Effect.fn('LocationSearch.getPlaceDetails')(
+    function* (
+      place: GooglePlaceReference,
+    ): Effect.fn.Return<GoogleLocationType, LocationProviderError> {
+      yield* Effect.tryPromise({
+        catch: (cause) =>
+          new LocationProviderError({ cause, operation: 'placeDetails' }),
+        try: () =>
+          place.fetchFields({
+            fields: ['displayName', 'formattedAddress', 'location'],
+          }),
+      });
+
+      return yield* Effect.try({
+        catch: (cause) =>
+          new LocationProviderError({ cause, operation: 'placeDetails' }),
+        try: () => {
+          const location = place.location;
+          const name = place.displayName?.trim();
+          if (!location || !name || !place.id) {
+            throw new TypeError(
+              'Google Maps returned incomplete location details',
+            );
+          }
+
+          const lat = location.lat();
+          const lng = location.lng();
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            throw new TypeError('Google Maps returned invalid coordinates');
+          }
+
+          const address = place.formattedAddress?.trim();
+          const type: GoogleLocationType['type'] = 'google';
+          return {
+            ...(address && { address }),
+            coordinates: { lat, lng },
+            name,
+            placeId: place.id,
+            type,
+          };
+        },
+      });
+    },
+  );
+
+  const initAutocomplete = Effect.fn('LocationSearch.initAutocomplete')(
+    function* (): Effect.fn.Return<
+      {
+        service: typeof google.maps.places.AutocompleteSuggestion;
+        token: google.maps.places.AutocompleteSessionToken;
+      },
+      LocationSearchError
+    > {
+      const mapsApiKey = config.publicConfig.googleMapsApiKey?.trim();
+      if (!mapsApiKey) {
+        return yield* new LocationConfigurationError({
+          setting: 'PUBLIC_GOOGLE_MAPS_API_KEY',
+        });
+      }
+
+      if (!optionsSet) {
+        yield* Effect.try({
+          catch: (cause) =>
+            new LocationProviderError({ cause, operation: 'initialize' }),
+          try: () =>
+            loader.setOptions({
+              key: mapsApiKey,
+              v: 'weekly',
+            }),
+        });
+        consola.debug('Google Maps loader initialized');
+        optionsSet = true;
+      }
+
+      if (!autocompleteService || !sessionToken) {
+        const library = yield* Effect.tryPromise({
+          catch: (cause) =>
+            new LocationProviderError({ cause, operation: 'initialize' }),
+          try: () => loader.importLibrary('places'),
+        });
+        if (!isPlacesLibrary(library)) {
+          return yield* new LocationProviderError({
+            cause: new TypeError('Google Maps Places library failed to load'),
+            operation: 'initialize',
+          });
+        }
+
+        const initialized = yield* Effect.try({
+          catch: (cause) =>
+            new LocationProviderError({ cause, operation: 'initialize' }),
+          try: () => ({
+            service: library.AutocompleteSuggestion,
+            token: new library.AutocompleteSessionToken(),
+          }),
+        });
+        autocompleteService = initialized.service;
+        sessionToken = initialized.token;
+      }
+
+      const service = autocompleteService;
+      const token = sessionToken;
+      if (!service || !token) {
+        return yield* new LocationProviderError({
+          cause: new TypeError(
+            'Google Maps autocomplete service was not initialized',
+          ),
+          operation: 'initialize',
+        });
+      }
+
+      return { service, token };
+    },
+  );
+
+  const search = Effect.fn('LocationSearch.search')(function* (
     query: string,
-    defaultLocation?: GoogleLocationType | undefined,
-  ): Promise<google.maps.places.AutocompleteSuggestion[]> {
-    const { service, token } = await this.initAutocomplete();
+    defaultLocation?: GoogleLocationType,
+  ): Effect.fn.Return<LocationSuggestion[], LocationSearchError> {
+    const { service, token } = yield* initAutocomplete();
 
     const request: google.maps.places.AutocompleteRequest = {
       input: query,
       sessionToken: token,
+      ...(defaultLocation && {
+        locationBias: {
+          center: defaultLocation.coordinates,
+          radius: 50_000,
+        },
+      }),
     };
 
-    // Use default location for bias if provided
-    if (defaultLocation) {
-      request.locationBias = {
-        center: new google.maps.LatLng(
-          defaultLocation.coordinates.lat,
-          defaultLocation.coordinates.lng,
-        ),
-        radius: 50_000, // 50km radius
-      };
-    }
+    const result = yield* Effect.tryPromise({
+      catch: (cause) =>
+        new LocationProviderError({ cause, operation: 'search' }),
+      try: () => service.fetchAutocompleteSuggestions(request),
+    });
 
-    return service
-      .fetchAutocompleteSuggestions(request)
-      .then((result) => result.suggestions ?? []);
-  }
+    return yield* Effect.try({
+      catch: (cause) =>
+        new LocationProviderError({ cause, operation: 'search' }),
+      try: () =>
+        (result.suggestions ?? []).flatMap((suggestion) => {
+          const prediction = suggestion.placePrediction;
+          if (!prediction) return [];
 
-  private async initAutocomplete(): Promise<{
-    service: typeof google.maps.places.AutocompleteSuggestion;
-    token: google.maps.places.AutocompleteSessionToken;
-  }> {
-    const mapsApiKey = this.config.publicConfig.googleMapsApiKey?.trim();
-    if (!mapsApiKey) {
-      throw new Error(
-        'Google Maps API key is missing. Set PUBLIC_GOOGLE_MAPS_API_KEY in the server environment.',
-      );
-    }
+          const mainText = prediction.mainText?.text.trim();
+          if (!mainText) return [];
 
-    if (!this.optionsSet) {
-      setOptions({
-        key: mapsApiKey,
-        v: 'weekly',
-      });
-      consola.debug('Google Maps loader initialized');
-      this.optionsSet = true;
-    }
-    if (!this._autocompleteService || !this._sessionToken) {
-      const library = await importLibrary('places');
-      if (!isPlacesLibrary(library)) {
-        throw new Error('Google Maps Places library failed to load');
-      }
-      this._autocompleteService = library.AutocompleteSuggestion;
-      this._sessionToken = new library.AutocompleteSessionToken();
-    }
-    if (!this._autocompleteService || !this._sessionToken) {
-      throw new Error('Google Maps autocomplete service not initialized');
-    }
-    return {
-      service: this._autocompleteService,
-      token: this._sessionToken,
-    };
+          const secondaryText = prediction.secondaryText?.text.trim();
+          return [
+            {
+              mainText,
+              place: prediction.toPlace(),
+              placeId: prediction.placeId,
+              ...(secondaryText && { secondaryText }),
+            },
+          ];
+        }),
+    });
+  });
+
+  return { getPlaceDetails, search };
+};
+
+type LocationSearchOperations = ReturnType<typeof makeLocationSearchOperations>;
+
+@Injectable({
+  providedIn: 'root',
+})
+export class LocationSearch {
+  readonly getPlaceDetails: LocationSearchOperations['getPlaceDetails'];
+  readonly search: LocationSearchOperations['search'];
+
+  constructor() {
+    const operations = makeLocationSearchOperations(
+      inject(ConfigService),
+      inject(GOOGLE_MAPS_LOADER),
+    );
+    this.getPlaceDetails = operations.getPlaceDetails;
+    this.search = operations.search;
   }
 }

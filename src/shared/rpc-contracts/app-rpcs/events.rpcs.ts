@@ -1,6 +1,11 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
-import { literalUnion, nonNegativeNumber } from '@shared/schema-utilities';
+import { RegistrationTransferRefundLifecycle } from '@shared/registration-transfer';
+import {
+  literalUnion,
+  nonNegativeNumber,
+  positiveNumber,
+} from '@shared/schema-utilities';
 import { Effect, Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -16,6 +21,7 @@ import {
   EventsFindOneRpcError,
   EventsOrganizeRpcError,
   EventsRegisterForEventError,
+  EventsRegistrationAddonFulfillmentError,
   EventsRegistrationScannedError,
   EventsReviewEventRpcError,
   EventsReviewRpcError,
@@ -23,16 +29,35 @@ import {
   EventsUpdateListingRpcError,
   EventsUpdateRpcError,
 } from './events.errors';
+import { RegistrationTransferBundleRecord } from './registration-transfers.rpcs';
 
 const TransferTargetEmail = Schema.NonEmptyString.check(
   Schema.isPattern(notificationEmailPattern),
+);
+
+const NullablePolicyHoursInput = Schema.NullOr(nonNegativeNumber).pipe(
+  Schema.withDecodingDefaultTypeKey(Effect.succeed(null)),
+);
+const NullableRefundFeesInput = Schema.NullOr(Schema.Boolean).pipe(
+  Schema.withDecodingDefaultTypeKey(Effect.succeed(null)),
+);
+const NonNegativeInteger = nonNegativeNumber.check(Schema.isInt());
+const PositiveInteger = positiveNumber.check(Schema.isInt());
+const RegistrationAddonOperationKey = Schema.String.check(
+  Schema.isTrimmed(),
+  Schema.isMinLength(1),
+  Schema.isMaxLength(100),
+);
+const RegistrationAddonCancellationReason = Schema.String.check(
+  Schema.isTrimmed(),
+  Schema.isMinLength(1),
+  Schema.isMaxLength(500),
 );
 
 export const EventReviewStatus = literalUnion(
   'APPROVED',
   'DRAFT',
   'PENDING_REVIEW',
-  'REJECTED',
 );
 
 export type EventReviewStatus = Schema.Schema.Type<typeof EventReviewStatus>;
@@ -46,6 +71,16 @@ export const EventsRegistrationStatus = literalUnion(
 
 export type EventsRegistrationStatus = Schema.Schema.Type<
   typeof EventsRegistrationStatus
+>;
+
+export const EventsCancellableRegistrationStatus = literalUnion(
+  'CONFIRMED',
+  'PENDING',
+  'WAITLIST',
+);
+
+export type EventsCancellableRegistrationStatus = Schema.Schema.Type<
+  typeof EventsCancellableRegistrationStatus
 >;
 
 export const EventsWritableRegistrationMode = literalUnion(
@@ -77,6 +112,8 @@ export const EventsCancelRegistration = asRpcMutation(
   Rpc.make('events.cancelRegistration', {
     error: EventsCancelPendingRegistrationError,
     payload: Schema.Struct({
+      expectedPaymentPending: Schema.Boolean,
+      expectedStatus: EventsCancellableRegistrationStatus,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Void,
@@ -88,11 +125,17 @@ export const EventsCancelEventRegistration = asRpcMutation(
     error: EventsCheckInRegistrationError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
+      expectedPaymentPending: Schema.Boolean,
+      expectedStatus: EventsCancellableRegistrationStatus,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Void,
   }),
 );
+
+export const EventsApproveRegistrationResult = Schema.Struct({
+  status: Schema.Literals(['confirmed', 'paymentPending']),
+});
 
 export const EventsApproveRegistration = asRpcMutation(
   Rpc.make('events.approveRegistration', {
@@ -101,7 +144,7 @@ export const EventsApproveRegistration = asRpcMutation(
       eventId: Schema.NonEmptyString,
       registrationId: Schema.NonEmptyString,
     }),
-    success: Schema.Void,
+    success: EventsApproveRegistrationResult,
   }),
 );
 
@@ -110,6 +153,7 @@ export const EventsTransferEventRegistration = asRpcMutation(
     error: EventsCheckInRegistrationError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
+      previewVersion: Schema.NonEmptyString,
       registrationId: Schema.NonEmptyString,
       targetUserId: Schema.NonEmptyString,
     }),
@@ -143,12 +187,14 @@ export const EventsCheckInRegistration = asRpcMutation(
 );
 
 export const EventsCreateRegistrationOptionInput = Schema.Struct({
+  cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
   closeRegistrationTime: Schema.NonEmptyString,
   description: Schema.NullOr(Schema.NonEmptyString),
   isPaid: Schema.Boolean,
   openRegistrationTime: Schema.NonEmptyString,
   organizingRegistration: Schema.Boolean,
   price: nonNegativeNumber,
+  refundFeesOnCancellation: NullableRefundFeesInput,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
   registrationMode: EventsWritableRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
@@ -156,6 +202,7 @@ export const EventsCreateRegistrationOptionInput = Schema.Struct({
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   title: Schema.NonEmptyString,
+  transferDeadlineHoursBeforeStart: NullablePolicyHoursInput,
 });
 
 export const EventsCreate = asRpcMutation(
@@ -165,6 +212,7 @@ export const EventsCreate = asRpcMutation(
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
       icon: iconSchema,
+      location: Schema.optional(Schema.NullOr(EventLocation)),
       registrationOptions: Schema.Array(EventsCreateRegistrationOptionInput),
       start: Schema.NonEmptyString,
       templateId: Schema.NonEmptyString,
@@ -238,6 +286,7 @@ export const EventsFindOneForEditRegistrationMode = literalUnion(
 );
 
 export const EventsFindOneForEditRegistrationOption = Schema.Struct({
+  cancellationDeadlineHoursBeforeStart: Schema.NullOr(nonNegativeNumber),
   closeRegistrationTime: Schema.NonEmptyString,
   description: Schema.NullOr(Schema.String),
   esnCardDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
@@ -246,12 +295,14 @@ export const EventsFindOneForEditRegistrationOption = Schema.Struct({
   openRegistrationTime: Schema.NonEmptyString,
   organizingRegistration: Schema.Boolean,
   price: Schema.Number,
+  refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
   registeredDescription: Schema.NullOr(Schema.String),
   registrationMode: EventsFindOneForEditRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
+  transferDeadlineHoursBeforeStart: Schema.NullOr(nonNegativeNumber),
 });
 
 export const EventsFindOneForEdit = asRpcQuery(
@@ -309,7 +360,8 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
 });
 
 export const EventsFindOneAddonRegistrationOption = Schema.Struct({
-  quantity: Schema.Number,
+  includedQuantity: nonNegativeNumber,
+  optionalPurchaseQuantity: nonNegativeNumber,
   registrationOptionId: Schema.NonEmptyString,
 });
 
@@ -381,17 +433,26 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
   lastName: Schema.NonEmptyString,
   manualApprovalAvailable: Schema.Boolean,
   paymentPending: Schema.Boolean,
+  paymentSetupRequired: Schema.Boolean,
   registrationId: Schema.NonEmptyString,
   status: EventsRegistrationStatus,
-  transferAvailable: Schema.Boolean,
   userId: Schema.NonEmptyString,
 });
 
 export const EventsGetOrganizeOverviewOption = Schema.Struct({
+  canApproveRegistrations: Schema.Boolean,
+  canCancelRegistrations: Schema.Boolean,
+  canTransferRegistrations: Schema.Boolean,
   organizingRegistration: Schema.Boolean,
   registrationOptionId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
   users: Schema.Array(EventsGetOrganizeOverviewUser),
+});
+
+export const EventsGetOrganizeOverviewStats = Schema.Struct({
+  capacity: NonNegativeInteger,
+  checkedIn: NonNegativeInteger,
+  registered: NonNegativeInteger,
 });
 
 export const EventsGetOrganizeOverview = asRpcQuery(
@@ -400,7 +461,10 @@ export const EventsGetOrganizeOverview = asRpcQuery(
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
     }),
-    success: Schema.Array(EventsGetOrganizeOverviewOption),
+    success: Schema.Struct({
+      registrationOptions: Schema.Array(EventsGetOrganizeOverviewOption),
+      stats: EventsGetOrganizeOverviewStats,
+    }),
   }),
 );
 
@@ -423,7 +487,152 @@ export const EventsFindTransferTargets = asRpcQuery(
   }),
 );
 
+const EventsOrganizerDirectTransferPreviewParticipant = Schema.Struct({
+  email: Schema.NonEmptyString,
+  firstName: Schema.NonEmptyString,
+  id: Schema.NonEmptyString,
+  lastName: Schema.NonEmptyString,
+});
+
+export const EventsPreviewEventRegistrationTransfer = asRpcQuery(
+  Rpc.make('events.previewEventRegistrationTransfer', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+      targetUserId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      bundle: RegistrationTransferBundleRecord,
+      completionMode: Schema.Literal('databaseOnly'),
+      currency: Schema.NonEmptyString,
+      previewVersion: Schema.NonEmptyString,
+      pricing: Schema.Struct({
+        appliedDiscountedPrice: Schema.NullOr(nonNegativeNumber),
+        appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+        discountAmount: Schema.NullOr(nonNegativeNumber),
+        recipientBundlePrice: Schema.Literal(0),
+        recipientRegistrationPrice: nonNegativeNumber,
+        sourceRefundAmountDue: Schema.Literal(0),
+      }),
+      recipient: EventsOrganizerDirectTransferPreviewParticipant,
+      registrationOption: Schema.Struct({
+        currentPrice: nonNegativeNumber,
+        id: Schema.NonEmptyString,
+        title: Schema.NonEmptyString,
+      }),
+      source: EventsOrganizerDirectTransferPreviewParticipant,
+    }),
+  }),
+);
+
+export const EventsRegistrationAddonRecord = Schema.Struct({
+  addOnId: Schema.NonEmptyString,
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  cancelledQuantity: NonNegativeInteger,
+  currency: Schema.NonEmptyString,
+  currentPurchaseWindow: Schema.Literals([
+    'beforeEvent',
+    'duringEvent',
+    'afterEvent',
+  ]),
+  description: Schema.NullOr(Schema.String),
+  includedQuantity: NonNegativeInteger,
+  isPaid: Schema.Boolean,
+  maxPurchasableQuantity: NonNegativeInteger,
+  maxQuantityPerUser: PositiveInteger,
+  nextPurchaseTaxRateDisplayName: Schema.NullOr(Schema.String),
+  nextPurchaseTaxRateInclusive: Schema.NullOr(Schema.Boolean),
+  nextPurchaseTaxRatePercentage: Schema.NullOr(Schema.String),
+  nextPurchaseUnitGrossAmount: Schema.NullOr(NonNegativeInteger),
+  nextPurchaseUnitPrice: NonNegativeInteger,
+  nextPurchaseUnitTaxAmount: Schema.NullOr(NonNegativeInteger),
+  optionalPurchaseQuantity: NonNegativeInteger,
+  pendingCheckoutExpiresAt: Schema.NullOr(Schema.NonEmptyString),
+  pendingCheckoutUrl: Schema.NullOr(Schema.NonEmptyString),
+  pendingOperationKey: Schema.NullOr(RegistrationAddonOperationKey),
+  pendingQuantity: NonNegativeInteger,
+  purchaseAvailable: Schema.Boolean,
+  purchaseBlockedReason: Schema.Literals([
+    'none',
+    'registrationStatus',
+    'eventUnavailable',
+    'activeTransfer',
+    'paymentPending',
+    'beforeEventDisabled',
+    'duringEventDisabled',
+    'eventEnded',
+    'multipleNotAllowed',
+    'optionLimitReached',
+    'userLimitReached',
+    'outOfStock',
+    'paymentUnavailable',
+    'taxUnavailable',
+  ]),
+  purchaseStatus: Schema.Literals(['available', 'blocked', 'paymentPending']),
+  redeemedQuantity: NonNegativeInteger,
+  remainingQuantity: NonNegativeInteger,
+  settledPurchasedQuantity: NonNegativeInteger,
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: NonNegativeInteger,
+  totalQuantity: NonNegativeInteger,
+});
+
+export type EventsRegistrationAddonRecord = Schema.Schema.Type<
+  typeof EventsRegistrationAddonRecord
+>;
+
+export const EventsRegistrationTransferBlockedReason = Schema.Literals([
+  'none',
+  'registrationStatus',
+  'eventUnavailable',
+  'activeTransfer',
+  'addonPaymentPending',
+  'deadlinePassed',
+]);
+
+export const EventsRegistrationCancellationBlockedReason = Schema.Literals([
+  'none',
+  'checkedIn',
+  'eventStarted',
+  'deadlinePassed',
+]);
+
+export const EventsOutgoingRegistrationTransferRecord = Schema.Struct({
+  currency: Schema.NonEmptyString,
+  refundAmount: NonNegativeInteger,
+  refundStatus: Schema.Literals([
+    'completed',
+    'needsAttention',
+    'notRequired',
+    'processing',
+  ]),
+  registrationOptionTitle: Schema.NonEmptyString,
+  transferId: Schema.NonEmptyString,
+  transferredAt: Schema.NonEmptyString,
+});
+
+export type EventsOutgoingRegistrationTransferRecord = Schema.Schema.Type<
+  typeof EventsOutgoingRegistrationTransferRecord
+>;
+
 export const EventsRegistrationStatusRecord = Schema.Struct({
+  activeTransfer: Schema.NullOr(
+    Schema.Struct({
+      expiresAt: Schema.NonEmptyString,
+      refundLifecycle: Schema.NullOr(RegistrationTransferRefundLifecycle),
+      registrationSide: Schema.Literals(['recipient', 'source']),
+      status: Schema.Literals([
+        'checkout_pending',
+        'open',
+        'refund_pending',
+        'refund_failed',
+      ]),
+      transferId: Schema.NonEmptyString,
+    }),
+  ),
   addonPurchases: Schema.Array(
     Schema.Struct({
       quantity: Schema.Number,
@@ -436,16 +645,21 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
     Schema.NullOr(Schema.Literal('esnCard')),
   ),
   basePriceAtRegistration: Schema.optional(Schema.NullOr(Schema.Number)),
+  cancellationAvailable: Schema.Boolean,
+  cancellationBlockedReason: EventsRegistrationCancellationBlockedReason,
   checkoutUrl: Schema.optional(Schema.NullOr(Schema.String)),
   discountAmount: Schema.optional(Schema.NullOr(Schema.Number)),
   guestCount: Schema.Number,
   id: Schema.NonEmptyString,
+  organizingRegistration: Schema.Boolean,
   paymentPending: Schema.Boolean,
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
+  registrationAddOns: Schema.Array(EventsRegistrationAddonRecord),
   registrationOptionId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
   status: EventsRegistrationStatus,
   transferAvailable: Schema.Boolean,
+  transferBlockedReason: EventsRegistrationTransferBlockedReason,
 });
 
 export type EventsRegistrationStatusRecord = Schema.Schema.Type<
@@ -459,8 +673,41 @@ export const EventsGetRegistrationStatus = asRpcQuery(
     }),
     success: Schema.Struct({
       isRegistered: Schema.Boolean,
+      outgoingTransfers: Schema.Array(EventsOutgoingRegistrationTransferRecord),
       registrations: Schema.Array(EventsRegistrationStatusRecord),
     }),
+  }),
+);
+
+export const EventsPurchaseRegistrationAddonResult = Schema.Union([
+  Schema.Struct({
+    orderId: Schema.NonEmptyString,
+    status: Schema.Literal('completed'),
+  }),
+  Schema.Struct({
+    checkoutUrl: Schema.NonEmptyString,
+    expiresAt: Schema.NonEmptyString,
+    orderId: Schema.NonEmptyString,
+    status: Schema.Literal('checkoutRequired'),
+  }),
+]);
+
+export type EventsPurchaseRegistrationAddonResult = Schema.Schema.Type<
+  typeof EventsPurchaseRegistrationAddonResult
+>;
+
+export const EventsPurchaseRegistrationAddonPayload = Schema.Struct({
+  addOnId: Schema.NonEmptyString,
+  operationKey: RegistrationAddonOperationKey,
+  quantity: PositiveInteger,
+  registrationId: Schema.NonEmptyString,
+});
+
+export const EventsPurchaseRegistrationAddon = asRpcMutation(
+  Rpc.make('events.purchaseRegistrationAddon', {
+    error: EventsRegisterForEventError,
+    payload: EventsPurchaseRegistrationAddonPayload,
+    success: EventsPurchaseRegistrationAddonResult,
   }),
 );
 
@@ -546,6 +793,7 @@ export const EventsRegistrationScanned = asRpcQuery(
       appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
       attendeeCheckedIn: Schema.Boolean,
       checkedInGuestCount: Schema.Number,
+      checkInTimingIssue: Schema.Boolean,
       event: Schema.Struct({
         start: Schema.NonEmptyString,
         title: Schema.NonEmptyString,
@@ -554,6 +802,7 @@ export const EventsRegistrationScanned = asRpcQuery(
       registrationOption: Schema.Struct({
         title: Schema.NonEmptyString,
       }),
+      registrationStatus: EventsRegistrationStatus,
       registrationStatusIssue: Schema.Boolean,
       remainingGuestCount: Schema.Number,
       sameUserIssue: Schema.Boolean,
@@ -561,6 +810,128 @@ export const EventsRegistrationScanned = asRpcQuery(
         firstName: Schema.NonEmptyString,
         lastName: Schema.NonEmptyString,
       }),
+    }),
+  }),
+);
+
+export const EventsRegistrationAddonRefundStatus = literalUnion(
+  'actionRequired',
+  'notApplicable',
+  'notRequested',
+  'pending',
+  'partiallyRefunded',
+  'refunded',
+  'failed',
+  'cancelledWithoutRefund',
+  'notRequired',
+);
+
+export type EventsRegistrationAddonRefundStatus = Schema.Schema.Type<
+  typeof EventsRegistrationAddonRefundStatus
+>;
+
+export const EventsRegistrationAddonRefundAvailability = literalUnion(
+  'none',
+  'noMonetaryRefundRequired',
+  'monetaryRefundAvailable',
+);
+
+export type EventsRegistrationAddonRefundAvailability = Schema.Schema.Type<
+  typeof EventsRegistrationAddonRefundAvailability
+>;
+
+export const EventsRegistrationAddonCancellationBlockedReason = literalUnion(
+  'none',
+  'permission',
+  'registrationStatus',
+  'noQuantity',
+);
+
+export type EventsRegistrationAddonCancellationBlockedReason =
+  Schema.Schema.Type<typeof EventsRegistrationAddonCancellationBlockedReason>;
+
+export const EventsRegistrationAddonFulfillmentRecord = Schema.Struct({
+  addOnId: Schema.NonEmptyString,
+  cancellablePurchasedQuantity: NonNegativeInteger,
+  cancellableQuantity: NonNegativeInteger,
+  cancellationAvailable: Schema.Boolean,
+  cancellationBlockedReason: EventsRegistrationAddonCancellationBlockedReason,
+  cancelledQuantity: NonNegativeInteger,
+  includedQuantity: NonNegativeInteger,
+  latestFulfillmentEventId: Schema.NullOr(Schema.NonEmptyString),
+  latestRedemptionEventId: Schema.NullOr(Schema.NonEmptyString),
+  purchasedQuantity: NonNegativeInteger,
+  redeemedQuantity: NonNegativeInteger,
+  redemptionAvailable: Schema.Boolean,
+  refundAvailability: EventsRegistrationAddonRefundAvailability,
+  refundStatus: EventsRegistrationAddonRefundStatus,
+  registrationAddonId: Schema.NonEmptyString,
+  remainingQuantity: NonNegativeInteger,
+  title: Schema.NonEmptyString,
+  totalQuantity: NonNegativeInteger,
+  undoAvailable: Schema.Boolean,
+});
+
+export type EventsRegistrationAddonFulfillmentRecord = Schema.Schema.Type<
+  typeof EventsRegistrationAddonFulfillmentRecord
+>;
+
+export const EventsGetRegistrationAddonFulfillment = asRpcQuery(
+  Rpc.make('events.getRegistrationAddonFulfillment', {
+    error: EventsRegistrationAddonFulfillmentError,
+    payload: Schema.Struct({
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      addOns: Schema.Array(EventsRegistrationAddonFulfillmentRecord),
+      registrationId: Schema.NonEmptyString,
+    }),
+  }),
+);
+
+export const EventsRedeemRegistrationAddon = asRpcMutation(
+  Rpc.make('events.redeemRegistrationAddon', {
+    error: EventsRegistrationAddonFulfillmentError,
+    payload: Schema.Struct({
+      operationKey: RegistrationAddonOperationKey,
+      registrationAddonId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      fulfillmentEventId: Schema.NonEmptyString,
+    }),
+  }),
+);
+
+export const EventsUndoRegistrationAddonRedemption = asRpcMutation(
+  Rpc.make('events.undoRegistrationAddonRedemption', {
+    error: EventsRegistrationAddonFulfillmentError,
+    payload: Schema.Struct({
+      operationKey: RegistrationAddonOperationKey,
+      redemptionEventId: Schema.NonEmptyString,
+      registrationAddonId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      fulfillmentEventId: Schema.NonEmptyString,
+    }),
+  }),
+);
+
+export const EventsCancelRegistrationAddon = asRpcMutation(
+  Rpc.make('events.cancelRegistrationAddon', {
+    error: EventsRegistrationAddonFulfillmentError,
+    payload: Schema.Struct({
+      operationKey: RegistrationAddonOperationKey,
+      quantity: PositiveInteger,
+      reason: RegistrationAddonCancellationReason,
+      refundRequested: Schema.Boolean,
+      registrationAddonId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      fulfillmentEventId: Schema.NonEmptyString,
+      refundStatus: EventsRegistrationAddonRefundStatus,
     }),
   }),
 );
@@ -587,6 +958,7 @@ export const EventsUpdateListing = asRpcMutation(
 );
 
 export const EventsUpdateRegistrationOptionInput = Schema.Struct({
+  cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
   closeRegistrationTime: Schema.NonEmptyString,
   description: Schema.NullOr(Schema.NonEmptyString),
   esnCardDiscountedPrice: Schema.optional(Schema.NullOr(nonNegativeNumber)),
@@ -595,13 +967,160 @@ export const EventsUpdateRegistrationOptionInput = Schema.Struct({
   openRegistrationTime: Schema.NonEmptyString,
   organizingRegistration: Schema.Boolean,
   price: nonNegativeNumber,
+  refundFeesOnCancellation: NullableRefundFeesInput,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
   registrationMode: EventsWritableRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   title: Schema.NonEmptyString,
+  transferDeadlineHoursBeforeStart: NullablePolicyHoursInput,
 });
+
+export const EventGraphRegistrationOptionInput = Schema.Struct({
+  cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
+  closeRegistrationTime: Schema.NonEmptyString,
+  description: Schema.NullOr(Schema.String),
+  esnCardDiscountedPrice: Schema.NullOr(nonNegativeNumber),
+  id: Schema.optional(Schema.NonEmptyString),
+  isPaid: Schema.Boolean,
+  key: Schema.NonEmptyString,
+  openRegistrationTime: Schema.NonEmptyString,
+  organizingRegistration: Schema.Boolean,
+  price: nonNegativeNumber,
+  refundFeesOnCancellation: NullableRefundFeesInput,
+  registeredDescription: Schema.NullOr(Schema.String),
+  registrationMode: EventsWritableRegistrationMode,
+  roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
+  spots: nonNegativeNumber,
+  stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
+  title: Schema.NonEmptyString,
+  transferDeadlineHoursBeforeStart: NullablePolicyHoursInput,
+});
+
+export type EventGraphRegistrationOptionInput = Schema.Schema.Type<
+  typeof EventGraphRegistrationOptionInput
+>;
+
+export const EventGraphAddonRegistrationOptionInput = Schema.Struct({
+  includedQuantity: NonNegativeInteger,
+  optionalPurchaseQuantity: NonNegativeInteger,
+  registrationOptionKey: Schema.NonEmptyString,
+});
+
+export const EventGraphAddonInput = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.optional(Schema.NonEmptyString),
+  isPaid: Schema.Boolean,
+  key: Schema.NonEmptyString,
+  maxQuantityPerUser: PositiveInteger,
+  price: NonNegativeInteger,
+  registrationOptions: Schema.mutable(
+    Schema.Array(EventGraphAddonRegistrationOptionInput),
+  ),
+  stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: NonNegativeInteger,
+});
+
+export type EventGraphAddonInput = Schema.Schema.Type<
+  typeof EventGraphAddonInput
+>;
+
+export const EventGraphQuestionInput = Schema.Struct({
+  description: Schema.NullOr(Schema.String),
+  id: Schema.optional(Schema.NonEmptyString),
+  key: Schema.NonEmptyString,
+  registrationOptionKey: Schema.NonEmptyString,
+  required: Schema.Boolean,
+  sortOrder: NonNegativeInteger,
+  title: Schema.NonEmptyString,
+});
+
+export type EventGraphQuestionInput = Schema.Schema.Type<
+  typeof EventGraphQuestionInput
+>;
+
+export const EventGraphAddonRecord = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  isPaid: Schema.Boolean,
+  maxQuantityPerUser: Schema.Number,
+  price: Schema.Number,
+  registrationOptions: Schema.Array(EventsFindOneAddonRegistrationOption),
+  stripeTaxRateId: Schema.NullOr(Schema.String),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: Schema.Number,
+});
+
+export const EventGraphQuestionRecord = Schema.Struct({
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  registrationOptionId: Schema.NonEmptyString,
+  required: Schema.Boolean,
+  sortOrder: Schema.Number,
+  title: Schema.NonEmptyString,
+});
+
+export const EventGraphEditRecord = Schema.Struct({
+  addOns: Schema.Array(EventGraphAddonRecord),
+  description: Schema.NonEmptyString,
+  end: Schema.NonEmptyString,
+  icon: iconSchema,
+  id: Schema.NonEmptyString,
+  location: Schema.NullOr(EventLocation),
+  questions: Schema.Array(EventGraphQuestionRecord),
+  registrationOptions: Schema.Array(EventsFindOneForEditRegistrationOption),
+  simpleModeEnabled: Schema.Boolean,
+  start: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
+});
+
+export type EventGraphEditRecord = Schema.Schema.Type<
+  typeof EventGraphEditRecord
+>;
+
+export const EventsFindGraphForEdit = asRpcQuery(
+  Rpc.make('events.findGraphForEdit', {
+    error: EventsFindOneForEditRpcError,
+    payload: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+    success: EventGraphEditRecord,
+  }),
+);
+
+export const EventsUpdateGraph = asRpcMutation(
+  Rpc.make('events.updateGraph', {
+    error: EventsUpdateRpcError,
+    payload: Schema.Struct({
+      addOns: Schema.mutable(Schema.Array(EventGraphAddonInput)),
+      description: Schema.NonEmptyString,
+      end: Schema.NonEmptyString,
+      eventId: Schema.NonEmptyString,
+      icon: iconSchema,
+      location: Schema.NullOr(EventLocation),
+      questions: Schema.mutable(Schema.Array(EventGraphQuestionInput)),
+      registrationOptions: Schema.mutable(
+        Schema.Array(EventGraphRegistrationOptionInput),
+      ),
+      simpleModeEnabled: Schema.Boolean,
+      start: Schema.NonEmptyString,
+      title: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+  }),
+);
 
 export const EventsUpdate = asRpcMutation(
   Rpc.make('events.update', {
@@ -635,15 +1154,23 @@ export class EventsRpcs extends RpcGroup.make(
   EventsEventList,
   EventsFindOne,
   EventsFindOneForEdit,
+  EventsFindGraphForEdit,
   EventsFindTransferTargets,
+  EventsPreviewEventRegistrationTransfer,
+  EventsGetRegistrationAddonFulfillment,
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
   EventsJoinWaitlist,
+  EventsPurchaseRegistrationAddon,
   EventsRegisterForEvent,
+  EventsRedeemRegistrationAddon,
   EventsRegistrationScanned,
   EventsReviewEvent,
   EventsSubmitForReview,
   EventsUpdate,
+  EventsUpdateGraph,
   EventsUpdateListing,
+  EventsUndoRegistrationAddonRedemption,
+  EventsCancelRegistrationAddon,
 ) {}

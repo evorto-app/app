@@ -1,20 +1,13 @@
 import { and, eq } from 'drizzle-orm';
-import type { Page } from '@playwright/test';
 
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { waitForRegistrationPage as waitForRegistrationStatus } from '../../support/utils/event-registration-page';
 import { seedRequiredRegistrationQuestion } from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
-
-const waitForRegistrationStatus = async (page: Pick<Page, 'getByText'>) => {
-  await page
-    .getByText('Loading registration status')
-    .first()
-    .waitFor({ state: 'detached' });
-};
 
 test.describe('Negative registration states', () => {
   test.describe('regular user', () => {
@@ -164,12 +157,23 @@ test.describe('Negative registration states', () => {
         const waitlistButton = page.getByRole('button', {
           name: 'Join waitlist',
         });
+        const registrationQuestionInput = page.getByLabel(
+          registrationQuestion.title,
+        );
         await expect(waitlistButton).toBeVisible();
-        await expect(page.getByLabel(registrationQuestion.title)).toBeVisible();
+        await expect(registrationQuestionInput).toBeVisible();
         await expect(waitlistButton).toBeDisabled();
-        await page
-          .getByLabel(registrationQuestion.title)
-          .fill('Please tell me if a spot opens.');
+        const registrationCard = page
+          .locator('app-event-registration-option')
+          .filter({ has: waitlistButton });
+        await expect(registrationCard).toHaveAttribute('aria-busy', 'false', {
+          timeout: 20_000,
+        });
+        await expect(registrationQuestionInput).toBeEditable();
+        await registrationQuestionInput.fill('Please tell me if a spot opens.');
+        await expect(registrationQuestionInput).toHaveValue(
+          'Please tell me if a spot opens.',
+        );
         await expect(waitlistButton).toBeEnabled();
         await expect(
           page.getByRole('button', { name: /^Register$/ }),
@@ -225,6 +229,10 @@ test.describe('Negative registration states', () => {
           }),
         ]);
         await page.getByRole('button', { name: 'Leave waitlist' }).click();
+        await page
+          .getByRole('dialog')
+          .getByRole('button', { name: 'Leave waitlist' })
+          .click();
         await expect(page.getByText('This option is full.')).toBeVisible();
         await expect(
           page.getByRole('button', { name: 'Join waitlist' }),
@@ -302,7 +310,7 @@ test.describe('Negative registration states', () => {
       }
     });
 
-    test('does not expose a waitlist action for a full random stored mode', async ({
+    test('does not expose registration actions for an unsupported random stored mode', async ({
       database,
       page,
       seeded,
@@ -358,9 +366,9 @@ test.describe('Negative registration states', () => {
         const optionCard = page
           .locator('app-event-registration-option')
           .filter({ hasText: targetOption.title });
-        await expect(
-          optionCard.getByText('This option is full.'),
-        ).toBeVisible();
+        await expect(optionCard.getByRole('alert')).toHaveText(
+          'This option uses a registration mode that is no longer supported. Ask an organizer to update the event before trying again.',
+        );
         await expect(
           optionCard.getByRole('button', { name: 'Join waitlist' }),
         ).toHaveCount(0);

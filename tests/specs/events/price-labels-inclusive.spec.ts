@@ -4,10 +4,16 @@ import { eq } from 'drizzle-orm';
 import { adminStateFile, userStateFile } from '../../../helpers/user-data';
 import * as schema from '@db/schema';
 import { formatInclusiveTaxLabel } from '@shared/price/format-inclusive-tax-label';
+import { TENANT_FORMATTING_LOCALE } from '@types/custom/tenant';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 const priceText = (amountInCents: number) =>
-  `€${(amountInCents / 100).toFixed(2)}`;
+  new Intl.NumberFormat(TENANT_FORMATTING_LOCALE, {
+    currency: 'EUR',
+    style: 'currency',
+  })
+    .format(amountInCents / 100)
+    .replaceAll('\u00a0', ' ');
 
 const registrationOptionCard = (page: Page, optionTitle: string) =>
   page.locator('app-event-registration-option').filter({
@@ -15,14 +21,27 @@ const registrationOptionCard = (page: Page, optionTitle: string) =>
   });
 
 const templateOptionCard = (page: Page, optionTitle: string) =>
-  page.locator('.bg-surface').filter({
-    has: page.getByRole('heading', { level: 3, name: optionTitle }),
-  });
+  page
+    .locator('section')
+    .filter({
+      has: page.getByRole('heading', {
+        level: 2,
+        name: 'Registration Options',
+      }),
+    })
+    .locator('.bg-surface')
+    .filter({
+      has: page.getByRole('heading', { level: 3, name: optionTitle }),
+    });
 
 const visiblePrice = (card: Locator, amountInCents: number) =>
   card
     .locator('app-price-with-tax')
     .getByText(priceText(amountInCents), { exact: true });
+const cardRenderTimeoutMs = 15_000;
+
+const expectCardReady = (card: Locator) =>
+  expect(card).toBeVisible({ timeout: cardRenderTimeoutMs });
 
 test.describe('Inclusive price labels', () => {
   test.describe('without a verified discount card', () => {
@@ -53,6 +72,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/events/${paidEventId}`);
 
       const card = registrationOptionCard(page, paidOption.title);
+      await expectCardReady(card);
       await expect(visiblePrice(card, paidOption.price)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),
@@ -78,6 +98,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/events/${freeEventId}`);
 
       const card = registrationOptionCard(page, freeOption.title);
+      await expectCardReady(card);
       await expect(card.locator('app-price-with-tax')).toHaveCount(0);
       await expect(card.getByText('Incl.')).toHaveCount(0);
       await expect(card.getByText('Tax free')).toHaveCount(0);
@@ -117,6 +138,7 @@ test.describe('Inclusive price labels', () => {
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
         const card = registrationOptionCard(page, paidOption.title);
+        await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
         await expect(card.getByText('Tax free')).toBeVisible();
       } finally {
@@ -152,6 +174,7 @@ test.describe('Inclusive price labels', () => {
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
         const card = registrationOptionCard(page, paidOption.title);
+        await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
         await expect(card.getByText('Incl. Tax')).toBeVisible();
       } finally {
@@ -195,6 +218,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/templates/${paidTemplate.id}`);
 
       const card = templateOptionCard(page, paidOption.title);
+      await expectCardReady(card);
       await expect(visiblePrice(card, paidOption.price)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),
@@ -233,6 +257,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/events/${paidEventId}`);
 
       const card = registrationOptionCard(page, paidOption.title);
+      await expectCardReady(card);
       await expect(visiblePrice(card, discountedPrice)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),

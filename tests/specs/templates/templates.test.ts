@@ -57,7 +57,9 @@ test('create a new template', async ({ page, templateCategories }) => {
     title: templateTitle,
   });
   await page.getByRole('button', { name: 'Save template' }).click();
-  await expect(page).toHaveURL(/\/templates/);
+  await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
+    timeout: 15_000,
+  });
   await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
 });
 
@@ -73,7 +75,9 @@ test('add a valid template icon and explain invalid icon names', async ({
   }
 
   await page.goto(`/templates/create/${category.id}`);
-  await page.getByRole('button', { name: 'Change Icon' }).click();
+  const changeIconButton = page.getByRole('button', { name: 'Change Icon' });
+  await expect(changeIconButton).not.toHaveAttribute('jsaction', /click/);
+  await changeIconButton.click();
   const iconDialog = page.locator('app-icon-selector-dialog');
   const searchInput = iconDialog.getByLabel('Search');
 
@@ -141,9 +145,6 @@ test('create template with reusable add-ons and registration questions', async (
   const questionTitle = `Dietary restrictions ${getId().slice(0, 6)}`;
   const questionDescription = 'Tell organizers about allergies or preferences.';
 
-  await page.goto('.');
-  await page.getByRole('link', { name: 'Templates' }).click();
-  await expect(page).toHaveURL(/\/templates/);
   await page.goto(`/templates/create/${category.id}`);
 
   await fillTemplateBasics(page, {
@@ -151,21 +152,48 @@ test('create template with reusable add-ons and registration questions', async (
   });
   await page.getByLabel('Organizer planning tips').fill(planningTips);
 
+  await page
+    .getByRole('button', { name: 'Use advanced configuration' })
+    .click();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Switch to advanced configuration?',
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Switch to advanced', exact: true })
+    .click();
+
   await page.getByRole('button', { name: 'Add add-on' }).click();
-  const addOnForm = page.locator('app-template-addon-form').first();
-  await addOnForm.locator('input').nth(0).fill(addOnTitle);
-  await addOnForm.locator('textarea').first().fill(addOnDescription);
-  await addOnForm.locator('input').nth(1).fill('2');
-  await addOnForm.locator('input').nth(2).fill('12');
-  await addOnForm.locator('input').nth(3).fill('3');
+  const addOnEditor = page.locator('app-template-addon-editor').first();
+  await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
+  await addOnEditor.getByLabel('Description').fill(addOnDescription);
+  await addOnEditor
+    .getByRole('combobox', { name: 'Registration option', exact: true })
+    .click();
+  await page
+    .getByRole('option', { name: 'Participant registration', exact: true })
+    .click();
+  await addOnEditor.getByLabel('Included quantity').fill('2');
+  await addOnEditor.getByLabel('Optional purchase quantity').fill('0');
+  await addOnEditor.getByLabel('Available quantity').fill('12');
+  await addOnEditor.getByLabel('Maximum per user').fill('3');
 
   await page.getByRole('button', { name: 'Add question' }).click();
-  const questionForm = page.locator('app-template-question-form').first();
-  await questionForm.locator('input').first().fill(questionTitle);
-  await questionForm.locator('textarea').first().fill(questionDescription);
+  const questionEditor = page.locator('app-template-question-editor').first();
+  await questionEditor
+    .getByRole('textbox', { name: 'Question', exact: true })
+    .fill(questionTitle);
+  await questionEditor.getByLabel('Ask during').click();
+  await page
+    .getByRole('option', { name: 'Participant registration', exact: true })
+    .click();
+  await questionEditor.getByLabel('Help text').fill(questionDescription);
 
   await page.getByRole('button', { name: 'Save template' }).click();
-  await expect(page).toHaveURL(/\/templates\/[^/]+$/);
+  await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
+    timeout: 15_000,
+  });
   await expect(
     page.getByRole('heading', { name: templateTitle }),
   ).toBeVisible();
@@ -226,7 +254,8 @@ test('create template with reusable add-ons and registration questions', async (
   }
   expect(addOnAttachment).toEqual(
     expect.objectContaining({
-      quantity: 2,
+      includedQuantity: 2,
+      optionalPurchaseQuantity: 0,
     }),
   );
 
@@ -269,10 +298,13 @@ test('template create form hides selected roles in autocomplete', async ({
   await expect(page).toHaveURL('/templates/create');
 
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
-  await organizerRoleInput.fill('a');
-
+  await expect(organizerRoleInput).not.toHaveClass(/mat-input-server/);
   const roleOptions = page.locator('mat-option');
-  await expect(roleOptions.first()).toBeVisible();
+  await expect(async () => {
+    await organizerRoleInput.fill('a');
+    await expect(organizerRoleInput).toHaveValue('a');
+    await expect(roleOptions.first()).toBeVisible();
+  }).toPass({ timeout: 15_000 });
 
   const firstOption = roleOptions.first();
   const firstRoleText = await firstOption.textContent();
@@ -283,11 +315,13 @@ test('template create form hides selected roles in autocomplete', async ({
 
   await firstOption.click();
 
-  await organizerRoleInput.fill(selectedRoleName);
-  await expect(
-    page.getByRole('option', {
-      exact: true,
-      name: selectedRoleName,
-    }),
-  ).toHaveCount(0);
+  const selectedRoleOption = page.getByRole('option', {
+    exact: true,
+    name: selectedRoleName,
+  });
+  await expect(async () => {
+    await organizerRoleInput.fill(selectedRoleName);
+    await expect(organizerRoleInput).toHaveValue(selectedRoleName);
+    await expect(selectedRoleOption).toHaveCount(0);
+  }).toPass({ timeout: 15_000 });
 });

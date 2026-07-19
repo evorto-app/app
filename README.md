@@ -51,7 +51,14 @@ For large multi-phase changes, keep an assembly branch plus one child branch per
 We use Knope for release notes.
 
 - Always add a change file in `.changeset/*.md` for release-relevant work.
+- Target the single package as `default` in change-file frontmatter, followed by
+  the appropriate `patch`, `minor`, or `major` change type.
 - Do not rely on conventional commits or PR titles as release documentation.
+- Knope Bot prepares the version, changelog, and GitHub draft in the
+  `knope/release` pull request. After that pull request merges, the release
+  workflow publishes only the exact draft whose tag points to the merged commit
+  and only after production provider certification passes. Do not manually
+  publish the draft or run a second release command around this gate.
 
 ## Development server
 
@@ -86,6 +93,80 @@ bun run build:app
 ```
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+
+## Mandatory local CI gate
+
+Before any push, PR update, or other action that can trigger CI, the exact local
+equivalent of every triggered CI suite must pass completely. Run the canonical,
+unfiltered commands below against the commit that will be pushed:
+
+```bash
+bun install --frozen-lockfile
+bun run release:validate
+bun run format:write
+bun run format:check
+bun run lint
+git diff --exit-code
+test -z "$(git status --porcelain=v1)"
+bun run test:unit:server
+bun run test:unit
+bun run test:integration:postgres:local
+bun run build:app
+bun run infra:check
+bun run image:security:local
+bun run test:e2e
+bun run test:e2e:docs
+```
+
+Every collected test must pass with zero skips, todos, fixmes, expected
+failures, retries/flakes, interruptions, or focused tests. Missing services,
+credentials, environment variables, or local tools block the gate; they are not
+reasons to defer a suite to CI. Commands with forwarded file, filter, project,
+shard, `--changed`, or reporter arguments are useful diagnostics but never
+satisfy the final gate. See [QUALITY.md](QUALITY.md) for the done criteria and
+[tests/README.md](tests/README.md) for the disposable PostgreSQL prerequisite.
+The infrastructure commands validate and scan both Terraform roots, then build,
+inspect, inventory, and vulnerability-scan the real Linux/amd64 runtime image.
+
+The block above is the normal pull-request baseline. Any caller-forwarded
+selector beyond a canonical package script that reduces collection is
+diagnostic-only, including file arguments, `--filter`, `--grep`,
+`--grep-invert`, `--include`, `--last-failed`, `--related`, project, shard,
+`--changed`, or reporter overrides. Before any push, PR update, merge, or
+release that triggers provider certification, the local provider gate requires
+both commands, in this order:
+
+```bash
+bun run test:e2e:integration
+bun run test:e2e:live-esncard:release
+```
+
+The integration command requires the approved Auth0 Management and Google Maps
+credentials. The second command requires both protected ESNcard provider
+identifiers—one active and one permanently expired—and certifies only the
+ESNcard provider portion. Both runs must pass entirely with the same
+zero-failure, zero-skip, zero-todo, zero-fixme,
+zero-expected-failure, zero-retry/flake, zero-interruption, and zero-focused-test
+rule before CI is attempted.
+
+The **Production Provider Certification** workflow is configured to repeat both
+provider runs behind the `esncard-release-certification` GitHub environment once
+that environment is provisioned and protected. The baseline E2E secret set and
+certification environment supply a test-mode `STRIPE_TEST_API_KEY`, which is
+mapped to the application's `STRIPE_API_KEY` name only inside test steps.
+Production Stripe credentials remain separate and must be exposed only to the
+operational command that requires them.
+
+Stripe tax-rate metadata always belongs to a non-null connected account. The
+fresh target schema enforces that shape directly, while server writers share the
+tenant-row serialization lock with account rotation. Legacy tax rates must be
+provider-verified and written with their account ownership by the separate data
+transfer; there is no nullable-row rollout or production backfill command.
+
+The final Playwright runs must exercise the exact checkout being pushed. Stop
+an unknown reused server and let the gate own a fresh stack, or start the exact
+checkout yourself and verify its provenance; a successful `/readyz` response
+alone does not prove commit identity.
 
 ## Running unit tests
 

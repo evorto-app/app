@@ -1,11 +1,8 @@
 import { Context, Effect, Layer } from 'effect';
 
 import { authConfig, type AuthConfig } from './auth-config';
-import {
-  type CloudflareImagesConfigState,
-  cloudflareImagesStateConfig,
-} from './cloudflare-images-config';
 import { databaseConfig, type DatabaseConfig } from './database-config';
+import { deploymentConfig, type DeploymentConfig } from './deployment-config';
 import {
   type ObjectStorageConfigState,
   objectStorageStateConfig,
@@ -19,8 +16,8 @@ import {
 
 export interface RuntimeConfigShape {
   auth: AuthConfig;
-  cloudflareImages: CloudflareImagesConfigState;
   database: DatabaseConfig;
+  deployment: DeploymentConfig;
   objectStorage: ObjectStorageConfigState;
   server: ServerConfig;
   stripe: StripeConfig;
@@ -30,8 +27,8 @@ export interface RuntimeConfigShape {
 const runtimeConfigEffect = Effect.gen(function* () {
   return {
     auth: yield* authConfig,
-    cloudflareImages: yield* cloudflareImagesStateConfig,
     database: yield* databaseConfig,
+    deployment: yield* deploymentConfig,
     objectStorage: yield* objectStorageStateConfig,
     server: yield* serverConfig,
     stripe: yield* stripeConfig,

@@ -19,6 +19,7 @@ const EVENTS_GROUP = {
   key: 'events',
   permissions: [
     'changeListing',
+    'cancelRegistrations',
     'create',
     'editAll',
     'review',
@@ -121,18 +122,23 @@ type UsersPermissions =
 const PERMISSION_METADATA = {
   'admin:changeSettings': {
     description:
-      'Update tenant-wide operational settings such as theme, receipt countries, and discount provider configuration.',
-    label: 'Change tenant settings',
+      'Update organization-wide settings such as theme, receipt countries, and discount card configuration.',
+    label: 'Change organization settings',
   },
   'admin:manageRoles': {
     description:
-      'Create, update, and delete tenant roles and the permissions granted by those roles.',
+      'Create, update, and delete organization roles and the permissions granted by those roles.',
     label: 'Manage roles',
   },
   'admin:tax': {
     description:
-      'Manage tenant tax rates used for paid registration options and Stripe tax-rate imports.',
+      'Manage organization tax rates used for paid registration options and Stripe tax-rate imports.',
     label: 'Manage tax rates',
+  },
+  'events:cancelRegistrations': {
+    description:
+      'Cancel attendee registrations or unredeemed event add-ons and choose whether eligible add-on purchases should be refunded.',
+    label: 'Cancel registrations and add-ons',
   },
   'events:changeListing': {
     description:
@@ -141,17 +147,17 @@ const PERMISSION_METADATA = {
   },
   'events:create': {
     description:
-      'Create events from scratch or from templates for the current tenant.',
+      'Create events from scratch or from templates for the current organization.',
     label: 'Create events',
   },
   'events:editAll': {
     description:
-      'Edit tenant events even when the current user is not the event creator or organizer.',
+      'Edit organization events even when the current user is not the event creator or organizer.',
     label: 'Edit all events',
   },
   'events:organizeAll': {
     description:
-      'Open organizer views, manage event receipts, and check in attendees for any tenant event.',
+      'Open organizer views, manage event receipts, and check in attendees for any organization event.',
     label: 'Organize all events',
   },
   'events:review': {
@@ -170,7 +176,7 @@ const PERMISSION_METADATA = {
   },
   'events:viewPublic': {
     description:
-      'View approved public event details and event lists for the current tenant.',
+      'View approved public event details and event lists for the current organization.',
     label: 'View public events',
   },
   'finance:approveReceipts': {
@@ -180,12 +186,12 @@ const PERMISSION_METADATA = {
   },
   'finance:createTransactions': {
     description:
-      'Create manual finance transactions for tenant bookkeeping workflows.',
+      'Create manual finance transactions for organization bookkeeping.',
     label: 'Create transactions',
   },
   'finance:manageReceipts': {
     description:
-      'Manage event receipts broadly, including receipt submission support for tenant events.',
+      'Manage event receipts broadly, including receipt submission support for organization events.',
     label: 'Manage receipts',
   },
   'finance:refundReceipts': {
@@ -195,13 +201,13 @@ const PERMISSION_METADATA = {
   },
   'finance:viewTransactions': {
     description:
-      'View tenant finance transactions, amounts, payment methods, fees, and comments.',
+      'View organization finance transactions, amounts, payment methods, fees, and comments.',
     label: 'View transactions',
   },
   'internal:viewInternalPages': {
     description:
-      'Open internal diagnostics and development-only pages when they are available.',
-    label: 'View internal pages',
+      'Open Members Hub to see organization roles and members that are marked for display there.',
+    label: 'View Members Hub',
   },
   'templates:create': {
     description:
@@ -209,7 +215,8 @@ const PERMISSION_METADATA = {
     label: 'Create templates',
   },
   'templates:delete': {
-    description: 'Delete reusable event templates from the current tenant.',
+    description:
+      'Delete reusable event templates from the current organization.',
     label: 'Delete templates',
   },
   'templates:editAll': {
@@ -229,12 +236,12 @@ const PERMISSION_METADATA = {
   },
   'users:assignRoles': {
     description:
-      'Assign any existing tenant role to any tenant user, including yourself. Treat this as full tenant-administrator authority because assigned roles can grant every tenant capability.',
-    label: 'Assign all user roles (tenant admin)',
+      'Assign any existing organization role to any organization member, including yourself. Treat this as full organization-administrator authority because assigned roles can grant every organization permission.',
+    label: 'Assign all user roles (organization admin)',
   },
   'users:viewAll': {
     description:
-      'View the tenant user list, including profile names, email addresses, and role names.',
+      'View the organization member list, including profile names, email addresses, and role names.',
     label: 'View all users',
   },
 } satisfies Record<
@@ -263,7 +270,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     icon: faLock,
     key: INTERNAL_GROUP.key,
-    label: 'Internal',
+    label: 'Members Hub',
     permissions: INTERNAL_GROUP.permissions.map((perm) =>
       permissionMeta(`${INTERNAL_GROUP.key}:${perm}` as TenantRolePermission),
     ),

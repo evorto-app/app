@@ -19,15 +19,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faEdit } from '@fortawesome/duotone-regular-svg-icons';
-import { injectMutation } from '@tanstack/angular-query-experimental';
 import { Editor } from '@tiptap/core';
-import FileHandler from '@tiptap/extension-file-handler';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
-
-import { AppRpc } from '../../../../core/effect-rpc-angular-client';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -164,10 +160,6 @@ export class EditorComponent implements OnDestroy {
     const field = fieldTree();
     return field.disabled() || field.readonly();
   });
-  protected readonly pendingUploads = signal(0);
-
-  protected readonly isUploading = computed(() => this.pendingUploads() > 0);
-
   protected readonly textStyleOptions = [
     { label: 'Paragraph', value: 'paragraph' },
     { label: 'Heading 1', value: 'h1' },
@@ -177,8 +169,6 @@ export class EditorComponent implements OnDestroy {
     { label: 'Heading 5', value: 'h5' },
     { label: 'Heading 6', value: 'h6' },
   ] as const;
-
-  protected readonly uploadErrorMessage = signal('');
 
   private readonly editorContainer =
     viewChild<ElementRef<HTMLDivElement>>('editorContainer');
@@ -228,20 +218,6 @@ export class EditorComponent implements OnDestroy {
         TableKit.configure({
           table: { resizable: true },
         }),
-        FileHandler.configure({
-          allowedMimeTypes: [
-            'image/gif',
-            'image/jpeg',
-            'image/png',
-            'image/webp',
-          ],
-          onDrop: (editor, files, position) => {
-            void this.handleImageFiles(editor, files, position);
-          },
-          onPaste: (editor, files) => {
-            void this.handleImageFiles(editor, files);
-          },
-        }),
       ],
       onBlur: () => {
         fieldTree().markAsDirty();
@@ -260,15 +236,6 @@ export class EditorComponent implements OnDestroy {
       },
     });
   });
-
-  private readonly rpc = AppRpc.injectClient();
-
-  private readonly createImageUploadMutation = injectMutation(() =>
-    this.rpc.editorMedia.createImageDirectUpload.mutationOptions(),
-  );
-
-  private readonly fileInput =
-    viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   private readonly syncEditorStateEffect = effect(() => {
     const fieldTree = this.control();
@@ -340,29 +307,6 @@ export class EditorComponent implements OnDestroy {
       .focus()
       .insertTable({ cols: 3, rows: 3, withHeaderRow: true })
       .run();
-  }
-
-  protected onFileInputChange(event: Event): void {
-    const target = event.target as HTMLInputElement | null;
-    const files = target?.files;
-
-    if (!files || !this.editor) {
-      return;
-    }
-
-    void this.handleImageFiles(this.editor, [...files]);
-
-    if (target) {
-      target.value = '';
-    }
-  }
-
-  protected openImagePicker(): void {
-    if (this.isReadonly()) {
-      return;
-    }
-
-    this.fileInput()?.nativeElement.click();
   }
 
   protected redo(): void {
@@ -440,126 +384,5 @@ export class EditorComponent implements OnDestroy {
 
   protected undo(): void {
     this.editor?.chain().focus().undo().run();
-  }
-
-  private async handleImageFiles(
-    editor: Editor,
-    files: File[],
-    position?: number,
-  ): Promise<void> {
-    if (this.isReadonly()) {
-      return;
-    }
-
-    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-    if (imageFiles.length === 0) {
-      return;
-    }
-
-    this.uploadErrorMessage.set('');
-
-    for (const file of imageFiles) {
-      await this.uploadAndInsertImage(editor, file, position);
-    }
-  }
-
-  private insertImageAtPosition(
-    editor: Editor,
-    source: string,
-    alt: string,
-    position?: number,
-  ): void {
-    if (typeof position === 'number') {
-      editor
-        .chain()
-        .focus()
-        .setTextSelection(position)
-        .setImage({ alt, src: source })
-        .run();
-      return;
-    }
-
-    editor.chain().focus().setImage({ alt, src: source }).run();
-  }
-
-  private removeImageBySource(editor: Editor, source: string): void {
-    const { state } = editor;
-    let transaction = state.tr;
-
-    state.doc.descendants((node, pos) => {
-      if (node.type.name === 'image' && node.attrs['src'] === source) {
-        transaction = transaction.delete(pos, pos + node.nodeSize);
-      }
-    });
-
-    if (transaction.docChanged) {
-      editor.view.dispatch(transaction);
-    }
-  }
-
-  private replaceImageSource(
-    editor: Editor,
-    fromSource: string,
-    toSource: string,
-  ): void {
-    const { state } = editor;
-    let transaction = state.tr;
-
-    state.doc.descendants((node, pos) => {
-      if (node.type.name !== 'image' || node.attrs['src'] !== fromSource) {
-        return;
-      }
-
-      transaction = transaction.setNodeMarkup(pos, undefined, {
-        ...node.attrs,
-        src: toSource,
-      });
-    });
-
-    if (transaction.docChanged) {
-      editor.view.dispatch(transaction);
-    }
-  }
-
-  private async uploadAndInsertImage(
-    editor: Editor,
-    file: File,
-    position?: number,
-  ): Promise<void> {
-    const blobUrl = URL.createObjectURL(file);
-    this.pendingUploads.update((value) => value + 1);
-
-    try {
-      this.insertImageAtPosition(editor, blobUrl, file.name, position);
-
-      const payload = await this.createImageUploadMutation.mutateAsync({
-        fileName: file.name,
-        fileSizeBytes: file.size,
-        mimeType: file.type,
-      });
-
-      const uploadBody = new FormData();
-      uploadBody.append('file', file);
-
-      const uploadResponse = await fetch(payload.uploadUrl, {
-        body: uploadBody,
-        method: 'POST',
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error(
-          `Image upload failed with status ${uploadResponse.status}`,
-        );
-      }
-
-      this.replaceImageSource(editor, blobUrl, payload.deliveryUrl);
-    } catch (error) {
-      this.removeImageBySource(editor, blobUrl);
-      this.uploadErrorMessage.set('Image upload failed. Please try again.');
-      console.error('Image upload failed', error);
-    } finally {
-      URL.revokeObjectURL(blobUrl);
-      this.pendingUploads.update((value) => Math.max(0, value - 1));
-    }
   }
 }

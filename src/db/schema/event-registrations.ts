@@ -1,11 +1,13 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  foreignKey,
   index,
   integer,
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -15,6 +17,19 @@ import { eventRegistrationOptions } from './event-registration-options';
 import { discountTypes, registrationStatus } from './global-enums';
 import { modelOfTenant } from './model';
 import { users } from './users';
+
+export const activeEventRegistrationUniqueIndexName =
+  'event_registrations_active_user_event_unique';
+export const eventRegistrationEventIdentityUniqueConstraintName =
+  'event_registrations_id_event_unique';
+export const eventRegistrationEventTenantForeignKeyName =
+  'event_registrations_event_tenant_fk';
+export const eventRegistrationOptionEventForeignKeyName =
+  'event_registrations_option_event_fk';
+export const eventRegistrationTenantIdentityUniqueConstraintName =
+  'event_registrations_id_tenant_unique';
+export const eventRegistrationPurchaseOwnerUniqueConstraintName =
+  'event_registrations_purchase_owner_unique';
 
 export const eventRegistrations = pgTable(
   'event_registrations',
@@ -43,14 +58,43 @@ export const eventRegistrations = pgTable(
       .notNull()
       .references(() => users.id),
   },
-  (table) => ({
-    activeByTenantUserIndex: index('event_registrations_active_tenant_user_idx')
+  (table) => [
+    foreignKey({
+      columns: [table.eventId, table.tenantId],
+      foreignColumns: [eventInstances.id, eventInstances.tenantId],
+      name: eventRegistrationEventTenantForeignKeyName,
+    }),
+    unique(eventRegistrationEventIdentityUniqueConstraintName).on(
+      table.id,
+      table.eventId,
+    ),
+    unique(eventRegistrationTenantIdentityUniqueConstraintName).on(
+      table.id,
+      table.tenantId,
+    ),
+    unique('event_registrations_id_option_unique').on(
+      table.id,
+      table.registrationOptionId,
+    ),
+    index('event_registrations_active_tenant_user_idx')
       .on(table.tenantId, table.userId)
       .where(sql`${table.status} <> 'CANCELLED'`),
-    oneActiveRegistrationPerUserAndEvent: uniqueIndex(
-      'event_registrations_active_user_event_unique',
-    )
+    unique(eventRegistrationPurchaseOwnerUniqueConstraintName).on(
+      table.id,
+      table.eventId,
+      table.registrationOptionId,
+      table.tenantId,
+    ),
+    uniqueIndex(activeEventRegistrationUniqueIndexName)
       .on(table.eventId, table.userId)
       .where(sql`${table.status} <> 'CANCELLED'`),
-  }),
+    foreignKey({
+      columns: [table.registrationOptionId, table.eventId],
+      foreignColumns: [
+        eventRegistrationOptions.id,
+        eventRegistrationOptions.eventId,
+      ],
+      name: eventRegistrationOptionEventForeignKeyName,
+    }),
+  ],
 );

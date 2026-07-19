@@ -1,0 +1,498 @@
+name: Promote Scaleway production
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_manifest_key:
+        description: Immutable successful staging manifest object key
+        required: true
+        type: string
+      confirmation:
+        description: Type promote-alpha to request protected-environment approval
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scaleway-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote accepted staging digest
+    if: vars.PRODUCTION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: scaleway-production
+    env:
+      SCW_DEFAULT_ORGANIZATION_ID: ${{ vars.SCW_ORGANIZATION_ID }}
+      SCW_DEFAULT_REGION: fr-par
+      SCW_DEFAULT_ZONE: fr-par-1
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+      TF_VAR_application_bucket_console_user_ids: ${{ vars.APPLICATION_BUCKET_CONSOLE_USER_IDS }}
+      TF_VAR_bucket_suffix: ${{ vars.BUCKET_SUFFIX }}
+      TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_organization_id: ${{ vars.SCW_ORGANIZATION_ID }}
+      TF_VAR_production_enabled: "true"
+      TF_VAR_production_runtime_database_password_version: ${{ vars.PRODUCTION_RUNTIME_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_production_schema_database_password_version: ${{ vars.PRODUCTION_SCHEMA_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_staging_runtime_database_password_version: ${{ vars.STAGING_RUNTIME_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_staging_schema_database_password_version: ${{ vars.STAGING_SCHEMA_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_tem_project_id: ${{ vars.SCW_TEM_PROJECT_ID }}
+      TF_VAR_validate_tem_dns: "true"
+    steps:
+      - name: Validate explicit production enablement and protected configuration
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          PROTECTED_SECRET_VALUES: ${{ secrets.ROLE_SECRET_VALUES_JSON }}
+          RUNTIME_DATABASE_PASSWORD: ${{ secrets.PRODUCTION_RUNTIME_DATABASE_PASSWORD }}
+          SCHEMA_DATABASE_PASSWORD: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+          TF_VAR_staging_runtime_database_password: ${{ secrets.STAGING_RUNTIME_DATABASE_PASSWORD }}
+          TF_VAR_staging_schema_database_password: ${{ secrets.STAGING_SCHEMA_DATABASE_PASSWORD }}
+        run: |
+          if [ "${CONFIRMATION}" != "promote-alpha" ]; then
+            echo "::error::Production promotion confirmation did not match promote-alpha"
+            exit 1
+          fi
+          for variable_name in \
+            AWS_ACCESS_KEY_ID \
+            AWS_SECRET_ACCESS_KEY \
+            CLOUDFLARE_API_TOKEN \
+            PROTECTED_SECRET_VALUES \
+            RUNTIME_DATABASE_PASSWORD \
+            SCHEMA_DATABASE_PASSWORD \
+            SCW_ACCESS_KEY \
+            SCW_DEFAULT_ORGANIZATION_ID \
+            SCW_SECRET_KEY \
+            TERRAFORM_STATE_BUCKET \
+            TF_VAR_alert_email \
+            TF_VAR_application_bucket_console_user_ids \
+            TF_VAR_bucket_suffix \
+            TF_VAR_cloudflare_zone_id \
+            TF_VAR_production_runtime_database_password_version \
+            TF_VAR_production_schema_database_password_version \
+            TF_VAR_staging_runtime_database_password_version \
+            TF_VAR_staging_runtime_database_password \
+            TF_VAR_staging_schema_database_password_version \
+            TF_VAR_staging_schema_database_password \
+            TF_VAR_tem_project_id; do
+            if [ -z "${!variable_name}" ]; then
+              echo "::error::Missing required protected production configuration: ${variable_name}"
+              exit 1
+            fi
+          done
+          command -v aws >/dev/null
+          jq --exit-status 'type == "object"' <<<"${PROTECTED_SECRET_VALUES}" >/dev/null
+
+      - name: Fetch and validate the accepted staging manifest
+        id: staging
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          MANIFEST_KEY: ${{ inputs.staging_manifest_key }}
+          STAGING_METADATA_BUCKET: evorto-staging-deployment-${{ vars.BUCKET_SUFFIX }}
+        run: |
+          if [[ ! "${MANIFEST_KEY}" =~ ^deployments/staging/[0-9a-f]{40}/[0-9]+-[0-9]+\.json$ ]]; then
+            echo "::error::Production accepts only immutable staging deployment manifest keys"
+            exit 1
+          fi
+          mkdir -p deployment
+          aws s3 cp \
+            "s3://${STAGING_METADATA_BUCKET}/${MANIFEST_KEY}" \
+            deployment/staging-manifest.json \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --only-show-errors
+          jq --exit-status \
+            '.status == "succeeded"
+              and .environment == "staging"
+              and (.revision | test("^[0-9a-f]{40}$"))
+              and (.digest | test("^sha256:[0-9a-f]{64}$"))
+              and (.schemaHash | test("^[0-9a-f]{64}$"))
+              and (.image | startswith("rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:"))
+              and (.sourceMapsKey | test("^source-maps/[0-9a-f]{40}/[0-9a-f]{64}\\.tar\\.gz$"))
+              and (.sbomKey | test("^sbom/[0-9a-f]{40}/[0-9a-f]{64}\\.spdx\\.json$"))' \
+            deployment/staging-manifest.json >/dev/null
+
+          revision="$(jq --raw-output .revision deployment/staging-manifest.json)"
+          digest="$(jq --raw-output .digest deployment/staging-manifest.json)"
+          image="$(jq --raw-output .image deployment/staging-manifest.json)"
+          schema_hash="$(jq --raw-output .schemaHash deployment/staging-manifest.json)"
+          {
+            echo "digest=${digest}"
+            echo "image=${image}"
+            echo "revision=${revision}"
+            echo "schema_hash=${schema_hash}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout the exact accepted staging revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          clean: false
+          persist-credentials: false
+          ref: ${{ steps.staging.outputs.revision }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: Install checksum-verified Scaleway CLI
+        run: |
+          ops/scaleway/install-cli.sh "${RUNNER_TEMP}/scw"
+          echo "SCW_CLI=${RUNNER_TEMP}/scw" >> "${GITHUB_ENV}"
+
+      - name: Initialize remote state
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+        run: |
+          terraform -chdir=infrastructure/scaleway init \
+            -backend-config="bucket=${TERRAFORM_STATE_BUCKET}" \
+            -input=false \
+            -reconfigure
+
+      - name: Reconcile disabled production project and registry bootstrap
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          TF_VAR_production_runtime_database_password: ${{ secrets.PRODUCTION_RUNTIME_DATABASE_PASSWORD }}
+          TF_VAR_production_schema_database_password: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
+          TF_VAR_production_container_image: rg.fr-par.scw.cloud/evorto-production/evorto@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          TF_VAR_staging_runtime_database_password: ${{ secrets.STAGING_RUNTIME_DATABASE_PASSWORD }}
+          TF_VAR_staging_schema_database_password: ${{ secrets.STAGING_SCHEMA_DATABASE_PASSWORD }}
+          TF_VAR_staging_container_image: ${{ steps.staging.outputs.image }}
+        run: |
+          terraform -chdir=infrastructure/scaleway apply \
+            -auto-approve \
+            -input=false \
+            -target='scaleway_account_project.production[0]' \
+            -target='module.production[0].scaleway_registry_namespace.application'
+
+      - name: Login to private Scaleway registry
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          printf '%s' "${REGISTRY_PASSWORD}" \
+            | docker login rg.fr-par.scw.cloud --username nologin --password-stdin
+
+      - name: Copy the accepted digest without rebuilding
+        id: image
+        env:
+          SOURCE_DIGEST: ${{ steps.staging.outputs.digest }}
+          SOURCE_IMAGE: ${{ steps.staging.outputs.image }}
+          REVISION: ${{ steps.staging.outputs.revision }}
+        run: |
+          target_tag="rg.fr-par.scw.cloud/evorto-production/evorto:sha-${REVISION}"
+          docker buildx imagetools create \
+            --tag "${target_tag}" \
+            "${SOURCE_IMAGE}"
+          target_digest="sha256:$(
+            docker buildx imagetools inspect --raw "${target_tag}" \
+              | sha256sum \
+              | awk '{print $1}'
+          )"
+          if [ "${target_digest}" != "${SOURCE_DIGEST}" ]; then
+            echo "::error::Production registry copy changed the accepted image digest"
+            exit 1
+          fi
+
+          target_reference="rg.fr-par.scw.cloud/evorto-production/evorto@${target_digest}"
+          docker pull --platform linux/amd64 "${target_reference}"
+          bash ops/scaleway/verify-runtime-image.sh "${target_reference}"
+          packaged_schema_hash="$(
+            docker run \
+              --platform linux/amd64 \
+              --rm \
+              --entrypoint sha256sum \
+              "${target_reference}" \
+              /app/dist/evorto/ops/schema.mjs \
+              | awk '{print $1}'
+          )"
+          if [ "${packaged_schema_hash}" != "${{ steps.staging.outputs.schema_hash }}" ]; then
+            echo "::error::Production image schema hash differs from the staging manifest"
+            exit 1
+          fi
+          {
+            echo "digest=${target_digest}"
+            echo "reference=${target_reference}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Reconcile complete production infrastructure
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          TF_VAR_production_container_image: ${{ steps.image.outputs.reference }}
+          TF_VAR_production_runtime_database_password: ${{ secrets.PRODUCTION_RUNTIME_DATABASE_PASSWORD }}
+          TF_VAR_production_schema_database_password: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
+          TF_VAR_staging_runtime_database_password: ${{ secrets.STAGING_RUNTIME_DATABASE_PASSWORD }}
+          TF_VAR_staging_schema_database_password: ${{ secrets.STAGING_SCHEMA_DATABASE_PASSWORD }}
+          TF_VAR_staging_container_image: ${{ steps.staging.outputs.image }}
+        run: |
+          terraform -chdir=infrastructure/scaleway plan \
+            -input=false \
+            -out="${RUNNER_TEMP}/production.tfplan"
+          terraform -chdir=infrastructure/scaleway apply \
+            -auto-approve \
+            -input=false \
+            "${RUNNER_TEMP}/production.tfplan"
+          terraform -chdir=infrastructure/scaleway output -json production > deployment/platform.json
+          terraform -chdir=infrastructure/scaleway output -json production_database > deployment/database.json
+
+      - name: Reconcile production role-scoped Secret Manager values
+        env:
+          PROTECTED_SECRET_VALUES: ${{ secrets.ROLE_SECRET_VALUES_JSON }}
+          RUNTIME_DATABASE_PASSWORD: ${{ secrets.PRODUCTION_RUNTIME_DATABASE_PASSWORD }}
+          SCHEMA_DATABASE_PASSWORD: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          umask 077
+          printf '%s' "${PROTECTED_SECRET_VALUES}" > deployment/protected-secret-values.json
+          ops/scaleway/sync-secret-values.sh \
+            production \
+            deployment/platform.json \
+            deployment/database.json \
+            deployment/protected-secret-values.json
+          rm -f deployment/protected-secret-values.json deployment/database.json
+
+      - name: Copy private source maps and SBOM from accepted staging evidence
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          STAGING_METADATA_BUCKET: evorto-staging-deployment-${{ vars.BUCKET_SUFFIX }}
+        run: |
+          source_maps_key="$(jq --raw-output .sourceMapsKey deployment/staging-manifest.json)"
+          sbom_key="$(jq --raw-output .sbomKey deployment/staging-manifest.json)"
+          production_bucket="$(jq --raw-output .deployment_metadata_bucket deployment/platform.json)"
+          mkdir -p deployment/evidence
+          aws s3 cp \
+            "s3://${STAGING_METADATA_BUCKET}/${source_maps_key}" \
+            deployment/evidence/source-maps.tar.gz \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --only-show-errors
+          aws s3 cp \
+            "s3://${STAGING_METADATA_BUCKET}/${sbom_key}" \
+            deployment/evidence/sbom.spdx.json \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --only-show-errors
+          aws s3 cp \
+            deployment/evidence/source-maps.tar.gz \
+            "s3://${production_bucket}/${source_maps_key}" \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --only-show-errors
+          aws s3 cp \
+            deployment/evidence/sbom.spdx.json \
+            "s3://${production_bucket}/${sbom_key}" \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --only-show-errors
+
+      - name: Capture prior successful production deployment for rollback
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          metadata_bucket="$(jq --raw-output .deployment_metadata_bucket deployment/platform.json)"
+          aws s3 cp \
+            "s3://${metadata_bucket}/deployments/production/latest.json" \
+            deployment/previous.json \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --only-show-errors 2>/dev/null || rm -f deployment/previous.json
+
+      - name: Deploy production ops and apply only a stable safe schema plan
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+          REVISION: ${{ steps.staging.outputs.revision }}
+          SCHEMA_HASH: ${{ steps.staging.outputs.schema_hash }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          ops/scaleway/deploy-role.sh \
+            deployment/platform.json ops \
+            "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"
+
+          ops_endpoint="$(jq --raw-output .containers.ops.endpoint deployment/platform.json)"
+          explain_response="$(
+            ops/scaleway/invoke-private-container.sh \
+              "${ops_endpoint}" \
+              /internal/ops/schema-explain \
+              '{}'
+          )"
+          jq --exit-status \
+            --arg schema_hash "${SCHEMA_HASH}" \
+            '.safe == true and .schemaHash == $schema_hash' \
+            <<<"${explain_response}" >/dev/null
+          plan_digest="$(jq --raw-output .digest <<<"${explain_response}")"
+          apply_response="$(
+            ops/scaleway/invoke-private-container.sh \
+              "${ops_endpoint}" \
+              /internal/ops/schema-apply \
+              "$(jq --null-input --compact-output --arg plan_digest "${plan_digest}" '{ planDigest: $plan_digest }')"
+          )"
+          jq --exit-status \
+            --arg plan_digest "${plan_digest}" \
+            '.applied == true and .digest == $plan_digest' \
+            <<<"${apply_response}" >/dev/null
+
+      - name: Deploy production worker and web at the accepted digest
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+          REVISION: ${{ steps.staging.outputs.revision }}
+          SCHEMA_HASH: ${{ steps.staging.outputs.schema_hash }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          touch deployment/traffic-changed
+          ops/scaleway/deploy-role.sh \
+            deployment/platform.json worker \
+            "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"
+          ops/scaleway/deploy-role.sh \
+            deployment/platform.json web \
+            "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"
+
+      - name: Smoke the promoted production release
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+          REVISION: ${{ steps.staging.outputs.revision }}
+        run: |
+          health_body="$(curl --fail --silent --show-error https://alpha.evorto.app/healthz)"
+          jq --exit-status '.status == "ok"' <<<"${health_body}" >/dev/null
+          ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://alpha.evorto.app/readyz)"
+          test "${ready_status}" = "204"
+          version_body="$(curl --fail --silent --show-error https://alpha.evorto.app/version)"
+          jq --exit-status \
+            --arg revision "${REVISION}" \
+            --arg digest "${DIGEST}" \
+            '.environment == "production" and .revision == $revision and .imageDigest == $digest' \
+            <<<"${version_body}" >/dev/null
+          curl --fail --silent --show-error \
+            --header 'X-Forwarded-Host: attacker.invalid' \
+            https://alpha.evorto.app/ \
+            | grep --quiet '<app-root'
+          login_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://alpha.evorto.app/login)"
+          [[ "${login_status}" =~ ^30[12378]$ ]]
+          generated_endpoint="$(jq --raw-output .containers.web.endpoint deployment/platform.json)"
+          generated_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${generated_endpoint}")"
+          test "${generated_status}" = "404"
+
+      - name: Write append-only production deployment manifest
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+          REVISION: ${{ steps.staging.outputs.revision }}
+          SCHEMA_HASH: ${{ steps.staging.outputs.schema_hash }}
+          SOURCE_STAGING_MANIFEST_KEY: ${{ inputs.staging_manifest_key }}
+        run: |
+          timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          source_maps_key="$(jq --raw-output .sourceMapsKey deployment/staging-manifest.json)"
+          sbom_key="$(jq --raw-output .sbomKey deployment/staging-manifest.json)"
+          manifest_key="deployments/production/${REVISION}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          jq --null-input \
+            --arg digest "${DIGEST}" \
+            --arg image "${IMAGE_REFERENCE}" \
+            --arg revision "${REVISION}" \
+            --arg sbom_key "${sbom_key}" \
+            --arg schema_hash "${SCHEMA_HASH}" \
+            --arg source_maps_key "${source_maps_key}" \
+            --arg source_staging_manifest_key "${SOURCE_STAGING_MANIFEST_KEY}" \
+            --arg timestamp "${timestamp}" \
+            --arg workflow "${GITHUB_WORKFLOW}" \
+            --arg workflow_run_id "${GITHUB_RUN_ID}" \
+            --arg workflow_run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            '{
+              status: "succeeded",
+              environment: "production",
+              revision: $revision,
+              image: $image,
+              digest: $digest,
+              schemaHash: $schema_hash,
+              sourceMapsKey: $source_maps_key,
+              sbomKey: $sbom_key,
+              sourceStagingManifestKey: $source_staging_manifest_key,
+              workflow: $workflow,
+              workflowRunId: $workflow_run_id,
+              workflowRunAttempt: $workflow_run_attempt,
+              timestamp: $timestamp
+            }' > deployment/manifest.json
+          metadata_bucket="$(jq --raw-output .deployment_metadata_bucket deployment/platform.json)"
+          aws s3api put-object \
+            --bucket "${metadata_bucket}" \
+            --key "${manifest_key}" \
+            --body deployment/manifest.json \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --if-none-match '*' \
+            >/dev/null
+          aws s3api put-object \
+            --bucket "${metadata_bucket}" \
+            --key deployments/production/latest.json \
+            --body deployment/manifest.json \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            >/dev/null
+
+      - name: Upload production deployment evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scaleway-production-${{ steps.staging.outputs.revision }}
+          path: deployment/manifest.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Roll back production traffic roles on failure
+        if: failure()
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          if [ ! -f deployment/traffic-changed ]; then
+            echo "Traffic was not changed; no image rollback is required."
+            exit 0
+          fi
+          if [ ! -s deployment/previous.json ]; then
+            echo "::error::Traffic changed during the first production deployment and no previous manifest exists"
+            exit 1
+          fi
+          jq --exit-status \
+            '.status == "succeeded"
+              and (.revision | test("^[0-9a-f]{40}$"))
+              and (.digest | test("^sha256:[0-9a-f]{64}$"))
+              and (.schemaHash | test("^[0-9a-f]{64}$"))' \
+            deployment/previous.json >/dev/null
+          previous_image="$(jq --raw-output .image deployment/previous.json)"
+          previous_revision="$(jq --raw-output .revision deployment/previous.json)"
+          previous_digest="$(jq --raw-output .digest deployment/previous.json)"
+          previous_schema_hash="$(jq --raw-output .schemaHash deployment/previous.json)"
+          for role in ops worker web; do
+            ops/scaleway/deploy-role.sh \
+              deployment/platform.json "${role}" \
+              "${previous_image}" \
+              "${previous_revision}" \
+              "${previous_digest}" \
+              "${previous_schema_hash}"
+          done
+          rollback_version="$(curl --fail --silent --show-error https://alpha.evorto.app/version)"
+          jq --exit-status \
+            --arg revision "${previous_revision}" \
+            --arg digest "${previous_digest}" \
+            '.revision == $revision and .imageDigest == $digest' \
+            <<<"${rollback_version}" >/dev/null
+          echo "Database changes were intentionally left forward-only."

@@ -1,0 +1,167 @@
+<main class="grid gap-4 p-4 lg:p-0">
+  <header>
+    <h1 class="title-large">Member onboarding</h1>
+    <p class="body-medium text-on-surface-variant mt-1">
+      Publish the privacy policy and required questions shown before a user can
+      join or continue in this organization.
+    </p>
+  </header>
+
+  @if (settingsQuery.isPending()) {
+    <p role="status">Loading onboarding settings...</p>
+  } @else if (settingsQuery.isError()) {
+    <section
+      role="alert"
+      class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-4"
+    >
+      <p>Onboarding settings could not be loaded.</p>
+      <button
+        type="button"
+        mat-stroked-button
+        class="justify-self-start"
+        [disabled]="settingsQuery.isFetching()"
+        (click)="settingsQuery.refetch()"
+      >
+        {{ settingsQuery.isFetching() ? "Retrying..." : "Try again" }}
+      </button>
+    </section>
+  } @else if (settingsQuery.isSuccess()) {
+    <form class="grid gap-6" (submit)="save($event)">
+      <section class="bg-surface text-on-surface grid gap-4 rounded-xl p-4">
+        <div>
+          <h2 class="title-medium">Privacy policy</h2>
+          <p class="body-medium text-on-surface-variant mt-1">
+            Publish hosted text, an external HTTP or HTTPS link, or both. Each
+            changed version is retained with its author and publication time.
+          </p>
+        </div>
+
+        <div
+          class="bg-warning-container text-on-warning-container rounded-lg p-3"
+          role="note"
+        >
+          Publishing changed policy text or a changed link immediately requires
+          every member, including you, to accept the new version before
+          continuing in this organization.
+        </div>
+
+        <mat-form-field>
+          <mat-label>Privacy policy URL</mat-label>
+          <input
+            matInput
+            type="url"
+            placeholder="https://section.example.org/privacy"
+            [formField]="settingsForm.privacyPolicyUrl"
+          />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Privacy policy text</mat-label>
+          <textarea
+            matInput
+            rows="8"
+            [formField]="settingsForm.privacyPolicyText"
+          ></textarea>
+          @for (
+            error of settingsForm.privacyPolicyText().errors();
+            track error
+          ) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+      </section>
+
+      <section class="bg-surface text-on-surface grid gap-4 rounded-xl p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="title-medium">Required questions</h2>
+            <p class="body-medium text-on-surface-variant mt-1">
+              Short-text answers are limited to 250 characters. Selection
+              questions use one option per line.
+            </p>
+          </div>
+          <button type="button" mat-stroked-button (click)="addQuestion()">
+            <fa-duotone-icon [icon]="faPlus" class="mr-2" />
+            Add question
+          </button>
+        </div>
+
+        @for (
+          question of settingsForm.questions;
+          track question;
+          let questionIndex = $index
+        ) {
+          <article class="bg-surface-container-low grid gap-4 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+              <mat-form-field class="grow">
+                <mat-label>Question</mat-label>
+                <input matInput [formField]="question.prompt" />
+                @for (error of question.prompt().errors(); track error) {
+                  <mat-error>{{ error.message }}</mat-error>
+                }
+              </mat-form-field>
+              <button
+                type="button"
+                mat-icon-button
+                aria-label="Remove onboarding question"
+                (click)="removeQuestion(questionIndex)"
+              >
+                <fa-duotone-icon [icon]="faTrashCan" />
+              </button>
+            </div>
+
+            <mat-form-field>
+              <mat-label>Answer type</mat-label>
+              <mat-select [formField]="question.type">
+                <mat-option value="shortText">Short text</mat-option>
+                <mat-option value="selection">Selection list</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            @if (question.type().value() === "selection") {
+              <mat-form-field>
+                <mat-label>Selection options</mat-label>
+                <textarea
+                  matInput
+                  rows="4"
+                  placeholder="Option one&#10;Option two"
+                  [formField]="question.optionsText"
+                ></textarea>
+                <mat-hint
+                  >One per line; 2 to 20 unique options, up to 80 characters
+                  each</mat-hint
+                >
+                @if (
+                  question.optionsText().touched() &&
+                  question.optionsText().invalid()
+                ) {
+                  @for (error of question.optionsText().errors(); track error) {
+                    <mat-error>{{ error.message }}</mat-error>
+                  }
+                }
+              </mat-form-field>
+            }
+          </article>
+        } @empty {
+          <p class="body-medium text-on-surface-variant">
+            No organization-wide questions are configured. Privacy acceptance is
+            still required.
+          </p>
+        }
+      </section>
+
+      <button
+        type="submit"
+        mat-flat-button
+        class="justify-self-start"
+        [disabled]="
+          settingsForm().invalid() ||
+          settingsForm().submitting() ||
+          publishMutation.isPending()
+        "
+      >
+        {{ publishMutation.isPending() ? "Publishing..." : "Publish settings" }}
+      </button>
+    </form>
+  }
+</main>

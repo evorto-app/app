@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Polish finance receipts submission, approval, and refund flows

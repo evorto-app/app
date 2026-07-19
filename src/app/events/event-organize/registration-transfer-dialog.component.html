@@ -1,54 +1,308 @@
-<h1 mat-dialog-title>Transfer registration</h1>
-<mat-dialog-content class="grid gap-4">
-  <p class="text-on-surface-variant text-sm">
-    Current participant: {{ currentParticipantLabel() }}
-  </p>
+@if (selectedTarget() === null) {
+  <h2 mat-dialog-title>Choose the new participant</h2>
+  <mat-dialog-content class="grid gap-4">
+    <p class="text-on-surface-variant text-sm">
+      Transfer from {{ currentParticipantLabel() }}
+    </p>
 
-  <mat-form-field class="w-full">
-    <mat-label>Search eligible tenant members</mat-label>
-    <input
-      matInput
-      autocomplete="off"
-      placeholder="Name or email"
-      [formField]="searchForm.query"
-    />
-    <mat-hint>
-      Paid registrations still need manual refund or resale handling.
-    </mat-hint>
-  </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label>Search eligible organization members</mat-label>
+      <input
+        matInput
+        autocomplete="off"
+        placeholder="Name or email"
+        [formField]="searchForm.query"
+      />
+    </mat-form-field>
 
-  @if (transferTargetsQuery.isPending()) {
-    <div class="bg-surface-container rounded-lg p-4 text-sm">
-      Loading eligible members...
-    </div>
-  } @else if (transferTargetsQuery.isError()) {
-    <div class="bg-error-container text-on-error-container rounded-lg p-4">
-      Eligible members could not be loaded.
-    </div>
-  } @else if (transferTargetsQuery.data()?.length === 0) {
-    <div class="bg-surface-container rounded-lg p-4 text-sm">
-      No eligible transfer target found.
-    </div>
-  } @else {
-    <div class="grid max-h-80 gap-2 overflow-y-auto">
-      @for (target of transferTargetsQuery.data(); track target.id) {
+    <p class="text-on-surface-variant text-sm">
+      Choose a recipient. Evorto will review the complete ticket, current prices
+      and discounts, and any refund before anything changes. Direct transfer is
+      available only when the recipient owes nothing and the current owner needs
+      no refund.
+    </p>
+
+    @if (transferTargetsQuery.isPending()) {
+      <div class="bg-surface-container rounded-lg p-4 text-sm" role="status">
+        Loading eligible members...
+      </div>
+    } @else if (transferTargetsQuery.isError()) {
+      <div
+        class="bg-error-container text-on-error-container grid gap-3 rounded-lg p-4"
+        role="alert"
+      >
+        <p>Eligible members could not be loaded. Nothing has changed.</p>
         <button
           mat-stroked-button
           type="button"
-          class="h-auto! justify-start! py-3! text-left"
-          (click)="transferTo(target.id)"
+          class="justify-self-start"
+          (click)="transferTargetsQuery.refetch()"
+          [disabled]="transferTargetsQuery.isFetching()"
         >
-          <span class="grid">
-            <span>{{ target.firstName }} {{ target.lastName }}</span>
-            <span class="text-on-surface-variant text-xs">
-              {{ target.email }}
-            </span>
-          </span>
+          {{
+            transferTargetsQuery.isFetching()
+              ? "Trying again…"
+              : "Retry member search"
+          }}
         </button>
-      }
-    </div>
-  }
-</mat-dialog-content>
+      </div>
+    } @else if (transferTargetsQuery.data()?.length === 0) {
+      <div class="bg-surface-container rounded-lg p-4 text-sm" role="status">
+        No eligible organization member matched this search. Try another name or
+        email.
+      </div>
+    } @else {
+      <div
+        class="grid max-h-80 gap-2 overflow-y-auto"
+        aria-label="Eligible transfer recipients"
+      >
+        @for (target of transferTargetsQuery.data(); track target.id) {
+          <button
+            mat-stroked-button
+            type="button"
+            class="h-auto! justify-start! py-3! text-left"
+            (click)="selectTarget(target)"
+          >
+            <span class="grid">
+              <span>{{ target.firstName }} {{ target.lastName }}</span>
+              <span class="text-on-surface-variant text-xs">
+                {{ target.email }}
+              </span>
+            </span>
+          </button>
+        }
+      </div>
+    }
+  </mat-dialog-content>
+} @else {
+  <h2 mat-dialog-title>Review direct transfer</h2>
+  <mat-dialog-content class="@container grid gap-5">
+    @if (transferPreviewQuery.isPending()) {
+      <div class="bg-surface-container rounded-lg p-4 text-sm" role="status">
+        Checking the complete bundle, recipient price, and refund for the
+        current owner...
+      </div>
+    } @else if (transferPreviewQuery.isError()) {
+      <section
+        class="bg-error-container text-on-error-container grid gap-2 rounded-lg p-4"
+        role="alert"
+      >
+        <h3 class="title-medium">Transfer details could not be checked</h3>
+        <p class="text-sm">
+          Nothing changed. Refresh the details and try again.
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          (click)="transferPreviewQuery.refetch()"
+          [disabled]="transferPreviewQuery.isFetching()"
+        >
+          {{
+            transferPreviewQuery.isFetching()
+              ? "Checking again…"
+              : "Retry transfer review"
+          }}
+        </button>
+      </section>
+    } @else if (transferPreviewQuery.data(); as preview) {
+      <p class="text-on-surface-variant text-sm">
+        Nothing changes until you confirm. Prices and ticket history are checked
+        again at that point.
+      </p>
+
+      <section
+        class="grid gap-2"
+        aria-labelledby="transfer-participants-heading"
+      >
+        <h3 id="transfer-participants-heading" class="title-medium">
+          Participants
+        </h3>
+        <dl
+          class="divide-outline-variant divide-y border-y border-outline-variant"
+        >
+          <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">From</dt>
+            <dd class="text-sm">
+              {{ preview.source.firstName }} {{ preview.source.lastName }} ({{
+                preview.source.email
+              }})
+            </dd>
+          </div>
+          <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">To</dt>
+            <dd class="text-sm">
+              {{ preview.recipient.firstName }}
+              {{ preview.recipient.lastName }} ({{ preview.recipient.email }})
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="grid gap-2" aria-labelledby="transfer-bundle-heading">
+        <h3 id="transfer-bundle-heading" class="title-medium">Fixed bundle</h3>
+        <dl
+          class="divide-outline-variant divide-y border-y border-outline-variant"
+        >
+          <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">Registration</dt>
+            <dd class="text-sm">1 × {{ preview.registrationOption.title }}</dd>
+          </div>
+          <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">Guests</dt>
+            <dd class="grid gap-1 text-sm">
+              <span>
+                {{ preview.bundle.guestCount }} additional
+                {{ preview.bundle.guestCount === 1 ? "guest" : "guests" }}
+              </span>
+              <span class="text-on-surface-variant text-xs">
+                {{ preview.bundle.checkedInGuestCount }} of
+                {{ preview.bundle.guestCount }}
+                {{ preview.bundle.guestCount === 1 ? "guest" : "guests" }}
+                checked in
+              </span>
+            </dd>
+          </div>
+          <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">
+              Participant check-in
+            </dt>
+            <dd class="text-sm">
+              {{ preview.bundle.checkInTime ? "Checked in" : "Not checked in" }}
+            </dd>
+          </div>
+          @for (addOn of preview.bundle.addOns; track addOn.id) {
+            <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
+              <dt class="text-on-surface-variant text-sm">Add-on</dt>
+              <dd class="grid gap-1 text-sm">
+                <span>{{ addOn.quantity }} × {{ addOn.title }}</span>
+                <span class="text-on-surface-variant text-xs">
+                  {{ addOn.includedQuantity }} included ·
+                  {{ addOn.purchasedQuantity }} purchased ·
+                  {{ addOn.remainingQuantity }} remaining ·
+                  {{ addOn.redeemedQuantity }} redeemed ·
+                  {{ addOn.cancelledQuantity }} cancelled
+                </span>
+                <span class="text-on-surface-variant text-xs">
+                  Current unit price:
+                  {{ addOn.currentUnitPrice | receiptAmount: preview.currency }}
+                </span>
+              </dd>
+            </div>
+          } @empty {
+            <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
+              <dt class="text-on-surface-variant text-sm">Add-ons</dt>
+              <dd class="text-sm">None</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <section class="grid gap-2" aria-labelledby="transfer-pricing-heading">
+        <h3 id="transfer-pricing-heading" class="title-medium">
+          Recalculated transfer
+        </h3>
+        <dl
+          class="divide-outline-variant divide-y border-y border-outline-variant"
+        >
+          <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">
+              Current registration price
+            </dt>
+            <dd class="text-sm">
+              {{
+                preview.registrationOption.currentPrice
+                  | receiptAmount: preview.currency
+              }}
+            </dd>
+          </div>
+          <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">
+              Recipient registration price
+            </dt>
+            <dd class="grid gap-1 text-sm">
+              <span>
+                {{
+                  preview.pricing.recipientRegistrationPrice
+                    | receiptAmount: preview.currency
+                }}
+              </span>
+              @if (preview.pricing.appliedDiscountType === "esnCard") {
+                <span class="text-on-surface-variant text-xs">
+                  Recipient's current ESNcard discount applied
+                </span>
+              }
+            </dd>
+          </div>
+          <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">Recipient total</dt>
+            <dd class="text-sm">
+              {{
+                preview.pricing.recipientBundlePrice
+                  | receiptAmount: preview.currency
+              }}
+            </dd>
+          </div>
+          <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
+            <dt class="text-on-surface-variant text-sm">
+              Refund to current owner
+            </dt>
+            <dd class="text-sm">
+              {{
+                preview.pricing.sourceRefundAmountDue
+                  | receiptAmount: preview.currency
+              }}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section
+        class="bg-surface-container-low grid gap-2 rounded-lg p-4"
+        aria-labelledby="transfer-consequences-heading"
+      >
+        <h3 id="transfer-consequences-heading" class="title-medium">
+          What happens next
+        </h3>
+        <p class="text-sm">
+          The registration, every included and purchased add-on, all quantities,
+          and all check-in, redemption, and cancellation history move together.
+          The recipient cannot omit anything or reset its history.
+        </p>
+        <p class="text-sm">
+          Current base prices and only the recipient's currently eligible
+          discounts produced a free bundle. The current owner's discounts did
+          not transfer, and no refund to them is required.
+        </p>
+        <p class="text-sm">
+          Because the recipient owes nothing and the current owner needs no
+          refund, the transfer completes immediately when you confirm. If
+          anything changes first, Evorto will stop and ask you to review the
+          updated details. This cannot be undone automatically.
+        </p>
+      </section>
+    }
+  </mat-dialog-content>
+}
+
 <mat-dialog-actions align="end" class="gap-2">
-  <button mat-button mat-dialog-close type="button">Cancel</button>
+  @if (selectedTarget() !== null) {
+    <button mat-button type="button" (click)="chooseAnotherTarget()">
+      Back
+    </button>
+  }
+  <button
+    #cancelButton
+    mat-button
+    mat-dialog-close
+    type="button"
+    cdkFocusInitial
+  >
+    Cancel
+  </button>
+  @if (transferPreviewQuery.isSuccess() && transferPreviewQuery.data()) {
+    <button mat-flat-button type="button" (click)="confirmTransfer()">
+      Transfer registration
+    </button>
+  }
 </mat-dialog-actions>

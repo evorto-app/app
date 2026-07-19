@@ -22,14 +22,17 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
   await expect(
     page.getByText(
-      'Manage tenant role assignments for existing users. Role changes apply only to this tenant.',
+      'Manage role assignments for existing members. Role changes apply only to this organization.',
     ),
   ).toBeVisible();
   const userSearchInput = page.getByPlaceholder('Name or email');
   await expect(userSearchInput).toBeVisible();
+  await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
   await userSearchInput.fill('admin@evorto.app');
   await expect(userSearchInput).toHaveValue('admin@evorto.app');
-  await expect(page.getByText('Assigned roles').first()).toBeVisible();
+  await expect(page.getByText('Assigned roles').first()).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByText('Edit template')).toHaveCount(0);
 
   await page.goto('/admin/roles');
@@ -99,6 +102,12 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await page.goto(`/admin/roles/${createdRole.id}/edit`);
 
   await expect(page.getByRole('heading', { name: 'Edit Role' })).toBeVisible();
+  // The SSR form is visible before Angular attaches its submit handler.
+  // Event replay removes `jsaction` once saving is safely interactive.
+  await expect(roleForm.locator('form')).not.toHaveAttribute(
+    'jsaction',
+    /submit/,
+  );
   await roleForm.locator('textarea').first().fill(updatedDescription);
   await setRoleFormCheckbox('Show this role in the hub', false);
   await expect(roleFormCheckbox('Show this role in the hub')).not.toBeChecked();

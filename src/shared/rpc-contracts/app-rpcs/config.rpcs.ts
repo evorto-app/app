@@ -3,12 +3,12 @@ import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { PlatformAdministratorAuthority } from '../../../types/custom/platform-authority';
 import { Tenant } from '../../../types/custom/tenant';
 import { BadRequestRpcError } from '../../errors/rpc-errors';
 import { PermissionSchema } from '../../permissions/permissions';
 export const PublicConfig = Schema.Struct({
   googleMapsApiKey: Schema.NullOr(Schema.NonEmptyString),
-  sentryDsn: Schema.NullOr(Schema.NonEmptyString),
 });
 
 export type PublicConfig = Schema.Schema.Type<typeof PublicConfig>;
@@ -43,6 +43,14 @@ export const ConfigPermissionList = asRpcQuery(
   }),
 );
 
+export const ConfigPlatformAuthority = asRpcQuery(
+  Rpc.make('config.platformAuthority', {
+    error: ConfigHeaderRpcError,
+    payload: Schema.Void,
+    success: Schema.NullOr(PlatformAdministratorAuthority),
+  }),
+);
+
 export const ConfigTenant = asRpcQuery(
   Rpc.make('config.tenant', {
     error: ConfigHeaderRpcError,
@@ -55,5 +63,6 @@ export class ConfigRpcs extends RpcGroup.make(
   ConfigPublic,
   ConfigIsAuthenticated,
   ConfigPermissionList,
+  ConfigPlatformAuthority,
   ConfigTenant,
 ) {}

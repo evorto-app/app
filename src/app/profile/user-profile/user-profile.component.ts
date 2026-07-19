@@ -1,6 +1,6 @@
-import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
+import type { UsersEventSummaryRecord } from '@shared/rpc-contracts/app-rpcs/users.rpcs';
 
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -28,6 +28,7 @@ import {
   faReceipt,
   faRightFromBracket,
   faTags,
+  faTicket,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
@@ -37,9 +38,13 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { TenantDatePipe } from '../../core/tenant-date.pipe';
+import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
+import { receiptStatusLabel } from '../../finance/shared/receipt-status-label';
 import {
   EditProfileDialogComponent,
   EditProfileDialogData,
@@ -54,6 +59,7 @@ import {
   esnCardSubmitPayloadFromIdentifier,
 } from './user-profile.esn-card';
 
+type ProfileEventRefund = UsersEventSummaryRecord['refunds'][number];
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
 
 export const profileEditActionDisabled = ({
@@ -61,6 +67,14 @@ export const profileEditActionDisabled = ({
 }: {
   mutationPending: boolean;
 }): boolean => mutationPending;
+
+export const isBrowsingOutsideHomeTenant = (
+  homeTenantId: string | undefined,
+  currentTenantId: string | undefined,
+): boolean =>
+  homeTenantId !== undefined &&
+  currentTenantId !== undefined &&
+  homeTenantId !== currentTenantId;
 
 export const profileUserAfterEdit = <
   T extends {
@@ -84,6 +98,8 @@ export const profileUserAfterEdit = <
 
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
+export const profileTransferClaimPath = '/registration-transfers';
+
 export const profileEventGuestLabel = (guestCount: number): null | string => {
   if (guestCount <= 0) {
     return null;
@@ -94,12 +110,30 @@ export const profileEventGuestLabel = (guestCount: number): null | string => {
     : `Includes ${guestCount} guests`;
 };
 
+export const profileEventAudienceLabel = (event: {
+  organizingRegistration: boolean;
+}): string =>
+  event.organizingRegistration ? 'Organizer/helper' : 'Participant';
+
+export const profileEventPassLabel = (event: {
+  organizingRegistration: boolean;
+}): string => (event.organizingRegistration ? 'Pass' : 'Ticket');
+
 export const profileEventNextStepLabel = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): null | string => {
+  if (event.status === 'CANCELLED') {
+    return null;
+  }
+
   if (profileEventContinuePaymentUrl(event)) {
     return 'Finish the checkout payment to confirm your spot.';
+  }
+
+  if (event.paymentState === 'pending') {
+    return 'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.';
   }
 
   return null;
@@ -117,8 +151,10 @@ export const isStripeCheckoutUrl = (value: string): boolean => {
 export const profileEventContinuePaymentUrl = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+  status?: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): null | string => {
   if (
+    event.status === 'CANCELLED' ||
     event.paymentState !== 'pending' ||
     !event.checkoutUrl ||
     !isStripeCheckoutUrl(event.checkoutUrl)
@@ -132,26 +168,91 @@ export const profileEventContinuePaymentUrl = (event: {
 export const profileEventActionNote = (event: {
   checkInTime?: null | string;
   checkoutUrl: null | string;
+  organizingRegistration: boolean;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
-  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+  refunds?: readonly ProfileEventRefund[];
+  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): string => {
+  if (event.status === 'CANCELLED') {
+    const refunds = event.refunds ?? [];
+    const completedClaims = refunds.filter(
+      ({ state }) => state === 'succeeded',
+    ).length;
+    const progress =
+      refunds.length > 1
+        ? ` ${completedClaims} of ${refunds.length} refunds ${completedClaims === 1 ? 'is' : 'are'} complete.`
+        : '';
+    if (
+      refunds.length > 0 &&
+      refunds.every(({ state }) => state === 'succeeded')
+    ) {
+      return 'Your registration is cancelled and every recorded refund completed.';
+    }
+
+    const guidance: string[] = [];
+    const needsOrganizerFollowUp = refunds.some(
+      ({ state }) => state === 'actionRequired' || state === 'needsAttention',
+    );
+    if (needsOrganizerFollowUp) {
+      guidance.push('at least one refund needs organizer follow-up');
+    }
+    if (refunds.some(({ state }) => state === 'retrying')) {
+      guidance.push('at least one refund is retrying automatically');
+    }
+    if (refunds.some(({ state }) => state === 'pending')) {
+      guidance.push('at least one refund is queued or processing');
+    }
+    if (guidance.length > 0) {
+      const organizerFollowUp = needsOrganizerFollowUp
+        ? ' Contact the organizer for an update.'
+        : '';
+      return `Your registration remains cancelled, but ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp} Do not pay or register again to retry it.${progress}`;
+    }
+
+    return 'Your registration is cancelled. No refund is recorded for this registration.';
+  }
+
   if (profileEventContinuePaymentUrl(event)) {
+    if (event.organizingRegistration) {
+      return 'Continue payment from this card to confirm your organizer/helper registration. Organizer access starts after payment succeeds.';
+    }
+
     return 'Continue payment from this card, or open the event page for registration details.';
   }
 
   switch (event.status) {
     case 'CONFIRMED': {
       if (event.checkInTime) {
-        return 'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.';
+        if (event.organizingRegistration) {
+          return 'You are checked in. Open the event page for organizer/helper pass details. Cancellation is no longer available after check-in.';
+        }
+
+        return 'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.';
       }
 
-      return 'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available.';
+      if (event.organizingRegistration) {
+        return 'Open the event page for your organizer/helper pass, event management access, and current cancellation details.';
+      }
+
+      return "Open the event page for ticket access and to see whether cancellation or transfer is currently available. A transfer may be free or require the recipient to pay, based on current prices and the recipient's eligible discounts.";
     }
     case 'PENDING': {
-      return 'Open the event page for pending-registration details and available cancellation actions.';
+      if (event.paymentState === 'pending') {
+        if (event.organizingRegistration) {
+          return 'Payment setup is still in progress. Open the event page for the latest payment link. Organizer access starts only after payment succeeds.';
+        }
+
+        return 'Payment setup is still in progress. Open the event page for the latest payment link and current cancellation status.';
+      }
+
+      if (event.organizingRegistration) {
+        return 'Open the event page for organizer/helper application and cancellation status. Organizer access starts only after approval and any required payment.';
+      }
+
+      return 'Open the event page for pending-registration details and current cancellation status.';
     }
     case 'WAITLIST': {
-      return 'Open the event page for waitlist details and the leave-waitlist action.';
+      return 'Open the event page for waitlist details and current cancellation status.';
     }
   }
 };
@@ -176,9 +277,12 @@ export const registrationPaymentLabel = (
 };
 
 export const registrationStatusLabel = (
-  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
+  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST',
 ): string => {
   switch (status) {
+    case 'CANCELLED': {
+      return 'Cancelled';
+    }
     case 'CONFIRMED': {
       return 'Confirmed';
     }
@@ -191,27 +295,30 @@ export const registrationStatusLabel = (
   }
 };
 
-export const profileReceiptStatusLabel = (
-  status: FinanceReceiptStatus,
+export const registrationRefundStateLabel = (
+  state: ProfileEventRefund['state'],
 ): string => {
-  switch (status) {
-    case 'approved': {
-      return 'Approved';
+  switch (state) {
+    case 'actionRequired':
+    case 'needsAttention': {
+      return 'Contact organizer for refund update';
     }
-    case 'refunded': {
-      return 'Reimbursed';
+    case 'pending': {
+      return 'Refund queued';
     }
-    case 'rejected': {
-      return 'Rejected';
+    case 'retrying': {
+      return 'Refund retrying';
     }
-    case 'submitted': {
-      return 'Submitted';
+    case 'succeeded': {
+      return 'Refund completed';
     }
   }
 };
 
-export const profileReceiptAmountLabel = (totalAmount: number): string =>
-  `${(totalAmount / 100).toFixed(2)} €`;
+export const registrationRefundSourceLabel = (
+  source: ProfileEventRefund['source'],
+): string =>
+  source === 'registration' ? 'Registration payment' : 'Add-on payment';
 
 export const profileSectionFromFragment = (
   fragment: null | string,
@@ -235,13 +342,14 @@ export const profileSectionFromFragment = (
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    TenantDatePipe,
     CurrencyPipe,
     FontAwesomeModule,
     FormField,
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
+    ReceiptAmountPipe,
     RouterLink,
   ],
   selector: 'app-user-profile',
@@ -260,6 +368,18 @@ export class UserProfileComponent {
     { icon: faReceipt, key: 'receipts', label: 'Receipts' },
   ];
   private readonly rpc = AppRpc.injectClient();
+  protected readonly userQuery = injectQuery(() =>
+    this.rpc.users.self.queryOptions(),
+  );
+  protected readonly profileUser = computed(() =>
+    this.userQuery.isSuccess() ? this.userQuery.data() : undefined,
+  );
+  private readonly config = inject(ConfigService);
+  protected readonly browsingOutsideHomeTenant = computed(() => {
+    const user = this.profileUser();
+    const tenant = this.config.tenantSignal();
+    return isBrowsingOutsideHomeTenant(user?.homeTenantId, tenant?.id);
+  });
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -297,11 +417,12 @@ export class UserProfileComponent {
   protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
   protected readonly faTags = faTags;
+  protected readonly faTicket = faTicket;
   protected readonly faUser = faUser;
+
   protected readonly myCardsQuery = injectQuery(() =>
     this.rpc.discounts.getMyCards.queryOptions(),
   );
-
   protected readonly hasVerifiedEsnCard = computed(() => {
     if (!this.myCardsQuery.isSuccess()) return false;
     const cards = this.myCardsQuery.data();
@@ -309,31 +430,31 @@ export class UserProfileComponent {
       (card) => card.type === 'esnCard' && card.status === 'verified',
     );
   });
+
   protected readonly myReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.my.queryOptions(),
   );
-
   protected readonly profileEditActionDisabled = profileEditActionDisabled;
   protected readonly profileEventActionNote = profileEventActionNote;
+  protected readonly profileEventAudienceLabel = profileEventAudienceLabel;
   protected readonly profileEventContinuePaymentUrl =
     profileEventContinuePaymentUrl;
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
   protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
-  protected readonly profileReceiptAmountLabel = profileReceiptAmountLabel;
-  protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
-  protected readonly userQuery = injectQuery(() =>
-    this.rpc.users.self.queryOptions(),
-  );
 
-  protected readonly profileUser = computed(() =>
-    this.userQuery.isSuccess() ? this.userQuery.data() : undefined,
-  );
+  protected readonly profileEventPassLabel = profileEventPassLabel;
+  protected readonly profileTransferClaimPath = profileTransferClaimPath;
+  protected readonly receiptStatusLabel = receiptStatusLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
   protected readonly registrationPaymentLabel = registrationPaymentLabel;
+  protected readonly registrationRefundSourceLabel =
+    registrationRefundSourceLabel;
+  protected readonly registrationRefundStateLabel =
+    registrationRefundStateLabel;
   protected readonly registrationStatusLabel = registrationStatusLabel;
   protected readonly sectionEntries = computed(() =>
     this.allSectionEntries.filter(
@@ -341,6 +462,9 @@ export class UserProfileComponent {
     ),
   );
   protected readonly selectedSection = signal<ProfileSection>('overview');
+  protected readonly setHomeTenantMutation = injectMutation(() =>
+    this.rpc.users.setHomeTenant.mutationOptions(),
+  );
   protected readonly updateProfileMutation = injectMutation(() =>
     this.rpc.users.updateProfile.mutationOptions(),
   );
@@ -401,6 +525,7 @@ export class UserProfileComponent {
       },
     );
   }
+
   protected async openEditProfileDialog(): Promise<void> {
     if (
       profileEditActionDisabled({
@@ -485,7 +610,6 @@ export class UserProfileComponent {
       },
     );
   }
-
   protected async saveEsnCard(event: Event): Promise<void> {
     event.preventDefault();
     if (this.esnCardMutationPending()) {
@@ -520,6 +644,38 @@ export class UserProfileComponent {
       return 'bg-secondary-container text-on-secondary-container';
     }
     return 'bg-surface text-on-surface';
+  }
+
+  protected setCurrentTenantAsHome(): void {
+    if (this.setHomeTenantMutation.isPending()) return;
+    const user = this.profileUser();
+    if (!user) return;
+
+    this.setHomeTenantMutation.mutate(undefined, {
+      onError: (error) => {
+        this.notifications.showError(
+          getErrorMessage(error, 'Failed to change home organization'),
+        );
+      },
+      onSuccess: (homeTenant) => {
+        const updatedUser = {
+          ...user,
+          homeTenantId: homeTenant.homeTenantId,
+          homeTenantName: homeTenant.homeTenantName,
+        };
+        this.queryClient.setQueryData(
+          this.rpc.pathKey(['users', 'self']),
+          updatedUser,
+        );
+        this.queryClient.setQueryData(
+          this.rpc.pathKey(['users', 'maybeSelf']),
+          updatedUser,
+        );
+        this.notifications.showSuccess(
+          `${homeTenant.homeTenantName} is now your home organization`,
+        );
+      },
+    });
   }
 
   protected setSelectedSection(section: ProfileSection): void {

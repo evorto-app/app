@@ -1,6 +1,4 @@
 {
-  //  "plugins": ["prettier-plugin-tailwindcss"],
-  "tailwindStylesheet": "./src/styles.scss",
   "overrides": [
     {
       "files": "*.html",

@@ -45,6 +45,7 @@ test('profile receipts show submitted receipt status and event context', async (
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 2048,
       attachmentUploadId: receiptUploadId,
+      currency: seeded.tenant.currency,
       eventId,
       id: receiptId,
       purchaseCountry: 'DE',
@@ -67,7 +68,7 @@ test('profile receipts show submitted receipt status and event context', async (
     await expect(receiptCard).toBeVisible();
     await expect(receiptCard.getByText('Submitted')).toBeVisible();
     await expect(receiptCard.getByText(event.title)).toBeVisible();
-    await expect(receiptCard.getByText('18.75 €')).toBeVisible();
+    await expect(receiptCard.getByText('18,75 €')).toBeVisible();
 
     const [receipt] = await database
       .select()

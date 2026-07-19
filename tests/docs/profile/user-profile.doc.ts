@@ -2,7 +2,10 @@ import { eq } from 'drizzle-orm';
 
 import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
-import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
+import {
+  defaultStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -11,7 +14,7 @@ import {
   type SeededProfileEventCards,
 } from '../../support/utils/profile-event-cards';
 
-test.use({ storageState: userStateFile });
+test.use({ storageState: defaultStateFile });
 
 test('Manage user profile', async ({
   database,
@@ -19,17 +22,17 @@ test('Manage user profile', async ({
   seedDate,
   seeded,
 }, testInfo) => {
-  const regularUser = usersToAuthenticate.find(
-    (user) => user.stateFile === userStateFile,
+  const profileUser = usersToAuthenticate.find(
+    (user) => user.stateFile === defaultStateFile,
   );
-  if (!regularUser) {
-    throw new Error('Expected regular profile user fixture');
+  if (!profileUser) {
+    throw new Error('Expected dedicated profile user fixture');
   }
   const originalUser = await database.query.users.findFirst({
-    where: { id: regularUser.id },
+    where: { id: profileUser.id },
   });
   if (!originalUser) {
-    throw new Error('Expected regular profile user to exist');
+    throw new Error('Expected dedicated profile user to exist');
   }
   const documentedNotificationEmail = `profile-docs-${seedDate.getTime()}@evorto.app`;
   const documentedIban = 'DE89370400440532013000';
@@ -51,7 +54,7 @@ test('Manage user profile', async ({
       database,
       seedDate,
       seeded,
-      userId: regularUser.id,
+      userId: profileUser.id,
     });
     profileReceiptUploadId = await addConsumedFinanceReceiptUpload(database, {
       eventId: profileEventId,
@@ -59,19 +62,20 @@ test('Manage user profile', async ({
       mimeType: 'application/pdf',
       sizeBytes: 2048,
       tenantId: seeded.tenant.id,
-      uploadedByUserId: regularUser.id,
+      uploadedByUserId: profileUser.id,
     });
     await database.insert(schema.financeReceipts).values({
       attachmentFileName: profileReceiptFileName,
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 2048,
       attachmentUploadId: profileReceiptUploadId,
+      currency: seeded.tenant.currency,
       eventId: profileEventId,
       id: profileReceiptId,
       purchaseCountry: 'DE',
       receiptDate: seedDate,
       status: 'submitted',
-      submittedByUserId: regularUser.id,
+      submittedByUserId: profileUser.id,
       taxAmount: 300,
       tenantId: seeded.tenant.id,
       totalAmount: 1875,
@@ -91,7 +95,7 @@ To access your profile, click on the **Profile** link in the navigation bar at t
     });
 
     // Click on the Profile link in the navigation bar
-    await page.getByRole('link', { name: 'Profile' }).click();
+    await page.getByRole('link', { name: 'Profile', exact: true }).click();
     await takeScreenshot(
       testInfo,
       page.locator('.navigation'),
@@ -116,12 +120,24 @@ The profile page displays your personal information, including:
 - Global reimbursement details (IBAN / PayPal) used when finance teams record manual receipt reimbursements
 
 From here you can open the edit dialog to update your profile details.
+
+## Claiming a private registration transfer
+
+If another participant sends you a manual transfer code, select **Claim transfer** under **Account Actions**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The same claim flow also opens directly from a private transfer link.
 `,
     });
 
     await expect(
-      page.getByRole('button', { name: 'Edit profile' }),
+      page.getByRole('link', { exact: true, name: 'Claim transfer' }),
     ).toBeVisible();
+
+    const editProfileButton = page.getByRole('button', {
+      name: 'Edit profile',
+    });
+    await expect(editProfileButton).toBeVisible();
+    // SSR exposes the button before Angular attaches its live click listener.
+    // Event replay removes `jsaction` once the hydrated action is interactive.
+    await expect(editProfileButton).not.toHaveAttribute('jsaction', /click/);
 
     // Take a screenshot of the entire profile component
     await takeScreenshot(
@@ -136,12 +152,12 @@ From here you can open the edit dialog to update your profile details.
 ## Editing Your Profile
 
 Click **Edit profile** to open the profile dialog.
-The form uses inline validation, and the save button is only enabled when both names and the notification email are filled in. IBAN and PayPal details are optional global reimbursement details, not tenant-specific payout instructions. Saving the dialog updates the profile summary immediately after the profile query refreshes.
+The form uses inline validation, and the save button is only enabled when both names and the notification email are filled in. IBAN and PayPal details are optional global reimbursement details, not organization-specific payout instructions. The profile summary updates immediately after saving.
 `,
     });
 
-    await page.getByRole('button', { name: 'Edit profile' }).click();
-    const editDialog = page.locator('mat-dialog-container');
+    await editProfileButton.click();
+    const editDialog = page.getByRole('dialog', { name: 'Edit profile' });
     await expect(editDialog).toBeVisible();
     await takeScreenshot(testInfo, editDialog, page, 'Edit profile dialog');
 
@@ -160,11 +176,11 @@ The form uses inline validation, and the save button is only enabled when both n
       body: `
 ## Notification Email Persistence
 
-The notification email is user-managed and may differ from the Auth0 login email. Optional IBAN and PayPal fields store global reimbursement details for finance teams. After saving, the profile summary displays the updated notification email while the login email remains unchanged.
+The notification email is user-managed and may differ from the sign-in email. Optional IBAN and PayPal fields store global reimbursement details for finance teams. After saving, the profile summary displays the updated notification email while the sign-in email remains unchanged.
 `,
     });
 
-    await page.getByRole('button', { name: 'Edit profile' }).click();
+    await editProfileButton.click();
     await expect(editDialog).toBeVisible();
     await page
       .getByRole('textbox', { name: 'Notification email' })
@@ -180,7 +196,7 @@ The notification email is user-managed and may differ from the Auth0 login email
     ).toBeVisible();
     await expect(page.getByText(`Login: ${originalUser.email}`)).toBeVisible();
     const updatedProfileUser = await database.query.users.findFirst({
-      where: { id: regularUser.id },
+      where: { id: profileUser.id },
     });
     if (!updatedProfileUser) {
       throw new Error('Expected generated profile docs user after update');
@@ -205,8 +221,8 @@ The user profile now uses a two-column layout:
 
 - Left side: section navigation cards
 - Right side: selected section content
-- The **Events** section links each registration back to event details, shows registration status, selected option, guest quantity and purchased add-ons when applicable, payment state, and check-in time when available, and exposes implemented recovery actions such as continuing a pending checkout payment or opening the event page where confirmed tickets are shown
-- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, expose waitlist routing back to the event page, and stop advertising cancellation or transfer once a registration is checked in
+- The **Events** section links each registration to its event details and shows its status, selected option, guest quantity, purchased add-ons, payment state, and check-in time when available
+- From an event card, you can continue a pending payment or open the event to view the ticket, cancellation, transfer, or waitlist details; the card also explains that cancellation stops after check-in and that a transfer preserves attendee and guest check-in history
 - Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
     });
@@ -284,7 +300,7 @@ The user profile now uses a two-column layout:
     await expect(waitlistCard.getByText('No payment required')).toBeVisible();
     await expect(
       waitlistCard.getByText(
-        'Open the event page for waitlist details and the leave-waitlist action.',
+        'Open the event page for waitlist details and current cancellation status.',
       ),
     ).toBeVisible();
     await expect(
@@ -311,7 +327,7 @@ The user profile now uses a two-column layout:
     ).toBeVisible();
     await expect(
       checkedInEventCard.getByText(
-        'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
+        'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
       ),
     ).toBeVisible();
     await expect(
@@ -329,7 +345,7 @@ The user profile now uses a two-column layout:
         where: {
           id: profileEventCards.confirmed.registrationId,
           status: 'CONFIRMED',
-          userId: regularUser.id,
+          userId: profileUser.id,
         },
       });
     expect(confirmedRegistration).toEqual(
@@ -371,7 +387,7 @@ The user profile now uses a two-column layout:
         where: {
           id: profileEventCards.pendingCheckout.registrationId,
           status: 'PENDING',
-          userId: regularUser.id,
+          userId: profileUser.id,
         },
       });
     expect(pendingCheckoutRegistration).toEqual(
@@ -386,7 +402,7 @@ The user profile now uses a two-column layout:
         where: {
           id: profileEventCards.waitlist.registrationId,
           status: 'WAITLIST',
-          userId: regularUser.id,
+          userId: profileUser.id,
         },
       });
     expect(waitlistRegistration).toEqual(
@@ -401,7 +417,7 @@ The user profile now uses a two-column layout:
         where: {
           id: profileEventCards.checkedIn.registrationId,
           status: 'CONFIRMED',
-          userId: regularUser.id,
+          userId: profileUser.id,
         },
       });
     expect(checkedInRegistration).toEqual(
@@ -442,11 +458,11 @@ The user profile now uses a two-column layout:
     await expect(
       profileReceiptCard.getByText(profileEvent.title),
     ).toBeVisible();
-    await expect(profileReceiptCard.getByText('18.75 €')).toBeVisible();
+    await expect(profileReceiptCard.getByText('18,75 €')).toBeVisible();
     const profileReceipt = await database.query.financeReceipts.findFirst({
       where: {
         id: profileReceiptId,
-        submittedByUserId: regularUser.id,
+        submittedByUserId: profileUser.id,
         tenantId: seeded.tenant.id,
       },
     });
@@ -476,7 +492,7 @@ The user profile now uses a two-column layout:
         lastName: originalUser.lastName,
         paypalEmail: originalUser.paypalEmail,
       })
-      .where(eq(schema.users.id, regularUser.id));
+      .where(eq(schema.users.id, profileUser.id));
     await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, profileReceiptId));

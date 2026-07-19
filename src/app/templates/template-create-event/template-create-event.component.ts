@@ -4,6 +4,7 @@ import {
   computed,
   effect,
   inject,
+  Injectable,
   input,
   signal,
   untracked,
@@ -28,30 +29,75 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
+import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import {
+  resolveTenantRuntimeTimezone,
+  toTenantDateTime,
+} from '../../core/tenant-runtime';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
   EventGeneralFormModel,
-  eventGeneralFormSchema,
+  eventGeneralFormSchemaWithPaymentAvailability,
+  resetEventGeneralFormPayments,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { createEventFormModelFromTemplate } from './template-create-event.mapper';
 
+@Injectable({ providedIn: 'root' })
+export class TemplateCreateEventOperations {
+  private readonly rpc = AppRpc.injectClient();
+
+  createEvent() {
+    return this.rpc.events.create.mutationOptions();
+  }
+
+  discountProviders() {
+    return this.rpc.discounts.getTenantProviders.queryOptions();
+  }
+
+  eventListFilter() {
+    return this.rpc.queryFilter(['events', 'eventList']);
+  }
+
+  findTemplate(id: string) {
+    return this.rpc.templates.findOne.queryOptions({ id });
+  }
+}
+
 export const templateCreateEventSubmitDisabled = ({
   formInvalid,
   formSubmitting,
+  legacyRandomBlocked,
   mutationPending,
 }: {
   formInvalid: boolean;
   formSubmitting: boolean;
+  legacyRandomBlocked: boolean;
   mutationPending: boolean;
-}): boolean => formInvalid || formSubmitting || mutationPending;
+}): boolean =>
+  formInvalid || formSubmitting || legacyRandomBlocked || mutationPending;
+
+export const templateHasLegacyRandomRegistration = (
+  registrationOptions: readonly { registrationMode: string }[],
+): boolean =>
+  registrationOptions.some((option) => option.registrationMode === 'random');
+
+export const legacyRandomTemplateEventMessage =
+  'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.';
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
     ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards for registration-time purchase.`
     : null;
+
+export const templateCreateEventErrorMessage = (error: unknown): string =>
+  getErrorMessage(
+    error,
+    'The event could not be created. Review the form and try again.',
+  );
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,9 +112,9 @@ export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
 })
 export class TemplateCreateEventComponent {
   protected readonly templateId = input.required<string>();
-  private readonly rpc = AppRpc.injectClient();
+  private readonly operations = inject(TemplateCreateEventOperations);
   protected readonly templateQuery = injectQuery(() =>
-    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
+    this.operations.findTemplate(this.templateId()),
   );
   protected readonly addOnCopyNotice = computed(() =>
     templateAddOnCopyNotice(
@@ -77,18 +123,25 @@ export class TemplateCreateEventComponent {
         : 0,
     ),
   );
+  private readonly config = inject(ConfigService);
+  private readonly tenantTimezone = resolveTenantRuntimeTimezone(
+    this.config.tenantSignal()?.timezone,
+  );
   protected readonly createEventModel = signal<EventGeneralFormModel>(
-    createEventGeneralFormModel(),
+    createEventGeneralFormModel({}, this.tenantTimezone),
+  );
+  protected readonly stripeConnected = computed(() =>
+    Boolean(this.config.tenantSignal()?.stripeAccountId),
   );
   protected readonly createEventForm = form(
     this.createEventModel,
-    eventGeneralFormSchema,
+    eventGeneralFormSchemaWithPaymentAvailability(() => this.stripeConnected()),
   );
   protected readonly createEventMutation = injectMutation(() =>
-    this.rpc.events.create.mutationOptions(),
+    this.operations.createEvent(),
   );
   protected readonly discountProvidersQuery = injectQuery(() =>
-    this.rpc.discounts.getTenantProviders.queryOptions(),
+    this.operations.discountProviders(),
   );
   protected readonly esnEnabled = computed(() => {
     if (!this.discountProvidersQuery.isSuccess()) return false;
@@ -101,6 +154,21 @@ export class TemplateCreateEventComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
   protected readonly iconUsage = EventCreateIconUsage.make({});
+  protected readonly legacyRandomBlocked = computed(
+    () =>
+      this.templateQuery.isSuccess() &&
+      templateHasLegacyRandomRegistration(
+        this.templateQuery.data().registrationOptions,
+      ),
+  );
+  protected readonly legacyRandomTemplateEventMessage =
+    legacyRandomTemplateEventMessage;
+  protected readonly stripeConnectionKnown = computed(
+    () => this.config.tenantSignal() !== null,
+  );
+  protected readonly paidControlsUnavailable = computed(
+    () => this.stripeConnectionKnown() && !this.stripeConnected(),
+  );
   protected readonly registrationModes = writableRegistrationModes;
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
@@ -115,12 +183,19 @@ export class TemplateCreateEventComponent {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
       if (this.initializedTemplateId() === template.id) return;
+      if (templateHasLegacyRandomRegistration(template.registrationOptions)) {
+        this.initializedTemplateId.set(template.id);
+        return;
+      }
 
       const startDateTime = this.toDateTime(
         untracked(() => this.createEventForm.start().value()),
       );
+      const model = createEventFormModelFromTemplate(template, startDateTime);
       this.createEventModel.set(
-        createEventFormModelFromTemplate(template, startDateTime),
+        this.paidControlsUnavailable()
+          ? resetEventGeneralFormPayments(model)
+          : model,
       );
       this.lastStart.set(startDateTime);
       this.initializedTemplateId.set(template.id);
@@ -128,6 +203,9 @@ export class TemplateCreateEventComponent {
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
+      if (templateHasLegacyRandomRegistration(template.registrationOptions)) {
+        return;
+      }
       const eventStart = this.createEventForm.start().value();
       const registrationOptions = this.createEventModel().registrationOptions;
       if (!eventStart || registrationOptions.length === 0) return;
@@ -164,6 +242,13 @@ export class TemplateCreateEventComponent {
         );
       }
     });
+    effect(() => {
+      if (!this.paidControlsUnavailable()) return;
+      const model = this.createEventModel();
+      const resetModel = resetEventGeneralFormPayments(model);
+      if (resetModel === model) return;
+      untracked(() => this.createEventModel.set(resetModel));
+    });
   }
 
   async onSubmit(event: Event) {
@@ -172,6 +257,7 @@ export class TemplateCreateEventComponent {
       templateCreateEventSubmitDisabled({
         formInvalid: this.createEventForm().invalid(),
         formSubmitting: this.createEventForm().submitting(),
+        legacyRandomBlocked: this.legacyRandomBlocked(),
         mutationPending: this.createEventMutation.isPending(),
       })
     ) {
@@ -179,7 +265,9 @@ export class TemplateCreateEventComponent {
     }
 
     await submit(this.createEventForm, async (formState) => {
-      const formValue = formState().value();
+      const formValue = this.paidControlsUnavailable()
+        ? resetEventGeneralFormPayments(formState().value())
+        : formState().value();
       if (!formValue.icon) {
         return;
       }
@@ -189,6 +277,8 @@ export class TemplateCreateEventComponent {
           end: this.toDateTime(formValue.end).toJSDate().toISOString(),
           icon: formValue.icon,
           registrationOptions: formValue.registrationOptions.map((option) => ({
+            cancellationDeadlineHoursBeforeStart:
+              option.cancellationDeadlineHoursBeforeStart,
             closeRegistrationTime: this.toDateTime(option.closeRegistrationTime)
               .toJSDate()
               .toISOString(),
@@ -199,6 +289,7 @@ export class TemplateCreateEventComponent {
               .toISOString(),
             organizingRegistration: option.organizingRegistration,
             price: option.price,
+            refundFeesOnCancellation: option.refundFeesOnCancellation,
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
@@ -212,6 +303,8 @@ export class TemplateCreateEventComponent {
               ? option.stripeTaxRateId
               : null,
             title: option.title,
+            transferDeadlineHoursBeforeStart:
+              option.transferDeadlineHoursBeforeStart,
           })),
           start: this.toDateTime(formValue.start).toJSDate().toISOString(),
           templateId: this.templateId(),
@@ -219,7 +312,7 @@ export class TemplateCreateEventComponent {
         {
           onSuccess: async (data) => {
             await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['events', 'eventList']),
+              this.operations.eventListFilter(),
             );
             this.router.navigate(['/events', data.id]);
           },
@@ -228,8 +321,12 @@ export class TemplateCreateEventComponent {
     });
   }
 
+  protected createEventErrorMessage(): string {
+    return templateCreateEventErrorMessage(this.createEventMutation.error());
+  }
+
   private toDateTime(value: Date | DateTime): DateTime {
-    return value instanceof Date ? DateTime.fromJSDate(value) : value;
+    return toTenantDateTime(value, this.tenantTimezone);
   }
 
   private updateIfPristine(

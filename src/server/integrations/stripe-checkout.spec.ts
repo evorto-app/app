@@ -8,9 +8,13 @@ import {
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
   createHostedCheckoutSession,
+  expireHostedCheckoutSession,
+  retrieveHostedCheckoutSession,
 } from './stripe-checkout';
 
 const createSessionMock = vi.fn();
+const expireSessionMock = vi.fn();
+const retrieveSessionMock = vi.fn();
 const dummyStripeKey = 'test_stripe_key';
 
 const createStripeClient = () => {
@@ -18,12 +22,20 @@ const createStripeClient = () => {
   vi.spyOn(stripeClient.checkout.sessions, 'create').mockImplementation(
     createSessionMock,
   );
+  vi.spyOn(stripeClient.checkout.sessions, 'expire').mockImplementation(
+    expireSessionMock,
+  );
+  vi.spyOn(stripeClient.checkout.sessions, 'retrieve').mockImplementation(
+    retrieveSessionMock,
+  );
   return stripeClient;
 };
 
 describe('stripe-checkout helpers', () => {
   afterEach(() => {
     createSessionMock.mockReset();
+    expireSessionMock.mockReset();
+    retrieveSessionMock.mockReset();
     vi.useRealTimers();
   });
 
@@ -58,7 +70,7 @@ describe('stripe-checkout helpers', () => {
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-03-01T12:00:00.000Z', { zone: 'utc' })
-        .plus({ minutes: 30 })
+        .plus({ minutes: 35 })
         .toSeconds(),
     );
     expect(
@@ -68,18 +80,34 @@ describe('stripe-checkout helpers', () => {
     ).toBe(expected);
   });
 
-  it("clamps checkout expiry to Stripe's 24-hour maximum", () => {
+  it("keeps checkout expiry valid after Stripe's minimum-window request delay", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-01T12:00:00.000Z'));
+
+    const expiresAt = buildCheckoutSessionExpiresAt();
+
+    vi.setSystemTime(new Date('2026-03-01T12:05:00.000Z'));
+    expect(expiresAt - DateTime.now().setZone('utc').toSeconds()).toBe(30 * 60);
+  });
+
+  it("clamps checkout expiry safely below Stripe's 24-hour maximum", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
 
     const expected = Math.ceil(
-      DateTime.fromISO('2026-01-16T12:00:00.000Z', { zone: 'utc' }).toSeconds(),
+      DateTime.fromISO('2026-01-16T11:55:00.000Z', { zone: 'utc' }).toSeconds(),
     );
+    const expiresAt = buildCheckoutSessionExpiresAt(30, {
+      pinnedNowIso: '2026-01-17T18:00:00.000Z',
+    });
+
+    expect(expiresAt).toBe(expected);
     expect(
-      buildCheckoutSessionExpiresAt(30, {
-        pinnedNowIso: '2026-01-17T18:00:00.000Z',
-      }),
-    ).toBe(expected);
+      expiresAt -
+        DateTime.fromISO('2026-01-15T12:00:00.000Z', {
+          zone: 'utc',
+        }).toSeconds(),
+    ).toBeLessThan(24 * 60 * 60);
   });
 
   it.effect(
@@ -116,13 +144,56 @@ describe('stripe-checkout helpers', () => {
       }),
   );
 
+  it.effect('expires a hosted checkout in the connected account', () =>
+    Effect.gen(function* () {
+      expireSessionMock.mockResolvedValueOnce({
+        id: 'cs_test_mock',
+        status: 'expired',
+      });
+      const stripeClient = createStripeClient();
+
+      const session = yield* expireHostedCheckoutSession(
+        'cs_test_mock',
+        'acct_test_123',
+      ).pipe(Effect.provideService(StripeClient, stripeClient));
+
+      expect(session).toEqual({ id: 'cs_test_mock', status: 'expired' });
+      expect(expireSessionMock).toHaveBeenCalledWith(
+        'cs_test_mock',
+        undefined,
+        { stripeAccount: 'acct_test_123' },
+      );
+    }),
+  );
+
+  it.effect('retrieves a hosted checkout in the connected account', () =>
+    Effect.gen(function* () {
+      retrieveSessionMock.mockResolvedValueOnce({
+        id: 'cs_test_mock',
+        status: 'open',
+      });
+      const stripeClient = createStripeClient();
+
+      const session = yield* retrieveHostedCheckoutSession(
+        'cs_test_mock',
+        'acct_test_123',
+      ).pipe(Effect.provideService(StripeClient, stripeClient));
+
+      expect(session).toEqual({ id: 'cs_test_mock', status: 'open' });
+      expect(retrieveSessionMock).toHaveBeenCalledWith(
+        'cs_test_mock',
+        undefined,
+        { stripeAccount: 'acct_test_123' },
+      );
+    }),
+  );
+
   it.effect(
     'surfaces Stripe client errors without requiring env configuration',
     () =>
       Effect.gen(function* () {
-        createSessionMock.mockRejectedValueOnce(
-          new Error('stripe request failed'),
-        );
+        const cause = new Error('stripe request failed');
+        createSessionMock.mockRejectedValueOnce(cause);
         const stripeClient = createStripeClient();
 
         const error = yield* Effect.flip(
@@ -140,7 +211,8 @@ describe('stripe-checkout helpers', () => {
             },
           ).pipe(Effect.provideService(StripeClient, stripeClient)),
         );
-        expect(error.message).toBe('stripe request failed');
+        expect(error.message).toBe('Stripe checkout session request failed');
+        expect(error.cause).toBe(cause);
       }),
   );
 });

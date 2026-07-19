@@ -1,30 +1,65 @@
-import {
-  nonEmptyTrimmedString,
-  optionalTrimmedString,
-} from '@server/config/config-string';
-import { Config, Option } from 'effect';
+import { nonEmptyTrimmedString } from '@server/config/config-string';
+import { Config, ConfigProvider, Effect, Option } from 'effect';
 
-export const databaseConfig = Config.all({
-  BRANCH_ID: optionalTrimmedString('BRANCH_ID'),
-  DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
-  DELETE_BRANCH: Config.boolean('DELETE_BRANCH').pipe(Config.withDefault(true)),
-  NEON_API_KEY: optionalTrimmedString('NEON_API_KEY'),
-  NEON_DATABASE_NAME: optionalTrimmedString('NEON_DATABASE_NAME').pipe(
-    Config.map((value) =>
-      Option.match(value, {
-        onNone: () => 'appdb',
-        onSome: (databaseName) => databaseName,
-      }),
+const boundedInteger = (
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+) =>
+  Config.int(name).pipe(
+    Config.withDefault(fallback),
+    Config.mapOrFail((value) =>
+      value >= minimum && value <= maximum
+        ? Effect.succeed(value)
+        : Effect.fail(
+            new Config.ConfigError(
+              new ConfigProvider.SourceError({
+                message: `${name} must be between ${minimum} and ${maximum}`,
+              }),
+            ),
+          ),
     ),
+  );
+
+const databaseConfigValues = Config.all({
+  DATABASE_POOL_CONNECT_TIMEOUT_MS: boundedInteger(
+    'DATABASE_POOL_CONNECT_TIMEOUT_MS',
+    10_000,
+    1000,
+    60_000,
   ),
-  NEON_LOCAL_HOST_PORT: Config.port('NEON_LOCAL_HOST_PORT').pipe(
-    Config.withDefault(55_432),
+  DATABASE_POOL_IDLE_TIMEOUT_MS: boundedInteger(
+    'DATABASE_POOL_IDLE_TIMEOUT_MS',
+    30_000,
+    1000,
+    300_000,
   ),
-  NEON_LOCAL_PROXY: Config.boolean('NEON_LOCAL_PROXY').pipe(
+  DATABASE_POOL_MAX: boundedInteger('DATABASE_POOL_MAX', 5, 1, 20),
+  DATABASE_POOL_MIN: boundedInteger('DATABASE_POOL_MIN', 0, 0, 5),
+  DATABASE_TLS_CA_CERTIFICATE: Config.option(
+    Config.redacted('DATABASE_TLS_CA_CERTIFICATE'),
+  ),
+  DATABASE_TLS_REQUIRED: Config.boolean('DATABASE_TLS_REQUIRED').pipe(
     Config.withDefault(false),
   ),
-  NEON_PROJECT_ID: optionalTrimmedString('NEON_PROJECT_ID'),
-  PARENT_BRANCH_ID: optionalTrimmedString('PARENT_BRANCH_ID'),
+  DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
 });
+
+export const databaseConfig = databaseConfigValues.pipe(
+  Config.mapOrFail((config) =>
+    config.DATABASE_TLS_REQUIRED &&
+    Option.isNone(config.DATABASE_TLS_CA_CERTIFICATE)
+      ? Effect.fail(
+          new Config.ConfigError(
+            new ConfigProvider.SourceError({
+              message:
+                'DATABASE_TLS_CA_CERTIFICATE is required when DATABASE_TLS_REQUIRED=true',
+            }),
+          ),
+        )
+      : Effect.succeed(config),
+  ),
+);
 
 export type DatabaseConfig = Config.Success<typeof databaseConfig>;

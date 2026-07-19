@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import * as oldSchema from '../old/drizzle';
-import { database } from '../src/db';
+import type { ScriptDatabaseClient } from '../src/db/database-client';
 import * as newSchema from '../src/db/schema';
 import { oldDatabase } from './migrator-database';
 
@@ -25,6 +25,7 @@ export const transformAuthId = (authId: string) => {
 };
 
 export const resolveUserId = async (
+  database: ScriptDatabaseClient,
   oldUserId: string,
 ): Promise<string | undefined> => {
   // Check cache first
@@ -67,6 +68,7 @@ export const resolveUserId = async (
 export const mapUserId = resolveUserId;
 
 export const resolveIcon = async (
+  database: ScriptDatabaseClient,
   iconName: string,
   tenantId: string,
 ): Promise<{ iconColor: number; iconName: string }> => {
@@ -123,6 +125,7 @@ export const resolveIcon = async (
     );
     throw new Error(
       `Failed to resolve icon ${iconName} for tenant ${tenantId}`,
+      { cause: error },
     );
   }
 };

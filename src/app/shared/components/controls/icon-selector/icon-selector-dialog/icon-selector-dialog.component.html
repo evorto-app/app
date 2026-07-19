@@ -16,15 +16,30 @@
     }
     <div class="grid grid-cols-4 gap-1 lg:grid-cols-6 lg:gap-2">
       @for (icon of iconChoices(); track icon.id) {
-        <div
-          class="hover:bg-surface-container-high flex cursor-pointer flex-col items-center gap-2 rounded p-2"
+        <button
+          type="button"
+          mat-button
+          class="hover:bg-surface-container-high min-w-0! rounded p-2!"
+          [attr.aria-labelledby]="'select-icon-' + icon.id"
           [mat-dialog-close]="icon.value"
         >
-          <app-icon size="30" [iconCommonName]="icon.value" />
-          <span class="bg-surface break-all rounded px-2 text-sm">
-            {{ icon.friendlyName }}
+          <span class="flex flex-col items-center gap-2">
+            <app-icon
+              aria-hidden="true"
+              size="30"
+              [iconCommonName]="icon.value"
+            />
+            <span
+              aria-hidden="true"
+              class="bg-surface text-on-surface break-all rounded px-2 text-sm"
+            >
+              {{ icon.friendlyName }}
+            </span>
+            <span class="sr-only" [id]="'select-icon-' + icon.id">
+              Select {{ icon.friendlyName }} icon
+            </span>
           </span>
-        </div>
+        </button>
       }
     </div>
     @if (displayDirectAccess()) {
@@ -36,7 +51,9 @@
         [disabled]="addIconMutation.isPending()"
       >
         <app-icon size="40" [iconCommonName]="directAccessIcon()" />
-        <span class="bg-surface rounded px-2 py-1">{{ searchValue() }}</span>
+        <span class="bg-surface text-on-surface rounded px-2 py-1">
+          {{ searchValue() }}
+        </span>
       </button>
     }
     @if (invalidDirectAccessName()) {
@@ -51,5 +68,5 @@
   </div>
 </mat-dialog-content>
 <mat-dialog-actions>
-  <button mat-button mat-dialog-close>Cancel</button>
+  <button mat-button mat-dialog-close class="text-on-surface!">Cancel</button>
 </mat-dialog-actions>

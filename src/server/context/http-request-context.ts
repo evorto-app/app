@@ -10,6 +10,7 @@ import { Context as RequestContext } from '../../types/custom/context';
 import { isAuthenticated, resolveRequestOrigin } from '../auth/auth-session';
 import {
   resolveAuthenticationContext,
+  resolvePlatformAuthority,
   resolveRequestPermissions,
   resolveTenantContext,
   resolveUserContext,
@@ -26,8 +27,7 @@ export class HttpRequestTenantNotFoundError extends Schema.TaggedErrorClass<Http
 
 const resolveRequestHost = (
   request: HttpServerRequest.HttpServerRequest,
-): readonly string[] | string | undefined =>
-  request.headers['x-forwarded-host'] ?? request.headers['host'];
+): readonly string[] | string | undefined => request.headers['host'];
 
 export const resolveHttpRequestContext = (
   request: HttpServerRequest.HttpServerRequest,
@@ -40,7 +40,6 @@ export const resolveHttpRequestContext = (
   Effect.gen(function* () {
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
-      appSessionCookie: request.cookies['appSession'],
       isAuthenticated: isAuthenticated(authSession),
     });
 
@@ -72,16 +71,17 @@ export const resolveHttpRequestContext = (
       oidcUser: authSession?.authData,
       tenantId: resolvedTenant.id,
     });
+    const platformAuthority = resolvePlatformAuthority(authSession?.authData);
     const permissions = resolveRequestPermissions({
       oidcUser: authSession?.authData,
       user: tenantUser,
     });
-    const user = tenantUser ? { ...tenantUser, permissions } : undefined;
 
     return Schema.decodeUnknownSync(RequestContext)({
       authentication,
       permissions,
+      platformAuthority,
       tenant: resolvedTenant,
-      user,
+      user: tenantUser,
     });
   });

@@ -1,0 +1,164 @@
+variable "organization_id" {
+  description = "Scaleway organization that owns the Evorto projects."
+  type        = string
+}
+
+variable "tem_project_id" {
+  description = "Existing shared project that owns notifications.evorto.app in Transactional Email."
+  type        = string
+}
+
+variable "region" {
+  type    = string
+  default = "fr-par"
+}
+
+variable "zone" {
+  type    = string
+  default = "fr-par-1"
+}
+
+variable "bucket_suffix" {
+  description = "Globally unique lowercase suffix for all non-state Object Storage buckets."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]{4,30}[a-z0-9]$", var.bucket_suffix))
+    error_message = "bucket_suffix must be 6-32 lowercase DNS-safe characters."
+  }
+}
+
+variable "application_bucket_console_user_ids" {
+  description = "Scaleway IAM user IDs granted read-only console access to each application-data bucket."
+  type        = set(string)
+
+  validation {
+    condition = length(var.application_bucket_console_user_ids) > 0 && alltrue([
+      for user_id in var.application_bucket_console_user_ids :
+      can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", user_id))
+    ])
+    error_message = "application_bucket_console_user_ids must contain at least one lowercase Scaleway IAM user UUID."
+  }
+}
+
+variable "alert_email" {
+  description = "Operational address used by Cockpit alert contact points."
+  type        = string
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for evorto.app. Authentication comes only from CLOUDFLARE_API_TOKEN."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
+    error_message = "cloudflare_zone_id must be a 32-character lowercase hexadecimal Cloudflare zone ID."
+  }
+}
+
+variable "staging_container_image" {
+  description = "Initial immutable staging image. Workflows own subsequent image revisions."
+  type        = string
+}
+
+variable "staging_schema_database_password" {
+  type        = string
+  description = "Write-only staging schema-owner password."
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "staging_schema_database_password_version" {
+  type        = number
+  description = "Monotonic staging schema-owner password version."
+  default     = 1
+
+  validation {
+    condition     = var.staging_schema_database_password_version >= 1 && floor(var.staging_schema_database_password_version) == var.staging_schema_database_password_version
+    error_message = "staging_schema_database_password_version must be a positive integer."
+  }
+}
+
+variable "staging_runtime_database_password" {
+  type        = string
+  description = "Write-only staging runtime-user password."
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "staging_runtime_database_password_version" {
+  type        = number
+  description = "Monotonic staging runtime-user password version."
+  default     = 1
+
+  validation {
+    condition     = var.staging_runtime_database_password_version >= 1 && floor(var.staging_runtime_database_password_version) == var.staging_runtime_database_password_version
+    error_message = "staging_runtime_database_password_version must be a positive integer."
+  }
+}
+
+variable "production_enabled" {
+  description = "Binding production provisioning gate. Keep false until the separate enablement decision."
+  type        = bool
+  default     = false
+}
+
+variable "production_container_image" {
+  description = "Immutable production-registry image copied from an accepted staging manifest."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "production_schema_database_password" {
+  type        = string
+  description = "Write-only production schema-owner password. Required only when production_enabled is true."
+  default     = null
+  nullable    = true
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "production_schema_database_password_version" {
+  type        = number
+  description = "Monotonic production schema-owner password version."
+  default     = 1
+
+  validation {
+    condition     = var.production_schema_database_password_version >= 1 && floor(var.production_schema_database_password_version) == var.production_schema_database_password_version
+    error_message = "production_schema_database_password_version must be a positive integer."
+  }
+}
+
+variable "production_runtime_database_password" {
+  type        = string
+  description = "Write-only production runtime-user password. Required only when production_enabled is true."
+  default     = null
+  nullable    = true
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "production_runtime_database_password_version" {
+  type        = number
+  description = "Monotonic production runtime-user password version."
+  default     = 1
+
+  validation {
+    condition     = var.production_runtime_database_password_version >= 1 && floor(var.production_runtime_database_password_version) == var.production_runtime_database_password_version
+    error_message = "production_runtime_database_password_version must be a positive integer."
+  }
+}
+
+variable "validate_tem_dns" {
+  description = "Set only after the externally managed SPF, DKIM, MX, and DMARC records exist."
+  type        = bool
+  default     = false
+}
+
+variable "monthly_budget_eur" {
+  description = "Optional organization billing budget alert threshold in EUR."
+  type        = number
+  default     = null
+  nullable    = true
+}

@@ -15,6 +15,7 @@ import consola from 'consola/browser';
 
 import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
+import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
 import { AppRpc } from './effect-rpc-angular-client';
 
@@ -23,6 +24,8 @@ import { AppRpc } from './effect-rpc-angular-client';
 })
 export class ConfigService {
   public readonly permissionsSignal = signal<Permission[]>([]);
+  public readonly platformAuthoritySignal =
+    signal<null | PlatformAdministratorAuthority>(null);
   public readonly tenantSignal = signal<null | Tenant>(null);
 
   public get missingContext() {
@@ -31,6 +34,10 @@ export class ConfigService {
 
   public get permissions(): Permission[] {
     return this.permissionsSignal();
+  }
+
+  public get platformAuthority(): null | PlatformAdministratorAuthority {
+    return this.platformAuthoritySignal();
   }
 
   public get publicConfig() {
@@ -44,10 +51,8 @@ export class ConfigService {
 
   private _publicConfig: {
     googleMapsApiKey: null | string;
-    sentryDsn: null | string;
   } = {
     googleMapsApiKey: null,
-    sentryDsn: null,
   };
   private _tenant!: Tenant;
 
@@ -97,18 +102,23 @@ export class ConfigService {
     if (this.requestContext !== null && isPlatformServer(this.platformId)) {
       this.applyTenantConfig(this.requestContext.tenant);
       this.permissionsSignal.set([...this.requestContext.permissions]);
+      this.platformAuthoritySignal.set(
+        this.requestContext.platformAuthority ?? null,
+      );
       this._publicConfig = await this.rpc.config.public.call();
       return;
     }
 
-    const [tenant, permissions, pub] = await Promise.all([
+    const [tenant, permissions, platformAuthority, pub] = await Promise.all([
       this.rpc.config.tenant.call(),
       this.rpc.config.permissions.call(),
+      this.rpc.config.platformAuthority.call(),
       this.rpc.config.public.call(),
     ]);
 
     this.applyTenantConfig(tenant);
     this.permissionsSignal.set([...permissions]);
+    this.platformAuthoritySignal.set(platformAuthority);
 
     this._publicConfig = pub;
   }

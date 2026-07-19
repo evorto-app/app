@@ -7,7 +7,7 @@ import {
   Schema,
 } from 'effect';
 
-import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
+import { optionalTrimmedString } from './config-string';
 
 const serverLogLevelNames = [
   'all',
@@ -34,8 +34,6 @@ const portConfig = Config.port('PORT').pipe(Config.withDefault(4000));
 const publicGoogleMapsApiKeyConfig = optionalTrimmedString(
   'PUBLIC_GOOGLE_MAPS_API_KEY',
 );
-const publicSentryDsnConfig = optionalTrimmedString('PUBLIC_SENTRY_DSN');
-const resendApiKeyConfig = nonEmptyTrimmedString('RESEND_API_KEY');
 
 const serverLogLevelName = Schema.Literals(serverLogLevelNames);
 const serverLogLevelByName = {
@@ -93,12 +91,17 @@ export const serverNetworkConfig = Config.all({
   PORT: portConfig,
 });
 
+export const serverPublicUrlConfig = Config.all({
+  BASE_URL: baseUrlConfig,
+  NODE_ENV: nodeEnvironmentConfig,
+});
+
 export const serverTelemetryConfig = Config.all({
   PACKAGE_VERSION: packageVersionConfig,
 });
 
-export const serverEmailConfig = Config.all({
-  RESEND_API_KEY: resendApiKeyConfig,
+export const serverClockConfig = Config.all({
+  E2E_NOW_ISO: pinnedNowIsoConfig,
 });
 
 export const serverConfig = Config.all({
@@ -110,11 +113,12 @@ export const serverConfig = Config.all({
   PACKAGE_VERSION: packageVersionConfig,
   PORT: portConfig,
   PUBLIC_GOOGLE_MAPS_API_KEY: publicGoogleMapsApiKeyConfig,
-  PUBLIC_SENTRY_DSN: publicSentryDsnConfig,
-  RESEND_API_KEY: resendApiKeyConfig,
   SERVER_LOG_LEVEL: serverLogLevelConfig,
 });
 
+export type ServerClockConfig = Config.Success<typeof serverClockConfig>;
 export type ServerConfig = Config.Success<typeof serverConfig>;
-export type ServerEmailConfig = Config.Success<typeof serverEmailConfig>;
 export type ServerLoggingConfig = Config.Success<typeof serverLoggingConfig>;
+export type ServerPublicUrlConfig = Config.Success<
+  typeof serverPublicUrlConfig
+>;

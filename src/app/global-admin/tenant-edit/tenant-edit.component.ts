@@ -7,7 +7,13 @@ import {
   input,
   linkedSignal,
 } from '@angular/core';
-import { form, FormField, required, submit } from '@angular/forms/signals';
+import {
+  form,
+  FormField,
+  required,
+  submit,
+  validate,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -26,19 +32,17 @@ import {
 
 import {
   supportedTenantCurrencies,
-  supportedTenantLocales,
   supportedTenantTimezones,
 } from '../../../types/custom/tenant';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
-  createGlobalAdminTenantFormModel,
   type GlobalAdminTenantFormModel,
-  globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
-  globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
+  globalAdminTenantUpdateErrorMessage,
+  resolveGlobalAdminTenantEditFormModel,
 } from '../tenant-form/tenant-form.model';
 
 @Component({
@@ -60,8 +64,6 @@ export class TenantEditComponent {
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
-  protected readonly localeOptions = supportedTenantLocales;
-  protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   private readonly rpc = AppRpc.injectClient();
   protected readonly tenantQuery = injectQuery(() =>
     this.rpc.globalAdmin.tenants.findOne.queryOptions({
@@ -72,15 +74,7 @@ export class TenantEditComponent {
     { tenant: GlobalAdminTenantRecord | null | undefined; tenantId: string },
     GlobalAdminTenantFormModel
   >({
-    computation: ({ tenant, tenantId }, previous) => {
-      if (tenant) {
-        return globalAdminTenantFormModelFromRecord(tenant);
-      }
-
-      return previous?.source.tenantId === tenantId
-        ? previous.value
-        : createGlobalAdminTenantFormModel();
-    },
+    computation: resolveGlobalAdminTenantEditFormModel,
     source: () => ({
       tenant: this.tenantQuery.isSuccess()
         ? this.tenantQuery.data()
@@ -91,6 +85,12 @@ export class TenantEditComponent {
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
     required(schema.domain);
     required(schema.name);
+    required(schema.reason);
+    validate(schema.reason, ({ value }) =>
+      value().trim().length === 0
+        ? { kind: 'required', message: 'Reason is required.' }
+        : undefined,
+    );
   });
   protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
   protected readonly timezoneOptions = supportedTenantTimezones;
@@ -103,7 +103,7 @@ export class TenantEditComponent {
   private readonly router = inject(Router);
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to load tenant');
+    return getErrorMessage(error, 'Failed to load organization');
   }
 
   protected async updateTenant(event: Event): Promise<void> {
@@ -117,7 +117,7 @@ export class TenantEditComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to update tenant'),
+            getErrorMessage(error, 'Failed to update organization'),
           );
           return null;
         }
@@ -135,7 +135,7 @@ export class TenantEditComponent {
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to update tenant'),
+              globalAdminTenantUpdateErrorMessage(error),
             );
           },
           onSuccess: async (updatedTenant) => {
@@ -157,7 +157,7 @@ export class TenantEditComponent {
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
             );
-            this.notifications.showSuccess('Tenant updated');
+            this.notifications.showSuccess('Organization updated');
             await this.router.navigate([
               '/global-admin/tenants',
               this.tenantId(),

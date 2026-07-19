@@ -4,9 +4,10 @@ import {
   createGlobalAdminTenantFormModel,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
-  globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
+  globalAdminTenantUpdateErrorMessage,
   normalizeGlobalAdminTenantDomain,
+  resolveGlobalAdminTenantEditFormModel,
 } from './tenant-form.model';
 
 describe('global admin tenant form model', () => {
@@ -14,20 +15,12 @@ describe('global admin tenant form model', () => {
     expect(createGlobalAdminTenantFormModel()).toEqual({
       currency: 'EUR',
       domain: '',
-      locale: 'en-GB',
       name: '',
+      reason: '',
       stripeAccountId: '',
       theme: 'evorto',
       timezone: 'Europe/Berlin',
     });
-  });
-
-  it('keeps the visible relaunch scope aligned with the one-domain tenant workflow', () => {
-    expect(globalAdminTenantRelaunchScopeItems).toEqual([
-      'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
-      'Custom-domain verification and multi-domain automation are deferred.',
-      'Tenant-admin impersonation is not available in the current relaunch surface.',
-    ]);
   });
 
   it('maps tenant records into editable form state without exposing derived values', () => {
@@ -36,7 +29,7 @@ describe('global admin tenant form model', () => {
         currency: 'AUD',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'en-AU',
+        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: 'acct_123',
         stripeConnected: true,
@@ -46,12 +39,101 @@ describe('global admin tenant form model', () => {
     ).toEqual({
       currency: 'AUD',
       domain: 'tenant.example.com',
-      locale: 'en-AU',
       name: 'Tenant',
+      reason: '',
       stripeAccountId: 'acct_123',
       theme: 'esn',
       timezone: 'Australia/Brisbane',
     });
+  });
+
+  it('preserves same-tenant edits when the query refreshes', () => {
+    const tenant = {
+      currency: 'EUR' as const,
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      locale: 'de-DE' as const,
+      name: 'Tenant',
+      stripeAccountId: null,
+      stripeConnected: false,
+      theme: 'evorto' as const,
+      timezone: 'Europe/Berlin' as const,
+    };
+    const editedModel = {
+      ...globalAdminTenantFormModelFromRecord(tenant),
+      domain: 'next.tenant.example.com',
+      reason: 'Move the public URL',
+    };
+
+    expect(
+      resolveGlobalAdminTenantEditFormModel(
+        { tenant: { ...tenant }, tenantId: tenant.id },
+        {
+          source: { tenant, tenantId: tenant.id },
+          value: editedModel,
+        },
+      ),
+    ).toBe(editedModel);
+  });
+
+  it('initializes the edit form when tenant data first arrives', () => {
+    const tenant = {
+      currency: 'EUR' as const,
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      locale: 'de-DE' as const,
+      name: 'Tenant',
+      stripeAccountId: null,
+      stripeConnected: false,
+      theme: 'evorto' as const,
+      timezone: 'Europe/Berlin' as const,
+    };
+
+    expect(
+      resolveGlobalAdminTenantEditFormModel(
+        { tenant, tenantId: tenant.id },
+        {
+          source: { tenant: undefined, tenantId: tenant.id },
+          value: createGlobalAdminTenantFormModel(),
+        },
+      ),
+    ).toEqual(globalAdminTenantFormModelFromRecord(tenant));
+  });
+
+  it('resets the edit form when navigation selects another tenant', () => {
+    const previousTenant = {
+      currency: 'EUR' as const,
+      domain: 'first.example.com',
+      id: 'tenant-1',
+      locale: 'de-DE' as const,
+      name: 'First tenant',
+      stripeAccountId: null,
+      stripeConnected: false,
+      theme: 'evorto' as const,
+      timezone: 'Europe/Berlin' as const,
+    };
+    const nextTenant = {
+      ...previousTenant,
+      domain: 'second.example.com',
+      id: 'tenant-2',
+      name: 'Second tenant',
+    };
+
+    expect(
+      resolveGlobalAdminTenantEditFormModel(
+        { tenant: nextTenant, tenantId: nextTenant.id },
+        {
+          source: {
+            tenant: previousTenant,
+            tenantId: previousTenant.id,
+          },
+          value: {
+            ...globalAdminTenantFormModelFromRecord(previousTenant),
+            name: 'Unsaved edit',
+          },
+        },
+      ),
+    ).toEqual(globalAdminTenantFormModelFromRecord(nextTenant));
   });
 
   it('trims tenant create/edit payloads and clears blank Stripe account IDs', () => {
@@ -59,20 +141,22 @@ describe('global admin tenant form model', () => {
       globalAdminTenantPayloadFromForm({
         currency: 'CZK',
         domain: ' section.example.org ',
-        locale: 'en-GB',
         name: ' Section ',
+        reason: ' Production support request ',
         stripeAccountId: ' ',
         theme: 'evorto',
         timezone: 'Europe/Prague',
       }),
     ).toEqual({
-      currency: 'CZK',
-      domain: 'section.example.org',
-      locale: 'en-GB',
-      name: 'Section',
-      stripeAccountId: undefined,
-      theme: 'evorto',
-      timezone: 'Europe/Prague',
+      reason: 'Production support request',
+      tenant: {
+        currency: 'CZK',
+        domain: 'section.example.org',
+        name: 'Section',
+        stripeAccountId: undefined,
+        theme: 'evorto',
+        timezone: 'Europe/Prague',
+      },
     });
   });
 
@@ -90,13 +174,44 @@ describe('global admin tenant form model', () => {
       globalAdminTenantPayloadFromForm({
         currency: 'EUR',
         domain: 'section.example.org/path',
-        locale: 'en-GB',
         name: 'Section',
+        reason: 'Create a production tenant',
         stripeAccountId: '',
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
     ).toThrow('Domain must be a single host name');
+  });
+
+  it('rejects credential-like domain input before deriving a trusted origin', () => {
+    expect(() =>
+      globalAdminTenantPayloadFromForm({
+        currency: 'EUR',
+        domain: 'section.example.org@attacker.invalid',
+        name: 'Section',
+        reason: 'Create a production tenant',
+        stripeAccountId: '',
+        theme: 'evorto',
+        timezone: 'Europe/Berlin',
+      }),
+    ).toThrow('Domain must be a single host name');
+  });
+
+  it('shows the actionable reason for typed public URL migration blockers', () => {
+    expect(
+      globalAdminTenantUpdateErrorMessage({
+        _tag: 'GlobalAdminTenantUrlMigrationBlockedError',
+        activeRegistrationTransfers: true,
+        message:
+          'Organization public URL cannot change while issued links are active',
+        pendingStripeObligations: false,
+        reason:
+          "Complete or cancel every active registration transfer before changing the organization's public URL.",
+        tenantId: 'tenant-1',
+      }),
+    ).toBe(
+      "Organization public URL cannot change while issued links are active. Complete or cancel every active registration transfer before changing the organization's public URL.",
+    );
   });
 
   it('keeps tenant writes disabled while invalid, submitting, or awaiting the mutation', () => {

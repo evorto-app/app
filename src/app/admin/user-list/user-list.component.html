@@ -5,8 +5,8 @@
   <h1 class="title-large">All users</h1>
 </div>
 <p class="text-on-surface-variant mb-4 text-sm">
-  Manage tenant role assignments for existing users. Role changes apply only to
-  this tenant.
+  Manage role assignments for existing members. Role changes apply only to this
+  organization.
 </p>
 <mat-form-field class="mb-4 w-full max-w-xl">
   <mat-label>Search users</mat-label>
@@ -20,11 +20,55 @@
 </mat-form-field>
 @if (usersQuery.isPending()) {
   <div
+    role="status"
+    aria-live="polite"
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
     <h2 class="title-medium">Loading users ...</h2>
   </div>
+} @else if (usersQuery.isError()) {
+  <div
+    role="alert"
+    class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+  >
+    <div>
+      <h2 class="title-medium">Users could not be loaded</h2>
+      <p class="body-medium mt-1">
+        The user list is unavailable. Check your connection and try again.
+      </p>
+    </div>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="usersQuery.isFetching()"
+      (click)="usersQuery.refetch()"
+    >
+      {{ usersQuery.isFetching() ? "Retrying..." : "Try again" }}
+    </button>
+  </div>
 } @else if (usersQuery.isSuccess()) {
+  @if (canAssignRoles() && roleOptionsQuery.isError()) {
+    <div
+      role="alert"
+      class="bg-error-container text-on-error-container mb-4 flex flex-col items-start gap-3 rounded-xl p-4"
+    >
+      <div>
+        <h2 class="title-medium">Roles could not be loaded</h2>
+        <p class="body-medium mt-1">
+          Users are visible, but role assignments are unavailable until the role
+          list loads.
+        </p>
+      </div>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="roleOptionsQuery.isFetching()"
+        (click)="roleOptionsQuery.refetch()"
+      >
+        {{ roleOptionsQuery.isFetching() ? "Retrying..." : "Try again" }}
+      </button>
+    </div>
+  }
   <div class="overflow-x-auto overflow-y-hidden rounded-2xl">
     <table mat-table [dataSource]="usersQuery.data().users">
       <ng-container matColumnDef="name">
@@ -50,6 +94,7 @@
                 [value]="element.roleIds"
                 [disabled]="
                   roleOptionsQuery.isPending() ||
+                  roleOptionsQuery.isError() ||
                   assignRolesMutation.isPending()
                 "
                 (selectionChange)="updateUserRoles(element.id, $event.value)"

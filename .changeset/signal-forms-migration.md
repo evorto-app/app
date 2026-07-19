@@ -1,5 +1,5 @@
 ---
-evorto: minor
+default: minor
 ---
 
 # Migrate forms to Angular Signal Forms

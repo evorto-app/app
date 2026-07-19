@@ -2,91 +2,137 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { e2eTestUserPasswordVariables } from '../user-data';
+
 // Runtime preflight runs before Docker commands so missing secrets, broken
 // Compose config, or missing browsers fail clearly before the app starts.
-export type RuntimeTarget = 'docker';
+export type RuntimeTarget = 'docker' | 'esncard-release' | 'playwright';
 
-type RequiredVariable = {
+interface CommandResult {
+  status: null | number;
+  stderr: string;
+  stdout: string;
+}
+
+interface RequiredVariable {
   description: string;
   name: string;
-};
+}
 
-type RuntimeCheckSeverity = 'failure' | 'ok' | 'warning';
-
-type RuntimeCheck = {
+interface RuntimeCheck {
   details?: readonly string[];
   label: string;
   severity: RuntimeCheckSeverity;
-};
+}
 
-type CommandResult = {
-  stderr: string;
-  stdout: string;
-  status: null | number;
-};
+type RuntimeCheckSeverity = 'failure' | 'ok' | 'warning';
 
-type RuntimePreflightOptions = {
+interface RuntimePreflightOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   fileExists?: (filePath: string) => boolean;
   runCommand?: (command: string, args: readonly string[]) => CommandResult;
-};
+}
 
 const commandTimeoutMs = 15_000;
 
+const e2eTestAccountPasswordVariables = e2eTestUserPasswordVariables.map(
+  (name) => ({
+    description: 'Auth0 password for an authenticated Playwright test account',
+    name,
+  }),
+) satisfies RequiredVariable[];
+
+const dockerRequiredVariables = [
+  {
+    description:
+      'Font Awesome package registry access for premium and brand icons',
+    name: 'FONT_AWESOME_TOKEN',
+  },
+  {
+    description: 'Auth0 application id',
+    name: 'CLIENT_ID',
+  },
+  {
+    description: 'Auth0 application secret',
+    name: 'CLIENT_SECRET',
+  },
+  {
+    description: 'Auth0 issuer URL',
+    name: 'ISSUER_BASE_URL',
+  },
+  {
+    description: 'Application session secret',
+    name: 'SECRET',
+  },
+  {
+    description: 'Stripe API access for paid registration flows',
+    name: 'STRIPE_API_KEY',
+  },
+  {
+    description: 'Stripe connected account id for seeded paid flows',
+    name: 'STRIPE_TEST_ACCOUNT_ID',
+  },
+] satisfies RequiredVariable[];
+
+const playwrightRequiredVariables = [
+  ...dockerRequiredVariables,
+  ...e2eTestAccountPasswordVariables,
+] satisfies RequiredVariable[];
+
+const liveEsncardReleaseVariable = {
+  description:
+    'Approved active non-production ESNcard identifier for mandatory release certification',
+  name: 'E2E_LIVE_ESN_CARD_IDENTIFIER',
+} satisfies RequiredVariable;
+
+const expiredEsncardReleaseVariable = {
+  description:
+    'Approved permanently expired non-production ESNcard identifier for mandatory release certification',
+  name: 'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER',
+} satisfies RequiredVariable;
+
 export const requiredByTarget = {
-  docker: [
-    {
-      description:
-        'Font Awesome package registry access for premium and brand icons',
-      name: 'FONT_AWESOME_TOKEN',
-    },
-    {
-      description: 'Neon Local branch creation',
-      name: 'NEON_API_KEY',
-    },
-    {
-      description: 'Neon Local project selection',
-      name: 'NEON_PROJECT_ID',
-    },
-    {
-      description: 'Auth0 application id',
-      name: 'CLIENT_ID',
-    },
-    {
-      description: 'Auth0 application secret',
-      name: 'CLIENT_SECRET',
-    },
-    {
-      description: 'Auth0 issuer URL',
-      name: 'ISSUER_BASE_URL',
-    },
-    {
-      description: 'Application session secret',
-      name: 'SECRET',
-    },
-    {
-      description: 'Stripe API access for paid registration flows',
-      name: 'STRIPE_API_KEY',
-    },
-    {
-      description: 'Stripe connected account id for seeded paid flows',
-      name: 'STRIPE_TEST_ACCOUNT_ID',
-    },
+  docker: dockerRequiredVariables,
+  'esncard-release': [
+    ...playwrightRequiredVariables,
+    liveEsncardReleaseVariable,
+    expiredEsncardReleaseVariable,
   ],
+  playwright: playwrightRequiredVariables,
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
 export const optionalByTarget = {
   docker: [
     {
+      ...liveEsncardReleaseVariable,
+      description: 'Optional local active-card esncard.org Playwright coverage',
+    },
+    {
+      ...expiredEsncardReleaseVariable,
       description:
-        'Live esncard.org add, refresh, and remove Playwright coverage',
-      name: 'E2E_LIVE_ESN_CARD_IDENTIFIER',
+        'Optional local expired-card esncard.org Playwright coverage',
+    },
+  ],
+  'esncard-release': [],
+  playwright: [
+    {
+      ...liveEsncardReleaseVariable,
+      description: 'Optional local active-card esncard.org Playwright coverage',
+    },
+    {
+      ...expiredEsncardReleaseVariable,
+      description:
+        'Optional local expired-card esncard.org Playwright coverage',
     },
   ],
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
-const targets = new Set<RuntimeTarget>(['docker']);
+const targets = new Set<RuntimeTarget>([
+  'docker',
+  'esncard-release',
+  'playwright',
+]);
 
 const readTarget = (): RuntimeTarget => {
   const target = process.argv[2];
@@ -95,8 +141,9 @@ const readTarget = (): RuntimeTarget => {
   }
 
   console.error(
-    `Usage: bun helpers/testing/runtime-preflight.ts ${Array.from(targets).join('|')}`,
+    `Usage: bun helpers/testing/runtime-preflight.ts ${[...targets].join('|')}`,
   );
+  // eslint-disable-next-line unicorn/no-process-exit -- CLI usage errors use exit code 2.
   process.exit(2);
 };
 
@@ -155,7 +202,7 @@ const commandCheck = (
 const readPlaywrightInstallLocations = (output: string): readonly string[] => {
   const locations = new Set<string>();
   const installLocationExpression = /^\s*Install location:\s*(.+)$/gm;
-  let match: RegExpExecArray | null;
+  let match: null | RegExpExecArray;
 
   while ((match = installLocationExpression.exec(output)) !== null) {
     locations.add(match[1].trim());
@@ -311,18 +358,22 @@ export const evaluateRuntimePreflight = (
       label: `Available ${target} runtime variables`,
       severity: 'ok',
     },
-    {
-      details: [
-        ...presentOptionalVariables.map(
-          ({ description, name }) => `${name}: ${description}`,
-        ),
-        ...missingOptionalVariables.map(
-          ({ description, name }) => `missing ${name}: ${description}`,
-        ),
-      ],
-      label: `Optional ${target} live-provider variables`,
-      severity: 'ok',
-    },
+    ...(optionalByTarget[target].length > 0
+      ? [
+          {
+            details: [
+              ...presentOptionalVariables.map(
+                ({ description, name }) => `${name}: ${description}`,
+              ),
+              ...missingOptionalVariables.map(
+                ({ description, name }) => `missing ${name}: ${description}`,
+              ),
+            ],
+            label: `Optional ${target} live-provider variables`,
+            severity: 'ok' as const,
+          },
+        ]
+      : []),
     {
       details: [path.join(cwd, '.env.dev')],
       label: 'Generated worktree runtime env file',
@@ -382,7 +433,7 @@ const printResult = (
 
   if (result.failed) {
     console.log(
-      'Fix failed checks before starting Docker. Use .env.example as the checklist, then add secret values to .env or export them in the shell when variables are missing.',
+      'Fix failed checks before continuing. Use .env.example as the local checklist, then add secret values to .env or export them in the shell when variables are missing.',
     );
   }
 
@@ -397,5 +448,6 @@ if (import.meta.main) {
   const target = readTarget();
   const result = evaluateRuntimePreflight(target);
   printResult(target, result);
+  // eslint-disable-next-line unicorn/no-process-exit -- This file is the preflight CLI entrypoint.
   process.exit(result.failed ? 1 : 0);
 }

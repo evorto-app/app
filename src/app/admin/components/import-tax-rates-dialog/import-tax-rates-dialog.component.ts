@@ -16,6 +16,11 @@ import {
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 
+export const stripeTaxRatesDashboardLink = {
+  href: 'https://dashboard.stripe.com/tax-rates',
+  label: 'Open Stripe tax rates',
+};
+
 export function taxRateImportActionDisabled(input: {
   mutationPending: boolean;
   selectedCount: number;
@@ -36,12 +41,12 @@ export function taxRateImportActionDisabled(input: {
 })
 export class ImportTaxRatesDialogComponent {
   protected readonly selected = signal<string[]>([]);
-
   private readonly rpc = AppRpc.injectClient();
 
   private readonly importMutation = injectMutation(() =>
     this.rpc.admin.tenant.importStripeTaxRates.mutationOptions(),
   );
+
   protected readonly canImport = computed(
     () =>
       !taxRateImportActionDisabled({
@@ -49,6 +54,7 @@ export class ImportTaxRatesDialogComponent {
         selectedCount: this.selected().length,
       }),
   );
+  protected readonly dashboardLink = stripeTaxRatesDashboardLink;
 
   protected readonly importedQuery = injectQuery(() =>
     this.rpc.admin.tenant.listImportedTaxRates.queryOptions(),

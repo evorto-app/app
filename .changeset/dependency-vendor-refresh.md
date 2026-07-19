@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Refresh dependency and vendored upstream baselines

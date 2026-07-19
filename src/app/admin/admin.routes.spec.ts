@@ -24,6 +24,7 @@ describe('ADMIN_ROUTES', () => {
     { path: 'roles/create', permissions: ['admin:manageRoles'] },
     { path: 'roles/:roleId', permissions: ['admin:manageRoles'] },
     { path: 'roles/:roleId/edit', permissions: ['admin:manageRoles'] },
+    { path: 'onboarding', permissions: ['admin:changeSettings'] },
     { path: 'settings', permissions: ['admin:changeSettings'] },
     { path: 'tax-rates', permissions: ['admin:tax'] },
     { path: 'users', permissions: ['users:viewAll'] },

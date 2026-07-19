@@ -6,3 +6,11 @@ updates:
       interval: "weekly"
     exclude-paths:
       - "repos/**"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"

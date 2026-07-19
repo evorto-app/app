@@ -13,16 +13,13 @@ import * as Headers from 'effect/unstable/http/Headers';
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
 
+import { sanitizeRelativeRedirectPath } from '../../shared/auth-redirect';
 import { RuntimeConfig } from '../config/runtime-config';
 
 const SESSION_COOKIE_NAME = 'appSession';
 
 export interface AuthSession {
-  accessToken: string;
   authData: Record<string, unknown>;
-  expiresAt: number;
-  idToken?: string;
-  refreshToken?: string;
 }
 
 interface AuthStoreOptions {
@@ -80,22 +77,6 @@ const toCookieRecord = (cookies: Record<string, unknown>) => {
   }
 
   return normalized;
-};
-
-const sanitizeReturnPath = (value: null | string | undefined) => {
-  if (!value) {
-    return;
-  }
-
-  if (
-    !value.startsWith('/') ||
-    value.startsWith('//') ||
-    value.includes('://')
-  ) {
-    return;
-  }
-
-  return value;
 };
 
 const cookieHandler: CookieHandler<AuthStoreOptions> = {
@@ -270,7 +251,7 @@ const createAuth0Client = (request: HttpServerRequest.HttpServerRequest) =>
     });
   });
 
-const toAuthSession = (sessionData: SessionData | undefined) => {
+export const toAuthSession = (sessionData: SessionData | undefined) => {
   if (!sessionData) {
     return;
   }
@@ -280,14 +261,13 @@ const toAuthSession = (sessionData: SessionData | undefined) => {
     return;
   }
 
-  const authData = toRecord(sessionData.user) ?? {};
+  const authData = toRecord(sessionData.user);
+  if (!authData || !asString(authData['sub'])) {
+    return;
+  }
 
   return {
-    accessToken: primaryTokenSet.accessToken,
     authData,
-    expiresAt: primaryTokenSet.expiresAt * 1000,
-    ...(sessionData.idToken && { idToken: sessionData.idToken }),
-    ...(sessionData.refreshToken && { refreshToken: sessionData.refreshToken }),
   };
 };
 
@@ -298,10 +278,7 @@ export const resolveRequestOrigin = (
     getHeaderValue(request.headers, 'x-forwarded-proto') ??
     getHeaderValue(request.headers, 'x-forwarded-protocol') ??
     'http';
-  const host =
-    getHeaderValue(request.headers, 'x-forwarded-host') ??
-    getHeaderValue(request.headers, 'host') ??
-    'localhost:4000';
+  const host = getHeaderValue(request.headers, 'host') ?? 'localhost:4000';
 
   return {
     isSecure: protocol === 'https',
@@ -332,12 +309,10 @@ export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
       auth0Client.getSession(storeOptions),
     );
 
-    const session = toAuthSession(sessionData);
-    if (!session || session.expiresAt <= Date.now()) {
-      return;
-    }
-
-    return session;
+    // The SDK has already validated the encrypted application session here.
+    // OAuth access-token expiry is independent of that session lifetime; use
+    // ServerClient.getAccessToken() if a downstream integration needs a token.
+    return toAuthSession(sessionData);
   });
 
 export const handleLoginRequest = (
@@ -346,7 +321,7 @@ export const handleLoginRequest = (
   Effect.gen(function* () {
     const requestUrl = toAbsoluteRequestUrl(request);
     const redirectUrl =
-      sanitizeReturnPath(
+      sanitizeRelativeRedirectPath(
         requestUrl.searchParams.get('redirectUrl') ??
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';
@@ -409,7 +384,9 @@ export const handleCallbackRequest = (
     }
 
     const redirectUrl =
-      sanitizeReturnPath(asString(completedLogin.appState?.redirectUrl)) ?? '/';
+      sanitizeRelativeRedirectPath(
+        asString(completedLogin.appState?.redirectUrl),
+      ) ?? '/';
 
     const redirectResponse = HttpServerResponse.redirect(redirectUrl);
     return yield* applyCookieMutations(
@@ -425,7 +402,7 @@ export const handleLogoutRequest = (
     const { auth } = yield* RuntimeConfig;
     const requestUrl = toAbsoluteRequestUrl(request);
     const returnPath =
-      sanitizeReturnPath(
+      sanitizeRelativeRedirectPath(
         requestUrl.searchParams.get('redirectUrl') ??
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';

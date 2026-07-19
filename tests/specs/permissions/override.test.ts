@@ -31,7 +31,7 @@ test('adds internal:viewInternalPages to Regular user opens Members Hub', async 
     userId,
   });
   await database.insert(schema.roles).values({
-    description: 'Visible in the internal hub',
+    description: 'Visible in Members Hub',
     displayInHub: true,
     id: roleId,
     name: 'Members Hub Test Team',
@@ -40,6 +40,7 @@ test('adds internal:viewInternalPages to Regular user opens Members Hub', async 
   });
   await database.insert(schema.rolesToTenantUsers).values({
     roleId,
+    tenantId: tenant.id,
     userTenantId,
   });
 
@@ -50,10 +51,10 @@ test('adds internal:viewInternalPages to Regular user opens Members Hub', async 
     });
 
     await page.goto('.');
-    const internalLink = page.getByRole('link', { name: 'Internal' });
-    await expect(internalLink).toBeVisible();
+    const membersHubLink = page.getByRole('link', { name: 'Members Hub' });
+    await expect(membersHubLink).toBeVisible();
 
-    await internalLink.click();
+    await membersHubLink.click();
     await expect(page).toHaveURL(/\/internal\/members-hub$/);
     await expect(
       page.getByRole('heading', { name: 'Members Hub' }),
@@ -62,7 +63,7 @@ test('adds internal:viewInternalPages to Regular user opens Members Hub', async 
       page.getByRole('heading', { name: "Who's who" }),
     ).toBeVisible();
     await expect(page.getByText('Members Hub Test Team')).toBeVisible();
-    await expect(page.getByText('Visible in the internal hub')).toBeVisible();
+    await expect(page.getByText('Visible in Members Hub')).toBeVisible();
     await expect(page.getByText('Hub Reviewer')).toBeVisible();
   } finally {
     await database

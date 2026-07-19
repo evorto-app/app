@@ -23,9 +23,10 @@
   <div class="grid gap-4">
     @for (
       group of refundableReceiptsQuery.data();
-      track group.submittedByUserId
+      track reimbursementGroupKey(group)
     ) {
       @let groupReceiptIds = receiptIds(group.receipts);
+      @let groupKey = reimbursementGroupKey(group);
       <section class="bg-surface text-on-surface rounded-2xl p-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -39,10 +40,9 @@
           <p class="text-lg font-semibold">
             Selected total:
             {{
-              selectedTotal(group.submittedByUserId, group.receipts) / 100
-                | number: "1.2-2"
+              selectedTotal(groupKey, group.receipts)
+                | receiptAmount: group.currency
             }}
-            €
           </p>
         </div>
 
@@ -50,10 +50,9 @@
           <mat-form-field>
             <mat-label>Payout method</mat-label>
             <mat-select
-              [value]="getPayoutType(group.submittedByUserId, group.payout)"
-              (selectionChange)="
-                setPayoutType(group.submittedByUserId, $event.value)
-              "
+              [value]="getPayoutType(groupKey, group.payout)"
+              [disabled]="!receiptReimbursementHasPayoutDetails(group.payout)"
+              (selectionChange)="setPayoutType(groupKey, $event.value)"
             >
               @if (group.payout.iban) {
                 <mat-option value="iban">IBAN</mat-option>
@@ -79,6 +78,14 @@
             </p>
           </div>
         </div>
+        @if (!receiptReimbursementHasPayoutDetails(group.payout)) {
+          <p
+            role="status"
+            class="bg-error-container text-on-error-container mt-3 rounded-xl p-3 text-sm"
+          >
+            {{ receiptReimbursementMissingPayoutNotice }}
+          </p>
+        }
 
         <div
           class="mt-3 overflow-x-auto rounded-xl border border-outline-variant"
@@ -91,36 +98,23 @@
             <ng-container matColumnDef="select">
               <th mat-header-cell *matHeaderCellDef>
                 <mat-checkbox
-                  [checked]="
-                    areAllSelected(group.submittedByUserId, groupReceiptIds)
-                  "
+                  [aria-label]="receiptReimbursementSelectAllLabel(group)"
+                  [checked]="areAllSelected(groupKey, groupReceiptIds)"
                   [indeterminate]="
-                    isPartiallySelected(
-                      group.submittedByUserId,
-                      groupReceiptIds
-                    )
+                    isPartiallySelected(groupKey, groupReceiptIds)
                   "
                   (change)="
-                    toggleAllReceipts(
-                      group.submittedByUserId,
-                      groupReceiptIds,
-                      $event.checked
-                    )
+                    toggleAllReceipts(groupKey, groupReceiptIds, $event.checked)
                   "
                 />
               </th>
               <td mat-cell *matCellDef="let receipt">
                 <mat-checkbox
-                  [checked]="
-                    isReceiptSelected(group.submittedByUserId, receipt.id)
+                  [aria-label]="
+                    receiptReimbursementReceiptSelectionLabel(receipt)
                   "
-                  (change)="
-                    toggleReceipt(
-                      group.submittedByUserId,
-                      receipt.id,
-                      $event.checked
-                    )
-                  "
+                  [checked]="isReceiptSelected(groupKey, receipt.id)"
+                  (change)="toggleReceipt(groupKey, receipt.id, $event.checked)"
                 />
               </td>
             </ng-container>
@@ -151,21 +145,29 @@
                 Amount
               </th>
               <td mat-cell *matCellDef="let receipt" class="text-right">
-                {{ receipt.totalAmount / 100 | number: "1.2-2" }} €
+                {{ receipt.totalAmount | receiptAmount: receipt.currency }}
               </td>
             </ng-container>
 
             <ng-container matColumnDef="preview">
               <th mat-header-cell *matHeaderCellDef>Preview</th>
               <td mat-cell *matCellDef="let receipt">
-                <button
-                  mat-stroked-button
-                  type="button"
-                  [disabled]="!hasPreviewUrl(receipt)"
-                  (click)="openPreviewDialog(receipt)"
-                >
-                  Show preview
-                </button>
+                @if (hasPreviewUrl(receipt)) {
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    [attr.aria-label]="
+                      'Show preview for ' + receipt.attachmentFileName
+                    "
+                    (click)="openPreviewDialog(receipt)"
+                  >
+                    Show preview
+                  </button>
+                } @else {
+                  <p class="text-on-surface-variant text-sm">
+                    Preview unavailable: no receipt file can be opened.
+                  </p>
+                }
               </td>
             </ng-container>
 
@@ -180,7 +182,7 @@
             color="primary"
             [disabled]="
               receiptReimbursementRecordDisabled({
-                canRecord: canRefund(group.submittedByUserId, group.payout),
+                canRecord: canRefund(groupKey, group.payout),
                 mutationPending: refundMutation.isPending(),
               })
             "

@@ -1,5 +1,9 @@
-import { Effect, Logger, LogLevel, Option } from 'effect';
+import { Effect, Formatter, Logger, LogLevel, Option } from 'effect';
 
+import {
+  deploymentConfig,
+  type DeploymentConfig,
+} from '../config/deployment-config';
 import {
   serverLoggingConfig,
   type ServerLoggingConfig,
@@ -25,16 +29,53 @@ export const resolveServerLogLevel = (
   return 'Info';
 };
 
-const configuredPrettyLogger = Effect.gen(function* () {
+export const resolveServerLogFormat = (
+  environment: 'local' | 'production' | 'staging',
+) => (environment === 'local' ? 'pretty' : 'json');
+
+export const serverReleaseLogAnnotations = (
+  deployment: Pick<
+    DeploymentConfig,
+    'APP_ENVIRONMENT' | 'APP_IMAGE_DIGEST' | 'APP_REVISION' | 'APP_ROLE'
+  >,
+) => ({
+  environment: deployment.APP_ENVIRONMENT,
+  imageDigest: Option.getOrElse(deployment.APP_IMAGE_DIGEST, () => 'unknown'),
+  revision: Option.getOrElse(deployment.APP_REVISION, () => 'unknown'),
+  role: deployment.APP_ROLE,
+});
+
+const releaseJsonLogger = (
+  releaseAnnotations: ReturnType<typeof serverReleaseLogAnnotations>,
+) =>
+  Logger.withConsoleLog(
+    Logger.formatStructured.pipe(
+      Logger.map((entry) =>
+        Formatter.formatJson({
+          ...entry,
+          annotations: {
+            ...entry.annotations,
+            ...releaseAnnotations,
+          },
+        }),
+      ),
+    ),
+  );
+
+const configuredServerLogger = Effect.gen(function* () {
   const configuredServerConfig = yield* serverLoggingConfig;
+  const deployment = yield* deploymentConfig;
   const minimumLogLevel = resolveServerLogLevel(configuredServerConfig);
-  const prettyLogger = Logger.consolePretty();
+  const configuredLogger =
+    resolveServerLogFormat(deployment.APP_ENVIRONMENT) === 'pretty'
+      ? Logger.consolePretty()
+      : releaseJsonLogger(serverReleaseLogAnnotations(deployment));
 
   return Logger.make((options) => {
     if (LogLevel.isGreaterThanOrEqualTo(options.logLevel, minimumLogLevel)) {
-      prettyLogger.log(options);
+      configuredLogger.log(options);
     }
   });
 });
 
-export const serverLoggerLayer = Logger.layer([configuredPrettyLogger]);
+export const serverLoggerLayer = Logger.layer([configuredServerLogger]);

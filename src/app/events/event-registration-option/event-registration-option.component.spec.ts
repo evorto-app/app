@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  registrationAddonIsSoldOut,
   registrationAddonMaxSelectableQuantity,
   registrationAddonPurchasePayload,
   registrationAddonSelectedTotalPrice,
+  registrationAddonSoldOutLabel,
   registrationOptionAudienceCopy,
   registrationOptionAvailability,
   registrationOptionAvailableSpots,
@@ -14,6 +18,70 @@ import {
   registrationQuestionAnswerPayload,
   registrationQuestionsMissingRequired,
 } from './event-registration-option.component';
+
+const readSource = (sourcePath: string): string =>
+  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
+
+describe('unsupported registration mode template', () => {
+  it('shows the warning before add-ons, questions, authentication, or write controls', () => {
+    const template = readSource(
+      'src/app/events/event-registration-option/event-registration-option.component.html',
+    );
+    const guardIndex = template.indexOf('@if (!registrationModeSupported())');
+    const supportedModeBranchIndex = template.indexOf('} @else {', guardIndex);
+
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(template.lastIndexOf('@if (!registrationModeSupported())')).toBe(
+      guardIndex,
+    );
+    expect(supportedModeBranchIndex).toBeGreaterThan(guardIndex);
+
+    for (const editableMarker of [
+      '@if (addOns().length',
+      '@if (registrationOption().questions.length',
+      '@if (authenticationQuery.isPending())',
+      '<input',
+      '<textarea',
+      '<button',
+      'href="/forward-login',
+    ]) {
+      expect(template.indexOf(editableMarker)).toBeGreaterThan(
+        supportedModeBranchIndex,
+      );
+    }
+  });
+});
+
+describe('guest selection template', () => {
+  it('explains account ownership and capacity in the Material field', () => {
+    const template = readSource(
+      'src/app/events/event-registration-option/event-registration-option.component.html',
+    );
+
+    expect(template).toContain(
+      'Guests do not need separate accounts. Each guest uses one',
+    );
+    expect(template).toContain('available spot and shares your registration.');
+    expect(template).toContain('subscriptSizing="dynamic"');
+    expect(template).toContain('selectedSpotCount() === 1 ? "spot" : "spots"');
+  });
+});
+
+describe('registration add-on template', () => {
+  it('distinguishes included prices from optional unit prices and names quantity controls', () => {
+    const template = readSource(
+      'src/app/events/event-registration-option/event-registration-option.component.html',
+    );
+
+    expect(template).toContain('Included in registration price');
+    expect(template).toContain('per extra item');
+    expect(template).toContain('@else if (soldOut)');
+    expect(template).toContain('addonSoldOutLabel(includedQuantity)');
+    expect(template).toContain(
+      `[attr.aria-label]="'Quantity for ' + addOn.title"`,
+    );
+  });
+});
 
 describe('registrationOptionAudienceCopy', () => {
   it('keeps participant options on registration copy', () => {
@@ -53,9 +121,24 @@ describe('registrationOptionAudienceCopy', () => {
     ).toEqual({
       actionSuffix: 'apply',
       helperText:
-        'Use this option when you are attending the event. Organizers approve applications before spots are confirmed.',
+        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
       label: 'Manual approval option',
       primaryAction: 'Apply for approval',
+    });
+  });
+
+  it('explains approval and deferred access for organizer/helper applications', () => {
+    expect(
+      registrationOptionAudienceCopy({
+        organizingRegistration: true,
+        registrationMode: 'application',
+      }),
+    ).toEqual({
+      actionSuffix: 'apply as organizer/helper',
+      helperText:
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+      label: 'Organizer/helper application',
+      primaryAction: 'Apply as organizer/helper',
     });
   });
 });
@@ -236,21 +319,25 @@ describe('registrationOptionSelectedTotalPrice', () => {
 describe('registration add-on selections', () => {
   const addOns = [
     {
+      allowPurchaseDuringRegistration: true,
       id: 'addon-1',
       price: 500,
       registrationOptions: [
         {
-          quantity: 2,
+          includedQuantity: 0,
+          optionalPurchaseQuantity: 2,
           registrationOptionId: 'option-1',
         },
       ],
     },
     {
+      allowPurchaseDuringRegistration: true,
       id: 'addon-2',
       price: 0,
       registrationOptions: [
         {
-          quantity: 1,
+          includedQuantity: 0,
+          optionalPurchaseQuantity: 4,
           registrationOptionId: 'option-1',
         },
       ],
@@ -285,17 +372,19 @@ describe('registration add-on selections', () => {
         },
         'option-1',
       ),
-    ).toBe(2000);
+    ).toBe(1000);
   });
 
   it('caps selectable add-ons by attached quantity and remaining stock', () => {
     expect(
       registrationAddonMaxSelectableQuantity(
         {
+          allowPurchaseDuringRegistration: true,
           maxQuantityPerUser: 5,
           registrationOptions: [
             {
-              quantity: 2,
+              includedQuantity: 1,
+              optionalPurchaseQuantity: 4,
               registrationOptionId: 'option-1',
             },
           ],
@@ -303,26 +392,125 @@ describe('registration add-on selections', () => {
         },
         'option-1',
       ),
-    ).toBe(1);
+    ).toBe(2);
+  });
+
+  it('does not count included add-ons against the optional per-user limit', () => {
+    expect(
+      registrationAddonMaxSelectableQuantity(
+        {
+          allowPurchaseDuringRegistration: true,
+          maxQuantityPerUser: 3,
+          registrationOptions: [
+            {
+              includedQuantity: 2,
+              optionalPurchaseQuantity: 3,
+              registrationOptionId: 'option-1',
+            },
+          ],
+          totalAvailableQuantity: 10,
+        },
+        'option-1',
+      ),
+    ).toBe(3);
+  });
+
+  it('marks a configured optional add-on as sold out when no stock remains', () => {
+    const soldOutAddOn = {
+      allowPurchaseDuringRegistration: true,
+      maxQuantityPerUser: 3,
+      registrationOptions: [
+        {
+          includedQuantity: 0,
+          optionalPurchaseQuantity: 3,
+          registrationOptionId: 'option-1',
+        },
+      ],
+      totalAvailableQuantity: 0,
+    } as const;
+
+    expect(
+      registrationAddonMaxSelectableQuantity(soldOutAddOn, 'option-1'),
+    ).toBe(0);
+    expect(registrationAddonIsSoldOut(soldOutAddOn, 'option-1')).toBe(true);
+  });
+
+  it('clarifies whether the whole add-on or only extra items are sold out', () => {
+    expect(registrationAddonSoldOutLabel(0)).toBe('Sold out');
+    expect(registrationAddonSoldOutLabel(2)).toBe('Extra items sold out');
+  });
+
+  it('shows included add-ons without allowing optional selection outside the registration purchase window', () => {
+    const includedOnlyAddOn = {
+      allowPurchaseDuringRegistration: false,
+      id: 'included-only',
+      maxQuantityPerUser: 3,
+      price: 500,
+      registrationOptions: [
+        {
+          includedQuantity: 2,
+          optionalPurchaseQuantity: 3,
+          registrationOptionId: 'option-1',
+        },
+      ],
+      totalAvailableQuantity: 10,
+    } as const;
+
+    expect(
+      registrationAddonMaxSelectableQuantity(includedOnlyAddOn, 'option-1'),
+    ).toBe(0);
+    expect(
+      registrationAddonPurchasePayload(
+        [includedOnlyAddOn],
+        { 'included-only': 3 },
+        'option-1',
+      ),
+    ).toEqual([]);
+    expect(
+      registrationAddonSelectedTotalPrice(
+        [includedOnlyAddOn],
+        { 'included-only': 3 },
+        'option-1',
+      ),
+    ).toBe(0);
+    expect(registrationAddonIsSoldOut(includedOnlyAddOn, 'option-1')).toBe(
+      false,
+    );
   });
 });
 
 describe('registrationOptionWriteActionDisabled', () => {
   it('disables registration writes while register or waitlist mutations are pending', () => {
     expect(
-      registrationOptionWriteActionDisabled({ mutationPending: true }),
+      registrationOptionWriteActionDisabled({
+        controlsInteractive: true,
+        mutationPending: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('disables registration writes before the client controls are interactive', () => {
+    expect(
+      registrationOptionWriteActionDisabled({
+        controlsInteractive: false,
+        mutationPending: false,
+      }),
     ).toBe(true);
   });
 
   it('allows registration writes while no register or waitlist mutation is pending', () => {
     expect(
-      registrationOptionWriteActionDisabled({ mutationPending: false }),
+      registrationOptionWriteActionDisabled({
+        controlsInteractive: true,
+        mutationPending: false,
+      }),
     ).toBe(false);
   });
 
   it('disables registration writes while required answers are missing', () => {
     expect(
       registrationOptionWriteActionDisabled({
+        controlsInteractive: true,
         missingRequiredAnswers: true,
         mutationPending: false,
       }),

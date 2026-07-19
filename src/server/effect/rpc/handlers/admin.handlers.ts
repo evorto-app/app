@@ -16,6 +16,10 @@ import {
 import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
+import type {
+  AdminHubRoleRecord,
+  AdminTenantBrandAssetKind,
+} from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
@@ -25,12 +29,37 @@ import {
   partitionTenantRolePermissions,
   type Permission,
 } from '../../../../shared/permissions/permissions';
-import { type AdminHubRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
+import {
+  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+  stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+  tenantHasPaidEventConfiguration,
+  tenantHasStripeTaxRateConfiguration,
+} from '../../../payments/paid-event-configuration';
+import {
+  lockTenantStripeAccount,
+  tenantHasPendingStripeObligations,
+} from '../../../payments/pending-stripe-obligations';
+import {
+  applyStripeTaxRateAccountRotation,
+  fetchStripeTaxRateAccountRotationTargetRates,
+  planStripeTaxRateAccountRotation,
+  type StripeTaxRateAccountRotationPlan,
+  type StripeTaxRateAccountRotationTargetRate,
+} from '../../../payments/stripe-tax-rate-account-rotation';
+import {
+  ensureTenantRetainsAnotherDefaultUserRole,
+  ensureTenantRoleIsUnreferenced,
+  lockTenantRoleGraph,
+} from '../../../roles/tenant-role-graph';
 import { StripeClient } from '../../../stripe-client';
 import { uploadTenantBrandAsset } from '../../../tenant-brand-assets';
+import {
+  tenantCurrencyChangeBlockedErrorDetails,
+  tenantHasCurrencyDependentData,
+} from '../../../tenant-currency-integrity';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -40,6 +69,33 @@ const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
+
+const databaseBadRequestEffect = <A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+): Effect.Effect<A, RpcBadRequestError, Database | R> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        error instanceof RpcBadRequestError
+          ? Effect.fail(error)
+          : Effect.die(error),
+      ),
+    ),
+  );
+
+const databaseRoleEffect = <A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+) =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        error instanceof AdminRoleNotFoundError ||
+        error instanceof RpcBadRequestError
+          ? Effect.fail(error)
+          : Effect.die(error),
+      ),
+    ),
+  );
 
 const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
   value: string | undefined,
@@ -84,7 +140,13 @@ const decodeTenantAssetSegment = (value: string): string | undefined => {
   }
 };
 
-const normalizeTenantAssetPath = (value: string): string | undefined => {
+const normalizeTenantAssetPath = (
+  value: string,
+  expected: {
+    kind: AdminTenantBrandAssetKind;
+    tenantId: string;
+  },
+): string | undefined => {
   const parsed = new URL(value, 'https://tenant-assets.invalid');
   if (
     parsed.origin !== 'https://tenant-assets.invalid' ||
@@ -100,7 +162,12 @@ const normalizeTenantAssetPath = (value: string): string | undefined => {
   const tenantId = match?.[1] ? decodeTenantAssetSegment(match[1]) : undefined;
   const kind = match?.[2] ? decodeTenantAssetSegment(match[2]) : undefined;
   const fileName = match?.[3] ? decodeTenantAssetSegment(match[3]) : undefined;
-  if (!tenantId || (kind !== 'favicon' && kind !== 'logo') || !fileName) {
+  if (
+    !tenantId ||
+    kind !== expected.kind ||
+    tenantId !== expected.tenantId ||
+    !fileName
+  ) {
     return;
   }
 
@@ -109,7 +176,11 @@ const normalizeTenantAssetPath = (value: string): string | undefined => {
 
 const normalizeOptionalBrandAssetUrl = (
   value: string | undefined,
-  fieldName: string,
+  options: {
+    fieldName: string;
+    kind: AdminTenantBrandAssetKind;
+    tenantId: string;
+  },
 ): null | string => {
   const trimmedValue = value?.trim();
   if (!trimmedValue) {
@@ -117,61 +188,57 @@ const normalizeOptionalBrandAssetUrl = (
   }
 
   if (trimmedValue.startsWith('/')) {
-    const assetPath = normalizeTenantAssetPath(trimmedValue);
+    const assetPath = normalizeTenantAssetPath(trimmedValue, options);
     if (assetPath) {
       return assetPath;
     }
 
     throw new Error(
-      `${fieldName} must be an uploaded tenant asset path or a valid http or https URL`,
+      `${options.fieldName} must be an uploaded ${options.kind} path for the current tenant or a valid http or https URL`,
     );
   }
 
-  return normalizeOptionalUrl(trimmedValue, fieldName);
+  return normalizeOptionalUrl(trimmedValue, options.fieldName);
 };
 
 const normalizeTenantLegalLinks = (input: {
   legalNoticeText?: string | undefined;
   legalNoticeUrl?: string | undefined;
-  privacyPolicyText?: string | undefined;
-  privacyPolicyUrl?: string | undefined;
   termsText?: string | undefined;
   termsUrl?: string | undefined;
 }) => ({
   legalNoticeText: input.legalNoticeText?.trim() || null,
   legalNoticeUrl: normalizeOptionalUrl(input.legalNoticeUrl, 'legalNoticeUrl'),
-  privacyPolicyText: input.privacyPolicyText?.trim() || null,
-  privacyPolicyUrl: normalizeOptionalUrl(
-    input.privacyPolicyUrl,
-    'privacyPolicyUrl',
-  ),
   termsText: input.termsText?.trim() || null,
   termsUrl: normalizeOptionalUrl(input.termsUrl, 'termsUrl'),
 });
 
-const normalizeTenantBrandAssets = (input: {
-  faviconUrl?: string | undefined;
-  logoUrl?: string | undefined;
-}) => ({
-  faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, 'faviconUrl'),
-  logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
+const normalizeTenantBrandAssets = (
+  input: {
+    faviconUrl?: string | undefined;
+    logoUrl?: string | undefined;
+  },
+  tenantId: string,
+) => ({
+  faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, {
+    fieldName: 'faviconUrl',
+    kind: 'favicon',
+    tenantId,
+  }),
+  logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, {
+    fieldName: 'logoUrl',
+    kind: 'logo',
+    tenantId,
+  }),
 });
 
 const normalizeMaxActiveRegistrationsPerUser = (value: number): number =>
   Math.max(0, Math.trunc(value));
 
-const localeMoneySettingsChanged = (
-  tenant: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
-  input: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
-): boolean =>
-  tenant.currency !== input.currency ||
-  tenant.locale !== input.locale ||
-  tenant.timezone !== input.timezone;
+type TenantRuntimeDependentDataDatabase = Pick<DatabaseClient, 'query'>;
 
-type TenantLocaleMoneyDependentDataDatabase = Pick<DatabaseClient, 'query'>;
-
-const tenantHasLocaleMoneyDependentData = (
-  database: TenantLocaleMoneyDependentDataDatabase,
+const tenantHasRuntimeDependentData = (
+  database: TenantRuntimeDependentDataDatabase,
   tenantId: string,
 ): Effect.Effect<boolean, unknown> =>
   Effect.gen(function* () {
@@ -199,12 +266,15 @@ const tenantHasLocaleMoneyDependentData = (
     return !!existingTransaction;
   });
 
-const tenantLocaleMoneySettingsLockedError = () =>
+const tenantRuntimeSettingsLockedError = () =>
   new RpcBadRequestError({
-    message: 'Tenant locale and money settings are locked',
+    message: 'Tenant currency and timezone settings are locked',
     reason:
-      'Currency, locale, and timezone cannot be changed after event or payment data exists.',
+      'Currency and timezone cannot be changed after event or payment data exists.',
   });
+
+const tenantCurrencySettingsLockedError = () =>
+  new RpcBadRequestError(tenantCurrencyChangeBlockedErrorDetails);
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -275,30 +345,36 @@ export const adminHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
-      const createdRoles = yield* databaseEffect((database) =>
-        database
-          .insert(roles)
-          .values({
-            collapseMembersInHup: input.collapseMembersInHup,
-            defaultOrganizerRole: input.defaultOrganizerRole,
-            defaultUserRole: input.defaultUserRole,
-            description: input.description,
-            displayInHub: input.displayInHub,
-            name: input.name,
-            permissions: input.permissions,
-            tenantId: tenant.id,
-          })
-          .returning({
-            collapseMembersInHup: roles.collapseMembersInHup,
-            defaultOrganizerRole: roles.defaultOrganizerRole,
-            defaultUserRole: roles.defaultUserRole,
-            description: roles.description,
-            displayInHub: roles.displayInHub,
-            id: roles.id,
-            name: roles.name,
-            permissions: roles.permissions,
-            sortOrder: roles.sortOrder,
+      const createdRoles = yield* databaseRoleEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            yield* lockTenantRoleGraph(transaction, tenant.id);
+
+            return yield* transaction
+              .insert(roles)
+              .values({
+                collapseMembersInHup: input.collapseMembersInHup,
+                defaultOrganizerRole: input.defaultOrganizerRole,
+                defaultUserRole: input.defaultUserRole,
+                description: input.description,
+                displayInHub: input.displayInHub,
+                name: input.name,
+                permissions: input.permissions,
+                tenantId: tenant.id,
+              })
+              .returning({
+                collapseMembersInHup: roles.collapseMembersInHup,
+                defaultOrganizerRole: roles.defaultOrganizerRole,
+                defaultUserRole: roles.defaultUserRole,
+                description: roles.description,
+                displayInHub: roles.displayInHub,
+                id: roles.id,
+                name: roles.name,
+                permissions: roles.permissions,
+                sortOrder: roles.sortOrder,
+              });
           }),
+        ),
       );
       const createdRole = createdRoles[0];
       if (!createdRole) {
@@ -314,19 +390,46 @@ export const adminHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
-      const deletedRoles = yield* databaseEffect((database) =>
-        database
-          .delete(roles)
-          .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-          .returning({
-            id: roles.id,
+      yield* databaseRoleEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            yield* lockTenantRoleGraph(transaction, tenant.id);
+            const lockedRoles = yield* transaction
+              .select({
+                defaultUserRole: roles.defaultUserRole,
+                id: roles.id,
+              })
+              .from(roles)
+              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+              .for('update');
+            const lockedRole = lockedRoles[0];
+            if (!lockedRole) {
+              return yield* new AdminRoleNotFoundError({
+                id,
+                message: 'Role not found',
+              });
+            }
+            if (lockedRole.defaultUserRole) {
+              yield* ensureTenantRetainsAnotherDefaultUserRole(
+                transaction,
+                tenant.id,
+                id,
+              );
+            }
+            yield* ensureTenantRoleIsUnreferenced(transaction, tenant.id, id);
+
+            const deletedRoles = yield* transaction
+              .delete(roles)
+              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+              .returning({ id: roles.id });
+            if (deletedRoles.length === 0) {
+              return yield* Effect.die(
+                new Error('Locked role disappeared before delete'),
+              );
+            }
           }),
+        ),
       );
-      if (deletedRoles.length === 0) {
-        return yield* Effect.fail(
-          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
-        );
-      }
     }),
   'admin.roles.findHubRoles': (_payload, options) =>
     Effect.gen(function* () {
@@ -472,30 +575,58 @@ export const adminHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
-      const updatedRoles = yield* databaseEffect((database) =>
-        database
-          .update(roles)
-          .set({
-            collapseMembersInHup: input.collapseMembersInHup,
-            defaultOrganizerRole: input.defaultOrganizerRole,
-            defaultUserRole: input.defaultUserRole,
-            description: input.description,
-            displayInHub: input.displayInHub,
-            name: input.name,
-            permissions: input.permissions,
-          })
-          .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-          .returning({
-            collapseMembersInHup: roles.collapseMembersInHup,
-            defaultOrganizerRole: roles.defaultOrganizerRole,
-            defaultUserRole: roles.defaultUserRole,
-            description: roles.description,
-            displayInHub: roles.displayInHub,
-            id: roles.id,
-            name: roles.name,
-            permissions: roles.permissions,
-            sortOrder: roles.sortOrder,
+      const updatedRoles = yield* databaseRoleEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            yield* lockTenantRoleGraph(transaction, tenant.id);
+            const lockedRoles = yield* transaction
+              .select({
+                defaultUserRole: roles.defaultUserRole,
+                id: roles.id,
+              })
+              .from(roles)
+              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+              .for('update');
+            const lockedRole = lockedRoles[0];
+            if (!lockedRole) {
+              return yield* new AdminRoleNotFoundError({
+                id,
+                message: 'Role not found',
+              });
+            }
+            if (lockedRole.defaultUserRole && !input.defaultUserRole) {
+              yield* ensureTenantRetainsAnotherDefaultUserRole(
+                transaction,
+                tenant.id,
+                id,
+              );
+            }
+
+            return yield* transaction
+              .update(roles)
+              .set({
+                collapseMembersInHup: input.collapseMembersInHup,
+                defaultOrganizerRole: input.defaultOrganizerRole,
+                defaultUserRole: input.defaultUserRole,
+                description: input.description,
+                displayInHub: input.displayInHub,
+                name: input.name,
+                permissions: input.permissions,
+              })
+              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+              .returning({
+                collapseMembersInHup: roles.collapseMembersInHup,
+                defaultOrganizerRole: roles.defaultOrganizerRole,
+                defaultUserRole: roles.defaultUserRole,
+                description: roles.description,
+                displayInHub: roles.displayInHub,
+                id: roles.id,
+                name: roles.name,
+                permissions: roles.permissions,
+                sortOrder: roles.sortOrder,
+              });
           }),
+        ),
       );
       const updatedRole = updatedRoles[0];
       if (!updatedRole) {
@@ -538,49 +669,76 @@ export const adminHandlers = {
         ),
       );
 
-      yield* databaseEffect((database) =>
+      yield* databaseBadRequestEffect((database) =>
         database.transaction((tx) =>
-          Effect.all(
-            stripeRates.map((stripeRate) =>
-              Effect.gen(function* () {
-                const existingRate =
-                  yield* tx.query.tenantStripeTaxRates.findFirst({
-                    columns: {
-                      id: true,
-                    },
-                    where: {
-                      stripeTaxRateId: stripeRate.id,
-                      tenantId: tenant.id,
-                    },
-                  });
+          Effect.gen(function* () {
+            const lockedStripeAccount = yield* lockTenantStripeAccount(
+              tx,
+              tenant.id,
+            );
+            if (lockedStripeAccount !== stripeAccount) {
+              return yield* new RpcBadRequestError({
+                message: 'Stripe account changed while tax rates were loading',
+                reason:
+                  'Reload the page and import rates from the current account.',
+              });
+            }
 
-                const values: Omit<
-                  typeof tenantStripeTaxRates.$inferInsert,
-                  'id'
-                > = {
-                  active: !!stripeRate.active,
-                  country: stripeRate.country ?? null,
-                  displayName: stripeRate.display_name ?? null,
-                  inclusive: !!stripeRate.inclusive,
-                  percentage:
-                    stripeRate.percentage !== null &&
-                    stripeRate.percentage !== undefined
-                      ? String(stripeRate.percentage)
-                      : undefined,
-                  state: stripeRate.state ?? null,
-                  stripeTaxRateId: stripeRate.id,
-                  tenantId: tenant.id,
-                };
+            yield* Effect.all(
+              stripeRates.map((stripeRate) =>
+                Effect.gen(function* () {
+                  const existingRate =
+                    yield* tx.query.tenantStripeTaxRates.findFirst({
+                      columns: {
+                        id: true,
+                        stripeAccountId: true,
+                      },
+                      where: {
+                        stripeTaxRateId: stripeRate.id,
+                        tenantId: tenant.id,
+                      },
+                    });
+                  if (
+                    existingRate &&
+                    existingRate.stripeAccountId !== stripeAccount
+                  ) {
+                    return yield* new RpcBadRequestError({
+                      message:
+                        'Imported tax-rate metadata belongs to a different Stripe account',
+                      reason:
+                        'Change or disconnect the Stripe account before importing this rate.',
+                    });
+                  }
 
-                yield* existingRate
-                  ? tx
-                      .update(tenantStripeTaxRates)
-                      .set(values)
-                      .where(eq(tenantStripeTaxRates.id, existingRate.id))
-                  : tx.insert(tenantStripeTaxRates).values(values);
-              }),
-            ),
-          ).pipe(Effect.asVoid),
+                  const values: Omit<
+                    typeof tenantStripeTaxRates.$inferInsert,
+                    'id'
+                  > = {
+                    active: !!stripeRate.active,
+                    country: stripeRate.country ?? null,
+                    displayName: stripeRate.display_name ?? null,
+                    inclusive: !!stripeRate.inclusive,
+                    percentage:
+                      stripeRate.percentage !== null &&
+                      stripeRate.percentage !== undefined
+                        ? String(stripeRate.percentage)
+                        : undefined,
+                    state: stripeRate.state ?? null,
+                    stripeAccountId: stripeAccount,
+                    stripeTaxRateId: stripeRate.id,
+                    tenantId: tenant.id,
+                  };
+
+                  yield* existingRate
+                    ? tx
+                        .update(tenantStripeTaxRates)
+                        .set(values)
+                        .where(eq(tenantStripeTaxRates.id, existingRate.id))
+                    : tx.insert(tenantStripeTaxRates).values(values);
+                }),
+              ),
+            ).pipe(Effect.asVoid);
+          }),
         ),
       );
     }),
@@ -591,6 +749,10 @@ export const adminHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
+      const stripeAccountId = tenant.stripeAccountId;
+      if (!stripeAccountId) {
+        return [];
+      }
       const importedTaxRates = yield* databaseEffect((database) =>
         database.query.tenantStripeTaxRates.findMany({
           columns: {
@@ -602,7 +764,10 @@ export const adminHandlers = {
             state: true,
             stripeTaxRateId: true,
           },
-          where: { tenantId: tenant.id },
+          where: {
+            stripeAccountId,
+            tenantId: tenant.id,
+          },
         }),
       );
 
@@ -683,18 +848,19 @@ export const adminHandlers = {
             message: 'Invalid tenant brand assets',
             reason: error instanceof Error ? error.message : String(error),
           }),
-        try: () => normalizeTenantBrandAssets(input),
+        try: () => normalizeTenantBrandAssets(input, tenant.id),
       });
       const nextTenant = {
         ...tenant,
         ...brandAssets,
+        cancellationDeadlineHoursBeforeStart:
+          input.cancellationDeadlineHoursBeforeStart,
         currency: input.currency,
         defaultLocation: input.defaultLocation,
         discountProviders,
         emailSenderEmail: input.emailSenderEmail?.trim() || null,
         emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
-        locale: input.locale,
         maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
           input.maxActiveRegistrationsPerUser,
         ),
@@ -702,11 +868,14 @@ export const adminHandlers = {
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
+        refundFeesOnCancellation: input.refundFeesOnCancellation,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
         stripeAccountId: input.stripeAccountId?.trim() || null,
         theme: input.theme,
         timezone: input.timezone,
+        transferDeadlineHoursBeforeStart:
+          input.transferDeadlineHoursBeforeStart,
       };
 
       const validatedTenant = yield* Effect.try({
@@ -720,13 +889,14 @@ export const adminHandlers = {
 
       const tenantUpdate = {
         ...brandAssets,
+        cancellationDeadlineHoursBeforeStart:
+          input.cancellationDeadlineHoursBeforeStart,
         currency: input.currency,
         defaultLocation: input.defaultLocation,
         discountProviders,
         emailSenderEmail: input.emailSenderEmail?.trim() || null,
         emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
-        locale: input.locale,
         maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
           input.maxActiveRegistrationsPerUser,
         ),
@@ -734,43 +904,134 @@ export const adminHandlers = {
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
+        refundFeesOnCancellation: input.refundFeesOnCancellation,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
         stripeAccountId: input.stripeAccountId?.trim() || null,
         theme: input.theme,
         timezone: input.timezone,
+        transferDeadlineHoursBeforeStart:
+          input.transferDeadlineHoursBeforeStart,
       };
+      let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
+        [];
+      if (
+        tenant.stripeAccountId &&
+        tenantUpdate.stripeAccountId &&
+        tenant.stripeAccountId !== tenantUpdate.stripeAccountId
+      ) {
+        const stripe = yield* StripeClient;
+        stripeTaxRateRotationTargets =
+          yield* fetchStripeTaxRateAccountRotationTargetRates(
+            stripe,
+            tenantUpdate.stripeAccountId,
+          );
+      }
       const updatedTenants = yield* Database.use((database) =>
         database
           .transaction((tx) =>
             Effect.gen(function* () {
               const lockedTenantRows = yield* tx
-                .select({ id: tenants.id })
+                .select({
+                  currency: tenants.currency,
+                  id: tenants.id,
+                  stripeAccountId: tenants.stripeAccountId,
+                  timezone: tenants.timezone,
+                })
                 .from(tenants)
                 .where(eq(tenants.id, tenant.id))
                 .for('update');
 
-              if (lockedTenantRows.length === 0) {
+              const lockedTenant = lockedTenantRows[0];
+              if (!lockedTenant) {
                 return [];
               }
 
-              if (localeMoneySettingsChanged(tenant, input)) {
-                const hasDependentData =
-                  yield* tenantHasLocaleMoneyDependentData(tx, tenant.id);
-                if (hasDependentData) {
+              let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
+              if (
+                lockedTenant.stripeAccountId !== tenantUpdate.stripeAccountId
+              ) {
+                const hasPendingStripeObligations =
+                  yield* tenantHasPendingStripeObligations(tx, tenant.id);
+                if (hasPendingStripeObligations) {
+                  return yield* new RpcBadRequestError({
+                    message:
+                      'Stripe account cannot change while registration Checkouts or refunds are pending',
+                    reason:
+                      'Complete or cancel every pending Checkout and refund before changing the connected account.',
+                  });
+                }
+
+                if (tenantUpdate.stripeAccountId === null) {
+                  const hasPaidEventConfiguration =
+                    yield* tenantHasPaidEventConfiguration(tx, tenant.id);
+                  if (hasPaidEventConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+                    );
+                  }
+                  const hasStripeTaxRateConfiguration =
+                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
+                  if (hasStripeTaxRateConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                    );
+                  }
+                } else if (lockedTenant.stripeAccountId) {
+                  rotationPlan = yield* planStripeTaxRateAccountRotation(tx, {
+                    sourceStripeAccountId: lockedTenant.stripeAccountId,
+                    targetRates: stripeTaxRateRotationTargets,
+                    targetStripeAccountId: tenantUpdate.stripeAccountId,
+                    tenantId: tenant.id,
+                  });
+                } else {
+                  const hasStripeTaxRateConfiguration =
+                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
+                  if (hasStripeTaxRateConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                    );
+                  }
+                }
+
+                yield* tx
+                  .delete(tenantStripeTaxRates)
+                  .where(eq(tenantStripeTaxRates.tenantId, tenant.id));
+              }
+
+              if (lockedTenant.currency !== input.currency) {
+                const hasCurrencyDependentData =
+                  yield* tenantHasCurrencyDependentData(tx, tenant.id);
+                if (hasCurrencyDependentData) {
                   return yield* Effect.fail(
-                    tenantLocaleMoneySettingsLockedError(),
+                    tenantCurrencySettingsLockedError(),
                   );
                 }
               }
 
-              return yield* tx
+              if (lockedTenant.timezone !== input.timezone) {
+                const hasDependentData = yield* tenantHasRuntimeDependentData(
+                  tx,
+                  tenant.id,
+                );
+                if (hasDependentData) {
+                  return yield* Effect.fail(tenantRuntimeSettingsLockedError());
+                }
+              }
+
+              const updatedRows = yield* tx
                 .update(tenants)
                 .set(tenantUpdate)
                 .where(eq(tenants.id, tenant.id))
                 .returning({
                   id: tenants.id,
                 });
+              if (rotationPlan) {
+                // Source metadata was removed with the old account; restore
+                // only the provider-verified target-account matches.
+                yield* applyStripeTaxRateAccountRotation(tx, rotationPlan);
+              }
+              return updatedRows;
             }),
           )
           .pipe(

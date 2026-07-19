@@ -1,10 +1,12 @@
 import path from 'node:path';
 
-import type { Page } from '@playwright/test';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, desc, eq } from 'drizzle-orm';
 
-import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
+import {
+  addAvailableConsumedFinanceReceiptUpload,
+  addConsumedFinanceReceiptUpload,
+} from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
 import {
   adminStateFile,
@@ -12,60 +14,20 @@ import {
 } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
+import type { SupportedTenantCurrency } from '../../../src/types/custom/tenant';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import {
+  completeReceiptSubmissionForm,
+  expectReceiptPdfPreviewAvailable,
+  formatTenantCurrency,
+  openOrganizerReceiptsFromNavigation,
+  openReceiptSubmissionDialog,
+} from '../../support/utils/receipt-submission';
 
 test.use({ storageState: adminStateFile });
 
-const openEventOrganizePage = async (page: Page, eventId: string) => {
-  await page.goto(`/events/${eventId}/organize`);
-};
-
-const submitReceiptFromFirstEvent = async (
-  page: Page,
-  eventId: string,
-  receiptFile: string,
-) => {
-  await openEventOrganizePage(page, eventId);
-  await expect(page.getByRole('heading', { name: 'Receipts' })).toBeVisible();
-  await expect(page.getByText('Loading receipts...')).not.toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(
-    page.getByText('Receipts can be added after the event has loaded.'),
-  ).not.toBeVisible({ timeout: 20_000 });
-  await page.getByRole('button', { name: 'Add receipt' }).click();
-  const receiptDialog = page.locator('app-receipt-submit-dialog');
-  await expect(receiptDialog).toBeVisible();
-  await expect(
-    receiptDialog.getByLabel('Deposit amount (EUR)'),
-  ).not.toBeVisible();
-  await receiptDialog
-    .getByRole('checkbox', { name: 'Deposit involved' })
-    .check();
-  await expect(receiptDialog.getByLabel('Deposit amount (EUR)')).toBeVisible();
-  await expect(
-    receiptDialog.getByLabel('Alcohol amount (EUR)'),
-  ).not.toBeVisible();
-  await receiptDialog
-    .getByRole('checkbox', { name: 'Alcohol purchased' })
-    .check();
-  await expect(receiptDialog.getByLabel('Alcohol amount (EUR)')).toBeVisible();
-
-  await receiptDialog.getByLabel('Total amount (EUR)').fill('14.50');
-  await receiptDialog.getByLabel('Alcohol amount (EUR)').fill('1.50');
-  await receiptDialog.getByLabel('Purchase country').click();
-  await page.getByRole('option', { name: 'Germany (DE)' }).click();
-  await receiptDialog
-    .locator('input[type="file"][accept="image/*,application/pdf"]')
-    .setInputFiles(receiptFile);
-  await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
-  await expect(receiptDialog).not.toBeVisible();
-  await expect(
-    page.getByText(path.basename(receiptFile), { exact: true }),
-  ).toBeVisible({ timeout: 20_000 });
-};
-
 const seedPendingReceiptForApproval = async ({
+  currency,
   database,
   eventId,
   receiptFileName,
@@ -74,6 +36,7 @@ const seedPendingReceiptForApproval = async ({
   submittedByUserId,
   tenantId,
 }: {
+  currency: SupportedTenantCurrency;
   database: NodePgDatabase<typeof relations>;
   eventId: string;
   receiptFileName: string;
@@ -82,20 +45,24 @@ const seedPendingReceiptForApproval = async ({
   submittedByUserId: string;
   tenantId: string;
 }) => {
-  const receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
-    eventId,
-    fileName: receiptFileName,
-    mimeType: 'application/pdf',
-    sizeBytes: 1024,
-    tenantId,
-    uploadedByUserId: submittedByUserId,
-  });
+  const receiptUpload = await addAvailableConsumedFinanceReceiptUpload(
+    database,
+    {
+      eventId,
+      fileName: receiptFileName,
+      mimeType: 'application/pdf',
+      sourceFilePath: path.resolve('tests/fixtures/sample-receipt.pdf'),
+      tenantId,
+      uploadedByUserId: submittedByUserId,
+    },
+  );
   await database.insert(schema.financeReceipts).values({
     alcoholAmount: 150,
     attachmentFileName: receiptFileName,
     attachmentMimeType: 'application/pdf',
-    attachmentSizeBytes: 1024,
-    attachmentUploadId: receiptUploadId,
+    attachmentSizeBytes: receiptUpload.sizeBytes,
+    attachmentUploadId: receiptUpload.id,
+    currency,
     depositAmount: 150,
     eventId,
     hasAlcohol: true,
@@ -110,15 +77,17 @@ const seedPendingReceiptForApproval = async ({
     totalAmount: 1450,
   });
 
-  return receiptUploadId;
+  return receiptUpload.id;
 };
 
-test('submit receipt from event organize page', async ({
+test('submit receipt through Events and organizer navigation', async ({
   database,
   page,
   seeded,
+  tenant,
 }) => {
-  const eventId = seeded.scenario.events.past.eventId;
+  const currency = 'AUD';
+  const eventId = seeded.scenario.events.freeOpen.eventId;
   const receiptFile = path.resolve('tests/fixtures/sample-receipt.pdf');
   const [event] = await database
     .select()
@@ -126,22 +95,46 @@ test('submit receipt from event organize page', async ({
     .where(eq(schema.eventInstances.id, eventId))
     .limit(1);
   if (!event) {
-    throw new Error('Expected seeded past event for receipt submission flow');
+    throw new Error('Expected seeded listed event for receipt submission flow');
   }
   let submittedReceiptId: string | undefined;
   let submittedUploadId: string | undefined;
 
   try {
-    const now = new Date();
     await database
-      .update(schema.eventInstances)
-      .set({
-        end: new Date(now.getTime() - 60 * 60 * 1000),
-        start: new Date(now.getTime() - 3 * 60 * 60 * 1000),
-      })
-      .where(eq(schema.eventInstances.id, eventId));
+      .update(schema.tenants)
+      .set({ currency })
+      .where(eq(schema.tenants.id, tenant.id));
 
-    await submitReceiptFromFirstEvent(page, eventId, receiptFile);
+    const receiptSection = await openOrganizerReceiptsFromNavigation({
+      eventId,
+      eventTitle: event.title,
+      page,
+    });
+    const receiptDialog = await openReceiptSubmissionDialog({
+      page,
+      receiptSection,
+    });
+    await completeReceiptSubmissionForm({
+      alcoholAmount: '1.50',
+      currency,
+      depositAmount: '2.50',
+      dialog: receiptDialog,
+      page,
+      receiptFile,
+      taxAmount: '2.10',
+      totalAmount: '14.50',
+    });
+    await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
+    await expect(receiptDialog).not.toBeVisible();
+    await expect(
+      receiptSection.getByText(path.basename(receiptFile), { exact: true }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      receiptSection.getByText(
+        `Total: ${formatTenantCurrency(1450, currency)}`,
+      ),
+    ).toBeVisible();
 
     const [submittedReceipt] = await database
       .select()
@@ -162,6 +155,20 @@ test('submit receipt from event organize page', async ({
     }
     submittedReceiptId = submittedReceipt.id;
     submittedUploadId = submittedReceipt.attachmentUploadId;
+    expect(submittedReceipt).toEqual(
+      expect.objectContaining({
+        alcoholAmount: 150,
+        currency,
+        depositAmount: 250,
+        hasAlcohol: true,
+        hasDeposit: true,
+        purchaseCountry: 'DE',
+        status: 'submitted',
+        taxAmount: 210,
+        tenantId: tenant.id,
+        totalAmount: 1450,
+      }),
+    );
 
     const uploadedReceipt =
       await database.query.financeReceiptUploads.findFirst({
@@ -188,13 +195,6 @@ test('submit receipt from event organize page', async ({
         .delete(schema.financeReceiptUploads)
         .where(eq(schema.financeReceiptUploads.id, submittedUploadId));
     }
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: event.end,
-        start: event.start,
-      })
-      .where(eq(schema.eventInstances.id, eventId));
   }
 });
 
@@ -205,6 +205,7 @@ test('approve and record receipt reimbursements in finance', async ({
   seeded,
   tenant,
 }) => {
+  const currency = 'CZK';
   const organizerUser = usersToAuthenticate.find(
     (user) => user.roles === 'organizer',
   );
@@ -224,15 +225,20 @@ test('approve and record receipt reimbursements in finance', async ({
   let refundTransactionId: string | undefined;
   try {
     await database
+      .update(schema.tenants)
+      .set({ currency })
+      .where(eq(schema.tenants.id, tenant.id));
+    await database
       .update(schema.users)
       .set({
-        communicationEmail: `delivered+receipt-flow-${receiptId}@resend.dev`,
+        communicationEmail: `delivered+receipt-flow-${receiptId}@notifications.example.test`,
         iban: 'DE00123456781234567890',
         paypalEmail: 'organizer-refunds@example.com',
       })
       .where(eq(schema.users.id, organizerUser.id));
 
     receiptUploadId = await seedPendingReceiptForApproval({
+      currency,
       database,
       eventId: seededEventId,
       receiptFileName,
@@ -254,8 +260,17 @@ test('approve and record receipt reimbursements in finance', async ({
       'href',
       `/finance/receipts-approval/${receiptId}`,
     );
+    await expect(
+      pendingReceipt.getByText(formatTenantCurrency(1450, currency)),
+    ).toBeVisible();
     await pendingReceipt.click();
-    await page.getByRole('button', { name: 'Approve' }).click();
+    await expect(page.getByLabel(`Total amount (${currency})`)).toHaveValue(
+      '14.5',
+    );
+    await expectReceiptPdfPreviewAvailable({ page });
+    const approveButton = page.getByRole('button', { name: 'Approve' });
+    await expect(approveButton).toBeEnabled();
+    await approveButton.click();
     await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
 
     await page.goto('/finance/receipts-refunds');
@@ -268,16 +283,24 @@ test('approve and record receipt reimbursements in finance', async ({
       page.getByText('No approved receipts are waiting for reimbursement.'),
     ).not.toBeVisible();
 
-    const refundSection = page.locator('section', {
+    const refundList = page.locator('app-receipt-refund-list');
+    await expect(refundList).not.toHaveAttribute('ngh', /.*/);
+    const refundSection = refundList.locator('section', {
       has: page.getByText(receiptFileName),
     });
     await expect(refundSection).toBeVisible();
 
     await expect(refundSection.locator('table[mat-table]')).toBeVisible();
-    await refundSection
-      .locator('tr.mat-mdc-row input[type="checkbox"]')
-      .first()
-      .check();
+    const receiptCheckbox = refundSection.getByRole('checkbox', {
+      name: new RegExp(escapedReceiptFileName),
+    });
+    await receiptCheckbox.check();
+    await expect(receiptCheckbox).toBeChecked();
+    await expect(
+      refundSection.getByText(
+        `Selected total: ${formatTenantCurrency(1450, currency)}`,
+      ),
+    ).toBeVisible();
 
     const issueRefundButton = refundSection.getByRole('button', {
       name: 'Record reimbursement',
@@ -311,7 +334,18 @@ test('approve and record receipt reimbursements in finance', async ({
     if (!refundedReceipt?.refundTransactionId) {
       throw new Error('Expected seeded receipt after reimbursement recording');
     }
-    refundTransactionId = refundedReceipt.refundTransactionId;
+    const createdRefundTransactionId = refundedReceipt.refundTransactionId;
+    refundTransactionId = createdRefundTransactionId;
+    await expect
+      .poll(() =>
+        database.query.transactions.findFirst({
+          where: { id: createdRefundTransactionId, tenantId: tenant.id },
+        }),
+      )
+      .toMatchObject({
+        currency,
+        status: 'successful',
+      });
   } finally {
     await database
       .update(schema.users)
@@ -339,6 +373,90 @@ test('approve and record receipt reimbursements in finance', async ({
   }
 });
 
+test('blocks approval but keeps rejection available when receipt evidence is missing', async ({
+  database,
+  page,
+  registerDatabaseCleanup,
+  seedDate,
+  seeded,
+  tenant,
+}) => {
+  const organizerUser = usersToAuthenticate.find(
+    (user) => user.roles === 'organizer',
+  );
+  if (!organizerUser) {
+    throw new Error('Expected seeded organizer user');
+  }
+
+  const eventId = seeded.scenario.events.past.eventId;
+  const receiptId = getId();
+  const receiptFileName = `missing-evidence-${seedDate.getTime()}.pdf`;
+  let receiptUploadId: string | undefined;
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceipts)
+      .where(eq(schema.financeReceipts.id, receiptId));
+    if (receiptUploadId) {
+      await cleanupDatabase
+        .delete(schema.financeReceiptUploads)
+        .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+    }
+  });
+
+  receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+    eventId,
+    fileName: receiptFileName,
+    mimeType: 'application/pdf',
+    sizeBytes: 1024,
+    tenantId: tenant.id,
+    uploadedByUserId: organizerUser.id,
+  });
+  await database.insert(schema.financeReceipts).values({
+    alcoholAmount: 0,
+    attachmentFileName: receiptFileName,
+    attachmentMimeType: 'application/pdf',
+    attachmentSizeBytes: 1024,
+    attachmentUploadId: receiptUploadId,
+    currency: tenant.currency,
+    depositAmount: 0,
+    eventId,
+    hasAlcohol: false,
+    hasDeposit: false,
+    id: receiptId,
+    purchaseCountry: 'DE',
+    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24),
+    status: 'submitted',
+    submittedByUserId: organizerUser.id,
+    taxAmount: 100,
+    tenantId: tenant.id,
+    totalAmount: 1000,
+  });
+
+  await page.goto(`/finance/receipts-approval/${receiptId}`);
+  await expect(
+    page.getByRole('alert').filter({
+      hasText:
+        'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
+  const rejectButton = page.getByRole('button', { name: 'Reject' });
+  await expect(rejectButton).toBeDisabled();
+  await page
+    .getByLabel('Reason shown to the submitter')
+    .fill('The uploaded receipt evidence is unavailable.');
+  await expect(rejectButton).toBeEnabled();
+  await rejectButton.click();
+  await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
+  await expect
+    .poll(() =>
+      database.query.financeReceipts.findFirst({
+        where: { id: receiptId, tenantId: tenant.id },
+      }),
+    )
+    .toMatchObject({ status: 'rejected' });
+});
+
 test('receipt dialog shows Other option when tenant allows it', async ({
   database,
   page,
@@ -364,7 +482,7 @@ test('receipt dialog shows Other option when tenant allows it', async ({
     .where(eq(schema.tenants.id, tenant.id));
 
   const eventId = seeded.scenario.events.past.eventId;
-  await openEventOrganizePage(page, eventId);
+  await page.goto(`/events/${eventId}/organize`);
   await page.getByRole('button', { name: 'Add receipt' }).click();
   await page.getByLabel('Purchase country').click();
   const otherCountryOption = page.getByRole('option', {

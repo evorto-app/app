@@ -18,7 +18,8 @@ const templateAddOnRecord = {
   price: 1200,
   registrationOptions: [
     {
-      quantity: 1,
+      includedQuantity: 0,
+      optionalPurchaseQuantity: 1,
       registrationOptionId: 'participant-option-1',
     },
   ],
@@ -110,7 +111,8 @@ describe('template add-on form utilities', () => {
         allowPurchaseBeforeEvent: false,
         allowPurchaseDuringEvent: false,
         allowPurchaseDuringRegistration: true,
-        quantity: 1,
+        includedQuantity: 0,
+        optionalPurchaseQuantity: 1,
         registrationOptionKind: 'participant',
         stripeTaxRateId: 'txr_vat_19',
         title: 'Dinner',

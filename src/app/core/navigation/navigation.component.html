@@ -1,10 +1,15 @@
-<div
-  class="navigation z-5 bg-surface-container-highest text-on-surface-container-highest lg:text-on-surface-container lg:pt-18 fixed bottom-0 flex w-screen flex-row justify-around gap-2 pb-4 pt-3 lg:bottom-0 lg:left-0 lg:top-0 lg:w-20 lg:flex-col lg:justify-start lg:gap-4 lg:bg-inherit lg:bg-transparent lg:px-2 lg:text-inherit"
+<nav
+  aria-label="Main navigation"
+  class="navigation z-5 bg-surface-container-highest text-on-surface-container-highest lg:text-on-surface-container lg:pt-18 fixed bottom-0 flex w-screen flex-row gap-0 pb-4 pt-3 lg:bottom-0 lg:left-0 lg:top-0 lg:w-20 lg:flex-col lg:justify-start lg:gap-4 lg:bg-inherit lg:bg-transparent lg:px-2 lg:text-inherit"
 >
-  <a routerLink="/events" class="flex flex-col items-center gap-1">
+  <a
+    routerLink="/events"
+    routerLinkActive="navigation-current"
+    ariaCurrentWhenActive="page"
+    class="flex min-w-0 flex-1 flex-col items-center gap-1 lg:flex-none"
+  >
     <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      class="navigation-link-indicator flex w-16 max-w-full flex-row justify-center rounded-full py-1"
     >
       <fa-duotone-icon [icon]="faCalendarDays" size="xl" />
     </div>
@@ -12,30 +17,40 @@
   </a>
   <a
     routerLink="/templates"
-    class="flex flex-col items-center gap-1"
+    routerLinkActive="navigation-current"
+    ariaCurrentWhenActive="page"
+    class="flex min-w-0 flex-1 flex-col items-center gap-1 lg:flex-none"
     *appIfPermission="'templates:*'"
   >
     <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      class="navigation-link-indicator flex w-16 max-w-full flex-row justify-center rounded-full py-1"
     >
       <fa-duotone-icon [icon]="faFolders" size="xl" />
     </div>
     <span class="body-medium text-center">Templates</span>
   </a>
   @if (authenticationQuery.data()) {
-    <a routerLink="/profile" class="flex flex-col items-center gap-1">
+    <a
+      routerLink="/profile"
+      routerLinkActive="navigation-current"
+      ariaCurrentWhenActive="page"
+      class="flex min-w-0 flex-1 flex-col items-center gap-1 lg:flex-none"
+    >
       <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+        class="navigation-link-indicator flex w-16 max-w-full flex-row justify-center rounded-full py-1"
       >
         <fa-duotone-icon [icon]="faUser" size="xl" />
       </div>
       <span class="body-medium text-center">Profile</span>
     </a>
   } @else {
-    <a href="/login" class="flex flex-col items-center gap-1 lg:hidden">
-      <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
+    <a
+      href="/login"
+      class="flex min-w-0 flex-1 flex-col items-center gap-1 lg:hidden"
+    >
+      <div
+        class="flex w-16 max-w-full flex-row justify-center rounded-full py-1"
+      >
         <fa-duotone-icon [icon]="faRightToBracket" size="xl" />
       </div>
       <span class="body-medium text-center">Login</span>
@@ -43,38 +58,42 @@
   }
   <a
     routerLink="/internal"
+    routerLinkActive="navigation-current"
+    ariaCurrentWhenActive="page"
     class="hidden flex-col items-center gap-1 lg:flex"
     *appIfPermission="'internal:viewInternalPages'"
   >
     <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      class="navigation-link-indicator flex min-w-16 flex-row justify-center rounded-full py-1"
     >
       <fa-duotone-icon [icon]="faHouseChimney" size="xl" />
     </div>
-    <span class="body-medium text-center">Internal</span>
+    <span class="body-medium text-center">Members Hub</span>
   </a>
-  <a
-    routerLink="/global-admin"
-    *appIfPermission="'globalAdmin:*'"
-    class="hidden flex-col items-center gap-1 lg:flex"
-  >
-    <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+  @if (platformAuthority()) {
+    <a
+      routerLink="/global-admin"
+      routerLinkActive="navigation-current"
+      ariaCurrentWhenActive="page"
+      class="hidden flex-col items-center gap-1 lg:flex"
     >
-      <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
-    </div>
-    <span class="body-medium text-center">Global admin</span>
-  </a>
+      <div
+        class="navigation-link-indicator flex min-w-16 flex-row justify-center rounded-full py-1"
+      >
+        <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
+      </div>
+      <span class="body-medium text-center">Platform admin</span>
+    </a>
+  }
   <a
     routerLink="/finance"
+    routerLinkActive="navigation-current"
+    ariaCurrentWhenActive="page"
     class="hidden flex-col items-center gap-1 lg:flex"
     *appIfPermission="'finance:*'"
   >
     <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      class="navigation-link-indicator flex min-w-16 flex-row justify-center rounded-full py-1"
     >
       <fa-duotone-icon [icon]="faMoneyBill" size="xl" />
     </div>
@@ -82,33 +101,42 @@
   </a>
   <a
     routerLink="/admin"
+    routerLinkActive="navigation-current"
+    ariaCurrentWhenActive="page"
     class="hidden flex-col items-center gap-1 lg:flex"
     *appIfAnyPermission="adminNavigationPermissions"
   >
     <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      class="navigation-link-indicator flex min-w-16 flex-row justify-center rounded-full py-1"
     >
       <fa-duotone-icon [icon]="faFolderGear" size="xl" />
     </div>
     <span class="body-medium text-center">Admin Tools</span>
   </a>
-  <button
-    title="menu"
-    (click)="openSheet()"
-    class="flex flex-col items-center gap-1 lg:hidden"
-    *appIfAnyPermission="adminNavigationPermissions"
-  >
-    <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
-      <fa-duotone-icon [icon]="faEllipsisVertical" size="xl" />
-    </div>
-    <span class="body-medium text-center">More</span>
-  </button>
-  @if (scannerAccessQuery.data()) {
-    <a routerLink="/scan" class="flex flex-col items-center gap-1 lg:hidden">
+  @if (mobileMoreNavigationAvailable()) {
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      (click)="openSheet()"
+      class="flex min-w-0 flex-1 flex-col items-center gap-1 lg:hidden"
+    >
       <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+        class="flex w-16 max-w-full flex-row justify-center rounded-full py-1"
+      >
+        <fa-duotone-icon [icon]="faEllipsisVertical" size="xl" />
+      </div>
+      <span class="body-medium text-center">More</span>
+    </button>
+  }
+  @if (scannerAccessQuery.data()) {
+    <a
+      routerLink="/scan"
+      routerLinkActive="navigation-current"
+      ariaCurrentWhenActive="page"
+      class="flex min-w-0 flex-1 flex-col items-center gap-1 lg:hidden"
+    >
+      <div
+        class="navigation-link-indicator flex w-16 max-w-full flex-row justify-center rounded-full py-1"
       >
         <fa-duotone-icon [icon]="faScannerGun" size="xl" />
       </div>
@@ -118,10 +146,14 @@
   <div class="hidden grow lg:block"></div>
 
   @if (scannerAccessQuery.data()) {
-    <a routerLink="/scan" class="hidden flex-col items-center gap-1 lg:flex">
+    <a
+      routerLink="/scan"
+      routerLinkActive="navigation-current"
+      ariaCurrentWhenActive="page"
+      class="hidden flex-col items-center gap-1 lg:flex"
+    >
       <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+        class="navigation-link-indicator flex min-w-16 flex-row justify-center rounded-full py-1"
       >
         <fa-duotone-icon [icon]="faScannerGun" size="xl" />
       </div>
@@ -143,80 +175,54 @@
       <span class="body-medium text-center">Login</span>
     </a>
   }
-</div>
+</nav>
 <div class="h-24 w-full lg:hidden"></div>
 <ng-template #navigationSheet>
-  <div class="flex w-full flex-row justify-around gap-2 pb-4 pt-3">
-    <a
-      routerLink="/global-admin"
-      *appIfPermission="'globalAdmin:*'"
-      class="flex flex-col items-center gap-1"
-      (click)="closeSheet()"
-    >
-      <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container"
-      >
-        <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
-      </div>
-      <span class="body-medium text-center">Global admin</span>
-    </a>
-    @if (scannerAccessQuery.data()) {
+  <nav aria-label="More navigation" class="grid w-full gap-1 p-3">
+    @if (platformAuthority()) {
       <a
-        routerLink="/scan"
-        class="flex flex-col items-center gap-1"
+        routerLink="/global-admin"
+        routerLinkActive="navigation-current"
+        ariaCurrentWhenActive="page"
+        class="sheet-navigation-link flex min-h-12 items-center gap-3 rounded-lg px-4 py-3"
         (click)="closeSheet()"
       >
-        <div
-          class="flex min-w-16 flex-row justify-center rounded-full py-1"
-          routerLinkActive="bg-secondary-container text-on-secondary-container"
-        >
-          <fa-duotone-icon [icon]="faScannerGun" size="xl" />
-        </div>
-        <span class="body-medium text-center">Scanner</span>
+        <fa-duotone-icon [icon]="faLockKeyhole" size="lg" />
+        <span class="label-large">Platform admin</span>
       </a>
     }
     <a
       routerLink="/finance"
-      class="flex flex-col items-center gap-1"
+      routerLinkActive="navigation-current"
+      ariaCurrentWhenActive="page"
+      class="sheet-navigation-link flex min-h-12 items-center gap-3 rounded-lg px-4 py-3"
       (click)="closeSheet()"
       *appIfPermission="'finance:*'"
     >
-      <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container"
-      >
-        <fa-duotone-icon [icon]="faMoneyBill" size="xl" />
-      </div>
-      <span class="body-medium text-center">Finances</span>
+      <fa-duotone-icon [icon]="faMoneyBill" size="lg" />
+      <span class="label-large">Finances</span>
     </a>
     <a
       routerLink="/internal"
-      class="flex flex-col items-center gap-1"
+      routerLinkActive="navigation-current"
+      ariaCurrentWhenActive="page"
+      class="sheet-navigation-link flex min-h-12 items-center gap-3 rounded-lg px-4 py-3"
       (click)="closeSheet()"
       *appIfPermission="'internal:viewInternalPages'"
     >
-      <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container"
-      >
-        <fa-duotone-icon [icon]="faHouseChimney" size="xl" />
-      </div>
-      <span class="body-medium text-center">Internal</span>
+      <fa-duotone-icon [icon]="faHouseChimney" size="lg" />
+      <span class="label-large">Members Hub</span>
     </a>
     <a
       routerLink="/admin"
-      class="flex flex-col items-center gap-1"
+      routerLinkActive="navigation-current"
+      ariaCurrentWhenActive="page"
+      class="sheet-navigation-link flex min-h-12 items-center gap-3 rounded-lg px-4 py-3"
       (click)="closeSheet()"
       *appIfAnyPermission="adminNavigationPermissions"
     >
-      <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container"
-      >
-        <fa-duotone-icon [icon]="faFolderGear" size="xl" />
-      </div>
-      <span class="body-medium text-center">Admin Tools</span>
+      <fa-duotone-icon [icon]="faFolderGear" size="lg" />
+      <span class="label-large">Admin Tools</span>
     </a>
-  </div>
+  </nav>
 </ng-template>

@@ -1,0 +1,641 @@
+<app-platform-tenant-page-header
+  title="Organization finance"
+  [tenantId]="tenantId()"
+/>
+
+<mat-tab-group animationDuration="150ms">
+  <mat-tab label="Transactions">
+    <section class="py-4" aria-label="Transactions">
+      @if (transactionsQuery.isPending()) {
+        <p role="status" class="body-medium">Loading transactions...</p>
+      } @else if (transactionsQuery.isError()) {
+        <div
+          role="alert"
+          class="bg-error-container text-on-error-container p-4"
+        >
+          <p>Transactions could not be loaded.</p>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="transactionsQuery.refetch()"
+          >
+            Try again
+          </button>
+        </div>
+      } @else if (transactionsQuery.isSuccess()) {
+        <p class="body-small text-on-surface-variant mb-2">
+          {{ transactionsQuery.data().total }} transactions
+        </p>
+        <div class="overflow-x-auto border-y border-outline-variant">
+          <table mat-table [dataSource]="transactionsQuery.data().data">
+            <ng-container matColumnDef="createdAt">
+              <th mat-header-cell *matHeaderCellDef>Created</th>
+              <td mat-cell *matCellDef="let transaction">
+                {{
+                  transaction.createdAt
+                    | date
+                      : "short"
+                      : transactionsQuery.data().tenantContext.timezone
+                }}
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="amount">
+              <th mat-header-cell *matHeaderCellDef>Amount</th>
+              <td mat-cell *matCellDef="let transaction">
+                {{ transaction.amount / 100 | currency: transaction.currency }}
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let transaction">
+                {{ platformTransactionStatusLabel(transaction.status) }}
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="method">
+              <th mat-header-cell *matHeaderCellDef>Payment method</th>
+              <td mat-cell *matCellDef="let transaction">
+                {{ platformTransactionMethodLabel(transaction.method) }}
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="refundLifecycle">
+              <th mat-header-cell *matHeaderCellDef>Refund status</th>
+              <td mat-cell *matCellDef="let transaction">
+                @if (transaction.refundLifecycle; as lifecycle) {
+                  @let copy = refundLifecycleCopy(lifecycle);
+                  <p
+                    class="body-medium"
+                    [class.text-error]="lifecycle.status === 'needs-attention'"
+                    [class.text-warning]="
+                      lifecycle.status === 'action-required'
+                    "
+                  >
+                    {{ copy.label }}
+                  </p>
+                  <p class="body-small text-on-surface-variant max-w-64 py-1">
+                    {{ copy.detail }}
+                  </p>
+                } @else {
+                  —
+                }
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="comment">
+              <th mat-header-cell *matHeaderCellDef>Comment</th>
+              <td mat-cell *matCellDef="let transaction">
+                {{ transaction.comment || "—" }}
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="transactionColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: transactionColumns"></tr>
+          </table>
+        </div>
+        <mat-paginator
+          showFirstLastButtons
+          aria-label="Select page of organization transactions"
+          [length]="transactionsQuery.data().total"
+          [pageIndex]="transactionPageIndex()"
+          [pageSize]="transactionPageSize()"
+          [pageSizeOptions]="[25, 50, 100]"
+          (page)="changeTransactionPage($event)"
+        />
+      }
+    </section>
+  </mat-tab>
+
+  <mat-tab label="Receipt approval">
+    <section
+      class="grid gap-6 py-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
+    >
+      <div>
+        @if (approvalQueueQuery.isPending()) {
+          <p role="status" class="body-medium">Loading receipt queue...</p>
+        } @else if (approvalQueueQuery.isError()) {
+          <div
+            role="alert"
+            class="bg-error-container text-on-error-container p-4"
+          >
+            <p>Receipt approvals could not be loaded.</p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="approvalQueueQuery.refetch()"
+            >
+              Try again
+            </button>
+          </div>
+        } @else if (approvalQueueQuery.isSuccess()) {
+          @for (
+            group of approvalQueueQuery.data().groups;
+            track group.eventId
+          ) {
+            <section class="border-b border-outline-variant py-3">
+              <h2 class="title-small">{{ group.eventTitle }}</h2>
+              <p class="body-small text-on-surface-variant">
+                {{
+                  group.eventStart
+                    | date
+                      : "medium"
+                      : approvalQueueQuery.data().tenantContext.timezone
+                }}
+              </p>
+              @for (receipt of group.receipts; track receipt.id) {
+                <div class="flex items-center gap-3 py-2">
+                  <div class="min-w-0 grow">
+                    <p class="body-medium truncate">
+                      {{ receipt.submittedByFirstName }}
+                      {{ receipt.submittedByLastName }}
+                    </p>
+                    <p class="body-small text-on-surface-variant">
+                      {{
+                        receipt.totalAmount / 100 | currency: receipt.currency
+                      }}
+                    </p>
+                  </div>
+                  <button
+                    mat-button
+                    type="button"
+                    (click)="
+                      chooseReceipt(receipt, group.eventTitle, group.eventStart)
+                    "
+                  >
+                    Review
+                  </button>
+                </div>
+              }
+            </section>
+          } @empty {
+            <p class="body-medium text-on-surface-variant">
+              No receipts need review.
+            </p>
+          }
+        }
+      </div>
+
+      @if (selectedReceipt(); as selected) {
+        <form (submit)="reviewReceipt($event)">
+          <h2 class="title-medium">Review receipt</h2>
+          <p class="body-small text-on-surface-variant mt-1">
+            {{ selected.eventTitle }} ·
+            {{ selected.receipt.submittedByFirstName }}
+            {{ selected.receipt.submittedByLastName }}
+          </p>
+          @if (selected.receipt.previewImageUrl) {
+            <a
+              mat-button
+              class="mt-2"
+              target="_blank"
+              rel="noopener noreferrer"
+              [href]="selected.receipt.previewImageUrl"
+            >
+              Open receipt preview
+            </a>
+          }
+          @if (!selected.receipt.receiptEvidenceAvailable) {
+            <p
+              role="alert"
+              class="bg-error-container text-on-error-container mt-3 p-3 text-sm"
+            >
+              {{ platformReceiptEvidenceUnavailableNotice }}
+            </p>
+          }
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <app-currency-amount-input
+              label="Total amount"
+              [currencyCode]="selected.receipt.currency"
+              [formField]="reviewForm.totalAmount"
+            />
+            <app-currency-amount-input
+              label="Tax amount"
+              [currencyCode]="selected.receipt.currency"
+              [formField]="reviewForm.taxAmount"
+            />
+            <app-currency-amount-input
+              label="Deposit amount"
+              [currencyCode]="selected.receipt.currency"
+              [formField]="reviewForm.depositAmount"
+            />
+            <app-currency-amount-input
+              label="Alcohol amount"
+              [currencyCode]="selected.receipt.currency"
+              [formField]="reviewForm.alcoholAmount"
+            />
+            <mat-form-field>
+              <mat-label>Receipt date</mat-label>
+              <input
+                matInput
+                type="date"
+                [formField]="reviewForm.receiptDate"
+              />
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Purchase country</mat-label>
+              <mat-select [formField]="reviewForm.purchaseCountry">
+                @for (
+                  country of receiptCountryConfig().receiptCountries;
+                  track country
+                ) {
+                  <mat-option [value]="country">{{ country }}</mat-option>
+                }
+                @if (receiptCountryConfig().allowOther) {
+                  <mat-option value="OTHER">Other</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <div class="mb-3 grid gap-2 sm:grid-cols-2">
+            <mat-checkbox [formField]="reviewForm.hasDeposit">
+              Includes a deposit
+            </mat-checkbox>
+            <mat-checkbox [formField]="reviewForm.hasAlcohol">
+              Includes alcohol
+            </mat-checkbox>
+          </div>
+          <mat-form-field class="w-full">
+            <mat-label>Decision</mat-label>
+            <mat-select [formField]="reviewForm.status">
+              <mat-option value="approved">Approve</mat-option>
+              <mat-option value="rejected">Reject</mat-option>
+            </mat-select>
+          </mat-form-field>
+          @if (reviewForm.status().value() === "rejected") {
+            <mat-form-field class="w-full">
+              <mat-label>Rejection reason</mat-label>
+              <textarea
+                matInput
+                rows="2"
+                [formField]="reviewForm.rejectionReason"
+              ></textarea>
+            </mat-form-field>
+          }
+          <mat-form-field class="w-full">
+            <mat-label>Platform operational reason</mat-label>
+            <textarea
+              matInput
+              rows="3"
+              [formField]="reviewForm.reason"
+            ></textarea>
+            <mat-hint
+              >Separate from the participant-facing rejection reason.</mat-hint
+            >
+          </mat-form-field>
+          <div class="flex justify-end">
+            <button
+              mat-flat-button
+              type="submit"
+              [disabled]="
+                platformReceiptReviewDisabled({
+                  evidenceAvailable: selected.receipt.receiptEvidenceAvailable,
+                  formInvalid: reviewForm().invalid(),
+                  mutationPending: reviewMutation.isPending(),
+                  status: reviewForm.status().value(),
+                })
+              "
+            >
+              {{ reviewMutation.isPending() ? "Saving..." : "Save decision" }}
+            </button>
+          </div>
+        </form>
+      } @else {
+        <p class="body-medium text-on-surface-variant">
+          Select a receipt to review.
+        </p>
+      }
+    </section>
+  </mat-tab>
+
+  <mat-tab label="Reimbursements">
+    <section
+      class="grid gap-6 py-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
+    >
+      <div>
+        @if (reimbursementQueueQuery.isPending()) {
+          <p role="status" class="body-medium">Loading reimbursements...</p>
+        } @else if (reimbursementQueueQuery.isError()) {
+          <div
+            role="alert"
+            class="bg-error-container text-on-error-container p-4"
+          >
+            <p>Reimbursements could not be loaded.</p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="reimbursementQueueQuery.refetch()"
+            >
+              Try again
+            </button>
+          </div>
+        } @else if (reimbursementQueueQuery.isSuccess()) {
+          @for (
+            group of reimbursementQueueQuery.data().groups;
+            track group.submittedByUserId + ":" + group.currency
+          ) {
+            <div
+              class="flex items-center gap-3 border-b border-outline-variant py-3"
+            >
+              <div class="min-w-0 grow">
+                <p class="body-medium truncate">
+                  {{ group.submittedByFirstName }}
+                  {{ group.submittedByLastName }}
+                </p>
+                <p class="body-small text-on-surface-variant">
+                  {{ group.receipts.length }} receipts ·
+                  {{ group.totalAmount / 100 | currency: group.currency }}
+                </p>
+              </div>
+              <button
+                mat-button
+                type="button"
+                [disabled]="reimbursementMutation.isPending()"
+                (click)="chooseReimbursement(group)"
+              >
+                Record payout
+              </button>
+            </div>
+          } @empty {
+            <p class="body-medium text-on-surface-variant">
+              No approved receipts await reimbursement.
+            </p>
+          }
+        }
+      </div>
+
+      @if (selectedReimbursement(); as selected) {
+        @let group = selected.group;
+        <form (submit)="recordReimbursement($event)">
+          <h2 class="title-medium">Record reimbursement</h2>
+          <p class="body-small text-on-surface-variant mt-1">
+            Recording marks the selected receipts as reimbursed in Evorto. It
+            does not send money.
+          </p>
+          <dl class="my-4 grid gap-2 text-sm">
+            <div>
+              <dt class="text-on-surface-variant">Recipient</dt>
+              <dd>
+                {{ group.submittedByFirstName }} {{ group.submittedByLastName }}
+              </dd>
+            </div>
+            @if (reimbursementForm.payoutType().value() === "iban") {
+              <div>
+                <dt class="text-on-surface-variant">IBAN</dt>
+                <dd class="font-mono break-all">
+                  {{ group.payout.iban || "Unavailable" }}
+                </dd>
+              </div>
+            } @else if (reimbursementForm.payoutType().value() === "paypal") {
+              <div>
+                <dt class="text-on-surface-variant">PayPal</dt>
+                <dd class="break-all">
+                  {{ group.payout.paypalEmail || "Unavailable" }}
+                </dd>
+              </div>
+            }
+          </dl>
+          <fieldset class="mb-4 border-y border-outline-variant py-3">
+            <legend class="label-large px-1">Receipts in this batch</legend>
+            <p class="body-small text-on-surface-variant mb-2">
+              {{ reimbursementForm.receiptIds().value().length }} selected ·
+              {{
+                selectedReimbursementTotal() / 100 | currency: group.currency
+              }}
+              · maximum 100 per reimbursement record
+            </p>
+            @if (group.receipts.length > 100) {
+              <p class="body-small text-on-surface-variant mb-2">
+                This recipient has {{ group.receipts.length }} approved
+                receipts. Record them in batches of at most 100.
+              </p>
+            }
+            <div class="grid max-h-64 gap-1 overflow-y-auto">
+              @for (receipt of group.receipts; track receipt.id) {
+                <mat-checkbox
+                  [checked]="receiptSelected(receipt.id)"
+                  [disabled]="
+                    reimbursementForm.receiptIds().disabled() ||
+                    (!receiptSelected(receipt.id) &&
+                      reimbursementForm.receiptIds().value().length >= 100)
+                  "
+                  (change)="
+                    toggleReimbursementReceipt(receipt.id, $event.checked)
+                  "
+                >
+                  {{
+                    receipt.receiptDate | date: "mediumDate" : selected.timezone
+                  }}
+                  ·
+                  {{ receipt.totalAmount / 100 | currency: receipt.currency }}
+                </mat-checkbox>
+              }
+            </div>
+          </fieldset>
+          <mat-form-field class="w-full">
+            <mat-label>Payout type</mat-label>
+            <mat-select [formField]="reimbursementForm.payoutType">
+              <mat-option value="iban" [disabled]="!group.payout.iban"
+                >Bank transfer</mat-option
+              >
+              <mat-option value="paypal" [disabled]="!group.payout.paypalEmail"
+                >PayPal</mat-option
+              >
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label>Operational reason</mat-label>
+            <textarea
+              matInput
+              rows="3"
+              [formField]="reimbursementForm.reason"
+            ></textarea>
+          </mat-form-field>
+          <div class="flex justify-end">
+            <button
+              mat-flat-button
+              type="submit"
+              [disabled]="
+                reimbursementForm().invalid() ||
+                reimbursementMutation.isPending()
+              "
+            >
+              {{
+                reimbursementMutation.isPending()
+                  ? "Recording..."
+                  : "Review reimbursement"
+              }}
+            </button>
+          </div>
+        </form>
+      } @else {
+        <p class="body-medium text-on-surface-variant">
+          Select a recipient group to record a reimbursement.
+        </p>
+      }
+    </section>
+  </mat-tab>
+
+  <mat-tab label="Refund recovery">
+    <section
+      class="grid gap-6 py-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
+    >
+      <div>
+        <p class="body-small text-on-surface-variant mb-3">
+          Refunds appear here only when Evorto can safely retry them or resume
+          checking their Stripe status. Refunds still scheduled, currently
+          processing, or already completed stay out of this list.
+        </p>
+        @if (recoveryQueueQuery.isPending()) {
+          <p role="status" class="body-medium">Loading refund recovery...</p>
+        } @else if (recoveryQueueQuery.isError()) {
+          <div
+            role="alert"
+            class="bg-error-container text-on-error-container p-4"
+          >
+            <p>Refund recovery could not be loaded.</p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="recoveryQueueQuery.refetch()"
+            >
+              Try again
+            </button>
+          </div>
+        } @else if (recoveryQueueQuery.isSuccess()) {
+          @for (claim of recoveryQueueQuery.data().claims; track claim.id) {
+            <div class="border-b border-outline-variant py-3">
+              <div class="flex items-start gap-3">
+                <div class="min-w-0 grow">
+                  <p class="body-medium">
+                    {{ claim.eventTitle }}
+                  </p>
+                  <p class="body-small text-on-surface-variant">
+                    {{ claim.attendeeFirstName }} {{ claim.attendeeLastName }} ·
+                    {{ claim.amount / 100 | currency: claim.currency }}
+                  </p>
+                  <p class="body-small text-on-surface-variant">
+                    Refund created
+                    {{
+                      claim.createdAt
+                        | date
+                          : "short"
+                          : recoveryQueueQuery.data().tenantContext.timezone
+                    }}
+                  </p>
+                  @if (claim.transfer) {
+                    <p class="body-small text-on-surface-variant">
+                      Related to a registration transfer
+                    </p>
+                  }
+                </div>
+                <button
+                  mat-button
+                  type="button"
+                  (click)="chooseRefundClaim(claim)"
+                >
+                  Review recovery
+                </button>
+              </div>
+              <p class="body-small text-error mt-2">
+                {{
+                  claim.mode === "newGeneration"
+                    ? "Stripe marked the previous refund as failed."
+                    : "Automatic refund checks stopped before completion."
+                }}
+              </p>
+            </div>
+          } @empty {
+            <p class="body-medium text-on-surface-variant">
+              No refunds currently need manual recovery.
+            </p>
+          }
+        }
+      </div>
+
+      @if (selectedRefundClaim(); as claim) {
+        <form (submit)="requeueRefundClaim($event)">
+          <h2 class="title-medium">
+            {{
+              claim.mode === "newGeneration"
+                ? "Retry failed refund"
+                : "Resume refund checks"
+            }}
+          </h2>
+          <p class="body-small text-on-surface-variant mt-1">
+            @if (claim.mode === "newGeneration") {
+              The failed Stripe refund stays in the payment history. Retrying
+              starts a new refund attempt for the same amount. It does not
+              increase the refund amount or issue two refunds.
+            } @else {
+              Evorto resumes checking the existing Stripe refund. It does not
+              issue another refund.
+            }
+          </p>
+          <dl class="my-4 grid gap-2 text-sm">
+            <div>
+              <dt class="text-on-surface-variant">Event</dt>
+              <dd>{{ claim.eventTitle }}</dd>
+            </div>
+            <div>
+              <dt class="text-on-surface-variant">Attendee</dt>
+              <dd>
+                {{ claim.attendeeFirstName }} {{ claim.attendeeLastName }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-on-surface-variant">Amount</dt>
+              <dd>{{ claim.amount / 100 | currency: claim.currency }}</dd>
+            </div>
+            <div>
+              <dt class="text-on-surface-variant">Safe next step</dt>
+              <dd>
+                {{
+                  claim.mode === "newGeneration"
+                    ? "Retry this failed refund"
+                    : "Resume checks for this refund"
+                }}
+              </dd>
+            </div>
+            @if (claim.transfer) {
+              <div>
+                <dt class="text-on-surface-variant">Related activity</dt>
+                <dd>Registration transfer</dd>
+              </div>
+            }
+          </dl>
+          <mat-form-field class="w-full">
+            <mat-label>Operational recovery reason</mat-label>
+            <textarea
+              matInput
+              rows="3"
+              [formField]="refundRecoveryForm.reason"
+            ></textarea>
+            <mat-hint>
+              Required. This reason is saved with the recovery action.
+            </mat-hint>
+          </mat-form-field>
+          <div class="flex justify-end">
+            <button
+              mat-flat-button
+              type="submit"
+              [disabled]="
+                refundRecoveryForm().invalid() ||
+                refundRecoveryMutation.isPending()
+              "
+            >
+              {{
+                refundRecoveryMutation.isPending()
+                  ? claim.mode === "newGeneration"
+                    ? "Retrying..."
+                    : "Resuming..."
+                  : claim.mode === "newGeneration"
+                    ? "Retry failed refund"
+                    : "Resume refund checks"
+              }}
+            </button>
+          </div>
+        </form>
+      } @else {
+        <p class="body-medium text-on-surface-variant">
+          Select a refund to review its safe recovery action.
+        </p>
+      }
+    </section>
+  </mat-tab>
+</mat-tab-group>

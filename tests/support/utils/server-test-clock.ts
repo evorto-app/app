@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 
-import { DEFAULT_E2E_NOW_ISO } from '../../../helpers/testing/deterministic-test-defaults';
+import { DEFAULT_E2E_NOW_ISO } from '@shared/testing/deterministic-test-defaults';
 
 const readServerNow = (): DateTime => {
   const nowIso = process.env['E2E_NOW_ISO']?.trim() || DEFAULT_E2E_NOW_ISO;
@@ -13,6 +13,20 @@ const readServerNow = (): DateTime => {
   }
 
   return now;
+};
+
+export const latestServerOrWallNow = (): Date => {
+  const serverNow = readServerNow();
+  const wallNow = DateTime.utc();
+
+  return (serverNow > wallNow ? serverNow : wallNow).toJSDate();
+};
+
+export const earliestServerOrWallNow = (): Date => {
+  const serverNow = readServerNow();
+  const wallNow = DateTime.utc();
+
+  return (serverNow < wallNow ? serverNow : wallNow).toJSDate();
 };
 
 export const futureServerEventWindow = (

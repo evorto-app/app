@@ -1,8 +1,15 @@
 <div
   class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface {{
-    mutationPending() ? 'animate-pulse cursor-progress pointer-events-none' : ''
+    mutationPending()
+      ? 'animate-pulse motion-reduce:animate-none cursor-progress pointer-events-none'
+      : ''
   }}"
 >
+  @if (mutationPending()) {
+    <p class="sr-only" aria-live="polite" role="status">
+      Submitting your registration choice.
+    </p>
+  }
   <div class="flex flex-row items-center gap-4">
     <div class="flex min-w-0 flex-col gap-1">
       <p class="label-medium text-primary">{{ audienceCopy().label }}</p>
@@ -37,170 +44,246 @@
     {{ audienceCopy().helperText }}
   </p>
 
-  @if (addOns().length > 0 && !waitlistAvailable()) {
-    <div class="border-outline-variant flex flex-col gap-3 border-t pt-3">
-      <p class="label-medium text-on-surface-variant">Add-ons</p>
-      @for (addOn of addOns(); track addOn.id) {
-        <div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
-          <div>
-            <p class="body-medium text-on-surface">{{ addOn.title }}</p>
-            <p class="body-small text-on-surface-variant">
-              Max {{ addOn.maxQuantityPerUser }} per registration
-            </p>
-            @if (addOn.isPaid) {
-              <app-price-with-tax
-                [amount]="addOn.price"
-                [taxRate]="addonTaxRate(addOn)"
-              />
-            } @else {
-              <p class="body-small text-on-surface-variant">Free</p>
+  @if (!registrationModeSupported()) {
+    <div
+      class="bg-error-container text-on-error-container rounded-lg p-3"
+      role="alert"
+    >
+      This option uses a registration mode that is no longer supported. Ask an
+      organizer to update the event before trying again.
+    </div>
+  } @else {
+    @if (addOns().length > 0 && !waitlistAvailable()) {
+      <div class="border-outline-variant flex flex-col gap-3 border-t pt-3">
+        <p class="label-medium text-on-surface-variant">Add-ons</p>
+        @for (addOn of addOns(); track addOn.id) {
+          @let includedQuantity = addonIncludedQuantity(addOn);
+          @let maxQuantity = addonMaxQuantity(addOn);
+          @let soldOut = addonSoldOut(addOn);
+          <div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
+            <div>
+              <p class="body-medium text-on-surface">{{ addOn.title }}</p>
+              <p class="body-small text-on-surface-variant">
+                @if (includedQuantity > 0) {
+                  {{ includedQuantity }} included
+                }
+                @if (includedQuantity > 0 && (maxQuantity > 0 || soldOut)) {
+                  ·
+                }
+                @if (maxQuantity > 0) {
+                  Up to {{ maxQuantity }} optional
+                } @else if (soldOut) {
+                  {{ addonSoldOutLabel(includedQuantity) }}
+                }
+              </p>
+              @if (addOn.isPaid) {
+                @if (maxQuantity > 0) {
+                  <div class="flex flex-wrap items-baseline gap-x-1">
+                    <app-price-with-tax
+                      [amount]="addOn.price"
+                      [taxRate]="addonTaxRate(addOn)"
+                    />
+                    <span class="body-small text-on-surface-variant">
+                      per extra item
+                    </span>
+                  </div>
+                } @else if (includedQuantity > 0) {
+                  <p class="body-small text-on-surface-variant">
+                    Included in registration price
+                  </p>
+                }
+              } @else {
+                <p class="body-small text-on-surface-variant">Free</p>
+              }
+            </div>
+            @if (maxQuantity > 0) {
+              <mat-form-field appearance="outline" class="w-32">
+                <mat-label>Quantity</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                  [attr.aria-label]="'Quantity for ' + addOn.title"
+                  [disabled]="!controlsInteractive()"
+                  [max]="maxQuantity"
+                  [value]="addonQuantity(addOn.id)"
+                  (input)="updateAddonQuantity(addOn, $event)"
+                />
+              </mat-form-field>
             }
           </div>
-          <mat-form-field appearance="outline" class="w-32">
-            <mat-label>Quantity</mat-label>
-            <input
+        }
+      </div>
+    }
+
+    @if (registrationOption().questions.length > 0) {
+      <div class="border-outline-variant flex flex-col gap-2 border-t pt-3">
+        <p class="label-medium text-on-surface-variant">
+          Registration questions
+        </p>
+        @for (question of registrationOption().questions; track question.id) {
+          <mat-form-field appearance="outline">
+            <mat-label>{{ question.title }}</mat-label>
+            <textarea
               matInput
-              type="number"
-              min="0"
-              [max]="addonMaxQuantity(addOn)"
-              [value]="addonQuantity(addOn.id)"
-              (input)="updateAddonQuantity(addOn, $event)"
-            />
+              rows="3"
+              [disabled]="!controlsInteractive()"
+              [required]="question.required"
+              [value]="registrationQuestionAnswer(question.id)"
+              (input)="updateRegistrationQuestionAnswer(question.id, $event)"
+            ></textarea>
+            @if (question.description) {
+              <mat-hint>{{ question.description }}</mat-hint>
+            }
           </mat-form-field>
-        </div>
-      }
-    </div>
-  }
+        }
+        @if (registrationQuestionAnswersMissingRequired()) {
+          <p class="body-small text-error" role="status">
+            Answer every required question before continuing.
+          </p>
+        }
+      </div>
+    }
 
-  @if (registrationOption().questions.length > 0) {
-    <div class="border-outline-variant flex flex-col gap-2 border-t pt-3">
-      <p class="label-medium text-on-surface-variant">Registration questions</p>
-      @for (question of registrationOption().questions; track question.id) {
-        <mat-form-field appearance="outline">
-          <mat-label>{{ question.title }}</mat-label>
-          <textarea
-            matInput
-            rows="3"
-            [required]="question.required"
-            [value]="registrationQuestionAnswer(question.id)"
-            (input)="updateRegistrationQuestionAnswer(question.id, $event)"
-          ></textarea>
-          @if (question.description) {
-            <mat-hint>{{ question.description }}</mat-hint>
-          }
-        </mat-form-field>
-      }
-    </div>
-  }
-
-  @if (authenticationQuery.data()) {
-    @switch (registrationOpen()) {
-      @case ("open") {
-        @if (full()) {
-          @if (waitlistAvailable()) {
-            <p class="body-large">This option is full.</p>
-            <button
-              (click)="joinWaitlist(registrationOption())"
-              mat-flat-button
-              type="button"
-              [disabled]="
-                registrationOptionWriteActionDisabled({
-                  missingRequiredAnswers:
-                    registrationQuestionAnswersMissingRequired(),
-                  mutationPending: mutationPending(),
-                })
-              "
-            >
-              Join waitlist
-            </button>
+    @if (authenticationQuery.isPending()) {
+      <p class="body-medium text-on-surface-variant" role="status">
+        Checking whether you are signed in…
+      </p>
+    } @else if (authenticationQuery.isError()) {
+      <div
+        class="bg-error-container text-on-error-container rounded-lg p-3"
+        role="alert"
+      >
+        Sign-in status could not be checked. Reload the page before registering.
+      </div>
+    } @else if (authenticationQuery.isSuccess() && authenticationQuery.data()) {
+      @switch (registrationOpen()) {
+        @case ("open") {
+          @if (full()) {
+            @if (waitlistAvailable()) {
+              <p class="body-large">This option is full.</p>
+              <button
+                (click)="joinWaitlist(registrationOption())"
+                mat-flat-button
+                type="button"
+                [disabled]="
+                  registrationOptionWriteActionDisabled({
+                    controlsInteractive: controlsInteractive(),
+                    missingRequiredAnswers:
+                      registrationQuestionAnswersMissingRequired(),
+                    mutationPending: mutationPending(),
+                  })
+                "
+              >
+                Join waitlist
+              </button>
+            } @else {
+              <p class="body-large">This option is full.</p>
+            }
           } @else {
-            <p class="body-large">This option is full.</p>
-          }
-        } @else {
-          @if (maxGuestCount() > 0) {
-            <mat-form-field appearance="outline">
-              <mat-label>Guests</mat-label>
-              <input
-                matInput
-                type="number"
-                min="0"
-                [max]="maxGuestCount()"
-                [value]="selectedGuestCount()"
-                (input)="updateGuestCount($event)"
-              />
-              <span matTextSuffix>
-                + you = {{ selectedSpotCount() }} spots
-              </span>
-            </mat-form-field>
-          }
-          @if (paymentDueDuringRegistration()) {
-            <button
-              (click)="register(registrationOption())"
-              mat-flat-button
-              type="button"
-              [disabled]="
-                registrationOptionWriteActionDisabled({
-                  missingRequiredAnswers:
-                    registrationQuestionAnswersMissingRequired(),
-                  mutationPending: mutationPending(),
-                })
-              "
-            >
-              Pay
-              {{ selectedTotalPrice() / 100 | currency }}
-              and {{ audienceCopy().actionSuffix }}
-            </button>
-          } @else {
-            <button
-              (click)="register(registrationOption())"
-              mat-flat-button
-              type="button"
-              [disabled]="
-                registrationOptionWriteActionDisabled({
-                  missingRequiredAnswers:
-                    registrationQuestionAnswersMissingRequired(),
-                  mutationPending: mutationPending(),
-                })
-              "
-            >
-              {{ audienceCopy().primaryAction }}
-            </button>
+            @if (maxGuestCount() > 0) {
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>Guests</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                  [disabled]="!controlsInteractive()"
+                  [max]="maxGuestCount()"
+                  [value]="selectedGuestCount()"
+                  (input)="updateGuestCount($event)"
+                />
+                <span aria-live="polite" matTextSuffix>
+                  + you = {{ selectedSpotCount() }}
+                  {{ selectedSpotCount() === 1 ? "spot" : "spots" }}
+                </span>
+                <mat-hint>
+                  Guests do not need separate accounts. Each guest uses one
+                  available spot and shares your registration.
+                </mat-hint>
+              </mat-form-field>
+            }
+            @if (paymentDueDuringRegistration()) {
+              <button
+                (click)="register(registrationOption())"
+                mat-flat-button
+                type="button"
+                [disabled]="
+                  registrationOptionWriteActionDisabled({
+                    controlsInteractive: controlsInteractive(),
+                    missingRequiredAnswers:
+                      registrationQuestionAnswersMissingRequired(),
+                    mutationPending: mutationPending(),
+                  })
+                "
+              >
+                Pay
+                {{ selectedTotalPrice() / 100 | currency }}
+                and {{ audienceCopy().actionSuffix }}
+              </button>
+            } @else {
+              <button
+                (click)="register(registrationOption())"
+                mat-flat-button
+                type="button"
+                [disabled]="
+                  registrationOptionWriteActionDisabled({
+                    controlsInteractive: controlsInteractive(),
+                    missingRequiredAnswers:
+                      registrationQuestionAnswersMissingRequired(),
+                    mutationPending: mutationPending(),
+                  })
+                "
+              >
+                {{ audienceCopy().primaryAction }}
+              </button>
+            }
           }
         }
+        @case ("tooEarly") {
+          <p class="body-large">
+            Registration is not open yet, it will open
+            {{ registrationOption().openRegistrationTime | date: "medium" }}
+          </p>
+        }
+        @case ("tooLate") {
+          <p class="body-large">
+            Registration is closed, it closed
+            {{ registrationOption().closeRegistrationTime | date: "medium" }}
+          </p>
+        }
       }
-      @case ("tooEarly") {
-        <p class="body-large">
-          Registration is not open yet, it will open
-          {{ registrationOption().openRegistrationTime | date: "medium" }}
-        </p>
-      }
-      @case ("tooLate") {
-        <p class="body-large">
-          Registration is closed, it closed
-          {{ registrationOption().closeRegistrationTime | date: "medium" }}
-        </p>
-      }
+    } @else {
+      <p class="body-large">You can only register after logging in</p>
+      <a
+        href="/forward-login?redirectUrl=/events/{{
+          registrationOption().eventId
+        }}"
+        mat-flat-button
+      >
+        Log in now
+      </a>
     }
-  } @else {
-    <p class="body-large">You can only register after logging in</p>
-    <a
-      href="/forward-login?redirectUrl=/events/{{
-        registrationOption().eventId
-      }}"
-      mat-flat-button
-    >
-      Log in now
-    </a>
   }
 </div>
 @if (registrationMutation.isError()) {
-  <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
+  <div
+    class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
+    role="alert"
+  >
     <h3 class="title-medium">Registration failed</h3>
     <p>{{ errorMessage(registrationMutation.error()) }}</p>
   </div>
 }
 @if (waitlistMutation.isError()) {
-  <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
+  <div
+    class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
+    role="alert"
+  >
     <h3 class="title-medium">Waitlist failed</h3>
     <p>{{ errorMessage(waitlistMutation.error()) }}</p>
   </div>

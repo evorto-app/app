@@ -31,7 +31,7 @@
               <div class="flex items-center justify-between gap-2">
                 <p class="font-medium">{{ receipt.attachmentFileName }}</p>
                 <span class="text-sm">
-                  {{ receipt.totalAmount / 100 | number: "1.2-2" }} €
+                  {{ receipt.totalAmount | receiptAmount: receipt.currency }}
                 </span>
               </div>
               <p class="text-on-surface-variant text-sm">

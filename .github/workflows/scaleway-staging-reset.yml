@@ -1,0 +1,176 @@
+name: Reset Scaleway staging data
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type reset-and-seed-staging to destroy and reseed staging data
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scaleway-staging-deployment
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    name: Confirmed bounded staging reset
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: scaleway-staging-reset
+    env:
+      SCW_DEFAULT_ORGANIZATION_ID: ${{ vars.SCW_ORGANIZATION_ID }}
+      SCW_DEFAULT_REGION: fr-par
+      SCW_DEFAULT_ZONE: fr-par-1
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+    steps:
+      - name: Require exact destructive confirmation and protected configuration
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+        run: |
+          if [ "${CONFIRMATION}" != "reset-and-seed-staging" ]; then
+            echo "::error::Staging reset confirmation did not match reset-and-seed-staging"
+            exit 1
+          fi
+          for variable_name in \
+            AWS_ACCESS_KEY_ID \
+            AWS_SECRET_ACCESS_KEY \
+            SCW_ACCESS_KEY \
+            SCW_DEFAULT_ORGANIZATION_ID \
+            SCW_SECRET_KEY \
+            TERRAFORM_STATE_BUCKET; do
+            if [ -z "${!variable_name}" ]; then
+              echo "::error::Missing required protected staging reset configuration: ${variable_name}"
+              exit 1
+            fi
+          done
+
+      - name: Resolve the currently successful staging deployment
+        id: deployment
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          METADATA_BUCKET: evorto-staging-deployment-${{ vars.BUCKET_SUFFIX }}
+        run: |
+          mkdir -p reset-evidence
+          aws s3 cp \
+            "s3://${METADATA_BUCKET}/deployments/staging/latest.json" \
+            reset-evidence/deployment.json \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --only-show-errors
+          jq --exit-status \
+            '.status == "succeeded"
+              and .environment == "staging"
+              and (.revision | test("^[0-9a-f]{40}$"))
+              and (.digest | test("^sha256:[0-9a-f]{64}$"))' \
+            reset-evidence/deployment.json >/dev/null
+          echo "revision=$(jq --raw-output .revision reset-evidence/deployment.json)" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout the deployed staging revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          clean: false
+          persist-credentials: false
+          ref: ${{ steps.deployment.outputs.revision }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: Install checksum-verified Scaleway CLI
+        run: |
+          ops/scaleway/install-cli.sh "${RUNNER_TEMP}/scw"
+          echo "SCW_CLI=${RUNNER_TEMP}/scw" >> "${GITHUB_ENV}"
+
+      - name: Read the deployed private ops endpoint
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+        run: |
+          terraform -chdir=infrastructure/scaleway init \
+            -backend-config="bucket=${TERRAFORM_STATE_BUCKET}" \
+            -input=false \
+            -reconfigure
+          terraform -chdir=infrastructure/scaleway output -json staging > reset-evidence/platform.json
+
+      - name: Reset, reapply the packaged schema, and seed staging
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          ops_endpoint="$(jq --raw-output .containers.ops.endpoint reset-evidence/platform.json)"
+          reset_response="$(
+            ops/scaleway/invoke-private-container.sh \
+              "${ops_endpoint}" \
+              /internal/ops/seed-staging \
+              '{"confirmation":"reset-and-seed-staging"}'
+          )"
+          jq --exit-status '.reset == true and .seeded == true' <<<"${reset_response}" >/dev/null
+
+      - name: Verify the restored staging application
+        run: |
+          expected_revision="$(jq --raw-output .revision reset-evidence/deployment.json)"
+          expected_digest="$(jq --raw-output .digest reset-evidence/deployment.json)"
+          ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/readyz)"
+          test "${ready_status}" = "204"
+          version_body="$(curl --fail --silent --show-error https://staging.evorto.app/version)"
+          jq --exit-status \
+            --arg revision "${expected_revision}" \
+            --arg digest "${expected_digest}" \
+            '.environment == "staging" and .revision == $revision and .imageDigest == $digest' \
+            <<<"${version_body}" >/dev/null
+
+      - name: Store append-only reset evidence
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          revision="$(jq --raw-output .revision reset-evidence/deployment.json)"
+          digest="$(jq --raw-output .digest reset-evidence/deployment.json)"
+          jq --null-input \
+            --arg digest "${digest}" \
+            --arg revision "${revision}" \
+            --arg timestamp "${timestamp}" \
+            --arg workflow "${GITHUB_WORKFLOW}" \
+            --arg workflow_run_id "${GITHUB_RUN_ID}" \
+            --arg workflow_run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            '{
+              operation: "reset-and-seed-staging",
+              status: "succeeded",
+              environment: "staging",
+              revision: $revision,
+              digest: $digest,
+              workflow: $workflow,
+              workflowRunId: $workflow_run_id,
+              workflowRunAttempt: $workflow_run_attempt,
+              timestamp: $timestamp
+            }' > reset-evidence/reset.json
+          metadata_bucket="$(jq --raw-output .deployment_metadata_bucket reset-evidence/platform.json)"
+          aws s3api put-object \
+            --bucket "${metadata_bucket}" \
+            --key "operations/staging-reset/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json" \
+            --body reset-evidence/reset.json \
+            --endpoint-url https://s3.fr-par.scw.cloud \
+            --if-none-match '*' \
+            >/dev/null
+
+      - name: Upload reset evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scaleway-staging-reset-${{ steps.deployment.outputs.revision }}
+          path: reset-evidence/reset.json
+          if-no-files-found: error
+          retention-days: 90

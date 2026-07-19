@@ -90,14 +90,6 @@
         <button
           mat-button
           type="button"
-          [disabled]="isReadonly()"
-          (click)="openImagePicker()"
-        >
-          Image
-        </button>
-        <button
-          mat-button
-          type="button"
           [disabled]="!canUndo() || isReadonly()"
           (click)="undo()"
         >
@@ -114,26 +106,6 @@
       </div>
 
       <div #editorContainer class="editor-content"></div>
-
-      <input
-        #fileInput
-        type="file"
-        class="hidden"
-        accept="image/gif,image/jpeg,image/png,image/webp"
-        (change)="onFileInputChange($event)"
-      />
-
-      @if (isUploading()) {
-        <div class="text-on-surface-variant px-3 pb-3 text-sm">
-          Uploading image...
-        </div>
-      }
-
-      @if (uploadErrorMessage()) {
-        <div class="text-error px-3 pb-3 text-sm">
-          {{ uploadErrorMessage() }}
-        </div>
-      }
     </div>
   }
 }

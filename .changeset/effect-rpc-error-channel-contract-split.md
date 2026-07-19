@@ -1,5 +1,5 @@
 ---
-evorto: patch
+default: patch
 ---
 
 # Split public RPC errors from server implementation errors

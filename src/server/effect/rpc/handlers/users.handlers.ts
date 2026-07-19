@@ -5,7 +5,6 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import {
-  UserConflictError,
   UserRoleAssignmentNotFoundError,
   UserSelfRoleRemovalError,
 } from '@shared/rpc-contracts/app-rpcs/users.errors';
@@ -30,9 +29,13 @@ import {
   type Permission,
 } from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { UsersAuthData } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
+import {
+  UsersAuthData,
+  type UsersEventSummaryRecord,
+} from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { User } from '../../../../types/custom/user';
+import { lockTenantRoleGraph } from '../../../roles/tenant-role-graph';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -112,9 +115,6 @@ const uniqueRoleIds = (roleIds: readonly string[]): string[] => [
   ...new Set(roleIds),
 ];
 
-const mapCreateAccountUnexpectedError = (error: unknown) =>
-  error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
-
 const missingRegistrationRelationDefect = (registration: {
   eventId: string;
   id: string;
@@ -170,7 +170,120 @@ const resolvePendingRegistrationCheckoutUrl = (
       transaction.stripeCheckoutUrl,
   )?.stripeCheckoutUrl ?? null;
 
-const tenantDayBounds = (timezone: string, now = DateTime.now()) => {
+type ProfileRefundRecord = UsersEventSummaryRecord['refunds'][number];
+type ProfileRefundState = ProfileRefundRecord['state'];
+
+export const resolveProfileRefundState = (refund: {
+  readonly method: string;
+  readonly status: string;
+  readonly stripeRefundAttempts: number;
+  readonly stripeRefundClaimLeaseExpiresAt: Date | null;
+  readonly stripeRefundClaimLeaseId: null | string;
+  readonly stripeRefundGeneration: number;
+  readonly stripeRefundMaxAttempts: number;
+  readonly stripeRefundNextAttemptAt: Date | null;
+  readonly stripeRefundRequeuedAt: Date | null;
+  readonly stripeRefundStatus: null | string;
+}): ProfileRefundState => {
+  if (
+    refund.status === 'cancelled' ||
+    refund.stripeRefundStatus === 'canceled' ||
+    refund.stripeRefundStatus === 'failed'
+  ) {
+    return 'needsAttention';
+  }
+
+  if (
+    refund.status === 'successful' ||
+    refund.stripeRefundStatus === 'succeeded'
+  ) {
+    return 'succeeded';
+  }
+
+  if (
+    refund.method === 'stripe' &&
+    refund.status === 'pending' &&
+    refund.stripeRefundStatus === 'requires_action'
+  ) {
+    return 'actionRequired';
+  }
+
+  if (refund.method === 'stripe' && refund.status === 'pending') {
+    const leaseShapeValid =
+      (refund.stripeRefundClaimLeaseId === null) ===
+      (refund.stripeRefundClaimLeaseExpiresAt === null);
+    if (!leaseShapeValid) {
+      return 'needsAttention';
+    }
+    const activeLease =
+      refund.stripeRefundClaimLeaseId !== null &&
+      refund.stripeRefundClaimLeaseExpiresAt !== null;
+    if (
+      !activeLease &&
+      (refund.stripeRefundAttempts >= refund.stripeRefundMaxAttempts ||
+        refund.stripeRefundNextAttemptAt === null)
+    ) {
+      return 'needsAttention';
+    }
+
+    return refund.stripeRefundAttempts > 0 ||
+      refund.stripeRefundGeneration > 0 ||
+      refund.stripeRefundRequeuedAt !== null ||
+      refund.stripeRefundClaimLeaseId !== null
+      ? 'retrying'
+      : 'pending';
+  }
+
+  return 'needsAttention';
+};
+
+const resolveProfileRefunds = (
+  registrationTransactions: readonly {
+    readonly amount: number;
+    readonly currency: UsersEventSummaryRecord['refunds'][number]['currency'];
+    readonly method: string;
+    readonly sourceTransaction?: null | { readonly type: string };
+    readonly status: string;
+    readonly stripeRefundAttempts: number;
+    readonly stripeRefundClaimLeaseExpiresAt: Date | null;
+    readonly stripeRefundClaimLeaseId: null | string;
+    readonly stripeRefundGeneration: number;
+    readonly stripeRefundMaxAttempts: number;
+    readonly stripeRefundNextAttemptAt: Date | null;
+    readonly stripeRefundRequeuedAt: Date | null;
+    readonly stripeRefundStatus: null | string;
+    readonly type: string;
+    readonly updatedAt: Date;
+  }[],
+): UsersEventSummaryRecord['refunds'] =>
+  registrationTransactions
+    .flatMap((transaction) => {
+      if (transaction.type !== 'refund') return [];
+      const source = transaction.sourceTransaction?.type;
+      if (source !== 'addon' && source !== 'registration') {
+        throw new Error(
+          'Registration refund references an unsupported or missing payment source',
+        );
+      }
+
+      return [
+        {
+          amount: Math.abs(transaction.amount),
+          currency: transaction.currency,
+          source,
+          state: resolveProfileRefundState(transaction),
+          updatedAt: transaction.updatedAt.toISOString(),
+        } satisfies ProfileRefundRecord,
+      ];
+    })
+    .toSorted(
+      (left, right) =>
+        left.updatedAt.localeCompare(right.updatedAt) ||
+        left.source.localeCompare(right.source) ||
+        left.amount - right.amount,
+    );
+
+export const tenantDayBounds = (timezone: string, now = DateTime.now()) => {
   const tenantNow = now.setZone(timezone);
   return {
     end: tenantNow.endOf('day').toJSDate(),
@@ -193,15 +306,18 @@ export const userHandlers = {
         database
           .transaction((tx) =>
             Effect.gen(function* () {
-              const membership = yield* tx.query.usersToTenants.findFirst({
-                columns: {
-                  id: true,
-                },
-                where: {
-                  tenantId: tenant.id,
-                  userId,
-                },
-              });
+              yield* lockTenantRoleGraph(tx, tenant.id);
+              const memberships = yield* tx
+                .select({ id: usersToTenants.id })
+                .from(usersToTenants)
+                .where(
+                  and(
+                    eq(usersToTenants.tenantId, tenant.id),
+                    eq(usersToTenants.userId, userId),
+                  ),
+                )
+                .for('update');
+              const membership = memberships[0];
               if (!membership) {
                 return yield* Effect.fail(
                   new UserRoleAssignmentNotFoundError({
@@ -239,12 +355,18 @@ export const userHandlers = {
 
               yield* tx
                 .delete(rolesToTenantUsers)
-                .where(eq(rolesToTenantUsers.userTenantId, membership.id));
+                .where(
+                  and(
+                    eq(rolesToTenantUsers.tenantId, tenant.id),
+                    eq(rolesToTenantUsers.userTenantId, membership.id),
+                  ),
+                );
 
               if (nextRoleIds.length > 0) {
                 yield* tx.insert(rolesToTenantUsers).values(
                   nextRoleIds.map((roleId) => ({
                     roleId,
+                    tenantId: tenant.id,
                     userTenantId: membership.id,
                   })),
                 );
@@ -314,153 +436,6 @@ export const userHandlers = {
 
       return organizingRegistrations.length > 0;
     }),
-  'users.createAccount': (input, options) =>
-    Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const authData = decodeAuthDataHeader(options.headers);
-      const auth0Id = authData.sub?.trim();
-      const email = authData.email?.trim();
-
-      if (!auth0Id || !email) {
-        return yield* Effect.fail(
-          new RpcUnauthorizedError({ message: 'Authentication required' }),
-        );
-      }
-
-      yield* Database.use((database) =>
-        database
-          .transaction((tx) =>
-            Effect.gen(function* () {
-              const existingUser = yield* tx.query.users.findFirst({
-                columns: {
-                  id: true,
-                },
-                where: {
-                  auth0Id,
-                },
-              });
-
-              let userId = existingUser?.id;
-              if (!userId) {
-                const createdUsers = yield* tx
-                  .insert(users)
-                  .values({
-                    auth0Id,
-                    communicationEmail: input.communicationEmail,
-                    email,
-                    firstName: input.firstName,
-                    lastName: input.lastName,
-                  })
-                  .onConflictDoNothing({ target: users.auth0Id })
-                  .returning({
-                    id: users.id,
-                  });
-                userId = createdUsers[0]?.id;
-
-                if (!userId) {
-                  const concurrentlyCreatedUser =
-                    yield* tx.query.users.findFirst({
-                      columns: {
-                        id: true,
-                      },
-                      where: {
-                        auth0Id,
-                      },
-                    });
-                  userId = concurrentlyCreatedUser?.id;
-                }
-
-                if (!userId) {
-                  return yield* Effect.die(
-                    new Error(
-                      'User insert returned no rows and no user exists',
-                    ),
-                  );
-                }
-              }
-
-              const existingTenantAssignment =
-                yield* tx.query.usersToTenants.findFirst({
-                  columns: {
-                    id: true,
-                  },
-                  where: {
-                    tenantId: tenant.id,
-                    userId,
-                  },
-                });
-
-              if (existingTenantAssignment) {
-                return yield* Effect.fail(
-                  new UserConflictError({
-                    message: 'User account already exists',
-                  }),
-                );
-              }
-
-              const defaultUserRoles = yield* tx.query.roles.findMany({
-                columns: {
-                  id: true,
-                },
-                where: { defaultUserRole: true, tenantId: tenant.id },
-              });
-
-              const userTenantCreateResponse = yield* tx
-                .insert(usersToTenants)
-                .values({
-                  tenantId: tenant.id,
-                  userId,
-                })
-                .onConflictDoNothing({
-                  target: [usersToTenants.userId, usersToTenants.tenantId],
-                })
-                .returning({
-                  id: usersToTenants.id,
-                });
-              const createdUserTenant = userTenantCreateResponse[0];
-              if (!createdUserTenant) {
-                const concurrentlyCreatedTenantAssignment =
-                  yield* tx.query.usersToTenants.findFirst({
-                    columns: {
-                      id: true,
-                    },
-                    where: {
-                      tenantId: tenant.id,
-                      userId,
-                    },
-                  });
-                if (concurrentlyCreatedTenantAssignment) {
-                  return yield* Effect.fail(
-                    new UserConflictError({
-                      message: 'User account already exists',
-                    }),
-                  );
-                }
-              }
-
-              if (!createdUserTenant) {
-                return yield* Effect.die(
-                  new Error('User tenant association insert returned no rows'),
-                );
-              }
-
-              if (defaultUserRoles.length > 0) {
-                yield* tx.insert(rolesToTenantUsers).values(
-                  defaultUserRoles.map((role) => ({
-                    roleId: role.id,
-                    userTenantId: createdUserTenant.id,
-                  })),
-                );
-              }
-            }),
-          )
-          .pipe(Effect.catch(mapCreateAccountUnexpectedError)),
-      );
-    }),
   'users.events': (_payload, options) =>
     Effect.gen(function* () {
       yield* ensureAuthenticated(options.headers);
@@ -469,6 +444,24 @@ export const userHandlers = {
         Tenant,
       );
       const user = yield* requireUserHeader(options.headers);
+
+      const refundRegistrationRows = yield* databaseEffect((database) =>
+        database.query.transactions.findMany({
+          columns: { eventRegistrationId: true },
+          where: {
+            targetUserId: user.id,
+            tenantId: tenant.id,
+            type: 'refund',
+          },
+        }),
+      );
+      const cancelledRegistrationIds = [
+        ...new Set(
+          refundRegistrationRows.flatMap(({ eventRegistrationId }) =>
+            eventRegistrationId ? [eventRegistrationId] : [],
+          ),
+        ),
+      ];
 
       const registrations = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findMany({
@@ -480,9 +473,17 @@ export const userHandlers = {
             status: true,
           },
           where: {
-            status: {
-              NOT: 'CANCELLED',
-            },
+            ...(cancelledRegistrationIds.length === 0
+              ? { status: { NOT: 'CANCELLED' as const } }
+              : {
+                  OR: [
+                    { status: { NOT: 'CANCELLED' as const } },
+                    {
+                      id: { in: cancelledRegistrationIds },
+                      status: 'CANCELLED' as const,
+                    },
+                  ],
+                }),
             tenantId: tenant.id,
             userId: user.id,
           },
@@ -511,15 +512,35 @@ export const userHandlers = {
             },
             registrationOption: {
               columns: {
+                organizingRegistration: true,
                 title: true,
               },
             },
             transactions: {
               columns: {
+                amount: true,
+                currency: true,
                 method: true,
                 status: true,
                 stripeCheckoutUrl: true,
+                stripeRefundAttempts: true,
+                stripeRefundClaimLeaseExpiresAt: true,
+                stripeRefundClaimLeaseId: true,
+                stripeRefundGeneration: true,
+                stripeRefundMaxAttempts: true,
+                stripeRefundNextAttemptAt: true,
+                stripeRefundRequeuedAt: true,
+                stripeRefundStatus: true,
                 type: true,
+                updatedAt: true,
+              },
+              where: {
+                targetUserId: user.id,
+              },
+              with: {
+                sourceTransaction: {
+                  columns: { type: true },
+                },
               },
             },
           },
@@ -537,14 +558,6 @@ export const userHandlers = {
             missingRegistrationRelationDefect(registration),
           );
         }
-        if (registration.status === 'CANCELLED') {
-          return yield* Effect.die(
-            new Error(
-              `Cancelled registration ${registration.id} was returned by users.events`,
-            ),
-          );
-        }
-
         mappedRegistrations.push({
           addonPurchases: registration.addonPurchases.flatMap((purchase) =>
             purchase.addOn
@@ -563,9 +576,15 @@ export const userHandlers = {
           ),
           event: registration.event,
           guestCount: registration.guestCount,
+          organizingRegistration:
+            registration.registrationOption.organizingRegistration,
           paymentState: resolveRegistrationPaymentState(
             registration.transactions,
           ),
+          refunds:
+            registration.status === 'CANCELLED'
+              ? resolveProfileRefunds(registration.transactions)
+              : [],
           registrationId: registration.id,
           registrationOptionTitle: registration.registrationOption.title,
           status: registration.status,
@@ -586,7 +605,9 @@ export const userHandlers = {
           end: registration.event.end.toISOString(),
           eventId: registration.event.id,
           guestCount: registration.guestCount,
+          organizingRegistration: registration.organizingRegistration,
           paymentState: registration.paymentState,
+          refunds: registration.refunds,
           registrationId: registration.registrationId,
           registrationOptionTitle: registration.registrationOptionTitle,
           start: registration.event.start.toISOString(),
@@ -701,6 +722,54 @@ export const userHandlers = {
     Effect.gen(function* () {
       yield* ensureAuthenticated(options.headers);
       return yield* requireUserHeader(options.headers);
+    }),
+  'users.setHomeTenant': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const user = yield* requireUserHeader(options.headers);
+
+      yield* Database.use((database) =>
+        database
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const memberships = yield* tx
+                .select({ id: usersToTenants.id })
+                .from(usersToTenants)
+                .where(
+                  and(
+                    eq(usersToTenants.tenantId, tenant.id),
+                    eq(usersToTenants.userId, user.id),
+                  ),
+                )
+                .limit(1)
+                .for('update');
+              if (memberships.length === 0) {
+                return yield* Effect.fail(
+                  new RpcUnauthorizedError({
+                    message: 'Current tenant membership required',
+                  }),
+                );
+              }
+              yield* tx
+                .update(users)
+                .set({ homeTenantId: tenant.id })
+                .where(eq(users.id, user.id));
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof RpcUnauthorizedError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
+      );
+
+      return { homeTenantId: tenant.id, homeTenantName: tenant.name };
     }),
   'users.updateProfile': (input, options) =>
     Effect.gen(function* () {

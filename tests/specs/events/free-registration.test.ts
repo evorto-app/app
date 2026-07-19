@@ -2,6 +2,8 @@ import { usersToAuthenticate } from '../../../helpers/user-data';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
+import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({
@@ -18,6 +20,7 @@ test('register for a free event as regular user', async ({
   const targetEventId = seeded.scenario.events.freeOpen.eventId;
   const targetOptionId = seeded.scenario.events.freeOpen.optionId;
   const serverEventWindow = futureServerEventWindow();
+  let createdRegistrationId: string | undefined;
   const [targetEvent] = await database
     .select()
     .from(schema.eventInstances)
@@ -98,12 +101,12 @@ test('register for a free event as regular user', async ({
     // Navigate to event and register
     await page.goto(`/events/${targetEventId}`);
     await expect(page).toHaveURL(`/events/${targetEventId}`);
-    // wait until loading state is gone before interacting
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: 'Register' }).first().click();
+    await waitForRegistrationPage(page);
+    const registerButton = page
+      .getByRole('button', { name: 'Register' })
+      .first();
+    await expect(registerButton).toBeEnabled({ timeout: 20_000 });
+    await registerButton.click();
 
     // After registering, the status refetches; wait for the loading indicator
     await page
@@ -138,6 +141,28 @@ test('register for a free event as regular user', async ({
         'Expected free registration flow to persist a confirmed registration',
       );
     }
+    createdRegistrationId = registration.id;
+    const registrationEmail = await database.query.emailOutbox.findFirst({
+      where: {
+        idempotencyKey: `registration-confirmed/${tenant.id}/${registration.id}`,
+        kind: 'registrationConfirmed',
+        tenantId: tenant.id,
+      },
+    });
+    const registrationUser = await database.query.users.findFirst({
+      columns: {
+        communicationEmail: true,
+      },
+      where: { id: user.id },
+    });
+    expect(registrationEmail).toMatchObject({
+      kind: 'registrationConfirmed',
+      toEmail: registrationUser?.communicationEmail,
+    });
+    expect(registrationEmail?.html).toContain(`/events/${targetEventId}`);
+    expect(registrationEmail?.text).toContain(
+      'The ticket owner must sign in to Evorto',
+    );
 
     const [after] = await database
       .select()
@@ -151,6 +176,32 @@ test('register for a free event as regular user', async ({
     }
     expect(after.confirmedSpots).toBeGreaterThanOrEqual(confirmedBefore + 1);
   } finally {
+    const createdRegistrations =
+      await database.query.eventRegistrations.findMany({
+        columns: { id: true },
+        where: {
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: user.id,
+        },
+      });
+    await deleteRegistrationAcquisitionLedger({
+      database,
+      registrationIds: createdRegistrations.map(
+        (registration) => registration.id,
+      ),
+      tenantId: tenant.id,
+    });
+    if (createdRegistrationId) {
+      await database
+        .delete(schema.emailOutbox)
+        .where(
+          eq(
+            schema.emailOutbox.idempotencyKey,
+            `registration-confirmed/${tenant.id}/${createdRegistrationId}`,
+          ),
+        );
+    }
     await database
       .delete(schema.eventRegistrations)
       .where(
