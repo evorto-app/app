@@ -330,6 +330,9 @@ describe('Scaleway hosting source', () => {
     const containers = source(
       'infrastructure/scaleway/modules/environment/containers.tf',
     );
+    const outputs = source(
+      'infrastructure/scaleway/modules/environment/outputs.tf',
+    );
 
     for (const requiredName of [
       'CLIENT_SECRET',
@@ -353,6 +356,8 @@ describe('Scaleway hosting source', () => {
     ).toHaveLength(3);
     expect(containers.match(/ignore_changes = \[/gu)).toHaveLength(3);
     expect(containers).not.toMatch(/^\s+SCW_[A-Z0-9_]+\s+=/gmu);
+    expect(outputs).toContain('key => trimprefix(secret.id, "${var.region}/")');
+    expect(outputs).not.toContain('key => secret.id');
   });
 
   it('uses native container telemetry, custom traces, all provider alerts, and release-aware logs', () => {

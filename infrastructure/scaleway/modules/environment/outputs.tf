@@ -53,7 +53,7 @@ output "role_application_ids" {
 
 output "role_secret_ids" {
   value = {
-    for key, secret in scaleway_secret.role : key => secret.id
+    for key, secret in scaleway_secret.role : key => trimprefix(secret.id, "${var.region}/")
   }
 }
 
