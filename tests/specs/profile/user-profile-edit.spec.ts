@@ -12,6 +12,7 @@ test.use({ storageState: userStateFile });
 const fillControlledTextField = async (field: Locator, value: string) => {
   await expect(field).not.toHaveClass(/mat-input-server/);
   await field.fill(value);
+  await field.blur();
   await expect(field).toHaveValue(value);
 };
 
@@ -72,6 +73,18 @@ test('profile edit persists notification email and reimbursement details', async
       exact: true,
       name: 'Save',
     });
+    const editForm = editDialog.locator('form');
+
+    // The dialog is created after page hydration. Wait for its Signal Form to
+    // expose the seeded model before sending input events to its controls.
+    await expect(editForm).not.toHaveAttribute('jsaction', /submit/);
+    await expect(firstNameInput).toHaveValue(originalUser.firstName);
+    await expect(notificationEmailInput).toHaveValue(
+      originalUser.communicationEmail ?? originalUser.email,
+    );
+    await expect(ibanInput).toHaveValue(originalUser.iban ?? '');
+    await expect(paypalEmailInput).toHaveValue(originalUser.paypalEmail ?? '');
+    await expect(saveButton).toBeEnabled();
 
     await fillControlledTextField(firstNameInput, '');
     await expect(saveButton).toBeDisabled();
@@ -85,10 +98,6 @@ test('profile edit persists notification email and reimbursement details', async
     await expect(notificationEmailInput).toHaveValue(notificationEmail);
     await expect(ibanInput).toHaveValue(` ${iban} `);
     await expect(paypalEmailInput).toHaveValue(` ${paypalEmail} `);
-    await expect(editDialog.locator('form')).not.toHaveAttribute(
-      'jsaction',
-      /submit/,
-    );
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
 
