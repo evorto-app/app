@@ -9,6 +9,7 @@ readonly revision="${4:?Pass the full Git revision}"
 readonly image_digest="${5:?Pass the sha256 image digest}"
 readonly schema_hash="${6:?Pass the packaged schema sha256}"
 readonly scw_cli="${SCW_CLI:-scw}"
+readonly region="${SCW_DEFAULT_REGION:-fr-par}"
 
 if [[ "${role}" != 'web' && "${role}" != 'worker' && "${role}" != 'ops' ]]; then
   echo "Unsupported application role: ${role}" >&2
@@ -27,12 +28,17 @@ if [[ ! "${schema_hash}" =~ ^[0-9a-f]{64}$ ]]; then
   exit 1
 fi
 
-container_id="$(
+container_resource_id="$(
   jq --exit-status --raw-output \
     --arg role "${role}" \
     '.containers[$role].id' \
     "${platform_output_file}"
 )"
+container_id="${container_resource_id#"${region}/"}"
+if [[ ! "${container_id}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+  echo "Terraform returned an unexpected ${role} container ID" >&2
+  exit 1
+fi
 
 temporary_directory="$(mktemp -d)"
 trap 'rm -rf "${temporary_directory}"' EXIT
@@ -77,11 +83,14 @@ mask_value() {
 while IFS=$'\t' read -r contract_key secret_id; do
   secret_name="${contract_key#*/}"
   value_file="${temporary_directory}/${secret_name}"
-  "${scw_cli}" secret version access \
+  if ! "${scw_cli}" secret version access \
     "${secret_id}" \
     revision=latest \
     raw=true \
-    >"${value_file}"
+    >"${value_file}"; then
+    echo "Failed to access Secret Manager value for ${contract_key}" >&2
+    exit 1
+  fi
   if [[ ! -s "${value_file}" ]]; then
     echo "Secret Manager returned an empty value for ${contract_key}" >&2
     exit 1
@@ -100,10 +109,13 @@ done < <(
     "${platform_output_file}"
 )
 
-"${scw_cli}" container container update \
+if ! "${scw_cli}" container container update \
   "${update_arguments[@]}" \
-  region=fr-par \
+  region="${region}" \
   --wait \
-  >/dev/null
+  >/dev/null; then
+  echo "Failed to update the ${role} container" >&2
+  exit 1
+fi
 
 echo "Deployed ${role} at ${revision} (${image_digest})"

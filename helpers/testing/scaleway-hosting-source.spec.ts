@@ -412,6 +412,11 @@ describe('Scaleway hosting source', () => {
       'Roll back production traffic roles on failure',
     );
     expect(deployRole).toContain('APP_BOOTSTRAP: "false"');
+    expect(deployRole).toContain(
+      'container_id="${container_resource_id#"${region}/"}"',
+    );
+    expect(deployRole).toContain('region="${region}"');
+    expect(deployRole).toContain('Failed to update the ${role} container');
   });
 
   it('gates ordinary CI and destructive staging reset separately', () => {
