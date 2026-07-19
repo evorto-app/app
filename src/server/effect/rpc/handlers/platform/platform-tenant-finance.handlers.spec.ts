@@ -382,6 +382,8 @@ describe('platform tenant finance handlers', () => {
               Layer.succeed(ReceiptMediaService, {
                 createUploadPolicy: () =>
                   Effect.dieMessage('Unexpected receipt upload'),
+                discardPromotedUpload: () =>
+                  Effect.dieMessage('Unexpected promoted upload discard'),
                 objectExists: () => Effect.succeed(true),
                 signedPreviewUrl: () =>
                   Effect.fail(

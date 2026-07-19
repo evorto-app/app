@@ -1,4 +1,5 @@
-import { stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { and, desc, eq, inArray, like } from 'drizzle-orm';
@@ -308,12 +309,15 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
     throw new Error('Expected receipt upload to have an object-storage URL');
   }
 
+  const receiptDigest = createHash('sha256')
+    .update(await readFile(receiptFile))
+    .digest('hex');
   const expectedStorageKey = [
     'receipts',
     tenant.id,
     eventId,
     submitter.id,
-    `${submittedUploadId}-${path.basename(receiptFile)}`,
+    `${submittedUploadId}-${receiptDigest}-${path.basename(receiptFile)}`,
   ].join('/');
   expect(uploadedReceipt).toEqual(
     expect.objectContaining({

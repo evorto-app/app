@@ -25,7 +25,7 @@ resource "scaleway_rdb_instance" "application" {
 
   user_name           = "schema_owner"
   password_wo         = var.schema_database_password
-  password_wo_version = 1
+  password_wo_version = var.schema_database_password_version
 
   disable_backup            = false
   backup_same_region        = true
@@ -55,7 +55,7 @@ resource "scaleway_rdb_user" "runtime" {
   name                = "application_runtime"
   is_admin            = false
   password_wo         = var.runtime_database_password
-  password_wo_version = 1
+  password_wo_version = var.runtime_database_password_version
 }
 
 resource "scaleway_rdb_privilege" "runtime" {

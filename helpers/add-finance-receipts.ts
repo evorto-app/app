@@ -1,4 +1,5 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { createHash } from 'node:crypto';
 
 import { buildReceiptStorageKey } from '@server/effect/rpc/handlers/finance/receipt-media.service';
 
@@ -87,6 +88,7 @@ export const addFinanceReceipts = async (
     receiptUploads.map((upload) => ({
       ...upload,
       storageKey: buildReceiptStorageKey({
+        contentDigest: createHash('sha256').update(upload.id).digest('hex'),
         eventId: upload.eventId,
         fileName: upload.fileName,
         tenantId: options.tenantId,

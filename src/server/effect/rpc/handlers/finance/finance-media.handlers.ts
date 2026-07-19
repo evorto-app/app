@@ -17,7 +17,7 @@ import {
 import { RpcAccess } from '../shared/rpc-access.service';
 import { canSubmitEventReceipts, databaseEffect } from './finance.shared';
 import {
-  buildReceiptStorageKey,
+  buildReceiptUploadStorageKey,
   ReceiptMediaService,
   validateReceiptUploadMetadata,
 } from './receipt-media.service';
@@ -85,7 +85,7 @@ export const financeMediaHandlers = {
         now.getTime() + UPLOAD_POLICY_TTL_MILLISECONDS,
       );
       const uploadId = createId();
-      const storageKey = buildReceiptStorageKey({
+      const storageKey = buildReceiptUploadStorageKey({
         eventId: input.eventId,
         fileName: input.fileName,
         tenantId: tenant.id,
@@ -265,6 +265,7 @@ export const financeMediaHandlers = {
           .set({
             rejectionReason: null,
             status: 'ready',
+            storageKey: inspected.storageKey,
             storageUrl: inspected.storageUrl,
             uploadedAt: now,
           })
@@ -274,7 +275,7 @@ export const financeMediaHandlers = {
               eq(financeReceiptUploads.tenantId, tenant.id),
               eq(financeReceiptUploads.eventId, upload.eventId),
               eq(financeReceiptUploads.uploadedByUserId, user.id),
-              eq(financeReceiptUploads.storageKey, inspected.storageKey),
+              eq(financeReceiptUploads.storageKey, upload.storageKey),
               eq(financeReceiptUploads.status, 'pending'),
               gte(financeReceiptUploads.expiresAt, now),
             ),
@@ -296,6 +297,9 @@ export const financeMediaHandlers = {
       }
 
       const concurrent = yield* loadUpload;
+      if (concurrent?.storageKey !== inspected.storageKey) {
+        yield* ReceiptMediaService.discardPromotedUpload(inspected.storageKey);
+      }
       if (concurrent?.status === 'ready') {
         return finalizedUpload(concurrent);
       }

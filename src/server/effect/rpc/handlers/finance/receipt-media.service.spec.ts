@@ -5,6 +5,7 @@ import { ObjectStorage } from '../../../../integrations/object-storage';
 import { ReceiptMediaServiceUnavailableError } from './finance.errors';
 import {
   buildReceiptStorageKey,
+  buildReceiptUploadStorageKey,
   detectReceiptMimeType,
   ensureReceiptEvidenceAvailableForApproval,
   ReceiptMediaService,
@@ -47,6 +48,8 @@ const receiptMediaLayer = ({
 }) =>
   Layer.succeed(ReceiptMediaService)({
     createUploadPolicy: () => Effect.dieMessage('Unexpected upload policy'),
+    discardPromotedUpload: () =>
+      Effect.dieMessage('Unexpected promoted upload discard'),
     inspectUpload: () => Effect.dieMessage('Unexpected upload inspection'),
     objectExists,
     signedPreviewUrl,
@@ -102,9 +105,98 @@ describe('ReceiptMediaService', () => {
       );
 
       expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
-      expect(buildReceiptStorageKey(input)).toBe(
-        'receipts/tenant-1/event-1/user-1/upload-1-receipt.pdf',
+      expect(buildReceiptUploadStorageKey(input)).toBe(
+        'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.pdf',
       );
+      expect(
+        buildReceiptStorageKey({ ...input, contentDigest: 'a'.repeat(64) }),
+      ).toBe(
+        `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.pdf`,
+      );
+    }),
+  );
+
+  it.effect('promotes validated bytes to a browser-immutable receipt key', () =>
+    Effect.gen(function* () {
+      const originalBody = new TextEncoder().encode('%PDF-1.7');
+      const replacementBody = new TextEncoder().encode('%PDF-9.9');
+      const uploadStorageKey =
+        'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.pdf';
+      const objects = new Map<
+        string,
+        { body: Uint8Array; contentType: string }
+      >([
+        [
+          uploadStorageKey,
+          { body: originalBody, contentType: 'application/pdf' },
+        ],
+      ]);
+      const objectStorageLayer = Layer.succeed(ObjectStorage)({
+        deleteObject: (key) =>
+          Effect.sync(() => {
+            objects.delete(key);
+          }),
+        exists: (key) => Effect.sync(() => objects.has(key)),
+        get: (key) =>
+          Effect.sync(() => new Uint8Array(objects.get(key)?.body ?? [])),
+        metadata: (key, prefixBytes = 16) =>
+          Effect.sync(() => {
+            const stored = objects.get(key);
+            const body = stored?.body ?? new Uint8Array();
+            return {
+              contentType: stored?.contentType ?? '',
+              prefix: body.slice(0, prefixBytes),
+              sizeBytes: body.byteLength,
+              storageUrl: `s3://bucket/${key}`,
+            };
+          }),
+        presignGet: (key) => Effect.succeed(`https://signed.test/${key}`),
+        presignPost: () => Effect.dieMessage('Unexpected POST signing'),
+        put: (input) =>
+          Effect.sync(() => {
+            objects.set(input.key, {
+              body: new Uint8Array(input.body),
+              contentType: input.contentType,
+            });
+            return {
+              storageKey: input.key,
+              storageUrl: `s3://bucket/${input.key}`,
+            };
+          }),
+      });
+
+      const inspected = yield* ReceiptMediaService.inspectUpload({
+        eventId: 'event-1',
+        fileName: 'receipt.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: originalBody.byteLength,
+        storageKey: uploadStorageKey,
+        tenantId: 'tenant-1',
+        uploadId: 'upload-1',
+        userId: 'user-1',
+      }).pipe(
+        Effect.provide(ReceiptMediaService.Default),
+        Effect.provide(objectStorageLayer),
+      );
+
+      expect(inspected.storageKey).toMatch(
+        /^receipts\/tenant-1\/event-1\/user-1\/upload-1-[0-9a-f]{64}-receipt\.pdf$/u,
+      );
+      expect(inspected.storageKey).not.toBe(uploadStorageKey);
+
+      objects.set(uploadStorageKey, {
+        body: replacementBody,
+        contentType: 'application/pdf',
+      });
+      expect(objects.get(inspected.storageKey)?.body).toEqual(originalBody);
+
+      yield* ReceiptMediaService.discardPromotedUpload(
+        inspected.storageKey,
+      ).pipe(
+        Effect.provide(ReceiptMediaService.Default),
+        Effect.provide(objectStorageLayer),
+      );
+      expect(objects.has(inspected.storageKey)).toBe(false);
     }),
   );
 

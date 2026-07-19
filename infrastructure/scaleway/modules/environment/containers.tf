@@ -93,7 +93,7 @@ resource "scaleway_container" "web" {
     interval          = "10s"
     timeout           = "2s"
     http {
-      path = "/readyz"
+      path = "/healthz"
     }
   }
 

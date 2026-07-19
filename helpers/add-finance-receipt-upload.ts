@@ -1,6 +1,7 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { execFile } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -27,7 +28,9 @@ export const addAvailableConsumedFinanceReceiptUpload = async (
   },
 ): Promise<{ id: string; sizeBytes: number; storageKey: string }> => {
   const uploadId = getId();
+  const sourceBody = await readFile(input.sourceFilePath);
   const storageKey = buildReceiptStorageKey({
+    contentDigest: createHash('sha256').update(sourceBody).digest('hex'),
     eventId: input.eventId,
     fileName: input.fileName,
     tenantId: input.tenantId,
@@ -95,6 +98,7 @@ export const addConsumedFinanceReceiptUpload = async (
     sizeBytes: input.sizeBytes,
     status: 'consumed',
     storageKey: buildReceiptStorageKey({
+      contentDigest: createHash('sha256').update(uploadId).digest('hex'),
       eventId: input.eventId,
       fileName: input.fileName,
       tenantId: input.tenantId,

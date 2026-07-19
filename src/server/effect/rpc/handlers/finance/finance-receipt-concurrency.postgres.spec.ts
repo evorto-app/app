@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
 import { inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 
 import { databaseLayer } from '../../../../../db/database.layer';
@@ -200,6 +200,9 @@ describe('receipt review and reimbursement serialization', () => {
       sizeBytes: 7,
       status: 'consumed',
       storageKey: buildReceiptStorageKey({
+        contentDigest: createHash('sha256')
+          .update(receiptUploadId)
+          .digest('hex'),
         eventId,
         fileName: 'receipt.png',
         tenantId,

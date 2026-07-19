@@ -8,6 +8,8 @@ application_bucket_console_user_ids = ["00000000-0000-0000-0000-000000000000"]
 # The initial apply is a two-step bootstrap: target the registry first, push an
 # image, then set its immutable digest reference here for the full apply.
 staging_container_image = "rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+staging_schema_database_password_version  = 1
+staging_runtime_database_password_version = 1
 
 production_enabled = false
 validate_tem_dns    = false

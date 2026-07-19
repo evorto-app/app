@@ -82,6 +82,7 @@ const createContextLayer = (
             storageKey: 'receipts/example.png',
             url: 'https://storage.example.test/bucket',
           }),
+        discardPromotedUpload: () => Effect.void,
         inspectUpload: () =>
           Effect.succeed({
             mimeType: 'image/png',
@@ -241,6 +242,98 @@ const databaseWithReceiptUploadLifecycle = (steps: string[]) => {
     insert: (table: unknown) => {
       expect(table).toBe(financeReceiptUploads);
       return insertQuery;
+    },
+    update: (table: unknown) => {
+      expect(table).toBe(financeReceiptUploads);
+      return updateQuery;
+    },
+  };
+};
+
+const databaseWithPendingReceiptUpload = () => {
+  let updatedValues: unknown;
+  const updateQuery = {
+    returning: () =>
+      Effect.succeed([
+        {
+          fileName: 'receipt.png',
+          id: 'upload-1',
+          mimeType: 'image/png',
+          sizeBytes: 7,
+        },
+      ]),
+    set: (values: unknown) => {
+      updatedValues = values;
+      return updateQuery;
+    },
+    where: () => updateQuery,
+  };
+
+  return {
+    database: {
+      query: {
+        financeReceiptUploads: {
+          findFirst: () =>
+            Effect.succeed({
+              eventId: 'event-1',
+              expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+              fileName: 'receipt.png',
+              id: 'upload-1',
+              mimeType: 'image/png',
+              sizeBytes: 7,
+              status: 'pending' as const,
+              storageKey:
+                'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png',
+            }),
+        },
+      },
+      update: (table: unknown) => {
+        expect(table).toBe(financeReceiptUploads);
+        return updateQuery;
+      },
+    },
+    updatedValues: () => updatedValues,
+  };
+};
+
+const databaseWithConcurrentReceiptUpload = (winnerStorageKey: string) => {
+  const pendingStorageKey =
+    'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png';
+  let loadCount = 0;
+  const updateQuery = {
+    returning: () => Effect.succeed([]),
+    set: () => updateQuery,
+    where: () => updateQuery,
+  };
+
+  return {
+    query: {
+      financeReceiptUploads: {
+        findFirst: () =>
+          Effect.succeed(
+            loadCount++ === 0
+              ? {
+                  eventId: 'event-1',
+                  expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+                  fileName: 'receipt.png',
+                  id: 'upload-1',
+                  mimeType: 'image/png',
+                  sizeBytes: 7,
+                  status: 'pending' as const,
+                  storageKey: pendingStorageKey,
+                }
+              : {
+                  eventId: 'event-1',
+                  expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+                  fileName: 'receipt.png',
+                  id: 'upload-1',
+                  mimeType: 'image/png',
+                  sizeBytes: 7,
+                  status: 'ready' as const,
+                  storageKey: winnerStorageKey,
+                },
+          ),
+      },
     },
     update: (table: unknown) => {
       expect(table).toBe(financeReceiptUploads);
@@ -918,6 +1011,85 @@ describe('finance receipt media permissions', () => {
 
         expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
         expect(lifecycleSteps).toEqual(['preflight']);
+      }),
+  );
+
+  it.effect(
+    'records the promoted immutable key when finalizing an upload',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithPendingReceiptUpload();
+        const finalStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
+
+        const result = yield* financeHandlers[
+          'finance.receiptMedia.finalizeUpload'
+        ]({ uploadId: 'upload-1' }, { headers: {} } as never).pipe(
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: fixture.database,
+              receiptMediaService: {
+                inspectUpload: () =>
+                  Effect.succeed({
+                    mimeType: 'image/png',
+                    sizeBytes: 7,
+                    storageKey: finalStorageKey,
+                    storageUrl: `s3://bucket/${finalStorageKey}`,
+                  }),
+              },
+            }),
+          ),
+        );
+
+        expect(result).toEqual({
+          fileName: 'receipt.png',
+          mimeType: 'image/png',
+          sizeBytes: 7,
+          uploadId: 'upload-1',
+        });
+        expect(fixture.updatedValues()).toEqual(
+          expect.objectContaining({ storageKey: finalStorageKey }),
+        );
+      }),
+  );
+
+  it.effect(
+    'discards a losing promoted object after a concurrent finalization wins',
+    () =>
+      Effect.gen(function* () {
+        const winnerStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
+        const losingStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'b'.repeat(64)}-receipt.png`;
+        const discarded: string[] = [];
+
+        const result = yield* financeHandlers[
+          'finance.receiptMedia.finalizeUpload'
+        ]({ uploadId: 'upload-1' }, { headers: {} } as never).pipe(
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: databaseWithConcurrentReceiptUpload(winnerStorageKey),
+              receiptMediaService: {
+                discardPromotedUpload: (storageKey: string) =>
+                  Effect.sync(() => {
+                    discarded.push(storageKey);
+                  }),
+                inspectUpload: () =>
+                  Effect.succeed({
+                    mimeType: 'image/png',
+                    sizeBytes: 7,
+                    storageKey: losingStorageKey,
+                    storageUrl: `s3://bucket/${losingStorageKey}`,
+                  }),
+              },
+            }),
+          ),
+        );
+
+        expect(result).toEqual({
+          fileName: 'receipt.png',
+          mimeType: 'image/png',
+          sizeBytes: 7,
+          uploadId: 'upload-1',
+        });
+        expect(discarded).toEqual([losingStorageKey]);
       }),
   );
 });

@@ -15,6 +15,7 @@ const openUserAssignment = async (
 ): Promise<{ roleSelect: Locator; userRow: Locator }> => {
   await page.goto('/admin/users');
   await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
+  await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
   await page.getByPlaceholder('Name or email').fill(scenario.user.email);
   const userRow = page
@@ -46,10 +47,12 @@ test.describe('with users:assignRoles', () => {
       let { roleSelect } = await openUserAssignment(page, scenario);
       await expect(roleSelect).toBeEnabled();
       await roleSelect.press('Enter');
+      await expect(roleSelect).toHaveAttribute('aria-expanded', 'true');
       let roleOption = page.getByRole('option', {
         exact: true,
         name: scenario.role.name,
       });
+      await expect(roleOption).toBeVisible();
       await expect(roleOption).toHaveAttribute('aria-selected', 'false');
       await roleOption.click();
       await page.keyboard.press('Escape');
@@ -62,10 +65,12 @@ test.describe('with users:assignRoles', () => {
       await expect(roleSelect).toBeEnabled();
       await expect(roleSelect).toContainText(scenario.role.name);
       await roleSelect.press('Enter');
+      await expect(roleSelect).toHaveAttribute('aria-expanded', 'true');
       roleOption = page.getByRole('option', {
         exact: true,
         name: scenario.role.name,
       });
+      await expect(roleOption).toBeVisible();
       await expect(roleOption).toHaveAttribute('aria-selected', 'true');
       await roleOption.click();
       await page.keyboard.press('Escape');
@@ -75,12 +80,13 @@ test.describe('with users:assignRoles', () => {
       await expect(roleSelect).toBeEnabled();
       await expect(roleSelect).not.toContainText(scenario.role.name);
       await roleSelect.press('Enter');
-      await expect(
-        page.getByRole('option', {
-          exact: true,
-          name: scenario.role.name,
-        }),
-      ).toHaveAttribute('aria-selected', 'false');
+      await expect(roleSelect).toHaveAttribute('aria-expanded', 'true');
+      roleOption = page.getByRole('option', {
+        exact: true,
+        name: scenario.role.name,
+      });
+      await expect(roleOption).toBeVisible();
+      await expect(roleOption).toHaveAttribute('aria-selected', 'false');
       await page.keyboard.press('Escape');
     } finally {
       await scenario.cleanup();

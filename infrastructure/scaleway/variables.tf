@@ -68,11 +68,33 @@ variable "staging_schema_database_password" {
   ephemeral   = true
 }
 
+variable "staging_schema_database_password_version" {
+  type        = number
+  description = "Monotonic staging schema-owner password version."
+  default     = 1
+
+  validation {
+    condition     = var.staging_schema_database_password_version >= 1 && floor(var.staging_schema_database_password_version) == var.staging_schema_database_password_version
+    error_message = "staging_schema_database_password_version must be a positive integer."
+  }
+}
+
 variable "staging_runtime_database_password" {
   type        = string
   description = "Write-only staging runtime-user password."
   sensitive   = true
   ephemeral   = true
+}
+
+variable "staging_runtime_database_password_version" {
+  type        = number
+  description = "Monotonic staging runtime-user password version."
+  default     = 1
+
+  validation {
+    condition     = var.staging_runtime_database_password_version >= 1 && floor(var.staging_runtime_database_password_version) == var.staging_runtime_database_password_version
+    error_message = "staging_runtime_database_password_version must be a positive integer."
+  }
 }
 
 variable "production_enabled" {
@@ -97,6 +119,17 @@ variable "production_schema_database_password" {
   ephemeral   = true
 }
 
+variable "production_schema_database_password_version" {
+  type        = number
+  description = "Monotonic production schema-owner password version."
+  default     = 1
+
+  validation {
+    condition     = var.production_schema_database_password_version >= 1 && floor(var.production_schema_database_password_version) == var.production_schema_database_password_version
+    error_message = "production_schema_database_password_version must be a positive integer."
+  }
+}
+
 variable "production_runtime_database_password" {
   type        = string
   description = "Write-only production runtime-user password. Required only when production_enabled is true."
@@ -104,6 +137,17 @@ variable "production_runtime_database_password" {
   nullable    = true
   sensitive   = true
   ephemeral   = true
+}
+
+variable "production_runtime_database_password_version" {
+  type        = number
+  description = "Monotonic production runtime-user password version."
+  default     = 1
+
+  validation {
+    condition     = var.production_runtime_database_password_version >= 1 && floor(var.production_runtime_database_password_version) == var.production_runtime_database_password_version
+    error_message = "production_runtime_database_password_version must be a positive integer."
+  }
 }
 
 variable "validate_tem_dns" {

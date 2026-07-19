@@ -38,6 +38,10 @@ jobs:
       TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
       TF_VAR_organization_id: ${{ vars.SCW_ORGANIZATION_ID }}
       TF_VAR_production_enabled: "true"
+      TF_VAR_production_runtime_database_password_version: ${{ vars.PRODUCTION_RUNTIME_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_production_schema_database_password_version: ${{ vars.PRODUCTION_SCHEMA_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_staging_runtime_database_password_version: ${{ vars.STAGING_RUNTIME_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_staging_schema_database_password_version: ${{ vars.STAGING_SCHEMA_DATABASE_PASSWORD_VERSION }}
       TF_VAR_tem_project_id: ${{ vars.SCW_TEM_PROJECT_ID }}
       TF_VAR_validate_tem_dns: "true"
     steps:
@@ -75,7 +79,11 @@ jobs:
             TF_VAR_application_bucket_console_user_ids \
             TF_VAR_bucket_suffix \
             TF_VAR_cloudflare_zone_id \
+            TF_VAR_production_runtime_database_password_version \
+            TF_VAR_production_schema_database_password_version \
+            TF_VAR_staging_runtime_database_password_version \
             TF_VAR_staging_runtime_database_password \
+            TF_VAR_staging_schema_database_password_version \
             TF_VAR_staging_schema_database_password \
             TF_VAR_tem_project_id; do
             if [ -z "${!variable_name}" ]; then

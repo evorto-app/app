@@ -26,7 +26,9 @@ module "staging" {
   bucket_suffix                       = var.bucket_suffix
   container_image                     = var.staging_container_image
   schema_database_password            = var.staging_schema_database_password
+  schema_database_password_version    = var.staging_schema_database_password_version
   runtime_database_password           = var.staging_runtime_database_password
+  runtime_database_password_version   = var.staging_runtime_database_password_version
   database_node_type                  = "DB-DEV-S"
   database_is_ha                      = false
   database_backup_retention_days      = 7
@@ -50,7 +52,9 @@ module "production" {
   bucket_suffix                       = var.bucket_suffix
   container_image                     = coalesce(var.production_container_image, var.staging_container_image)
   schema_database_password            = coalesce(var.production_schema_database_password, "production-disabled")
+  schema_database_password_version    = var.production_schema_database_password_version
   runtime_database_password           = coalesce(var.production_runtime_database_password, "production-disabled")
+  runtime_database_password_version   = var.production_runtime_database_password_version
   database_node_type                  = "DB-POP2-2C-8G"
   database_is_ha                      = true
   database_backup_retention_days      = 30

@@ -114,11 +114,18 @@ Create and protect these environments:
 The staging workflow also needs repository/environment variables for
 `SCW_ORGANIZATION_ID`, `SCW_TEM_PROJECT_ID`, `TERRAFORM_STATE_BUCKET`,
 `BUCKET_SUFFIX`, `APPLICATION_BUCKET_CONSOLE_USER_IDS` (a JSON array of IAM user
-UUIDs), `CLOUDFLARE_ZONE_ID`, and `ALERT_EMAIL`. Store the scoped
+UUIDs), `CLOUDFLARE_ZONE_ID`, `ALERT_EMAIL`,
+`SCHEMA_DATABASE_PASSWORD_VERSION`, and `RUNTIME_DATABASE_PASSWORD_VERSION`.
+Start both password versions at `1`. Store the scoped
 `CLOUDFLARE_API_TOKEN`, state S3 key pair, deployer Scaleway key pair,
 schema/runtime database passwords, Font Awesome token, and
 `ROLE_SECRET_VALUES_JSON` as secrets. Production has distinct database
-passwords and a distinct `ROLE_SECRET_VALUES_JSON` value.
+passwords, `PRODUCTION_SCHEMA_DATABASE_PASSWORD_VERSION`,
+`PRODUCTION_RUNTIME_DATABASE_PASSWORD_VERSION`, and a distinct
+`ROLE_SECRET_VALUES_JSON` value. Its environment also needs the current staging
+versions as `STAGING_SCHEMA_DATABASE_PASSWORD_VERSION` and
+`STAGING_RUNTIME_DATABASE_PASSWORD_VERSION` because promotion reconciles both
+modules in the shared Terraform state.
 
 `ROLE_SECRET_VALUES_JSON` is a flat object. Keys are the role and variable name
 joined by `/`; values are protected non-empty strings. Do not commit an example
@@ -277,8 +284,9 @@ production is defined for daily backups retained 30 days and a 24-hour RPO.
 - Scaleway deployer, state, S3 role, and TEM API keys: every 90 days and after
   any suspected exposure or operator departure.
 - application session secret: every 90 days with a planned sign-in reset;
-- database passwords: every 90 days, changing the managed user and protected
-  environment in one maintenance window;
+- database passwords: every 90 days, changing the password secret and
+  incrementing its matching password-version variable in the same protected
+  deployment. Never reuse or decrement a version;
 - Stripe webhook secret: whenever the endpoint is recreated or exposure is
   suspected;
 - Auth0 and other provider credentials: follow provider guidance, at least

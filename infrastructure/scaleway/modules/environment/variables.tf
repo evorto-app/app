@@ -63,11 +63,31 @@ variable "schema_database_password" {
   ephemeral   = true
 }
 
+variable "schema_database_password_version" {
+  description = "Monotonic version incremented whenever the schema-owner password changes."
+  type        = number
+
+  validation {
+    condition     = var.schema_database_password_version >= 1 && floor(var.schema_database_password_version) == var.schema_database_password_version
+    error_message = "schema_database_password_version must be a positive integer."
+  }
+}
+
 variable "runtime_database_password" {
   description = "Write-only password for the least-privilege application runtime user."
   type        = string
   sensitive   = true
   ephemeral   = true
+}
+
+variable "runtime_database_password_version" {
+  description = "Monotonic version incremented whenever the runtime-user password changes."
+  type        = number
+
+  validation {
+    condition     = var.runtime_database_password_version >= 1 && floor(var.runtime_database_password_version) == var.runtime_database_password_version
+    error_message = "runtime_database_password_version must be a positive integer."
+  }
 }
 
 variable "database_node_type" {

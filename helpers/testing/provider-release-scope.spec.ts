@@ -195,8 +195,11 @@ describe('production provider scope', () => {
       "from '../../../../integrations/object-storage';",
     );
     expect(receiptMedia).toContain('.presignPost({');
-    expect(receiptMedia).toContain('objectStorage.metadata(');
+    expect(receiptMedia).toContain('objectStorage.get(input.storageKey)');
+    expect(receiptMedia).toContain('const stored = yield* objectStorage');
+    expect(receiptMedia).toContain('.put({');
     expect(receiptMedia).toContain('.presignGet(');
+    expect(receiptMedia).toContain('export const buildReceiptUploadStorageKey');
     expect(receiptMedia).toContain('export const buildReceiptStorageKey');
     expect(receiptMedia).toContain("'receipts',");
     expect(tenantBrandAssets).toContain(

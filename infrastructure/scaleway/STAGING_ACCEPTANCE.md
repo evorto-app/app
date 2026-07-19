@@ -79,7 +79,10 @@ and the result transition either way.
       unknown rows remain read-only.
 - [ ] Signed receipt policies expire after five minutes, bind exact key/type/
       size, reject wrong tenant/user/event, MIME spoofing, oversize and public
-      ACL, and tolerate concurrent finalize calls atomically.
+      ACL, promote the validated bytes to a server-only content-addressed key,
+      remain unchanged after the browser upload policy is reused, and tolerate
+      concurrent finalize calls atomically without retaining a losing promoted
+      object.
 - [ ] The orphan worker removes only expired unconsumed objects after the safety
       grace period.
 

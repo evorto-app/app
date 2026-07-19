@@ -1,5 +1,6 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Context, Effect, Layer } from 'effect';
+import { createHash } from 'node:crypto';
 
 import { ObjectStorage } from '../../../../integrations/object-storage';
 import {
@@ -290,6 +291,10 @@ interface CreateUploadPolicyInput extends ReceiptUploadScope {
   sizeBytes: number;
 }
 
+interface FinalReceiptStorageScope extends ReceiptUploadScope {
+  contentDigest: string;
+}
+
 interface InspectUploadInput extends ReceiptUploadScope {
   sizeBytes: number;
   storageKey: string;
@@ -304,7 +309,7 @@ interface ReceiptUploadScope {
   userId: string;
 }
 
-export const buildReceiptStorageKey = ({
+export const buildReceiptUploadStorageKey = ({
   eventId,
   fileName,
   tenantId,
@@ -315,12 +320,36 @@ export const buildReceiptStorageKey = ({
   'eventId' | 'fileName' | 'tenantId' | 'uploadId' | 'userId'
 >): string =>
   [
-    'receipts',
+    'receipt-uploads',
     tenantId,
     eventId,
     userId,
     `${uploadId}-${sanitizeFileName(fileName)}`,
   ].join('/');
+
+export const buildReceiptStorageKey = ({
+  contentDigest,
+  eventId,
+  fileName,
+  tenantId,
+  uploadId,
+  userId,
+}: Pick<
+  FinalReceiptStorageScope,
+  'contentDigest' | 'eventId' | 'fileName' | 'tenantId' | 'uploadId' | 'userId'
+>): string => {
+  if (!/^[0-9a-f]{64}$/u.test(contentDigest)) {
+    throw new Error('Receipt content digest must be a lowercase SHA-256 hash');
+  }
+
+  return [
+    'receipts',
+    tenantId,
+    eventId,
+    userId,
+    `${uploadId}-${contentDigest}-${sanitizeFileName(fileName)}`,
+  ].join('/');
+};
 
 export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
   '@server/effect/rpc/handlers/finance/ReceiptMediaService',
@@ -375,7 +404,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
           );
         }
 
-        const storageKey = buildReceiptStorageKey(input);
+        const storageKey = buildReceiptUploadStorageKey(input);
         const signed = yield* objectStorage
           .presignPost({
             contentType: input.mimeType,
@@ -397,6 +426,21 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
         return { ...signed, storageKey };
       });
 
+      const discardPromotedUpload = Effect.fn(
+        'ReceiptMediaService.discardPromotedUpload',
+      )(function* (storageKey: string) {
+        yield* objectStorage.deleteObject(storageKey).pipe(
+          Effect.retry({ times: 3 }),
+          Effect.mapError(
+            (cause) =>
+              new ReceiptMediaServiceUnavailableError({
+                cause,
+                message: 'Receipt storage is unavailable',
+              }),
+          ),
+        );
+      });
+
       const inspectUpload = Effect.fn('ReceiptMediaService.inspectUpload')(
         function* (input: InspectUploadInput) {
           if (!isAllowedReceiptMimeType(input.mimeType)) {
@@ -407,7 +451,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             );
           }
 
-          const expectedStorageKey = buildReceiptStorageKey(input);
+          const expectedStorageKey = buildReceiptUploadStorageKey(input);
           if (input.storageKey !== expectedStorageKey) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
@@ -417,7 +461,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             );
           }
 
-          const metadata = yield* objectStorage.metadata(input.storageKey).pipe(
+          const body = yield* objectStorage.get(input.storageKey).pipe(
             Effect.mapError(
               (cause) =>
                 new ReceiptMediaServiceUnavailableError({
@@ -426,11 +470,11 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
                 }),
             ),
           );
-          const detectedMimeType = detectReceiptMimeType(metadata.prefix);
+          const detectedMimeType = detectReceiptMimeType(body.slice(0, 16));
           if (
-            metadata.sizeBytes !== input.sizeBytes ||
-            metadata.sizeBytes <= 0 ||
-            metadata.sizeBytes > MAX_RECEIPT_ORIGINAL_SIZE_BYTES
+            body.byteLength !== input.sizeBytes ||
+            body.byteLength <= 0 ||
+            body.byteLength > MAX_RECEIPT_ORIGINAL_SIZE_BYTES
           ) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
@@ -439,10 +483,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
               }),
             );
           }
-          if (
-            metadata.contentType !== input.mimeType ||
-            detectedMimeType !== input.mimeType
-          ) {
+          if (detectedMimeType !== input.mimeType) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
                 message:
@@ -451,17 +492,38 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             );
           }
 
+          const storageKey = buildReceiptStorageKey({
+            ...input,
+            contentDigest: createHash('sha256').update(body).digest('hex'),
+          });
+          const stored = yield* objectStorage
+            .put({
+              body,
+              contentType: detectedMimeType,
+              key: storageKey,
+            })
+            .pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ReceiptMediaServiceUnavailableError({
+                    cause,
+                    message: 'Receipt storage is unavailable',
+                  }),
+              ),
+            );
+
           return {
             mimeType: detectedMimeType,
-            sizeBytes: metadata.sizeBytes,
-            storageKey: input.storageKey,
-            storageUrl: metadata.storageUrl,
+            sizeBytes: body.byteLength,
+            storageKey: stored.storageKey,
+            storageUrl: stored.storageUrl,
           };
         },
       );
 
       return {
         createUploadPolicy,
+        discardPromotedUpload,
         inspectUpload,
         objectExists,
         signedPreviewUrl,
@@ -476,6 +538,11 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
 
   static readonly createUploadPolicy = (input: CreateUploadPolicyInput) =>
     ReceiptMediaService.use((service) => service.createUploadPolicy(input));
+
+  static readonly discardPromotedUpload = (storageKey: string) =>
+    ReceiptMediaService.use((service) =>
+      service.discardPromotedUpload(storageKey),
+    );
 
   static readonly inspectUpload = (input: InspectUploadInput) =>
     ReceiptMediaService.use((service) => service.inspectUpload(input));

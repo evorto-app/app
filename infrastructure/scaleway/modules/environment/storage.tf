@@ -28,6 +28,20 @@ resource "scaleway_object_bucket" "application" {
   }
 
   lifecycle_rule {
+    id      = "expire-temporary-receipt-uploads"
+    enabled = true
+    prefix  = "receipt-uploads/"
+
+    expiration {
+      days = 1
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
+
+  lifecycle_rule {
     id      = "expire-old-noncurrent-versions"
     enabled = true
 

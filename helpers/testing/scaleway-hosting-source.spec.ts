@@ -63,6 +63,12 @@ describe('Scaleway hosting source', () => {
     const database = source(
       'infrastructure/scaleway/modules/environment/database.tf',
     );
+    const moduleVariables = source(
+      'infrastructure/scaleway/modules/environment/variables.tf',
+    );
+    const rootVariables = source('infrastructure/scaleway/variables.tf');
+    const staging = source('.github/workflows/scaleway-staging.yml');
+    const production = source('.github/workflows/scaleway-production.yml');
 
     expect(database).toContain('engine        = "PostgreSQL-17"');
     expect(database).toContain('encryption_at_rest        = true');
@@ -72,6 +78,42 @@ describe('Scaleway hosting source', () => {
     expect(database).toContain('user_name           = "schema_owner"');
     expect(database).toContain('name                = "application_runtime"');
     expect(database).toContain('is_admin            = false');
+    expect(database).toContain(
+      'password_wo_version = var.schema_database_password_version',
+    );
+    expect(database).toContain(
+      'password_wo_version = var.runtime_database_password_version',
+    );
+    expect(moduleVariables).toContain(
+      'variable "schema_database_password_version"',
+    );
+    expect(moduleVariables).toContain(
+      'variable "runtime_database_password_version"',
+    );
+    expect(rootVariables).toContain(
+      'variable "staging_schema_database_password_version"',
+    );
+    expect(rootVariables).toContain(
+      'variable "staging_runtime_database_password_version"',
+    );
+    expect(main).toContain(
+      'schema_database_password_version    = var.staging_schema_database_password_version',
+    );
+    expect(main).toContain(
+      'runtime_database_password_version   = var.staging_runtime_database_password_version',
+    );
+    expect(staging).toContain(
+      'TF_VAR_staging_schema_database_password_version: ${{ vars.SCHEMA_DATABASE_PASSWORD_VERSION }}',
+    );
+    expect(staging).toContain(
+      'TF_VAR_staging_runtime_database_password_version: ${{ vars.RUNTIME_DATABASE_PASSWORD_VERSION }}',
+    );
+    expect(production).toContain(
+      'TF_VAR_production_schema_database_password_version: ${{ vars.PRODUCTION_SCHEMA_DATABASE_PASSWORD_VERSION }}',
+    );
+    expect(production).toContain(
+      'TF_VAR_production_runtime_database_password_version: ${{ vars.PRODUCTION_RUNTIME_DATABASE_PASSWORD_VERSION }}',
+    );
     expect(main).toMatch(/database_node_type\s+= "DB-DEV-S"/u);
     expect(main).toMatch(/database_backup_retention_days\s+= 7/u);
     expect(main).toMatch(/database_node_type\s+= "DB-POP2-2C-8G"/u);
@@ -118,7 +160,8 @@ describe('Scaleway hosting source', () => {
     ).toHaveLength(3);
     expect(web).toContain('privacy                = "public"');
     expect(web).toContain('max_scale              = 3');
-    expect(web.match(/path = "\/readyz"/gu)).toHaveLength(2);
+    expect(web.match(/path = "\/readyz"/gu)).toHaveLength(1);
+    expect(web.match(/path = "\/healthz"/gu)).toHaveLength(1);
     for (const privateRole of [worker, ops]) {
       expect(privateRole).toContain('privacy                = "private"');
       expect(privateRole).toContain('min_scale              = 0');
@@ -139,6 +182,12 @@ describe('Scaleway hosting source', () => {
     );
     expect(server).toContain("runtimeRole.role === 'worker'");
     expect(server).toContain("runtimeRole.role === 'ops'");
+    expect(server).toMatch(
+      /registrationRefundWorkerRuntimeModeConfig\s*\.parse\(requestHandlerRuntimeConfigProvider\)/u,
+    );
+    expect(server).toContain(
+      'launchRegistrationRefundWorker(\n          registrationRefundWorkerMode,',
+    );
   });
 
   it('bounds local database pools while sizing the web role for parallel browser coverage', () => {
@@ -184,6 +233,7 @@ describe('Scaleway hosting source', () => {
     expect(storage.match(/acl\s+= "private"/gu)).toHaveLength(2);
     expect(storage.match(/sse_algorithm = "AES256"/gu)).toHaveLength(2);
     expect(storage).toContain('abort_incomplete_multipart_upload_days = 1');
+    expect(storage).toContain('prefix  = "receipt-uploads/"');
     expect(storage).toContain('prefix  = "source-maps/"');
     expect(storage).toContain('days = 90');
     expect(storage).toContain(

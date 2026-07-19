@@ -33,6 +33,7 @@ import {
   DeploymentRuntimeConfig,
 } from './server/config/deployment-config';
 import { makeRuntimeConfigProvider } from './server/config/provider';
+import { registrationRefundWorkerRuntimeModeConfig } from './server/config/registration-refund-worker-config';
 import { RuntimeConfig } from './server/config/runtime-config';
 import { serverNetworkConfig } from './server/config/server-config';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
@@ -98,6 +99,7 @@ import {
   seedStaging,
 } from './server/ops/schema-operations';
 import {
+  launchRegistrationRefundWorker,
   processDueRegistrationRefundClaims,
   runRegistrationRefundWorker,
 } from './server/payments/registration-refund';
@@ -962,6 +964,17 @@ const serveEffect = Effect.gen(function* () {
   if (runtimeRole.role === 'worker' && runtimeRole.triggerMode === 'poll') {
     return yield* Effect.scoped(
       Effect.gen(function* () {
+        const registrationRefundWorkerMode =
+          yield* registrationRefundWorkerRuntimeModeConfig
+            .parse(requestHandlerRuntimeConfigProvider)
+            .pipe(
+              Effect.mapError(
+                (error) =>
+                  new Error(
+                    `Invalid registration refund worker configuration:\n${formatConfigError(error)}`,
+                  ),
+              ),
+            );
         const databaseContext = yield* Layer.build(configuredDatabaseLayer);
         const stripeClientContext = yield* Layer.build(
           configuredStripeClientLayer,
@@ -983,10 +996,12 @@ const serveEffect = Effect.gen(function* () {
           Effect.provide(stripeClientContext),
           Effect.forkScoped,
         );
-        yield* runRegistrationRefundWorker.pipe(
-          Effect.provide(databaseContext),
-          Effect.provide(stripeClientContext),
-          Effect.forkScoped,
+        yield* launchRegistrationRefundWorker(
+          registrationRefundWorkerMode,
+          runRegistrationRefundWorker.pipe(
+            Effect.provide(databaseContext),
+            Effect.provide(stripeClientContext),
+          ),
         );
         yield* runReceiptOrphanCleanupWorker.pipe(
           Effect.provide(databaseContext),
