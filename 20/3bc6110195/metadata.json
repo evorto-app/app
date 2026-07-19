@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "203bc6110195",
+  "strategy": "manual-commit",
+  "branch": "codex/wait-template-edit-hydration",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/wait-template-edit-hydration.md",
+    "tests/docs/templates/templates.doc.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/20/3bc6110195/0/metadata.json",
+      "transcript": "/20/3bc6110195/0/full.jsonl",
+      "content_hash": "/20/3bc6110195/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 297798,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 27677952,
+    "output_tokens": 25165,
+    "api_call_count": 192
+  }
+}
