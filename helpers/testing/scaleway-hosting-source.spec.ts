@@ -63,6 +63,9 @@ describe('Scaleway hosting source', () => {
     const database = source(
       'infrastructure/scaleway/modules/environment/database.tf',
     );
+    const outputs = source(
+      'infrastructure/scaleway/modules/environment/outputs.tf',
+    );
     const moduleVariables = source(
       'infrastructure/scaleway/modules/environment/variables.tf',
     );
@@ -75,6 +78,12 @@ describe('Scaleway hosting source', () => {
     expect(database).toContain('backup_schedule_frequency = 24');
     expect(database).toContain('private_network {');
     expect(database).not.toContain('load_balancer');
+    expect(outputs).toContain(
+      'host          = scaleway_rdb_instance.application.private_network[0].ip',
+    );
+    expect(outputs).not.toContain(
+      'scaleway_rdb_instance.application.private_network[0].hostname',
+    );
     expect(database).toContain('user_name           = "schema_owner"');
     expect(database).toContain('name                = "application_runtime"');
     expect(database).toContain('is_admin            = false');
