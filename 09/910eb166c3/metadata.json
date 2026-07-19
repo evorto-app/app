@@ -21,12 +21,14 @@
     "infrastructure/scaleway/modules/environment/variables.tf",
     "infrastructure/scaleway/terraform.tfvars.example",
     "infrastructure/scaleway/variables.tf",
+    "src/server.ts",
     "src/server/effect/rpc/handlers/finance/finance-media.handlers.ts",
     "src/server/effect/rpc/handlers/finance/finance-receipt-concurrency.postgres.spec.ts",
     "src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts",
     "src/server/effect/rpc/handlers/finance/receipt-media.service.spec.ts",
     "src/server/effect/rpc/handlers/finance/receipt-media.service.ts",
     "src/server/effect/rpc/handlers/platform/platform-tenant-finance.handlers.spec.ts",
+    "tests/docs/finance/receipt-submission.doc.ts",
     "tests/specs/admin/user-role-assignment.spec.ts"
   ],
   "sessions": [
@@ -34,14 +36,14 @@
       "metadata": "/09/910eb166c3/0/metadata.json",
       "transcript": "/09/910eb166c3/0/full.jsonl",
       "content_hash": "/09/910eb166c3/0/content_hash.txt",
-      "prompt": "/09/910eb166c3/0/prompt.txt"
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 109844,
+    "input_tokens": 442280,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 4452864,
-    "output_tokens": 15720,
-    "api_call_count": 30
+    "cache_read_tokens": 20531456,
+    "output_tokens": 15670,
+    "api_call_count": 153
   }
 }
