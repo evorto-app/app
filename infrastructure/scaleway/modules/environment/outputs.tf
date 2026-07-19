@@ -59,8 +59,6 @@ output "role_secret_ids" {
 
 output "cockpit" {
   value = {
-    logs_url    = scaleway_cockpit_source.logs.url
-    metrics_url = scaleway_cockpit_source.metrics.url
     traces_push = scaleway_cockpit_source.traces.push_url
     traces_url  = scaleway_cockpit_source.traces.url
   }

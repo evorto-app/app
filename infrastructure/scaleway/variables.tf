@@ -28,9 +28,32 @@ variable "bucket_suffix" {
   }
 }
 
+variable "application_bucket_console_user_ids" {
+  description = "Scaleway IAM user IDs granted read-only console access to each application-data bucket."
+  type        = set(string)
+
+  validation {
+    condition = length(var.application_bucket_console_user_ids) > 0 && alltrue([
+      for user_id in var.application_bucket_console_user_ids :
+      can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", user_id))
+    ])
+    error_message = "application_bucket_console_user_ids must contain at least one lowercase Scaleway IAM user UUID."
+  }
+}
+
 variable "alert_email" {
   description = "Operational address used by Cockpit alert contact points."
   type        = string
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for evorto.app. Authentication comes only from CLOUDFLARE_API_TOKEN."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
+    error_message = "cloudflare_zone_id must be a 32-character lowercase hexadecimal Cloudflare zone ID."
+  }
 }
 
 variable "staging_container_image" {

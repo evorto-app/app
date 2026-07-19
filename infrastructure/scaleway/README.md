@@ -16,8 +16,9 @@ a later, best-effort project after functional completion.
 Terraform owns static resources:
 
 - the staging project, VPC, private network, registry, PostgreSQL 17 instance,
-  role identities, Secret Manager entries, Cockpit sources, alert contact
-  point, buckets, containers, custom domain, and worker CRON triggers;
+  role identities, Secret Manager entries, the custom Cockpit trace source,
+  alert contact point, buckets, containers, custom domain, and worker CRON
+  triggers;
 - the disabled production definition, including its HA database shape;
 - secret names and role assignment, but never secret values;
 - initial container configuration, while ignoring the image and deployment
@@ -70,20 +71,35 @@ and RPC behavior.
      -reconfigure
    ```
 
-5. Copy `terraform.tfvars.example` to an ignored `.auto.tfvars` file. Keep
-   `production_enabled = false`. Use the zero digest only for the targeted
-   initial registry bootstrap; a full apply requires a real immutable image.
-6. Apply the root once with an organization administrator identity. Terraform
+5. Create a Cloudflare API token restricted to the `evorto.app` zone with DNS
+   edit access. Export it only as `CLOUDFLARE_API_TOKEN`, and set the non-secret
+   `cloudflare_zone_id` in the ignored tfvars file copied from
+   `terraform.tfvars.example`. Keep `production_enabled = false`. Use the zero
+   digest only for the targeted initial registry bootstrap; a full apply
+   requires a real immutable image.
+6. In the shared Transactional Email project, select the Essential plan before
+   the first full apply. Transactional Email plans are project-scoped, and the
+   domain cannot be created until that project has an active subscription.
+7. Apply the root once with an organization administrator identity. Terraform
    creates the dedicated `evorto-github-deployer` application. Create its API
    key outside Terraform, move deployment to that identity, and remove the
    bootstrap administrator credentials from GitHub.
-7. Create API keys outside Terraform for the emitted `web` and `worker` role
+8. Create API keys outside Terraform for the emitted `web` and `worker` role
    application IDs. Put only those static key values in the corresponding
    protected environment secret JSON. Rotate them on the schedule below.
 
 The state backend uses bucket versioning, SSE-ONE, `prevent_destroy`, and the S3
 conditional lockfile. Retain the bootstrap project and its recovery procedure
 independently from application projects.
+
+The application bucket policy explicitly grants the deployer application
+management access because Scaleway bucket policies deny actions and principals
+that are not named. Terraform creates the private ACL and SSE-ONE configuration
+before installing that policy so it cannot lock its own reconciliation identity
+out of those operations. Set `application_bucket_console_user_ids` to the
+activated Scaleway IAM users who need to inspect application data in the
+console. Those users receive explicit read-only bucket metadata, object-listing,
+and object-reading access; uploads, mutations, and deletions remain unavailable.
 
 ## GitHub environments
 
@@ -97,8 +113,10 @@ Create and protect these environments:
 
 The staging workflow also needs repository/environment variables for
 `SCW_ORGANIZATION_ID`, `SCW_TEM_PROJECT_ID`, `TERRAFORM_STATE_BUCKET`,
-`BUCKET_SUFFIX`, and `ALERT_EMAIL`. Store the state S3 key pair, deployer
-Scaleway key pair, schema/runtime database passwords, Font Awesome token, and
+`BUCKET_SUFFIX`, `APPLICATION_BUCKET_CONSOLE_USER_IDS` (a JSON array of IAM user
+UUIDs), `CLOUDFLARE_ZONE_ID`, and `ALERT_EMAIL`. Store the scoped
+`CLOUDFLARE_API_TOKEN`, state S3 key pair, deployer Scaleway key pair,
+schema/runtime database passwords, Font Awesome token, and
 `ROLE_SECRET_VALUES_JSON` as secrets. Production has distinct database
 passwords and a distinct `ROLE_SECRET_VALUES_JSON` value.
 
@@ -135,18 +153,49 @@ Never use `pull_request_target` or expose Scaleway credentials to pull requests.
 The staging deploy accepts only the exact `main` revision that has passed both
 `CI/gate` and the protected provider baseline.
 
+## Cockpit and Grafana
+
+Serverless Container logs and infrastructure metrics use the native `Scaleway
+Logs` and `Scaleway Metrics` data sources. In Grafana, start with the
+`Serverless Containers logs` and `Serverless Containers Overview` dashboards;
+for raw LogQL, select `Scaleway Logs` and filter with
+`{resource_type="serverless_container"}`. Terraform does not create duplicate
+custom log or metric sources.
+
+Application traces use the Terraform-managed `evorto-<environment>-traces`
+source. Each role receives a write-only trace token through its protected
+secret bundle. Without both `COCKPIT_TRACES_ENDPOINT` and
+`COCKPIT_TRACES_TOKEN`, the runtime intentionally starts without a trace
+exporter.
+
 ## DNS and Transactional Email
 
-Keep the current authoritative DNS provider. Copy the values from
-`terraform output -json external_dns_records` into that provider:
+Keep Cloudflare as the authoritative DNS provider. Terraform manages only the
+unproxied `staging.evorto.app` CNAME, the SPF, DKIM, MX, and DMARC records for
+`notifications.evorto.app`, and the unproxied `alpha.evorto.app` CNAME after
+production is explicitly enabled. It does not transfer or otherwise manage the
+zone itself. The generated values remain available through
+`terraform output -json managed_dns_records` for review.
 
-- the staging CNAME to the generated web container hostname;
-- SPF, DKIM, MX, and DMARC-compatible records for
-  `notifications.evorto.app`;
-- the production CNAME only after production is explicitly enabled.
+The Scaleway custom-domain resources explicitly depend on their Cloudflare
+CNAME records. This ordering lets the public CNAME propagate before Scaleway
+starts its HTTP-01 challenge and certificate issuance during a fresh apply.
 
-After records have propagated and Scaleway reports the email domain healthy,
-set `validate_tem_dns = true`. The application always sends as
+All other existing zone records remain intentionally outside this Terraform
+state and must be preserved. This includes the apex, `www`, and `docs` website
+records; Microsoft 365 mail and autodiscovery records; the `messages` Mailgun
+records; Productlane and Azure custom-domain records; and their verification
+records. A Terraform apply in this directory neither imports nor deletes those
+records.
+
+The legacy Fly A, AAAA, and ACME records for `alpha.evorto.app` were removed
+after preserving a zone export. Alpha intentionally has no DNS record while
+production is disabled. Enabling production creates only the Scaleway CNAME;
+export and inspect the live zone again before that cutover, and never use a bulk
+zone replacement.
+
+After the managed records have propagated and Scaleway reports the email domain
+healthy, set `validate_tem_dns = true`. The application always sends as
 `Evorto <no-reply@notifications.evorto.app>` and retains tenant-specific
 Reply-To headers.
 

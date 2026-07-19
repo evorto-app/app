@@ -2,6 +2,8 @@ organization_id = "00000000-0000-0000-0000-000000000000"
 tem_project_id   = "00000000-0000-0000-0000-000000000000"
 bucket_suffix   = "replace-unique"
 alert_email     = "operations@example.com"
+cloudflare_zone_id = "00000000000000000000000000000000"
+application_bucket_console_user_ids = ["00000000-0000-0000-0000-000000000000"]
 
 # The initial apply is a two-step bootstrap: target the registry first, push an
 # image, then set its immutable digest reference here for the full apply.

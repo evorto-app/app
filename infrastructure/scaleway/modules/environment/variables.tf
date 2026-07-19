@@ -13,6 +13,16 @@ variable "project_id" {
   type        = string
 }
 
+variable "management_application_id" {
+  description = "IAM application explicitly allowed to reconcile the private application bucket."
+  type        = string
+}
+
+variable "application_bucket_console_user_ids" {
+  description = "Scaleway IAM users explicitly allowed to inspect the private application bucket."
+  type        = set(string)
+}
+
 variable "tem_project_id" {
   description = "Shared project that owns notifications.evorto.app in Transactional Email."
   type        = string
@@ -82,16 +92,6 @@ variable "web_min_scale" {
 }
 
 variable "cockpit_trace_retention_days" {
-  type    = number
-  default = 30
-}
-
-variable "cockpit_log_retention_days" {
-  type    = number
-  default = 30
-}
-
-variable "cockpit_metric_retention_days" {
   type    = number
   default = 30
 }

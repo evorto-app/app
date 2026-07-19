@@ -39,8 +39,8 @@ output "deployer_application_id" {
   value       = scaleway_iam_application.deployer.id
 }
 
-output "external_dns_records" {
-  description = "Records to add at the existing authoritative DNS provider. Terraform intentionally does not manage that provider."
+output "managed_dns_records" {
+  description = "Records reconciled in the existing authoritative Cloudflare zone."
   value = {
     staging_cname = {
       name  = "staging.evorto.app"
@@ -71,7 +71,7 @@ output "external_dns_records" {
       spf = {
         name  = "notifications.evorto.app"
         type  = "TXT"
-        value = scaleway_tem_domain.notifications.spf_config
+        value = scaleway_tem_domain.notifications.spf_value
       }
     }
   }

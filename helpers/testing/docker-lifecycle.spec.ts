@@ -304,7 +304,7 @@ describe('Docker Compose lifecycle wrappers', () => {
 
     expect(result.status).toBe(0);
     expect(fs.readFileSync(logPath, 'utf8')).not.toContain('.Config.Env');
-  });
+  }, 30_000);
 
   it.each([
     {

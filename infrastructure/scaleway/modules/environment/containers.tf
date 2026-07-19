@@ -1,4 +1,6 @@
 locals {
+  # Scaleway canonicalizes the 1 GB container tier to this exact byte value.
+  container_memory_limit_bytes = 1073000000
   common_environment_variables = {
     APP_BOOTSTRAP                    = "true"
     APP_ENVIRONMENT                  = var.environment
@@ -11,7 +13,6 @@ locals {
     DATABASE_POOL_MIN                = "0"
     DATABASE_TLS_REQUIRED            = "true"
     NODE_ENV                         = "production"
-    PORT                             = "4200"
     SERVER_LOG_LEVEL                 = "info"
   }
   object_storage_environment_variables = {
@@ -69,7 +70,7 @@ resource "scaleway_container" "web" {
   https_connections_only = true
   sandbox                = "v2"
   cpu_limit              = 560
-  memory_limit_bytes     = 1073741824
+  memory_limit_bytes     = local.container_memory_limit_bytes
   min_scale              = var.web_min_scale
   max_scale              = 3
   timeout                = 300
@@ -80,7 +81,7 @@ resource "scaleway_container" "web" {
 
   startup_probe {
     failure_threshold = 30
-    interval          = "2s"
+    interval          = "5s"
     timeout           = "1s"
     http {
       path = "/readyz"
@@ -123,7 +124,7 @@ resource "scaleway_container" "worker" {
   https_connections_only = true
   sandbox                = "v2"
   cpu_limit              = 560
-  memory_limit_bytes     = 1073741824
+  memory_limit_bytes     = local.container_memory_limit_bytes
   min_scale              = 0
   max_scale              = 1
   timeout                = 300
@@ -134,7 +135,7 @@ resource "scaleway_container" "worker" {
 
   startup_probe {
     failure_threshold = 30
-    interval          = "2s"
+    interval          = "5s"
     timeout           = "1s"
     http {
       path = "/healthz"
@@ -173,7 +174,7 @@ resource "scaleway_container" "ops" {
   https_connections_only = true
   sandbox                = "v2"
   cpu_limit              = 560
-  memory_limit_bytes     = 1073741824
+  memory_limit_bytes     = local.container_memory_limit_bytes
   min_scale              = 0
   max_scale              = 1
   timeout                = 300
@@ -184,7 +185,7 @@ resource "scaleway_container" "ops" {
 
   startup_probe {
     failure_threshold = 30
-    interval          = "2s"
+    interval          = "5s"
     timeout           = "1s"
     http {
       path = "/healthz"
@@ -209,12 +210,6 @@ resource "scaleway_container" "ops" {
       secret_environment_variables,
     ]
   }
-}
-
-resource "scaleway_container_domain" "web" {
-  container_id = scaleway_container.web.id
-  region       = var.region
-  hostname     = var.hostname
 }
 
 locals {

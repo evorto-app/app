@@ -12,4 +12,6 @@ resource "scaleway_tem_domain_validation" "notifications" {
   domain_id = scaleway_tem_domain.notifications.id
   region    = var.region
   timeout   = 900
+
+  depends_on = [cloudflare_dns_record.transactional_email]
 }

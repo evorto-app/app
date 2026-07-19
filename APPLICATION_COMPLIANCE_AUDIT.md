@@ -518,7 +518,10 @@ inferring them from workflow YAML.
 The legacy Fly deployment is retired. The `evorto` app was destroyed after
 confirming it had no volumes or managed PostgreSQL cluster, the GitHub workflow
 was disabled and removed, and the Fly deployment token was deleted. Scaleway is
-the only application hosting path defined by this repository.
+the only application hosting path defined by this repository. The legacy
+Cloudflare A, AAAA, and ACME records for `alpha.evorto.app` were removed on
+2026-07-19 after preserving a zone export. Alpha intentionally has no DNS record
+while production remains disabled.
 
 The unified implementation removes the release placeholder. Knope now uses
 regex-backed package versioning, single-package `default` change files, and an

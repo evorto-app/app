@@ -15,44 +15,48 @@ resource "scaleway_account_project" "production" {
 module "staging" {
   source = "./modules/environment"
 
-  environment                    = "staging"
-  project_id                     = scaleway_account_project.staging.id
-  tem_project_id                 = var.tem_project_id
-  region                         = var.region
-  zone                           = var.zone
-  hostname                       = "staging.evorto.app"
-  bucket_suffix                  = var.bucket_suffix
-  container_image                = var.staging_container_image
-  schema_database_password       = var.staging_schema_database_password
-  runtime_database_password      = var.staging_runtime_database_password
-  database_node_type             = "DB-DEV-S"
-  database_is_ha                 = false
-  database_backup_retention_days = 7
-  database_volume_size_gb        = 10
-  web_min_scale                  = 0
-  alert_email                    = var.alert_email
+  environment                         = "staging"
+  project_id                          = scaleway_account_project.staging.id
+  management_application_id           = scaleway_iam_application.deployer.id
+  application_bucket_console_user_ids = var.application_bucket_console_user_ids
+  tem_project_id                      = var.tem_project_id
+  region                              = var.region
+  zone                                = var.zone
+  hostname                            = "staging.evorto.app"
+  bucket_suffix                       = var.bucket_suffix
+  container_image                     = var.staging_container_image
+  schema_database_password            = var.staging_schema_database_password
+  runtime_database_password           = var.staging_runtime_database_password
+  database_node_type                  = "DB-DEV-S"
+  database_is_ha                      = false
+  database_backup_retention_days      = 7
+  database_volume_size_gb             = 10
+  web_min_scale                       = 0
+  alert_email                         = var.alert_email
 }
 
 module "production" {
   count  = var.production_enabled ? 1 : 0
   source = "./modules/environment"
 
-  environment                    = "production"
-  project_id                     = scaleway_account_project.production[0].id
-  tem_project_id                 = var.tem_project_id
-  region                         = var.region
-  zone                           = var.zone
-  hostname                       = "alpha.evorto.app"
-  bucket_suffix                  = var.bucket_suffix
-  container_image                = coalesce(var.production_container_image, var.staging_container_image)
-  schema_database_password       = coalesce(var.production_schema_database_password, "production-disabled")
-  runtime_database_password      = coalesce(var.production_runtime_database_password, "production-disabled")
-  database_node_type             = "DB-POP2-2C-8G"
-  database_is_ha                 = true
-  database_backup_retention_days = 30
-  database_volume_size_gb        = 50
-  web_min_scale                  = 1
-  alert_email                    = var.alert_email
+  environment                         = "production"
+  project_id                          = scaleway_account_project.production[0].id
+  management_application_id           = scaleway_iam_application.deployer.id
+  application_bucket_console_user_ids = var.application_bucket_console_user_ids
+  tem_project_id                      = var.tem_project_id
+  region                              = var.region
+  zone                                = var.zone
+  hostname                            = "alpha.evorto.app"
+  bucket_suffix                       = var.bucket_suffix
+  container_image                     = coalesce(var.production_container_image, var.staging_container_image)
+  schema_database_password            = coalesce(var.production_schema_database_password, "production-disabled")
+  runtime_database_password           = coalesce(var.production_runtime_database_password, "production-disabled")
+  database_node_type                  = "DB-POP2-2C-8G"
+  database_is_ha                      = true
+  database_backup_retention_days      = 30
+  database_volume_size_gb             = 50
+  web_min_scale                       = 1
+  alert_email                         = var.alert_email
 }
 
 resource "scaleway_iam_application" "deployer" {
@@ -84,6 +88,7 @@ resource "scaleway_iam_policy" "deployer_staging" {
       "ContainerRegistryFullAccess",
       "ContainersFullAccess",
       "ContainersPrivateAccess",
+      "IPAMReadOnly",
       "ObjectStorageFullAccess",
       "ObservabilityFullAccess",
       "PrivateNetworksFullAccess",
@@ -107,6 +112,7 @@ resource "scaleway_iam_policy" "deployer_production" {
       "ContainerRegistryFullAccess",
       "ContainersFullAccess",
       "ContainersPrivateAccess",
+      "IPAMReadOnly",
       "ObjectStorageFullAccess",
       "ObservabilityFullAccess",
       "PrivateNetworksFullAccess",

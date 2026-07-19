@@ -133,9 +133,27 @@ resource "scaleway_object_bucket_policy" "application" {
   project_id = var.project_id
   region     = var.region
   bucket     = scaleway_object_bucket.application.name
+
+  depends_on = [
+    scaleway_object_bucket_acl.application,
+    scaleway_object_bucket_server_side_encryption_configuration.application,
+  ]
+
   policy = jsonencode({
     Version = "2023-04-17"
     Statement = [
+      {
+        Sid    = "DeploymentManagementAccess"
+        Effect = "Allow"
+        Principal = {
+          SCW = "application_id:${var.management_application_id}"
+        }
+        Action = "s3:*"
+        Resource = [
+          scaleway_object_bucket.application.name,
+          "${scaleway_object_bucket.application.name}/*",
+        ]
+      },
       {
         Sid    = "RoleObjectAccess"
         Effect = "Allow"
@@ -161,6 +179,50 @@ resource "scaleway_object_bucket_policy" "application" {
         }
         Action   = ["s3:GetBucketLocation", "s3:ListBucket"]
         Resource = [scaleway_object_bucket.application.name]
+      },
+      {
+        Sid    = "ConsoleBucketReadAccess"
+        Effect = "Allow"
+        Principal = {
+          SCW = [
+            for user_id in var.application_bucket_console_user_ids : "user_id:${user_id}"
+          ]
+        }
+        Action = [
+          "s3:GetBucketAcl",
+          "s3:GetBucketCORS",
+          "s3:GetBucketLocation",
+          "s3:GetBucketObjectLockConfiguration",
+          "s3:GetBucketTagging",
+          "s3:GetBucketVersioning",
+          "s3:GetBucketWebsite",
+          "s3:GetEncryptionConfiguration",
+          "s3:GetLifecycleConfiguration",
+          "s3:ListBucket",
+          "s3:ListBucketMultipartUploads",
+          "s3:ListBucketVersions",
+        ]
+        Resource = [scaleway_object_bucket.application.name]
+      },
+      {
+        Sid    = "ConsoleObjectReadAccess"
+        Effect = "Allow"
+        Principal = {
+          SCW = [
+            for user_id in var.application_bucket_console_user_ids : "user_id:${user_id}"
+          ]
+        }
+        Action = [
+          "s3:GetObject",
+          "s3:GetObjectAcl",
+          "s3:GetObjectLegalHold",
+          "s3:GetObjectRetention",
+          "s3:GetObjectTagging",
+          "s3:GetObjectVersion",
+          "s3:GetObjectVersionTagging",
+          "s3:ListMultipartUploadParts",
+        ]
+        Resource = ["${scaleway_object_bucket.application.name}/*"]
       },
     ]
   })

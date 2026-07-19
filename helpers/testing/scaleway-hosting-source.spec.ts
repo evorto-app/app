@@ -48,9 +48,7 @@ describe('Scaleway hosting source', () => {
       /variable "production_enabled" \{[\s\S]*?default\s+= false/u,
     );
     expect(main).toContain('count = var.production_enabled ? 1 : 0');
-    expect(main).toContain(
-      'hostname                       = "alpha.evorto.app"',
-    );
+    expect(main).toMatch(/hostname\s+= "alpha\.evorto\.app"/u);
     expect(staging).toContain('TF_VAR_production_enabled: "false"');
     expect(production).toContain("if: vars.PRODUCTION_ENABLED == 'true'");
     expect(production).toContain('CONFIRMATION: ${{ inputs.confirmation }}');
@@ -74,11 +72,12 @@ describe('Scaleway hosting source', () => {
     expect(database).toContain('user_name           = "schema_owner"');
     expect(database).toContain('name                = "application_runtime"');
     expect(database).toContain('is_admin            = false');
-    expect(main).toContain('database_node_type             = "DB-DEV-S"');
-    expect(main).toContain('database_backup_retention_days = 7');
-    expect(main).toContain('database_node_type             = "DB-POP2-2C-8G"');
-    expect(main).toContain('database_is_ha                 = true');
-    expect(main).toContain('database_backup_retention_days = 30');
+    expect(main).toMatch(/database_node_type\s+= "DB-DEV-S"/u);
+    expect(main).toMatch(/database_backup_retention_days\s+= 7/u);
+    expect(main).toMatch(/database_node_type\s+= "DB-POP2-2C-8G"/u);
+    expect(main).toMatch(/database_is_ha\s+= true/u);
+    expect(main).toMatch(/database_backup_retention_days\s+= 30/u);
+    expect(main).toContain('"IPAMReadOnly"');
   });
 
   it('keeps web, worker, and ops isolated in one bounded container shape', () => {
@@ -100,16 +99,23 @@ describe('Scaleway hosting source', () => {
     const ops = between(
       containers,
       'resource "scaleway_container" "ops"',
-      'resource "scaleway_container_domain" "web"',
+      'locals {\n  worker_triggers',
     );
 
     expect(roles).toContain("['web', 'worker', 'ops']");
     expect(containers).toContain('APP_BOOTSTRAP                    = "true"');
     expect(containers.match(/cpu_limit\s+= 560/gu)).toHaveLength(3);
+    expect(containers).toContain('container_memory_limit_bytes = 1073000000');
     expect(
-      containers.match(/memory_limit_bytes\s+= 1073741824/gu),
+      containers.match(
+        /memory_limit_bytes\s+= local\.container_memory_limit_bytes/gu,
+      ),
     ).toHaveLength(3);
     expect(containers.match(/private_network_id\s+=/gu)).toHaveLength(3);
+    expect(containers).not.toMatch(/^\s+PORT\s+=/gmu);
+    expect(
+      containers.match(/startup_probe \{[\s\S]*?interval\s+= "5s"/gu),
+    ).toHaveLength(3);
     expect(web).toContain('privacy                = "public"');
     expect(web).toContain('max_scale              = 3');
     expect(web.match(/path = "\/readyz"/gu)).toHaveLength(2);
@@ -166,6 +172,7 @@ describe('Scaleway hosting source', () => {
   });
 
   it('keeps application, deployment, and Terraform state storage private and durable', () => {
+    const main = source('infrastructure/scaleway/main.tf');
     const storage = source(
       'infrastructure/scaleway/modules/environment/storage.tf',
     );
@@ -179,10 +186,82 @@ describe('Scaleway hosting source', () => {
     expect(storage).toContain('abort_incomplete_multipart_upload_days = 1');
     expect(storage).toContain('prefix  = "source-maps/"');
     expect(storage).toContain('days = 90');
+    expect(storage).toContain(
+      'SCW = "application_id:${var.management_application_id}"',
+    );
+    expect(storage).toContain('Action = "s3:*"');
+    expect(storage).toContain('Sid    = "ConsoleBucketReadAccess"');
+    expect(storage).toContain('Sid    = "ConsoleObjectReadAccess"');
+    expect(storage).toContain('"user_id:${user_id}"');
+    expect(storage).toContain('"s3:ListBucket"');
+    expect(storage).toContain('"s3:GetObject"');
+    expect(storage).not.toMatch(
+      /Console(?:Bucket|Object)ReadAccess[\s\S]*?"s3:(?:Put|Delete)/u,
+    );
+    expect(storage).toContain('scaleway_object_bucket_acl.application,');
+    expect(
+      main.match(
+        /management_application_id\s+= scaleway_iam_application\.deployer\.id/gu,
+      ),
+    ).toHaveLength(2);
+    for (const workflow of [
+      source('.github/workflows/scaleway-staging.yml'),
+      source('.github/workflows/scaleway-production.yml'),
+    ]) {
+      expect(workflow).toContain(
+        'TF_VAR_application_bucket_console_user_ids: ${{ vars.APPLICATION_BUCKET_CONSOLE_USER_IDS }}',
+      );
+    }
     expect(bootstrap).toContain('prevent_destroy = true');
     expect(bootstrap).toContain('acl        = "private"');
     expect(bootstrap).toContain('sse_algorithm = "AES256"');
     expect(versions).toContain('use_lockfile                = true');
+  });
+
+  it('reconciles unproxied Scaleway application and email records through Cloudflare', () => {
+    const dns = source('infrastructure/scaleway/dns.tf');
+    const outputs = source('infrastructure/scaleway/outputs.tf');
+    const staging = source('.github/workflows/scaleway-staging.yml');
+    const production = source('.github/workflows/scaleway-production.yml');
+    const transactionalEmail = source(
+      'infrastructure/scaleway/transactional-email.tf',
+    );
+    const versions = source('infrastructure/scaleway/versions.tf');
+
+    expect(versions).toContain('source  = "cloudflare/cloudflare"');
+    expect(versions).toContain('version = "= 5.22.0"');
+    expect(dns).toContain('resource "cloudflare_dns_record" "staging"');
+    expect(dns).toContain('resource "cloudflare_dns_record" "production"');
+    expect(dns).toContain('resource "scaleway_container_domain" "staging_web"');
+    expect(dns).toContain(
+      'resource "scaleway_container_domain" "production_web"',
+    );
+    expect(dns).toContain('depends_on = [cloudflare_dns_record.staging]');
+    expect(dns).toContain('depends_on = [cloudflare_dns_record.production]');
+    expect(dns).toContain(
+      'from = module.staging.scaleway_container_domain.web',
+    );
+    expect(dns).toContain(
+      'resource "cloudflare_dns_record" "transactional_email"',
+    );
+    expect(dns.match(/proxied\s+= false/gu)).toHaveLength(3);
+    expect(dns).toContain('scaleway_tem_domain.notifications.spf_value');
+    expect(dns).not.toContain('scaleway_tem_domain.notifications.spf_config');
+    expect(dns).toContain('content  = trimsuffix(local.tem_mx_parts[1], ".")');
+    expect(dns).toContain('priority = tonumber(local.tem_mx_parts[0])');
+    expect(outputs).toContain('output "managed_dns_records"');
+    expect(outputs).toContain('scaleway_tem_domain.notifications.spf_value');
+    expect(transactionalEmail).toContain(
+      'depends_on = [cloudflare_dns_record.transactional_email]',
+    );
+    for (const workflow of [staging, production]) {
+      expect(workflow).toContain(
+        'TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}',
+      );
+      expect(workflow).toContain(
+        'CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}',
+      );
+    }
   });
 
   it('declares role-scoped secret names without putting values in Terraform state', () => {
@@ -217,16 +296,16 @@ describe('Scaleway hosting source', () => {
     expect(containers).not.toMatch(/^\s+SCW_[A-Z0-9_]+\s+=/gmu);
   });
 
-  it('enables Cockpit sources, all provider alerts, and release-aware logs', () => {
+  it('uses native container telemetry, custom traces, all provider alerts, and release-aware logs', () => {
     const observability = source(
       'infrastructure/scaleway/modules/environment/observability.tf',
     );
     const logger = source('src/server/effect/server-logger.layer.ts');
     const main = source('infrastructure/scaleway/main.tf');
 
-    for (const type of ['traces', 'logs', 'metrics']) {
-      expect(observability).toContain(`type           = "${type}"`);
-    }
+    expect(observability).toContain('type           = "traces"');
+    expect(observability).not.toContain('type           = "logs"');
+    expect(observability).not.toContain('type           = "metrics"');
     expect(observability).toContain(
       'preconfigured_alert_ids = toset(data.scaleway_cockpit_preconfigured_alert.available.alerts[*].preconfigured_rule_id)',
     );
