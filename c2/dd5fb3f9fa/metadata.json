@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "c2dd5fb3f9fa",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/enforce-pr-quality-gates.md",
+    ".github/workflows/pr-quality.yml",
+    "helpers/testing/ci-quality-source.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c2/dd5fb3f9fa/0/metadata.json",
+      "transcript": "/c2/dd5fb3f9fa/0/full.jsonl",
+      "content_hash": "/c2/dd5fb3f9fa/0/content_hash.txt",
+      "prompt": "/c2/dd5fb3f9fa/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 336320,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 13527808,
+    "output_tokens": 16657,
+    "api_call_count": 90
+  }
+}

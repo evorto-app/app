@@ -1,0 +1,9 @@
+Please do some reasearch about how to handle this issue with auth0 during testing, we can not seem to set port wildcards and also not plan every possible por
+
+---
+
+I think i will rather prepare a bunch of local ports that can be reused by worktrees, just use the default ones for this test
+
+---
+
+I would also like to continue with our plan to deploy to scaleway, what is next
