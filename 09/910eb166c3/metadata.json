@@ -25,7 +25,8 @@
     "src/server/effect/rpc/handlers/finance/finance-receipt-concurrency.postgres.spec.ts",
     "src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts",
     "src/server/effect/rpc/handlers/finance/receipt-media.service.spec.ts",
-    "src/server/effect/rpc/handlers/finance/receipt-media.service.ts"
+    "src/server/effect/rpc/handlers/finance/receipt-media.service.ts",
+    "tests/specs/admin/user-role-assignment.spec.ts"
   ],
   "sessions": [
     {
@@ -36,10 +37,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 36372,
+    "input_tokens": 228115,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 2276864,
-    "output_tokens": 2019,
-    "api_call_count": 14
+    "cache_read_tokens": 12591872,
+    "output_tokens": 11426,
+    "api_call_count": 86
   }
 }

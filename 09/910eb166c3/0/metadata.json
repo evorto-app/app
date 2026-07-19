@@ -3,7 +3,7 @@
   "checkpoint_id": "09910eb166c3",
   "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
   "strategy": "manual-commit",
-  "created_at": "2026-07-19T15:20:03.635418Z",
+  "created_at": "2026-07-19T15:41:14.533688Z",
   "branch": "codex/production-readiness-compliance",
   "checkpoints_count": 0,
   "files_touched": [
@@ -27,29 +27,30 @@
     "src/server/effect/rpc/handlers/finance/finance-receipt-concurrency.postgres.spec.ts",
     "src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts",
     "src/server/effect/rpc/handlers/finance/receipt-media.service.spec.ts",
-    "src/server/effect/rpc/handlers/finance/receipt-media.service.ts"
+    "src/server/effect/rpc/handlers/finance/receipt-media.service.ts",
+    "tests/specs/admin/user-role-assignment.spec.ts"
   ],
   "agent": "Codex",
   "model": "gpt-5.6-sol",
   "turn_id": "35b921a4c7ae",
-  "checkpoint_transcript_start": 126382,
-  "transcript_lines_at_start": 126382,
+  "checkpoint_transcript_start": 126438,
+  "transcript_lines_at_start": 126438,
   "token_usage": {
-    "input_tokens": 36372,
+    "input_tokens": 228115,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 2276864,
-    "output_tokens": 2019,
-    "api_call_count": 14
+    "cache_read_tokens": 12591872,
+    "output_tokens": 11426,
+    "api_call_count": 86
   },
   "initial_attribution": {
-    "calculated_at": "2026-07-19T15:19:58.780829Z",
-    "agent_lines": 4,
-    "agent_removed": 1,
+    "calculated_at": "2026-07-19T15:41:09.56286Z",
+    "agent_lines": 12,
+    "agent_removed": 6,
     "human_added": 0,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 4,
-    "total_lines_changed": 5,
+    "total_committed": 12,
+    "total_lines_changed": 18,
     "agent_percentage": 100,
     "metric_version": 2
   }
