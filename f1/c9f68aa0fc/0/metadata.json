@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "f1c9f68aa0fc",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-19T16:58:06.612486Z",
+  "branch": "codex/stabilize-event-review-e2e",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/docs/events/event-approval.doc.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "ba1d62d3240e",
+  "checkpoint_transcript_start": 127647,
+  "transcript_lines_at_start": 127647,
+  "token_usage": {
+    "input_tokens": 576320,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 22048000,
+    "output_tokens": 30604,
+    "api_call_count": 148
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-19T16:58:01.704436Z",
+    "agent_lines": 11,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 11,
+    "total_lines_changed": 11,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
