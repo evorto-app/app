@@ -26,6 +26,7 @@
     "src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts",
     "src/server/effect/rpc/handlers/finance/receipt-media.service.spec.ts",
     "src/server/effect/rpc/handlers/finance/receipt-media.service.ts",
+    "src/server/effect/rpc/handlers/platform/platform-tenant-finance.handlers.spec.ts",
     "tests/specs/admin/user-role-assignment.spec.ts"
   ],
   "sessions": [
@@ -33,14 +34,14 @@
       "metadata": "/09/910eb166c3/0/metadata.json",
       "transcript": "/09/910eb166c3/0/full.jsonl",
       "content_hash": "/09/910eb166c3/0/content_hash.txt",
-      "prompt": ""
+      "prompt": "/09/910eb166c3/0/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 228115,
+    "input_tokens": 109844,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 12591872,
-    "output_tokens": 11426,
-    "api_call_count": 86
+    "cache_read_tokens": 4452864,
+    "output_tokens": 15720,
+    "api_call_count": 30
   }
 }
