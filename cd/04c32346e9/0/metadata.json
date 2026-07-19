@@ -1,0 +1,97 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "cd04c32346e9",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-19T14:01:38.409764Z",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/scaleway-production.yml",
+    ".github/workflows/scaleway-staging.yml",
+    "APPLICATION_COMPLIANCE_AUDIT.md",
+    "helpers/testing/docker-lifecycle.spec.ts",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "infrastructure/scaleway/.terraform.lock.hcl",
+    "infrastructure/scaleway/README.md",
+    "infrastructure/scaleway/dns.tf",
+    "infrastructure/scaleway/main.tf",
+    "infrastructure/scaleway/modules/environment/containers.tf",
+    "infrastructure/scaleway/modules/environment/observability.tf",
+    "infrastructure/scaleway/modules/environment/outputs.tf",
+    "infrastructure/scaleway/modules/environment/storage.tf",
+    "infrastructure/scaleway/modules/environment/variables.tf",
+    "infrastructure/scaleway/outputs.tf",
+    "infrastructure/scaleway/terraform.tfvars.example",
+    "infrastructure/scaleway/transactional-email.tf",
+    "infrastructure/scaleway/variables.tf",
+    "infrastructure/scaleway/versions.tf"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "e3a0b7e0bacf",
+  "checkpoint_transcript_start": 121070,
+  "transcript_lines_at_start": 121070,
+  "token_usage": {
+    "input_tokens": 2142616,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 116012032,
+    "output_tokens": 260491,
+    "api_call_count": 801
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-19T14:01:33.765483Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 109,
+    "total_committed": 0,
+    "total_lines_changed": 109,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 442,
+      "user_lines_removed": 109,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".github/workflows/scaleway-production.yml": 7,
+        ".github/workflows/scaleway-staging.yml": 7,
+        "APPLICATION_COMPLIANCE_AUDIT.md": 4,
+        "helpers/testing/docker-lifecycle.spec.ts": 1,
+        "helpers/testing/scaleway-hosting-source.spec.ts": 93,
+        "infrastructure/scaleway/.terraform.lock.hcl": 17,
+        "infrastructure/scaleway/README.md": 66,
+        "infrastructure/scaleway/dns.tf": 92,
+        "infrastructure/scaleway/main.tf": 38,
+        "infrastructure/scaleway/modules/environment/containers.tf": 8,
+        "infrastructure/scaleway/modules/environment/storage.tf": 62,
+        "infrastructure/scaleway/modules/environment/variables.tf": 10,
+        "infrastructure/scaleway/outputs.tf": 3,
+        "infrastructure/scaleway/terraform.tfvars.example": 2,
+        "infrastructure/scaleway/transactional-email.tf": 2,
+        "infrastructure/scaleway/variables.tf": 23,
+        "infrastructure/scaleway/versions.tf": 7
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 1,
+        "helpers/testing/docker-lifecycle.spec.ts": 1,
+        "helpers/testing/scaleway-hosting-source.spec.ts": 14,
+        "infrastructure/scaleway/README.md": 17,
+        "infrastructure/scaleway/main.tf": 32,
+        "infrastructure/scaleway/modules/environment/containers.tf": 13,
+        "infrastructure/scaleway/modules/environment/observability.tf": 16,
+        "infrastructure/scaleway/modules/environment/outputs.tf": 2,
+        "infrastructure/scaleway/modules/environment/variables.tf": 10,
+        "infrastructure/scaleway/outputs.tf": 3
+      }
+    }
+  ]
+}

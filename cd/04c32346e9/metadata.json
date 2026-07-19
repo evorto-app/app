@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "cd04c32346e9",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/scaleway-production.yml",
+    ".github/workflows/scaleway-staging.yml",
+    "APPLICATION_COMPLIANCE_AUDIT.md",
+    "helpers/testing/docker-lifecycle.spec.ts",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "infrastructure/scaleway/.terraform.lock.hcl",
+    "infrastructure/scaleway/README.md",
+    "infrastructure/scaleway/dns.tf",
+    "infrastructure/scaleway/main.tf",
+    "infrastructure/scaleway/modules/environment/containers.tf",
+    "infrastructure/scaleway/modules/environment/observability.tf",
+    "infrastructure/scaleway/modules/environment/outputs.tf",
+    "infrastructure/scaleway/modules/environment/storage.tf",
+    "infrastructure/scaleway/modules/environment/variables.tf",
+    "infrastructure/scaleway/outputs.tf",
+    "infrastructure/scaleway/terraform.tfvars.example",
+    "infrastructure/scaleway/transactional-email.tf",
+    "infrastructure/scaleway/variables.tf",
+    "infrastructure/scaleway/versions.tf"
+  ],
+  "sessions": [
+    {
+      "metadata": "/cd/04c32346e9/0/metadata.json",
+      "transcript": "/cd/04c32346e9/0/full.jsonl",
+      "content_hash": "/cd/04c32346e9/0/content_hash.txt",
+      "prompt": "/cd/04c32346e9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2142616,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 116012032,
+    "output_tokens": 260491,
+    "api_call_count": 801
+  }
+}

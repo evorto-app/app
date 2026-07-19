@@ -1,0 +1,80 @@
+I would also like to continue with our plan to deploy to scaleway, what is next
+
+---
+
+Yes, use my mail.
+I can also add the scaleway info to the cli or terraform directly
+
+---
+
+I added the scaleway config to the .env
+And I ran the suggested cli init command
+
+---
+
+Why do we have two databases?
+
+---
+
+Alright, I have added the passwords
+
+---
+
+Should I use a custom domain or use scaleway for now?
+
+---
+
+I added the plan, the domain is not configured
+
+---
+
+Can we add the dns management via cloudflare to our terraform as well?
+
+---
+
+# Files mentioned by the user:
+
+## evorto.app (1).txt: /Users/hedde/Downloads/evorto.app (1).txt
+
+## My request for Codex:
+I added the cloudflare values. Please make sure to keep the relevant settings  of what was there before
+
+---
+
+We can remove the old alpha records, that is fine
+
+---
+
+Explain again why we have three containers now?
+
+---
+
+Would we not do things like schema apply in github actions during deployment?
+
+---
+
+How is the process working now
+
+---
+
+How does that work when we want to roll out a schema change and especially while we roll out incompatible schema changes during development?
+
+---
+
+when I try to open the application bucket in the scaleway console, I get an error message, I assume that is related to the policy, can we make that available in the console?
+
+---
+
+It seems like nothing works at the moment, I don't get any response on the domain or info in grafana, what are our next steps?
+
+---
+
+Help me take all needed steps
+
+---
+
+Once everything we have to prepare before merge is done, tell me to work on the merge
+
+---
+
+We have to also make sure we are ready for the post merge deployment
