@@ -398,6 +398,12 @@ The **Open Event** link is available for context, but this account has no **Orga
   await clickHydratedAction(
     returnToDraftDialog.getByRole('button', { name: 'Return to Draft' }),
   );
+  await expect(
+    reviewerPage.page.getByText(
+      `Event "${eventTitle}" was returned to draft with review feedback`,
+      { exact: true },
+    ),
+  ).toBeVisible();
   await expect(reviewQueueItem).toHaveCount(0);
   const returnedEvent = await readGeneratedEvent();
   expect(returnedEvent.status).toBe('DRAFT');
@@ -459,6 +465,11 @@ This gives creators clear guidance before they re-submit.
   await clickHydratedAction(
     reviewQueueItem.getByRole('button', { name: 'Approve' }),
   );
+  await expect(
+    reviewerPage.page.getByText(`Event "${eventTitle}" has been approved`, {
+      exact: true,
+    }),
+  ).toBeVisible();
   await expect(reviewQueueItem).toHaveCount(0);
 
   await page.reload();
