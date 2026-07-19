@@ -10,6 +10,7 @@
     ".github/workflows/scaleway-staging.yml",
     "helpers/add-finance-receipt-upload.ts",
     "helpers/add-finance-receipts.ts",
+    "helpers/testing/provider-release-scope.spec.ts",
     "helpers/testing/scaleway-hosting-source.spec.ts",
     "infrastructure/scaleway/README.md",
     "infrastructure/scaleway/STAGING_ACCEPTANCE.md",
@@ -31,14 +32,14 @@
       "metadata": "/09/910eb166c3/0/metadata.json",
       "transcript": "/09/910eb166c3/0/full.jsonl",
       "content_hash": "/09/910eb166c3/0/content_hash.txt",
-      "prompt": "/09/910eb166c3/0/prompt.txt"
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 59077390,
+    "input_tokens": 36372,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 4357080576,
-    "output_tokens": 5564186,
-    "api_call_count": 27498
+    "cache_read_tokens": 2276864,
+    "output_tokens": 2019,
+    "api_call_count": 14
   }
 }
