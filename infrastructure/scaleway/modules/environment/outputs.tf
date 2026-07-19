@@ -14,7 +14,7 @@ output "database" {
   value = {
     certificate   = scaleway_rdb_instance.application.certificate
     database_name = scaleway_rdb_database.application.name
-    host          = scaleway_rdb_instance.application.private_network[0].hostname
+    host          = scaleway_rdb_instance.application.private_network[0].ip
     port          = scaleway_rdb_instance.application.private_network[0].port
     runtime_user  = scaleway_rdb_user.runtime.name
     schema_user   = scaleway_rdb_instance.application.user_name
