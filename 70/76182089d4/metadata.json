@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7076182089d4",
+  "strategy": "manual-commit",
+  "branch": "codex/fix-scaleway-private-database-output",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/fix-scaleway-private-database-output.md",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "infrastructure/scaleway/modules/environment/outputs.tf"
+  ],
+  "sessions": [
+    {
+      "metadata": "/70/76182089d4/0/metadata.json",
+      "transcript": "/70/76182089d4/0/full.jsonl",
+      "content_hash": "/70/76182089d4/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 441824,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 25133824,
+    "output_tokens": 34641,
+    "api_call_count": 254
+  }
+}
