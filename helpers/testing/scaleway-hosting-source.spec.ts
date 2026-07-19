@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -129,6 +129,61 @@ describe('Scaleway hosting source', () => {
     expect(main).toMatch(/database_is_ha\s+= true/u);
     expect(main).toMatch(/database_backup_retention_days\s+= 30/u);
     expect(main).toContain('"IPAMReadOnly"');
+  });
+
+  it('verifies managed Drizzle schema connections against the database CA', async () => {
+    const environmentKeys = [
+      'DATABASE_TLS_CA_CERTIFICATE',
+      'DATABASE_TLS_REQUIRED',
+      'DATABASE_URL',
+    ] as const;
+    const originalEnvironment = Object.fromEntries(
+      environmentKeys.map((key) => [key, process.env[key]]),
+    );
+    const caCertificate = [
+      '-----BEGIN CERTIFICATE-----',
+      'managed-database-ca',
+      '-----END CERTIFICATE-----',
+    ].join('\n');
+
+    try {
+      process.env['DATABASE_TLS_CA_CERTIFICATE'] = caCertificate;
+      process.env['DATABASE_TLS_REQUIRED'] = 'true';
+      process.env['DATABASE_URL'] =
+        'postgresql://schema_owner:p%40ss%2Fword@10.0.0.8:6432/evorto%20staging';
+      const configUrl = pathToFileURL(
+        path.join(repositoryRoot, 'ops/drizzle.config.mjs'),
+      );
+      configUrl.searchParams.set('test', 'managed-database-tls');
+      const importedConfig: unknown = await import(
+        /* @vite-ignore */ configUrl.href
+      );
+
+      expect(importedConfig).toMatchObject({
+        default: {
+          dbCredentials: {
+            database: 'evorto staging',
+            host: '10.0.0.8',
+            password: 'p@ss/word',
+            port: 6432,
+            ssl: {
+              ca: caCertificate,
+              rejectUnauthorized: true,
+            },
+            user: 'schema_owner',
+          },
+          dialect: 'postgresql',
+        },
+      });
+    } finally {
+      for (const [key, value] of Object.entries(originalEnvironment)) {
+        if (value === undefined) {
+          Reflect.deleteProperty(process.env, key);
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
   });
 
   it('keeps web, worker, and ops isolated in one bounded container shape', () => {
