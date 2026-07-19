@@ -679,14 +679,23 @@ The event now has its own copy of the registration setup. Editing the template c
 `,
   });
   await page.goto(`/templates/${createdTemplate.id}/edit`);
+  const editTemplateForm = page.locator('app-template-edit form');
+  // SSR exposes the controlled fields before Angular attaches the live submit
+  // listener. Wait for event replay to hand the form to the hydrated app so a
+  // subsequent model initialization cannot restore the server-rendered values.
+  await expect(editTemplateForm).not.toHaveAttribute('jsaction', /submit/, {
+    timeout: 20_000,
+  });
   const participantOptionEditor = await templateOptionEditorByTitle(
     page,
     'Participant registration',
   );
   const updatedParticipantTitle = 'Participant registration updated';
-  await participantOptionEditor
-    .getByLabel('Registration option name')
-    .fill(updatedParticipantTitle);
+  const participantTitleInput = participantOptionEditor.getByLabel(
+    'Registration option name',
+  );
+  await participantTitleInput.fill(updatedParticipantTitle);
+  await expect(participantTitleInput).toHaveValue(updatedParticipantTitle);
   await page
     .locator('app-template-addon-editor')
     .filter({ hasText: addOnTitle })
