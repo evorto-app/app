@@ -115,7 +115,7 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@angular/build": "^22.0.4",
+    "@angular/build": "^22.0.7",
     "@angular/cli": "^22.0.4",
     "@angular/compiler-cli": "^22.0.4",
     "@axe-core/playwright": "^4.12.1",
