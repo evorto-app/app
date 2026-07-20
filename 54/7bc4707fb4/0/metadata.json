@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "547bc4707fb4",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T03:39:49.565639Z",
+  "branch": "codex/verify-private-database-tls",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/verify-private-database-endpoint.md",
+    ".changeset/verify-scaleway-database-server-identity.md",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "infrastructure/scaleway/README.md",
+    "infrastructure/scaleway/modules/environment/containers.tf",
+    "ops/drizzle.config.mjs",
+    "src/db/database-config.spec.ts",
+    "src/db/database-config.ts",
+    "src/db/pg-connection-config.spec.ts",
+    "src/server/ops/database-prerequisites.ts",
+    "src/server/ops/reset-staging-database.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "7f0782a6372b",
+  "checkpoint_transcript_start": 141696,
+  "transcript_lines_at_start": 141696,
+  "token_usage": {
+    "input_tokens": 389774,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 33905920,
+    "output_tokens": 33801,
+    "api_call_count": 224
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T03:39:44.442245Z",
+    "agent_lines": 79,
+    "agent_removed": 71,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 79,
+    "total_lines_changed": 150,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

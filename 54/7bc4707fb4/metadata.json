@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "547bc4707fb4",
+  "strategy": "manual-commit",
+  "branch": "codex/verify-private-database-tls",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/verify-private-database-endpoint.md",
+    ".changeset/verify-scaleway-database-server-identity.md",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "infrastructure/scaleway/README.md",
+    "infrastructure/scaleway/modules/environment/containers.tf",
+    "ops/drizzle.config.mjs",
+    "src/db/database-config.spec.ts",
+    "src/db/database-config.ts",
+    "src/db/pg-connection-config.spec.ts",
+    "src/server/ops/database-prerequisites.ts",
+    "src/server/ops/reset-staging-database.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/54/7bc4707fb4/0/metadata.json",
+      "transcript": "/54/7bc4707fb4/0/full.jsonl",
+      "content_hash": "/54/7bc4707fb4/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 389774,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 33905920,
+    "output_tokens": 33801,
+    "api_call_count": 224
+  }
+}
