@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ffef089f963b",
+  "strategy": "manual-commit",
+  "branch": "codex/diagnose-ops-schema-failures",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/diagnose-silent-drizzle-failures.md",
+    "src/server/ops/schema-operations.spec.ts",
+    "src/server/ops/schema-operations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ff/ef089f963b/0/metadata.json",
+      "transcript": "/ff/ef089f963b/0/full.jsonl",
+      "content_hash": "/ff/ef089f963b/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 789095,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 57626368,
+    "output_tokens": 81583,
+    "api_call_count": 479
+  }
+}

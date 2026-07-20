@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ffef089f963b",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T01:45:31.064263Z",
+  "branch": "codex/diagnose-ops-schema-failures",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/diagnose-silent-drizzle-failures.md",
+    "src/server/ops/schema-operations.spec.ts",
+    "src/server/ops/schema-operations.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "7f0782a6372b",
+  "checkpoint_transcript_start": 137505,
+  "transcript_lines_at_start": 137505,
+  "token_usage": {
+    "input_tokens": 789095,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 57626368,
+    "output_tokens": 81583,
+    "api_call_count": 479
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T01:45:25.98462Z",
+    "agent_lines": 151,
+    "agent_removed": 3,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 151,
+    "total_lines_changed": 154,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
