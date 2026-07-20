@@ -64,6 +64,58 @@ describe('ops schema operations', () => {
     }),
   );
 
+  it.effect(
+    'uses a non-mutating text diagnostic when Drizzle JSON failures are silent',
+    () =>
+      Effect.gen(function* () {
+        const commands: string[][] = [];
+        const runner: OpsCommandRunner = {
+          run: (command) => {
+            commands.push([...command]);
+            return Effect.succeed(
+              commands.length === 1
+                ? { exitCode: 1, stderr: '', stdout: '' }
+                : {
+                    exitCode: 1,
+                    stderr: '',
+                    stdout:
+                      'connect EHOSTUNREACH 10.0.0.8:6432 sensitive-marker',
+                  },
+            );
+          },
+        };
+
+        const error = yield* explainSchema(runner).pipe(Effect.flip);
+
+        expect(error.message).toBe(
+          'Drizzle failed (database-unreachable; exit 1)',
+        );
+        expect(error.message).not.toContain('sensitive-marker');
+        expect(commands).toEqual([
+          [
+            'bun',
+            'ops/drizzle-kit.cjs',
+            'push',
+            '--config',
+            'ops/drizzle.config.mjs',
+            '--explain',
+            '--output',
+            'json',
+          ],
+          [
+            'bun',
+            'ops/drizzle-kit.cjs',
+            'push',
+            '--config',
+            'ops/drizzle.config.mjs',
+            '--explain',
+            '--output',
+            'text',
+          ],
+        ]);
+      }),
+  );
+
   it('accepts expand-only plans', () => {
     const analysis = analyzeSchemaPlan({
       dialect: 'postgresql',
@@ -181,6 +233,55 @@ describe('ops schema operations', () => {
           'dist/evorto/ops/database-prerequisites.mjs',
         ]);
       }),
+  );
+
+  it.effect('never reapplies a failed schema command while diagnosing it', () =>
+    Effect.gen(function* () {
+      const plan = {
+        dialect: 'postgresql',
+        hints: [],
+        statements: [],
+        status: 'ok',
+      };
+      const commands: string[][] = [];
+      const runner: OpsCommandRunner = {
+        run: (command) => {
+          commands.push([...command]);
+          if (commands.length === 1) return Effect.succeed(result(plan));
+          if (commands.length === 2) {
+            return Effect.succeed({ exitCode: 0, stderr: '', stdout: '' });
+          }
+          if (commands.length === 3) {
+            return Effect.succeed({ exitCode: 1, stderr: '', stdout: '' });
+          }
+          return Effect.succeed({
+            exitCode: 1,
+            stderr: 'permission denied for schema public',
+            stdout: '',
+          });
+        },
+      };
+
+      const error = yield* applySchema(
+        analyzeSchemaPlan(plan).digest,
+        runner,
+      ).pipe(Effect.flip);
+
+      expect(error.message).toBe(
+        'Drizzle failed (database-permission-denied; exit 1)',
+      );
+      expect(commands[3]).toEqual([
+        'bun',
+        'ops/drizzle-kit.cjs',
+        'push',
+        '--config',
+        'ops/drizzle.config.mjs',
+        '--output',
+        'text',
+        '--explain',
+      ]);
+      expect(commands[3]).not.toContain('--force');
+    }),
   );
 
   it.effect(
