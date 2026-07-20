@@ -28,22 +28,24 @@ const isInternalServerRpcRequest = (outgoingUrl: string): boolean => {
 const tenantCookieName = 'evorto-tenant';
 
 const withTrustedTenantCookie = (
-  cookieHeader: string,
+  cookieHeader: null | string | undefined,
   trustedTenantDomain: string,
 ): string => {
   const cookies = cookieHeader
-    .split(';')
-    .map((cookie) => cookie.trim())
-    .filter((cookie) => {
-      if (!cookie) {
-        return false;
-      }
+    ? cookieHeader
+        .split(';')
+        .map((cookie) => cookie.trim())
+        .filter((cookie) => {
+          if (!cookie) {
+            return false;
+          }
 
-      const equalsIndex = cookie.indexOf('=');
-      const cookieName =
-        equalsIndex === -1 ? cookie : cookie.slice(0, equalsIndex).trim();
-      return cookieName !== tenantCookieName;
-    });
+          const equalsIndex = cookie.indexOf('=');
+          const cookieName =
+            equalsIndex === -1 ? cookie : cookie.slice(0, equalsIndex).trim();
+          return cookieName !== tenantCookieName;
+        })
+    : [];
 
   return [...cookies, `${tenantCookieName}=${trustedTenantDomain}`].join('; ');
 };
@@ -64,13 +66,9 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
       const cookieHeader = incomingRequest?.headers.get('cookie');
 
       // Auth0 sessions can span multiple encrypted, chunked cookies. Preserve
-      // those chunks only for this app's internal RPC URL, while replacing the
-      // tenant cookie with the trusted request-context tenant.
-      if (
-        incomingRequest &&
-        cookieHeader &&
-        isInternalServerRpcRequest(request.url)
-      ) {
+      // those chunks when present, and always attach the trusted request-context
+      // tenant to this app's exact internal RPC URL for anonymous SSR requests.
+      if (incomingRequest && isInternalServerRpcRequest(request.url)) {
         request = request.clone({
           setHeaders: {
             Cookie: withTrustedTenantCookie(
