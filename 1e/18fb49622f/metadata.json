@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "1e18fb49622f",
+  "strategy": "manual-commit",
+  "branch": "codex/fix-scaleway-smoke-contract",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/align-scaleway-smoke-contract.md",
+    ".github/workflows/scaleway-production.yml",
+    ".github/workflows/scaleway-staging.yml",
+    "helpers/testing/scaleway-hosting-source.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1e/18fb49622f/0/metadata.json",
+      "transcript": "/1e/18fb49622f/0/full.jsonl",
+      "content_hash": "/1e/18fb49622f/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 345479,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 32872448,
+    "output_tokens": 26248,
+    "api_call_count": 209
+  }
+}

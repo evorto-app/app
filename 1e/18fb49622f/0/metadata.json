@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "1e18fb49622f",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T23:15:23.584265Z",
+  "branch": "codex/fix-scaleway-smoke-contract",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/align-scaleway-smoke-contract.md",
+    ".github/workflows/scaleway-production.yml",
+    ".github/workflows/scaleway-staging.yml",
+    "helpers/testing/scaleway-hosting-source.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "614950288c3a",
+  "checkpoint_transcript_start": 150769,
+  "transcript_lines_at_start": 150769,
+  "token_usage": {
+    "input_tokens": 345479,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 32872448,
+    "output_tokens": 26248,
+    "api_call_count": 209
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T23:15:17.966558Z",
+    "agent_lines": 38,
+    "agent_removed": 8,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 38,
+    "total_lines_changed": 46,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
