@@ -135,7 +135,6 @@ describe('Scaleway hosting source', () => {
     const environmentKeys = [
       'DATABASE_TLS_CA_CERTIFICATE',
       'DATABASE_TLS_REQUIRED',
-      'DATABASE_TLS_SERVER_NAME',
       'DATABASE_URL',
     ] as const;
     const originalEnvironment = Object.fromEntries(
@@ -146,12 +145,9 @@ describe('Scaleway hosting source', () => {
       'managed-database-ca',
       '-----END CERTIFICATE-----',
     ].join('\n');
-    const tlsServerName = 'rw-database.rdb.fr-par.scw.cloud';
-
     try {
       process.env['DATABASE_TLS_CA_CERTIFICATE'] = caCertificate;
       process.env['DATABASE_TLS_REQUIRED'] = 'true';
-      process.env['DATABASE_TLS_SERVER_NAME'] = tlsServerName;
       process.env['DATABASE_URL'] =
         'postgresql://schema_owner:p%40ss%2Fword@10.0.0.8:6432/evorto%20staging';
       const configUrl = pathToFileURL(
@@ -172,7 +168,6 @@ describe('Scaleway hosting source', () => {
             ssl: {
               ca: caCertificate,
               rejectUnauthorized: true,
-              servername: tlsServerName,
             },
             user: 'schema_owner',
           },
@@ -192,9 +187,7 @@ describe('Scaleway hosting source', () => {
     const containers = source(
       'infrastructure/scaleway/modules/environment/containers.tf',
     );
-    expect(containers).toContain(
-      'DATABASE_TLS_SERVER_NAME         = "rw-${trimprefix(scaleway_rdb_instance.application.id, "${var.region}/")}.rdb.${var.region}.scw.cloud"',
-    );
+    expect(containers).not.toContain('DATABASE_TLS_SERVER_NAME');
   });
 
   it('keeps web, worker, and ops isolated in one bounded container shape', () => {

@@ -10,9 +10,9 @@ const tlsRequired = process.env['DATABASE_TLS_REQUIRED'] === 'true';
 const caCertificate = process.env['DATABASE_TLS_CA_CERTIFICATE'];
 const tlsServerName = process.env['DATABASE_TLS_SERVER_NAME'];
 const runtimeRole = process.env['DATABASE_RUNTIME_ROLE'];
-if (tlsRequired && (!caCertificate || !tlsServerName)) {
+if (tlsRequired && !caCertificate) {
   throw new Error(
-    'DATABASE_TLS_CA_CERTIFICATE and DATABASE_TLS_SERVER_NAME are required when DATABASE_TLS_REQUIRED=true',
+    'DATABASE_TLS_CA_CERTIFICATE is required when DATABASE_TLS_REQUIRED=true',
   );
 }
 if (!runtimeRole || !/^[a-z_][a-z0-9_]{0,62}$/u.test(runtimeRole)) {

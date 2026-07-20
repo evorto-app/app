@@ -51,7 +51,21 @@ describe('pg-connection-config', () => {
     expect(effectConfig.ssl).toBeUndefined();
   });
 
-  it('verifies managed database TLS against the configured CA', () => {
+  it('verifies managed database TLS against the connection host by default', () => {
+    const caCertificate =
+      '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
+
+    expect(createNodePgPoolConfig({ caCertificate, databaseUrl }).ssl).toEqual({
+      ca: caCertificate,
+      rejectUnauthorized: true,
+    });
+    expect(createPgClientConfig({ caCertificate, databaseUrl }).ssl).toEqual({
+      ca: caCertificate,
+      rejectUnauthorized: true,
+    });
+  });
+
+  it('supports an explicit TLS server-name override', () => {
     const caCertificate =
       '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
     const tlsServerName = 'rw-database.rdb.fr-par.scw.cloud';

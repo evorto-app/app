@@ -19,34 +19,34 @@ describe('database configuration', () => {
     }),
   );
 
-  it.each([
-    [
-      'CA certificate',
-      'DATABASE_TLS_CA_CERTIFICATE',
-      new Map([
-        ['DATABASE_TLS_REQUIRED', 'true'],
-        ['DATABASE_TLS_SERVER_NAME', 'rw-database.rdb.fr-par.scw.cloud'],
-        ['DATABASE_URL', 'postgresql://private/evorto'],
-      ]),
-    ],
-    [
-      'certificate server name',
-      'DATABASE_TLS_SERVER_NAME',
-      new Map([
-        ['DATABASE_TLS_CA_CERTIFICATE', 'managed-ca'],
-        ['DATABASE_TLS_REQUIRED', 'true'],
-        ['DATABASE_URL', 'postgresql://private/evorto'],
-      ]),
-    ],
-  ])('fails closed when verified TLS has no %s', async (_, missing, values) => {
-    const error = await Effect.runPromise(
-      parseConfig(values).pipe(Effect.flip),
-    );
+  it.effect('fails closed when verified TLS has no CA certificate', () =>
+    Effect.gen(function* () {
+      const error = yield* parseConfig(
+        new Map([
+          ['DATABASE_TLS_REQUIRED', 'true'],
+          ['DATABASE_URL', 'postgresql://private/evorto'],
+        ]),
+      ).pipe(Effect.flip);
 
-    expect(String(error)).toContain(missing);
-  });
+      expect(String(error)).toContain('DATABASE_TLS_CA_CERTIFICATE');
+    }),
+  );
 
-  it.effect('retains the configured CA as a redacted value', () =>
+  it.effect('uses the connection host when no TLS server name is set', () =>
+    Effect.gen(function* () {
+      const config = yield* parseConfig(
+        new Map([
+          ['DATABASE_TLS_CA_CERTIFICATE', 'managed-ca'],
+          ['DATABASE_TLS_REQUIRED', 'true'],
+          ['DATABASE_URL', 'postgresql://10.0.0.8/evorto'],
+        ]),
+      );
+
+      expect(Option.isNone(config.DATABASE_TLS_SERVER_NAME)).toBe(true);
+    }),
+  );
+
+  it.effect('retains the configured CA and optional server name', () =>
     Effect.gen(function* () {
       const certificate =
         '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';

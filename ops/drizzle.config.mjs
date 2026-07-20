@@ -8,9 +8,9 @@ const tlsRequired = process.env.DATABASE_TLS_REQUIRED === "true";
 const caCertificate = process.env.DATABASE_TLS_CA_CERTIFICATE;
 const tlsServerName = process.env.DATABASE_TLS_SERVER_NAME;
 
-if (tlsRequired && (!caCertificate || !tlsServerName)) {
+if (tlsRequired && !caCertificate) {
   throw new Error(
-    "DATABASE_TLS_CA_CERTIFICATE and DATABASE_TLS_SERVER_NAME are required for managed schema operations",
+    "DATABASE_TLS_CA_CERTIFICATE is required for managed schema operations",
   );
 }
 
@@ -40,7 +40,7 @@ const managedDatabaseCredentials = () => {
     ssl: {
       ca: caCertificate,
       rejectUnauthorized: true,
-      servername: tlsServerName,
+      ...(tlsServerName && { servername: tlsServerName }),
     },
     user,
   };
