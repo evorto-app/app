@@ -454,6 +454,25 @@ describe('Scaleway hosting source', () => {
     }
   });
 
+  it('smokes rendered event routes and the Effect RPC protocol contract', () => {
+    const stagingSmoke = between(
+      source('.github/workflows/scaleway-staging.yml'),
+      '- name: Verify staging revision, readiness, tenancy, Auth0, RPC, and noindex',
+      '- name: Write append-only successful deployment manifest',
+    );
+    const productionSmoke = between(
+      source('.github/workflows/scaleway-production.yml'),
+      '- name: Smoke the promoted production release',
+      '- name: Write append-only production deployment manifest',
+    );
+
+    expect(stagingSmoke).toContain('https://staging.evorto.app/events');
+    expect(stagingSmoke).toContain('rpc_body="$(curl');
+    expect(stagingSmoke).toContain('.[0]._tag == "Defect"');
+    expect(stagingSmoke).not.toContain('rpc_status=');
+    expect(productionSmoke).toContain('https://alpha.evorto.app/events');
+  });
+
   it('builds once, records immutable evidence, and promotes the exact OCI digest', () => {
     const staging = source('.github/workflows/scaleway-staging.yml');
     const production = source('.github/workflows/scaleway-production.yml');
