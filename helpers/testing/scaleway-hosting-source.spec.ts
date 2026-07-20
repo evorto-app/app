@@ -87,6 +87,12 @@ describe('Scaleway hosting source', () => {
     expect(database).toContain('user_name           = "schema_owner"');
     expect(database).toContain('name                = "application_runtime"');
     expect(database).toContain('is_admin            = false');
+    expect(database).toMatch(
+      /resource "scaleway_rdb_privilege" "schema" \{[\s\S]*?user_name\s+= scaleway_rdb_instance\.application\.user_name[\s\S]*?permission\s+= "all"/u,
+    );
+    expect(database).toMatch(
+      /resource "scaleway_rdb_privilege" "runtime" \{[\s\S]*?user_name\s+= scaleway_rdb_user\.runtime\.name[\s\S]*?permission\s+= "readwrite"/u,
+    );
     expect(database).toContain(
       'password_wo_version = var.schema_database_password_version',
     );

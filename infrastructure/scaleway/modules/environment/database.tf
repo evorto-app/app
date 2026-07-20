@@ -49,6 +49,14 @@ resource "scaleway_rdb_database" "application" {
   name        = "evorto"
 }
 
+resource "scaleway_rdb_privilege" "schema" {
+  instance_id   = scaleway_rdb_instance.application.id
+  region        = var.region
+  database_name = scaleway_rdb_database.application.name
+  user_name     = scaleway_rdb_instance.application.user_name
+  permission    = "all"
+}
+
 resource "scaleway_rdb_user" "runtime" {
   instance_id         = scaleway_rdb_instance.application.id
   region              = var.region
