@@ -24,6 +24,7 @@ locals {
     APP_ROLE              = "web"
     BASE_URL              = "https://${var.hostname}"
     READINESS_TENANT_HOST = var.hostname
+    SSR_RPC_ORIGIN        = "http://127.0.0.1:4200"
     TRUST_PLATFORM_PROXY  = "true"
     WORKER_TRIGGER_MODE   = "http"
   })

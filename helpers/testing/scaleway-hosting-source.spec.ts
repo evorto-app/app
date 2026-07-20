@@ -237,6 +237,9 @@ describe('Scaleway hosting source', () => {
     expect(web).toContain('max_scale              = 3');
     expect(web.match(/path = "\/readyz"/gu)).toHaveLength(1);
     expect(web.match(/path = "\/healthz"/gu)).toHaveLength(1);
+    expect(containers).toContain(
+      'SSR_RPC_ORIGIN        = "http://127.0.0.1:4200"',
+    );
     for (const privateRole of [worker, ops]) {
       expect(privateRole).toContain('privacy                = "private"');
       expect(privateRole).toContain('min_scale              = 0');
@@ -469,6 +472,9 @@ describe('Scaleway hosting source', () => {
       staging.indexOf('touch deployment/traffic-changed'),
     );
     expect(staging).toContain('Roll back traffic roles to the previous digest');
+    expect(staging).toContain(
+      'curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)',
+    );
 
     expect(production).not.toContain('docker build ');
     expect(production).not.toContain('docker buildx build ');
@@ -480,6 +486,9 @@ describe('Scaleway hosting source', () => {
     expect(production).toContain('sourceStagingManifestKey:');
     expect(production).toContain(
       'Roll back production traffic roles on failure',
+    );
+    expect(production).toContain(
+      'curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)',
     );
     expect(deployRole).toContain('APP_BOOTSTRAP: "false"');
     expect(deployRole).toContain(
@@ -505,6 +514,9 @@ describe('Scaleway hosting source', () => {
     );
     expect(reset).toContain('environment: scaleway-staging-reset');
     expect(reset).toContain('/internal/ops/seed-staging');
+    expect(reset).toContain(
+      'curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)',
+    );
     expect(runtimeVerifier).toContain('maximum_size_bytes=1000000000');
     expect(runtimeVerifier).toContain("'api\\.resend\\.com|cloudflare[_-]r2");
     expect(runtimeVerifier).toContain('|@sentry|@neondatabase|resend)');

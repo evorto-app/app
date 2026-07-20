@@ -465,20 +465,22 @@ jobs:
           DIGEST: ${{ steps.image.outputs.digest }}
           REVISION: ${{ needs.resolve-revision.outputs.revision }}
         run: |
-          health_body="$(curl --fail --silent --show-error https://staging.evorto.app/healthz)"
+          curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)
+
+          health_body="$(curl "${curl_args[@]}" --fail https://staging.evorto.app/healthz)"
           jq --exit-status '.status == "ok"' <<<"${health_body}" >/dev/null
 
-          ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/readyz)"
+          ready_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/readyz)"
           test "${ready_status}" = "204"
 
-          version_body="$(curl --fail --silent --show-error https://staging.evorto.app/version)"
+          version_body="$(curl "${curl_args[@]}" --fail https://staging.evorto.app/version)"
           jq --exit-status \
             --arg revision "${REVISION}" \
             --arg digest "${DIGEST}" \
             '.environment == "staging" and .revision == $revision and .imageDigest == $digest' \
             <<<"${version_body}" >/dev/null
 
-          curl --fail --silent --show-error \
+          curl "${curl_args[@]}" --fail \
             --dump-header deployment/home.headers \
             --header 'X-Forwarded-Host: attacker.invalid' \
             --output deployment/home.html \
@@ -486,14 +488,14 @@ jobs:
           grep --ignore-case --quiet '^x-robots-tag: noindex, nofollow' deployment/home.headers
           grep --quiet '<app-root' deployment/home.html
 
-          login_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/login)"
+          login_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/login)"
           [[ "${login_status}" =~ ^30[12378]$ ]]
 
-          rpc_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{}' https://staging.evorto.app/rpc)"
+          rpc_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{}' https://staging.evorto.app/rpc)"
           [[ "${rpc_status}" =~ ^4[0-9]{2}$ ]]
 
           generated_endpoint="$(jq --raw-output .containers.web.endpoint deployment/platform.json)"
-          generated_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${generated_endpoint}")"
+          generated_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' "${generated_endpoint}")"
           test "${generated_status}" = "404"
 
       - name: Write append-only successful deployment manifest
