@@ -446,10 +446,48 @@ const applyCommand = [
   'json',
 ] as const;
 
+const hasCommandOutput = (result: OpsCommandResult): boolean =>
+  result.stderr.length > 0 || result.stdout.length > 0;
+
+const asSafeTextDiagnosticCommand = (
+  command: readonly string[],
+): readonly string[] => {
+  const diagnosticCommand = command.filter(
+    (argument) => argument !== '--force',
+  );
+  const outputIndex = diagnosticCommand.indexOf('--output');
+  if (outputIndex !== -1 && diagnosticCommand[outputIndex + 1] === 'json') {
+    diagnosticCommand[outputIndex + 1] = 'text';
+  }
+  if (!diagnosticCommand.includes('--explain')) {
+    diagnosticCommand.push('--explain');
+  }
+  return diagnosticCommand;
+};
+
+const runDrizzleCommand = Effect.fn('runDrizzleCommand')(function* (
+  runner: OpsCommandRunner,
+  command: readonly string[],
+) {
+  const result = yield* runner.run(command);
+  if (result.exitCode === 0 || hasCommandOutput(result)) {
+    return result;
+  }
+
+  const diagnosticResult = yield* runner.run(
+    asSafeTextDiagnosticCommand(command),
+  );
+  return {
+    exitCode: result.exitCode,
+    stderr: diagnosticResult.stderr,
+    stdout: diagnosticResult.stdout,
+  };
+});
+
 export const explainSchema = (
   runner: OpsCommandRunner = liveOpsCommandRunner,
 ) =>
-  runner.run(explainCommand).pipe(
+  runDrizzleCommand(runner, explainCommand).pipe(
     Effect.flatMap((result) => parseCommandJson(result)),
     Effect.map((plan) => analyzeSchemaPlan(plan)),
   );
@@ -485,7 +523,7 @@ export const applySchema = (
       return yield* failOpsCommand('Database prerequisites', prerequisites);
     }
 
-    const result = yield* runner.run(applyCommand);
+    const result = yield* runDrizzleCommand(runner, applyCommand);
     const envelope = yield* parseCommandJson(result);
     const status = asRecord(envelope)?.['status'];
     if (status !== 'ok' && status !== 'no_changes') {
@@ -525,7 +563,7 @@ export const seedStaging = (
       prerequisitesResult,
     );
 
-    const applyResult = yield* runner.run(applyCommand);
+    const applyResult = yield* runDrizzleCommand(runner, applyCommand);
     const applyEnvelope = yield* parseCommandJson(applyResult);
     const applyStatus = asRecord(applyEnvelope)?.['status'];
     if (applyStatus !== 'ok' && applyStatus !== 'no_changes') {
