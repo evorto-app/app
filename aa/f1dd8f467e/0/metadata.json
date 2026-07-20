@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "aaf1dd8f467e",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T15:36:22.735634Z",
+  "branch": "codex/bootstrap-empty-staging",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/bootstrap-empty-scaleway-staging.md",
+    ".github/workflows/scaleway-staging.yml",
+    "helpers/database.ts",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "helpers/testing/scaleway-invoke-private-container.spec.ts",
+    "infrastructure/scaleway/README.md",
+    "ops/scaleway/invoke-private-container.sh",
+    "src/db/schema/finance-receipts.spec.ts",
+    "src/db/schema/finance-receipts.ts",
+    "src/db/staging-database-initialization.spec.ts",
+    "src/db/staging-database-initialization.ts",
+    "src/server.ts",
+    "src/server/ops/schema-operations.spec.ts",
+    "src/server/ops/schema-operations.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "7f0782a6372b",
+  "checkpoint_transcript_start": 146399,
+  "transcript_lines_at_start": 146399,
+  "token_usage": {
+    "input_tokens": 723914,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 37063936,
+    "output_tokens": 44596,
+    "api_call_count": 222
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T15:36:17.184136Z",
+    "agent_lines": 244,
+    "agent_removed": 9,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 244,
+    "total_lines_changed": 253,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

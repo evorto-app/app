@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "aaf1dd8f467e",
+  "strategy": "manual-commit",
+  "branch": "codex/bootstrap-empty-staging",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/bootstrap-empty-scaleway-staging.md",
+    ".github/workflows/scaleway-staging.yml",
+    "helpers/database.ts",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "helpers/testing/scaleway-invoke-private-container.spec.ts",
+    "infrastructure/scaleway/README.md",
+    "ops/scaleway/invoke-private-container.sh",
+    "src/db/schema/finance-receipts.spec.ts",
+    "src/db/schema/finance-receipts.ts",
+    "src/db/staging-database-initialization.spec.ts",
+    "src/db/staging-database-initialization.ts",
+    "src/server.ts",
+    "src/server/ops/schema-operations.spec.ts",
+    "src/server/ops/schema-operations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/aa/f1dd8f467e/0/metadata.json",
+      "transcript": "/aa/f1dd8f467e/0/full.jsonl",
+      "content_hash": "/aa/f1dd8f467e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 723914,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 37063936,
+    "output_tokens": 44596,
+    "api_call_count": 222
+  }
+}
