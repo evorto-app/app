@@ -12,7 +12,6 @@ locals {
     DATABASE_POOL_MAX                = "5"
     DATABASE_POOL_MIN                = "0"
     DATABASE_TLS_REQUIRED            = "true"
-    DATABASE_TLS_SERVER_NAME         = "rw-${trimprefix(scaleway_rdb_instance.application.id, "${var.region}/")}.rdb.${var.region}.scw.cloud"
     NODE_ENV                         = "production"
     SERVER_LOG_LEVEL                 = "info"
   }
