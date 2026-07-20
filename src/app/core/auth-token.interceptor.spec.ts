@@ -32,7 +32,7 @@ class ServerRequest extends Request {
 
   constructor(
     url: string,
-    cookieHeader = sessionCookies,
+    cookieHeader: null | string = sessionCookies,
     headers?: HeadersInit,
   ) {
     super('http://localhost');
@@ -43,7 +43,7 @@ class ServerRequest extends Request {
 
 class ServerRequestHeaders extends Headers {
   constructor(
-    private readonly cookieHeader: string,
+    private readonly cookieHeader: null | string,
     init?: HeadersInit,
   ) {
     super(init);
@@ -124,6 +124,27 @@ describe('authTokenInterceptor', () => {
       httpTesting.verify();
     },
   );
+
+  it('adds the trusted tenant cookie to an internal SSR RPC request without incoming cookies', () => {
+    process.env['SSR_RPC_ORIGIN'] = 'http://127.0.0.1:4200';
+    const anonymousRequest = new ServerRequest(
+      'https://tenant.example.com/events',
+      null,
+    );
+    const { http, httpTesting } = configureServerHttp(anonymousRequest);
+    const rpcUrl = `${resolveServerRpcOrigin(anonymousRequest)}/rpc`;
+
+    http.post(rpcUrl, {}).subscribe();
+
+    const rpcRequest = httpTesting.expectOne(rpcUrl);
+    expect(rpcRequest.request.headers.get('Cookie')).toBe(
+      `evorto-tenant=${trustedTenantDomain}`,
+    );
+    expect(rpcRequest.request.headers.get('x-forwarded-from')).toBe('ssr');
+    expect(rpcRequest.request.headers.get('x-tenant-id')).toBe('tenant-1');
+    rpcRequest.flush({});
+    httpTesting.verify();
+  });
 
   it.each([
     {
