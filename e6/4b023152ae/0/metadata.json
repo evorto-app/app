@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e64b023152ae",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T06:36:24.303856Z",
+  "branch": "codex/grant-schema-owner-database",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "helpers/testing/scaleway-hosting-source.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "7f0782a6372b",
+  "checkpoint_transcript_start": 146037,
+  "transcript_lines_at_start": 146037,
+  "token_usage": {
+    "input_tokens": 177306,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9969408,
+    "output_tokens": 10716,
+    "api_call_count": 81
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T06:36:19.068472Z",
+    "agent_lines": 2,
+    "agent_removed": 2,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2,
+    "total_lines_changed": 4,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
