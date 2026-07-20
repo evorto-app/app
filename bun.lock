@@ -17,7 +17,7 @@
         "@angular/platform-server": "^22.0.4",
         "@angular/router": "^22.0.4",
         "@angular/ssr": "^22.0.4",
-        "@auth0/auth0-server-js": "^1.7.0",
+        "@auth0/auth0-server-js": "^1.9.0",
         "@effect/opentelemetry": "4.0.0-beta.92",
         "@effect/platform-bun": "4.0.0-beta.92",
         "@effect/sql-pg": "4.0.0-beta.92",
@@ -202,7 +202,7 @@
 
     "@auth0/auth0-auth-js": ["@auth0/auth0-auth-js@1.10.0", "", { "dependencies": { "jose": "^6.0.8", "openid-client": "^6.8.0" } }, "sha512-FDzc0lbaG1E++4sjx3zW7BB9gVK2ODLmuPStGxYPeclKwLMFKkmVyWR8bCyQVNXvTS1KCHeX0dC9HMTJ0WBCJg=="],
 
-    "@auth0/auth0-server-js": ["@auth0/auth0-server-js@1.7.0", "", { "dependencies": { "@auth0/auth0-auth-js": "^1.9.1", "jose": "^6.0.8" } }, "sha512-Lg9xw3PiQCtVIcPYIGkFPwLK832j5/uJIzPs/uKBniNR3ak42VVVe0XloC/rebOrac7Fbb/SMhqXs/6a8jYizg=="],
+    "@auth0/auth0-server-js": ["@auth0/auth0-server-js@1.9.0", "", { "dependencies": { "@auth0/auth0-auth-js": "^1.10.0", "jose": "^6.0.8" } }, "sha512-N381KpwssER5eE2rgT4f6Z+dzwwkpCTuhCH9vSLH6x1GAuznZUnQqh/IZqQ1arbMjSDiHWaKc46+7DNm/6v0eA=="],
 
     "@axe-core/playwright": ["@axe-core/playwright@4.12.1", "", { "dependencies": { "axe-core": "~4.12.1" }, "peerDependencies": { "playwright-core": ">= 1.0.0" } }, "sha512-rMd7xriptqKpP+w5265i4Hdkv2X5kbu6uiBi/B2I7uf3hieRBM3qDCfaKPtxfiYb2mKXfF+yLODJwIx+Jv1GDw=="],
 
