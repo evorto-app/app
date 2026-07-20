@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "039710435c17",
+  "strategy": "manual-commit",
+  "branch": "codex/grant-schema-owner-database",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/grant-scaleway-schema-owner.md",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "infrastructure/scaleway/modules/environment/database.tf"
+  ],
+  "sessions": [
+    {
+      "metadata": "/03/9710435c17/0/metadata.json",
+      "transcript": "/03/9710435c17/0/full.jsonl",
+      "content_hash": "/03/9710435c17/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 448018,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 44932864,
+    "output_tokens": 34427,
+    "api_call_count": 292
+  }
+}
