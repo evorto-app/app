@@ -6,6 +6,23 @@ import {
   createPgClientConfig,
 } from './pg-connection-config';
 
+const expectVerifiedTlsOptions = (
+  ssl: unknown,
+  expectedServerName?: string,
+) => {
+  expect(ssl).toEqual(
+    expect.objectContaining({
+      ca: '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----',
+      checkServerIdentity: expect.any(Function),
+      rejectUnauthorized: true,
+    }),
+  );
+  if (typeof ssl !== 'object' || ssl === null) {
+    throw new Error('Expected PostgreSQL TLS options');
+  }
+  expect(Reflect.get(ssl, 'servername')).toBe(expectedServerName);
+};
+
 describe('pg-connection-config', () => {
   const databaseUrl =
     'postgresql://evorto:local@localhost:55432/appdb?sslmode=disable';
@@ -55,14 +72,12 @@ describe('pg-connection-config', () => {
     const caCertificate =
       '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
 
-    expect(createNodePgPoolConfig({ caCertificate, databaseUrl }).ssl).toEqual({
-      ca: caCertificate,
-      rejectUnauthorized: true,
-    });
-    expect(createPgClientConfig({ caCertificate, databaseUrl }).ssl).toEqual({
-      ca: caCertificate,
-      rejectUnauthorized: true,
-    });
+    expectVerifiedTlsOptions(
+      createNodePgPoolConfig({ caCertificate, databaseUrl }).ssl,
+    );
+    expectVerifiedTlsOptions(
+      createPgClientConfig({ caCertificate, databaseUrl }).ssl,
+    );
   });
 
   it('supports an explicit TLS server-name override', () => {
@@ -70,28 +85,41 @@ describe('pg-connection-config', () => {
       '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
     const tlsServerName = 'rw-database.rdb.fr-par.scw.cloud';
 
-    expect(
+    expectVerifiedTlsOptions(
       createNodePgPoolConfig({
         caCertificate,
         databaseUrl,
         tlsServerName,
       }).ssl,
-    ).toEqual({
-      ca: caCertificate,
-      rejectUnauthorized: true,
-      servername: tlsServerName,
-    });
-    expect(
+      tlsServerName,
+    );
+    expectVerifiedTlsOptions(
       createPgClientConfig({
         caCertificate,
         databaseUrl,
         tlsServerName,
       }).ssl,
-    ).toEqual({
-      ca: caCertificate,
-      rejectUnauthorized: true,
-      servername: tlsServerName,
-    });
+      tlsServerName,
+    );
+  });
+
+  it('verifies IP endpoints without sending an IP server name', () => {
+    const caCertificate =
+      '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
+    const ipDatabaseUrl = 'postgresql://evorto:local@172.16.4.2:5432/appdb';
+
+    expectVerifiedTlsOptions(
+      createNodePgPoolConfig({
+        caCertificate,
+        databaseUrl: ipDatabaseUrl,
+      }).ssl,
+    );
+    expectVerifiedTlsOptions(
+      createPgClientConfig({
+        caCertificate,
+        databaseUrl: ipDatabaseUrl,
+      }).ssl,
+    );
   });
 
   it('rejects an inverted pool range', () => {

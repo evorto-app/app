@@ -167,6 +167,7 @@ describe('Scaleway hosting source', () => {
             port: 6432,
             ssl: {
               ca: caCertificate,
+              checkServerIdentity: expect.any(Function),
               rejectUnauthorized: true,
             },
             user: 'schema_owner',

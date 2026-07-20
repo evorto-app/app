@@ -62,12 +62,12 @@ import {
 } from './server/http/browser-error-telemetry.web-handler';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import {
-  handleInternalJsonTriggerWebRequest,
   handleInternalTriggerWebRequest,
   type InternalTriggerArguments,
   MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES,
 } from './server/http/internal-trigger.web-handler';
 import { resolveNodeRequestBoundary } from './server/http/node-request-boundary';
+import { handleOpsJsonTriggerWebRequest } from './server/http/ops-trigger.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import {
   discardNodeRequestBody,
@@ -96,6 +96,7 @@ import {
 import {
   applySchema,
   explainSchema,
+  type OpsCommandError,
   seedStaging,
 } from './server/ops/schema-operations';
 import {
@@ -443,10 +444,10 @@ const SeedStagingArguments = Schema.Struct({
   confirmation: Schema.Literal('reset-and-seed-staging'),
 });
 
-const handleOpsTrigger = <S extends Schema.Constraint, A, E, R>(
+const handleOpsTrigger = <S extends Schema.Constraint, A, R>(
   request: HttpServerRequest.HttpServerRequest,
   schema: S,
-  operation: (arguments_: S['Type']) => Effect.Effect<A, E, R>,
+  operation: (arguments_: S['Type']) => Effect.Effect<A, OpsCommandError, R>,
 ) =>
   Effect.gen(function* () {
     const deployment = yield* DeploymentRuntimeConfig;
@@ -456,7 +457,7 @@ const handleOpsTrigger = <S extends Schema.Constraint, A, E, R>(
     }
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
-    const webResponse = yield* handleInternalJsonTriggerWebRequest(
+    const webResponse = yield* handleOpsJsonTriggerWebRequest(
       webRequest,
       schema,
       operation,
