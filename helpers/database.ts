@@ -1,6 +1,7 @@
 import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { databaseConfig } from '@db/database-config';
 import { stripeConfig } from '@server/config/stripe-config';
+import consola from 'consola';
 import { Effect, Option, Redacted } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
