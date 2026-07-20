@@ -373,24 +373,26 @@ jobs:
           DIGEST: ${{ steps.image.outputs.digest }}
           REVISION: ${{ steps.staging.outputs.revision }}
         run: |
-          health_body="$(curl --fail --silent --show-error https://alpha.evorto.app/healthz)"
+          curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)
+
+          health_body="$(curl "${curl_args[@]}" --fail https://alpha.evorto.app/healthz)"
           jq --exit-status '.status == "ok"' <<<"${health_body}" >/dev/null
-          ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://alpha.evorto.app/readyz)"
+          ready_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' https://alpha.evorto.app/readyz)"
           test "${ready_status}" = "204"
-          version_body="$(curl --fail --silent --show-error https://alpha.evorto.app/version)"
+          version_body="$(curl "${curl_args[@]}" --fail https://alpha.evorto.app/version)"
           jq --exit-status \
             --arg revision "${REVISION}" \
             --arg digest "${DIGEST}" \
             '.environment == "production" and .revision == $revision and .imageDigest == $digest' \
             <<<"${version_body}" >/dev/null
-          curl --fail --silent --show-error \
+          curl "${curl_args[@]}" --fail \
             --header 'X-Forwarded-Host: attacker.invalid' \
             https://alpha.evorto.app/ \
             | grep --quiet '<app-root'
-          login_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://alpha.evorto.app/login)"
+          login_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' https://alpha.evorto.app/login)"
           [[ "${login_status}" =~ ^30[12378]$ ]]
           generated_endpoint="$(jq --raw-output .containers.web.endpoint deployment/platform.json)"
-          generated_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${generated_endpoint}")"
+          generated_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' "${generated_endpoint}")"
           test "${generated_status}" = "404"
 
       - name: Write append-only production deployment manifest

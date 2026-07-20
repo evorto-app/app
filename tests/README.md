@@ -240,6 +240,9 @@ credentials must not be printed or committed.
   container instead of calling the host-mapped port. Generated and container
   runtime config explicitly sets `NODE_ENV=development`, allowing tenant
   outbound links to retain the worktree-local `BASE_URL` port.
+- Scaleway web containers set `SSR_RPC_ORIGIN=http://127.0.0.1:4200` so their
+  readiness SSR check reaches RPC inside the candidate revision before the
+  public custom domain routes traffic to it.
 - Auth0 callback URLs are registered out-of-band. Worktree-local generated
   ports keep stacks isolated, but authenticated Browser/Playwright validation
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed

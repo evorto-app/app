@@ -121,11 +121,12 @@ jobs:
 
       - name: Verify the restored staging application
         run: |
+          curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)
           expected_revision="$(jq --raw-output .revision reset-evidence/deployment.json)"
           expected_digest="$(jq --raw-output .digest reset-evidence/deployment.json)"
-          ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/readyz)"
+          ready_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/readyz)"
           test "${ready_status}" = "204"
-          version_body="$(curl --fail --silent --show-error https://staging.evorto.app/version)"
+          version_body="$(curl "${curl_args[@]}" --fail https://staging.evorto.app/version)"
           jq --exit-status \
             --arg revision "${expected_revision}" \
             --arg digest "${expected_digest}" \
