@@ -3,12 +3,14 @@
   "checkpoint_id": "4799992344cb",
   "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
   "strategy": "manual-commit",
-  "created_at": "2026-07-20T00:09:17.185616Z",
+  "created_at": "2026-07-20T00:17:03.986901Z",
   "branch": "codex/classify-ops-schema-failures",
   "checkpoints_count": 0,
   "files_touched": [
     ".changeset/verify-scaleway-database-server-identity.md",
+    ".dockerignore",
     "helpers/database.ts",
+    "helpers/testing/container-image-pinning-source.spec.ts",
     "helpers/testing/scaleway-hosting-source.spec.ts",
     "infrastructure/scaleway/README.md",
     "infrastructure/scaleway/modules/environment/containers.tf",
@@ -28,27 +30,27 @@
   "agent": "Codex",
   "model": "gpt-5.6-sol",
   "turn_id": "7f0782a6372b",
-  "checkpoint_transcript_start": 134637,
-  "transcript_lines_at_start": 134637,
+  "checkpoint_transcript_start": 137268,
+  "transcript_lines_at_start": 137268,
   "token_usage": {
-    "input_tokens": 1109658,
+    "input_tokens": 89436,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 86138880,
-    "output_tokens": 82859,
-    "api_call_count": 600
+    "cache_read_tokens": 12130304,
+    "output_tokens": 7811,
+    "api_call_count": 61
   },
   "session_metrics": {
     "turn_count": 1
   },
   "initial_attribution": {
-    "calculated_at": "2026-07-20T00:09:11.933266Z",
-    "agent_lines": 303,
-    "agent_removed": 49,
+    "calculated_at": "2026-07-20T00:16:58.624962Z",
+    "agent_lines": 27,
+    "agent_removed": 7,
     "human_added": 0,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 303,
-    "total_lines_changed": 352,
+    "total_committed": 27,
+    "total_lines_changed": 34,
     "agent_percentage": 100,
     "metric_version": 2
   }

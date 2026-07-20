@@ -6,7 +6,9 @@
   "checkpoints_count": 0,
   "files_touched": [
     ".changeset/verify-scaleway-database-server-identity.md",
+    ".dockerignore",
     "helpers/database.ts",
+    "helpers/testing/container-image-pinning-source.spec.ts",
     "helpers/testing/scaleway-hosting-source.spec.ts",
     "infrastructure/scaleway/README.md",
     "infrastructure/scaleway/modules/environment/containers.tf",
@@ -32,10 +34,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 1109658,
+    "input_tokens": 89436,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 86138880,
-    "output_tokens": 82859,
-    "api_call_count": 600
+    "cache_read_tokens": 12130304,
+    "output_tokens": 7811,
+    "api_call_count": 61
   }
 }
