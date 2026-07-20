@@ -55,9 +55,11 @@ const main = Effect.gen(function* () {
     Option.map((certificate) => Redacted.value(certificate)),
     Option.getOrUndefined,
   );
+  const tlsServerName = Option.getOrUndefined(config.DATABASE_TLS_SERVER_NAME);
   const { database, pool } = createDatabaseClient(
     config.DATABASE_URL,
     caCertificate,
+    tlsServerName,
   );
   const setupOptions = Option.match(STRIPE_TEST_ACCOUNT_ID, {
     onNone: () => ({}),

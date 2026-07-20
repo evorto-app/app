@@ -15,6 +15,9 @@ const pgClientLayer = Layer.unwrap(
       Option.map((certificate) => Redacted.value(certificate)),
       Option.getOrUndefined,
     );
+    const tlsServerName = Option.getOrUndefined(
+      config.DATABASE_TLS_SERVER_NAME,
+    );
 
     return PgClient.layer(
       createPgClientConfig({
@@ -26,6 +29,7 @@ const pgClientLayer = Layer.unwrap(
           max: config.DATABASE_POOL_MAX,
           min: config.DATABASE_POOL_MIN,
         },
+        tlsServerName,
       }),
     );
   }),

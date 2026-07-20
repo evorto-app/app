@@ -4,6 +4,8 @@ import { Effect } from 'effect';
 import {
   analyzeSchemaPlan,
   applySchema,
+  classifyOpsCommandFailure,
+  explainSchema,
   type OpsCommandRunner,
   seedStaging,
 } from './schema-operations';
@@ -15,6 +17,53 @@ const result = (value: unknown) => ({
 });
 
 describe('ops schema operations', () => {
+  it.each([
+    [
+      'TLS certificate failures',
+      'hostname/IP does not match certificate altnames',
+      'database-tls-verification-failed',
+    ],
+    [
+      'authentication failures',
+      'password authentication failed for user schema_owner',
+      'database-authentication-failed',
+    ],
+    [
+      'private endpoint routing failures',
+      'connect EHOSTUNREACH 10.0.0.8:6432',
+      'database-unreachable',
+    ],
+    [
+      'missing packaged artifacts',
+      'Cannot find module /app/ops/drizzle-kit.cjs',
+      'runtime-artifact-missing',
+    ],
+    ['unrecognized failures', 'unexpected provider failure', 'command-failed'],
+  ])('classifies %s without exposing raw output', (_, stderr, expected) => {
+    expect(classifyOpsCommandFailure({ stderr, stdout: '' })).toBe(expected);
+  });
+
+  it.effect('returns only the safe failure category from Drizzle', () =>
+    Effect.gen(function* () {
+      const runner: OpsCommandRunner = {
+        run: () =>
+          Effect.succeed({
+            exitCode: 1,
+            stderr:
+              'certificate validation failed while processing sensitive-marker',
+            stdout: '',
+          }),
+      };
+
+      const error = yield* explainSchema(runner).pipe(Effect.flip);
+
+      expect(error.message).toBe(
+        'Drizzle failed (database-tls-verification-failed; exit 1)',
+      );
+      expect(error.message).not.toContain('sensitive-marker');
+    }),
+  );
+
   it('accepts expand-only plans', () => {
     const analysis = analyzeSchemaPlan({
       dialect: 'postgresql',

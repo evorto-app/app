@@ -7,11 +7,13 @@ import { relations } from './relations';
 export const createDatabaseClient = (
   databaseUrl: string,
   caCertificate?: string,
+  tlsServerName?: string,
 ) => {
   const pool = new Pool(
     createNodePgPoolConfig({
       caCertificate,
       databaseUrl,
+      tlsServerName,
     }),
   );
 

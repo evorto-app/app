@@ -15,9 +15,10 @@ if (!databaseUrl) {
 
 const tlsRequired = process.env['DATABASE_TLS_REQUIRED'] === 'true';
 const caCertificate = process.env['DATABASE_TLS_CA_CERTIFICATE'];
-if (tlsRequired && !caCertificate) {
+const tlsServerName = process.env['DATABASE_TLS_SERVER_NAME'];
+if (tlsRequired && (!caCertificate || !tlsServerName)) {
   throw new Error(
-    'DATABASE_TLS_CA_CERTIFICATE is required when DATABASE_TLS_REQUIRED=true',
+    'DATABASE_TLS_CA_CERTIFICATE and DATABASE_TLS_SERVER_NAME are required when DATABASE_TLS_REQUIRED=true',
   );
 }
 
@@ -31,6 +32,7 @@ const pool = new Pool(
       max: 1,
       min: 0,
     },
+    tlsServerName,
   }),
 );
 

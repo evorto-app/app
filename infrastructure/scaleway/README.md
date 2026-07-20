@@ -153,8 +153,11 @@ ops/COCKPIT_TRACES_TOKEN
 
 Production omits `worker/STAGING_EMAIL_ALLOWLIST`. The deploy workflow derives
 the three `DATABASE_URL` values and `DATABASE_TLS_CA_CERTIFICATE` values from
-Terraform's sensitive database output, and rejects an incomplete or surplus
-key set. Staging additionally rejects non-test Stripe secret keys.
+Terraform's sensitive database output. Terraform also supplies the canonical
+Scaleway `DATABASE_TLS_SERVER_NAME` while the URLs retain the private-network
+IP, so clients can verify both the CA and server identity without using a
+public endpoint. Secret synchronization rejects an incomplete or surplus key
+set. Staging additionally rejects non-test Stripe secret keys.
 
 Never use `pull_request_target` or expose Scaleway credentials to pull requests.
 The staging deploy accepts only the exact `main` revision that has passed both

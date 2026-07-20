@@ -203,9 +203,13 @@ const main = Effect.gen(function* () {
     Option.map((certificate) => Redacted.value(certificate)),
     Option.getOrUndefined,
   );
+  const tlsServerName = Option.getOrUndefined(
+    databaseConfiguration.DATABASE_TLS_SERVER_NAME,
+  );
   const { database, pool } = createDatabaseClient(
     databaseConfiguration.DATABASE_URL,
     caCertificate,
+    tlsServerName,
   );
 
   const migration = Effect.gen(function* () {

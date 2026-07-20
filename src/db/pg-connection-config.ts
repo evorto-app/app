@@ -45,10 +45,12 @@ export const createPgClientConfig = ({
   caCertificate,
   databaseUrl,
   pool = defaultDatabasePoolSettings,
+  tlsServerName,
 }: {
   caCertificate?: string | undefined;
   databaseUrl: string;
   pool?: DatabasePoolSettings;
+  tlsServerName?: string | undefined;
 }): PgPoolConfig => {
   const boundedPool = validatePoolSettings(pool);
   return {
@@ -57,7 +59,11 @@ export const createPgClientConfig = ({
     maxConnections: boundedPool.max,
     minConnections: boundedPool.min,
     ...(caCertificate && {
-      ssl: { ca: caCertificate, rejectUnauthorized: true },
+      ssl: {
+        ca: caCertificate,
+        rejectUnauthorized: true,
+        ...(tlsServerName && { servername: tlsServerName }),
+      },
     }),
     types: pgTypes,
     url: Redacted.make(databaseUrl),
@@ -68,10 +74,12 @@ export const createNodePgPoolConfig = ({
   caCertificate,
   databaseUrl,
   pool = defaultDatabasePoolSettings,
+  tlsServerName,
 }: {
   caCertificate?: string | undefined;
   databaseUrl: string;
   pool?: DatabasePoolSettings;
+  tlsServerName?: string | undefined;
 }): PoolConfig => {
   const boundedPool = validatePoolSettings(pool);
   return {
@@ -81,7 +89,11 @@ export const createNodePgPoolConfig = ({
     max: boundedPool.max,
     min: boundedPool.min,
     ...(caCertificate && {
-      ssl: { ca: caCertificate, rejectUnauthorized: true },
+      ssl: {
+        ca: caCertificate,
+        rejectUnauthorized: true,
+        ...(tlsServerName && { servername: tlsServerName }),
+      },
     }),
     types: pgTypes,
   };
