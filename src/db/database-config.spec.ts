@@ -19,18 +19,32 @@ describe('database configuration', () => {
     }),
   );
 
-  it.effect('fails closed when verified TLS has no CA certificate', () =>
-    Effect.gen(function* () {
-      const error = yield* parseConfig(
-        new Map([
-          ['DATABASE_TLS_REQUIRED', 'true'],
-          ['DATABASE_URL', 'postgresql://private/evorto'],
-        ]),
-      ).pipe(Effect.flip);
+  it.each([
+    [
+      'CA certificate',
+      'DATABASE_TLS_CA_CERTIFICATE',
+      new Map([
+        ['DATABASE_TLS_REQUIRED', 'true'],
+        ['DATABASE_TLS_SERVER_NAME', 'rw-database.rdb.fr-par.scw.cloud'],
+        ['DATABASE_URL', 'postgresql://private/evorto'],
+      ]),
+    ],
+    [
+      'certificate server name',
+      'DATABASE_TLS_SERVER_NAME',
+      new Map([
+        ['DATABASE_TLS_CA_CERTIFICATE', 'managed-ca'],
+        ['DATABASE_TLS_REQUIRED', 'true'],
+        ['DATABASE_URL', 'postgresql://private/evorto'],
+      ]),
+    ],
+  ])('fails closed when verified TLS has no %s', async (_, missing, values) => {
+    const error = await Effect.runPromise(
+      parseConfig(values).pipe(Effect.flip),
+    );
 
-      expect(String(error)).toContain('DATABASE_TLS_CA_CERTIFICATE');
-    }),
-  );
+    expect(String(error)).toContain(missing);
+  });
 
   it.effect('retains the configured CA as a redacted value', () =>
     Effect.gen(function* () {
@@ -40,6 +54,7 @@ describe('database configuration', () => {
         new Map([
           ['DATABASE_TLS_CA_CERTIFICATE', certificate],
           ['DATABASE_TLS_REQUIRED', 'true'],
+          ['DATABASE_TLS_SERVER_NAME', 'rw-database.rdb.fr-par.scw.cloud'],
           ['DATABASE_URL', 'postgresql://private/evorto'],
         ]),
       );
@@ -47,6 +62,9 @@ describe('database configuration', () => {
       expect(
         Redacted.value(Option.getOrThrow(config.DATABASE_TLS_CA_CERTIFICATE)),
       ).toBe(certificate);
+      expect(Option.getOrThrow(config.DATABASE_TLS_SERVER_NAME)).toBe(
+        'rw-database.rdb.fr-par.scw.cloud',
+      );
     }),
   );
 });

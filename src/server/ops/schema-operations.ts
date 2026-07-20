@@ -10,6 +10,18 @@ const databasePrerequisitesExecutable =
 const stagingResetExecutable = 'dist/evorto/ops/reset-staging-database.mjs';
 const stagingSeedExecutable = 'dist/evorto/ops/seed-staging.mjs';
 
+export type OpsCommandFailureKind =
+  | 'command-failed'
+  | 'database-authentication-failed'
+  | 'database-configuration-invalid'
+  | 'database-host-resolution-failed'
+  | 'database-not-found'
+  | 'database-permission-denied'
+  | 'database-tls-verification-failed'
+  | 'database-unreachable'
+  | 'drizzle-cli-incompatible'
+  | 'runtime-artifact-missing';
+
 export interface OpsCommandResult {
   readonly exitCode: number;
   readonly stderr: string;
@@ -31,6 +43,106 @@ export class OpsCommandError extends Schema.TaggedErrorClass<OpsCommandError>()(
     message: Schema.String,
   },
 ) {}
+
+const commandFailurePatterns: readonly {
+  readonly kind: OpsCommandFailureKind;
+  readonly patterns: readonly RegExp[];
+}[] = [
+  {
+    kind: 'database-authentication-failed',
+    patterns: [
+      /password authentication failed/iu,
+      /role .* does not exist/iu,
+      /sasl.*authentication/iu,
+      /scram.*authentication/iu,
+    ],
+  },
+  {
+    kind: 'database-host-resolution-failed',
+    patterns: [/eai_again/iu, /enotfound/iu, /getaddrinfo/iu],
+  },
+  {
+    kind: 'database-unreachable',
+    patterns: [
+      /connection terminated unexpectedly/iu,
+      /econnrefused/iu,
+      /ehostunreach/iu,
+      /enetunreach/iu,
+      /etimedout/iu,
+      /timeout expired/iu,
+    ],
+  },
+  {
+    kind: 'database-permission-denied',
+    patterns: [/no pg_hba\.conf entry/iu, /permission denied/iu],
+  },
+  {
+    kind: 'database-not-found',
+    patterns: [/database .* does not exist/iu],
+  },
+  {
+    kind: 'database-tls-verification-failed',
+    patterns: [
+      /certificate/iu,
+      /err_tls/iu,
+      /hostname\/ip does not match/iu,
+      /self[- ]signed/iu,
+      /unable to verify/iu,
+      /ssl (?:connection|error|handshake|routines)/iu,
+      /tls (?:connection|error|handshake)/iu,
+    ],
+  },
+  {
+    kind: 'database-configuration-invalid',
+    patterns: [/database_tls_[a-z_]+ .* required/iu, /database_url must/iu],
+  },
+  {
+    kind: 'runtime-artifact-missing',
+    patterns: [
+      /cannot find module/iu,
+      /enoent/iu,
+      /module not found/iu,
+      /no such file or directory/iu,
+    ],
+  },
+  {
+    kind: 'drizzle-cli-incompatible',
+    patterns: [/unknown option/iu, /unrecognized option/iu],
+  },
+];
+
+export const classifyOpsCommandFailure = (
+  result: Pick<OpsCommandResult, 'stderr' | 'stdout'>,
+): OpsCommandFailureKind => {
+  const output = `${result.stderr}\n${result.stdout}`;
+  return (
+    commandFailurePatterns.find(({ patterns }) =>
+      patterns.some((pattern) => pattern.test(output)),
+    )?.kind ?? 'command-failed'
+  );
+};
+
+const outputByteLength = (output: string) =>
+  new TextEncoder().encode(output).byteLength;
+
+const failOpsCommand = Effect.fn('failOpsCommand')(function* (
+  operation: string,
+  result: OpsCommandResult,
+) {
+  const failureKind = classifyOpsCommandFailure(result);
+  yield* Effect.logError('Ops command failed').pipe(
+    Effect.annotateLogs({
+      exitCode: result.exitCode,
+      failureKind,
+      operation,
+      stderrBytes: outputByteLength(result.stderr),
+      stdoutBytes: outputByteLength(result.stdout),
+    }),
+  );
+  return yield* new OpsCommandError({
+    message: `${operation} failed (${failureKind}; exit ${result.exitCode})`,
+  });
+});
 
 const commandOutput = async (
   stream: ReadableStream<Uint8Array>,
@@ -301,9 +413,7 @@ export const analyzeSchemaPlan = (rawPlan: unknown): SchemaPlanAnalysis => {
 const parseCommandJson = (result: OpsCommandResult) =>
   Effect.gen(function* () {
     if (result.exitCode !== 0) {
-      return yield* new OpsCommandError({
-        message: `Drizzle exited with status ${result.exitCode}`,
-      });
+      return yield* failOpsCommand('Drizzle', result);
     }
     return yield* Effect.try({
       catch: () =>
@@ -372,9 +482,7 @@ export const applySchema = (
       databasePrerequisitesExecutable,
     ]);
     if (prerequisites.exitCode !== 0) {
-      return yield* new OpsCommandError({
-        message: `Database prerequisites exited with status ${prerequisites.exitCode}`,
-      });
+      return yield* failOpsCommand('Database prerequisites', prerequisites);
     }
 
     const result = yield* runner.run(applyCommand);
@@ -396,14 +504,7 @@ export const applySchema = (
 const requireSuccessfulBoundedCommand = (
   operation: string,
   result: OpsCommandResult,
-) =>
-  result.exitCode === 0
-    ? Effect.void
-    : Effect.fail(
-        new OpsCommandError({
-          message: `${operation} exited with status ${result.exitCode}`,
-        }),
-      );
+) => (result.exitCode === 0 ? Effect.void : failOpsCommand(operation, result));
 
 export const seedStaging = (
   confirmation: 'reset-and-seed-staging',

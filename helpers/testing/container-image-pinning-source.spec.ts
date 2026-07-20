@@ -68,6 +68,23 @@ describe('container image pinning source', () => {
     expect(verifier).toContain('api\\.resend\\.com');
   });
 
+  it('excludes local secrets and Terraform working data from the build context', () => {
+    const dockerIgnore = source('.dockerignore');
+
+    for (const excludedPath of [
+      '.env*',
+      '**/.terraform',
+      '**/*.tfstate',
+      '**/*.tfstate.*',
+      '**/*.tfplan',
+      '**/backend.hcl',
+      '**/terraform.tfvars',
+      '**/*.auto.tfvars',
+    ]) {
+      expect(dockerIgnore).toContain(excludedPath);
+    }
+  });
+
   it('verifies locked private package integrity before the frozen image install', () => {
     const dockerfile = source('Dockerfile');
     const cachePrimer = source('ops/scaleway/prime-bun-fontawesome-cache.mjs');

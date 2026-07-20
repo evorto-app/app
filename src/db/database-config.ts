@@ -1,4 +1,7 @@
-import { nonEmptyTrimmedString } from '@server/config/config-string';
+import {
+  nonEmptyTrimmedString,
+  optionalTrimmedString,
+} from '@server/config/config-string';
 import { Config, ConfigProvider, Effect, Option } from 'effect';
 
 const boundedInteger = (
@@ -43,23 +46,34 @@ const databaseConfigValues = Config.all({
   DATABASE_TLS_REQUIRED: Config.boolean('DATABASE_TLS_REQUIRED').pipe(
     Config.withDefault(false),
   ),
+  DATABASE_TLS_SERVER_NAME: optionalTrimmedString('DATABASE_TLS_SERVER_NAME'),
   DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
 });
 
 export const databaseConfig = databaseConfigValues.pipe(
-  Config.mapOrFail((config) =>
-    config.DATABASE_TLS_REQUIRED &&
-    Option.isNone(config.DATABASE_TLS_CA_CERTIFICATE)
-      ? Effect.fail(
+  Config.mapOrFail((config) => {
+    if (!config.DATABASE_TLS_REQUIRED) {
+      return Effect.succeed(config);
+    }
+
+    const missingValues = [
+      Option.isNone(config.DATABASE_TLS_CA_CERTIFICATE)
+        ? 'DATABASE_TLS_CA_CERTIFICATE'
+        : undefined,
+      Option.isNone(config.DATABASE_TLS_SERVER_NAME)
+        ? 'DATABASE_TLS_SERVER_NAME'
+        : undefined,
+    ].filter((value): value is string => value !== undefined);
+    return missingValues.length === 0
+      ? Effect.succeed(config)
+      : Effect.fail(
           new Config.ConfigError(
             new ConfigProvider.SourceError({
-              message:
-                'DATABASE_TLS_CA_CERTIFICATE is required when DATABASE_TLS_REQUIRED=true',
+              message: `${missingValues.join(' and ')} must be configured when DATABASE_TLS_REQUIRED=true`,
             }),
           ),
-        )
-      : Effect.succeed(config),
-  ),
+        );
+  }),
 );
 
 export type DatabaseConfig = Config.Success<typeof databaseConfig>;
