@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "d5a6ec46841e",
+  "strategy": "manual-commit",
+  "branch": "codex/fix-anonymous-scaleway-ssr",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/propagate-anonymous-ssr-tenant.md",
+    "src/app/core/auth-token.interceptor.spec.ts",
+    "src/app/core/auth-token.interceptor.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d5/a6ec46841e/0/metadata.json",
+      "transcript": "/d5/a6ec46841e/0/full.jsonl",
+      "content_hash": "/d5/a6ec46841e/0/content_hash.txt",
+      "prompt": "/d5/a6ec46841e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 860613,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 62863104,
+    "output_tokens": 71259,
+    "api_call_count": 503
+  }
+}
