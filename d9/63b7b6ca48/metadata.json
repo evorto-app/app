@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "d963b7b6ca48",
+  "strategy": "manual-commit",
+  "branch": "codex/classify-database-tls-failures",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/classify-database-tls-failures.md",
+    "src/server/ops/schema-operations.spec.ts",
+    "src/server/ops/schema-operations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d9/63b7b6ca48/0/metadata.json",
+      "transcript": "/d9/63b7b6ca48/0/full.jsonl",
+      "content_hash": "/d9/63b7b6ca48/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 715571,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 64067072,
+    "output_tokens": 64283,
+    "api_call_count": 450
+  }
+}
