@@ -76,6 +76,12 @@ fi
 };
 
 describe('Scaleway private-container invocation', () => {
+  it('does not retry bounded POST operations', () => {
+    const script = fs.readFileSync(invokeScript, 'utf8');
+
+    expect(script).not.toContain('--retry');
+  });
+
   it('prints an allowlisted ops diagnostic without the response envelope', () => {
     const result = invokeWithFakeCurl({
       responseBody: JSON.stringify({

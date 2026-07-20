@@ -226,7 +226,8 @@ every 30 minutes for reconciliation. It never cancels an active deployment. It:
 3. verifies the runtime image, schema hash, SBOM, vulnerabilities, and size;
 4. reconciles Terraform and role-scoped secrets;
 5. deploys private ops, rejects a destructive Drizzle plan, and applies the
-   stable plan;
+   stable plan; initializes deterministic staging data only when every
+   application table is empty, and otherwise preserves the existing data;
 6. deploys worker and web at the same digest;
 7. verifies health, readiness, version identity, tenant resolution, Auth0/RPC,
    and staging `noindex` behavior;

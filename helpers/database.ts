@@ -5,6 +5,7 @@ import { Effect, Option, Redacted } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
 import { setupDatabase } from '../src/db/setup-database';
+import { inspectStagingDatabaseInitialization } from '../src/db/staging-database-initialization';
 import { formatConfigError } from '../src/server/config/config-error';
 import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 
@@ -65,10 +66,36 @@ const main = Effect.gen(function* () {
     onNone: () => ({}),
     onSome: (stripeTestAccountId) => ({ stripeTestAccountId }),
   });
+  const initializeEmptyStagingOnly =
+    process.env['STAGING_INITIALIZE_ONLY'] === 'true';
 
-  yield* Effect.tryPromise(() => setupDatabase(database, setupOptions)).pipe(
-    Effect.ensuring(Effect.tryPromise(() => pool.end()).pipe(Effect.orDie)),
-  );
+  yield* Effect.tryPromise(async () => {
+    try {
+      if (initializeEmptyStagingOnly) {
+        if (process.env['APP_ENVIRONMENT'] !== 'staging') {
+          throw new Error(
+            'Empty staging initialization requires APP_ENVIRONMENT=staging',
+          );
+        }
+
+        const initializationState =
+          await inspectStagingDatabaseInitialization(pool);
+        if (initializationState === 'initialized') {
+          consola.info('Staging database is already initialized');
+          return;
+        }
+        if (initializationState === 'inconsistent') {
+          throw new Error(
+            'Staging contains application data but no staging tenant; use the protected reset workflow',
+          );
+        }
+      }
+
+      await setupDatabase(database, setupOptions);
+    } finally {
+      await pool.end();
+    }
+  });
 });
 
 BunRuntime.runMain(main);

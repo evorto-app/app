@@ -433,6 +433,16 @@ jobs:
             '.applied == true and .digest == $plan_digest' \
             <<<"${apply_response}" >/dev/null
 
+          initialization_response="$(
+            ops/scaleway/invoke-private-container.sh \
+              "${ops_endpoint}" \
+              /internal/ops/seed-staging \
+              '{"mode":"initialize-empty"}'
+          )"
+          jq --exit-status \
+            '.initialized == true' \
+            <<<"${initialization_response}" >/dev/null
+
       - name: Deploy worker and web at the same digest
         env:
           DIGEST: ${{ steps.image.outputs.digest }}

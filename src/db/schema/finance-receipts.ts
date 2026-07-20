@@ -39,7 +39,7 @@ export const financeReceiptUploads = pgTable(
       .references(() => eventInstances.id),
     expiresAt: timestamp()
       .notNull()
-      .default(sql`now() + interval '5 minutes'`),
+      .default(sql`(now() + '00:05:00'::interval)`),
     fileName: text().notNull(),
     mimeType: text().notNull(),
     rejectionReason: text(),

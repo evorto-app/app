@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
-import { getTableConfig } from 'drizzle-orm/pg-core';
+import { is, SQL } from 'drizzle-orm';
+import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 
 import { financeReceipts, financeReceiptUploads } from './finance-receipts';
 
@@ -61,5 +62,16 @@ describe('finance receipt schema', () => {
       uploadConfig.columns.find((column) => column.name === 'expiresAt')
         ?.notNull,
     ).toBe(true);
+
+    const expiresAtDefault = uploadConfig.columns.find(
+      (column) => column.name === 'expiresAt',
+    )?.default;
+    expect(is(expiresAtDefault, SQL)).toBe(true);
+    if (!is(expiresAtDefault, SQL)) {
+      throw new Error('Receipt upload expiry must use a SQL default');
+    }
+    expect(new PgDialect().sqlToQuery(expiresAtDefault).sql).toBe(
+      `(now() + '00:05:00'::interval)`,
+    );
   });
 });

@@ -464,6 +464,10 @@ describe('Scaleway hosting source', () => {
     expect(staging).toContain('--provenance=mode=max');
     expect(staging).toContain("--if-none-match '*'");
     expect(staging).toContain('/internal/ops/schema-explain');
+    expect(staging).toContain('\'{"mode":"initialize-empty"}\'');
+    expect(staging.indexOf('\'{"mode":"initialize-empty"}\'')).toBeLessThan(
+      staging.indexOf('touch deployment/traffic-changed'),
+    );
     expect(staging).toContain('Roll back traffic roles to the previous digest');
 
     expect(production).not.toContain('docker build ');

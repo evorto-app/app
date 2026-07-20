@@ -96,6 +96,7 @@ import {
 import {
   applySchema,
   explainSchema,
+  initializeEmptyStaging,
   type OpsCommandError,
   seedStaging,
 } from './server/ops/schema-operations';
@@ -443,6 +444,13 @@ const ApplySchemaArguments = Schema.Struct({
 const SeedStagingArguments = Schema.Struct({
   confirmation: Schema.Literal('reset-and-seed-staging'),
 });
+const InitializeStagingArguments = Schema.Struct({
+  mode: Schema.Literal('initialize-empty'),
+});
+const StagingDataArguments = Schema.Union([
+  InitializeStagingArguments,
+  SeedStagingArguments,
+]);
 
 const handleOpsTrigger = <S extends Schema.Constraint, A, R>(
   request: HttpServerRequest.HttpServerRequest,
@@ -500,7 +508,7 @@ const opsSeedStagingRouteLayer = HttpLayerRouter.add(
   'POST',
   opsSeedStagingPath,
   (request) =>
-    handleOpsTrigger(request, SeedStagingArguments, ({ confirmation }) =>
+    handleOpsTrigger(request, StagingDataArguments, (arguments_) =>
       Effect.gen(function* () {
         const deployment = yield* DeploymentRuntimeConfig;
         if (deployment.APP_ENVIRONMENT !== 'staging') {
@@ -509,7 +517,9 @@ const opsSeedStagingRouteLayer = HttpLayerRouter.add(
             seeded: false as const,
           };
         }
-        return yield* seedStaging(confirmation);
+        return 'confirmation' in arguments_
+          ? yield* seedStaging(arguments_.confirmation)
+          : yield* initializeEmptyStaging();
       }),
     ),
 );

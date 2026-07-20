@@ -29,7 +29,6 @@ http_status="$(
   --header "X-Auth-Token: ${SCW_SECRET_KEY}" \
   --output "${response_file}" \
   --request POST \
-  --retry 3 \
   --silent \
   --show-error \
   --data-binary "${body}" \
