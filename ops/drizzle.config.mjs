@@ -1,3 +1,6 @@
+import { isIP } from "node:net";
+import { checkServerIdentity } from "node:tls";
+
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
@@ -31,6 +34,7 @@ const managedDatabaseCredentials = () => {
       "DATABASE_URL must include host, database, user, and password for managed schema operations",
     );
   }
+  const serverIdentity = tlsServerName || parsedUrl.hostname;
 
   return {
     database,
@@ -39,8 +43,12 @@ const managedDatabaseCredentials = () => {
     port: parsedUrl.port ? Number(parsedUrl.port) : 5432,
     ssl: {
       ca: caCertificate,
+      checkServerIdentity: (_hostname, certificate) =>
+        checkServerIdentity(serverIdentity, certificate),
       rejectUnauthorized: true,
-      ...(tlsServerName && { servername: tlsServerName }),
+      ...(tlsServerName && isIP(tlsServerName) === 0
+        ? { servername: tlsServerName }
+        : {}),
     },
     user,
   };

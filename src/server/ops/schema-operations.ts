@@ -10,21 +10,34 @@ const databasePrerequisitesExecutable =
 const stagingResetExecutable = 'dist/evorto/ops/reset-staging-database.mjs';
 const stagingSeedExecutable = 'dist/evorto/ops/seed-staging.mjs';
 
-export type OpsCommandFailureKind =
-  | 'command-failed'
-  | 'database-authentication-failed'
-  | 'database-configuration-invalid'
-  | 'database-host-resolution-failed'
-  | 'database-not-found'
-  | 'database-permission-denied'
-  | 'database-tls-ca-untrusted'
-  | 'database-tls-certificate-expired'
-  | 'database-tls-certificate-not-yet-valid'
-  | 'database-tls-hostname-mismatch'
-  | 'database-tls-verification-failed'
-  | 'database-unreachable'
-  | 'drizzle-cli-incompatible'
-  | 'runtime-artifact-missing';
+export const opsCommandFailureKinds = [
+  'command-failed',
+  'database-authentication-failed',
+  'database-configuration-invalid',
+  'database-host-resolution-failed',
+  'database-not-found',
+  'database-permission-denied',
+  'database-tls-ca-untrusted',
+  'database-tls-certificate-expired',
+  'database-tls-certificate-not-yet-valid',
+  'database-tls-hostname-mismatch',
+  'database-tls-verification-failed',
+  'database-unreachable',
+  'drizzle-cli-incompatible',
+  'runtime-artifact-missing',
+] as const;
+
+export type OpsCommandFailureKind = (typeof opsCommandFailureKinds)[number];
+
+export const opsCommandDiagnostics = [
+  ...opsCommandFailureKinds,
+  'bounded-command-failed',
+  'drizzle-application-unconfirmed',
+  'drizzle-invalid-json',
+  'staging-schema-unconfirmed',
+] as const;
+
+export type OpsCommandDiagnostic = (typeof opsCommandDiagnostics)[number];
 
 export interface OpsCommandResult {
   readonly exitCode: number;
@@ -44,6 +57,7 @@ export interface OpsCommandRunner {
 export class OpsCommandError extends Schema.TaggedErrorClass<OpsCommandError>()(
   'OpsCommandError',
   {
+    diagnostic: Schema.Literals(opsCommandDiagnostics),
     message: Schema.String,
   },
 ) {}
@@ -168,6 +182,7 @@ const failOpsCommand = Effect.fn('failOpsCommand')(function* (
     }),
   );
   return yield* new OpsCommandError({
+    diagnostic: failureKind,
     message: `${operation} failed (${failureKind}; exit ${result.exitCode})`,
   });
 });
@@ -186,7 +201,10 @@ export const liveOpsCommandRunner: OpsCommandRunner = {
   run: (command, options) =>
     Effect.tryPromise({
       catch: () =>
-        new OpsCommandError({ message: 'The bounded ops command failed' }),
+        new OpsCommandError({
+          diagnostic: 'bounded-command-failed',
+          message: 'The bounded ops command failed',
+        }),
       try: async () => {
         const subprocess = Bun.spawn([...command], {
           env: {
@@ -446,6 +464,7 @@ const parseCommandJson = (result: OpsCommandResult) =>
     return yield* Effect.try({
       catch: () =>
         new OpsCommandError({
+          diagnostic: 'drizzle-invalid-json',
           message: 'Drizzle returned an invalid JSON envelope',
         }),
       try: () => JSON.parse(result.stdout),
@@ -556,6 +575,7 @@ export const applySchema = (
     const status = asRecord(envelope)?.['status'];
     if (status !== 'ok' && status !== 'no_changes') {
       return yield* new OpsCommandError({
+        diagnostic: 'drizzle-application-unconfirmed',
         message: 'Drizzle did not confirm schema application',
       });
     }
@@ -596,6 +616,7 @@ export const seedStaging = (
     const applyStatus = asRecord(applyEnvelope)?.['status'];
     if (applyStatus !== 'ok' && applyStatus !== 'no_changes') {
       return yield* new OpsCommandError({
+        diagnostic: 'staging-schema-unconfirmed',
         message: 'Drizzle did not confirm the staging reset schema',
       });
     }

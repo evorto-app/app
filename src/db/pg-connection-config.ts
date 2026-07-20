@@ -1,7 +1,10 @@
 import type { PgPoolConfig } from '@effect/sql-pg/PgClient';
+import type { ConnectionOptions } from 'node:tls';
 import type { PoolConfig } from 'pg';
 
 import { Redacted } from 'effect';
+import { isIP } from 'node:net';
+import { checkServerIdentity } from 'node:tls';
 import { types } from 'pg';
 
 export interface DatabasePoolSettings {
@@ -41,6 +44,37 @@ const validatePoolSettings = (
   return pool;
 };
 
+const databaseServerIdentity = (
+  databaseUrl: string,
+  tlsServerName?: string,
+): string => {
+  const parsedUrl = new URL(databaseUrl);
+  if (
+    (parsedUrl.protocol !== 'postgresql:' &&
+      parsedUrl.protocol !== 'postgres:') ||
+    !parsedUrl.hostname
+  ) {
+    throw new Error('DATABASE_URL must identify a PostgreSQL host');
+  }
+  return tlsServerName || parsedUrl.hostname;
+};
+
+const createDatabaseTlsOptions = (
+  caCertificate: string,
+  databaseUrl: string,
+  tlsServerName?: string,
+): ConnectionOptions => {
+  const identity = databaseServerIdentity(databaseUrl, tlsServerName);
+  return {
+    ca: caCertificate,
+    checkServerIdentity: (_hostname, certificate) =>
+      checkServerIdentity(identity, certificate),
+    rejectUnauthorized: true,
+    ...(tlsServerName &&
+      isIP(tlsServerName) === 0 && { servername: tlsServerName }),
+  };
+};
+
 export const createPgClientConfig = ({
   caCertificate,
   databaseUrl,
@@ -59,11 +93,7 @@ export const createPgClientConfig = ({
     maxConnections: boundedPool.max,
     minConnections: boundedPool.min,
     ...(caCertificate && {
-      ssl: {
-        ca: caCertificate,
-        rejectUnauthorized: true,
-        ...(tlsServerName && { servername: tlsServerName }),
-      },
+      ssl: createDatabaseTlsOptions(caCertificate, databaseUrl, tlsServerName),
     }),
     types: pgTypes,
     url: Redacted.make(databaseUrl),
@@ -89,11 +119,7 @@ export const createNodePgPoolConfig = ({
     max: boundedPool.max,
     min: boundedPool.min,
     ...(caCertificate && {
-      ssl: {
-        ca: caCertificate,
-        rejectUnauthorized: true,
-        ...(tlsServerName && { servername: tlsServerName }),
-      },
+      ssl: createDatabaseTlsOptions(caCertificate, databaseUrl, tlsServerName),
     }),
     types: pgTypes,
   };
