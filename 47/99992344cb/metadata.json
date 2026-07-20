@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "4799992344cb",
+  "strategy": "manual-commit",
+  "branch": "codex/classify-ops-schema-failures",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/verify-scaleway-database-server-identity.md",
+    "helpers/database.ts",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "infrastructure/scaleway/README.md",
+    "infrastructure/scaleway/modules/environment/containers.tf",
+    "migration/index.ts",
+    "ops/drizzle.config.mjs",
+    "src/db/database-client.ts",
+    "src/db/database-config.spec.ts",
+    "src/db/database-config.ts",
+    "src/db/database.layer.ts",
+    "src/db/pg-connection-config.spec.ts",
+    "src/db/pg-connection-config.ts",
+    "src/server/ops/database-prerequisites.ts",
+    "src/server/ops/reset-staging-database.ts",
+    "src/server/ops/schema-operations.spec.ts",
+    "src/server/ops/schema-operations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/47/99992344cb/0/metadata.json",
+      "transcript": "/47/99992344cb/0/full.jsonl",
+      "content_hash": "/47/99992344cb/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1109658,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 86138880,
+    "output_tokens": 82859,
+    "api_call_count": 600
+  }
+}
