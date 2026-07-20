@@ -17,6 +17,10 @@ export type OpsCommandFailureKind =
   | 'database-host-resolution-failed'
   | 'database-not-found'
   | 'database-permission-denied'
+  | 'database-tls-ca-untrusted'
+  | 'database-tls-certificate-expired'
+  | 'database-tls-certificate-not-yet-valid'
+  | 'database-tls-hostname-mismatch'
   | 'database-tls-verification-failed'
   | 'database-unreachable'
   | 'drizzle-cli-incompatible'
@@ -81,13 +85,37 @@ const commandFailurePatterns: readonly {
     patterns: [/database .* does not exist/iu],
   },
   {
+    kind: 'database-tls-hostname-mismatch',
+    patterns: [
+      /err_tls_cert_altname_invalid/iu,
+      /hostname\/ip does not match/iu,
+    ],
+  },
+  {
+    kind: 'database-tls-certificate-expired',
+    patterns: [/cert_has_expired/iu, /certificate has expired/iu],
+  },
+  {
+    kind: 'database-tls-certificate-not-yet-valid',
+    patterns: [/cert_not_yet_valid/iu, /certificate is not yet valid/iu],
+  },
+  {
+    kind: 'database-tls-ca-untrusted',
+    patterns: [
+      /depth_zero_self_signed_cert/iu,
+      /self_signed_cert_in_chain/iu,
+      /self[- ]signed/iu,
+      /unable_to_get_issuer_cert/iu,
+      /unable_to_verify_leaf_signature/iu,
+      /unable to get local issuer/iu,
+      /unable to verify/iu,
+    ],
+  },
+  {
     kind: 'database-tls-verification-failed',
     patterns: [
       /certificate/iu,
       /err_tls/iu,
-      /hostname\/ip does not match/iu,
-      /self[- ]signed/iu,
-      /unable to verify/iu,
       /ssl (?:connection|error|handshake|routines)/iu,
       /tls (?:connection|error|handshake)/iu,
     ],

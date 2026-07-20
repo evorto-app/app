@@ -19,8 +19,28 @@ const result = (value: unknown) => ({
 describe('ops schema operations', () => {
   it.each([
     [
-      'TLS certificate failures',
+      'TLS hostname mismatches',
       'hostname/IP does not match certificate altnames',
+      'database-tls-hostname-mismatch',
+    ],
+    [
+      'expired TLS certificates',
+      'Error: CERT_HAS_EXPIRED',
+      'database-tls-certificate-expired',
+    ],
+    [
+      'not-yet-valid TLS certificates',
+      'Error: CERT_NOT_YET_VALID',
+      'database-tls-certificate-not-yet-valid',
+    ],
+    [
+      'untrusted TLS certificate authorities',
+      'Error: UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+      'database-tls-ca-untrusted',
+    ],
+    [
+      'other TLS verification failures',
+      'TLS handshake failed while validating certificate purpose',
       'database-tls-verification-failed',
     ],
     [
