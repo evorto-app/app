@@ -626,3 +626,18 @@ export const seedStaging = (
 
     return { reset: true as const, seeded: true as const };
   });
+
+export const initializeEmptyStaging = (
+  runner: OpsCommandRunner = liveOpsCommandRunner,
+) =>
+  Effect.gen(function* () {
+    const seedResult = yield* runner.run(['bun', stagingSeedExecutable], {
+      environment: { STAGING_INITIALIZE_ONLY: 'true' },
+    });
+    yield* requireSuccessfulBoundedCommand(
+      'Empty staging initialization',
+      seedResult,
+    );
+
+    return { initialized: true as const };
+  });

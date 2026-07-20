@@ -6,6 +6,7 @@ import {
   applySchema,
   classifyOpsCommandFailure,
   explainSchema,
+  initializeEmptyStaging,
   type OpsCommandRunner,
   seedStaging,
 } from './schema-operations';
@@ -302,6 +303,33 @@ describe('ops schema operations', () => {
       ]);
       expect(commands[3]).not.toContain('--force');
     }),
+  );
+
+  it.effect(
+    'initializes staging through the seed executable in non-destructive mode',
+    () =>
+      Effect.gen(function* () {
+        const commands: {
+          command: readonly string[];
+          environment?: Readonly<Record<string, string>>;
+        }[] = [];
+        const runner: OpsCommandRunner = {
+          run: (command, options) => {
+            commands.push({ command, environment: options?.environment });
+            return Effect.succeed({ exitCode: 0, stderr: '', stdout: '' });
+          },
+        };
+
+        const response = yield* initializeEmptyStaging(runner);
+
+        expect(response).toEqual({ initialized: true });
+        expect(commands).toEqual([
+          {
+            command: ['bun', 'dist/evorto/ops/seed-staging.mjs'],
+            environment: { STAGING_INITIALIZE_ONLY: 'true' },
+          },
+        ]);
+      }),
   );
 
   it.effect(
