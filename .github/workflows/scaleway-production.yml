@@ -387,7 +387,7 @@ jobs:
             <<<"${version_body}" >/dev/null
           curl "${curl_args[@]}" --fail \
             --header 'X-Forwarded-Host: attacker.invalid' \
-            https://alpha.evorto.app/ \
+            https://alpha.evorto.app/events \
             | grep --quiet '<app-root'
           login_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' https://alpha.evorto.app/login)"
           [[ "${login_status}" =~ ^30[12378]$ ]]

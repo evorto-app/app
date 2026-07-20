@@ -481,18 +481,23 @@ jobs:
             <<<"${version_body}" >/dev/null
 
           curl "${curl_args[@]}" --fail \
-            --dump-header deployment/home.headers \
+            --dump-header deployment/events.headers \
             --header 'X-Forwarded-Host: attacker.invalid' \
-            --output deployment/home.html \
-            https://staging.evorto.app/
-          grep --ignore-case --quiet '^x-robots-tag: noindex, nofollow' deployment/home.headers
-          grep --quiet '<app-root' deployment/home.html
+            --output deployment/events.html \
+            https://staging.evorto.app/events
+          grep --ignore-case --quiet '^x-robots-tag: noindex, nofollow' deployment/events.headers
+          grep --quiet '<app-root' deployment/events.html
 
           login_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/login)"
           [[ "${login_status}" =~ ^30[12378]$ ]]
 
-          rpc_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{}' https://staging.evorto.app/rpc)"
-          [[ "${rpc_status}" =~ ^4[0-9]{2}$ ]]
+          rpc_body="$(curl "${curl_args[@]}" --fail --header 'Content-Type: application/json' --data '{}' https://staging.evorto.app/rpc)"
+          jq --exit-status \
+            'type == "array"
+              and length == 1
+              and .[0]._tag == "Defect"
+              and (.[0].defect | type == "string")' \
+            <<<"${rpc_body}" >/dev/null
 
           generated_endpoint="$(jq --raw-output .containers.web.endpoint deployment/platform.json)"
           generated_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' "${generated_endpoint}")"
