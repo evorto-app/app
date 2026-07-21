@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ca43e287793d",
+  "strategy": "manual-commit",
+  "branch": "codex/fix-transfer-claim-tenant",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/fix-anonymous-auth-deep-links.md",
+    "src/app/core/guards/auth.guard.spec.ts",
+    "src/app/core/guards/auth.guard.ts",
+    "tests/specs/smoke/load-application.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ca/43e287793d/0/metadata.json",
+      "transcript": "/ca/43e287793d/0/full.jsonl",
+      "content_hash": "/ca/43e287793d/0/content_hash.txt",
+      "prompt": "/ca/43e287793d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 760959,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 57763840,
+    "output_tokens": 72640,
+    "api_call_count": 354
+  }
+}
