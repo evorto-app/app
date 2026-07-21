@@ -1,6 +1,6 @@
 {
   "name": "evorto",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "scripts": {
     "env:runtime": "bun helpers/testing/runtime-environment.ts",
     "dev:ng": "bun --define process.version=\"'v24.15.0'\" --define process.versions.node=\"'24.15.0'\" ./node_modules/@angular/cli/bin/ng.js",
