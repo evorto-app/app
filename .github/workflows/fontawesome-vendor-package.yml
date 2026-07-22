@@ -1,0 +1,107 @@
+name: Publish Font Awesome Pro Vendor Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: Optional semver version for the vendor package.
+        required: false
+        type: string
+      pro_packages:
+        default: "@fortawesome/duotone-regular-svg-icons"
+        description: Comma or whitespace separated Font Awesome Pro package names to mirror.
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - .github/scripts/build-fontawesome-vendor-package.ts
+      - .github/workflows/fontawesome-vendor-package.yml
+      - bun.lock
+      - package.json
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  cancel-in-progress: false
+  group: fontawesome-vendor-package-${{ github.ref }}
+
+jobs:
+  publish:
+    name: Publish private Font Awesome Pro bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+      REQUESTED_PACKAGE_VERSION: ${{ github.event.inputs.package_version }}
+      REQUESTED_PRO_PACKAGES: ${{ github.event.inputs.pro_packages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+
+      - name: Compute package metadata
+        shell: bash
+        run: |
+          owner_lc="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          package_version="${REQUESTED_PACKAGE_VERSION}"
+          if [ -z "${package_version}" ]; then
+            package_version="0.0.${GITHUB_RUN_NUMBER}-run.${GITHUB_RUN_ATTEMPT}"
+          fi
+
+          pro_packages="${REQUESTED_PRO_PACKAGES}"
+          if [ -z "${pro_packages}" ]; then
+            pro_packages="@fortawesome/duotone-regular-svg-icons"
+          fi
+
+          {
+            echo "PACKAGE_SCOPE=@${owner_lc}"
+            echo "VENDOR_PACKAGE_NAME=@${owner_lc}/evorto-fontawesome-pro-vendor"
+            echo "VENDOR_PACKAGE_VERSION=${package_version}"
+            echo "FONT_AWESOME_VENDOR_PACKAGE_NAMES=${pro_packages}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Validate required configuration
+        shell: bash
+        run: |
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
+
+      - name: Build vendor package
+        run: bun .github/scripts/build-fontawesome-vendor-package.ts
+
+      - name: Setup Node for GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://npm.pkg.github.com
+          scope: ${{ env.PACKAGE_SCOPE }}
+
+      - name: Publish vendor package
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: npm publish dist/fontawesome-vendor-package --registry=https://npm.pkg.github.com
+
+      - name: Write package summary
+        shell: bash
+        run: |
+          {
+            echo "### Published Font Awesome Pro vendor package"
+            echo
+            echo "- Package: \`${VENDOR_PACKAGE_NAME}@${VENDOR_PACKAGE_VERSION}\`"
+            echo "- Mirrored package names: \`${FONT_AWESOME_VENDOR_PACKAGE_NAMES}\`"
+            echo
+            echo "Download from another workflow with a token that has package read access:"
+            echo
+            echo '```sh'
+            echo "npm pack \"${VENDOR_PACKAGE_NAME}@latest\" --registry=https://npm.pkg.github.com"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
