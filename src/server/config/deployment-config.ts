@@ -1,4 +1,12 @@
-import { Config, Context, Layer, Option, Redacted } from 'effect';
+import {
+  Config,
+  ConfigProvider,
+  Context,
+  Effect,
+  Layer,
+  Option,
+  Redacted,
+} from 'effect';
 
 import { optionalTrimmedString } from './config-string';
 
@@ -16,6 +24,22 @@ export const workerTriggerModeConfig = Config.literals(
   ['poll', 'http'],
   'WORKER_TRIGGER_MODE',
 ).pipe(Config.withDefault('poll'));
+
+const traceSamplingRatioConfig = Config.option(
+  Config.finite('TRACE_SAMPLING_RATIO').pipe(
+    Config.mapOrFail((ratio) =>
+      ratio >= 0 && ratio <= 1
+        ? Effect.succeed(ratio)
+        : Effect.fail(
+            new Config.ConfigError(
+              new ConfigProvider.SourceError({
+                message: `Expected TRACE_SAMPLING_RATIO to be between 0 and 1, got ${ratio}`,
+              }),
+            ),
+          ),
+    ),
+  ),
+);
 
 const optionalRedactedString = (name: string) =>
   Config.option(Config.redacted(name)).pipe(
@@ -41,6 +65,7 @@ export const deploymentConfig = Config.all({
   COCKPIT_TRACES_ENDPOINT: Config.option(Config.url('COCKPIT_TRACES_ENDPOINT')),
   COCKPIT_TRACES_TOKEN: optionalRedactedString('COCKPIT_TRACES_TOKEN'),
   READINESS_TENANT_HOST: optionalTrimmedString('READINESS_TENANT_HOST'),
+  TRACE_SAMPLING_RATIO: traceSamplingRatioConfig,
   TRUST_PLATFORM_PROXY: Config.boolean('TRUST_PLATFORM_PROXY').pipe(
     Config.withDefault(false),
   ),

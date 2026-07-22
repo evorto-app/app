@@ -8,6 +8,10 @@ import {
 import * as BunFileSystem from '@effect/platform-bun/BunFileSystem';
 import * as BunHttpServer from '@effect/platform-bun/BunHttpServer';
 import * as BunRuntime from '@effect/platform-bun/BunRuntime';
+import {
+  serverTracePolicyLayer,
+  withoutServerTracing,
+} from '@server/effect/server-trace-policy';
 import { ConfigProvider, FileSystem, Path } from 'effect';
 import { Effect, Fiber, Layer, Option, Schema } from 'effect';
 import {
@@ -323,7 +327,7 @@ const healthRouteLayer = HttpLayerRouter.add('*', '/healthz', (request) =>
     }
 
     return yield* Effect.fail(new HttpServerError.RouteNotFound({ request }));
-  }),
+  }).pipe(withoutServerTracing),
 );
 
 const applicationReadinessRouteLayer = HttpLayerRouter.add(
@@ -345,7 +349,7 @@ const applicationReadinessRouteLayer = HttpLayerRouter.add(
       );
 
       return HttpServerResponse.fromWeb(readinessResponse);
-    }),
+    }).pipe(withoutServerTracing),
 );
 
 const versionRouteLayer = HttpLayerRouter.add('GET', '/version', () =>
@@ -364,7 +368,7 @@ const versionRouteLayer = HttpLayerRouter.add('GET', '/version', () =>
         ),
       }),
     );
-  }),
+  }).pipe(withoutServerTracing),
 );
 
 const browserErrorTelemetryRouteLayer = HttpLayerRouter.add(
@@ -714,7 +718,7 @@ const bootstrapReadinessRouteLayer = HttpLayerRouter.add(
         headers: { 'Cache-Control': 'no-store' },
         status: 204,
       }),
-    ),
+    ).pipe(withoutServerTracing),
 );
 
 const bootstrapRoutesLayer = Layer.mergeAll(
@@ -784,6 +788,7 @@ const getRequestHandler = () => {
     keyValueStoreLayer,
     ObjectStorage.Default,
     otelLayer,
+    serverTracePolicyLayer,
     serverLoggerLayer,
     appRpcHttpAppLayer,
     stripeClientLayer,
@@ -1032,6 +1037,7 @@ const serveEffect = Effect.gen(function* () {
   const commonRuntimeLayer = Layer.mergeAll(
     BunHttpServer.layer({ port }),
     otelLayer,
+    serverTracePolicyLayer,
     serverLoggerLayer,
     DeploymentRuntimeConfig.Default,
     ConfigProvider.layer(requestHandlerRuntimeConfigProvider),

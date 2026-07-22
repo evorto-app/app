@@ -17,6 +17,7 @@ const deploymentConfig = (
   COCKPIT_TRACES_ENDPOINT: Option.none(),
   COCKPIT_TRACES_TOKEN: Option.none(),
   READINESS_TENANT_HOST: Option.none(),
+  TRACE_SAMPLING_RATIO: Option.none(),
   TRUST_PLATFORM_PROXY: false,
   WORKER_TRIGGER_MODE: 'poll',
   ...overrides,

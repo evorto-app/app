@@ -180,6 +180,18 @@ secret bundle. Without both `COCKPIT_TRACES_ENDPOINT` and
 `COCKPIT_TRACES_TOKEN`, the runtime intentionally starts without a trace
 exporter.
 
+Hosted roles normally sample 10% of complete parent-based traces and retain
+them for the included seven-day Cockpit window. Health, readiness, and version
+requests are never traced. Local development keeps 100% sampling by default.
+`TRACE_SAMPLING_RATIO` accepts a value from `0` through `1` when an explicit
+runtime override is needed.
+
+For a short staging investigation, manually dispatch `Deploy Scaleway staging`
+with `full_trace_debugging` enabled. That deployment samples 100% of application
+traces for all three roles. The next successful automatic or scheduled
+reconciliation restores the Terraform-owned 10% value, so the debug setting
+cannot silently become the long-term default.
+
 ## DNS and Transactional Email
 
 Keep Cloudflare as the authoritative DNS provider. Terraform manages only the

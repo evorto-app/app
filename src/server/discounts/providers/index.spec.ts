@@ -31,7 +31,7 @@ describe('validateEsnCard', () => {
       validTo: new Date('2026-12-31T00:00:00.000Z'),
     });
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://esncard.org/services/1.0/card.json?code=ESN-123',
+      'https://www.esncard.org/services/1.0/card.json?code=ESN-123',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });

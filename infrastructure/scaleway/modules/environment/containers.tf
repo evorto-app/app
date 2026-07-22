@@ -14,6 +14,7 @@ locals {
     DATABASE_TLS_REQUIRED            = "true"
     NODE_ENV                         = "production"
     SERVER_LOG_LEVEL                 = "info"
+    TRACE_SAMPLING_RATIO             = "0.1"
   }
   object_storage_environment_variables = {
     S3_BUCKET   = scaleway_object_bucket.application.name

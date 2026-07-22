@@ -430,6 +430,12 @@ describe('Scaleway hosting source', () => {
   });
 
   it('uses native container telemetry, custom traces, all provider alerts, and release-aware logs', () => {
+    const containers = source(
+      'infrastructure/scaleway/modules/environment/containers.tf',
+    );
+    const moduleVariables = source(
+      'infrastructure/scaleway/modules/environment/variables.tf',
+    );
     const observability = source(
       'infrastructure/scaleway/modules/environment/observability.tf',
     );
@@ -439,6 +445,10 @@ describe('Scaleway hosting source', () => {
     expect(observability).toContain('type           = "traces"');
     expect(observability).not.toContain('type           = "logs"');
     expect(observability).not.toContain('type           = "metrics"');
+    expect(containers).toMatch(/TRACE_SAMPLING_RATIO\s+= "0\.1"/u);
+    expect(moduleVariables).toMatch(
+      /variable "cockpit_trace_retention_days" \{[\s\S]*?default\s+= 7/u,
+    );
     expect(observability).toContain(
       'preconfigured_alert_ids = toset(data.scaleway_cockpit_preconfigured_alert.available.alerts[*].preconfigured_rule_id)',
     );
@@ -480,6 +490,10 @@ describe('Scaleway hosting source', () => {
 
     expect(staging).toContain('workflow_run:');
     expect(staging).toContain('cron: "*/30 * * * *"');
+    expect(staging).toContain('full_trace_debugging:');
+    expect(staging).toContain(
+      "TRACE_SAMPLING_RATIO_OVERRIDE: ${{ inputs.full_trace_debugging && '1' || '' }}",
+    );
     expect(staging).toContain('cancel-in-progress: false');
     expect(staging).toContain('ops/scaleway/require-release-gates.sh');
     expect(staging).toContain('--platform linux/amd64');
@@ -510,6 +524,10 @@ describe('Scaleway hosting source', () => {
       'curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)',
     );
     expect(deployRole).toContain('APP_BOOTSTRAP: "false"');
+    expect(deployRole).toContain('TRACE_SAMPLING_RATIO_OVERRIDE');
+    expect(deployRole).toContain(
+      'TRACE_SAMPLING_RATIO: $trace_sampling_ratio_override',
+    );
     expect(deployRole).toContain(
       'container_id="${container_resource_id#"${region}/"}"',
     );

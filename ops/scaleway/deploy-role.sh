@@ -10,6 +10,7 @@ readonly image_digest="${5:?Pass the sha256 image digest}"
 readonly schema_hash="${6:?Pass the packaged schema sha256}"
 readonly scw_cli="${SCW_CLI:-scw}"
 readonly region="${SCW_DEFAULT_REGION:-fr-par}"
+readonly trace_sampling_ratio_override="${TRACE_SAMPLING_RATIO_OVERRIDE:-}"
 
 if [[ "${role}" != 'web' && "${role}" != 'worker' && "${role}" != 'ops' ]]; then
   echo "Unsupported application role: ${role}" >&2
@@ -25,6 +26,10 @@ if [[ ! "${image_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
 fi
 if [[ ! "${schema_hash}" =~ ^[0-9a-f]{64}$ ]]; then
   echo "The packaged schema hash must be a lowercase SHA-256" >&2
+  exit 1
+fi
+if [[ -n "${trace_sampling_ratio_override}" && ! "${trace_sampling_ratio_override}" =~ ^(0([.][0-9]+)?|1([.]0+)?)$ ]]; then
+  echo "TRACE_SAMPLING_RATIO_OVERRIDE must be between 0 and 1" >&2
   exit 1
 fi
 
@@ -50,13 +55,18 @@ jq \
   --arg revision "${revision}" \
   --arg image_digest "${image_digest}" \
   --arg schema_hash "${schema_hash}" \
+  --arg trace_sampling_ratio_override "${trace_sampling_ratio_override}" \
     '.containers[$role].environment_variables
     + {
         APP_BOOTSTRAP: "false",
         APP_REVISION: $revision,
         APP_IMAGE_DIGEST: $image_digest
       }
-    + if $role == "ops" then { APP_SCHEMA_HASH: $schema_hash } else {} end' \
+    + (if $role == "ops" then { APP_SCHEMA_HASH: $schema_hash } else {} end)
+    + (if $trace_sampling_ratio_override == ""
+       then {}
+       else { TRACE_SAMPLING_RATIO: $trace_sampling_ratio_override }
+       end)' \
   "${platform_output_file}" \
   >"${environment_file}"
 
