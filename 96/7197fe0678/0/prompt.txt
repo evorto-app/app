@@ -1,0 +1,9 @@
+Lets move on
+
+---
+
+Can we reduce the cost of custom traces? It is one of the highest
+
+---
+
+Let's do that then. Maybe we add a temporary override that gets it back up to 100 for debugging

@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "967197fe0678",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-22T07:17:02.940479Z",
+  "branch": "codex/reduce-trace-costs",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/reduce-custom-trace-costs.md",
+    ".github/workflows/scaleway-staging.yml",
+    "helpers/testing/scaleway-deploy-role.spec.ts",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "infrastructure/scaleway/README.md",
+    "infrastructure/scaleway/modules/environment/containers.tf",
+    "infrastructure/scaleway/modules/environment/variables.tf",
+    "ops/scaleway/deploy-role.sh",
+    "src/server.ts",
+    "src/server/config/deployment-config.spec.ts",
+    "src/server/config/deployment-config.ts",
+    "src/server/effect/server-telemetry.layer.spec.ts",
+    "src/server/effect/server-telemetry.layer.ts",
+    "src/server/effect/server-trace-policy.spec.ts",
+    "src/server/effect/server-trace-policy.ts",
+    "src/server/runtime/runtime-role.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "947a42bb3ef4",
+  "token_usage": {
+    "input_tokens": 72019934,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 5266781952,
+    "output_tokens": 6574284,
+    "api_call_count": 34011
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-22T07:16:57.254583Z",
+    "agent_lines": 306,
+    "agent_removed": 101,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 306,
+    "total_lines_changed": 407,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
