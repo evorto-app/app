@@ -45,7 +45,7 @@ services:
     restart: "no"
 
   mailpit:
-    image: axllent/mailpit:v1.28.2@sha256:28a161f4a39c70671d0fb771a6e7a3abe6d2144c0e2a595ff72767ab63cd14f6
+    image: axllent/mailpit:v1.30.5@sha256:b868afa176bfd6cce2323ea316cd99ccad77915e51e595748f6d786700ecf109
     restart: unless-stopped
     environment:
       MP_DATABASE: /data/mailpit.db
