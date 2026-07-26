@@ -173,7 +173,7 @@ if jq --exit-status \
   '.status == "ready"
     and (.image // .registry_image) == $image_reference
     and .environment_variables == $desired_environment[0]
-    and ([.secret_environment_variables[]?.key] | sort) == $desired_secret_keys[0]' \
+    and ((.secret_environment_variables // {}) | keys | sort) == $desired_secret_keys[0]' \
   "${current_container_file}" \
   >/dev/null; then
   if [[ -n "${deployment_status_file}" ]]; then
