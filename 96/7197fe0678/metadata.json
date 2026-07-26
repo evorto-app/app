@@ -6,21 +6,11 @@
   "checkpoints_count": 0,
   "files_touched": [
     ".changeset/reduce-custom-trace-costs.md",
-    ".github/workflows/scaleway-staging.yml",
-    "helpers/testing/scaleway-deploy-role.spec.ts",
-    "helpers/testing/scaleway-hosting-source.spec.ts",
-    "infrastructure/scaleway/README.md",
-    "infrastructure/scaleway/modules/environment/containers.tf",
-    "infrastructure/scaleway/modules/environment/variables.tf",
-    "ops/scaleway/deploy-role.sh",
-    "src/server.ts",
-    "src/server/config/deployment-config.spec.ts",
-    "src/server/config/deployment-config.ts",
-    "src/server/effect/server-telemetry.layer.spec.ts",
-    "src/server/effect/server-telemetry.layer.ts",
-    "src/server/effect/server-trace-policy.spec.ts",
-    "src/server/effect/server-trace-policy.ts",
-    "src/server/runtime/runtime-role.spec.ts"
+    "helpers/testing/esncard-release-source.spec.ts",
+    "package.json",
+    "src/server/discounts/providers/index.spec.ts",
+    "src/server/discounts/providers/index.ts",
+    "tests/docs/admin/google-maps-location.doc.ts"
   ],
   "sessions": [
     {
@@ -31,10 +21,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 72019934,
+    "input_tokens": 73330840,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 5266781952,
-    "output_tokens": 6574284,
-    "api_call_count": 34011
+    "cache_read_tokens": 5311705856,
+    "output_tokens": 6653399,
+    "api_call_count": 34388
   }
 }
