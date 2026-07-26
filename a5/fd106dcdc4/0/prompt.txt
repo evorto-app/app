@@ -1,9 +1,1 @@
-All our scaleway containers currently have at least one running, sometimes two and the current web container is failing, please investigate why that is
-
----
-
-It also seems like the ops container is mostly online
-
----
-
 Apply the fixes as planned, get them on main
