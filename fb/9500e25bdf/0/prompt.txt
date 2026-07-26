@@ -1,0 +1,4 @@
+Go to latest main and update our vendored effect code to be the latest effect-ts/effect code, also update our dependencies to the same version.
+The repo moved from effect-smol to effect, we have to do the same.
+Also update all other vendored code and update the dependencies.
+Create a pr once done
