@@ -1,17 +1,1 @@
-Apply the fixes as planned, get them on main
-
----
-
-I think that these should be on the main checkout, were they not copied?
-
----
-
-Can you check /Users/hedde/.codex/worktrees/b7e9/evorto
-
----
-
-I think that the passwords were on git some time ago (which is fine since they are only working in the dev tenant)
-
----
-
 Make sure our work is based on the latest state of the branch
