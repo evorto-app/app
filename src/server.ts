@@ -65,11 +65,7 @@ import {
   MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES,
 } from './server/http/browser-error-telemetry.web-handler';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
-import {
-  handleInternalTriggerWebRequest,
-  type InternalTriggerArguments,
-  MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES,
-} from './server/http/internal-trigger.web-handler';
+import { MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES } from './server/http/internal-trigger.web-handler';
 import { resolveNodeRequestBoundary } from './server/http/node-request-boundary';
 import { handleOpsJsonTriggerWebRequest } from './server/http/ops-trigger.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
@@ -91,12 +87,14 @@ import {
 import { handleTenantBrandAssetWebRequest } from './server/http/tenant-brand-asset.web-handler';
 import { createUnknownTenantResponse } from './server/http/unknown-tenant-response';
 import { createVersionWebResponse } from './server/http/version.web-handler';
+import {
+  handleWorkerTrigger,
+  WORKER_EMAIL_DELIVERY_PATH,
+  workerEmailDeliveryRouteLayer,
+} from './server/http/worker-email-delivery.route';
 import { EmailDelivery } from './server/integrations/email-delivery';
 import { ObjectStorage } from './server/integrations/object-storage';
-import {
-  processDueEmailOutbox,
-  runEmailOutboxProcessor,
-} from './server/notifications/email-delivery';
+import { runEmailOutboxProcessor } from './server/notifications/email-delivery';
 import {
   applySchema,
   explainSchema,
@@ -125,7 +123,6 @@ const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 const rpcPath = '/rpc';
 const stripeWebhookPath = '/webhooks/stripe';
 const browserErrorTelemetryPath = '/telemetry/browser-errors';
-const workerEmailDeliveryPath = '/internal/worker/email-delivery';
 const workerExpiredCheckoutCleanupPath =
   '/internal/worker/expired-checkout-cleanup';
 const workerReceiptOrphanCleanupPath =
@@ -144,7 +141,7 @@ const internalTriggerPaths = new Set([
   opsSchemaApplyPath,
   opsSchemaExplainPath,
   opsSeedStagingPath,
-  workerEmailDeliveryPath,
+  WORKER_EMAIL_DELIVERY_PATH,
   workerExpiredCheckoutCleanupPath,
   workerReceiptOrphanCleanupPath,
   workerStripeRefundPath,
@@ -380,36 +377,6 @@ const browserErrorTelemetryRouteLayer = HttpLayerRouter.add(
       const response = yield* handleBrowserErrorTelemetryWebRequest(webRequest);
       return HttpServerResponse.fromWeb(response);
     }),
-);
-
-const handleWorkerTrigger = <A, E, R>(
-  request: HttpServerRequest.HttpServerRequest,
-  operation: (arguments_: InternalTriggerArguments) => Effect.Effect<A, E, R>,
-) =>
-  Effect.gen(function* () {
-    const deployment = yield* DeploymentRuntimeConfig;
-    const runtimeRole = yield* validateRuntimeRoleConfiguration(deployment);
-    if (runtimeRole.role !== 'worker' || runtimeRole.triggerMode !== 'http') {
-      return yield* Effect.fail(new HttpServerError.RouteNotFound({ request }));
-    }
-
-    const webRequest = yield* HttpServerRequest.toWeb(request);
-    const webResponse = yield* handleInternalTriggerWebRequest(
-      webRequest,
-      operation,
-    );
-    return HttpServerResponse.fromWeb(webResponse);
-  });
-
-const workerEmailDeliveryRouteLayer = HttpLayerRouter.add(
-  'POST',
-  workerEmailDeliveryPath,
-  (request) =>
-    handleWorkerTrigger(request, ({ limit }) =>
-      processDueEmailOutbox(limit ?? 10).pipe(
-        Effect.map((processed) => ({ processed })),
-      ),
-    ),
 );
 
 const workerExpiredCheckoutCleanupRouteLayer = HttpLayerRouter.add(
@@ -754,7 +721,7 @@ const workerRoutesLayer = Layer.mergeAll(
   responseMiddlewareLayer,
 );
 const configuredWorkerRoutesLayer = workerRoutesLayer.pipe(
-  Layer.provide(EmailDelivery.Default),
+  HttpLayerRouter.provideRequest(EmailDelivery.Default),
 );
 
 const opsRoutesLayer = Layer.mergeAll(

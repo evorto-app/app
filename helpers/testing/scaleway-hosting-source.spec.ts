@@ -524,6 +524,7 @@ describe('Scaleway hosting source', () => {
       'curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)',
     );
     expect(deployRole).toContain('APP_BOOTSTRAP: "false"');
+    expect(deployRole).toContain('APP_DEPLOYMENT_FINGERPRINT');
     expect(deployRole).toContain('TRACE_SAMPLING_RATIO_OVERRIDE');
     expect(deployRole).toContain(
       'TRACE_SAMPLING_RATIO: $trace_sampling_ratio_override',
@@ -531,8 +532,24 @@ describe('Scaleway hosting source', () => {
     expect(deployRole).toContain(
       'container_id="${container_resource_id#"${region}/"}"',
     );
+    expect(deployRole).toContain('container container get');
     expect(deployRole).toContain('region="${region}"');
     expect(deployRole).toContain('Failed to update the ${role} container');
+    expect(staging).toContain('workflows: [E2E Baseline]');
+    expect(staging).not.toContain('workflows: [PR Quality, E2E Baseline]');
+    expect(staging).toContain(
+      'Ops already matches the desired release; skipping schema reconciliation.',
+    );
+    expect(staging).toContain("github.event_name != 'schedule'");
+  });
+
+  it('provides worker email delivery at the HTTP request boundary', () => {
+    const server = source('src/server.ts');
+
+    expect(server).toContain(
+      'HttpLayerRouter.provideRequest(EmailDelivery.Default)',
+    );
+    expect(server).not.toContain('Layer.provide(EmailDelivery.Default)');
   });
 
   it('gates ordinary CI and destructive staging reset separately', () => {
