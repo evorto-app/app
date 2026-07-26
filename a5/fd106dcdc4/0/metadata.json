@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "a5fd106dcdc4",
+  "session_id": "019f9efe-e9d9-7cb2-8056-5cc9a821f251",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-26T16:02:41.445702Z",
+  "branch": "codex/fix-scaleway-container-churn",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/scaleway-staging.yml",
+    "ops/scaleway/deploy-role.sh",
+    "src/server/http/worker-email-delivery.route.ts",
+    "src/server.ts",
+    "src/server/http/worker-email-delivery.route.spec.ts",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "helpers/testing/scaleway-deploy-role.spec.ts",
+    ".changeset/prevent-scaleway-container-churn.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "e82d35b5d016",
+  "token_usage": {
+    "input_tokens": 728430,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 22304768,
+    "output_tokens": 63730,
+    "api_call_count": 191
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-26T16:02:41.323233Z",
+    "agent_lines": 471,
+    "agent_removed": 84,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 471,
+    "total_lines_changed": 555,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
