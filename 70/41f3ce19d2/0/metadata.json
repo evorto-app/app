@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7041f3ce19d2",
+  "session_id": "019f9efe-e9d9-7cb2-8056-5cc9a821f251",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-26T17:51:40.664542Z",
+  "branch": "codex/fix-scaleway-secret-map-idempotence",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/fix-scaleway-secret-map-idempotence.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "4d631290a489",
+  "checkpoint_transcript_start": 2750,
+  "transcript_lines_at_start": 2750,
+  "token_usage": {
+    "input_tokens": 22618,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1564672,
+    "output_tokens": 2028,
+    "api_call_count": 17
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-26T17:51:40.417953Z",
+    "agent_lines": 7,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 7,
+    "total_lines_changed": 7,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

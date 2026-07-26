@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7041f3ce19d2",
+  "strategy": "manual-commit",
+  "branch": "codex/fix-scaleway-secret-map-idempotence",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/fix-scaleway-secret-map-idempotence.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/70/41f3ce19d2/0/metadata.json",
+      "transcript": "/70/41f3ce19d2/0/full.jsonl",
+      "content_hash": "/70/41f3ce19d2/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22618,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1564672,
+    "output_tokens": 2028,
+    "api_call_count": 17
+  }
+}
