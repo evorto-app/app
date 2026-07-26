@@ -87,7 +87,7 @@ export const StructuralProto = {
     const thatKeys = Object.keys(that)
     if (selfKeys.length !== thatKeys.length) return false
     for (let i = 0; i < selfKeys.length; i++) {
-      if (selfKeys[i] !== thatKeys[i] && !Equal.equals(this[selfKeys[i]], that[selfKeys[i]])) {
+      if (selfKeys[i] !== thatKeys[i] || !Equal.equals(this[selfKeys[i]], that[selfKeys[i]])) {
         return false
       }
     }
@@ -541,7 +541,7 @@ export const exitFailCause: <E>(cause: Cause.Cause<E>) => Exit.Exit<never, E> = 
     }
     return cont
       ? cont[contE](cause, fiber, annotated ? undefined : this)
-      : fiber.yieldWith(annotated ? this : exitFailCause(cause))
+      : fiber.yieldWith(annotated ? exitFailCause(cause) : this)
   }
 })
 

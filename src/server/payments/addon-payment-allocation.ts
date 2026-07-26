@@ -39,7 +39,7 @@ const percentageRatio = (
   if (percentage === null) return;
   const normalized = percentage.trim();
   if (!/^\d+(?:\.\d{1,4})?$/.test(normalized)) return;
-  const [whole = '0', fraction = ''] = normalized.split('.');
+  const [whole = '0', fraction = ''] = normalized.split('.', 2);
   const denominator = 10 ** fraction.length;
   const numerator = Number(whole) * denominator + Number(fraction || '0');
   if (!Number.isSafeInteger(numerator) || numerator < 0) return;

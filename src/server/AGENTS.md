@@ -3,7 +3,7 @@
 ## Runtime Architecture
 
 - Prefer Effect and Effect Platform first.
-- For Effect v4 reference material, read `repos/effect/LLMS.md` first, then inspect the vendored `effect-smol` source under `repos/effect/packages/**` for implementation details, tests, and examples.
+- For Effect v4 reference material, read `repos/effect/LLMS.md` first, then inspect the vendored Effect source under `repos/effect/packages/**` for implementation details, tests, and examples.
 - Treat `repos/effect` as read-only reference material. Do not import from it; app code should keep importing from normal Effect packages.
 - Organize server capabilities with Effect dependency injection (`Context.Service` + composed `Layer`s).
 - Keep service dependencies declared in service definitions; wire app composition with flat `Layer.mergeAll` / `Layer.provideMerge`.

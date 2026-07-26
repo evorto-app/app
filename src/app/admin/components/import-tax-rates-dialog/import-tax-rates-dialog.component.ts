@@ -21,13 +21,6 @@ export const stripeTaxRatesDashboardLink = {
   label: 'Open Stripe tax rates',
 };
 
-export function taxRateImportActionDisabled(input: {
-  mutationPending: boolean;
-  selectedCount: number;
-}) {
-  return input.mutationPending || input.selectedCount === 0;
-}
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -103,4 +96,11 @@ export class ImportTaxRatesDialogComponent {
       this.selected.set(current.filter((x) => x !== id));
     }
   }
+}
+
+export function taxRateImportActionDisabled(input: {
+  mutationPending: boolean;
+  selectedCount: number;
+}) {
+  return input.mutationPending || input.selectedCount === 0;
 }

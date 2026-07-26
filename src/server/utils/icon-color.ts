@@ -168,7 +168,7 @@ const fetchIconSourceColor = async (
   iconCommonName: string,
   fetchImplementation: typeof globalThis.fetch,
 ): Promise<number | undefined> => {
-  const [name, set = 'fluent'] = iconCommonName.split(':');
+  const [name, set = 'fluent'] = iconCommonName.split(':', 2);
   if (!name) {
     throw new IconSourceError('invalidPng');
   }
