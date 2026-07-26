@@ -12,7 +12,8 @@ import { serverTelemetryConfig } from '../config/server-config';
 
 export const traceSamplingRatio = (
   environment: 'local' | 'production' | 'staging',
-) => (environment === 'production' ? 0.1 : 1);
+  override: Option.Option<number>,
+) => Option.getOrElse(override, () => (environment === 'local' ? 1 : 0.1));
 
 export const serverTelemetryLayer = Layer.unwrap(
   Effect.gen(function* () {
@@ -63,7 +64,10 @@ export const serverTelemetryLayer = Layer.unwrap(
       tracerConfig: {
         sampler: new ParentBasedSampler({
           root: new TraceIdRatioBasedSampler(
-            traceSamplingRatio(deployment.APP_ENVIRONMENT),
+            traceSamplingRatio(
+              deployment.APP_ENVIRONMENT,
+              deployment.TRACE_SAMPLING_RATIO,
+            ),
           ),
         }),
       },

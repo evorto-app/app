@@ -411,7 +411,7 @@ describe('production provider certification source', () => {
       /requires no API key, OAuth client,\s+or other ESNcard provider credential/u,
     );
     expect(providerSource).toContain(
-      'https://esncard.org/services/1.0/card.json?code=',
+      'https://www.esncard.org/services/1.0/card.json?code=',
     );
     expect(providerSource).not.toContain('Authorization');
   });

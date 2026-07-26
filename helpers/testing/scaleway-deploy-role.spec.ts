@@ -16,7 +16,10 @@ afterEach(() => {
   }
 });
 
-const runDeployRole = (containerResourceId: string): string[] => {
+const runDeployRole = (
+  containerResourceId: string,
+  traceSamplingRatioOverride?: string,
+): string[] => {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'evorto-scaleway-deploy-role-'),
   );
@@ -36,6 +39,7 @@ const runDeployRole = (containerResourceId: string): string[] => {
           environment_variables: {
             APP_ENVIRONMENT: 'staging',
             APP_ROLE: 'ops',
+            TRACE_SAMPLING_RATIO: '0.1',
           },
           id: containerResourceId,
         },
@@ -52,6 +56,9 @@ printf '%s\n' "$@" > "${'$'}{FAKE_SCW_LOG:?}"
   );
   fs.chmodSync(fakeCliPath, 0o700);
 
+  const environment = { ...process.env };
+  delete environment.TRACE_SAMPLING_RATIO_OVERRIDE;
+
   execFileSync(
     deployRoleScript,
     [
@@ -64,10 +71,13 @@ printf '%s\n' "$@" > "${'$'}{FAKE_SCW_LOG:?}"
     ],
     {
       env: {
-        ...process.env,
+        ...environment,
         FAKE_SCW_LOG: commandLogPath,
         SCW_CLI: fakeCliPath,
         SCW_DEFAULT_REGION: 'fr-par',
+        ...(traceSamplingRatioOverride === undefined
+          ? {}
+          : { TRACE_SAMPLING_RATIO_OVERRIDE: traceSamplingRatioOverride }),
       },
       stdio: 'pipe',
     },
@@ -91,6 +101,24 @@ describe('Scaleway role deployment', () => {
       const arguments_ = runDeployRole(containerResourceId);
 
       expect(arguments_).not.toContain(`fr-par/${containerId}`);
+      expect(arguments_).toContain(
+        'environment-variables.TRACE_SAMPLING_RATIO=0.1',
+      );
     },
   );
+
+  it('temporarily overrides the Terraform-owned trace sampling ratio', () => {
+    const arguments_ = runDeployRole(containerId, '1');
+
+    expect(arguments_).toContain(
+      'environment-variables.TRACE_SAMPLING_RATIO=1',
+    );
+    expect(arguments_).not.toContain(
+      'environment-variables.TRACE_SAMPLING_RATIO=0.1',
+    );
+  });
+
+  it('rejects an invalid trace sampling override before deployment', () => {
+    expect(() => runDeployRole(containerId, '1.1')).toThrow();
+  });
 });

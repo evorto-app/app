@@ -38,6 +38,7 @@ Start from the normal application navigation: select **Admin Tools**, then **Gen
   await expect(page).toHaveURL(/\/admin\/settings$/u);
 
   const settings = page.locator('app-general-settings');
+  await expect(settings).not.toHaveAttribute('ngh', /.*/);
   const locationField = settings.locator('app-location-selector-field');
   await expect(locationField).toContainText('No location selected');
   await locationField.getByRole('button', { name: 'Change location' }).click();

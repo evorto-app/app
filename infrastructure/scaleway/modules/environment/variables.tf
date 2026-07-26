@@ -113,7 +113,7 @@ variable "web_min_scale" {
 
 variable "cockpit_trace_retention_days" {
   type    = number
-  default = 30
+  default = 7
 }
 
 variable "alert_email" {

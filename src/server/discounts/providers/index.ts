@@ -70,7 +70,7 @@ export const validateEsnCard = async ({
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const url = `https://esncard.org/services/1.0/card.json?code=${encodeURIComponent(identifier)}`;
+    const url = `https://www.esncard.org/services/1.0/card.json?code=${encodeURIComponent(identifier)}`;
     const response = await fetchImpl(url, { signal: controller.signal });
     if (!response.ok) {
       throw new ProviderValidationUnavailableError(
