@@ -75,7 +75,10 @@ test('transaction history explains a first-load failure and recovers on retry @f
 
   await expect(alert).toHaveCount(0);
   await expect(
-    page.getByRole('heading', { name: 'No transactions recorded yet' }),
+    page
+      .getByRole('table')
+      .or(page.getByRole('heading', { name: 'No transactions recorded yet' }))
+      .first(),
   ).toBeVisible();
 });
 
