@@ -8,9 +8,12 @@ readonly image_reference="${3:?Pass the immutable image reference}"
 readonly revision="${4:?Pass the full Git revision}"
 readonly image_digest="${5:?Pass the sha256 image digest}"
 readonly schema_hash="${6:?Pass the packaged schema sha256}"
+readonly deployment_status_file="${7:-}"
 readonly scw_cli="${SCW_CLI:-scw}"
 readonly region="${SCW_DEFAULT_REGION:-fr-par}"
 readonly trace_sampling_ratio_override="${TRACE_SAMPLING_RATIO_OVERRIDE:-}"
+
+: "${SCW_SECRET_KEY:?SCW_SECRET_KEY is required}"
 
 if [[ "${role}" != 'web' && "${role}" != 'worker' && "${role}" != 'ops' ]]; then
   echo "Unsupported application role: ${role}" >&2
@@ -49,6 +52,9 @@ temporary_directory="$(mktemp -d)"
 trap 'rm -rf "${temporary_directory}"' EXIT
 chmod 700 "${temporary_directory}"
 readonly environment_file="${temporary_directory}/environment.json"
+readonly current_container_file="${temporary_directory}/current-container.json"
+readonly fingerprint_input_file="${temporary_directory}/fingerprint-input"
+readonly secret_keys_file="${temporary_directory}/secret-keys.json"
 
 jq \
   --arg role "${role}" \
@@ -70,15 +76,28 @@ jq \
   "${platform_output_file}" \
   >"${environment_file}"
 
-update_arguments=("${container_id}" "image=${image_reference}")
-while IFS=$'\t' read -r key encoded_value; do
-  value="$(printf '%s' "${encoded_value}" | base64 --decode)"
-  update_arguments+=("environment-variables.${key}=${value}")
-done < <(
-  jq --raw-output \
-    'to_entries[] | [.key, (.value | @base64)] | @tsv' \
-    "${environment_file}"
-)
+{
+  printf '%s\0%s\0%s\0%s\0' \
+    "${role}" \
+    "${image_reference}" \
+    "${image_digest}" \
+    "${schema_hash}"
+  jq --compact-output --sort-keys . "${environment_file}"
+  printf '\0'
+} >"${fingerprint_input_file}"
+
+jq \
+  --arg prefix "${role}/" \
+  '[.role_secret_ids | keys[] | select(startswith($prefix)) | ltrimstr($prefix)] | sort' \
+  "${platform_output_file}" \
+  >"${secret_keys_file}"
+
+if ! jq --exit-status 'length > 0' "${secret_keys_file}" >/dev/null; then
+  echo "The ${role} role secret contract must not be empty" >&2
+  exit 1
+fi
+
+secret_update_arguments=()
 
 mask_value() {
   local value="$1"
@@ -107,17 +126,75 @@ while IFS=$'\t' read -r contract_key secret_id; do
   fi
   value="$(<"${value_file}")"
   mask_value "${value}"
-  update_arguments+=("secret-environment-variables.${secret_name}=${value}")
+  secret_update_arguments+=(
+    "secret-environment-variables.${secret_name}=${value}"
+  )
+  printf '%s\0%s\0' "${contract_key}" "${value}" >>"${fingerprint_input_file}"
 done < <(
   jq --exit-status --raw-output \
     --arg prefix "${role}/" \
     '.role_secret_ids
-      | to_entries[]
-      | select(.key | startswith($prefix))
+      | to_entries
+      | map(select(.key | startswith($prefix)))
+      | sort_by(.key)
+      | .[]
       | [.key, .value]
       | @tsv' \
     "${platform_output_file}"
 )
+
+deployment_fingerprint="$(
+  {
+    printf '%s\0' "${SCW_SECRET_KEY}"
+    cat "${fingerprint_input_file}"
+  } | shasum -a 256 | awk '{ print $1 }'
+)"
+updated_environment_file="${temporary_directory}/environment-with-fingerprint.json"
+jq \
+  --arg deployment_fingerprint "${deployment_fingerprint}" \
+  '. + { APP_DEPLOYMENT_FINGERPRINT: $deployment_fingerprint }' \
+  "${environment_file}" \
+  >"${updated_environment_file}"
+mv "${updated_environment_file}" "${environment_file}"
+
+if ! "${scw_cli}" container container get \
+  "${container_id}" \
+  region="${region}" \
+  -o json \
+  >"${current_container_file}"; then
+  echo "Failed to inspect the ${role} container before deployment" >&2
+  exit 1
+fi
+
+if jq --exit-status \
+  --arg image_reference "${image_reference}" \
+  --slurpfile desired_environment "${environment_file}" \
+  --slurpfile desired_secret_keys "${secret_keys_file}" \
+  '.status == "ready"
+    and (.image // .registry_image) == $image_reference
+    and .environment_variables == $desired_environment[0]
+    and ([.secret_environment_variables[]?.key] | sort) == $desired_secret_keys[0]' \
+  "${current_container_file}" \
+  >/dev/null; then
+  if [[ -n "${deployment_status_file}" ]]; then
+    printf 'false\n' >"${deployment_status_file}"
+  fi
+  echo "${role} already matches ${revision} (${image_digest}); deployment skipped"
+  exit 0
+fi
+
+update_arguments=("${container_id}" "image=${image_reference}")
+while IFS=$'\t' read -r key encoded_value; do
+  value="$(printf '%s' "${encoded_value}" | base64 --decode)"
+  update_arguments+=("environment-variables.${key}=${value}")
+done < <(
+  jq --raw-output \
+    'to_entries | sort_by(.key)[] | [.key, (.value | @base64)] | @tsv' \
+    "${environment_file}"
+)
+if (( ${#secret_update_arguments[@]} > 0 )); then
+  update_arguments+=("${secret_update_arguments[@]}")
+fi
 
 if ! "${scw_cli}" container container update \
   "${update_arguments[@]}" \
@@ -128,4 +205,7 @@ if ! "${scw_cli}" container container update \
   exit 1
 fi
 
+if [[ -n "${deployment_status_file}" ]]; then
+  printf 'true\n' >"${deployment_status_file}"
+fi
 echo "Deployed ${role} at ${revision} (${image_digest})"
