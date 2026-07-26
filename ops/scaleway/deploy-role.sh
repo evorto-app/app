@@ -92,6 +92,11 @@ jq \
   "${platform_output_file}" \
   >"${secret_keys_file}"
 
+if ! jq --exit-status 'length > 0' "${secret_keys_file}" >/dev/null; then
+  echo "The ${role} role secret contract must not be empty" >&2
+  exit 1
+fi
+
 secret_update_arguments=()
 
 mask_value() {

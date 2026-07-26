@@ -36,12 +36,12 @@ const runDeployRole = ({
     secret_environment_variables: [],
     status: 'ready',
   },
-  secretValue,
+  secretValue = 'test-secret',
   traceSamplingRatioOverride,
 }: {
   containerResourceId: string;
   currentContainer?: CurrentContainer;
-  secretValue?: string;
+  secretValue?: null | string;
   traceSamplingRatioOverride?: string;
 }) => {
   const directory = fs.mkdtempSync(
@@ -68,7 +68,8 @@ const runDeployRole = ({
           id: containerResourceId,
         },
       },
-      role_secret_ids: secretValue ? { 'ops/TEST_SECRET': 'secret-1' } : {},
+      role_secret_ids:
+        secretValue === null ? {} : { 'ops/TEST_SECRET': 'secret-1' },
     }),
   );
   fs.writeFileSync(currentContainerPath, JSON.stringify(currentContainer));
@@ -138,7 +139,6 @@ esac
 
 const currentContainerFromArguments = (
   arguments_: string[],
-  secretKeys: string[] = [],
 ): CurrentContainer => ({
   environment_variables: Object.fromEntries(
     arguments_
@@ -152,7 +152,14 @@ const currentContainerFromArguments = (
       }),
   ),
   image: imageReference,
-  secret_environment_variables: secretKeys.map((key) => ({ key })),
+  secret_environment_variables: arguments_
+    .filter((argument) => argument.startsWith('secret-environment-variables.'))
+    .map((argument) => ({
+      key: argument.slice(
+        'secret-environment-variables.'.length,
+        argument.indexOf('='),
+      ),
+    })),
   status: 'ready',
 });
 
@@ -195,14 +202,21 @@ describe('Scaleway role deployment', () => {
     ).toThrow();
   });
 
+  it('fails closed when a role has no configured secrets', () => {
+    expect(() =>
+      runDeployRole({
+        containerResourceId: containerId,
+        secretValue: null,
+      }),
+    ).toThrow();
+  });
+
   it('skips an unchanged ready deployment and reports no traffic change', () => {
     const first = runDeployRole({
       containerResourceId: containerId,
       secretValue: 'same-secret',
     });
-    const currentContainer = currentContainerFromArguments(first.arguments_, [
-      'TEST_SECRET',
-    ]);
+    const currentContainer = currentContainerFromArguments(first.arguments_);
 
     const second = runDeployRole({
       containerResourceId: containerId,
@@ -223,9 +237,7 @@ describe('Scaleway role deployment', () => {
 
     const changed = runDeployRole({
       containerResourceId: containerId,
-      currentContainer: currentContainerFromArguments(first.arguments_, [
-        'TEST_SECRET',
-      ]),
+      currentContainer: currentContainerFromArguments(first.arguments_),
       secretValue: 'new-secret',
     });
 

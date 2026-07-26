@@ -465,6 +465,7 @@ jobs:
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
           REVISION: ${{ needs.resolve-revision.outputs.revision }}
           SCHEMA_HASH: ${{ steps.image.outputs.schema_hash }}
+          OPS_CHANGED: ${{ steps.ops.outputs.changed }}
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
         run: |
@@ -483,7 +484,7 @@ jobs:
           web_changed="$(<"${web_status_file}")"
           echo "worker_changed=${worker_changed}" >> "${GITHUB_OUTPUT}"
           echo "web_changed=${web_changed}" >> "${GITHUB_OUTPUT}"
-          if [ "${worker_changed}" = "true" ] || [ "${web_changed}" = "true" ]; then
+          if [ "${OPS_CHANGED}" = "true" ] || [ "${worker_changed}" = "true" ] || [ "${web_changed}" = "true" ]; then
             touch deployment/traffic-changed
           fi
 

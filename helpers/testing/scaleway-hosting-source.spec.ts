@@ -504,6 +504,8 @@ describe('Scaleway hosting source', () => {
     expect(staging.indexOf('\'{"mode":"initialize-empty"}\'')).toBeLessThan(
       staging.indexOf('touch deployment/traffic-changed'),
     );
+    expect(staging).toContain('OPS_CHANGED: ${{ steps.ops.outputs.changed }}');
+    expect(staging).toContain('[ "${OPS_CHANGED}" = "true" ]');
     expect(staging).toContain('Roll back traffic roles to the previous digest');
     expect(staging).toContain(
       'curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)',
