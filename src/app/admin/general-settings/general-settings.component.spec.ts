@@ -1,6 +1,8 @@
 import { Injector, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -8,8 +10,17 @@ import {
   generalSettingsBrandAssetUploadDisabled,
   generalSettingsFormSchema,
   generalSettingsSaveDisabled,
+  nonNegativeIntegerValidationError,
   tenantTimezoneValidationError,
 } from './general-settings.component';
+
+const template = readFileSync(
+  nodePath.join(
+    process.cwd(),
+    'src/app/admin/general-settings/general-settings.component.html',
+  ),
+  'utf8',
+);
 
 beforeEach(() => {
   TestBed.configureTestingModule({});
@@ -82,9 +93,10 @@ describe('tenantTimezoneValidationError', () => {
 });
 
 describe('tenant policy deadline validation', () => {
-  it('requires both deadline values before settings can be saved', () => {
+  it('requires every numeric policy value before settings can be saved', () => {
     const model = createGeneralSettingsFormModel();
     Reflect.set(model, 'cancellationDeadlineHoursBeforeStart', null);
+    Reflect.set(model, 'maxActiveRegistrationsPerUser', null);
     Reflect.set(model, 'transferDeadlineHoursBeforeStart', null);
     const settings = form(signal(model), generalSettingsFormSchema, {
       injector: TestBed.inject(Injector),
@@ -98,9 +110,88 @@ describe('tenant policy deadline validation', () => {
     ).toContain('Enter a cancellation deadline.');
     expect(
       settings
+        .maxActiveRegistrationsPerUser()
+        .errors()
+        .map((error) => error.message),
+    ).toContain('Enter an active registration limit.');
+    expect(
+      settings
         .transferDeadlineHoursBeforeStart()
         .errors()
         .map((error) => error.message),
     ).toContain('Enter a transfer deadline.');
+  });
+
+  it.each([
+    {
+      expected: undefined,
+      value: 0,
+    },
+    {
+      expected: undefined,
+      value: 12,
+    },
+    {
+      expected: {
+        kind: 'integer',
+        message: 'Enter a whole number.',
+      },
+      value: 1.5,
+    },
+    {
+      expected: {
+        kind: 'nonNegative',
+        message: 'Enter zero or more.',
+      },
+      value: -1,
+    },
+  ])('validates $value without changing it', ({ expected, value }) => {
+    expect(nonNegativeIntegerValidationError(value)).toEqual(expected);
+  });
+
+  it('rejects fractional and negative settings in the form schema', () => {
+    const settings = form(
+      signal({
+        ...createGeneralSettingsFormModel(),
+        cancellationDeadlineHoursBeforeStart: -1,
+        maxActiveRegistrationsPerUser: 1.5,
+        transferDeadlineHoursBeforeStart: 2.5,
+      }),
+      generalSettingsFormSchema,
+      {
+        injector: TestBed.inject(Injector),
+      },
+    );
+
+    expect(
+      settings
+        .maxActiveRegistrationsPerUser()
+        .errors()
+        .map((error) => error.message),
+    ).toContain('Enter a whole number.');
+    expect(
+      settings
+        .cancellationDeadlineHoursBeforeStart()
+        .errors()
+        .map((error) => error.message),
+    ).toContain('Enter zero or more.');
+    expect(
+      settings
+        .transferDeadlineHoursBeforeStart()
+        .errors()
+        .map((error) => error.message),
+    ).toContain('Enter a whole number.');
+  });
+
+  it('renders each numeric setting error at its field', () => {
+    expect(template).toContain(
+      'settingsForm.maxActiveRegistrationsPerUser().errors()',
+    );
+    expect(template).toContain(
+      'settingsForm.transferDeadlineHoursBeforeStart().errors()',
+    );
+    expect(template).toMatch(
+      /settingsForm\s*\.cancellationDeadlineHoursBeforeStart\(\)\s*\.errors\(\)/,
+    );
   });
 });

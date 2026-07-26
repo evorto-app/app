@@ -117,7 +117,7 @@ The event list shows all events with their basic information:
 - Date and time
 - Location
 - Status (draft, pending review, or published)
-- Listing state (listed or unlisted)
+- Listing audience (participants, organizers, both, or unlisted)
 `,
   });
 
@@ -382,7 +382,7 @@ Already selected roles are hidden from suggestions so the same eligibility role 
     templateId: sourceEvent.templateId,
     tenantId: target.tenantId,
     title: initialEditableTitle,
-    unlisted: true,
+    listingAudience: 'unlisted',
   });
 
   try {
@@ -638,7 +638,12 @@ Event status values:
 When a reviewer requests changes, the event returns to **Draft** and the
 review feedback remains visible on its details page.
 
-Listing visibility can be updated from the event actions menu.
+Listing audience can be updated from the event actions menu:
+
+- **Participants** requires an eligible participant registration option.
+- **Organizers** requires an eligible organizer registration option.
+- **Participants and organizers** accepts either kind.
+- **Unlisted** stays out of ordinary event discovery and uses direct links.
 
 For a full walkthrough of the review and approval lifecycle, see the dedicated Event Approval guide.
 `,

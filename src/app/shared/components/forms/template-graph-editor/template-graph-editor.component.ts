@@ -14,6 +14,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus } from '@fortawesome/duotone-regular-svg-icons';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../../../core/config.service';
@@ -60,6 +62,8 @@ export class TemplateGraphEditorComponent {
   readonly taxRateState = input<TemplateTaxRateLoadState>('loading');
 
   protected readonly faPlus = faPlus;
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
   protected readonly modeBlockMessage = signal('');
   protected readonly optionChoices = computed(() =>
     this.graphForm()()
@@ -92,6 +96,9 @@ export class TemplateGraphEditorComponent {
   private readonly dialog = inject(MatDialog);
 
   protected addAddOn(): void {
+    if (this.graphForm()().value().addOns.length >= MAX_EVENT_ADDON_TYPES) {
+      return;
+    }
     const firstOptionKey = this.optionChoices()[0]?.key;
     this.updateModel((model) => ({
       ...model,
@@ -138,7 +145,11 @@ export class TemplateGraphEditorComponent {
 
   protected addQuestion(): void {
     const firstOptionKey = this.optionChoices()[0]?.key;
-    if (!firstOptionKey) return;
+    if (
+      !firstOptionKey ||
+      this.graphForm()().value().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.updateModel((model) => ({
       ...model,
       questions: [

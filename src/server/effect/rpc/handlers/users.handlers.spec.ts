@@ -16,6 +16,7 @@ import {
 } from './users.handlers';
 
 const createTenant = () => ({
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {
@@ -26,7 +27,7 @@ const createTenant = () => ({
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
@@ -35,10 +36,10 @@ const createTenant = () => ({
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 });
 
 const createUser = () => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
   communicationEmail: 'notify@example.com',
   email: 'alice@example.com',
@@ -1029,6 +1030,61 @@ describe('userHandlers', () => {
         paypalEmail: 'paypal@example.com',
       });
     }),
+  );
+
+  it.effect(
+    'updateProfile rejects non-canonical contact and payout details',
+    () =>
+      Effect.gen(function* () {
+        const headers = {
+          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+          [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(createUser()),
+        };
+        const mockDatabase = {
+          update: vi.fn(),
+        };
+
+        const cases = [
+          {
+            communicationEmail: ' Events@Example.COM ',
+            iban: 'NL91ABNA0417164300',
+            paypalEmail: 'paypal@example.com',
+            reason: 'invalidCommunicationEmail',
+          },
+          {
+            communicationEmail: 'events@example.com',
+            iban: 'DE88370400440532013000',
+            paypalEmail: 'paypal@example.com',
+            reason: 'invalidIban',
+          },
+          {
+            communicationEmail: 'events@example.com',
+            iban: 'NL91ABNA0417164300',
+            paypalEmail: 'PayPal@Example.COM',
+            reason: 'invalidPaypalEmail',
+          },
+        ] as const;
+
+        for (const testCase of cases) {
+          const error = yield* userHandlers['users.updateProfile'](
+            {
+              communicationEmail: testCase.communicationEmail,
+              firstName: 'Alice',
+              iban: testCase.iban,
+              lastName: 'Updated',
+              paypalEmail: testCase.paypalEmail,
+            },
+            { headers } as never,
+          ).pipe(
+            Effect.flip,
+            Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          );
+
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error.reason).toBe(testCase.reason);
+        }
+        expect(mockDatabase.update).not.toHaveBeenCalled();
+      }),
   );
 
   it.effect('userAssigned reflects the current tenant assignment header', () =>

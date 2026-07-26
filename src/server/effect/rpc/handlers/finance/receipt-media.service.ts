@@ -3,6 +3,7 @@ import { Context, Effect, Layer } from 'effect';
 import { createHash } from 'node:crypto';
 
 import { ObjectStorage } from '../../../../integrations/object-storage';
+import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import {
   ReceiptMediaBadRequestError,
   ReceiptMediaServiceUnavailableError,
@@ -150,64 +151,56 @@ const validReceiptEvidenceBinding = (
 const logReceiptEvidenceFailure = (
   message: string,
   receipt: ReceiptWithStoragePreview,
-  error?: unknown,
 ) =>
   Effect.logWarning(message).pipe(
     Effect.annotateLogs({
       attachmentUploadId: receipt.attachmentUploadId,
-      ...(error !== undefined && {
-        error: error instanceof Error ? error.message : String(error),
-      }),
       eventId: receipt.eventId,
       submittedByUserId: receipt.submittedByUserId,
       tenantId: receipt.tenantId,
     }),
   );
 
+const logReceiptStorageFailure = (operation: string, error: unknown) =>
+  Effect.logError('Receipt storage operation failed').pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+  );
+
+const receiptMediaServiceUnavailable = () =>
+  new ReceiptMediaServiceUnavailableError({
+    message: 'Receipt storage is unavailable',
+  });
+
 const verifyBoundReceiptEvidence = Effect.fn(
   'ReceiptMedia.verifyBoundReceiptEvidence',
-)(function* (
-  receipt: ReceiptWithStoragePreview,
-  binding: ValidReceiptEvidenceBinding,
-) {
+)(function* (binding: ValidReceiptEvidenceBinding) {
   const receiptMedia = yield* ReceiptMediaService;
-  const exists = yield* receiptMedia
-    .objectExists({ storageKey: binding.storageKey })
-    .pipe(
-      Effect.tapError((error) =>
-        logReceiptEvidenceFailure(
-          'Receipt evidence availability check failed',
-          receipt,
-          error,
-        ),
-      ),
-      Effect.orElseSucceed(() => false),
-    );
+  const exists = yield* receiptMedia.objectExists({
+    storageKey: binding.storageKey,
+  });
   if (!exists) {
     return null;
   }
 
-  const signedPreviewUrl = yield* receiptMedia
-    .signedPreviewUrl({
-      expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
-      storageKey: binding.storageKey,
-    })
-    .pipe(
-      Effect.tapError((error) =>
-        logReceiptEvidenceFailure(
-          'Failed to sign receipt preview URL',
-          receipt,
-          error,
-        ),
-      ),
-      Effect.orElseSucceed(() => null),
-    );
-  if (signedPreviewUrl === null) {
+  return binding;
+});
+
+const signBoundReceiptPreview = Effect.fn(
+  'ReceiptMedia.signBoundReceiptPreview',
+)(function* (binding: ValidReceiptEvidenceBinding) {
+  const verifiedBinding = yield* verifyBoundReceiptEvidence(binding);
+  if (!verifiedBinding) {
     return null;
   }
 
+  const receiptMedia = yield* ReceiptMediaService;
+  const signedPreviewUrl = yield* receiptMedia.signedPreviewUrl({
+    expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
+    storageKey: verifiedBinding.storageKey,
+  });
+
   return {
-    ...binding,
+    ...verifiedBinding,
     signedPreviewUrl,
   } satisfies AvailableReceiptEvidence;
 });
@@ -228,7 +221,7 @@ export const ensureReceiptEvidenceAvailableForApproval = Effect.fn(
     });
   }
 
-  const evidence = yield* verifyBoundReceiptEvidence(receipt, binding);
+  const evidence = yield* verifyBoundReceiptEvidence(binding);
   if (!evidence) {
     return yield* new RpcBadRequestError({
       message: 'Receipt evidence is unavailable and cannot be approved',
@@ -238,6 +231,22 @@ export const ensureReceiptEvidenceAvailableForApproval = Effect.fn(
 
   return binding;
 });
+
+export const withoutSignedReceiptPreviewUrl = <
+  T extends ReceiptWithStoragePreview,
+>(
+  receipt: T,
+) =>
+  hasValidReceiptUploadBinding(receipt)
+    ? {
+        ...receipt,
+        previewImageUrl: null,
+      }
+    : {
+        ...receipt,
+        attachmentStorageKey: null,
+        previewImageUrl: null,
+      };
 
 export const withSignedReceiptPreviewUrl = <
   T extends ReceiptWithStoragePreview,
@@ -260,7 +269,7 @@ export const withSignedReceiptPreviewUrl = <
       };
     }
 
-    const evidence = yield* verifyBoundReceiptEvidence(receipt, binding);
+    const evidence = yield* signBoundReceiptPreview(binding);
     if (!evidence) {
       return {
         ...receipt,
@@ -359,13 +368,10 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
       const objectExists = Effect.fn('ReceiptMediaService.objectExists')(
         function* ({ storageKey }: { storageKey: string }) {
           return yield* objectStorage.exists(storageKey).pipe(
-            Effect.mapError(
-              (cause) =>
-                new ReceiptMediaServiceUnavailableError({
-                  cause,
-                  message: 'Receipt storage is unavailable',
-                }),
+            Effect.tapError((error) =>
+              logReceiptStorageFailure('receiptMedia.objectExists', error),
             ),
+            Effect.mapError(receiptMediaServiceUnavailable),
           );
         },
       );
@@ -382,13 +388,10 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
         return yield* objectStorage
           .presignGet(storageKey, expiresInSeconds)
           .pipe(
-            Effect.mapError(
-              (cause) =>
-                new ReceiptMediaServiceUnavailableError({
-                  cause,
-                  message: 'Receipt storage is unavailable',
-                }),
+            Effect.tapError((error) =>
+              logReceiptStorageFailure('receiptMedia.signedPreviewUrl', error),
             ),
+            Effect.mapError(receiptMediaServiceUnavailable),
           );
       });
 
@@ -414,13 +417,13 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             sizeBytes: input.sizeBytes,
           })
           .pipe(
-            Effect.mapError(
-              (cause) =>
-                new ReceiptMediaServiceUnavailableError({
-                  cause,
-                  message: 'Receipt storage is unavailable',
-                }),
+            Effect.tapError((error) =>
+              logReceiptStorageFailure(
+                'receiptMedia.createUploadPolicy',
+                error,
+              ),
             ),
+            Effect.mapError(receiptMediaServiceUnavailable),
           );
 
         return { ...signed, storageKey };
@@ -431,13 +434,13 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
       )(function* (storageKey: string) {
         yield* objectStorage.deleteObject(storageKey).pipe(
           Effect.retry({ times: 3 }),
-          Effect.mapError(
-            (cause) =>
-              new ReceiptMediaServiceUnavailableError({
-                cause,
-                message: 'Receipt storage is unavailable',
-              }),
+          Effect.tapError((error) =>
+            logReceiptStorageFailure(
+              'receiptMedia.discardPromotedUpload',
+              error,
+            ),
           ),
+          Effect.mapError(receiptMediaServiceUnavailable),
         );
       });
 
@@ -462,13 +465,10 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
           }
 
           const body = yield* objectStorage.get(input.storageKey).pipe(
-            Effect.mapError(
-              (cause) =>
-                new ReceiptMediaServiceUnavailableError({
-                  cause,
-                  message: 'Receipt storage is unavailable',
-                }),
+            Effect.tapError((error) =>
+              logReceiptStorageFailure('receiptMedia.inspectUpload.get', error),
             ),
+            Effect.mapError(receiptMediaServiceUnavailable),
           );
           const detectedMimeType = detectReceiptMimeType(body.slice(0, 16));
           if (
@@ -503,13 +503,13 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
               key: storageKey,
             })
             .pipe(
-              Effect.mapError(
-                (cause) =>
-                  new ReceiptMediaServiceUnavailableError({
-                    cause,
-                    message: 'Receipt storage is unavailable',
-                  }),
+              Effect.tapError((error) =>
+                logReceiptStorageFailure(
+                  'receiptMedia.inspectUpload.put',
+                  error,
+                ),
               ),
+              Effect.mapError(receiptMediaServiceUnavailable),
             );
 
           return {

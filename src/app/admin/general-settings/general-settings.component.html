@@ -1,5 +1,10 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to administration"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">General settings</h1>
@@ -77,26 +82,34 @@
             <input
               matInput
               type="number"
+              step="1"
               [formField]="settingsForm.maxActiveRegistrationsPerUser"
             />
             <mat-hint>Use 0 for no organization-wide limit.</mat-hint>
+            @for (
+              error of settingsForm.maxActiveRegistrationsPerUser().errors();
+              track error
+            ) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
           </mat-form-field>
           <mat-form-field>
             <mat-label>Transfer deadline before event (hours)</mat-label>
             <input
               matInput
               type="number"
+              step="1"
               [formField]="settingsForm.transferDeadlineHoursBeforeStart"
             />
             <mat-hint>
               How many hours before an event starts registration transfers
               close. Use 0 to allow transfers until the start time.
             </mat-hint>
-            @if (
-              settingsForm.transferDeadlineHoursBeforeStart().touched() &&
-              settingsForm.transferDeadlineHoursBeforeStart().invalid()
+            @for (
+              error of settingsForm.transferDeadlineHoursBeforeStart().errors();
+              track error
             ) {
-              <mat-error>Enter zero or more hours.</mat-error>
+              <mat-error>{{ error.message }}</mat-error>
             }
           </mat-form-field>
           <mat-form-field>
@@ -104,17 +117,20 @@
             <input
               matInput
               type="number"
+              step="1"
               [formField]="settingsForm.cancellationDeadlineHoursBeforeStart"
             />
             <mat-hint>
               How many hours before an event starts participant cancellations
               close. The default 120 hours is five days.
             </mat-hint>
-            @if (
-              settingsForm.cancellationDeadlineHoursBeforeStart().touched() &&
-              settingsForm.cancellationDeadlineHoursBeforeStart().invalid()
+            @for (
+              error of settingsForm
+                .cancellationDeadlineHoursBeforeStart()
+                .errors();
+              track error
             ) {
-              <mat-error>Enter zero or more hours.</mat-error>
+              <mat-error>{{ error.message }}</mat-error>
             }
           </mat-form-field>
         </div>

@@ -1,4 +1,5 @@
 import { adminStateFile } from '../../../helpers/user-data';
+import { eventListingAudienceLabels } from '../../../src/shared/event-listing-audience';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
@@ -25,16 +26,16 @@ test('Admin: manage unlisted events', async ({
 {% callout type="note" title="Permissions" %}
 To change listing, an admin needs:
 - **Change event listing** access
-- **View unlisted events** access
+- **See eligible unlisted events** access
 {% /callout %}
 
 # Managing Unlisted Events (Admin)
 
-Unlisted events are hidden from public lists. Admins can toggle an event's unlisted flag and still see unlisted events in the list (with a badge). Eligible people can still open an unlisted event when they receive its direct link.
+Unlisted events are hidden from public lists. Admins choose one of four explicit audiences: participants, organizers, both, or unlisted. Admins with **See eligible unlisted events** can still find unlisted events when one of their registration options is eligible, while people can open an approved event from its direct link.
 `,
   });
 
-  // Show the event details before toggling
+  // Show the event details before changing the audience
   const eventHeader = page.getByRole('heading', {
     level: 1,
     name: target.title,
@@ -43,7 +44,7 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
     testInfo,
     eventHeader,
     page,
-    'Event details before toggling',
+    'Event details before changing the listing audience',
   );
   await takeScreenshot(
     testInfo,
@@ -59,10 +60,14 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   await expect(eventActionsButton).toBeEnabled({ timeout: 20_000 });
   await eventActionsButton.click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
-  await page.getByRole('switch', { name: /Unlisted/ }).click();
-  await expect(
-    page.getByText(/eligible people can still open the event/i),
-  ).toBeVisible();
+  const audienceSelect = page.getByRole('combobox', {
+    name: 'Listing audience',
+  });
+  await audienceSelect.click();
+  await page
+    .getByRole('option', { name: eventListingAudienceLabels.unlisted })
+    .click();
+  await expect(page.getByText(/hidden from event discovery/i)).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.locator('mat-dialog-container').first(),
@@ -73,7 +78,7 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
 
   // Verify unlisted badge is visible for admins on the details page
   await expect(
-    page.getByText(/Unlisted: hidden from event lists/i).first(),
+    page.getByText('Unlisted', { exact: true }).first(),
   ).toBeVisible();
   await takeScreenshot(
     testInfo,
@@ -82,13 +87,15 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
     'Unlisted badge visible to admins',
   );
 
-  // Restore original state (toggle back to listed) to keep environment clean
+  // Restore the exact original audience to keep the environment clean
   await expect(eventActionsButton).toBeEnabled({ timeout: 20_000 });
   await eventActionsButton.click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
-  const toggle = page.getByRole('switch', { name: /Unlisted/ });
-  if (await toggle.isChecked()) {
-    await toggle.click();
-  }
+  await page.getByRole('combobox', { name: 'Listing audience' }).click();
+  await page
+    .getByRole('option', {
+      name: eventListingAudienceLabels[target.listingAudience],
+    })
+    .click();
   await page.getByRole('button', { name: 'Save' }).click();
 });

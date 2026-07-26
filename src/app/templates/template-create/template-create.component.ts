@@ -10,10 +10,16 @@ import {
 } from '@angular/core';
 import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  eventListingAudienceDescriptions,
+  eventListingAudienceLabels,
+  eventListingAudiences,
+} from '@shared/event-listing-audience';
 import { TemplateCreateIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -24,13 +30,13 @@ import consola from 'consola/browser';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
 import {
   createOrdinaryTemplateGraphFormModel,
   ordinaryTemplateGraphFormToPayload,
 } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form';
 import { ordinaryTemplateGraphFormSchemaWithPaymentAvailability } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema';
 import { TemplateGraphEditorComponent } from '../../shared/components/forms/template-graph-editor/template-graph-editor.component';
-import { resetTemplateGraphPayments } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 
 const logger = consola.withTag('app/templates/create');
@@ -41,7 +47,8 @@ const logger = consola.withTag('app/templates/create');
     FontAwesomeModule,
     FormField,
     MatButtonModule,
-    MatCheckboxModule,
+    MatFormFieldModule,
+    MatSelectModule,
     RouterLink,
     TemplateGeneralFormComponent,
     TemplateGraphEditorComponent,
@@ -51,29 +58,66 @@ const logger = consola.withTag('app/templates/create');
 })
 export class TemplateCreateComponent {
   private readonly rpc = AppRpc.injectClient();
-  protected readonly createTemplateMutation = injectMutation(() =>
-    this.rpc.templates.create.mutationOptions(),
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.rpc.taxRates.listActive.queryOptions(),
   );
-  private readonly defaultOrganizerRolesQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({ defaultOrganizerRole: true }),
-  );
-  private readonly defaultUserRolesQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({ defaultUserRole: true }),
-  );
-  protected readonly defaultsReady = computed(
-    () =>
-      this.defaultOrganizerRolesQuery.isSuccess() &&
-      this.defaultUserRolesQuery.isSuccess(),
+  protected readonly availableTaxRates = computed(() =>
+    this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
+      ? this.taxRatesQuery.data()
+      : undefined,
   );
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
+  );
+  protected readonly discountProviderState = computed(() => {
+    if (this.discountProvidersQuery.isError()) return 'error' as const;
+    if (
+      !this.discountProvidersQuery.isSuccess() ||
+      this.discountProvidersQuery.isFetching()
+    ) {
+      return 'loading' as const;
+    }
+    return this.discountProvidersQuery
+      .data()
+      .some(
+        (provider) =>
+          provider.type === 'esnCard' && provider.status === 'enabled',
+      )
+      ? ('esnEnabled' as const)
+      : ('ready' as const);
+  });
+  protected readonly authoringProvidersReady = computed(
+    () =>
+      (this.discountProviderState() === 'ready' ||
+        this.discountProviderState() === 'esnEnabled') &&
+      this.availableTaxRates() !== undefined,
+  );
+  protected readonly createTemplateMutation = injectMutation(() =>
+    this.rpc.templates.create.mutationOptions(),
+  );
+  protected readonly rolesQuery = injectQuery(() =>
+    this.rpc.roles.findMany.queryOptions({}),
+  );
+  protected readonly defaultsReady = computed(() =>
+    this.rolesQuery.isSuccess(),
   );
   private readonly config = inject(ConfigService);
   protected readonly stripeConnected = computed(() =>
     Boolean(this.config.tenantSignal()?.stripeAccountId),
   );
+  protected readonly stripeConnectionKnown = computed(
+    () => this.config.tenantSignal() !== null,
+  );
+  protected readonly paidControlsUnavailable = computed(
+    () => this.stripeConnectionKnown() && !this.stripeConnected(),
+  );
   private readonly templateModel = signal(
     createOrdinaryTemplateGraphFormModel(),
+  );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.paidControlsUnavailable() &&
+      graphHasPaidConfiguration(this.templateModel()),
   );
   protected readonly templateForm = form(
     this.templateModel,
@@ -84,41 +128,35 @@ export class TemplateCreateComponent {
   protected readonly canSubmit = computed(
     () =>
       this.defaultsReady() &&
-      this.discountProvidersQuery.isSuccess() &&
+      this.authoringProvidersReady() &&
+      !this.paidGraphBlocked() &&
       !this.templateForm().invalid() &&
       !this.templateForm().submitting() &&
       !this.createTemplateMutation.isPending(),
   );
   protected readonly categoryId = input<string>();
   protected readonly defaultParticipantRoleIds = computed(() =>
-    this.defaultUserRolesQuery.isSuccess()
-      ? this.defaultUserRolesQuery.data().map((role) => role.id)
+    this.rolesQuery.isSuccess()
+      ? this.rolesQuery
+          .data()
+          .filter((role) => role.defaultUserRole)
+          .map((role) => role.id)
       : [],
   );
-  protected readonly esnEnabled = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return false;
-    return (
-      this.discountProvidersQuery
-        .data()
-        .find((provider) => provider.type === 'esnCard')?.status === 'enabled'
-    );
-  });
+  protected readonly esnEnabled = computed(
+    () => this.discountProviderState() === 'esnEnabled',
+  );
+  protected readonly eventListingAudienceDescriptions =
+    eventListingAudienceDescriptions;
+  protected readonly eventListingAudienceLabels = eventListingAudienceLabels;
+  protected readonly eventListingAudiences = eventListingAudiences;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly iconUsage = TemplateCreateIconUsage.make({});
-  protected readonly stripeConnectionKnown = computed(
-    () => this.config.tenantSignal() !== null,
-  );
-  protected readonly paidControlsUnavailable = computed(
-    () => this.stripeConnectionKnown() && !this.stripeConnected(),
-  );
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.rpc.taxRates.listActive.queryOptions(),
-  );
   protected readonly taxRateState = computed(() =>
-    this.taxRatesQuery.isPending()
-      ? ('loading' as const)
-      : this.taxRatesQuery.isError()
-        ? ('error' as const)
+    this.taxRatesQuery.isError()
+      ? ('error' as const)
+      : this.availableTaxRates() === undefined
+        ? ('loading' as const)
         : ('ready' as const),
   );
 
@@ -128,18 +166,15 @@ export class TemplateCreateComponent {
 
   constructor() {
     effect(() => {
-      if (
-        !this.defaultOrganizerRolesQuery.isSuccess() ||
-        !this.defaultUserRolesQuery.isSuccess() ||
-        this.initializedDefaults()
-      ) {
+      if (!this.rolesQuery.isSuccess() || this.initializedDefaults()) {
         return;
       }
-      const organizerRoleIds = this.defaultOrganizerRolesQuery
-        .data()
+      const roles = this.rolesQuery.data();
+      const organizerRoleIds = roles
+        .filter((role) => role.defaultOrganizerRole)
         .map((role) => role.id);
-      const participantRoleIds = this.defaultUserRolesQuery
-        .data()
+      const participantRoleIds = roles
+        .filter((role) => role.defaultUserRole)
         .map((role) => role.id);
       const categoryId = this.categoryId() ?? '';
       untracked(() => {
@@ -157,13 +192,6 @@ export class TemplateCreateComponent {
         this.initializedDefaults.set(true);
       });
     });
-    effect(() => {
-      if (!this.paidControlsUnavailable()) return;
-      const model = this.templateModel();
-      const resetModel = resetTemplateGraphPayments(model);
-      if (resetModel === model) return;
-      untracked(() => this.templateModel.set(resetModel));
-    });
   }
 
   protected async onSubmit(event: Event) {
@@ -171,10 +199,8 @@ export class TemplateCreateComponent {
     if (!this.canSubmit()) return;
 
     await submit(this.templateForm, async (formState) => {
-      const value = this.paidControlsUnavailable()
-        ? resetTemplateGraphPayments(formState().value())
-        : formState().value();
-      if (!value.icon || !this.discountProvidersQuery.isSuccess()) return;
+      const value = formState().value();
+      if (!value.icon || !this.authoringProvidersReady()) return;
       const payload = ordinaryTemplateGraphFormToPayload(
         { ...value, icon: value.icon },
         this.esnEnabled(),

@@ -1,11 +1,50 @@
-import { describe, expect, it } from '@effect/vitest';
-import { Effect } from 'effect';
+import { describe, expect, it, layer } from '@effect/vitest';
+import { Effect, Layer } from 'effect';
 
+import { Database } from '../../../../db';
+import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import {
   normalizeOnboardingProfile,
+  onboardingHandlers,
   validateOnboardingAnswers,
   verifiedOnboardingIdentity,
 } from './onboarding.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
+
+const missingSubjectContextLayer = Layer.mergeAll(
+  Layer.mock(Database)({}),
+  Layer.succeed(RpcRequestContext, {
+    authData: {},
+    authenticated: true,
+    permissions: [],
+    tenant: {
+      currency: 'EUR',
+      defaultLocation: null,
+      discountProviders: {
+        esnCard: {
+          config: {},
+          status: 'disabled',
+        },
+      },
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      name: 'Tenant',
+      receiptSettings: {
+        allowOther: false,
+        receiptCountries: ['NL'],
+      },
+      stripeAccountId: null,
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+    },
+    user: null,
+    userAssigned: false,
+  } satisfies RpcRequestContextShape),
+  RpcAccess.Default,
+);
 
 describe('tenant onboarding completion validation', () => {
   it('accepts only an authenticated identity with an explicitly verified email', () => {
@@ -38,7 +77,7 @@ describe('tenant onboarding completion validation', () => {
     Effect.gen(function* () {
       expect(
         yield* normalizeOnboardingProfile({
-          communicationEmail: ' notify@example.org ',
+          communicationEmail: 'notify@example.org',
           firstName: ' Member ',
           lastName: ' Example ',
         }),
@@ -48,6 +87,21 @@ describe('tenant onboarding completion validation', () => {
         lastName: 'Example',
       });
     }),
+  );
+
+  it.effect(
+    'rejects a non-canonical communication email at the service boundary',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* normalizeOnboardingProfile({
+          communicationEmail: ' Notify@Example.ORG ',
+          firstName: 'Member',
+          lastName: 'Example',
+        }).pipe(Effect.flip);
+
+        expect(error._tag).toBe('TenantOnboardingValidationError');
+        expect(error.field).toBe('communicationEmail');
+      }),
   );
 
   it.effect('rejects missing, duplicate, and unexpected answers', () =>
@@ -111,4 +165,29 @@ describe('tenant onboarding completion validation', () => {
       expect(longText._tag).toBe('TenantOnboardingValidationError');
     }),
   );
+});
+
+describe('tenant onboarding authorization', () => {
+  layer(missingSubjectContextLayer)((it) => {
+    it.effect(
+      'returns the same explicit unauthorized outcome for status and requirements when sub is missing',
+      () =>
+        Effect.gen(function* () {
+          const requirementsError = yield* onboardingHandlers[
+            'onboarding.requirements'
+          ]().pipe(Effect.flip);
+          const statusError = yield* onboardingHandlers[
+            'onboarding.status'
+          ]().pipe(Effect.flip);
+
+          const expectedError = {
+            _tag: 'RpcUnauthorizedError',
+            message:
+              'Your authenticated account is missing a stable identifier. Log out and sign in again.',
+          };
+          expect(requirementsError).toMatchObject(expectedError);
+          expect(statusError).toMatchObject(expectedError);
+        }),
+    );
+  });
 });

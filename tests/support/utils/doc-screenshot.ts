@@ -56,6 +56,3 @@ export async function docScreenshot(
   // Return path relative to the images root
   return path.relative(imagesRoot, absPath);
 }
-
-// Keep compatibility with existing docs tests that import takeScreenshot from the reporter
-export { takeScreenshot } from '../reporters/documentation-reporter';

@@ -40,7 +40,9 @@ const receiptMediaLayer = ({
   ),
 }: {
   exists: boolean;
-  objectExists?: (input: { storageKey: string }) => Effect.Effect<boolean>;
+  objectExists?: (input: {
+    storageKey: string;
+  }) => Effect.Effect<boolean, ReceiptMediaServiceUnavailableError>;
   signedPreviewUrl?: (input: {
     expiresInSeconds: number;
     storageKey: string;
@@ -262,8 +264,13 @@ describe('ReceiptMediaService', () => {
     'marks a valid binding unavailable when its object is missing',
     () =>
       Effect.gen(function* () {
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.succeed('https://signed.example.test/receipt.pdf'),
+        );
         const result = yield* withSignedReceiptPreviewUrl(receipt()).pipe(
-          Effect.provide(receiptMediaLayer({ exists: false })),
+          Effect.provide(
+            receiptMediaLayer({ exists: false, signedPreviewUrl }),
+          ),
         );
 
         expect(result.attachmentStorageKey).toBe(
@@ -271,6 +278,7 @@ describe('ReceiptMediaService', () => {
         );
         expect(result.previewImageUrl).toBeNull();
         expect(result.receiptEvidenceAvailable).toBe(false);
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
       }),
   );
 
@@ -288,7 +296,60 @@ describe('ReceiptMediaService', () => {
   );
 
   it.effect(
-    'blocks approval for missing evidence and accepts real evidence',
+    'propagates an evidence verification outage instead of reporting a missing object',
+    () =>
+      Effect.gen(function* () {
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.succeed('https://signed.example.test/receipt.pdf'),
+        );
+        const error = yield* withSignedReceiptPreviewUrl(receipt()).pipe(
+          Effect.flip,
+          Effect.provide(
+            receiptMediaLayer({
+              exists: true,
+              objectExists: () =>
+                Effect.fail(
+                  new ReceiptMediaServiceUnavailableError({
+                    message: 'Receipt storage is unavailable',
+                  }),
+                ),
+              signedPreviewUrl,
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(error.message).toBe('Receipt storage is unavailable');
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'propagates a preview signing outage after verifying the object',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* withSignedReceiptPreviewUrl(receipt()).pipe(
+          Effect.flip,
+          Effect.provide(
+            receiptMediaLayer({
+              exists: true,
+              signedPreviewUrl: () =>
+                Effect.fail(
+                  new ReceiptMediaServiceUnavailableError({
+                    message: 'Receipt storage is unavailable',
+                  }),
+                ),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(error.message).toBe('Receipt storage is unavailable');
+      }),
+  );
+
+  it.effect(
+    'blocks approval for missing evidence and verifies available evidence without signing it',
     () =>
       Effect.gen(function* () {
         const unavailable = yield* ensureReceiptEvidenceAvailableForApproval(
@@ -300,18 +361,27 @@ describe('ReceiptMediaService', () => {
         expect(unavailable['_tag']).toBe('RpcBadRequestError');
         expect(unavailable.reason).toBe('receiptEvidenceUnavailable');
 
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.dieMessage('Approval must not sign a preview URL'),
+        );
         const available = yield* ensureReceiptEvidenceAvailableForApproval(
           receipt(),
-        ).pipe(Effect.provide(receiptMediaLayer({ exists: true })));
+        ).pipe(
+          Effect.provide(receiptMediaLayer({ exists: true, signedPreviewUrl })),
+        );
         expect(available).toEqual({
           attachmentUploadId: 'upload-1',
           storageKey: 'receipts/tenant-1/event-1/user-1/upload-1-receipt.pdf',
         });
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
       }),
   );
 
-  it.effect('blocks approval when retrievable evidence cannot be signed', () =>
+  it.effect('propagates an approval evidence verification outage', () =>
     Effect.gen(function* () {
+      const signedPreviewUrl = vi.fn(() =>
+        Effect.dieMessage('Approval must not sign a preview URL'),
+      );
       const error = yield* ensureReceiptEvidenceAvailableForApproval(
         receipt(),
       ).pipe(
@@ -319,18 +389,20 @@ describe('ReceiptMediaService', () => {
         Effect.provide(
           receiptMediaLayer({
             exists: true,
-            signedPreviewUrl: () =>
+            objectExists: () =>
               Effect.fail(
                 new ReceiptMediaServiceUnavailableError({
                   message: 'Receipt storage is unavailable',
                 }),
               ),
+            signedPreviewUrl,
           }),
         ),
       );
 
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+      expect(error.message).toBe('Receipt storage is unavailable');
+      expect(signedPreviewUrl).not.toHaveBeenCalled();
     }),
   );
 });

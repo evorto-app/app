@@ -69,7 +69,9 @@ const seedPendingReceiptForApproval = async ({
     hasDeposit: true,
     id: receiptId,
     purchaseCountry: 'DE',
-    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2),
+    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2)
+      .toISOString()
+      .slice(0, 10),
     status: 'submitted',
     submittedByUserId,
     taxAmount: 0,
@@ -232,7 +234,7 @@ test('approve and record receipt reimbursements in finance', async ({
       .update(schema.users)
       .set({
         communicationEmail: `delivered+receipt-flow-${receiptId}@notifications.example.test`,
-        iban: 'DE00123456781234567890',
+        iban: 'DE89370400440532013000',
         paypalEmail: 'organizer-refunds@example.com',
       })
       .where(eq(schema.users.id, organizerUser.id));
@@ -424,7 +426,9 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
     hasDeposit: false,
     id: receiptId,
     purchaseCountry: 'DE',
-    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24),
+    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24)
+      .toISOString()
+      .slice(0, 10),
     status: 'submitted',
     submittedByUserId: organizerUser.id,
     taxAmount: 100,

@@ -159,6 +159,24 @@ const selectedProjectNamesConfig = optionalTrimmedString(
   ),
 );
 
+const e2eGlobalAdminAuth0IdsConfig = optionalTrimmedString(
+  'E2E_GLOBAL_ADMIN_AUTH0_IDS',
+).pipe(
+  Config.map((configuredIds) =>
+    Option.match(configuredIds, {
+      onNone: () => [],
+      onSome: (value) => [
+        ...new Set(
+          value
+            .split(',')
+            .map((auth0Id) => auth0Id.trim())
+            .filter((auth0Id) => auth0Id.length > 0),
+        ),
+      ],
+    }),
+  ),
+);
+
 export const testRuntimeConfigState = Config.all({
   AUTH0_MANAGEMENT_CLIENT_ID: optionalTrimmedString(
     'AUTH0_MANAGEMENT_CLIENT_ID',
@@ -188,6 +206,7 @@ export const testRuntimeConfigState = Config.all({
     ),
   ),
   E2E_BROWSER_CHANNEL: optionalTrimmedString('E2E_BROWSER_CHANNEL'),
+  E2E_GLOBAL_ADMIN_AUTH0_IDS: e2eGlobalAdminAuth0IdsConfig,
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
     Config.map((value) =>
       Option.match(value, {

@@ -1,3 +1,5 @@
+import type { RegistrationMode } from '@shared/registration-modes';
+
 import { CurrencyPipe } from '@angular/common';
 import {
   afterNextRender,
@@ -12,6 +14,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import {
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
   injectMutation,
   injectQuery,
@@ -62,7 +69,7 @@ export interface EventRegistrationOptionView {
     sortOrder: number;
     title: string;
   }[];
-  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationMode: RegistrationMode;
   reservedSpots: number;
   spots: number;
   stripeTaxRateId?: null | string;
@@ -153,6 +160,19 @@ export const registrationOptionAvailableSpots = (
 ): number =>
   Math.max(0, option.spots - option.confirmedSpots - option.reservedSpots);
 
+export const registrationOptionMaxGuestCount = (
+  option: Pick<
+    EventRegistrationOptionView,
+    'confirmedSpots' | 'organizingRegistration' | 'reservedSpots' | 'spots'
+  >,
+): number =>
+  option.organizingRegistration
+    ? 0
+    : Math.min(
+        MAX_REGISTRATION_GUESTS,
+        Math.max(0, registrationOptionAvailableSpots(option) - 1),
+      );
+
 export const registrationOptionSelectedTotalPrice = (
   option: Pick<EventRegistrationOptionView, 'effectivePrice' | 'price'>,
   guestCount: number,
@@ -208,9 +228,11 @@ export const registrationAddonMaxSelectableQuantity = (
   }
 
   return Math.min(
+    MAX_REGISTRATION_ADDON_QUANTITY,
     attachment.optionalPurchaseQuantity,
     Math.max(0, addOn.maxQuantityPerUser),
     Math.max(0, addOn.totalAvailableQuantity - attachment.includedQuantity),
+    Math.max(0, MAX_REGISTRATION_ADDON_QUANTITY - attachment.includedQuantity),
   );
 };
 
@@ -349,10 +371,10 @@ export class EventRegistrationOptionComponent {
   });
   protected readonly guestCount = signal(0);
   protected readonly maxGuestCount = computed(() =>
-    this.registrationOption().organizingRegistration
-      ? 0
-      : Math.max(0, this.availableSpots() - 1),
+    registrationOptionMaxGuestCount(this.registrationOption()),
   );
+  protected readonly maxRegistrationAnswerLength =
+    MAX_REGISTRATION_ANSWER_LENGTH;
   protected readonly registrationMutation = injectMutation(() =>
     this.rpc.events.registerForEvent.mutationOptions(),
   );
@@ -387,9 +409,6 @@ export class EventRegistrationOptionComponent {
     () =>
       this.registrationOption().registrationMode !== 'application' &&
       this.selectedTotalPrice() > 0,
-  );
-  protected readonly registrationModeSupported = computed(
-    () => this.registrationOption().registrationMode !== 'random',
   );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),

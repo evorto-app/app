@@ -51,10 +51,8 @@ const receiptWithSubmitterInput = (
   hasAlcohol: false,
   hasDeposit: false,
   id: 'receipt-1',
-  previewImageUrl: 'https://example.test/receipt.pdf',
   purchaseCountry: 'DE',
   receiptDate: '2026-07-09',
-  receiptEvidenceAvailable: true,
   refundedAt: null,
   refundTransactionId: null,
   rejectionReason: null,
@@ -95,7 +93,6 @@ const targetTenant = Tenant.make({
   id: 'tenant-1',
   legalNoticeText: undefined,
   legalNoticeUrl: undefined,
-  locale: 'de-DE',
   logoUrl: undefined,
   maxActiveRegistrationsPerUser: 0,
   name: 'Target tenant',
@@ -124,6 +121,7 @@ const submittedReceiptEvidence = {
   attachmentUploadedByUserId: 'user-1',
   attachmentUploadEventId: 'event-1',
   attachmentUploadId: 'upload-1',
+  attachmentUploadStatus: 'consumed' as const,
   attachmentUploadTenantId: 'tenant-1',
   createdAt: new Date('2026-07-10T08:00:00.000Z'),
   currency: 'EUR' as const,
@@ -134,7 +132,7 @@ const submittedReceiptEvidence = {
   id: 'receipt-1',
   previewImageUrl: null,
   purchaseCountry: 'DE',
-  receiptDate: new Date('2026-07-09T00:00:00.000Z'),
+  receiptDate: '2026-07-09',
   refundedAt: null,
   refundTransactionId: null,
   rejectionReason: null,
@@ -325,10 +323,13 @@ describe('platform tenant finance handlers', () => {
   });
 
   it.effect(
-    'blocks platform approval before mutation when evidence cannot be signed',
+    'returns a typed storage outage before mutating a platform approval',
     () =>
       Effect.gen(function* () {
         const transaction = vi.fn();
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.dieMessage('Approval must not sign a preview URL'),
+        );
         const database = {
           query: {
             tenants: {
@@ -384,21 +385,174 @@ describe('platform tenant finance handlers', () => {
                   Effect.dieMessage('Unexpected receipt upload'),
                 discardPromotedUpload: () =>
                   Effect.dieMessage('Unexpected promoted upload discard'),
-                objectExists: () => Effect.succeed(true),
-                signedPreviewUrl: () =>
+                objectExists: () =>
                   Effect.fail(
                     new ReceiptMediaServiceUnavailableError({
                       message: 'Receipt storage is unavailable',
                     }),
                   ),
+                signedPreviewUrl,
               }),
             ),
           ),
         );
 
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('receiptEvidenceUnavailable');
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(error.message).toBe('Receipt storage is unavailable');
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
         expect(transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'does not call receipt storage for platform approval and reimbursement queues',
+    () =>
+      Effect.gen(function* () {
+        const objectExists = vi.fn(() =>
+          Effect.dieMessage('Queue must not check receipt storage'),
+        );
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.dieMessage('Queue must not sign receipt previews'),
+        );
+        const receiptRow = {
+          ...submittedReceiptEvidence,
+          eventStart: new Date('2026-07-20T10:00:00.000Z'),
+          eventTitle: 'Welcome dinner',
+          recipientIban: 'DE89370400440532013000',
+          recipientPaypalEmail: 'participant@example.test',
+          submittedByCommunicationEmail: 'participant@example.test',
+          submittedByEmail: 'participant@example.test',
+          submittedByFirstName: 'Pat',
+          submittedByLastName: 'Example',
+        };
+        const receiptQuery = {
+          from: () => receiptQuery,
+          innerJoin: () => receiptQuery,
+          orderBy: () => Effect.succeed([receiptRow]),
+          where: () => receiptQuery,
+        };
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () => Effect.succeed(targetTenant),
+            },
+          },
+          select: () => receiptQuery,
+        };
+        const layer = Layer.mergeAll(
+          RpcAccess.Default,
+          Layer.succeed(RpcRequestContext, {
+            authData: { sub: platformAuthority.actorId },
+            authenticated: true,
+            permissions: [],
+            platformAuthority,
+            tenant: targetTenant,
+            user: null,
+            userAssigned: false,
+          }),
+          Layer.succeed(Database, database as never),
+          Layer.succeed(ReceiptMediaService, {
+            createUploadPolicy: () =>
+              Effect.dieMessage('Unexpected receipt upload'),
+            discardPromotedUpload: () =>
+              Effect.dieMessage('Unexpected promoted upload discard'),
+            objectExists,
+            signedPreviewUrl,
+          }),
+        );
+
+        const approvalQueue = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.approvalQueue'
+        ]({ targetTenantId: 'tenant-1' }, { headers: {} } as never).pipe(
+          Effect.provide(layer),
+        );
+        const reimbursementQueue = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.reimbursementQueue'
+        ]({ targetTenantId: 'tenant-1' }, { headers: {} } as never).pipe(
+          Effect.provide(layer),
+        );
+
+        expect(approvalQueue.groups).toHaveLength(1);
+        expect(approvalQueue.groups[0]?.receipts[0]).not.toHaveProperty(
+          'previewImageUrl',
+        );
+        expect(reimbursementQueue.groups).toHaveLength(1);
+        expect(reimbursementQueue.groups[0]?.receipts[0]).not.toHaveProperty(
+          'receiptEvidenceAvailable',
+        );
+        expect(objectExists).not.toHaveBeenCalled();
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'propagates a preview signing outage from platform receipt detail',
+    () =>
+      Effect.gen(function* () {
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.fail(
+            new ReceiptMediaServiceUnavailableError({
+              message: 'Receipt storage is unavailable',
+            }),
+          ),
+        );
+        const receiptRow = {
+          ...submittedReceiptEvidence,
+          eventStart: new Date('2026-07-20T10:00:00.000Z'),
+          eventTitle: 'Welcome dinner',
+          submittedByCommunicationEmail: 'participant@example.test',
+          submittedByEmail: 'participant@example.test',
+          submittedByFirstName: 'Pat',
+          submittedByLastName: 'Example',
+        };
+        const receiptQuery = {
+          from: () => receiptQuery,
+          innerJoin: () => receiptQuery,
+          limit: () => Effect.succeed([receiptRow]),
+          where: () => receiptQuery,
+        };
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () => Effect.succeed(targetTenant),
+            },
+          },
+          select: () => receiptQuery,
+        };
+        const error = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.approvalDetail'
+        ]({ id: 'receipt-1', targetTenantId: 'tenant-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              RpcAccess.Default,
+              Layer.succeed(RpcRequestContext, {
+                authData: { sub: platformAuthority.actorId },
+                authenticated: true,
+                permissions: [],
+                platformAuthority,
+                tenant: targetTenant,
+                user: null,
+                userAssigned: false,
+              }),
+              Layer.succeed(Database, database as never),
+              Layer.succeed(ReceiptMediaService, {
+                createUploadPolicy: () =>
+                  Effect.dieMessage('Unexpected receipt upload'),
+                discardPromotedUpload: () =>
+                  Effect.dieMessage('Unexpected promoted upload discard'),
+                objectExists: () => Effect.succeed(true),
+                signedPreviewUrl,
+              }),
+            ),
+          ),
+        );
+
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(error.message).toBe('Receipt storage is unavailable');
+        expect(signedPreviewUrl).toHaveBeenCalledOnce();
       }),
   );
 
@@ -419,14 +573,18 @@ describe('platform tenant finance handlers', () => {
     }
   });
 
-  it('versions payout details without sending them back in a mutation or audit', () => {
-    const first = payoutDetailsVersion('iban', 'DE89 3704 0044');
-    const sameNormalized = payoutDetailsVersion('iban', ' DE89 3704 0044 ');
-    const changed = payoutDetailsVersion('iban', 'DE89 3704 0045');
+  it('versions exact canonical payout details without normalizing defects', () => {
+    const first = payoutDetailsVersion('iban', 'DE89370400440532013000');
+    const changed = payoutDetailsVersion('iban', 'NL91ABNA0417164300');
 
-    expect(first).toBe(sameNormalized);
     expect(first).not.toBe(changed);
     expect(first).toMatch(/^[a-f\d]{64}$/u);
+    expect(() =>
+      payoutDetailsVersion('iban', ' DE89 3704 0044 0532 0130 00 '),
+    ).toThrow(/non-canonical iban/u);
+    expect(() =>
+      payoutDetailsVersion('paypal', 'Participant@Example.Test'),
+    ).toThrow(/non-canonical paypal/u);
   });
 
   it('allows only a newly submitted receipt to be reviewed', () => {
@@ -445,7 +603,7 @@ describe('platform tenant finance handlers', () => {
         hasAlcohol: false,
         hasDeposit: false,
         purchaseCountry: 'DE',
-        receiptDate: new Date('2026-07-09T00:00:00.000Z'),
+        receiptDate: '2026-07-09',
         rejectionReason: null,
         reviewedAt,
         status: 'approved',
@@ -941,6 +1099,8 @@ describe('platform tenant finance handlers', () => {
       ...receiptWithSubmitterInput('submitted'),
       eventStart: '2026-07-20T10:00:00.000Z',
       eventTitle: 'Welcome event',
+      previewImageUrl: 'https://example.test/receipt.pdf',
+      receiptEvidenceAvailable: true,
     });
 
     expect(

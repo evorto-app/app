@@ -15,9 +15,12 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faClock,
   faEllipsisVertical,
-  faEyeSlash,
   faFilter,
 } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  eventListingAudienceDescriptions,
+  eventListingAudienceLabel,
+} from '@shared/event-listing-audience';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
@@ -54,10 +57,12 @@ export class EventListComponent {
   // Expose service properties for template access
   protected readonly canSeeDrafts = this.eventListService.canSeeDrafts;
   protected readonly canSeeUnlisted = this.eventListService.canSeeUnlisted;
+  protected readonly eventListingAudienceDescriptions =
+    eventListingAudienceDescriptions;
+  protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly faEyeSlash = faEyeSlash;
   protected readonly faFilter = faFilter;
   protected readonly outletActive = signal(false);
   protected readonly startFilter = this.eventListService.startFilter;

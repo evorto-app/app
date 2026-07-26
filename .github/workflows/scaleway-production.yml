@@ -28,27 +28,26 @@ jobs:
     environment: scaleway-production
     env:
       SCW_DEFAULT_ORGANIZATION_ID: ${{ vars.SCW_ORGANIZATION_ID }}
+      SCW_DEFAULT_PROJECT_ID: ${{ vars.SCW_PROJECT_ID }}
       SCW_DEFAULT_REGION: fr-par
       SCW_DEFAULT_ZONE: fr-par-1
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
-      TF_VAR_application_bucket_console_user_ids: ${{ vars.APPLICATION_BUCKET_CONSOLE_USER_IDS }}
       TF_VAR_bucket_suffix: ${{ vars.BUCKET_SUFFIX }}
       TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
-      TF_VAR_organization_id: ${{ vars.SCW_ORGANIZATION_ID }}
-      TF_VAR_production_enabled: "true"
-      TF_VAR_production_runtime_database_password_version: ${{ vars.PRODUCTION_RUNTIME_DATABASE_PASSWORD_VERSION }}
-      TF_VAR_production_schema_database_password_version: ${{ vars.PRODUCTION_SCHEMA_DATABASE_PASSWORD_VERSION }}
-      TF_VAR_staging_runtime_database_password_version: ${{ vars.STAGING_RUNTIME_DATABASE_PASSWORD_VERSION }}
-      TF_VAR_staging_schema_database_password_version: ${{ vars.STAGING_SCHEMA_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_deployer_application_id: ${{ vars.SCW_DEPLOYER_APPLICATION_ID }}
+      TF_VAR_project_id: ${{ vars.SCW_PROJECT_ID }}
+      TF_VAR_runtime_database_password_version: ${{ vars.PRODUCTION_RUNTIME_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_schema_database_password_version: ${{ vars.PRODUCTION_SCHEMA_DATABASE_PASSWORD_VERSION }}
       TF_VAR_tem_project_id: ${{ vars.SCW_TEM_PROJECT_ID }}
-      TF_VAR_validate_tem_dns: "true"
+      TF_VAR_web_application_id: ${{ vars.SCW_WEB_APPLICATION_ID }}
+      TF_VAR_worker_application_id: ${{ vars.SCW_WORKER_APPLICATION_ID }}
     steps:
       - name: Validate explicit production enablement and protected configuration
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.PRODUCTION_TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.PRODUCTION_TERRAFORM_STATE_SECRET_ACCESS_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CONFIRMATION: ${{ inputs.confirmation }}
           PROTECTED_SECRET_VALUES: ${{ secrets.ROLE_SECRET_VALUES_JSON }}
@@ -56,9 +55,7 @@ jobs:
           SCHEMA_DATABASE_PASSWORD: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
-          TF_VAR_staging_runtime_database_password: ${{ secrets.STAGING_RUNTIME_DATABASE_PASSWORD }}
-          TF_VAR_staging_schema_database_password: ${{ secrets.STAGING_SCHEMA_DATABASE_PASSWORD }}
+          PRODUCTION_TERRAFORM_STATE_BUCKET: ${{ vars.PRODUCTION_TERRAFORM_STATE_BUCKET }}
         run: |
           if [ "${CONFIRMATION}" != "promote-alpha" ]; then
             echo "::error::Production promotion confirmation did not match promote-alpha"
@@ -73,19 +70,19 @@ jobs:
             SCHEMA_DATABASE_PASSWORD \
             SCW_ACCESS_KEY \
             SCW_DEFAULT_ORGANIZATION_ID \
+            SCW_DEFAULT_PROJECT_ID \
             SCW_SECRET_KEY \
-            TERRAFORM_STATE_BUCKET \
+            PRODUCTION_TERRAFORM_STATE_BUCKET \
             TF_VAR_alert_email \
-            TF_VAR_application_bucket_console_user_ids \
             TF_VAR_bucket_suffix \
             TF_VAR_cloudflare_zone_id \
-            TF_VAR_production_runtime_database_password_version \
-            TF_VAR_production_schema_database_password_version \
-            TF_VAR_staging_runtime_database_password_version \
-            TF_VAR_staging_runtime_database_password \
-            TF_VAR_staging_schema_database_password_version \
-            TF_VAR_staging_schema_database_password \
-            TF_VAR_tem_project_id; do
+            TF_VAR_deployer_application_id \
+            TF_VAR_project_id \
+            TF_VAR_runtime_database_password_version \
+            TF_VAR_schema_database_password_version \
+            TF_VAR_tem_project_id \
+            TF_VAR_web_application_id \
+            TF_VAR_worker_application_id; do
             if [ -z "${!variable_name}" ]; then
               echo "::error::Missing required protected production configuration: ${variable_name}"
               exit 1
@@ -154,33 +151,14 @@ jobs:
 
       - name: Initialize remote state
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
-          TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.PRODUCTION_TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.PRODUCTION_TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          PRODUCTION_TERRAFORM_STATE_BUCKET: ${{ vars.PRODUCTION_TERRAFORM_STATE_BUCKET }}
         run: |
-          terraform -chdir=infrastructure/scaleway init \
-            -backend-config="bucket=${TERRAFORM_STATE_BUCKET}" \
+          terraform -chdir=infrastructure/scaleway/production init \
+            -backend-config="bucket=${PRODUCTION_TERRAFORM_STATE_BUCKET}" \
             -input=false \
             -reconfigure
-
-      - name: Reconcile disabled production project and registry bootstrap
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          TF_VAR_production_runtime_database_password: ${{ secrets.PRODUCTION_RUNTIME_DATABASE_PASSWORD }}
-          TF_VAR_production_schema_database_password: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
-          TF_VAR_production_container_image: rg.fr-par.scw.cloud/evorto-production/evorto@sha256:0000000000000000000000000000000000000000000000000000000000000000
-          TF_VAR_staging_runtime_database_password: ${{ secrets.STAGING_RUNTIME_DATABASE_PASSWORD }}
-          TF_VAR_staging_schema_database_password: ${{ secrets.STAGING_SCHEMA_DATABASE_PASSWORD }}
-          TF_VAR_staging_container_image: ${{ steps.staging.outputs.image }}
-        run: |
-          terraform -chdir=infrastructure/scaleway apply \
-            -auto-approve \
-            -input=false \
-            -target='scaleway_account_project.production[0]' \
-            -target='module.production[0].scaleway_registry_namespace.application'
 
       - name: Login to private Scaleway registry
         env:
@@ -231,29 +209,42 @@ jobs:
             echo "reference=${target_reference}"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Reconcile complete production infrastructure
+      - name: Scan exact promoted image digest
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.reference }}
+          version: v0.70.0
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true
+
+      - name: Verify production infrastructure has no pending changes
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.PRODUCTION_TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.PRODUCTION_TERRAFORM_STATE_SECRET_ACCESS_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          TF_VAR_production_container_image: ${{ steps.image.outputs.reference }}
-          TF_VAR_production_runtime_database_password: ${{ secrets.PRODUCTION_RUNTIME_DATABASE_PASSWORD }}
-          TF_VAR_production_schema_database_password: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
-          TF_VAR_staging_runtime_database_password: ${{ secrets.STAGING_RUNTIME_DATABASE_PASSWORD }}
-          TF_VAR_staging_schema_database_password: ${{ secrets.STAGING_SCHEMA_DATABASE_PASSWORD }}
-          TF_VAR_staging_container_image: ${{ steps.staging.outputs.image }}
+          TF_VAR_container_image: ${{ steps.image.outputs.reference }}
+          TF_VAR_runtime_database_password: ${{ secrets.PRODUCTION_RUNTIME_DATABASE_PASSWORD }}
+          TF_VAR_schema_database_password: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
         run: |
-          terraform -chdir=infrastructure/scaleway plan \
-            -input=false \
-            -out="${RUNNER_TEMP}/production.tfplan"
-          terraform -chdir=infrastructure/scaleway apply \
-            -auto-approve \
-            -input=false \
-            "${RUNNER_TEMP}/production.tfplan"
-          terraform -chdir=infrastructure/scaleway output -json production > deployment/platform.json
-          terraform -chdir=infrastructure/scaleway output -json production_database > deployment/database.json
+          set +e
+          terraform -chdir=infrastructure/scaleway/production plan \
+            -detailed-exitcode \
+            -input=false
+          plan_status="$?"
+          set -e
+          if [ "${plan_status}" -eq 2 ]; then
+            echo "::error::Production infrastructure has pending changes. Apply them explicitly, review the result, then rerun this forward deployment."
+            exit 1
+          fi
+          if [ "${plan_status}" -ne 0 ]; then
+            exit "${plan_status}"
+          fi
+          terraform -chdir=infrastructure/scaleway/production output -json platform > deployment/platform.json
+          terraform -chdir=infrastructure/scaleway/production output -json database > deployment/database.json
 
       - name: Reconcile production role-scoped Secret Manager values
         env:
@@ -303,18 +294,6 @@ jobs:
             --endpoint-url https://s3.fr-par.scw.cloud \
             --only-show-errors
 
-      - name: Capture prior successful production deployment for rollback
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
-        run: |
-          metadata_bucket="$(jq --raw-output .deployment_metadata_bucket deployment/platform.json)"
-          aws s3 cp \
-            "s3://${metadata_bucket}/deployments/production/latest.json" \
-            deployment/previous.json \
-            --endpoint-url https://s3.fr-par.scw.cloud \
-            --only-show-errors 2>/dev/null || rm -f deployment/previous.json
-
       - name: Deploy production ops and apply only a stable safe schema plan
         env:
           DIGEST: ${{ steps.image.outputs.digest }}
@@ -360,7 +339,6 @@ jobs:
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
         run: |
-          touch deployment/traffic-changed
           ops/scaleway/deploy-role.sh \
             deployment/platform.json worker \
             "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"
@@ -458,43 +436,3 @@ jobs:
           path: deployment/manifest.json
           if-no-files-found: error
           retention-days: 90
-
-      - name: Roll back production traffic roles on failure
-        if: failure()
-        env:
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-        run: |
-          if [ ! -f deployment/traffic-changed ]; then
-            echo "Traffic was not changed; no image rollback is required."
-            exit 0
-          fi
-          if [ ! -s deployment/previous.json ]; then
-            echo "::error::Traffic changed during the first production deployment and no previous manifest exists"
-            exit 1
-          fi
-          jq --exit-status \
-            '.status == "succeeded"
-              and (.revision | test("^[0-9a-f]{40}$"))
-              and (.digest | test("^sha256:[0-9a-f]{64}$"))
-              and (.schemaHash | test("^[0-9a-f]{64}$"))' \
-            deployment/previous.json >/dev/null
-          previous_image="$(jq --raw-output .image deployment/previous.json)"
-          previous_revision="$(jq --raw-output .revision deployment/previous.json)"
-          previous_digest="$(jq --raw-output .digest deployment/previous.json)"
-          previous_schema_hash="$(jq --raw-output .schemaHash deployment/previous.json)"
-          for role in ops worker web; do
-            ops/scaleway/deploy-role.sh \
-              deployment/platform.json "${role}" \
-              "${previous_image}" \
-              "${previous_revision}" \
-              "${previous_digest}" \
-              "${previous_schema_hash}"
-          done
-          rollback_version="$(curl --fail --silent --show-error https://alpha.evorto.app/version)"
-          jq --exit-status \
-            --arg revision "${previous_revision}" \
-            --arg digest "${previous_digest}" \
-            '.revision == $revision and .imageDigest == $digest' \
-            <<<"${rollback_version}" >/dev/null
-          echo "Database changes were intentionally left forward-only."

@@ -115,7 +115,7 @@ test('Find a listed event', async ({
       templateId: sourceEvent.templateId,
       tenantId: tenant.id,
       title: registeredTitle,
-      unlisted: false,
+      listingAudience: 'participant',
     },
     {
       creatorId: participant.id,
@@ -129,7 +129,7 @@ test('Find a listed event', async ({
       templateId: sourceEvent.templateId,
       tenantId: tenant.id,
       title: otherTitle,
-      unlisted: false,
+      listingAudience: 'participant',
     },
   ]);
   await database.insert(schema.eventRegistrationOptions).values([
@@ -177,7 +177,7 @@ test('Find a listed event', async ({
 This guide explains the ordinary event list for a participant. You only need to be on the correct organization's Evorto address. You can browse listed events while signed out when their registration roles allow it, but signing in also lets Evorto mark events connected to your account.
 
 {% callout type="note" title="Before you start" %}
-Check the organization name and address before choosing an event. Each organization has its own list. Draft, past, role-ineligible, and unlisted events may be absent. An unlisted event is opened from its complete direct link instead of being found here.
+Check the organization name and address before choosing an event. Each organization has its own list. Draft, past, role-ineligible, audience-ineligible, and unlisted events may be absent. Participant audiences require an eligible participant option, organizer audiences require an eligible organizer option, and combined audiences accept either. An unlisted event is opened from its complete direct link instead of being found here.
 {% /callout %}
 
 ## Open Events
@@ -295,7 +295,7 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     body: `
 ## If the list is empty
 
-**No events found** is a successful empty result, not a loading failure. It means Evorto found no upcoming, listed event that this account may see for this organization. Check that you used the intended organization's Evorto address. The event may also be in the past, unlisted, still a draft, or restricted to another role. Ask an organizer for the complete direct link when they intentionally made an event unlisted.
+**No events found** is a successful empty result, not a loading failure. It means Evorto found no upcoming event whose listing audience and registration-option roles match this account for this organization. Check that you used the intended organization's Evorto address. The event may also be in the past, unlisted, still a draft, intended only for participants or organizers, or restricted to another role. Ask an organizer for the complete direct link when they intentionally made an event unlisted.
 `,
   });
   await takeScreenshot(

@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       full_trace_debugging:
-        description: Temporarily sample all application traces until the next reconciliation
+        description: Sample all application traces for this forward deployment
         required: false
         default: false
         type: boolean
@@ -16,8 +16,6 @@ on:
     workflows: [E2E Baseline]
     branches: [main]
     types: [completed]
-  schedule:
-    - cron: "*/30 * * * *"
 
 permissions:
   actions: read
@@ -60,7 +58,7 @@ jobs:
           echo "deploy=true" >> "${GITHUB_OUTPUT}"
 
   deploy:
-    name: Reconcile and deploy staging
+    name: Deploy staging
     needs: resolve-revision
     if: >-
       needs.resolve-revision.outputs.deploy == 'true'
@@ -70,26 +68,28 @@ jobs:
     environment: scaleway-staging
     env:
       SCW_DEFAULT_ORGANIZATION_ID: ${{ vars.SCW_ORGANIZATION_ID }}
+      SCW_DEFAULT_PROJECT_ID: ${{ vars.SCW_PROJECT_ID }}
       SCW_DEFAULT_REGION: fr-par
       SCW_DEFAULT_ZONE: fr-par-1
       TRACE_SAMPLING_RATIO_OVERRIDE: ${{ inputs.full_trace_debugging && '1' || '' }}
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
-      TF_VAR_application_bucket_console_user_ids: ${{ vars.APPLICATION_BUCKET_CONSOLE_USER_IDS }}
       TF_VAR_bucket_suffix: ${{ vars.BUCKET_SUFFIX }}
       TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
-      TF_VAR_organization_id: ${{ vars.SCW_ORGANIZATION_ID }}
-      TF_VAR_production_enabled: "false"
-      TF_VAR_staging_runtime_database_password_version: ${{ vars.RUNTIME_DATABASE_PASSWORD_VERSION }}
-      TF_VAR_staging_schema_database_password_version: ${{ vars.SCHEMA_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_deployer_application_id: ${{ vars.SCW_DEPLOYER_APPLICATION_ID }}
+      TF_VAR_project_id: ${{ vars.SCW_PROJECT_ID }}
+      TF_VAR_production_deployer_application_id: ${{ vars.SCW_PRODUCTION_DEPLOYER_APPLICATION_ID }}
+      TF_VAR_runtime_database_password_version: ${{ vars.RUNTIME_DATABASE_PASSWORD_VERSION }}
+      TF_VAR_schema_database_password_version: ${{ vars.SCHEMA_DATABASE_PASSWORD_VERSION }}
       TF_VAR_tem_project_id: ${{ vars.SCW_TEM_PROJECT_ID }}
-      TF_VAR_validate_tem_dns: ${{ vars.VALIDATE_TEM_DNS == 'true' && 'true' || 'false' }}
+      TF_VAR_web_application_id: ${{ vars.SCW_WEB_APPLICATION_ID }}
+      TF_VAR_worker_application_id: ${{ vars.SCW_WORKER_APPLICATION_ID }}
     steps:
       - name: Validate protected deployment configuration
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.STAGING_TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.STAGING_TERRAFORM_STATE_SECRET_ACCESS_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
           PROTECTED_SECRET_VALUES: ${{ secrets.ROLE_SECRET_VALUES_JSON }}
@@ -97,7 +97,7 @@ jobs:
           SCHEMA_DATABASE_PASSWORD: ${{ secrets.SCHEMA_DATABASE_PASSWORD }}
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+          STAGING_TERRAFORM_STATE_BUCKET: ${{ vars.STAGING_TERRAFORM_STATE_BUCKET }}
         run: |
           for variable_name in \
             AWS_ACCESS_KEY_ID \
@@ -109,15 +109,20 @@ jobs:
             SCHEMA_DATABASE_PASSWORD \
             SCW_ACCESS_KEY \
             SCW_DEFAULT_ORGANIZATION_ID \
+            SCW_DEFAULT_PROJECT_ID \
             SCW_SECRET_KEY \
-            TERRAFORM_STATE_BUCKET \
+            STAGING_TERRAFORM_STATE_BUCKET \
             TF_VAR_alert_email \
-            TF_VAR_application_bucket_console_user_ids \
             TF_VAR_bucket_suffix \
             TF_VAR_cloudflare_zone_id \
-            TF_VAR_staging_runtime_database_password_version \
-            TF_VAR_staging_schema_database_password_version \
-            TF_VAR_tem_project_id; do
+            TF_VAR_deployer_application_id \
+            TF_VAR_project_id \
+            TF_VAR_production_deployer_application_id \
+            TF_VAR_runtime_database_password_version \
+            TF_VAR_schema_database_password_version \
+            TF_VAR_tem_project_id \
+            TF_VAR_web_application_id \
+            TF_VAR_worker_application_id; do
             if [ -z "${!variable_name}" ]; then
               echo "::error::Missing required protected staging configuration: ${variable_name}"
               exit 1
@@ -151,30 +156,14 @@ jobs:
 
       - name: Initialize remote state
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
-          TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.STAGING_TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.STAGING_TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          STAGING_TERRAFORM_STATE_BUCKET: ${{ vars.STAGING_TERRAFORM_STATE_BUCKET }}
         run: |
-          terraform -chdir=infrastructure/scaleway init \
-            -backend-config="bucket=${TERRAFORM_STATE_BUCKET}" \
+          terraform -chdir=infrastructure/scaleway/staging init \
+            -backend-config="bucket=${STAGING_TERRAFORM_STATE_BUCKET}" \
             -input=false \
             -reconfigure
-
-      - name: Reconcile staging project and registry bootstrap
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          TF_VAR_staging_runtime_database_password: ${{ secrets.RUNTIME_DATABASE_PASSWORD }}
-          TF_VAR_staging_schema_database_password: ${{ secrets.SCHEMA_DATABASE_PASSWORD }}
-          TF_VAR_staging_container_image: rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:0000000000000000000000000000000000000000000000000000000000000000
-        run: |
-          terraform -chdir=infrastructure/scaleway apply \
-            -auto-approve \
-            -input=false \
-            -target=scaleway_account_project.staging \
-            -target=module.staging.scaleway_registry_namespace.application
 
       - name: Login to private Scaleway registry
         env:
@@ -320,38 +309,42 @@ jobs:
           output-file: sbom.spdx.json
           upload-artifact: false
 
-      - name: Scan deployed image vulnerabilities
-        if: steps.reuse.outputs.reuse != 'true'
+      - name: Scan exact deployed image digest
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.image.outputs.reference }}
           version: v0.70.0
           format: table
           severity: HIGH,CRITICAL
-          ignore-unfixed: true
           exit-code: "1"
           hide-progress: true
 
-      - name: Reconcile complete staging infrastructure
+      - name: Verify staging infrastructure has no pending changes
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.STAGING_TERRAFORM_STATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.STAGING_TERRAFORM_STATE_SECRET_ACCESS_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          TF_VAR_staging_runtime_database_password: ${{ secrets.RUNTIME_DATABASE_PASSWORD }}
-          TF_VAR_staging_schema_database_password: ${{ secrets.SCHEMA_DATABASE_PASSWORD }}
-          TF_VAR_staging_container_image: ${{ steps.image.outputs.reference }}
+          TF_VAR_container_image: ${{ steps.image.outputs.reference }}
+          TF_VAR_runtime_database_password: ${{ secrets.RUNTIME_DATABASE_PASSWORD }}
+          TF_VAR_schema_database_password: ${{ secrets.SCHEMA_DATABASE_PASSWORD }}
         run: |
-          terraform -chdir=infrastructure/scaleway plan \
-            -input=false \
-            -out="${RUNNER_TEMP}/staging.tfplan"
-          terraform -chdir=infrastructure/scaleway apply \
-            -auto-approve \
-            -input=false \
-            "${RUNNER_TEMP}/staging.tfplan"
-          terraform -chdir=infrastructure/scaleway output -json staging > deployment/platform.json
-          terraform -chdir=infrastructure/scaleway output -json staging_database > deployment/database.json
+          set +e
+          terraform -chdir=infrastructure/scaleway/staging plan \
+            -detailed-exitcode \
+            -input=false
+          plan_status="$?"
+          set -e
+          if [ "${plan_status}" -eq 2 ]; then
+            echo "::error::Staging infrastructure has pending changes. Apply them explicitly, review the result, then rerun this forward deployment."
+            exit 1
+          fi
+          if [ "${plan_status}" -ne 0 ]; then
+            exit "${plan_status}"
+          fi
+          terraform -chdir=infrastructure/scaleway/staging output -json platform > deployment/platform.json
+          terraform -chdir=infrastructure/scaleway/staging output -json database > deployment/database.json
 
       - name: Reconcile role-scoped Secret Manager values
         env:
@@ -390,20 +383,7 @@ jobs:
             --endpoint-url https://s3.fr-par.scw.cloud \
             --only-show-errors
 
-      - name: Capture prior successful deployment for rollback
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
-        run: |
-          metadata_bucket="$(jq --raw-output .deployment_metadata_bucket deployment/platform.json)"
-          aws s3 cp \
-            "s3://${metadata_bucket}/deployments/staging/latest.json" \
-            deployment/previous.json \
-            --endpoint-url https://s3.fr-par.scw.cloud \
-            --only-show-errors 2>/dev/null || rm -f deployment/previous.json
-
       - name: Deploy ops and apply only a stable safe schema plan
-        id: ops
         env:
           DIGEST: ${{ steps.image.outputs.digest }}
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
@@ -417,7 +397,6 @@ jobs:
             deployment/platform.json ops \
             "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}" \
             "${ops_status_file}"
-          echo "changed=$(<"${ops_status_file}")" >> "${GITHUB_OUTPUT}"
 
           if [ "$(<"${ops_status_file}")" != "true" ]; then
             echo "Ops already matches the desired release; skipping schema reconciliation."
@@ -459,41 +438,22 @@ jobs:
             <<<"${initialization_response}" >/dev/null
 
       - name: Deploy worker and web at the same digest
-        id: traffic
         env:
           DIGEST: ${{ steps.image.outputs.digest }}
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
           REVISION: ${{ needs.resolve-revision.outputs.revision }}
           SCHEMA_HASH: ${{ steps.image.outputs.schema_hash }}
-          OPS_CHANGED: ${{ steps.ops.outputs.changed }}
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
         run: |
-          worker_status_file="${RUNNER_TEMP}/worker-deployment-status"
-          web_status_file="${RUNNER_TEMP}/web-deployment-status"
           ops/scaleway/deploy-role.sh \
             deployment/platform.json worker \
-            "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}" \
-            "${worker_status_file}"
+            "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"
           ops/scaleway/deploy-role.sh \
             deployment/platform.json web \
-            "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}" \
-            "${web_status_file}"
-
-          worker_changed="$(<"${worker_status_file}")"
-          web_changed="$(<"${web_status_file}")"
-          echo "worker_changed=${worker_changed}" >> "${GITHUB_OUTPUT}"
-          echo "web_changed=${web_changed}" >> "${GITHUB_OUTPUT}"
-          if [ "${OPS_CHANGED}" = "true" ] || [ "${worker_changed}" = "true" ] || [ "${web_changed}" = "true" ]; then
-            touch deployment/traffic-changed
-          fi
+            "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"
 
       - name: Verify staging revision, readiness, tenancy, Auth0, RPC, and noindex
-        if: >-
-          github.event_name != 'schedule'
-          || steps.ops.outputs.changed == 'true'
-          || steps.traffic.outputs.worker_changed == 'true'
-          || steps.traffic.outputs.web_changed == 'true'
         env:
           DIGEST: ${{ steps.image.outputs.digest }}
           REVISION: ${{ needs.resolve-revision.outputs.revision }}
@@ -524,12 +484,20 @@ jobs:
           login_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' https://staging.evorto.app/login)"
           [[ "${login_status}" =~ ^30[12378]$ ]]
 
-          rpc_body="$(curl "${curl_args[@]}" --fail --header 'Content-Type: application/json' --data '{}' https://staging.evorto.app/rpc)"
+          rpc_body="$(
+            curl "${curl_args[@]}" \
+              --fail \
+              --header 'Content-Type: application/json' \
+              --data '{"_tag":"Request","id":"1","tag":"config.isAuthenticated","payload":null,"headers":[]}' \
+              https://staging.evorto.app/rpc
+          )"
           jq --exit-status \
             'type == "array"
               and length == 1
-              and .[0]._tag == "Defect"
-              and (.[0].defect | type == "string")' \
+              and .[0]._tag == "Exit"
+              and .[0].requestId == "1"
+              and .[0].exit._tag == "Success"
+              and .[0].exit.value == false' \
             <<<"${rpc_body}" >/dev/null
 
           generated_endpoint="$(jq --raw-output .containers.web.endpoint deployment/platform.json)"
@@ -600,46 +568,3 @@ jobs:
           path: deployment/manifest.json
           if-no-files-found: error
           retention-days: 90
-
-      - name: Roll back traffic roles to the previous digest on failure
-        if: failure()
-        env:
-          CURRENT_SCHEMA_HASH: ${{ steps.image.outputs.schema_hash }}
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-        run: |
-          if [ ! -f deployment/traffic-changed ]; then
-            echo "Traffic was not changed; no image rollback is required."
-            exit 0
-          fi
-          if [ ! -s deployment/previous.json ]; then
-            echo "::error::Traffic changed during the first deployment and no previous manifest exists"
-            exit 1
-          fi
-          jq --exit-status \
-            '.status == "succeeded"
-              and (.revision | test("^[0-9a-f]{40}$"))
-              and (.digest | test("^sha256:[0-9a-f]{64}$"))
-              and (.schemaHash | test("^[0-9a-f]{64}$"))' \
-            deployment/previous.json >/dev/null
-
-          previous_image="$(jq --raw-output .image deployment/previous.json)"
-          previous_revision="$(jq --raw-output .revision deployment/previous.json)"
-          previous_digest="$(jq --raw-output .digest deployment/previous.json)"
-          previous_schema_hash="$(jq --raw-output .schemaHash deployment/previous.json)"
-          for role in ops worker web; do
-            ops/scaleway/deploy-role.sh \
-              deployment/platform.json "${role}" \
-              "${previous_image}" \
-              "${previous_revision}" \
-              "${previous_digest}" \
-              "${previous_schema_hash}"
-          done
-
-          rollback_version="$(curl --fail --silent --show-error https://staging.evorto.app/version)"
-          jq --exit-status \
-            --arg revision "${previous_revision}" \
-            --arg digest "${previous_digest}" \
-            '.revision == $revision and .imageDigest == $digest' \
-            <<<"${rollback_version}" >/dev/null
-          echo "Database changes were intentionally left forward-only."

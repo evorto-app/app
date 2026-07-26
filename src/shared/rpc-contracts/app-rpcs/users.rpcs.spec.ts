@@ -1,15 +1,90 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { User } from '../../../types/custom/user';
 import { UsersEventSummaryRecord, UsersUpdateProfileInput } from './users.rpcs';
 
 describe('users RPC input schemas', () => {
-  it('rejects invalid profile notification email addresses', () => {
+  it('canonicalizes valid profile contact and payout input', () => {
+    expect(
+      Schema.decodeUnknownSync(UsersUpdateProfileInput)({
+        communicationEmail: ' Finance@Example.COM ',
+        firstName: 'Alice',
+        iban: ' nl91 abna 0417 1643 00 ',
+        lastName: 'Doe',
+        paypalEmail: ' Payout@Example.COM ',
+      }),
+    ).toEqual({
+      communicationEmail: 'finance@example.com',
+      firstName: 'Alice',
+      iban: 'NL91ABNA0417164300',
+      lastName: 'Doe',
+      paypalEmail: 'payout@example.com',
+    });
+  });
+
+  it('rejects malformed profile contact and payout input', () => {
     expect(() =>
       Schema.decodeUnknownSync(UsersUpdateProfileInput)({
         communicationEmail: 'finance',
         firstName: 'Alice',
         lastName: 'Doe',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(UsersUpdateProfileInput)({
+        communicationEmail: 'finance@example.com',
+        firstName: 'Alice',
+        iban: 'DE88370400440532013000',
+        lastName: 'Doe',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(UsersUpdateProfileInput)({
+        communicationEmail: 'finance@example.com',
+        firstName: 'Alice',
+        lastName: 'Doe',
+        paypalEmail: 'payout',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects non-canonical profile details read from persistence', () => {
+    const storedUser = {
+      auth0Id: 'auth0|user-1',
+      communicationEmail: 'finance@example.com',
+      email: 'login@example.com',
+      firstName: 'Alice',
+      homeTenantId: null,
+      homeTenantName: null,
+      iban: 'NL91ABNA0417164300',
+      id: 'user-1',
+      lastName: 'Doe',
+      paypalEmail: 'payout@example.com',
+      permissions: [],
+      roleIds: [],
+    };
+
+    expect(() => Schema.decodeUnknownSync(User)(storedUser)).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(User)({
+        ...storedUser,
+        communicationEmail: ' Finance@Example.COM ',
+      }),
+    ).toThrow();
+    const { communicationEmail: _communicationEmail, ...missingEmail } =
+      storedUser;
+    expect(() => Schema.decodeUnknownSync(User)(missingEmail)).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(User)({
+        ...storedUser,
+        iban: 'DE88370400440532013000',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(User)({
+        ...storedUser,
+        paypalEmail: 'Payout@Example.COM',
       }),
     ).toThrow();
   });

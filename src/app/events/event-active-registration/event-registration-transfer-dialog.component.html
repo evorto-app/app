@@ -1,30 +1,15 @@
-<h1 mat-dialog-title>Private transfer link created</h1>
+<h1 mat-dialog-title>Transfer code created</h1>
 <mat-dialog-content class="grid gap-5">
   <p class="body-medium text-on-surface-variant">
-    Send either the link or code to one person you trust. The first eligible
-    organization member to use one can claim the registration. Keep both
-    private.
+    Send the code to one person you trust. The first eligible organization
+    member to use it can claim the registration, so keep it private.
   </p>
 
   <div class="grid gap-2">
     <mat-form-field class="w-full">
-      <mat-label>Claim link</mat-label>
-      <input matInput readonly [value]="data.claimUrl" />
-    </mat-form-field>
-    <button
-      mat-stroked-button
-      type="button"
-      (click)="copy(data.claimUrl, 'link')"
-    >
-      {{ copied() === "link" ? "Link copied" : "Copy link" }}
-    </button>
-  </div>
-
-  <div class="grid gap-2">
-    <mat-form-field class="w-full">
-      <mat-label>Manual claim code</mat-label>
+      <mat-label>Claim code</mat-label>
       <input matInput readonly [value]="data.claimCode" />
-      <mat-hint>Useful when the link cannot be opened directly.</mat-hint>
+      <mat-hint>The recipient enters this code on the claim page.</mat-hint>
     </mat-form-field>
     <button
       mat-stroked-button
@@ -32,6 +17,23 @@
       (click)="copy(data.claimCode, 'code')"
     >
       {{ copied() === "code" ? "Code copied" : "Copy code" }}
+    </button>
+  </div>
+
+  <div class="grid gap-2">
+    <mat-form-field class="w-full">
+      <mat-label>Claim page</mat-label>
+      <input matInput readonly [value]="data.claimPageUrl" />
+      <mat-hint
+        >This generic page link does not contain the private code.</mat-hint
+      >
+    </mat-form-field>
+    <button
+      mat-stroked-button
+      type="button"
+      (click)="copy(data.claimPageUrl, 'page')"
+    >
+      {{ copied() === "page" ? "Page link copied" : "Copy claim page link" }}
     </button>
   </div>
 
@@ -48,10 +50,10 @@
     </p>
   }
   <p class="sr-only" role="status" aria-live="polite">
-    @if (copied() === "link") {
-      Claim link copied to clipboard.
-    } @else if (copied() === "code") {
+    @if (copied() === "code") {
       Claim code copied to clipboard.
+    } @else if (copied() === "page") {
+      Claim page link copied to clipboard.
     }
   </p>
 </mat-dialog-content>

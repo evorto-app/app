@@ -1,5 +1,6 @@
 import { createId } from '@db/create-id';
 import * as schema from '@db/schema';
+import type { Page } from '@playwright/test';
 import { and, eq, inArray, like } from 'drizzle-orm';
 
 import {
@@ -20,7 +21,18 @@ test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 // order so fullyParallel does not create a fixture-only cross-transfer deadlock.
 test.describe.configure({ mode: 'default' });
 
-test('transfers a free registration through a private claim URL', async ({
+const openRegistrationTransferClaim = async (page: Page, claimCode: string) => {
+  await page.goto('/registration-transfers');
+  const reviewTransfer = page.getByRole('button', { name: 'Review transfer' });
+  const codeForm = page.locator('form').filter({ has: reviewTransfer });
+  await expect(codeForm).not.toHaveAttribute('jsaction', /submit/, {
+    timeout: 20_000,
+  });
+  await page.getByLabel('Claim code').fill(claimCode);
+  await reviewTransfer.click();
+};
+
+test('transfers a free registration through a private claim code', async ({
   browser,
   database,
   page,
@@ -55,7 +67,7 @@ test('transfers a free registration through a private claim URL', async ({
     templateId: template.id,
     tenantId: tenant.id,
     title: 'Private transfer scenario',
-    unlisted: true,
+    listingAudience: 'unlisted',
   });
   await database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,
@@ -116,22 +128,25 @@ test('transfers a free registration through a private claim URL', async ({
   try {
     await page.goto(`/events/${eventId}`);
     await waitForRegistrationPage(page);
-    const createTransferLink = page.getByRole('button', {
-      name: 'Create transfer link',
+    const createTransferCode = page.getByRole('button', {
+      name: 'Create transfer code',
     });
-    await expect(createTransferLink).toBeVisible();
+    await expect(createTransferCode).toBeVisible();
     // SSR exposes the action before Angular attaches its click listener.
     // Event replay removes `jsaction` once the mutation is interactive.
-    await expect(createTransferLink).not.toHaveAttribute('jsaction', /click/);
-    await createTransferLink.click();
+    await expect(createTransferCode).not.toHaveAttribute('jsaction', /click/);
+    await createTransferCode.click();
     await expect(
-      page.getByRole('heading', { name: 'Private transfer link created' }),
+      page.getByRole('heading', { name: 'Transfer code created' }),
     ).toBeVisible();
-    const claimUrl = await page.getByLabel('Claim link').inputValue();
-    const claimCode = await page.getByLabel('Manual claim code').inputValue();
-    const claimToken = new URL(claimUrl).pathname.split('/').at(-1);
-    if (!claimToken) throw new Error('Expected an opaque claim token in URL');
-    expect(claimCode).toMatch(/^[A-F0-9]+(?:-[A-F0-9]+)+$/);
+    const claimPageUrl = await page.getByLabel('Claim page').inputValue();
+    const claimCode = await page.getByLabel('Claim code').inputValue();
+    const claimPage = new URL(claimPageUrl);
+    expect(claimPage.pathname).toBe('/registration-transfers');
+    expect(claimPage.search).toBe('');
+    expect(claimPage.hash).toBe('');
+    expect(claimPageUrl).not.toContain(claimCode);
+    expect(claimCode).toMatch(/^(?:[A-F0-9]{4}-){7}[A-F0-9]{4}$/);
 
     const persistedOffer = await database.query.registrationTransfers.findFirst(
       {
@@ -142,8 +157,6 @@ test('transfers a free registration through a private claim URL', async ({
       },
     );
     expect(persistedOffer).toMatchObject({ status: 'open' });
-    expect(persistedOffer?.claimTokenHash).toHaveLength(64);
-    expect(persistedOffer?.claimTokenHash).not.toBe(claimToken);
     expect(persistedOffer?.claimCodeHash).toHaveLength(64);
     expect(persistedOffer?.claimCodeHash).not.toBe(claimCode);
 
@@ -154,7 +167,7 @@ test('transfers a free registration through a private claim URL', async ({
       tenantDomain: tenant.domain,
       testClock,
     });
-    await recipientPage.page.goto(new URL(claimUrl).pathname);
+    await openRegistrationTransferClaim(recipientPage.page, claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Review before you claim',
@@ -346,7 +359,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
     templateId: template.id,
     tenantId: tenant.id,
     title: 'Paid private transfer scenario',
-    unlisted: true,
+    listingAudience: 'unlisted',
   });
   await database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,
@@ -433,16 +446,15 @@ test('offers a paid registration privately while rejecting a source self-claim',
   try {
     await page.goto(`/events/${eventId}`);
     await waitForRegistrationPage(page);
-    const createTransferLink = page.getByRole('button', {
-      name: 'Create transfer link',
+    const createTransferCode = page.getByRole('button', {
+      name: 'Create transfer code',
     });
-    await expect(createTransferLink).toBeVisible();
+    await expect(createTransferCode).toBeVisible();
     // Waiting at the action boundary prevents an SSR-only click from consuming
     // the test timeout before its cleanup can use the database fixture.
-    await expect(createTransferLink).not.toHaveAttribute('jsaction', /click/);
-    await createTransferLink.click();
-    const claimUrl = await page.getByLabel('Claim link').inputValue();
-    const claimPath = new URL(claimUrl).pathname;
+    await expect(createTransferCode).not.toHaveAttribute('jsaction', /click/);
+    await createTransferCode.click();
+    const claimCode = await page.getByLabel('Claim code').inputValue();
 
     const transfer = await database.query.registrationTransfers.findFirst({
       where: { sourceRegistrationId, tenantId: tenant.id },
@@ -502,7 +514,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
       },
     ]);
 
-    await page.goto(claimPath);
+    await openRegistrationTransferClaim(page, claimCode);
     await expect(
       page.getByRole('heading', { name: 'Review before you claim' }),
     ).toBeVisible();
@@ -542,7 +554,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
       tenantDomain: tenant.domain,
       testClock,
     });
-    await recipientPage.page.goto(claimPath);
+    await openRegistrationTransferClaim(recipientPage.page, claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Review before you claim',
@@ -809,7 +821,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
       tenantDomain: tenant.domain,
       testClock,
     });
-    await recipientPage.page.goto(scenario.claimPath);
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Payment still required',

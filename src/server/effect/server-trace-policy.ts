@@ -21,6 +21,8 @@ export const isUntracedServerRequestUrl = (url: string) => {
 export const withoutServerTracing = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(Effect.withTracerEnabled(false));
 
+// Effect's built-in outer HTTP trace records the original full URL. The
+// response middleware replaces it with a trace built from a sanitized route.
 export const serverTracePolicyLayer = Layer.succeed(
   HttpMiddleware.TracerDisabledWhen,
-)((request) => isUntracedServerRequestUrl(request.url));
+)(() => true);

@@ -13,17 +13,6 @@
       Edit event
     }
   </h1>
-  <div class="grow"></div>
-  <button
-    type="button"
-    *appIfAnyPermission="['events:changeListing']"
-    mat-icon-button
-    aria-label="Open event actions"
-    [matMenuTriggerFor]="menu"
-  >
-    <fa-icon [icon]="faEllipsisVertical" />
-  </button>
-  <mat-menu #menu="matMenu"></mat-menu>
 </div>
 
 <main class="mx-auto w-full max-w-6xl pb-24">
@@ -184,11 +173,18 @@
               status is loading.
             </p>
           } @else if (paidControlsUnavailable()) {
-            <p class="text-on-surface-variant mt-3 text-sm" role="status">
-              Paid controls are unavailable because this organization has no
-              connected Stripe account. Saving keeps event registrations and
-              add-ons free.
-            </p>
+            @if (paidGraphBlocked()) {
+              <p class="text-error mt-3 text-sm" role="alert">
+                This event contains paid registration or add-on data. It remains
+                unchanged, but the event cannot be saved until Stripe is
+                connected again.
+              </p>
+            } @else {
+              <p class="text-on-surface-variant mt-3 text-sm" role="status">
+                Paid controls are unavailable because this organization has no
+                connected Stripe account.
+              </p>
+            }
           }
           @if (graphActionMessage(); as message) {
             <p
@@ -253,6 +249,8 @@
                 [optionForm]="option"
                 [removable]="!eventModel().simpleModeEnabled"
                 [simpleMode]="eventModel().simpleModeEnabled"
+                [taxRates]="availableTaxRates()"
+                [taxRateState]="taxRateState()"
                 (removeRequested)="
                   removeRegistrationOption(option.key().value())
                 "
@@ -283,7 +281,10 @@
             <button
               type="button"
               mat-button
-              [disabled]="eventModel().registrationOptions.length === 0"
+              [disabled]="
+                eventModel().registrationOptions.length === 0 ||
+                eventModel().questions.length >= maxRegistrationQuestions
+              "
               (click)="addQuestion()"
             >
               Add question
@@ -302,7 +303,10 @@
                 <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <mat-form-field class="lg:col-span-2">
                     <mat-label>Question</mat-label>
-                    <input matInput [formField]="question.title" />
+                    <input
+                      matInput
+                      [formField]="question.title"
+                    />
                   </mat-form-field>
                   <mat-form-field>
                     <mat-label>Registration option</mat-label>
@@ -339,6 +343,10 @@
                     <button
                       type="button"
                       mat-button
+                      [disabled]="
+                        eventModel().questions.length >=
+                        maxRegistrationQuestions
+                      "
                       (click)="duplicateQuestion(questionIndex)"
                     >
                       Duplicate question
@@ -358,6 +366,12 @@
                 No registration questions are configured.
               </p>
             }
+            @if (eventModel().questions.length >= maxRegistrationQuestions) {
+              <p class="body-small text-on-surface-variant">
+                This event has the maximum {{ maxRegistrationQuestions }}
+                registration questions.
+              </p>
+            }
           </div>
         </section>
 
@@ -372,13 +386,24 @@
                 <h2 id="event-addons-heading" class="title-large">Add-ons</h2>
                 <p class="text-on-surface-variant mt-1 text-sm">
                   Reuse one add-on across several options. Each registration
-                  option has its own included and optional quantities.
+                  option has its own included and optional quantities. An event
+                  supports up to {{ maxEventAddonTypes }} add-on types.
                 </p>
               </div>
-              <button type="button" mat-button (click)="addAddOn()">
+              <button
+                type="button"
+                mat-button
+                [disabled]="eventModel().addOns.length >= maxEventAddonTypes"
+                (click)="addAddOn()"
+              >
                 Add add-on
               </button>
             </div>
+            @for (error of eventForm.addOns().errors(); track error) {
+              <p class="text-error mb-3 text-sm" role="alert">
+                {{ error.message }}
+              </p>
+            }
 
             <div class="grid gap-4">
               @for (
@@ -390,6 +415,8 @@
                   [addOnForm]="addOn"
                   [currencyCode]="tenantCurrency()"
                   [optionChoices]="optionChoices()"
+                  [taxRates]="availableTaxRates()"
+                  [taxRateState]="taxRateState()"
                   (addMappingRequested)="addAddOnMapping(addOnIndex)"
                   (removeMappingRequested)="
                     removeAddOnMapping(addOnIndex, $event)
@@ -428,6 +455,23 @@
               Try again
             </button>
           }
+          @if (taxRatesQuery.isFetching()) {
+            <p class="text-on-surface-variant text-sm" role="status">
+              Loading tax rates. Saving is available when they finish loading.
+            </p>
+          } @else if (taxRatesQuery.isError()) {
+            <p class="text-error text-sm" role="alert">
+              Tax rates could not be loaded. No changes can be saved until they
+              are available, so existing tax selections stay unchanged.
+            </p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="taxRatesQuery.refetch()"
+            >
+              Try again
+            </button>
+          }
           <button
             type="submit"
             mat-flat-button
@@ -439,6 +483,8 @@
                 formSubmitting: eventForm().submitting(),
                 graphReadOnly: loadBlock() !== null,
                 mutationPending: updateEventMutation.isPending(),
+                paidGraphBlocked: paidGraphBlocked(),
+                taxRatesReady: taxRatesReady(),
               })
             "
           >

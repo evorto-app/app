@@ -198,7 +198,7 @@ test('Manage one organization and review change history', async ({
       hasDeposit: false,
       id: receiptId,
       purchaseCountry: 'DE',
-      receiptDate: seedDate,
+      receiptDate: seedDate.toISOString().slice(0, 10),
       status: 'submitted',
       submittedByUserId: assignmentScenario.user.id,
       taxAmount: 100,
@@ -626,7 +626,21 @@ For a confirmed registration inside the check-in window, enter the number of gue
   const eventAuditEntry = page
     .getByRole('article')
     .filter({ has: page.getByText(eventReason, { exact: true }) });
+  const persistedEventAudit =
+    await database.query.platformAuditEntries.findFirst({
+      where: {
+        action: 'event.update',
+        reason: eventReason,
+        targetTenantId: tenant.id,
+      },
+    });
+  if (!persistedEventAudit) {
+    throw new Error('Expected the documented event audit entry');
+  }
+  await expect(eventAuditEntry).toContainText(persistedEventAudit.actorId);
+  await expect(eventAuditEntry).toContainText(tenant.id);
   await eventAuditEntry.getByText('Review before and after').click();
+  await expect(eventAuditEntry).toContainText(`event · ${draftEvent.id}`);
   await expect(eventAuditEntry).toContainText(draftEvent.title);
   await expect(eventAuditEntry).toContainText(editedEventTitle);
 
@@ -634,7 +648,7 @@ For a confirmed registration inside the check-in window, enter the number of gue
     body: `
 ## Verify the audit trail
 
-Return to **Platform administration** and select **Platform audit log**. Find each operation by its reason. Verify the action label and organization, then open **Review before and after** to compare the changes. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
+Return to **Platform administration** and select **Platform audit log**. Find each operation by its reason. Verify the action label, actor authority ID, organization ID, and resource ID, then open **Review before and after** to compare safe details such as role permission changes. Raw errors and provider payloads are excluded. The newest 50 entries load first; use **Load older** to continue through the append-only history. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
 
 Participant profiles and home pages, joining or leaving an organization, personal receipt submission, and self-service registration transfer remain participant-owned. A platform administrator does not act as an organization member for those flows.
 `,

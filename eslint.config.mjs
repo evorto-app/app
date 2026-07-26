@@ -19,7 +19,7 @@ const baseConfig = [
   eslintConfigPrettier,
 ];
 
-const toolingFiles = ["*.config.ts", "helpers/**/*.ts", "migration/**/*.ts"];
+const toolingFiles = ["*.config.ts", "helpers/**/*.ts"];
 
 export default defineConfig(
   {
@@ -27,7 +27,7 @@ export default defineConfig(
   },
   {
     files: ["**/*.ts"],
-    ignores: ["old/**/*", "tests/**/*", ...toolingFiles],
+    ignores: ["tests/**/*", ...toolingFiles],
     extends: [baseConfig, ...angular.configs.tsRecommended],
     plugins: {
       "unused-imports": unusedImports,
@@ -125,15 +125,6 @@ export default defineConfig(
         },
       ],
       "unicorn/no-process-exit": "error",
-    },
-  },
-  // Legacy one-shot migration inputs carry source-data invariants that are
-  // asserted at their existing transformation sites. Keep the wider strict
-  // tooling profile while avoiding a behavior-changing migration rewrite.
-  {
-    files: ["migration/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
   // Prevent src/ code from importing helpers (development/testing only)

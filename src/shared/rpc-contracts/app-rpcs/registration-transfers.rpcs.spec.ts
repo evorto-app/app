@@ -1,12 +1,16 @@
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { RegistrationTransfersRpcError } from './registration-transfers.errors';
 import {
+  RegistrationTransferClaimCode,
   RegistrationTransferClaimInput,
   RegistrationTransferClaimRecord,
   RegistrationTransferClaimResult,
-  RegistrationTransferCredential,
   RegistrationTransferOfferResult,
   RegistrationTransferRetryCheckoutResult,
   RegistrationTransfersClaim,
@@ -69,8 +73,8 @@ const validClaimRecord = {
 } satisfies Parameters<typeof RegistrationTransferClaimRecord.make>[0];
 
 const validOfferResult = {
-  claimCode: 'claim-code',
-  claimUrl: '/registration-transfers/claim/claim-code',
+  claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
+  claimPageUrl: 'https://tenant.example/registration-transfers',
   expiresAt: '2026-08-20T18:00:00.000Z',
   status: 'open',
 } satisfies Parameters<typeof RegistrationTransferOfferResult.make>[0];
@@ -85,21 +89,25 @@ const validRetryCheckoutResult = {
   status: 'reconciled',
 } satisfies Parameters<typeof RegistrationTransferRetryCheckoutResult.make>[0];
 
-describe('registration transfer credential schema', () => {
-  it('accepts non-empty opaque credentials up to 512 characters', () => {
+describe('registration transfer claim-code schema', () => {
+  it('accepts exactly one formatted 128-bit claim code', () => {
     expect(
-      Schema.decodeUnknownSync(RegistrationTransferCredential)('x'.repeat(512)),
-    ).toHaveLength(512);
+      Schema.decodeUnknownSync(RegistrationTransferClaimCode)(
+        'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
+      ),
+    ).toBe('ABCD-1234-EF56-7890-ABCD-1234-EF56-7890');
   });
 
-  it.each(['', 'x'.repeat(513)])(
-    'rejects an empty or overlong credential',
-    (credential) => {
-      expect(() =>
-        Schema.decodeUnknownSync(RegistrationTransferCredential)(credential),
-      ).toThrow();
-    },
-  );
+  it.each([
+    '',
+    'abcd-1234-ef56-7890-abcd-1234-ef56-7890',
+    'ABCD_1234_EF56_7890_ABCD_1234_EF56_7890',
+    'ABCD-1234',
+  ])('rejects a claim code outside the generated format', (claimCode) => {
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimCode)(claimCode),
+    ).toThrow();
+  });
 });
 
 describe('registration transfer offer schema', () => {
@@ -143,12 +151,12 @@ describe('registration transfer claim record schema', () => {
   it('decodes the event, recipient pricing, questions, fixed bundle, and state', () => {
     const decoded = Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
       ...validClaimRecord,
-      credential: 'must-not-be-returned',
+      claimCode: 'must-not-be-returned',
       sourceUserId: 'source-user-1',
     });
 
     expect(decoded).toMatchObject(validClaimRecord);
-    expect(decoded).not.toHaveProperty('credential');
+    expect(decoded).not.toHaveProperty('claimCode');
     expect(decoded).not.toHaveProperty('sourceUserId');
     expect(decoded.registrationOption).toMatchObject({
       appliedDiscountType: 'esnCard',
@@ -317,17 +325,17 @@ describe('registration transfer claim record schema', () => {
 describe('registration transfer claim input schema', () => {
   const validClaimInput = {
     answers: [{ answer: 'No accessibility needs', questionId: 'question-1' }],
-    credential: 'claim-token',
+    claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
   };
 
-  it('requires recipient answers and the claim credential', () => {
+  it('requires recipient answers and the claim code', () => {
     expect(() =>
       Schema.decodeUnknownSync(RegistrationTransferClaimInput)(validClaimInput),
     ).not.toThrow();
 
     expect(() =>
       Schema.decodeUnknownSync(RegistrationTransferClaimInput)({
-        credential: 'claim-token',
+        claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
       }),
     ).toThrow();
   });
@@ -342,6 +350,32 @@ describe('registration transfer claim input schema', () => {
     expect(decoded).toEqual(validClaimInput);
     expect(decoded).not.toHaveProperty('addOns');
     expect(decoded).not.toHaveProperty('guestCount');
+  });
+
+  it('bounds recipient answer count and text', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimInput)({
+        ...validClaimInput,
+        answers: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS + 1 },
+          (_, index) => ({
+            answer: 'Answer',
+            questionId: `question-${index}`,
+          }),
+        ),
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimInput)({
+        ...validClaimInput,
+        answers: [
+          {
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1),
+            questionId: 'question-1',
+          },
+        ],
+      }),
+    ).toThrow();
   });
 });
 

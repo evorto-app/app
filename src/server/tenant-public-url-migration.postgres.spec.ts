@@ -231,6 +231,7 @@ describe('tenant public URL migration serialization', () => {
       description: 'Tenant URL migration race fixture',
       icon: { iconColor: 0, iconName: 'circle' },
       id: templateId,
+      listingAudience: 'both',
       tenantId,
       title: 'URL migration race',
     });
@@ -240,6 +241,7 @@ describe('tenant public URL migration serialization', () => {
       end: new Date(now + 8 * 24 * 60 * 60 * 1000),
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
+      listingAudience: 'both',
       start: new Date(now + 7 * 24 * 60 * 60 * 1000),
       status: 'APPROVED',
       templateId,
@@ -292,9 +294,6 @@ describe('tenant public URL migration serialization', () => {
             yield* tx.insert(registrationTransfers).values({
               claimCodeHash: createHash('sha256')
                 .update(`code-${suffix}`)
-                .digest('hex'),
-              claimTokenHash: createHash('sha256')
-                .update(`token-${suffix}`)
                 .digest('hex'),
               eventId,
               expiresAt: new Date(now + 24 * 60 * 60 * 1000),

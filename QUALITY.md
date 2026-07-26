@@ -170,6 +170,13 @@ Persona tags or metadata may be added later.
 
 When a user/admin workflow changes, update the generated documentation scenario as part of the change.
 
+Check-in coverage must exercise both exact window boundaries: one hour before
+event start and two hours after event end. Mutation tests must prove the server
+locks the registration, rereads the owning event in the transaction, and
+returns distinct `notOpen` and `ended` outcomes without writing. Event editing
+coverage must protect every answered-question field and removal through the
+same guard in ordinary and platform mutation paths.
+
 ## Visual and Manual Verification
 
 Use screenshots for visible UI changes.
@@ -200,8 +207,9 @@ Use this compact queue when a Codex in-app Browser walkthrough is requested and
 the Browser control transport is healthy. It complements, but does not replace,
 the durable Playwright and generated-documentation coverage.
 
-1. **Anonymous event discovery:** browse the event list and a public event,
-   then open an unlisted event from its direct link.
+1. **Anonymous event discovery:** verify participant, organizer, and both
+   audiences against default-role option eligibility, then open an unlisted
+   event from its direct link.
 2. **Participant registration and profile:** inspect free, paid, waitlist,
    cancellation, ticket, and receipt states.
 3. **Organizer authoring and check-in:** create or edit a template/event,

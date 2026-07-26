@@ -688,12 +688,17 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("page.goto('/global-admin')");
     expect(source).toContain("getByRole('link', { name: 'Email outbox' })");
     expect(source).toContain('Delivery details');
-    expect(source).toContain('Temporary provider timeout');
+    expect(source).toContain(
+      'Provider accepted the request but its response was lost',
+    );
     expect(source).toContain('Recipient address was rejected');
     expect(source).toContain('scenario.sent.subject');
     expect(source).toContain('await scenario.cleanup()');
     expect(source).toContain(
-      'It shows the 100 most recently updated **queued**, **sending**, and **failed** rows.',
+      'It shows up to 100 **queued**, **sending**, **failed**, **delivery unknown**, and **suppressed** rows.',
+    );
+    expect(source).toContain(
+      'It puts **failed**, **delivery unknown**, and abandoned **sending** incidents before routine traffic',
     );
     expect(source).toContain(
       'It omits successfully **sent** rows even though the Sent total still includes them.',
@@ -701,7 +706,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Do not infer that the email is permanently stuck from a brief **Sending** state',
     );
-    expect(source).toContain('automatic retries have stopped');
+    expect(source).toContain(
+      'It remains terminal and is not resent, preventing duplicate customer messages.',
+    );
     expect(source).toContain(
       'There is currently no organization/status search control and no manual retry button on this page.',
     );
@@ -1087,14 +1094,8 @@ describe('generated docs source current behavior', () => {
       'If the reason says a registration option no longer belongs to the selected template',
     );
     expect(source).toContain(
-      'If it mentions random allocation, return to the template, change every option to **First come, first served** or **Manual approval**',
-    );
-    expect(source).toContain(
       'Do not assume the event exists until its detail page opens and shows the event title.',
     );
-    expect(source).not.toContain('app-template-registration-option-form');
-    expect(source).not.toContain('app-template-addon-form');
-    expect(source).not.toContain('app-template-question-form');
     expect(source).not.toContain('addOnAttachment.quantity');
     expect(source).not.toContain('currently the only mode');
     expect(source).not.toContain('public event planning tips');
@@ -1254,7 +1255,7 @@ describe('generated docs source current behavior', () => {
       '/docs/transfer-a-registration-with-a-private-offer',
     );
     expect(transferSource).toContain(
-      'The private link and manual code grant access to the transfer offer.',
+      'The private claim code grants access to the transfer offer.',
     );
     expect(freeTransferSource).toContain(
       "getByRole('link', { exact: true, name: 'Profile' })",
@@ -1262,18 +1263,20 @@ describe('generated docs source current behavior', () => {
     expect(freeTransferSource).toContain(
       "getByRole('link', { exact: true, name: 'Claim transfer' })",
     );
-    expect(freeTransferSource).toContain("getByLabel('Manual claim code')");
+    expect(freeTransferSource).toContain("getByLabel('Claim code')");
     expect(freeTransferSource).toContain(
       "getByRole('button', { name: 'Cancel transfer offer' })",
     );
     expect(freeTransferSource).toContain(".toBe('cancelled')");
     expect(freeTransferSource).toContain(
-      'Cancelling the offer invalidates its private link and manual code; it does not cancel or transfer the registration.',
+      'Cancelling the offer invalidates its code; it does not cancel or transfer the registration.',
     );
     expect(freeTransferSource).toContain("getByLabel('Claim code')");
-    expect(freeTransferSource).toContain('NOT-A-VALID-TRANSFER-CODE');
     expect(freeTransferSource).toContain(
-      "getByRole('link', { name: 'Enter another code' })",
+      '0000-0000-0000-0000-0000-0000-0000-0000',
+    );
+    expect(freeTransferSource).toContain(
+      "getByRole('button', { name: 'Enter another code' })",
     );
     expect(freeTransferSource).toContain(
       'If Evorto says the transfer could not be opened, select **Enter another code**',
@@ -1609,7 +1612,7 @@ describe('generated docs source current behavior', () => {
   it('keeps participant unlisted-event guidance page-backed', () => {
     const source = readSource('tests/docs/events/unlisted-user.doc.ts');
 
-    expect(source).toContain('.set({ unlisted: true })');
+    expect(source).toContain(".set({ listingAudience: 'unlisted' })");
     expect(source).toContain("page.getByRole('link', { name: target.title })");
     expect(source).toContain('toHaveCount(0)');
     expect(source).toContain('await page.goto(`/events/${target.id}`);');
@@ -1624,7 +1627,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Anyone with the exact link can open the approved event details.',
     );
-    expect(source).toContain('.set({ unlisted: target.unlisted })');
+    expect(source).toContain(
+      '.set({ listingAudience: target.listingAudience })',
+    );
   });
 
   it('keeps ordinary listed-event discovery beginner-readable and page-backed', () => {
@@ -1693,6 +1698,10 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Selecting **Approve application** reserves one spot and prepares one Stripe Checkout session.',
     );
+    expect(source).toContain(
+      'The queued approval email shows the payment deadline as a local',
+    );
+    expect(source).toContain('`(${scenario.tenant.timezone})`');
     expect(source).toContain('deliverCompletedRegistrationCheckoutWebhook({');
     expect(source).not.toContain('fillTestCard');
     expect(source).toContain(".toBe('successful:CONFIRMED')");
@@ -1946,6 +1955,11 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('**Invalid QR code**');
     expect(source).toContain("getByRole('link', { name: 'Back to scanner' })");
     expect(source).toContain('Verify the registration');
+    expect(source).toContain(
+      'Check-in opens one hour before the event starts and closes two hours after it ends.',
+    );
+    expect(source).toContain('**Check-in closed**');
+    expect(source).toContain("hasText: 'Check-in closed'");
     expect(source).toContain('Check in guests who arrive later');
     expect(source).toContain("page.getByText('Already checked in')");
     expect(source).toContain('checkedInSpots: optionBefore.checkedInSpots + 2');

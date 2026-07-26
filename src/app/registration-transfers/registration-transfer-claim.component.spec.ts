@@ -80,8 +80,8 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       status: 'confirmed',
     });
     loadClaim.mockReset();
-    loadClaim.mockImplementation(async (credential: string) =>
-      credential === 'offer-b'
+    loadClaim.mockImplementation(async (claimCode: string) =>
+      claimCode === 'offer-b'
         ? transferClaim('transfer-b', 'question-b')
         : transferClaim('transfer-a', 'question-a'),
     );
@@ -121,9 +121,9 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
               mutationFn: claimMutation,
               mutationKey: ['transfer-claim', 'claim'],
             }),
-            getClaim: (credential: string) => ({
-              queryFn: () => loadClaim(credential),
-              queryKey: ['transfer-claim', credential],
+            getClaim: (claimCode: string) => ({
+              queryFn: () => loadClaim(claimCode),
+              queryKey: ['transfer-claim', claimCode],
             }),
             retryCheckout: () => ({
               mutationFn: retryCheckoutMutation,
@@ -143,7 +143,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
 
   it('preserves same-transfer edits but resets them when the reused route loads another transfer', async () => {
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -183,7 +183,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       expect(currentInputs[1]?.value).toBe('');
     });
 
-    fixture.componentRef.setInput('credential', 'offer-b');
+    fixture.componentRef.setInput('claimCode', 'offer-b');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -203,7 +203,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       })
       .mockResolvedValueOnce({ status: 'reconciled' });
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -256,7 +256,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       expect(unsafeCheckoutText(fixture)).toContain('true');
     });
 
-    fixture.componentRef.setInput('credential', 'offer-b');
+    fixture.componentRef.setInput('claimCode', 'offer-b');
     fixture.detectChanges();
     await vi.waitFor(() => {
       fixture.detectChanges();
@@ -274,7 +274,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       new Error('Registration transfer is no longer available'),
     );
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -363,7 +363,7 @@ describe('reconcileTransferClaimAnswers', () => {
 });
 
 describe('registrationTransferClaimPayload', () => {
-  it('submits only recipient answers and the claim credential', () => {
+  it('submits only recipient answers and the claim code', () => {
     const payload = registrationTransferClaimPayload({
       answers: [
         {
@@ -371,7 +371,7 @@ describe('registrationTransferClaimPayload', () => {
           questionId: 'question-1',
         },
       ],
-      credential: 'claim-token',
+      claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
     });
 
     expect(payload).toEqual({
@@ -381,7 +381,7 @@ describe('registrationTransferClaimPayload', () => {
           questionId: 'question-1',
         },
       ],
-      credential: 'claim-token',
+      claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
     });
     expect(payload).not.toHaveProperty('addOns');
     expect(payload).not.toHaveProperty('guestCount');
@@ -407,7 +407,7 @@ describe('registrationTransferCheckoutUrl', () => {
 });
 
 describe('registrationTransferLookupErrorCopy', () => {
-  it('keeps missing and unauthorized credentials indistinguishable', () => {
+  it('keeps missing and unauthorized claim codes indistinguishable', () => {
     const notFound = registrationTransferLookupErrorCopy({
       _tag: 'RegistrationTransferNotFoundError',
     });
@@ -527,7 +527,7 @@ describe('registration transfer bundle review template', () => {
     expect(template).not.toContain('errorMessage(retryMutation.error()');
     expect(template).toContain('lookupErrorCopy(claimQuery.error())');
     expect(template).toContain('(click)="claimQuery.refetch()"');
-    expect(template).toContain('routerLink="/registration-transfers"');
+    expect(template).toContain('(click)="enterAnotherCode.emit()"');
     expect(template).toContain('Enter another code');
     expect(template).toContain('@if (unsafeCheckout())');
     expect(template).toContain('@else if (retryMutation.isError())');

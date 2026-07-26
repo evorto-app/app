@@ -10,5 +10,7 @@ default: patch
   source of truth,
 - bind public links, receipt uploads, and icon catalog writes to trusted tenant context,
 - bound Stripe webhook ingress and require persisted checkout/account/payment bindings,
+- remove raw defect causes and formatted configuration failures from public RPC
+  errors while retaining allowlisted server-only diagnostics,
 - apply security headers and sanitized server fallbacks before response transmission while preserving client aborts, and
 - serialize active registrations and pending checkout claims across concurrent requests.

@@ -1,5 +1,18 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { EventCheckInTimingIssue } from '@shared/event-check-in';
+import { EventListingAudience } from '@shared/event-listing-audience';
 import { notificationEmailPattern } from '@shared/notification-email';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { RegistrationTransferRefundLifecycle } from '@shared/registration-transfer';
 import {
   literalUnion,
@@ -15,6 +28,7 @@ import { iconSchema } from '../../types/icon';
 import {
   EventsCancelPendingRegistrationError,
   EventsCheckInRegistrationError,
+  EventsCheckInRegistrationMutationError,
   EventsCreateRpcError,
   EventsEventListRpcError,
   EventsFindOneForEditRpcError,
@@ -35,14 +49,30 @@ const TransferTargetEmail = Schema.NonEmptyString.check(
   Schema.isPattern(notificationEmailPattern),
 );
 
-const NullablePolicyHoursInput = Schema.NullOr(nonNegativeNumber).pipe(
-  Schema.withDecodingDefaultTypeKey(Effect.succeed(null)),
-);
-const NullableRefundFeesInput = Schema.NullOr(Schema.Boolean).pipe(
-  Schema.withDecodingDefaultTypeKey(Effect.succeed(null)),
-);
+const NullablePolicyHoursInput = Schema.NullOr(nonNegativeNumber);
+const NullableRefundFeesInput = Schema.NullOr(Schema.Boolean);
 const NonNegativeInteger = nonNegativeNumber.check(Schema.isInt());
 const PositiveInteger = positiveNumber.check(Schema.isInt());
+const RegistrationAddonQuantity = NonNegativeInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
+);
+const PositiveRegistrationAddonQuantity = PositiveInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
+);
+const RegistrationGuestCount = NonNegativeInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_GUESTS),
+);
+const RegistrationQuestionAnswer = Schema.String.check(
+  Schema.isMaxLength(MAX_REGISTRATION_ANSWER_LENGTH),
+);
+const RegistrationQuestionDescription = Schema.NullOr(
+  Schema.String.check(
+    Schema.isMaxLength(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+  ),
+);
+const RegistrationQuestionTitle = Schema.NonEmptyString.check(
+  Schema.isMaxLength(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+);
 const RegistrationAddonOperationKey = Schema.String.check(
   Schema.isTrimmed(),
   Schema.isMinLength(1),
@@ -83,10 +113,7 @@ export type EventsCancellableRegistrationStatus = Schema.Schema.Type<
   typeof EventsCancellableRegistrationStatus
 >;
 
-export const EventsWritableRegistrationMode = literalUnion(
-  'application',
-  'fcfs',
-);
+export const EventsRegistrationMode = literalUnion('application', 'fcfs');
 
 export const EventsCanOrganize = asRpcQuery(
   Rpc.make('events.canOrganize', {
@@ -174,7 +201,7 @@ export const EventsTransferMyRegistration = asRpcMutation(
 
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
-    error: EventsCheckInRegistrationError,
+    error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
       guestCheckInCount: nonNegativeNumber,
       registrationId: Schema.NonEmptyString,
@@ -196,7 +223,7 @@ export const EventsCreateRegistrationOptionInput = Schema.Struct({
   price: nonNegativeNumber,
   refundFeesOnCancellation: NullableRefundFeesInput,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: EventsWritableRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   sourceTemplateRegistrationOptionId: Schema.optional(Schema.NonEmptyString),
   spots: nonNegativeNumber,
@@ -250,10 +277,10 @@ export type EventsEventListInput = Schema.Schema.Type<
 export const EventsEventListRecord = Schema.Struct({
   icon: iconSchema,
   id: Schema.NonEmptyString,
+  listingAudience: EventListingAudience,
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
   userIsCreator: Schema.Boolean,
   userRegistered: Schema.Boolean,
 });
@@ -279,12 +306,6 @@ export const EventsEventList = asRpcQuery(
   }),
 );
 
-export const EventsFindOneForEditRegistrationMode = literalUnion(
-  'application',
-  'fcfs',
-  'random',
-);
-
 export const EventsFindOneForEditRegistrationOption = Schema.Struct({
   cancellationDeadlineHoursBeforeStart: Schema.NullOr(nonNegativeNumber),
   closeRegistrationTime: Schema.NonEmptyString,
@@ -297,7 +318,7 @@ export const EventsFindOneForEditRegistrationOption = Schema.Struct({
   price: Schema.Number,
   refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: EventsFindOneForEditRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
@@ -316,6 +337,7 @@ export const EventsFindOneForEdit = asRpcQuery(
       end: Schema.NonEmptyString,
       icon: iconSchema,
       id: Schema.NonEmptyString,
+      listingAudience: EventListingAudience,
       location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneForEditRegistrationOption),
       start: Schema.NonEmptyString,
@@ -349,7 +371,7 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
     }),
   ),
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: EventsFindOneForEditRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   reservedSpots: Schema.Number,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
@@ -396,6 +418,7 @@ export const EventsFindOne = asRpcQuery(
       end: Schema.NonEmptyString,
       icon: iconSchema,
       id: Schema.NonEmptyString,
+      listingAudience: EventListingAudience,
       location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneRegistrationOption),
       registrationOptionsHiddenByEligibility: Schema.Boolean,
@@ -409,7 +432,6 @@ export const EventsFindOne = asRpcQuery(
       status: EventReviewStatus,
       statusComment: Schema.NullOr(Schema.String),
       title: Schema.NonEmptyString,
-      unlisted: Schema.Boolean,
     }),
   }),
 );
@@ -699,7 +721,7 @@ export type EventsPurchaseRegistrationAddonResult = Schema.Schema.Type<
 export const EventsPurchaseRegistrationAddonPayload = Schema.Struct({
   addOnId: Schema.NonEmptyString,
   operationKey: RegistrationAddonOperationKey,
-  quantity: PositiveInteger,
+  quantity: PositiveRegistrationAddonQuantity,
   registrationId: Schema.NonEmptyString,
 });
 
@@ -742,20 +764,28 @@ export const EventsReviewEvent = asRpcMutation(
 );
 
 export const EventsRegistrationQuestionAnswerInput = Schema.Struct({
-  answer: Schema.String,
+  answer: RegistrationQuestionAnswer,
   questionId: Schema.NonEmptyString,
 });
 
 export const EventsRegistrationAddonInput = Schema.Struct({
   addOnId: Schema.NonEmptyString,
-  quantity: nonNegativeNumber,
+  quantity: RegistrationAddonQuantity,
 });
 
 export const EventsRegisterForEventPayload = Schema.Struct({
-  addOns: Schema.optional(Schema.Array(EventsRegistrationAddonInput)),
-  answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
+  addOns: Schema.optional(
+    Schema.Array(EventsRegistrationAddonInput).check(
+      Schema.isMaxLength(MAX_EVENT_ADDON_TYPES),
+    ),
+  ),
+  answers: Schema.optional(
+    Schema.Array(EventsRegistrationQuestionAnswerInput).check(
+      Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+    ),
+  ),
   eventId: Schema.NonEmptyString,
-  guestCount: nonNegativeNumber,
+  guestCount: RegistrationGuestCount,
   registrationOptionId: Schema.NonEmptyString,
 });
 
@@ -768,7 +798,11 @@ export const EventsRegisterForEvent = asRpcMutation(
 );
 
 export const EventsJoinWaitlistPayload = Schema.Struct({
-  answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
+  answers: Schema.optional(
+    Schema.Array(EventsRegistrationQuestionAnswerInput).check(
+      Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+    ),
+  ),
   eventId: Schema.NonEmptyString,
   registrationOptionId: Schema.NonEmptyString,
 });
@@ -793,7 +827,7 @@ export const EventsRegistrationScanned = asRpcQuery(
       appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
       attendeeCheckedIn: Schema.Boolean,
       checkedInGuestCount: Schema.Number,
-      checkInTimingIssue: Schema.Boolean,
+      checkInTimingIssue: Schema.NullOr(EventCheckInTimingIssue),
       event: Schema.Struct({
         start: Schema.NonEmptyString,
         title: Schema.NonEmptyString,
@@ -951,7 +985,7 @@ export const EventsUpdateListing = asRpcMutation(
     error: EventsUpdateListingRpcError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
-      unlisted: Schema.Boolean,
+      listingAudience: EventListingAudience,
     }),
     success: Schema.Void,
   }),
@@ -969,7 +1003,7 @@ export const EventsUpdateRegistrationOptionInput = Schema.Struct({
   price: nonNegativeNumber,
   refundFeesOnCancellation: NullableRefundFeesInput,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: EventsWritableRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
@@ -990,7 +1024,7 @@ export const EventGraphRegistrationOptionInput = Schema.Struct({
   price: nonNegativeNumber,
   refundFeesOnCancellation: NullableRefundFeesInput,
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: EventsWritableRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
@@ -1003,8 +1037,8 @@ export type EventGraphRegistrationOptionInput = Schema.Schema.Type<
 >;
 
 export const EventGraphAddonRegistrationOptionInput = Schema.Struct({
-  includedQuantity: NonNegativeInteger,
-  optionalPurchaseQuantity: NonNegativeInteger,
+  includedQuantity: RegistrationAddonQuantity,
+  optionalPurchaseQuantity: RegistrationAddonQuantity,
   registrationOptionKey: Schema.NonEmptyString,
 });
 
@@ -1017,7 +1051,7 @@ export const EventGraphAddonInput = Schema.Struct({
   id: Schema.optional(Schema.NonEmptyString),
   isPaid: Schema.Boolean,
   key: Schema.NonEmptyString,
-  maxQuantityPerUser: PositiveInteger,
+  maxQuantityPerUser: PositiveRegistrationAddonQuantity,
   price: NonNegativeInteger,
   registrationOptions: Schema.mutable(
     Schema.Array(EventGraphAddonRegistrationOptionInput),
@@ -1032,13 +1066,13 @@ export type EventGraphAddonInput = Schema.Schema.Type<
 >;
 
 export const EventGraphQuestionInput = Schema.Struct({
-  description: Schema.NullOr(Schema.String),
+  description: RegistrationQuestionDescription,
   id: Schema.optional(Schema.NonEmptyString),
   key: Schema.NonEmptyString,
   registrationOptionKey: Schema.NonEmptyString,
   required: Schema.Boolean,
   sortOrder: NonNegativeInteger,
-  title: Schema.NonEmptyString,
+  title: RegistrationQuestionTitle,
 });
 
 export type EventGraphQuestionInput = Schema.Schema.Type<
@@ -1062,12 +1096,12 @@ export const EventGraphAddonRecord = Schema.Struct({
 });
 
 export const EventGraphQuestionRecord = Schema.Struct({
-  description: Schema.NullOr(Schema.String),
+  description: RegistrationQuestionDescription,
   id: Schema.NonEmptyString,
   registrationOptionId: Schema.NonEmptyString,
   required: Schema.Boolean,
   sortOrder: Schema.Number,
-  title: Schema.NonEmptyString,
+  title: RegistrationQuestionTitle,
 });
 
 export const EventGraphEditRecord = Schema.Struct({
@@ -1102,13 +1136,17 @@ export const EventsUpdateGraph = asRpcMutation(
   Rpc.make('events.updateGraph', {
     error: EventsUpdateRpcError,
     payload: Schema.Struct({
-      addOns: Schema.mutable(Schema.Array(EventGraphAddonInput)),
+      addOns: Schema.mutable(Schema.Array(EventGraphAddonInput)).check(
+        Schema.isMaxLength(MAX_EVENT_ADDON_TYPES),
+      ),
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
       eventId: Schema.NonEmptyString,
       icon: iconSchema,
       location: Schema.NullOr(EventLocation),
-      questions: Schema.mutable(Schema.Array(EventGraphQuestionInput)),
+      questions: Schema.mutable(Schema.Array(EventGraphQuestionInput)).check(
+        Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+      ),
       registrationOptions: Schema.mutable(
         Schema.Array(EventGraphRegistrationOptionInput),
       ),

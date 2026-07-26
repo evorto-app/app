@@ -140,11 +140,6 @@ const isStripeMissingResourceError = (error: unknown): boolean =>
   (Schema.is(StripeMissingResourceCode)(error) ||
     Schema.is(StripeMissingResourceRawCode)(error));
 
-const checkoutNotificationEmail = (user: {
-  communicationEmail: string;
-  email: string;
-}): string => user.communicationEmail.trim() || user.email;
-
 export const registrationCheckoutMetadataOwnsClaim = (input: {
   readonly identity: RegistrationCheckoutCompletionIdentity;
   readonly paymentIntentId: string | undefined;
@@ -482,7 +477,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           with: {
             event: { columns: { title: true } },
             user: {
-              columns: { communicationEmail: true, email: true },
+              columns: { communicationEmail: true },
             },
           },
         }),
@@ -904,7 +899,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           registrationId: input.registrationId,
           tenant: preflight.tenant,
           ticketUrl: notificationEventUrl,
-          to: checkoutNotificationEmail(preflight.notificationContext.user),
+          to: preflight.notificationContext.user.communicationEmail,
         });
         return 'finalized' as const;
       }),

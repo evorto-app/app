@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from '@effect/vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 
@@ -17,7 +18,11 @@ import {
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
-import { eventQueryHandlers } from './events-query.handlers';
+import {
+  eventDiscoveryWindow,
+  eventListingAudienceEligibilityFilter,
+  eventQueryHandlers,
+} from './events-query.handlers';
 import { eventHandlers } from './events.handlers';
 
 const emptyHandlerOptions = { headers: Headers.fromInput({}) };
@@ -28,7 +33,6 @@ const tenant = {
   discountProviders: null,
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
   name: 'Tenant',
   receiptSettings: null,
   stripeAccountId: null,
@@ -37,9 +41,8 @@ const tenant = {
 };
 
 const createUser = (permissions: readonly Permission[] = []) => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
-  communicationEmail: undefined,
+  communicationEmail: 'member@example.com',
   email: 'member@example.com',
   firstName: 'Tenant',
   iban: undefined,
@@ -176,6 +179,7 @@ describe('event discount tenant isolation', () => {
                 end: new Date('2099-01-02T00:00:00.000Z'),
                 icon: 'calendar',
                 id: 'event-1',
+                listingAudience: 'both' as const,
                 location: null,
                 registrationOptions: [
                   {
@@ -203,7 +207,6 @@ describe('event discount tenant isolation', () => {
                 status: 'APPROVED' as const,
                 statusComment: null,
                 title: 'Tenant-scoped event',
-                unlisted: false,
               }),
           },
           userDiscountCards: {
@@ -248,6 +251,54 @@ describe('event discount tenant isolation', () => {
       );
     }),
   );
+});
+
+describe('event discovery window', () => {
+  it('keeps an event discoverable until its end instant', () => {
+    const from = new Date('2030-01-02T10:00:00.000Z');
+    const query = new PgDialect().sqlToQuery(eventDiscoveryWindow(from));
+
+    expect(query.sql).toBe('"event_instances"."end" > $1');
+    expect(query.params).toEqual([from.toISOString()]);
+  });
+});
+
+describe('event listing audience eligibility', () => {
+  it('matches participant, organizer, and both options explicitly', () => {
+    const condition = eventListingAudienceEligibilityFilter(false);
+    if (!condition) throw new Error('Expected listing audience condition');
+    const query = new PgDialect().sqlToQuery(condition);
+
+    expect(query.sql).toContain('"event_instances"."listingAudience" = $1');
+    expect(query.sql).toContain(
+      '"event_registration_options"."organizingRegistration" = $3',
+    );
+    expect(query.sql).toContain(
+      '"event_registration_options"."organizingRegistration" = $5',
+    );
+    expect(query.params).toEqual([
+      'both',
+      'participant',
+      false,
+      'organizer',
+      true,
+    ]);
+  });
+
+  it('adds unlisted only for explicitly authorized discovery', () => {
+    const condition = eventListingAudienceEligibilityFilter(true);
+    if (!condition) throw new Error('Expected listing audience condition');
+    const query = new PgDialect().sqlToQuery(condition);
+
+    expect(query.params).toEqual([
+      'both',
+      'participant',
+      false,
+      'organizer',
+      true,
+      'unlisted',
+    ]);
+  });
 });
 
 describe('eventHandlers composition', () => {

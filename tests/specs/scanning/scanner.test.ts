@@ -3,7 +3,11 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
-import { adminStateFile, organizerStateFile } from '../../../helpers/user-data';
+import {
+  adminStateFile,
+  emptyStateFile,
+  organizerStateFile,
+} from '../../../helpers/user-data';
 import type { relations } from '../../../src/db/relations';
 import {
   eventAddons,
@@ -142,6 +146,29 @@ test('scanner explains a denied camera and offers a retry', async ({
   await expect(
     page.getByRole('button', { name: 'Try camera again' }),
   ).toBeEnabled();
+});
+
+test.describe('without organizer scanner capability', () => {
+  test.use({ storageState: emptyStateFile });
+
+  test('scanner checks access without requesting the camera', async ({
+    page,
+  }) => {
+    await installMockCamera(page, 'allowed');
+
+    await page.goto('/scan');
+
+    await expect(page.getByRole('alert')).toContainText('Scanner unavailable');
+    const cameraPreview = page.getByLabel('Camera preview for ticket scanning');
+    await expect(cameraPreview).toBeHidden();
+    await expect
+      .poll(() =>
+        cameraPreview.evaluate((video: HTMLVideoElement) =>
+          Boolean(video.srcObject),
+        ),
+      )
+      .toBe(false);
+  });
 });
 
 test('scanner hands out, immediately undoes, and cancels add-on quantities with explicit refund handling', async ({

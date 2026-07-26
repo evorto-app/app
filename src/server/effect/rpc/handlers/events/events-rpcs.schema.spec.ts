@@ -1,10 +1,21 @@
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
   EventGraphAddonInput,
   EventGraphEditRecord,
-  EventGraphRegistrationOptionInput,
+  EventGraphQuestionInput,
   EventReviewStatus,
   EventsApproveRegistrationResult,
   EventsCancelEventRegistration,
@@ -467,11 +478,19 @@ describe('events RPC registration option schema', () => {
     title: 'Participant',
   };
 
-  it('defaults event option policy overrides to tenant inheritance', () => {
-    expect(
+  it('requires explicit event option policy inheritance values', () => {
+    expect(() =>
       Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)(
         writableRegistrationOption,
       ),
+    ).toThrow();
+    expect(
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)({
+        ...writableRegistrationOption,
+        cancellationDeadlineHoursBeforeStart: null,
+        refundFeesOnCancellation: null,
+        transferDeadlineHoursBeforeStart: null,
+      }),
     ).toMatchObject({
       cancellationDeadlineHoursBeforeStart: null,
       refundFeesOnCancellation: null,
@@ -629,26 +648,12 @@ describe('events RPC editable graph schema', () => {
             title: 'Dietary requirements',
           },
         ],
-        registrationOptions: [
-          {
-            ...writableOption,
-            registrationMode: 'random',
-          },
-        ],
+        registrationOptions: [writableOption],
         simpleModeEnabled: false,
         start: '2026-09-20T12:00:00.000Z',
         title: 'Event',
       }),
     ).not.toThrow();
-  });
-
-  it('keeps legacy random readable but rejects it in graph writes', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)({
-        ...writableOption,
-        registrationMode: 'random',
-      }),
-    ).toThrow();
   });
 
   it('accepts distinct included and optional quantities per option mapping', () => {
@@ -717,5 +722,130 @@ describe('events RPC registration question answer schema', () => {
         registrationOptionId: 'option-1',
       }),
     ).not.toThrow();
+  });
+
+  it('bounds question counts and question/answer text', () => {
+    const question = {
+      description: 'd'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+      key: 'question-1',
+      registrationOptionKey: 'option-1',
+      required: false,
+      sortOrder: 0,
+      title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+    };
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphQuestionInput)(question),
+    ).not.toThrow();
+    for (const invalidQuestion of [
+      {
+        ...question,
+        title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH + 1),
+      },
+      {
+        ...question,
+        description: 'd'.repeat(
+          MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH + 1,
+        ),
+      },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventGraphQuestionInput)(invalidQuestion),
+      ).toThrow();
+    }
+
+    const basePayload = {
+      eventId: 'event-1',
+      guestCount: 0,
+      registrationOptionId: 'option-1',
+    };
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...basePayload,
+        answers: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS + 1 },
+          (_, index) => ({
+            answer: 'Answer',
+            questionId: `question-${index}`,
+          }),
+        ),
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...basePayload,
+        answers: [
+          {
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1),
+            questionId: 'question-1',
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
+  it('accepts registration quantity caps and rejects cap plus one', () => {
+    const payload = {
+      addOns: [
+        {
+          addOnId: 'addon-1',
+          quantity: MAX_REGISTRATION_ADDON_QUANTITY,
+        },
+      ],
+      eventId: 'event-1',
+      guestCount: MAX_REGISTRATION_GUESTS,
+      registrationOptionId: 'option-1',
+    };
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)(payload),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...payload,
+        guestCount: MAX_REGISTRATION_GUESTS + 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...payload,
+        addOns: [
+          {
+            addOnId: 'addon-1',
+            quantity: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...payload,
+        addOns: Array.from(
+          { length: MAX_EVENT_ADDON_TYPES + 1 },
+          (_, index) => ({
+            addOnId: `addon-${index}`,
+            quantity: 1,
+          }),
+        ),
+      }),
+    ).toThrow();
+  });
+
+  it('bounds post-registration add-on purchase quantities', () => {
+    const payload = {
+      addOnId: 'addon-1',
+      operationKey: 'purchase-addon-1',
+      quantity: MAX_REGISTRATION_ADDON_QUANTITY,
+      registrationId: 'registration-1',
+    };
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonPayload)(payload),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonPayload)({
+        ...payload,
+        quantity: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+      }),
+    ).toThrow();
   });
 });

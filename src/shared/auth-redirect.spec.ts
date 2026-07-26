@@ -7,19 +7,17 @@ import {
 } from './auth-redirect';
 
 describe('authentication redirect paths', () => {
-  it('preserves an absolute Fetch Request private-transfer path and query', () => {
+  it('preserves the generic transfer entry path', () => {
     const request = new Request(
-      'https://tenant.example/registration-transfers/private%2Fcredential?from=email&label=two%20words',
+      'https://tenant.example/registration-transfers',
     );
 
     const redirectPath = relativeRedirectPathFromRequest(request);
     const loginPath = forwardLoginPath(redirectPath);
 
-    expect(redirectPath).toBe(
-      '/registration-transfers/private%2Fcredential?from=email&label=two%20words',
-    );
+    expect(redirectPath).toBe('/registration-transfers');
     expect(loginPath).toBe(
-      '/forward-login?redirectUrl=%2Fregistration-transfers%2Fprivate%252Fcredential%3Ffrom%3Demail%26label%3Dtwo%2520words',
+      '/forward-login?redirectUrl=%2Fregistration-transfers',
     );
     expect(
       new URL(loginPath, 'https://tenant.example').searchParams.get(

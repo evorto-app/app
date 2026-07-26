@@ -12,15 +12,15 @@ import { EventListComponent } from './event-list.component';
 const eventQueryState = signal<'error' | 'success'>('error');
 const listedEvents = [
   {
-    day: '2030-01-02T00:00:00.000Z',
+    day: '2029-12-31T00:00:00.000Z',
     events: [
       {
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-1',
-        start: '2030-01-02T10:00:00.000Z',
+        listingAudience: 'both' as const,
+        start: '2029-12-31T22:00:00.000Z',
         status: 'APPROVED' as const,
         title: 'Recovery workshop',
-        unlisted: false,
         userIsCreator: false,
         userRegistered: false,
       },
@@ -102,5 +102,17 @@ describe('EventListComponent load recovery', () => {
     });
     expect(refetchEvents).toHaveBeenCalledOnce();
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('renders an ongoing event returned by discovery even when it started before the active filter', () => {
+    eventQueryState.set('success');
+    const fixture = TestBed.createComponent(EventListComponent);
+    fixture.detectChanges();
+
+    expect(
+      listedEvents[0]?.events[0]?.start < new Date('2030-01-01').toISOString(),
+    ).toBe(true);
+    expect(normalizeText(fixture)).toContain('Recovery workshop');
+    expect(normalizeText(fixture)).toContain('Participants and organizers');
   });
 });

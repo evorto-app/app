@@ -47,6 +47,10 @@
         Add registration option
       </button>
     </div>
+    <p class="body-small text-on-surface-variant">
+      Included and optional quantities together cannot exceed
+      {{ maxRegistrationAddonQuantity }} per registration.
+    </p>
     @for (
       mapping of addOn.registrationOptions;
       track mapping;
@@ -75,6 +79,7 @@
           <input
             matInput
             type="number"
+            step="1"
             [formField]="mapping.includedQuantity"
           />
           @for (error of mapping.includedQuantity().errors(); track error) {
@@ -86,6 +91,7 @@
           <input
             matInput
             type="number"
+            step="1"
             [formField]="mapping.optionalPurchaseQuantity"
           />
           @for (
@@ -121,6 +127,7 @@
       <input
         matInput
         type="number"
+        step="1"
         [formField]="addOn.totalAvailableQuantity"
       />
       @for (error of addOn.totalAvailableQuantity().errors(); track error) {
@@ -129,7 +136,15 @@
     </mat-form-field>
     <mat-form-field>
       <mat-label>Maximum per user</mat-label>
-      <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+      <input
+        matInput
+        type="number"
+        step="1"
+        [formField]="addOn.maxQuantityPerUser"
+      />
+      <mat-hint>
+        At most {{ maxRegistrationAddonQuantity }} units per registration.
+      </mat-hint>
       @for (error of addOn.maxQuantityPerUser().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
       }

@@ -27,10 +27,10 @@ class PlatformTenantPageHeaderStub {
 const listedEvent: PlatformEventListRecord = {
   end: '2030-01-02T02:00:00.000Z',
   id: 'event-1',
+  listingAudience: 'both',
   start: '2030-01-02T00:00:00.000Z',
   status: 'APPROVED',
   title: 'Weekend trip',
-  unlisted: false,
 };
 
 describe('PlatformEventsComponent', () => {
@@ -91,5 +91,16 @@ describe('PlatformEventsComponent', () => {
       .toContain(
         '02 Jan 2030, 10:00 – 02 Jan 2030, 12:00 · Australia/Brisbane',
       );
+  });
+
+  it('labels the explicit event listing audience', async () => {
+    const fixture = render();
+
+    await expect
+      .poll(() => {
+        fixture.detectChanges();
+        return fixture.nativeElement.textContent;
+      })
+      .toContain('Audience: Participants and organizers');
   });
 });

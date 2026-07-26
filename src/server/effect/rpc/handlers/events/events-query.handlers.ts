@@ -72,6 +72,27 @@ export const organizeOverviewAccessAllowed = (input: {
   permissions: readonly Permission[];
 }): boolean => eventOrganizeCapabilities(input).canViewOverview;
 
+export const eventDiscoveryWindow = (from: Date) =>
+  gt(eventInstances.end, from);
+
+export const eventListingAudienceEligibilityFilter = (
+  includeUnlisted: boolean,
+) =>
+  or(
+    eq(eventInstances.listingAudience, 'both'),
+    and(
+      eq(eventInstances.listingAudience, 'participant'),
+      eq(eventRegistrationOptions.organizingRegistration, false),
+    ),
+    and(
+      eq(eventInstances.listingAudience, 'organizer'),
+      eq(eventRegistrationOptions.organizingRegistration, true),
+    ),
+    ...(includeUnlisted
+      ? [eq(eventInstances.listingAudience, 'unlisted')]
+      : []),
+  );
+
 const canOrganizeEvent = Effect.fn('Events.canOrganizeEvent')(function* ({
   eventId,
   permissions,
@@ -128,7 +149,7 @@ export const organizerRegistrationApprovalState = ({
   registrationStatus,
   transactions,
 }: {
-  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationMode: 'application' | 'fcfs';
   registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
   transactions: readonly {
     status: string;
@@ -273,10 +294,10 @@ export const eventQueryHandlers = {
             creatorId: eventInstances.creatorId,
             icon: eventInstances.icon,
             id: eventInstances.id,
+            listingAudience: eventInstances.listingAudience,
             start: eventInstances.start,
             status: eventInstances.status,
             title: eventInstances.title,
-            unlisted: eventInstances.unlisted,
             userRegistered: exists(
               database
                 .select()
@@ -293,12 +314,12 @@ export const eventQueryHandlers = {
           .from(eventInstances)
           .where(
             and(
-              gt(eventInstances.start, startAfter),
+              eventDiscoveryWindow(startAfter),
               eq(eventInstances.tenantId, tenant.id),
               inArray(eventInstances.status, [...input.status]),
               ...(input.includeUnlisted
                 ? []
-                : [eq(eventInstances.unlisted, false)]),
+                : [not(eq(eventInstances.listingAudience, 'unlisted'))]),
               ...(canInspectAllTenantEvents
                 ? []
                 : [
@@ -319,6 +340,9 @@ export const eventQueryHandlers = {
                                 roleFilters,
                               ),
                             ),
+                            eventListingAudienceEligibilityFilter(
+                              input.includeUnlisted === true,
+                            ),
                           ),
                         ),
                     ),
@@ -333,10 +357,10 @@ export const eventQueryHandlers = {
       const eventRecords = selectedEvents.map((event) => ({
         icon: event.icon,
         id: event.id,
+        listingAudience: event.listingAudience,
         start: event.start.toISOString(),
         status: event.status,
         title: event.title,
-        unlisted: event.unlisted,
         userIsCreator: event.creatorId === (user?.id ?? 'not'),
         userRegistered: Boolean(event.userRegistered),
       }));
@@ -423,12 +447,12 @@ export const eventQueryHandlers = {
             end: true,
             icon: true,
             id: true,
+            listingAudience: true,
             location: true,
             start: true,
             status: true,
             statusComment: true,
             title: true,
-            unlisted: true,
           },
           where: { id, tenantId: tenant.id },
           with: {
@@ -760,6 +784,7 @@ export const eventQueryHandlers = {
         end: event.end.toISOString(),
         icon: event.icon,
         id: event.id,
+        listingAudience: event.listingAudience,
         location: event.location ?? null,
         registrationOptions: event.registrationOptions.map(
           (registrationOption) => {
@@ -831,7 +856,6 @@ export const eventQueryHandlers = {
         status: event.status,
         statusComment: event.statusComment ?? null,
         title: event.title,
-        unlisted: event.unlisted,
       };
     }),
   'events.findOneForEdit': ({ id }, _options) =>
@@ -848,6 +872,7 @@ export const eventQueryHandlers = {
             end: true,
             icon: true,
             id: true,
+            listingAudience: true,
             location: true,
             start: true,
             status: true,
@@ -939,6 +964,7 @@ export const eventQueryHandlers = {
         end: event.end.toISOString(),
         icon: event.icon,
         id: event.id,
+        listingAudience: event.listingAudience,
         location: event.location ?? null,
         registrationOptions: event.registrationOptions.map((option) => ({
           cancellationDeadlineHoursBeforeStart:

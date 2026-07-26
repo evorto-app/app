@@ -25,8 +25,8 @@ test('User: understanding unlisted events', async ({
     !listedControl ||
     target.status !== 'APPROVED' ||
     listedControl.status !== 'APPROVED' ||
-    target.unlisted ||
-    listedControl.unlisted
+    target.listingAudience === 'unlisted' ||
+    listedControl.listingAudience === 'unlisted'
   ) {
     throw new Error(
       'Expected approved listed scenario events for the unlisted user guide',
@@ -36,7 +36,7 @@ test('User: understanding unlisted events', async ({
   try {
     await database
       .update(schema.eventInstances)
-      .set({ unlisted: true })
+      .set({ listingAudience: 'unlisted' })
       .where(eq(schema.eventInstances.id, target.id));
 
     await page.goto('/events');
@@ -81,10 +81,10 @@ An organizer can hide an approved event from event lists without disabling its d
     ).toBeVisible();
     expect(
       await database.query.eventInstances.findFirst({
-        columns: { unlisted: true },
+        columns: { listingAudience: true },
         where: { id: target.id },
       }),
-    ).toEqual({ unlisted: true });
+    ).toEqual({ listingAudience: 'unlisted' });
 
     await testInfo.attach('markdown', {
       body: `
@@ -122,7 +122,7 @@ The direct link also opens the approved event while signed out. Select **Log in 
   } finally {
     await database
       .update(schema.eventInstances)
-      .set({ unlisted: target.unlisted })
+      .set({ listingAudience: target.listingAudience })
       .where(eq(schema.eventInstances.id, target.id));
   }
 });

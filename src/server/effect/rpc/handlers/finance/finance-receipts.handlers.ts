@@ -2,6 +2,8 @@ import {
   RpcBadRequestError,
   RpcForbiddenError,
 } from '@shared/errors/rpc-errors';
+import { isCanonicalIban } from '@shared/iban';
+import { isCanonicalEmailAddress } from '@shared/notification-email';
 import {
   FinanceReceiptNotFoundError,
   FinanceResourceNotFoundError,
@@ -33,6 +35,8 @@ import {
   canSubmitEventReceipts,
   canViewEventReceipts,
   databaseEffect,
+  ensureValidFinanceReceiptAmounts,
+  ensureValidFinanceReceiptCalendarDate,
   financeReceiptView,
   isAllowedReceiptMimeType,
   normalizeFinanceReceiptBaseRecord,
@@ -41,6 +45,7 @@ import {
 import {
   ensureReceiptEvidenceAvailableForApproval,
   hasValidReceiptUploadBinding,
+  withoutSignedReceiptPreviewUrl,
   withSignedReceiptPreviewUrl,
   withSignedReceiptPreviewUrls,
 } from './receipt-media.service';
@@ -118,12 +123,6 @@ const loadReceiptEvidenceForApproval = Effect.fn(
   return yield* ensureReceiptEvidenceAvailableForApproval(receipt);
 });
 
-export const financeReceiptSubmitterEmail = (submitter: {
-  submittedByCommunicationEmail: null | string;
-  submittedByEmail: string;
-}): string =>
-  submitter.submittedByCommunicationEmail?.trim() || submitter.submittedByEmail;
-
 export const financeReceiptsHandlers = {
   'finance.receipts.byEvent': ({ eventId }, _options) =>
     Effect.gen(function* () {
@@ -145,7 +144,6 @@ export const financeReceiptsHandlers = {
           .select({
             ...financeReceiptView,
             submittedByCommunicationEmail: users.communicationEmail,
-            submittedByEmail: users.email,
             submittedByFirstName: users.firstName,
             submittedByLastName: users.lastName,
           })
@@ -164,7 +162,7 @@ export const financeReceiptsHandlers = {
 
       return signedReceipts.map((receipt) => ({
         ...normalizeFinanceReceiptBaseRecord(receipt),
-        submittedByEmail: financeReceiptSubmitterEmail(receipt),
+        submittedByEmail: receipt.submittedByCommunicationEmail,
         submittedByFirstName: receipt.submittedByFirstName,
         submittedByLastName: receipt.submittedByLastName,
       }));
@@ -285,6 +283,27 @@ export const financeReceiptsHandlers = {
                 reason: 'missingPaypal',
               });
             }
+            if (
+              input.payoutType === 'iban' &&
+              (!isCanonicalIban(input.payoutReference) ||
+                !isCanonicalIban(payoutUser.iban))
+            ) {
+              return yield* new RpcBadRequestError({
+                message: 'Reimbursement recipient has an invalid IBAN',
+                reason: 'invalidIban',
+              });
+            }
+            if (
+              input.payoutType === 'paypal' &&
+              (!isCanonicalEmailAddress(input.payoutReference) ||
+                !isCanonicalEmailAddress(payoutUser.paypalEmail))
+            ) {
+              return yield* new RpcBadRequestError({
+                message:
+                  'Reimbursement recipient has an invalid PayPal email address',
+                reason: 'invalidPaypal',
+              });
+            }
 
             const expectedPayoutReference =
               input.payoutType === 'paypal'
@@ -380,7 +399,6 @@ export const financeReceiptsHandlers = {
             eventStart: eventInstances.start,
             eventTitle: eventInstances.title,
             submittedByCommunicationEmail: users.communicationEmail,
-            submittedByEmail: users.email,
             submittedByFirstName: users.firstName,
             submittedByLastName: users.lastName,
           })
@@ -416,7 +434,7 @@ export const financeReceiptsHandlers = {
         eventStart: signedReceipt.eventStart.toISOString(),
         eventTitle: signedReceipt.eventTitle,
         receiptEvidenceAvailable: signedReceipt.receiptEvidenceAvailable,
-        submittedByEmail: financeReceiptSubmitterEmail(signedReceipt),
+        submittedByEmail: signedReceipt.submittedByCommunicationEmail,
         submittedByFirstName: signedReceipt.submittedByFirstName,
         submittedByLastName: signedReceipt.submittedByLastName,
       };
@@ -447,13 +465,15 @@ export const financeReceiptsHandlers = {
           )
           .orderBy(desc(financeReceipts.createdAt)),
       );
-      const signedReceipts = yield* withSignedReceiptPreviewUrls(receipts);
 
-      return signedReceipts.map((receipt) => ({
-        ...normalizeFinanceReceiptBaseRecord(receipt),
-        eventStart: receipt.eventStart.toISOString(),
-        eventTitle: receipt.eventTitle,
-      }));
+      return receipts.map((receipt) => {
+        const receiptWithoutPreview = withoutSignedReceiptPreviewUrl(receipt);
+        return {
+          ...normalizeFinanceReceiptBaseRecord(receiptWithoutPreview),
+          eventStart: receiptWithoutPreview.eventStart.toISOString(),
+          eventTitle: receiptWithoutPreview.eventTitle,
+        };
+      });
     }),
   'finance.receipts.pendingApprovalGrouped': (_payload, _options) =>
     Effect.gen(function* () {
@@ -466,7 +486,6 @@ export const financeReceiptsHandlers = {
             eventStart: eventInstances.start,
             eventTitle: eventInstances.title,
             submittedByCommunicationEmail: users.communicationEmail,
-            submittedByEmail: users.email,
             submittedByFirstName: users.firstName,
             submittedByLastName: users.lastName,
           })
@@ -485,8 +504,6 @@ export const financeReceiptsHandlers = {
           )
           .orderBy(desc(eventInstances.start), desc(financeReceipts.createdAt)),
       );
-      const signedPendingReceipts =
-        yield* withSignedReceiptPreviewUrls(pendingReceipts);
 
       const groupedByEvent = new Map<
         string,
@@ -502,11 +519,12 @@ export const financeReceiptsHandlers = {
         }
       >();
 
-      for (const receipt of signedPendingReceipts) {
+      for (const storedReceipt of pendingReceipts) {
+        const receipt = withoutSignedReceiptPreviewUrl(storedReceipt);
         const existing = groupedByEvent.get(receipt.eventId);
         const normalizedReceipt = {
           ...normalizeFinanceReceiptBaseRecord(receipt),
-          submittedByEmail: financeReceiptSubmitterEmail(receipt),
+          submittedByEmail: receipt.submittedByCommunicationEmail,
           submittedByFirstName: receipt.submittedByFirstName,
           submittedByLastName: receipt.submittedByLastName,
         };
@@ -539,7 +557,6 @@ export const financeReceiptsHandlers = {
             recipientIban: users.iban,
             recipientPaypalEmail: users.paypalEmail,
             submittedByCommunicationEmail: users.communicationEmail,
-            submittedByEmail: users.email,
             submittedByFirstName: users.firstName,
             submittedByLastName: users.lastName,
           })
@@ -620,7 +637,7 @@ export const financeReceiptsHandlers = {
           eventTitle: receipt.eventTitle,
           recipientIban: receipt.recipientIban ?? null,
           recipientPaypalEmail: receipt.recipientPaypalEmail ?? null,
-          submittedByEmail: financeReceiptSubmitterEmail(receipt),
+          submittedByEmail: receipt.submittedByCommunicationEmail,
           submittedByFirstName: receipt.submittedByFirstName,
           submittedByLastName: receipt.submittedByLastName,
         };
@@ -640,7 +657,7 @@ export const financeReceiptsHandlers = {
             paypalEmail: receipt.recipientPaypalEmail ?? null,
           },
           receipts: [normalizedReceipt],
-          submittedByEmail: financeReceiptSubmitterEmail(receipt),
+          submittedByEmail: receipt.submittedByCommunicationEmail,
           submittedByFirstName: receipt.submittedByFirstName,
           submittedByLastName: receipt.submittedByLastName,
           submittedByUserId: receipt.submittedByUserId,
@@ -655,8 +672,8 @@ export const financeReceiptsHandlers = {
       yield* RpcAccess.ensurePermission('finance:approveReceipts');
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
-      const depositAmount = input.hasDeposit ? input.depositAmount : 0;
-      const alcoholAmount = input.hasAlcohol ? input.alcoholAmount : 0;
+      yield* ensureValidFinanceReceiptAmounts(input);
+      yield* ensureValidFinanceReceiptCalendarDate(input.receiptDate);
       const purchaseCountry = validateReceiptCountryForTenant(
         tenant,
         input.purchaseCountry,
@@ -669,37 +686,11 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
-      if (depositAmount + alcoholAmount > input.totalAmount) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Deposit and alcohol amounts exceed the total amount',
-            reason: 'inconsistentAmounts',
-          }),
-        );
-      }
-      if (input.taxAmount > input.totalAmount) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Tax amount exceeds the total amount',
-            reason: 'taxAmountExceedsTotal',
-          }),
-        );
-      }
       if (input.status === 'rejected' && !input.rejectionReason) {
         return yield* Effect.fail(
           new RpcBadRequestError({
             message: 'A rejection reason is required when rejecting a receipt',
             reason: 'missingRejectionReason',
-          }),
-        );
-      }
-
-      const receiptDate = new Date(input.receiptDate);
-      if (Number.isNaN(receiptDate.getTime())) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Receipt date is invalid',
-            reason: 'invalidReceiptDate',
           }),
         );
       }
@@ -719,7 +710,6 @@ export const financeReceiptsHandlers = {
                 id: financeReceipts.id,
                 status: financeReceipts.status,
                 submittedByCommunicationEmail: users.communicationEmail,
-                submittedByEmail: users.email,
               })
               .from(financeReceipts)
               .innerJoin(users, eq(financeReceipts.submittedByUserId, users.id))
@@ -799,12 +789,12 @@ export const financeReceiptsHandlers = {
             const updatedRows = yield* tx
               .update(financeReceipts)
               .set({
-                alcoholAmount,
-                depositAmount,
+                alcoholAmount: input.alcoholAmount,
+                depositAmount: input.depositAmount,
                 hasAlcohol: input.hasAlcohol,
                 hasDeposit: input.hasDeposit,
                 purchaseCountry,
-                receiptDate,
+                receiptDate: input.receiptDate,
                 rejectionReason:
                   input.status === 'rejected'
                     ? (input.rejectionReason ?? null)
@@ -849,7 +839,7 @@ export const financeReceiptsHandlers = {
                   : null,
               status: input.status,
               tenant,
-              to: financeReceiptSubmitterEmail(receiptRecord),
+              to: receiptRecord.submittedByCommunicationEmail,
             });
 
             return {
@@ -899,12 +889,8 @@ export const financeReceiptsHandlers = {
         );
       }
 
-      const depositAmount = input.fields.hasDeposit
-        ? input.fields.depositAmount
-        : 0;
-      const alcoholAmount = input.fields.hasAlcohol
-        ? input.fields.alcoholAmount
-        : 0;
+      yield* ensureValidFinanceReceiptAmounts(input.fields);
+      yield* ensureValidFinanceReceiptCalendarDate(input.fields.receiptDate);
       const purchaseCountry = validateReceiptCountryForTenant(
         tenant,
         input.fields.purchaseCountry,
@@ -917,33 +903,6 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
-      if (depositAmount + alcoholAmount > input.fields.totalAmount) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Deposit and alcohol amounts exceed the total amount',
-            reason: 'amount_mismatch',
-          }),
-        );
-      }
-      if (input.fields.taxAmount > input.fields.totalAmount) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Tax amount exceeds the total amount',
-            reason: 'tax_amount_exceeds_total',
-          }),
-        );
-      }
-
-      const receiptDate = new Date(input.fields.receiptDate);
-      if (Number.isNaN(receiptDate.getTime())) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Receipt date is invalid',
-            reason: 'invalid_receipt_date',
-          }),
-        );
-      }
-
       let submissionFailure: null | RpcBadRequestError = null;
       const created = yield* databaseEffect((database) =>
         database.transaction((tx) =>
@@ -1025,18 +984,18 @@ export const financeReceiptsHandlers = {
             const createdReceipts = yield* tx
               .insert(financeReceipts)
               .values({
-                alcoholAmount,
+                alcoholAmount: input.fields.alcoholAmount,
                 attachmentFileName: input.attachment.fileName,
                 attachmentMimeType: upload.mimeType,
                 attachmentSizeBytes: upload.sizeBytes,
                 attachmentUploadId: upload.id,
                 currency: tenant.currency,
-                depositAmount,
+                depositAmount: input.fields.depositAmount,
                 eventId: input.eventId,
                 hasAlcohol: input.fields.hasAlcohol,
                 hasDeposit: input.fields.hasDeposit,
                 purchaseCountry,
-                receiptDate,
+                receiptDate: input.fields.receiptDate,
                 status: 'submitted',
                 submittedByUserId: user.id,
                 taxAmount: input.fields.taxAmount,

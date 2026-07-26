@@ -149,7 +149,7 @@ test.describe('Inclusive price labels', () => {
       }
     });
 
-    test('fallback label shown when tax rate details are unavailable', async ({
+    test('missing tax details are surfaced without an inclusive-tax claim', async ({
       database,
       page,
       seeded,
@@ -176,7 +176,7 @@ test.describe('Inclusive price labels', () => {
         const card = registrationOptionCard(page, paidOption.title);
         await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
-        await expect(card.getByText('Incl. Tax')).toBeVisible();
+        await expect(card.getByText('Tax details unavailable')).toBeVisible();
       } finally {
         await database
           .update(schema.eventRegistrationOptions)

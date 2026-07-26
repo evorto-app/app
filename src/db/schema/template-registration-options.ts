@@ -1,3 +1,4 @@
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -47,7 +48,6 @@ export const templateRegistrationOptions = pgTable(
     transferDeadlineHoursBeforeStart: integer(
       'transfer_deadline_hours_before_start',
     ),
-    untouchedSinceMigration: boolean().notNull().default(false),
     updatedAt: timestamp()
       .notNull()
       .defaultNow()
@@ -91,6 +91,10 @@ export const addonToTemplateRegistrationOptions = pgTable(
     check(
       'addon_to_template_options_quantity_present',
       sql`${table.includedQuantity} + ${table.optionalPurchaseQuantity} > 0`,
+    ),
+    check(
+      'addon_to_template_options_quantity_bounded',
+      sql`${table.includedQuantity} + ${table.optionalPurchaseQuantity} <= ${MAX_REGISTRATION_ADDON_QUANTITY}`,
     ),
     foreignKey({
       columns: [table.addonId, table.templateId],

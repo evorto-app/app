@@ -46,29 +46,34 @@ describe('server trace policy', () => {
   );
 
   it.effect(
-    'prevents the HTTP middleware from creating a probe root span',
+    'prevents the built-in HTTP middleware from tracing raw request URLs',
     () =>
       Effect.gen(function* () {
-        let serverSpan: Tracer.NativeSpan | undefined;
+        const serverSpans: Tracer.NativeSpan[] = [];
         const tracer = Tracer.make({
           span(options) {
-            serverSpan = new Tracer.NativeSpan(options);
-            return serverSpan;
+            const span = new Tracer.NativeSpan(options);
+            serverSpans.push(span);
+            return span;
           },
         });
-        const request = HttpServerRequest.fromWeb(
-          new Request('https://staging.evorto.app/healthz'),
-        );
 
-        yield* HttpMiddleware.tracer(
-          Effect.succeed(HttpServerResponse.empty({ status: 200 })),
-        ).pipe(
-          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
-          Effect.provideService(Tracer.Tracer, tracer),
-          Effect.provide(serverTracePolicyLayer),
-        );
+        for (const url of [
+          'https://staging.evorto.app/healthz',
+          'https://staging.evorto.app/registration-transfers',
+          'https://staging.evorto.app/callback?code=callback-secret',
+        ]) {
+          const request = HttpServerRequest.fromWeb(new Request(url));
+          yield* HttpMiddleware.tracer(
+            Effect.succeed(HttpServerResponse.empty({ status: 200 })),
+          ).pipe(
+            Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+            Effect.provideService(Tracer.Tracer, tracer),
+            Effect.provide(serverTracePolicyLayer),
+          );
+        }
 
-        expect(serverSpan).toBeUndefined();
+        expect(serverSpans).toHaveLength(0);
       }),
   );
 });

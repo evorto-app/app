@@ -129,7 +129,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
       .set({
         currency: originalTenant.currency,
         domain: originalTenant.domain,
-        locale: originalTenant.locale,
         name: originalTenant.name,
         stripeAccountId: originalTenant.stripeAccountId,
         theme: originalTenant.theme,
@@ -212,7 +211,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     expect.objectContaining({
       currency: 'EUR',
       domain: createdTenantDomain,
-      locale: 'de-DE',
       name: createdTenantName,
       stripeAccountId: null,
       theme: 'evorto',

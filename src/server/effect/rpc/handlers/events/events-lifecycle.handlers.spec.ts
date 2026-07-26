@@ -1,5 +1,4 @@
 import { describe, expect, it } from '@effect/vitest';
-import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { TransactionRollbackError } from 'drizzle-orm';
 import { Effect, Layer } from 'effect';
 import { vi } from 'vitest';
@@ -38,7 +37,6 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
@@ -50,7 +48,6 @@ const tenant = {
 };
 
 const user = {
-  attributes: [],
   auth0Id: 'auth0|user-1',
   email: 'alice@example.com',
   firstName: 'Alice',
@@ -90,6 +87,18 @@ const esnEnabledRequestContextLayer = Layer.mergeAll(
       },
     },
   }),
+);
+
+const listingRequestContextLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(RpcRequestContext, {
+    ...requestContext,
+    permissions: ['events:changeListing'],
+    user: {
+      ...user,
+      permissions: ['events:changeListing'],
+    },
+  } satisfies RpcRequestContextShape),
 );
 
 const createInput = {
@@ -173,8 +182,8 @@ const withTransaction = <DatabaseMock extends object>(
         };
       }
       if (
-        selection.simpleModeEnabled !== undefined &&
-        selection.unlisted !== undefined
+        selection.listingAudience !== undefined &&
+        selection.simpleModeEnabled !== undefined
       ) {
         return {
           from: vi.fn(() => ({
@@ -183,10 +192,10 @@ const withTransaction = <DatabaseMock extends object>(
                 for: vi.fn(() =>
                   Effect.succeed([
                     {
+                      listingAudience: 'both',
                       simpleModeEnabled:
                         Reflect.get(database, 'templateSimpleModeEnabled') ===
                         true,
-                      unlisted: false,
                     },
                   ]),
                 ),
@@ -639,7 +648,7 @@ describe('eventLifecycleHandlers', () => {
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
-                  unlisted: false,
+                  listingAudience: 'both',
                 }),
               ),
             },
@@ -736,6 +745,7 @@ describe('eventLifecycleHandlers', () => {
           {
             discountedPrice: 500,
             discountType: 'esnCard',
+            eventId: 'event-1',
             registrationOptionId: 'event-option-2',
           },
         ]);
@@ -743,48 +753,12 @@ describe('eventLifecycleHandlers', () => {
   );
 
   it.effect(
-    'events.create skips copied ESNcard discounts when the tenant provider is disabled',
+    'events.create rejects copied ESNcard discounts before writes when the provider is disabled',
     () =>
       Effect.gen(function* () {
-        const insertedDiscountValues = vi.fn(() => Effect.succeed());
+        const insert = vi.fn();
         const database = {
-          insert: vi.fn((table) => {
-            if (table === eventInstances) {
-              return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-1',
-                      },
-                    ]),
-                  ),
-                })),
-              };
-            }
-
-            if (table === eventRegistrationOptions) {
-              return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-option-1',
-                      },
-                    ]),
-                  ),
-                })),
-              };
-            }
-
-            if (table === eventRegistrationOptionDiscounts) {
-              return {
-                values: insertedDiscountValues,
-              };
-            }
-
-            throw new Error('Unexpected insert table');
-          }),
+          insert,
           query: {
             addonToTemplateRegistrationOptions: {
               findMany: vi.fn(() => Effect.succeed([])),
@@ -792,7 +766,7 @@ describe('eventLifecycleHandlers', () => {
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
-                  unlisted: false,
+                  listingAudience: 'both',
                 }),
               ),
             },
@@ -839,7 +813,7 @@ describe('eventLifecycleHandlers', () => {
           Layer.succeed(Database, withTransaction(database) as never),
         );
 
-        const result = yield* eventLifecycleHandlers['events.create'](
+        const error = yield* eventLifecycleHandlers['events.create'](
           {
             ...createInput,
             registrationOptions: [
@@ -853,10 +827,13 @@ describe('eventLifecycleHandlers', () => {
             ],
           },
           { headers: {} } as never,
-        ).pipe(Effect.provide(layer));
+        ).pipe(Effect.flip, Effect.provide(layer));
 
-        expect(result).toEqual({ id: 'event-1' });
-        expect(insertedDiscountValues).not.toHaveBeenCalled();
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'esnDiscountUnavailable',
+        });
+        expect(insert).not.toHaveBeenCalled();
       }),
   );
 
@@ -874,7 +851,7 @@ describe('eventLifecycleHandlers', () => {
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
-                  unlisted: false,
+                  listingAudience: 'both',
                 }),
               ),
             },
@@ -939,61 +916,6 @@ describe('eventLifecycleHandlers', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('esnDiscountExceedsPrice');
-        expect(insert).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
-    'events.create rejects a persisted random source option even when the payload changes it to fcfs',
-    () =>
-      Effect.gen(function* () {
-        const insert = vi.fn();
-        const findTemplateAddons = vi.fn(() => Effect.succeed([]));
-        const database = {
-          insert,
-          query: {
-            templateEventAddons: {
-              findMany: findTemplateAddons,
-            },
-            templateRegistrationOptions: {
-              findMany: vi.fn(() =>
-                Effect.succeed([
-                  {
-                    id: 'template-option-1',
-                    registrationMode: 'random' as const,
-                  },
-                ]),
-              ),
-            },
-          },
-        };
-        const layer = Layer.mergeAll(
-          requestContextLayer,
-          Layer.succeed(Database, withTransaction(database) as never),
-        );
-
-        const error = yield* eventLifecycleHandlers['events.create'](
-          {
-            ...createInput,
-            registrationOptions: [
-              {
-                ...createInput.registrationOptions[0],
-                registrationMode: 'fcfs',
-                sourceTemplateRegistrationOptionId: 'template-option-1',
-              },
-            ],
-          },
-          { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(layer));
-
-        expect(error).toBeInstanceOf(RpcBadRequestError);
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          message:
-            'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
-          reason: 'unsupportedTemplateRegistrationMode',
-        });
-        expect(findTemplateAddons).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
       }),
   );
@@ -1140,7 +1062,7 @@ describe('eventLifecycleHandlers', () => {
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
-                  unlisted: false,
+                  listingAudience: 'both',
                 }),
               ),
             },
@@ -1415,7 +1337,7 @@ describe('eventLifecycleHandlers', () => {
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
-                  unlisted: false,
+                  listingAudience: 'both',
                 }),
               ),
             },
@@ -1494,5 +1416,39 @@ describe('eventLifecycleHandlers', () => {
           },
         ]);
       }),
+  );
+
+  it.effect('events.updateListing reports a missing event', () =>
+    Effect.gen(function* () {
+      const returning = vi.fn(() => Effect.succeed([]));
+      const updateQuery = {
+        returning,
+        set: vi.fn(() => updateQuery),
+        where: vi.fn(() => updateQuery),
+      };
+      const layer = Layer.mergeAll(
+        listingRequestContextLayer,
+        Layer.succeed(Database, {
+          update: vi.fn(() => updateQuery),
+        } as never),
+      );
+
+      const error = yield* eventLifecycleHandlers['events.updateListing'](
+        {
+          eventId: 'missing-event',
+          listingAudience: 'organizer',
+        },
+        { headers: {} } as never,
+      ).pipe(Effect.flip, Effect.provide(layer));
+
+      expect(error).toMatchObject({
+        _tag: 'EventNotFoundError',
+        id: 'missing-event',
+      });
+      expect(updateQuery.set).toHaveBeenCalledWith({
+        listingAudience: 'organizer',
+      });
+      expect(returning).toHaveBeenCalledOnce();
+    }),
   );
 });

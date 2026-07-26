@@ -16,7 +16,7 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faTrashCan } from '@fortawesome/duotone-regular-svg-icons';
 import {
   registrationModeLabel,
-  writableRegistrationModes,
+  registrationModes,
 } from '@shared/registration-modes';
 
 import { CurrencyAmountInputComponent } from '../../controls/currency-amount-input/currency-amount-input.component';
@@ -59,5 +59,5 @@ export class TemplateRegistrationOptionEditorComponent {
 
   protected readonly faTrashCan = faTrashCan;
   protected readonly registrationModeLabel = registrationModeLabel;
-  protected readonly registrationModes = writableRegistrationModes;
+  protected readonly registrationModes = registrationModes;
 }

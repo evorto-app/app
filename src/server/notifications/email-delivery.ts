@@ -7,20 +7,22 @@ import { render } from '@react-email/render';
 import {
   EmailDelivery,
   type EmailDeliveryError,
-  EmailDeliveryRetryableError,
-  TRANSACTIONAL_EMAIL_SENDER,
 } from '@server/integrations/email-delivery';
 import { asc, sql } from 'drizzle-orm';
 import { Cause, Duration, Effect, Schema } from 'effect';
 
-import type { Tenant } from '../../types/custom/tenant';
 import type { RegistrationCancellationActor } from './email-templates';
 
 import {
-  emailOutboxClaimableByIdPredicate,
-  emailOutboxClaimablePredicate,
-  emailOutboxClaimAttempts,
+  isIanaTimezone,
+  type Tenant,
+  TENANT_FORMATTING_LOCALE,
+} from '../../types/custom/tenant';
+import {
+  emailOutboxAbandonedSendingPredicate,
   emailOutboxClaimLeaseExpiry,
+  emailOutboxDispatchableByIdPredicate,
+  emailOutboxDispatchablePredicate,
   emailOutboxOwnedClaimPredicate,
 } from './email-outbox-lease';
 import {
@@ -38,7 +40,7 @@ export interface EnqueueManualApprovalEmailInput {
   eventUrl: string;
   paymentDeadline: Date | null;
   registrationId: string;
-  tenant: TenantEmailContext;
+  tenant: ManualApprovalTenantEmailContext;
   to: string;
 }
 
@@ -95,6 +97,9 @@ interface EmailOutboxClaim {
 
 type EmailOutboxRow = typeof emailOutboxTable.$inferSelect;
 
+type ManualApprovalTenantEmailContext = Pick<Tenant, 'timezone'> &
+  TenantEmailContext;
+
 type TenantEmailContext = Pick<
   Tenant,
   'emailSenderEmail' | 'emailSenderName' | 'id' | 'name'
@@ -122,10 +127,38 @@ class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRend
   },
 ) {}
 
-const defaultEmailSender = {
-  email: TRANSACTIONAL_EMAIL_SENDER.email,
-  name: TRANSACTIONAL_EMAIL_SENDER.name,
-} satisfies TenantEmailSender;
+export class InvalidTenantEmailTimezoneError extends Schema.TaggedErrorClass<InvalidTenantEmailTimezoneError>()(
+  'InvalidTenantEmailTimezoneError',
+  {
+    message: Schema.String,
+    tenantId: Schema.NonEmptyString,
+    timezone: Schema.String,
+  },
+) {}
+
+const formatManualApprovalPaymentDeadline = Effect.fn(
+  'formatManualApprovalPaymentDeadline',
+)(function* (paymentDeadline: Date, tenant: ManualApprovalTenantEmailContext) {
+  if (!isIanaTimezone(tenant.timezone)) {
+    return yield* new InvalidTenantEmailTimezoneError({
+      message: 'Tenant timezone is invalid for manual approval email',
+      tenantId: tenant.id,
+      timezone: tenant.timezone,
+    });
+  }
+
+  const formattedDeadline = new Intl.DateTimeFormat(TENANT_FORMATTING_LOCALE, {
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+    minute: '2-digit',
+    month: '2-digit',
+    timeZone: tenant.timezone,
+    timeZoneName: 'short',
+    year: 'numeric',
+  }).format(paymentDeadline);
+  return `${formattedDeadline} (${tenant.timezone})`;
+});
 
 const tenantReplyTo = (
   tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'name'>,
@@ -175,8 +208,6 @@ const buildOutboxInsert = ({
   const replyTo = tenantReplyTo(tenant);
 
   return {
-    fromEmail: defaultEmailSender.email,
-    fromName: defaultEmailSender.name,
     html,
     idempotencyKey,
     kind,
@@ -230,20 +261,29 @@ export const enqueueManualApprovalEmail = (
   database: Pick<DatabaseClient, 'insert'>,
   input: EnqueueManualApprovalEmailInput,
 ) =>
-  enqueueTenantEmail(database, {
-    idempotencyKey: `manual-approval/${input.tenant.id}/${input.registrationId}/${input.approvalKey}`,
-    kind: 'manualApproval',
-    subject: input.paymentDeadline
-      ? 'Registration approved: payment required'
-      : 'Registration approved',
-    template: ManualApprovalEmail({
-      eventTitle: input.eventTitle,
-      eventUrl: input.eventUrl,
-      paymentDeadline: input.paymentDeadline,
-      tenantName: input.tenant.name,
-    }),
-    tenant: input.tenant,
-    to: input.to,
+  Effect.gen(function* () {
+    const paymentDeadlineText = input.paymentDeadline
+      ? yield* formatManualApprovalPaymentDeadline(
+          input.paymentDeadline,
+          input.tenant,
+        )
+      : null;
+
+    return yield* enqueueTenantEmail(database, {
+      idempotencyKey: `manual-approval/${input.tenant.id}/${input.registrationId}/${input.approvalKey}`,
+      kind: 'manualApproval',
+      subject: input.paymentDeadline
+        ? 'Registration approved: payment required'
+        : 'Registration approved',
+      template: ManualApprovalEmail({
+        eventTitle: input.eventTitle,
+        eventUrl: input.eventUrl,
+        paymentDeadlineText,
+        tenantName: input.tenant.name,
+      }),
+      tenant: input.tenant,
+      to: input.to,
+    });
   });
 
 export const enqueueRegistrationConfirmedEmail = (
@@ -319,15 +359,11 @@ export const enqueueRegistrationTransferredEmail = (
     to: input.to,
   });
 
-const retryDelayMs = (attempts: number): number =>
-  Math.min(30 * 60 * 1000, 1000 * 2 ** Math.max(0, attempts - 1));
-
 const sendOutboxRow = Effect.fn('sendOutboxRow')(function* (
   row: EmailOutboxRow,
 ) {
   return yield* EmailDelivery.deliver({
     html: row.html,
-    idempotencyKey: row.idempotencyKey,
     replyTo: row.replyToEmail
       ? {
           email: row.replyToEmail,
@@ -370,22 +406,15 @@ const markOutboxRowFailed = Effect.fn('markOutboxRowFailed')(function* (
     { readonly _tag: 'EmailDeliveryUnknownError' }
   >,
 ) {
-  const exhausted =
-    !(failure instanceof EmailDeliveryRetryableError) ||
-    claim.row.attempts >= claim.row.maxAttempts;
-  const nextAttemptAt = exhausted
-    ? new Date()
-    : new Date(Date.now() + retryDelayMs(claim.row.attempts));
   const updatedRows = yield* Database.use((database) =>
     database
       .update(emailOutboxTable)
       .set({
         claimLeaseExpiresAt: null,
         claimLeaseId: null,
-        exhaustedAt: exhausted ? new Date() : null,
         lastError: failure.message,
-        nextAttemptAt,
-        status: exhausted ? 'failed' : 'queued',
+        provider: failure.provider,
+        status: 'failed',
       })
       .where(emailOutboxOwnedClaimPredicate(claim.row.id, claim.claimLeaseId))
       .returning({ id: emailOutboxTable.id }),
@@ -419,6 +448,25 @@ const markOutboxRowDeliveryUnknown = Effect.fn('markOutboxRowDeliveryUnknown')(
   },
 );
 
+const markAbandonedOutboxRowsDeliveryUnknown = Effect.fn(
+  'markAbandonedOutboxRowsDeliveryUnknown',
+)(function* () {
+  return yield* Database.use((database) =>
+    database
+      .update(emailOutboxTable)
+      .set({
+        claimLeaseExpiresAt: null,
+        claimLeaseId: null,
+        deliveryUnknownAt: new Date(),
+        lastError:
+          'The claim lease was missing or expired before a terminal provider outcome was recorded; automatic resend is disabled to prevent duplicate email',
+        status: 'deliveryUnknown',
+      })
+      .where(emailOutboxAbandonedSendingPredicate())
+      .returning({ id: emailOutboxTable.id }),
+  );
+});
+
 const markOutboxRowSuppressed = Effect.fn('markOutboxRowSuppressed')(function* (
   claim: EmailOutboxClaim,
   provider: 'fake' | 'mailpit' | 'tem',
@@ -447,13 +495,13 @@ const claimOutboxRow = Effect.fn('claimOutboxRow')(function* (rowId: string) {
     database
       .update(emailOutboxTable)
       .set({
-        attempts: emailOutboxClaimAttempts(),
+        attempts: 1,
         claimLeaseExpiresAt: emailOutboxClaimLeaseExpiry(),
         claimLeaseId,
         lastAttemptAt: sql<Date>`now()`,
         status: 'sending',
       })
-      .where(emailOutboxClaimableByIdPredicate(rowId))
+      .where(emailOutboxDispatchableByIdPredicate(rowId))
       .returning(),
   );
   const row = rows[0];
@@ -462,12 +510,23 @@ const claimOutboxRow = Effect.fn('claimOutboxRow')(function* (rowId: string) {
 
 export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
   function* (limit = 10) {
+    const abandonedRows = yield* markAbandonedOutboxRowsDeliveryUnknown();
+    if (abandonedRows.length > 0) {
+      yield* Effect.logWarning(
+        'Email outbox deliveries became unknown after their claim leases were missing or expired',
+      ).pipe(
+        Effect.annotateLogs({
+          outboxRowCount: abandonedRows.length,
+        }),
+      );
+    }
+
     const dueRows = yield* Database.use((database) =>
       database
         .select()
         .from(emailOutboxTable)
-        .where(emailOutboxClaimablePredicate())
-        .orderBy(asc(emailOutboxTable.nextAttemptAt))
+        .where(emailOutboxDispatchablePredicate())
+        .orderBy(asc(emailOutboxTable.createdAt))
         .limit(limit),
     );
     let processedRows = 0;
@@ -513,7 +572,7 @@ export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
       });
       if (!settled) {
         yield* Effect.logWarning(
-          'Email outbox claim was reclaimed before delivery settled',
+          'Email outbox claim was no longer active when delivery settled',
         ).pipe(
           Effect.annotateLogs({
             claimLeaseId: claimedRow.claimLeaseId,

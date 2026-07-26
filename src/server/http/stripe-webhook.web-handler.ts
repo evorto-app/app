@@ -390,11 +390,6 @@ const getCheckoutNotificationContext = (
     }),
   );
 
-const checkoutNotificationEmail = (user: {
-  communicationEmail: string;
-  email: string;
-}): string => user.communicationEmail.trim() || user.email;
-
 const getCheckoutSessionPaymentIntentId = (
   session: Stripe.Checkout.Session,
 ): string | undefined =>
@@ -1307,9 +1302,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   ? [
                       {
                         registrationId: waitlistRegistration.id,
-                        to: checkoutNotificationEmail(
-                          waitlistRegistration.user,
-                        ),
+                        to: waitlistRegistration.user.communicationEmail,
                       },
                     ]
                   : [],

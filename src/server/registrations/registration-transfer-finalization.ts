@@ -1150,8 +1150,11 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     yield* tx.insert(eventRegistrationQuestionAnswers).values(
       transferAnswers.map((answer) => ({
         answer: answer.answer,
+        eventId: transfer.eventId,
         questionId: answer.questionId,
         registrationId: transfer.sourceRegistrationId,
+        registrationOptionId: transfer.registrationOptionId,
+        tenantId: input.tenantId,
       })),
     );
   }
@@ -1215,7 +1218,6 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
   const ownerRows = yield* tx
     .select({
       communicationEmail: users.communicationEmail,
-      email: users.email,
       id: users.id,
     })
     .from(users)
@@ -1242,7 +1244,7 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     recipientUserId: transfer.sourceUserId,
     registrationId: transfer.sourceRegistrationId,
     tenant,
-    to: sourceUser.communicationEmail?.trim() || sourceUser.email,
+    to: sourceUser.communicationEmail,
     transferOperationId,
   });
   yield* enqueueRegistrationTransferredEmail(tx, {
@@ -1252,7 +1254,7 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     recipientUserId: transfer.recipientUserId,
     registrationId: transfer.sourceRegistrationId,
     tenant,
-    to: recipientUser.communicationEmail?.trim() || recipientUser.email,
+    to: recipientUser.communicationEmail,
     transferOperationId,
   });
 

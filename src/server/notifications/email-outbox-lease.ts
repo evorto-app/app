@@ -1,42 +1,22 @@
 import { emailOutbox } from '@db/schema';
-import { sql } from 'drizzle-orm';
+import { asc, desc, sql } from 'drizzle-orm';
 
 /**
- * Long enough for a normal provider request, while still recovering abandoned
- * claims without operator intervention after a process crash.
+ * Long enough for the bounded provider request and its database settlement.
+ * An expired claim is marked delivery-unknown and is never dispatched again.
  */
 export const EMAIL_OUTBOX_CLAIM_LEASE_MS = 10 * 60 * 1000;
 
-export const emailOutboxClaimablePredicate = () => sql<boolean>`
-  ${emailOutbox.exhaustedAt} is null
-  and (
-    (
-      ${emailOutbox.status} in ('queued', 'failed')
-      and ${emailOutbox.nextAttemptAt} <= now()
-      and ${emailOutbox.attempts} < ${emailOutbox.maxAttempts}
-    )
-    or (
-      ${emailOutbox.status} = 'sending'
-      and (
-        ${emailOutbox.claimLeaseExpiresAt} is null
-        or ${emailOutbox.claimLeaseExpiresAt} <= now()
-      )
-    )
-  )
+export const emailOutboxDispatchablePredicate = () => sql<boolean>`
+  ${emailOutbox.status} = 'queued'
+  and ${emailOutbox.attempts} = 0
 `;
 
-export const emailOutboxClaimableByIdPredicate = (rowId: string) =>
+export const emailOutboxDispatchableByIdPredicate = (rowId: string) =>
   sql<boolean>`
     ${emailOutbox.id} = ${rowId}
-    and ${emailOutboxClaimablePredicate()}
+    and ${emailOutboxDispatchablePredicate()}
   `;
-
-export const emailOutboxClaimAttempts = () => sql<number>`
-  case
-    when ${emailOutbox.status} = 'sending' then ${emailOutbox.attempts}
-    else ${emailOutbox.attempts} + 1
-  end
-`;
 
 export const emailOutboxClaimLeaseExpiry = () => sql<Date>`
   now() + (${EMAIL_OUTBOX_CLAIM_LEASE_MS} * interval '1 millisecond')
@@ -51,10 +31,27 @@ export const emailOutboxOwnedClaimPredicate = (
   and ${emailOutbox.claimLeaseId} = ${claimLeaseId}
 `;
 
-export const emailOutboxStaleSendingPredicate = () => sql<boolean>`
+export const emailOutboxAbandonedSendingPredicate = () => sql<boolean>`
   ${emailOutbox.status} = 'sending'
   and (
     ${emailOutbox.claimLeaseExpiresAt} is null
     or ${emailOutbox.claimLeaseExpiresAt} <= now()
   )
 `;
+
+export const emailOutboxOperationalIncidentPredicate = () => sql<boolean>`
+  (
+    ${emailOutbox.status} in ('failed', 'deliveryUnknown')
+    or (${emailOutboxAbandonedSendingPredicate()})
+  )
+`;
+
+export const emailOutboxOverviewOrderBy = () => {
+  const incident = emailOutboxOperationalIncidentPredicate();
+
+  return [
+    asc(sql<number>`case when ${incident} then 0 else 1 end`),
+    desc(emailOutbox.updatedAt),
+    asc(emailOutbox.id),
+  ] as const;
+};

@@ -23,7 +23,7 @@ prior Evorto knowledge. Include:
 7. accessible screenshots where they clarify a real decision or result, backed by behavior assertions rather than screenshots alone.
 
 When a complete workflow cannot yet be documented because the product behavior
-does not exist, keep that absence in `APPLICATION_COMPLIANCE_AUDIT.md`; do not
+does not exist, keep that absence in `APPLICATION_REVIEW_QUEUE.md`; do not
 replace it with aspirational documentation.
 
 ## Fixture Contract

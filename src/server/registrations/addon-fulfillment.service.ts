@@ -31,6 +31,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
 
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
+import { safeServerErrorSummary } from '../utils/safe-server-error-summary';
 import { allocateAcquisitionComponentQuantity } from './registration-acquisition-refund';
 import { lockCurrentRegistrationAcquisition } from './registration-acquisition-write';
 import { ensureRegistrationMutationHasNoActiveTransfer } from './registration-transfer-mutation-guard';
@@ -303,15 +304,18 @@ export const selectRegistrationAddonCancellation = (input: {
 
 const conflict = (message: string) =>
   new EventRegistrationConflictError({ message });
-const internal = (message: string, cause?: unknown) =>
-  new EventRegistrationInternalError({
-    ...(cause !== undefined && { cause }),
-    message,
-  });
+const internal = (message: string) =>
+  new EventRegistrationInternalError({ message });
 const notFound = () =>
   new EventRegistrationNotFoundError({
     message: 'Registration add-on not found',
   });
+
+const failInternal = (operation: string, message: string, error: unknown) =>
+  Effect.logError(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(Effect.fail(internal(message))),
+  );
 
 const validateOperationKey = (operationKey: string) => {
   const normalized = operationKey.trim();
@@ -322,17 +326,32 @@ const validateOperationKey = (operationKey: string) => {
       );
 };
 
-const mapUnexpected = <A, E, R>(
-  effect: Effect.Effect<A, E, R>,
+const mapUnexpected = <A, R>(
+  effect: Effect.Effect<A, unknown, R>,
+  operation: string,
   message: string,
-): Effect.Effect<A, E | EventRegistrationInternalError, R> =>
+): Effect.Effect<
+  A,
+  | EventRegistrationConflictError
+  | EventRegistrationInternalError
+  | EventRegistrationNotFoundError,
+  R
+> =>
   effect.pipe(
-    Effect.mapError((error) =>
-      error instanceof EventRegistrationConflictError ||
-      error instanceof EventRegistrationInternalError ||
-      error instanceof EventRegistrationNotFoundError
-        ? error
-        : internal(message, error),
+    Effect.catch(
+      (
+        error,
+      ): Effect.Effect<
+        never,
+        | EventRegistrationConflictError
+        | EventRegistrationInternalError
+        | EventRegistrationNotFoundError
+      > =>
+        error instanceof EventRegistrationConflictError ||
+        error instanceof EventRegistrationInternalError ||
+        error instanceof EventRegistrationNotFoundError
+          ? Effect.fail(error)
+          : failInternal(operation, message, error),
     ),
   );
 
@@ -730,6 +749,7 @@ export const getRegistrationAddonFulfillment = Effect.fn(
         }),
       ),
     ),
+    'registrationAddonFulfillment.load',
     'Registration add-on fulfillment could not be loaded',
   );
 });
@@ -1098,6 +1118,7 @@ export const redeemRegistrationAddon = Effect.fn('redeemRegistrationAddon')(
           }),
         ),
       ),
+      'registrationAddonFulfillment.redeem',
       'Registration add-on could not be redeemed',
     );
   },
@@ -1275,6 +1296,7 @@ export const undoRegistrationAddonRedemption = Effect.fn(
         }),
       ),
     ),
+    'registrationAddonFulfillment.undoRedemption',
     'Registration add-on redemption could not be undone',
   );
 });
@@ -1998,6 +2020,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
           }),
         ),
       ),
+      'registrationAddonFulfillment.cancel',
       'Registration add-on could not be cancelled',
     );
   },

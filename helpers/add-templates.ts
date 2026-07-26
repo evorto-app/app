@@ -5,6 +5,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
+import { requireSeedRoles } from './seed-requirements';
 import { getCityTourTemplates } from './templates/city-tour-templates';
 import { getCityTripTemplates } from './templates/city-trip-templates';
 import { getExampleConfigTemplates } from './templates/example-config-templates';
@@ -101,10 +102,7 @@ export const addTemplates = async (
     throw new Error('One or more categories not found');
   }
 
-  const defaultUserRoles = roles.filter((role) => role.defaultUserRole);
-  const defaultOrganizerRoles = roles.filter(
-    (role) => role.defaultOrganizerRole,
-  );
+  const { defaultOrganizerRoles, defaultUserRoles } = requireSeedRoles(roles);
 
   const createIconObject = (iconName: string) => {
     const icon = icons.find((index) => index.commonName === iconName);
@@ -152,7 +150,12 @@ export const addTemplates = async (
 
   const createdFreeTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(freeTemplates.map(({ seedKey: _seedKey, ...template }) => template))
+    .values(
+      freeTemplates.map(({ seedKey: _seedKey, ...template }) => ({
+        ...template,
+        listingAudience: 'both' as const,
+      })),
+    )
     .returning();
   consola.success(`Inserted ${createdFreeTemplatesRaw.length} free templates`);
 
@@ -223,7 +226,12 @@ export const addTemplates = async (
     }));
   const createdPaidTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(paidTemplates.map(({ seedKey: _seedKey, ...template }) => template))
+    .values(
+      paidTemplates.map(({ seedKey: _seedKey, ...template }) => ({
+        ...template,
+        listingAudience: 'both' as const,
+      })),
+    )
     .returning();
   consola.success(`Inserted ${createdPaidTemplatesRaw.length} paid templates`);
 

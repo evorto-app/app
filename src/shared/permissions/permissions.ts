@@ -65,7 +65,6 @@ const FINANCE_GROUP = {
 // Union type of all effective permissions and permission checks.
 export type Permission =
   | AdminPermissions
-  | AdminPermissionsLegacy
   | EventsPermissions
   | FinancePermissions
   | GlobalAdminPermissions
@@ -95,7 +94,6 @@ export type TenantRolePermission = Exclude<Permission, GlobalAdminPermissions>;
 type AdminPermissions =
   | `${typeof ADMIN_GROUP.key}:${(typeof ADMIN_GROUP.permissions)[number]}`
   | `${typeof ADMIN_GROUP.key}:*`;
-type AdminPermissionsLegacy = 'admin:manageTaxes';
 
 type EventsPermissions =
   | `${typeof EVENTS_GROUP.key}:${(typeof EVENTS_GROUP.permissions)[number]}`
@@ -142,7 +140,7 @@ const PERMISSION_METADATA = {
   },
   'events:changeListing': {
     description:
-      'Change whether events are listed publicly or kept unlisted for direct-link access.',
+      'Change which eligible registration audience can discover events or keep them unlisted for direct-link access.',
     label: 'Change event listing',
   },
   'events:create': {
@@ -171,8 +169,9 @@ const PERMISSION_METADATA = {
     label: 'See draft events',
   },
   'events:seeUnlisted': {
-    description: 'See unlisted events without needing a direct event link.',
-    label: 'See unlisted events',
+    description:
+      'Include unlisted events in discovery when a registration option is otherwise eligible.',
+    label: 'See eligible unlisted events',
   },
   'events:viewPublic': {
     description:
@@ -245,7 +244,7 @@ const PERMISSION_METADATA = {
     label: 'View all users',
   },
 } satisfies Record<
-  Exclude<TenantRolePermission, 'admin:manageTaxes' | `${string}:*`>,
+  Exclude<TenantRolePermission, `${string}:*`>,
   Omit<PermissionMeta, 'key'>
 >;
 
@@ -355,7 +354,6 @@ export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap((group) =>
 ) satisfies TenantRolePermission[];
 
 const TENANT_ROLE_PERMISSION_LITERALS = [
-  'admin:manageTaxes',
   'admin:*',
   'events:*',
   'finance:*',
@@ -436,10 +434,6 @@ export const includesPermission = (
   permission: Permission,
   permissions: readonly Permission[],
 ): boolean => {
-  if (permission === 'admin:tax' && permissions.includes('admin:manageTaxes')) {
-    return true;
-  }
-
   if (permission.includes(':*')) {
     const [group] = permission.split(':', 1);
     if (permissions.some((granted) => granted.startsWith(`${group}:`))) {

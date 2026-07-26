@@ -1,4 +1,4 @@
-import type { WritableRegistrationMode } from '@shared/registration-modes';
+import type { RegistrationMode } from '@shared/registration-modes';
 import type {
   EventGraphAddonInput,
   EventGraphEditRecord,
@@ -12,11 +12,6 @@ import type { SupportedTenantTimezone } from '../../../types/custom/tenant';
 import type { EventLocationType } from '../../../types/location';
 
 import { tenantNow, toTenantDateTime } from '../../core/tenant-runtime';
-import {
-  resetAddOnPayment,
-  resetRegistrationPayment,
-} from '../../shared/components/forms/payment-configuration';
-
 export interface EventGraphAddonFormModel {
   allowMultiple: boolean;
   allowPurchaseBeforeEvent: boolean;
@@ -82,7 +77,7 @@ export interface EventGraphRegistrationOptionFormModel {
   price: number;
   refundFeesOnCancellation: boolean | null;
   registeredDescription: string;
-  registrationMode: WritableRegistrationMode;
+  registrationMode: RegistrationMode;
   roleIds: string[];
   spots: number;
   stripeTaxRateId: null | string;
@@ -102,25 +97,6 @@ export interface EventGraphUpdatePayload {
   start: string;
   title: string;
 }
-
-export const resetEventGraphPayments = (
-  model: EventGraphFormModel,
-): EventGraphFormModel => {
-  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, null));
-  const registrationOptions = model.registrationOptions.map((option) =>
-    resetRegistrationPayment(option, null, ''),
-  );
-  const unchanged =
-    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
-    registrationOptions.every(
-      (option, index) => option === model.registrationOptions[index],
-    );
-
-  return unchanged ? model : { ...model, addOns, registrationOptions };
-};
-
-export const legacyRandomEventEditMessage =
-  'Random allocation is unavailable. An authorized event editor must choose First come, first served or Manual approval before anyone can edit this registration setup.';
 
 const createGraphKey = (): string => globalThis.crypto.randomUUID();
 
@@ -160,22 +136,10 @@ export const advancedEventGraphWarnings = (
   return warnings;
 };
 
-const writableRegistrationOption = (
-  option: EventGraphEditRecord['registrationOptions'][number],
-): option is EventGraphEditRecord['registrationOptions'][number] & {
-  registrationMode: WritableRegistrationMode;
-} =>
-  option.registrationMode === 'application' ||
-  option.registrationMode === 'fcfs';
-
 export const eventGraphRecordToFormModel = (
   event: EventGraphEditRecord,
   timezone: SupportedTenantTimezone,
 ): EventGraphFormLoadResult => {
-  if (!event.registrationOptions.every(writableRegistrationOption)) {
-    return { error: legacyRandomEventEditMessage };
-  }
-
   const optionIds = new Set(
     event.registrationOptions.map((option) => option.id),
   );

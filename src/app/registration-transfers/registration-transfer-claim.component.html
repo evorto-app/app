@@ -32,9 +32,13 @@
             {{ claimQuery.isFetching() ? "Trying again…" : "Try again" }}
           </button>
         }
-        <a mat-stroked-button routerLink="/registration-transfers">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="enterAnotherCode.emit()"
+        >
           Enter another code
-        </a>
+        </button>
       </div>
     </section>
   } @else if (claimQuery.data(); as claim) {

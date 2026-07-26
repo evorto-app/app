@@ -56,5 +56,9 @@ export const platformAuditEntries = pgTable(
       table.actorId,
       table.createdAt,
     ),
+    index('platform_audit_created_id_idx').on(
+      table.createdAt.desc(),
+      table.id.asc(),
+    ),
   ],
 );

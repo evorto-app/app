@@ -102,17 +102,21 @@
       <mat-form-field class="w-full">
         <mat-label>Tax rate</mat-label>
         <mat-select [formField]="form.stripeTaxRateId">
-          @if (taxRatesQuery.isPending()) {
+          @if (taxRateState() === "loading") {
             <mat-option disabled>Loading tax rates...</mat-option>
-          } @else if (taxRatesQuery.isSuccess()) {
-            @for (rate of taxRatesQuery.data(); track rate.id) {
+          } @else if (taxRateState() === "error") {
+            <mat-option disabled>Tax rates are unavailable</mat-option>
+          } @else if (taxRates(); as resolvedTaxRates) {
+            @for (rate of resolvedTaxRates; track rate.id) {
               <mat-option [value]="rate.stripeTaxRateId">
                 {{ rate.displayName || rate.stripeTaxRateId }} —
                 {{ rate.percentage ?? "?" }}%
               </mat-option>
             }
           } @else {
-            <mat-option disabled>Failed to load tax rates</mat-option>
+            <mat-option disabled>
+              Tax-rate state is inconsistent; reload the page
+            </mat-option>
           }
         </mat-select>
         <mat-hint>Inclusive tax; shown price is final</mat-hint>

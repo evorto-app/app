@@ -296,23 +296,17 @@ describe('CI quality source', () => {
     expect(lintFilePatterns).toEqual([
       '*.config.ts',
       'helpers/**/*.ts',
-      'migration/**/*.ts',
       'src/**/*.ts',
       'src/**/*.html',
       'tests/**/*.ts',
     ]);
     expect(lintFilePatterns).not.toContain('repos/**/*.ts');
     expect(eslintConfig).toContain('const toolingFiles = [');
-    for (const sourcePattern of [
-      '"*.config.ts"',
-      '"helpers/**/*.ts"',
-      '"migration/**/*.ts"',
-    ]) {
+    for (const sourcePattern of ['"*.config.ts"', '"helpers/**/*.ts"']) {
       expect(eslintConfig).toContain(sourcePattern);
     }
     expect(eslintConfig).toContain('...tseslint.configs.strict');
     expect(eslintConfig).toContain('process: "readonly"');
-    expect(eslintConfig).toContain('files: ["migration/**/*.ts"]');
     expect(eslintConfig).toContain('ignores: ["repos/**/*"]');
   });
 

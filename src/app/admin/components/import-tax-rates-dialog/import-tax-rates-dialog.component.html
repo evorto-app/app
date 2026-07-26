@@ -16,18 +16,28 @@
   @if (ratesQuery.isPending()) {
     <p>Loading from Stripe ...</p>
   } @else if (ratesQuery.isError()) {
-    <p class="text-error">Failed to load rates from Stripe.</p>
+    <div class="text-error grid gap-2" role="alert">
+      <p>Failed to load rates from Stripe.</p>
+      <div>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="ratesQuery.isFetching()"
+          (click)="ratesQuery.refetch()"
+        >
+          {{ ratesQuery.isFetching() ? "Retrying..." : "Try again" }}
+        </button>
+      </div>
+    </div>
   } @else if (ratesQuery.isSuccess()) {
     <div class="flex flex-col gap-2">
       @for (rate of ratesQuery.data(); track rate.id) {
         <div class="flex items-center gap-3">
           <mat-checkbox
             [disabled]="
-              !(rate.inclusive && rate.active) || importedIds().has(rate.id)
+              !(rate.inclusive && rate.active) || importedIds.has(rate.id)
             "
-            [checked]="
-              selected().includes(rate.id) || importedIds().has(rate.id)
-            "
+            [checked]="selected().includes(rate.id) || importedIds.has(rate.id)"
             (change)="toggle(rate.id, $event.checked)"
           >
             {{ rate.displayName || "Unnamed Rate" }} —
@@ -51,7 +61,7 @@
                 >archived (not compatible)</mat-chip
               >
             }
-            @if (importedIds().has(rate.id)) {
+            @if (importedIds.has(rate.id)) {
               <mat-chip selected>imported</mat-chip>
             }
           </mat-chip-set>

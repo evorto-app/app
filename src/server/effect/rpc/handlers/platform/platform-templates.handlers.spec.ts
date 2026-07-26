@@ -42,6 +42,7 @@ const graphRecord: TemplateGraphRecord = {
   description: '<p>Template description</p>',
   icon: { iconColor: 0, iconName: 'calendar:fas' },
   id: 'template-1',
+  listingAudience: 'unlisted',
   location: null,
   planningTips: null,
   questions: [
@@ -87,7 +88,7 @@ const graphRecord: TemplateGraphRecord = {
       price: 0,
       refundFeesOnCancellation: null,
       registeredDescription: null,
-      registrationMode: 'random',
+      registrationMode: 'fcfs',
       roleIds: ['role-2'],
       roles: [{ id: 'role-2', name: 'Participant' }],
       spots: 30,
@@ -98,7 +99,6 @@ const graphRecord: TemplateGraphRecord = {
   ],
   simpleModeEnabled: false,
   title: 'Advanced template',
-  unlisted: true,
 };
 
 describe('platform template full-graph handler', () => {
@@ -133,7 +133,6 @@ describe('platform template full-graph handler', () => {
     expect(source).toContain('TemplateGraphService.createTemplate');
     expect(source).toContain('TemplateGraphService.updateTemplate');
     expect(source).toContain('writePlatformAudit(transaction');
-    expect(source).not.toContain('SimpleTemplateService');
     expect(source).not.toContain('eq(eventTemplates.simpleModeEnabled, true)');
 
     const serviceSource = readFileSync(
@@ -157,11 +156,11 @@ describe('platform template full-graph handler', () => {
       'utf8',
     );
     expect(contractSource).toMatch(
-      /TemplateGraphRegistrationOptionInput[\s\S]*?registrationMode: TemplateWritableRegistrationMode/,
+      /TemplateGraphRegistrationOptionInput[\s\S]*?registrationMode: TemplateRegistrationMode/,
     );
   });
 
-  it('keeps legacy random options readable in audit without free-text PII', () => {
+  it('keeps full graph options in audit without free-text PII', () => {
     const snapshot = platformTemplateAuditSnapshot(graphRecord);
     const encoded = JSON.stringify(snapshot);
 
@@ -183,11 +182,11 @@ describe('platform template full-graph handler', () => {
             ],
           }),
         ],
+        listingAudience: 'unlisted',
         simpleModeEnabled: false,
-        unlisted: true,
       }),
     );
-    expect(encoded).toContain('random');
+    expect(encoded).toContain('fcfs');
     expect(encoded).toContain('option-1');
     expect(encoded).toContain('option-2');
     expect(encoded).not.toContain('Not included in audit state');

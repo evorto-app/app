@@ -1,15 +1,17 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { maximumPostgresInteger } from '../../schema-utilities';
+import { AdminRoleWriteRpcError } from './admin.errors';
 import {
   AdminRolesCreateInput,
   AdminRolesUpdateInput,
   AdminTenantBrandAssetKind,
+  AdminTenantImportStripeTaxRatesInput,
   AdminTenantUpdateSettingsInput,
 } from './admin.rpcs';
 
 const currentRoleInput = {
-  collapseMembersInHup: false,
   defaultOrganizerRole: false,
   defaultUserRole: true,
   description: 'Default tenant member',
@@ -31,7 +33,7 @@ describe('admin role input schemas', () => {
     ).not.toThrow();
   });
 
-  it('rejects platform-global permissions on create and update', () => {
+  it('keeps known permissions structural so the server can return a typed validation error', () => {
     for (const permission of ['globalAdmin:*', 'globalAdmin:manageTenants']) {
       expect(() =>
         Schema.decodeUnknownSync(AdminRolesCreateInput)({
@@ -39,15 +41,32 @@ describe('admin role input schemas', () => {
           defaultUserRole: true,
           permissions: [permission],
         }),
-      ).toThrow();
+      ).not.toThrow();
       expect(() =>
         Schema.decodeUnknownSync(AdminRolesUpdateInput)({
           ...currentRoleInput,
           id: 'role-1',
           permissions: [permission],
         }),
-      ).toThrow();
+      ).not.toThrow();
     }
+  });
+
+  it('declares validation and duplicate-name errors on the role RPC channel', () => {
+    expect(
+      Schema.decodeUnknownSync(AdminRoleWriteRpcError)({
+        _tag: 'RoleWriteValidationError',
+        field: 'name',
+        message: 'Role name is required',
+      })._tag,
+    ).toBe('RoleWriteValidationError');
+    expect(
+      Schema.decodeUnknownSync(AdminRoleWriteRpcError)({
+        _tag: 'RoleNameAlreadyExistsError',
+        message: 'A role named Member already exists',
+        name: 'Member',
+      })._tag,
+    ).toBe('RoleNameAlreadyExistsError');
   });
 });
 
@@ -155,15 +174,6 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).toThrow();
   });
 
-  it('keeps locale outside tenant-admin writes', () => {
-    const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
-      ...currentTenantSettingsInput,
-      locale: 'en-US',
-    });
-
-    expect(decoded).not.toHaveProperty('locale');
-  });
-
   it('rejects invalid sender email settings', () => {
     expect(() =>
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
@@ -180,6 +190,27 @@ describe('AdminTenantUpdateSettingsInput', () => {
         maxActiveRegistrationsPerUser: -1,
       }),
     ).toThrow();
+  });
+
+  it('rejects fractional and out-of-range registration-policy limits', () => {
+    for (const field of [
+      'cancellationDeadlineHoursBeforeStart',
+      'maxActiveRegistrationsPerUser',
+      'transferDeadlineHoursBeforeStart',
+    ] as const) {
+      expect(() =>
+        Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+          ...currentTenantSettingsInput,
+          [field]: 1.5,
+        }),
+      ).toThrow();
+      expect(() =>
+        Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+          ...currentTenantSettingsInput,
+          [field]: maximumPostgresInteger + 1,
+        }),
+      ).toThrow();
+    }
   });
 
   it('rejects negative registration transfer and cancellation deadlines', () => {
@@ -226,6 +257,26 @@ describe('AdminTenantUpdateSettingsInput', () => {
         termsUrl: '/tenant-assets/tenant-1/terms.pdf',
       }),
     ).toThrow();
+  });
+});
+
+describe('AdminTenantImportStripeTaxRatesInput', () => {
+  it('requires between one and one hundred tax-rate IDs', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantImportStripeTaxRatesInput)({
+        ids: [],
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantImportStripeTaxRatesInput)({
+        ids: Array.from({ length: 101 }, (_, index) => `txr_${index}`),
+      }),
+    ).toThrow();
+    expect(
+      Schema.decodeUnknownSync(AdminTenantImportStripeTaxRatesInput)({
+        ids: ['txr_1'],
+      }),
+    ).toEqual({ ids: ['txr_1'] });
   });
 });
 

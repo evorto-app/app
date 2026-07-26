@@ -1,5 +1,10 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
+  <a
+    routerLink="/templates"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to templates"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   @if (templateQuery.isSuccess()) {
@@ -22,6 +27,7 @@
     mat-icon-button
     [matMenuTriggerFor]="menu"
     class="lg:hidden! block"
+    aria-label="Open template actions"
   >
     <fa-duotone-icon [icon]="faEllipsisVertical" />
   </button>
@@ -44,6 +50,27 @@
   <p>Error: {{ errorMessage(templateQuery.error()) }}</p>
 } @else if (templateQuery.isSuccess()) {
   @let template = templateQuery.data();
+  @if (taxRatesQuery.isError()) {
+    <section
+      class="bg-error-container text-on-error-container mb-4 grid gap-2 rounded-lg p-4"
+      role="alert"
+    >
+      <p>
+        Tax details could not be loaded. Prices remain visible, but their tax
+        breakdown is unavailable.
+      </p>
+      <div>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="taxRatesQuery.isFetching()"
+          (click)="taxRatesQuery.refetch()"
+        >
+          {{ taxRatesQuery.isFetching() ? "Retrying…" : "Try again" }}
+        </button>
+      </div>
+    </section>
+  }
   <a
     mat-fab
     extended

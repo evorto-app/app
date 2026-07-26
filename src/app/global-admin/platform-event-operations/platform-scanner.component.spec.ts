@@ -1,13 +1,11 @@
 import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,14 +19,30 @@ import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { PlatformRegistrationCancellationConfirmationDialogComponent } from './platform-registration-cancellation-confirmation-dialog.component';
 import {
+  platformCheckInTimingIssueCopy,
   platformGuestCheckInIssue,
   platformGuestCheckInSelection,
   platformRegistrationStatusIssueCopy,
   platformRegistrationStatusLabel,
   PlatformScannerComponent,
+  platformScannerNavigationErrorMessage,
   PlatformScannerOperations,
   registrationIdFromPlatformScannerInput,
 } from './platform-scanner.component';
+
+describe('platformCheckInTimingIssueCopy', () => {
+  it('distinguishes not-yet-open check-in from an ended window', () => {
+    expect(platformCheckInTimingIssueCopy('notOpen')).toEqual({
+      body: 'Check-in opens one hour before the event starts.',
+      title: 'Check-in not open',
+    });
+    expect(platformCheckInTimingIssueCopy('ended')).toEqual({
+      body: 'The event ended more than two hours ago, so check-in is closed. No check-in was recorded.',
+      title: 'Check-in closed',
+    });
+    expect(platformCheckInTimingIssueCopy(null)).toBeNull();
+  });
+});
 
 describe('platformRegistrationStatusIssueCopy', () => {
   it('keeps confirmed registrations free of a status warning', () => {
@@ -132,30 +146,6 @@ describe('registrationIdFromPlatformScannerInput', () => {
       registrationIdFromPlatformScannerInput('registration/one'),
     ).toBeUndefined();
   });
-
-  it('keeps lookup controls disabled until browser hydration completes', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-scanner.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-scanner.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain(
-      'afterNextRender(() => this.lookupInteractive.set(true))',
-    );
-    expect(
-      template.match(/\[disabled\]="!lookupInteractive\(\)"/g),
-    ).toHaveLength(2);
-  });
 });
 
 @Component({
@@ -190,7 +180,7 @@ const inspectedRegistration: PlatformRegistrationDetailRecord = {
   },
   checkedInGuestCount: 0,
   checkInTime: null,
-  checkInTimingIssue: false,
+  checkInTimingIssue: null,
   currency: 'EUR',
   event: {
     id: 'event-1',
@@ -233,6 +223,10 @@ const findAlertButton = (
     ?.querySelector<HTMLButtonElement>('button') ?? undefined;
 
 describe('PlatformScannerComponent', () => {
+  const approveRegistration = vi.fn(
+    async (): Promise<PlatformRegistrationDetailRecord> =>
+      inspectedRegistration,
+  );
   const cancelRegistration = vi.fn(
     async (
       _input: PlatformRegistrationsCancelInput,
@@ -250,15 +244,14 @@ describe('PlatformScannerComponent', () => {
     async (): Promise<PlatformRegistrationDetailRecord> =>
       inspectedRegistration,
   );
-  const listRegistrations = vi.fn(async () => []);
   const loadFormOptions = vi.fn(async () => ({
     timezone: 'Australia/Brisbane',
   }));
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    approveRegistration.mockReset().mockResolvedValue(inspectedRegistration);
     findRegistration.mockReset().mockResolvedValue(inspectedRegistration);
-    listRegistrations.mockReset().mockResolvedValue([]);
     loadFormOptions.mockReset().mockResolvedValue({
       timezone: 'Australia/Brisbane',
     });
@@ -286,7 +279,7 @@ describe('PlatformScannerComponent', () => {
           provide: PlatformScannerOperations,
           useValue: {
             approve: () => ({
-              mutationFn: vi.fn(),
+              mutationFn: approveRegistration,
               mutationKey: ['platform-scanner', 'approve'],
             }),
             cancel: () => ({
@@ -304,10 +297,6 @@ describe('PlatformScannerComponent', () => {
             formOptions: () => ({
               queryFn: loadFormOptions,
               queryKey: ['platform-scanner', 'target-tenant-options'],
-            }),
-            list: () => ({
-              queryFn: listRegistrations,
-              queryKey: ['platform-scanner', 'registrations'],
             }),
             registrationFilter: () => ({
               queryKey: ['platform-scanner', 'registration'],
@@ -355,6 +344,24 @@ describe('PlatformScannerComponent', () => {
     return fixture;
   };
 
+  it('does not preload registrations before an explicit lookup', async () => {
+    const fixture = renderInitial();
+    const root = fixture.nativeElement as HTMLElement;
+    const input = root.querySelector<HTMLInputElement>('input');
+    const submit = root.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+
+    expect(findRegistration).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(input?.disabled).toBe(false);
+      expect(submit?.disabled).toBe(false);
+    });
+    expect(findRegistration).not.toHaveBeenCalled();
+  });
+
   it('retries a failed registration lookup', async () => {
     findRegistration
       .mockReset()
@@ -388,35 +395,56 @@ describe('PlatformScannerComponent', () => {
     });
   });
 
-  it('retries a failed registrations list', async () => {
-    listRegistrations
-      .mockReset()
-      .mockRejectedValueOnce(new Error('Unavailable'))
-      .mockResolvedValue([]);
+  it('surfaces failed lookup navigation and keeps an explicit retry action', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(false);
     const fixture = renderInitial();
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain(
-        'Registrations for this organization could not be loaded.',
-      );
+      const input = (
+        fixture.nativeElement as HTMLElement
+      ).querySelector<HTMLInputElement>('input');
+      expect(input?.disabled).toBe(false);
     });
-    expect(listRegistrations).toHaveBeenCalledOnce();
-
-    const retryButton = findAlertButton(
-      fixture,
-      'Registrations for this organization could not be loaded.',
-    );
-    if (!retryButton) throw new Error('Expected a registrations retry button');
-    retryButton.click();
+    const input = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLInputElement>('input');
+    if (!input) throw new Error('Expected a registration lookup input');
+    input.value = 'registration-1';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    findButton(fixture, 'Open registration')?.click();
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(listRegistrations).toHaveBeenCalledTimes(2);
-      expect(fixture.nativeElement.textContent).toContain(
-        'No registrations found.',
+      const alert = (
+        fixture.nativeElement as HTMLElement
+      ).querySelector<HTMLElement>('[role="alert"]');
+      expect(alert?.textContent).toContain(
+        platformScannerNavigationErrorMessage,
       );
+      expect(
+        findButton(fixture, 'Try opening registration again')?.disabled,
+      ).toBe(false);
     });
+    expect(navigate).toHaveBeenCalledWith([
+      '/global-admin/tenants',
+      'tenant-1',
+      'scanner',
+      'registration-1',
+    ]);
+
+    navigate.mockResolvedValue(true);
+    findButton(fixture, 'Try opening registration again')?.click();
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledTimes(2));
+    expect(navigate).toHaveBeenLastCalledWith([
+      '/global-admin/tenants',
+      'tenant-1',
+      'scanner',
+      'registration-1',
+    ]);
   });
 
   it('retries loading the organization time zone', async () => {
@@ -533,6 +561,28 @@ describe('PlatformScannerComponent', () => {
       reason: 'Duplicate registration',
       registrationId: 'registration-1',
       targetTenantId: 'tenant-1',
+    });
+  });
+
+  it('surfaces the typed reason when approval fails', async () => {
+    findRegistration.mockResolvedValue({
+      ...inspectedRegistration,
+      manualApprovalAvailable: true,
+    });
+    approveRegistration.mockRejectedValue({
+      _tag: 'RpcBadRequestError',
+      message: 'This registration no longer needs approval.',
+    });
+    const fixture = await render();
+    const notifications = TestBed.inject(NotificationService);
+
+    findButton(fixture, 'Approve')?.click();
+
+    await vi.waitFor(() => {
+      expect(approveRegistration).toHaveBeenCalledOnce();
+      expect(notifications.showError).toHaveBeenCalledWith(
+        'This registration no longer needs approval.',
+      );
     });
   });
 

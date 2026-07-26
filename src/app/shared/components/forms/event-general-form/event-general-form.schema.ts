@@ -16,7 +16,6 @@ import {
 } from '../../../../../types/custom/tenant';
 import { EventLocationType } from '../../../../../types/location';
 import { tenantNow } from '../../../../core/tenant-runtime';
-import { resetRegistrationPayment } from '../payment-configuration';
 import {
   RegistrationOptionFormModel,
   registrationOptionFormSchema,
@@ -73,18 +72,3 @@ export const eventGeneralFormSchemaWithPaymentAvailability = (
       disabled(option.stripeTaxRateId, () => !paymentAllowed());
     });
   });
-
-export const resetEventGeneralFormPayments = <
-  Model extends EventGeneralFormModel,
->(
-  model: Model,
-): Model => {
-  const registrationOptions = model.registrationOptions.map((option) =>
-    resetRegistrationPayment(option, null, ''),
-  );
-  const unchanged = registrationOptions.every(
-    (option, index) => option === model.registrationOptions[index],
-  );
-
-  return unchanged ? model : { ...model, registrationOptions };
-};

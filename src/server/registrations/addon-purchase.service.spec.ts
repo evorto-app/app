@@ -56,6 +56,7 @@ describe('registration add-on purchase policy', () => {
     expect(
       registrationAddonPurchaseCapacity({
         allowMultiple: true,
+        includedQuantity: 0,
         maxQuantityPerUser: 5,
         optionalPurchaseQuantity: 3,
         pendingOptionalQuantity: 1,
@@ -67,6 +68,7 @@ describe('registration add-on purchase policy', () => {
     expect(
       registrationAddonPurchaseCapacity({
         allowMultiple: true,
+        includedQuantity: 0,
         maxQuantityPerUser: 5,
         optionalPurchaseQuantity: 3,
         pendingOptionalQuantity: 1,
@@ -81,6 +83,7 @@ describe('registration add-on purchase policy', () => {
     expect(
       registrationAddonPurchaseCapacity({
         allowMultiple: false,
+        includedQuantity: 0,
         maxQuantityPerUser: 5,
         optionalPurchaseQuantity: 5,
         pendingOptionalQuantity: 0,
@@ -92,6 +95,7 @@ describe('registration add-on purchase policy', () => {
     expect(
       registrationAddonPurchaseCapacity({
         allowMultiple: true,
+        includedQuantity: 0,
         maxQuantityPerUser: 2,
         optionalPurchaseQuantity: 5,
         pendingOptionalQuantity: 0,
@@ -103,6 +107,7 @@ describe('registration add-on purchase policy', () => {
     expect(
       registrationAddonPurchaseCapacity({
         allowMultiple: true,
+        includedQuantity: 0,
         maxQuantityPerUser: 5,
         optionalPurchaseQuantity: 5,
         pendingOptionalQuantity: 0,
@@ -111,6 +116,33 @@ describe('registration add-on purchase policy', () => {
         stock: 1,
       }),
     ).toBe('out_of_stock');
+  });
+
+  it('accepts the product cap and rejects one unit beyond it', () => {
+    expect(
+      registrationAddonPurchaseCapacity({
+        allowMultiple: true,
+        includedQuantity: 2,
+        maxQuantityPerUser: 10,
+        optionalPurchaseQuantity: 10,
+        pendingOptionalQuantity: 0,
+        purchasedOptionalQuantity: 0,
+        requestedQuantity: 8,
+        stock: 10,
+      }),
+    ).toBe('available');
+    expect(
+      registrationAddonPurchaseCapacity({
+        allowMultiple: true,
+        includedQuantity: 2,
+        maxQuantityPerUser: 10,
+        optionalPurchaseQuantity: 10,
+        pendingOptionalQuantity: 0,
+        purchasedOptionalQuantity: 0,
+        requestedQuantity: 9,
+        stock: 10,
+      }),
+    ).toBe('user_limit_exceeded');
   });
 
   it('derives exact no-tax and Stripe tax amounts before reserving stock', () => {

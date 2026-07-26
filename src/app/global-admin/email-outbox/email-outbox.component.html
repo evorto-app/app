@@ -60,7 +60,6 @@
   @if (
     summary.failed > 0 ||
     summary.staleSending > 0 ||
-    summary.exhausted > 0 ||
     summary.deliveryUnknown > 0
   ) {
     <div class="bg-error-container text-on-error-container mb-4 rounded-lg p-4">
@@ -69,14 +68,15 @@
         <div>
           <h2 class="title-medium">Email delivery status</h2>
           <p class="body-medium">
-            {{ summary.failed }} failed, {{ summary.exhausted }} exhausted,
-            {{ summary.deliveryUnknown }} with an unknown delivery outcome,
-            {{ summary.staleSending }} stuck in sending.
+            {{ summary.failed }} rejected by the provider,
+            {{ summary.deliveryUnknown }} with an unknown delivery outcome, and
+            {{ summary.staleSending }} waiting to be marked unknown after an
+            abandoned delivery.
           </p>
-          @if (summary.exhausted > 0) {
+          @if (summary.failed > 0) {
             <p class="body-medium mt-1">
-              Exhausted emails remain stored as read-only history. Automatic
-              retries have ended; no recovery action is required.
+              Failed emails were explicitly rejected before acceptance. They
+              remain stored as terminal operational evidence.
             </p>
           }
           @if (summary.deliveryUnknown > 0) {
@@ -87,15 +87,6 @@
           }
         </div>
       </div>
-    </div>
-  } @else if (summary.waitingForRetry > 0) {
-    <div
-      class="bg-secondary-container text-on-secondary-container mb-4 rounded-lg p-4"
-    >
-      <h2 class="title-medium">Retry backlog</h2>
-      <p class="body-medium">
-        {{ summary.waitingForRetry }} queued or failed emails are due for retry.
-      </p>
     </div>
   } @else {
     <div
@@ -113,6 +104,11 @@
 
   <section class="grid gap-3">
     <h2 class="title-medium">Delivery details</h2>
+    <p class="text-on-surface-variant body-medium">
+      The summary covers the entire outbox. Details show up to 100 records:
+      failed, unknown, and abandoned deliveries appear before routine records;
+      each group shows the newest first.
+    </p>
     @for (item of overview.items; track item.id) {
       <div class="bg-surface text-on-surface rounded-lg p-4">
         <div class="flex flex-wrap items-start gap-3">
@@ -150,37 +146,61 @@
           </div>
           <div>
             <dt class="text-on-surface-variant text-xs uppercase">Attempts</dt>
-            <dd>{{ item.attempts }}/{{ item.maxAttempts }}</dd>
+            <dd>{{ item.attempts }}</dd>
           </div>
-          @if (item.exhaustedAt) {
+          @if (item.status === "failed") {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
                 Delivery
               </dt>
-              <dd>Automatic retries ended. Stored as read-only history.</dd>
+              <dd>
+                Rejected before provider acceptance. Stored as terminal
+                operational evidence.
+              </dd>
             </div>
-          } @else if (item.deliveryUnknownAt) {
+          } @else if (item.status === "deliveryUnknown") {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
                 Delivery
               </dt>
               <dd>Outcome unknown. Stored read-only; no automatic retry.</dd>
+              @if (!item.deliveryUnknownAt) {
+                <dd>Invalid record: missing unknown-outcome timestamp.</dd>
+              }
             </div>
-          } @else if (item.suppressedAt) {
+          } @else if (item.status === "suppressed") {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
                 Delivery
               </dt>
               <dd>Suppressed by the protected staging recipient allowlist.</dd>
+              @if (!item.suppressedAt) {
+                <dd>Invalid record: missing suppression timestamp.</dd>
+              }
+            </div>
+          } @else if (item.status === "sending") {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Delivery
+              </dt>
+              <dd>
+                Delivery attempt recorded. It will settle once or become
+                unknown; it will not be resent.
+              </dd>
+            </div>
+          } @else if (item.status === "queued") {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Delivery
+              </dt>
+              <dd>Waiting for its single provider request.</dd>
             </div>
           } @else {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
-                Next attempt
+                Delivery
               </dt>
-              <dd>
-                {{ item.nextAttemptAt | date: "medium" : item.tenantTimezone }}
-              </dd>
+              <dd>Invalid unresolved delivery status.</dd>
             </div>
           }
           <div>
@@ -216,21 +236,11 @@
               <dd class="break-words">{{ item.lastError }}</dd>
             </div>
           }
-          @if (item.exhaustedAt) {
-            <div>
-              <dt class="text-on-surface-variant text-xs uppercase">
-                Retries ended
-              </dt>
-              <dd>
-                {{ item.exhaustedAt | date: "medium" : item.tenantTimezone }}
-              </dd>
-            </div>
-          }
         </dl>
       </div>
     } @empty {
       <div class="bg-surface text-on-surface rounded-lg p-4">
-        <p class="body-medium">No queued, sending, or failed emails.</p>
+        <p class="body-medium">No unresolved email delivery records.</p>
       </div>
     }
   </section>

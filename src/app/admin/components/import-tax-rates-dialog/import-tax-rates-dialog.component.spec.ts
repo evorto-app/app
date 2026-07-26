@@ -20,6 +20,7 @@ describe('taxRateImportActionDisabled', () => {
     expect(
       taxRateImportActionDisabled({
         mutationPending: false,
+        ratesReady: true,
         selectedCount: 0,
       }),
     ).toBe(true);
@@ -29,6 +30,7 @@ describe('taxRateImportActionDisabled', () => {
     expect(
       taxRateImportActionDisabled({
         mutationPending: true,
+        ratesReady: true,
         selectedCount: 1,
       }),
     ).toBe(true);
@@ -38,8 +40,19 @@ describe('taxRateImportActionDisabled', () => {
     expect(
       taxRateImportActionDisabled({
         mutationPending: false,
+        ratesReady: true,
         selectedCount: 1,
       }),
     ).toBe(false);
+  });
+
+  it('blocks import when the provider catalog is unavailable', () => {
+    expect(
+      taxRateImportActionDisabled({
+        mutationPending: false,
+        ratesReady: false,
+        selectedCount: 1,
+      }),
+    ).toBe(true);
   });
 });

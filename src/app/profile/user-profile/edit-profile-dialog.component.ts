@@ -7,9 +7,9 @@ import {
 import {
   form,
   FormField,
-  pattern,
   required,
   submit,
+  validate,
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
@@ -22,7 +22,11 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { notificationEmailPattern } from '@shared/notification-email';
+import { isValidIbanInput, normalizeIban } from '@shared/iban';
+import {
+  isValidEmailAddressInput,
+  normalizeEmailAddress,
+} from '@shared/notification-email';
 
 export interface EditProfileDialogData {
   communicationEmail: string;
@@ -47,11 +51,11 @@ export const editProfileDialogResultFromFormValue = (formValue: {
   lastName: string;
   paypalEmail: string;
 }): EditProfileDialogResult => ({
-  communicationEmail: formValue.communicationEmail.trim(),
+  communicationEmail: normalizeEmailAddress(formValue.communicationEmail),
   firstName: formValue.firstName.trim(),
-  iban: formValue.iban.trim() || null,
+  iban: normalizeIban(formValue.iban) || null,
   lastName: formValue.lastName.trim(),
-  paypalEmail: formValue.paypalEmail.trim() || null,
+  paypalEmail: normalizeEmailAddress(formValue.paypalEmail) || null,
 });
 
 @Component({
@@ -81,9 +85,33 @@ export class EditProfileDialogComponent {
   });
   protected readonly profileForm = form(this.profileModel, (schemaPath) => {
     required(schemaPath.communicationEmail);
-    pattern(schemaPath.communicationEmail, notificationEmailPattern);
+    validate(schemaPath.communicationEmail, ({ value }) =>
+      isValidEmailAddressInput(value())
+        ? undefined
+        : {
+            kind: 'email',
+            message: 'Enter a valid notification email address.',
+          },
+    );
     required(schemaPath.firstName);
+    validate(schemaPath.iban, ({ value }) =>
+      normalizeIban(value()).length === 0 || isValidIbanInput(value())
+        ? undefined
+        : {
+            kind: 'iban',
+            message: 'Enter a valid IBAN.',
+          },
+    );
     required(schemaPath.lastName);
+    validate(schemaPath.paypalEmail, ({ value }) =>
+      normalizeEmailAddress(value()).length === 0 ||
+      isValidEmailAddressInput(value())
+        ? undefined
+        : {
+            kind: 'email',
+            message: 'Enter a valid PayPal email address.',
+          },
+    );
   });
   private readonly dialogRef = inject(MatDialogRef<EditProfileDialogComponent>);
 

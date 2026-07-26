@@ -57,7 +57,7 @@ test('Review and reimburse receipts @finance', async ({
       .update(schema.users)
       .set({
         communicationEmail: organizerCommunicationEmail,
-        iban: 'DE00123456781234567890',
+        iban: 'DE89370400440532013000',
         paypalEmail: 'organizer-refunds@example.com',
       })
       .where(eq(schema.users.id, organizerUser.id));
@@ -96,7 +96,9 @@ test('Review and reimburse receipts @finance', async ({
         hasDeposit: true,
         id: receiptId,
         purchaseCountry: 'DE',
-        receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2),
+        receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2)
+          .toISOString()
+          .slice(0, 10),
         status: 'submitted',
         submittedByUserId: organizerUser.id,
         taxAmount: 0,
@@ -116,7 +118,9 @@ test('Review and reimburse receipts @finance', async ({
         hasDeposit: false,
         id: missingEvidenceReceiptId,
         purchaseCountry: 'DE',
-        receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24),
+        receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24)
+          .toISOString()
+          .slice(0, 10),
         status: 'submitted',
         submittedByUserId: organizerUser.id,
         taxAmount: 100,
@@ -327,7 +331,7 @@ After approval, return to **Finances** and open **Receipt reimbursements**. The 
       has: page.getByText(receiptFileName),
     });
     await expect(
-      reimbursementSection.getByText('IBAN: DE00123456781234567890'),
+      reimbursementSection.getByText('IBAN: DE89370400440532013000'),
     ).toBeVisible();
     await expect(
       reimbursementSection.getByText('PayPal: organizer-refunds@example.com'),

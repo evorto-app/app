@@ -28,7 +28,6 @@ type GlobalAdminTenantDocRow = Pick<
   | 'currency'
   | 'domain'
   | 'id'
-  | 'locale'
   | 'name'
   | 'stripeAccountId'
   | 'theme'
@@ -41,13 +40,11 @@ const expectGlobalAdminTenantRows = async (
 ) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
-  await expect(page.getByText('Locale').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText(tenant.domain).first()).toBeVisible();
   await expect(page.getByText(tenant.theme).first()).toBeVisible();
-  await expect(page.getByText(tenant.locale).first()).toBeVisible();
   await expect(page.getByText(tenant.currency).first()).toBeVisible();
   await expect(page.getByText(tenant.timezone).first()).toBeVisible();
   if (tenant.stripeAccountId) {
@@ -224,7 +221,6 @@ Platform administrators can review, create, and edit organizations from **Platfo
       expect.objectContaining({
         currency: 'EUR',
         domain: createdTenantDomain,
-        locale: 'de-DE',
         name: createdTenantName,
         stripeAccountId: null,
         theme: 'evorto',
@@ -340,13 +336,13 @@ Platform administrators can review, create, and edit organizations from **Platfo
       body: `
 ## Organization settings and safeguards
 
-The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, locale, currency, timezone, and Stripe connection. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
+The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, currency, timezone, and Stripe connection. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
 
 Create and edit manage the primary domain, name, theme, currency, timezone, and connected Stripe account. Paid event registrations and add-ons are Stripe-only, so a connected Stripe account cannot be removed while a paid template, event option, or add-on still exists. Convert those configurations to free first. Domains must be unique host names without paths, queries, fragments, credentials, or custom ports.
 
 A public-domain change is rejected while pending payments, refunds, or registration transfers still depend on existing links. Keep the old domain redirecting to the new one so issued links and QR codes continue to work.
 
-Each platform change requires an operator reason. The audit log shows who made the change, the organization, the action, the reason, and when it happened. Platform authority remains separate from organization membership.
+Each platform change requires an operator reason. The audit log shows the actor email and authority ID, organization name and ID, action, reason, time, and safe resource before/after details such as permission changes. Raw provider payloads and errors are not displayed. The newest 50 entries load first; use **Load older** to continue through the append-only history. Platform authority remains separate from organization membership.
 
 The create journey also checks domain safeguards before saving: domains with paths are rejected, and duplicate primary domains return a visible error while keeping the form intact.
 `,

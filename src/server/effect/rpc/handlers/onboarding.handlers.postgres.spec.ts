@@ -59,7 +59,6 @@ const createRequestContext = (input: {
     },
     domain: `${tenantId}.onboarding.example`,
     id: tenantId,
-    locale: 'de-DE',
     name: 'Onboarding role assignment tenant',
     receiptSettings: {
       allowOther: false,

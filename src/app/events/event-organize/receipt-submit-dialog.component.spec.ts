@@ -15,7 +15,7 @@ const formValue: ReceiptSubmitFormValue = {
   hasAlcohol: true,
   hasDeposit: true,
   purchaseCountry: 'DE',
-  receiptDate: new Date('2026-05-20T12:00:00.000Z'),
+  receiptDate: '2026-05-20',
   taxAmount: 3.45,
   totalAmount: 12.34,
 };
@@ -131,10 +131,58 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formInvalid: false,
         formValue: {
           ...formValue,
-          receiptDate: new Date('invalid'),
+          receiptDate: '2026-02-30',
         },
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Invalid receipt date.');
+    ).toBe('Enter a valid receipt date in YYYY-MM-DD format.');
+  });
+
+  it('rejects precision loss, zero totals, and contradictory optional amounts', () => {
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: receiptFile,
+        formInvalid: false,
+        formValue: {
+          ...formValue,
+          totalAmount: 12.345,
+        },
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe('Enter amounts with no more than two decimal places.');
+
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: receiptFile,
+        formInvalid: false,
+        formValue: {
+          ...formValue,
+          alcoholAmount: 0,
+          depositAmount: 0,
+          hasAlcohol: false,
+          hasDeposit: false,
+          totalAmount: 0,
+        },
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe('Total amount must be at least 0.01 and within the allowed range.');
+
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: receiptFile,
+        formInvalid: false,
+        formValue: {
+          ...formValue,
+          depositAmount: 2.34,
+          hasDeposit: false,
+        },
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe(
+      'Deposit amount must be positive when a deposit is included and zero otherwise.',
+    );
   });
 });

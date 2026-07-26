@@ -132,14 +132,11 @@ describe('resumeRegistrationTransferCheckout', () => {
         });
         expect(error).toBeInstanceOf(RegistrationTransferInternalError);
         expect(error).toMatchObject({
-          cause: {
-            _tag: 'StripeCheckoutError',
-            cause: expiryCause,
-          },
           message: expect.stringContaining(
             'unbound Checkout session could not be expired',
           ),
         });
+        expect(error).not.toHaveProperty('cause');
       }),
   );
 });

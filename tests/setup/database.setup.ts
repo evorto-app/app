@@ -16,9 +16,11 @@ setup('Setup database', async ({ database, seedDate }) => {
   await reset(database, schema);
   const runId = init({ length: 10 })();
   const result = await seedTenant(database, {
+    currency: 'EUR',
     domain: 'localhost',
     ensureUsers: true,
     logSeedMap: true,
+    name: `E2E ${runId}`,
     profile: 'docs',
     runId,
     seedDate,

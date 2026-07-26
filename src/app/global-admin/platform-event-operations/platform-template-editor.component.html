@@ -181,9 +181,23 @@
             {{ modeBlockMessage() }}
           </p>
         }
-        <mat-checkbox [formField]="templateForm.unlisted">
-          Hide this template from the standard template list
-        </mat-checkbox>
+        <mat-form-field class="w-full">
+          <mat-label>Default event listing audience</mat-label>
+          <mat-select [formField]="templateForm.listingAudience">
+            @for (audience of eventListingAudiences; track audience) {
+              <mat-option [value]="audience">
+                {{ eventListingAudienceLabel(audience) }}
+              </mat-option>
+            }
+          </mat-select>
+          <mat-hint>
+            {{
+              eventListingAudienceDescriptions[
+                templateForm.listingAudience().value()
+              ]
+            }}
+          </mat-hint>
+        </mat-form-field>
       </div>
     </section>
 
@@ -240,11 +254,17 @@
               be found. Existing payment data is preserved.
             </p>
           } @else if (stripeDisconnected()) {
-            <p class="body-small text-on-surface-variant mt-2" role="status">
-              Paid controls are unavailable because the organization has no
-              connected Stripe account. Saving keeps registration options and
-              add-ons free.
-            </p>
+            @if (paidGraphBlocked()) {
+              <p class="body-small text-error mt-2" role="alert">
+                Existing paid registration and add-on data is preserved. This
+                template cannot be saved until Stripe is connected again.
+              </p>
+            } @else {
+              <p class="body-small text-on-surface-variant mt-2" role="status">
+                Paid controls are unavailable because the organization has no
+                connected Stripe account.
+              </p>
+            }
           }
           @if (stripeConnected() && taxRatesQuery.isPending()) {
             <p class="body-small text-on-surface-variant mt-2" role="status">
@@ -501,7 +521,7 @@
                       registration.stripeTaxRateId().value();
                       as selectedTaxRateId
                     ) {
-                      @if (!taxRateIsAvailable(selectedTaxRateId)) {
+                      @if (taxRateIsAvailable(selectedTaxRateId) === false) {
                         <mat-option [value]="selectedTaxRateId">
                           Previously selected tax rate (no longer available)
                         </mat-option>
@@ -513,12 +533,16 @@
                       <mat-option disabled>
                         Stripe tax rates are unavailable
                       </mat-option>
-                    } @else {
-                      @for (rate of availableTaxRates(); track rate.id) {
+                    } @else if (availableTaxRates(); as resolvedTaxRates) {
+                      @for (rate of resolvedTaxRates; track rate.id) {
                         <mat-option [value]="rate.id">
                           {{ taxRateLabel(rate) }}
                         </mat-option>
                       }
+                    } @else {
+                      <mat-option disabled>
+                        Tax-rate state is inconsistent; reload the page
+                      </mat-option>
                     }
                   </mat-select>
                   <mat-hint>
@@ -573,14 +597,25 @@
               Reusable add-ons
             </h2>
             <p class="body-small text-on-surface-variant mt-1">
-              Purchase windows and quantities are saved exactly as configured.
+              Purchase windows and quantities are saved exactly as configured. A
+              template supports up to {{ maxEventAddonTypes }} add-on types.
             </p>
           </div>
-          <button mat-button type="button" (click)="addAddOn()">
+          <button
+            mat-button
+            type="button"
+            [disabled]="templateForm.addOns.length >= maxEventAddonTypes"
+            (click)="addAddOn()"
+          >
             <fa-duotone-icon [icon]="faPlus" />
             Add add-on
           </button>
         </div>
+        @for (error of templateForm.addOns().errors(); track error) {
+          <p class="body-small text-error" role="alert">
+            {{ error.message }}
+          </p>
+        }
 
         <div class="grid gap-6">
           @for (addOn of templateForm.addOns; track addOn; let index = $index) {
@@ -641,6 +676,10 @@
                     Add registration option
                   </button>
                 </div>
+                <p class="body-small text-on-surface-variant">
+                  Included and optional quantities together cannot exceed
+                  {{ maxRegistrationAddonQuantity }} per registration.
+                </p>
                 @for (
                   mapping of addOn.registrationOptions;
                   track mapping;
@@ -673,6 +712,7 @@
                       <input
                         matInput
                         type="number"
+                        step="1"
                         [formField]="mapping.includedQuantity"
                       />
                       @for (
@@ -687,6 +727,7 @@
                       <input
                         matInput
                         type="number"
+                        step="1"
                         [formField]="mapping.optionalPurchaseQuantity"
                       />
                       @for (
@@ -727,6 +768,7 @@
                   <input
                     matInput
                     type="number"
+                    step="1"
                     [formField]="addOn.totalAvailableQuantity"
                   />
                   @for (
@@ -741,8 +783,13 @@
                   <input
                     matInput
                     type="number"
+                    step="1"
                     [formField]="addOn.maxQuantityPerUser"
                   />
+                  <mat-hint>
+                    At most {{ maxRegistrationAddonQuantity }} units per
+                    registration.
+                  </mat-hint>
                   @for (
                     error of addOn.maxQuantityPerUser().errors();
                     track error
@@ -796,7 +843,7 @@
                         addOn.stripeTaxRateId().value();
                         as selectedTaxRateId
                       ) {
-                        @if (!taxRateIsAvailable(selectedTaxRateId)) {
+                        @if (taxRateIsAvailable(selectedTaxRateId) === false) {
                           <mat-option [value]="selectedTaxRateId">
                             Previously selected tax rate (no longer available)
                           </mat-option>
@@ -808,12 +855,16 @@
                         <mat-option disabled>
                           Stripe tax rates are unavailable
                         </mat-option>
-                      } @else {
-                        @for (rate of availableTaxRates(); track rate.id) {
+                      } @else if (availableTaxRates(); as resolvedTaxRates) {
+                        @for (rate of resolvedTaxRates; track rate.id) {
                           <mat-option [value]="rate.id">
                             {{ taxRateLabel(rate) }}
                           </mat-option>
                         }
+                      } @else {
+                        <mat-option disabled>
+                          Tax-rate state is inconsistent; reload the page
+                        </mat-option>
                       }
                     </mat-select>
                     @for (
@@ -843,7 +894,15 @@
         <h2 id="template-questions-title" class="title-medium">
           Registration questions
         </h2>
-        <button mat-button type="button" (click)="addQuestion()">
+        <button
+          mat-button
+          type="button"
+          [disabled]="
+            templateModel().registrationOptions.length === 0 ||
+            templateModel().questions.length >= maxRegistrationQuestions
+          "
+          (click)="addQuestion()"
+        >
           <fa-duotone-icon [icon]="faPlus" />
           Add question
         </button>
@@ -920,6 +979,12 @@
             No registration questions configured.
           </p>
         }
+        @if (templateModel().questions.length >= maxRegistrationQuestions) {
+          <p class="body-small text-on-surface-variant">
+            This template has the maximum {{ maxRegistrationQuestions }}
+            registration questions.
+          </p>
+        }
       </div>
     </section>
 
@@ -954,6 +1019,8 @@
             templateForm().invalid() ||
             templateForm().submitting() ||
             !editorDataReady() ||
+            paidGraphBlocked() ||
+            !taxRatesReady() ||
             mutationPending()
           "
         >

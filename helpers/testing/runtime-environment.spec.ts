@@ -43,6 +43,19 @@ describe('runtime environment ports', () => {
     });
   });
 
+  it.each(['', '4200x', '1023', '65536'])(
+    'rejects invalid explicit APP_HOST_PORT=%j instead of falling back',
+    (appHostPort) => {
+      expect(() =>
+        resolveRuntimePorts('invalid-app-port', {
+          APP_HOST_PORT: appHostPort,
+        }),
+      ).toThrow(
+        `APP_HOST_PORT must be an integer from 1024 through 65535; received ${JSON.stringify(appHostPort)}`,
+      );
+    },
+  );
+
   it('fails clearly when explicit overrides reuse a host port', () => {
     expect(() =>
       resolveRuntimePorts('conflicting-overrides', {

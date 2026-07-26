@@ -1,74 +1,23 @@
-import type { Headers } from 'effect/unstable/http';
-
-import {
-  RpcForbiddenError,
-  RpcUnauthorizedError,
-} from '@shared/errors/rpc-errors';
 import { TemplateCategoryNotFoundError } from '@shared/rpc-contracts/app-rpcs/template-categories.errors';
 import { and, eq } from 'drizzle-orm';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { eventTemplateCategories } from '../../../../db/schema';
-import {
-  includesPermission,
-  type Permission,
-} from '../../../../shared/permissions/permissions';
-import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { Tenant } from '../../../../types/custom/tenant';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
-const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
-  value: string | undefined,
-  schema: S,
-): S['Type'] =>
-  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, RpcUnauthorizedError> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-
-const ensurePermission = (
-  headers: Headers.Headers,
-  permission: Permission,
-): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
-  Effect.gen(function* () {
-    yield* ensureAuthenticated(headers);
-    const currentPermissions = decodeHeaderJson(
-      headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
-      ConfigPermissions,
-    );
-
-    if (!includesPermission(permission, currentPermissions)) {
-      return yield* Effect.fail(
-        new RpcForbiddenError({ message: 'Forbidden', permission }),
-      );
-    }
-  });
-
 export const templateCategoryHandlers = {
-  'templateCategories.create': ({ icon, title }, options) =>
+  'templateCategories.create': ({ icon, title }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'templates:manageCategories');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('templates:manageCategories');
+      const { tenant } = yield* RpcAccess.current();
 
       yield* databaseEffect((database) =>
         database.insert(eventTemplateCategories).values({
@@ -78,13 +27,10 @@ export const templateCategoryHandlers = {
         }),
       );
     }),
-  'templateCategories.findMany': (_payload, options) =>
+  'templateCategories.findMany': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
       const templateCategories = yield* databaseEffect((database) =>
         database.query.eventTemplateCategories.findMany({
           columns: {
@@ -98,13 +44,10 @@ export const templateCategoryHandlers = {
 
       return templateCategories;
     }),
-  'templateCategories.update': ({ icon, id, title }, options) =>
+  'templateCategories.update': ({ icon, id, title }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'templates:manageCategories');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('templates:manageCategories');
+      const { tenant } = yield* RpcAccess.current();
       const updatedCategories = yield* databaseEffect((database) =>
         database
           .update(eventTemplateCategories)

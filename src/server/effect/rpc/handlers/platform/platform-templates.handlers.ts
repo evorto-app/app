@@ -1,10 +1,14 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { EventListingAudience } from '@shared/event-listing-audience';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import {
   type PlatformTemplatesCreateInput,
   type PlatformTemplatesUpdateInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import { type TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
+import {
+  type TemplateGraphRecord,
+  TemplateRegistrationMode,
+} from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import { and, asc, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -39,7 +43,7 @@ const PlatformTemplateAuditRegistrationOption = Schema.Struct({
   organizingRegistration: Schema.Boolean,
   price: Schema.Number,
   refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
-  registrationMode: Schema.Literals(['application', 'fcfs', 'random']),
+  registrationMode: TemplateRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
@@ -81,13 +85,13 @@ const PlatformTemplateAuditState = Schema.Struct({
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
+  listingAudience: EventListingAudience,
   locationName: Schema.NullOr(Schema.String),
   planningTips: Schema.NullOr(Schema.String),
   questions: Schema.Array(PlatformTemplateAuditQuestion),
   registrationOptions: Schema.Array(PlatformTemplateAuditRegistrationOption),
   simpleModeEnabled: Schema.Boolean,
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 const databaseEffect = <A, R>(
@@ -129,6 +133,7 @@ export const platformTemplateAuditSnapshot = (
     categoryId: template.categoryId,
     description: template.description,
     id: template.id,
+    listingAudience: template.listingAudience,
     locationName: template.location?.name ?? null,
     planningTips: template.planningTips,
     questions: template.questions.map((question) => ({
@@ -158,7 +163,6 @@ export const platformTemplateAuditSnapshot = (
     })),
     simpleModeEnabled: template.simpleModeEnabled,
     title: template.title,
-    unlisted: template.unlisted,
   }),
 });
 

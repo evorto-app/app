@@ -1,5 +1,7 @@
 import type { TemplateFindOneRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -95,5 +97,28 @@ describe('template detail add-on helpers', () => {
     expect(
       templateRegistrationOptionTitle(createTemplate(), 'missing-option'),
     ).toBe('Broken registration option configuration');
+  });
+
+  it('surfaces unavailable tax details instead of treating the provider result as empty', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/templates/template-details/template-details.component.ts',
+      ),
+      'utf8',
+    );
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/templates/template-details/template-details.component.html',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain(
+      'if (!this.taxRatesQuery.isSuccess()) return null',
+    );
+    expect(template).toContain('Tax details could not be loaded.');
+    expect(template).toContain('taxRatesQuery.refetch()');
   });
 });

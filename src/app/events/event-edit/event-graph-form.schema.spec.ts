@@ -1,6 +1,10 @@
 import { Injector, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -129,6 +133,77 @@ describe('eventGraphFormSchema', () => {
 
     expect(price().hidden()).toBe(true);
     expect(price().errors()).toEqual([]);
+  });
+
+  it('accepts add-on quantity caps and rejects cap plus one', () => {
+    const model = createEmptyEventGraphFormModel('Europe/Berlin');
+    const option = createEventGraphRegistrationOption(model);
+    const addOn = createEventGraphAddon(option.key);
+    const mapping = addOn.registrationOptions[0];
+    if (!mapping) throw new Error('Expected an add-on mapping');
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    mapping.includedQuantity = 4;
+    mapping.optionalPurchaseQuantity = MAX_REGISTRATION_ADDON_QUANTITY - 4;
+    model.registrationOptions = [option];
+    model.addOns = [addOn];
+
+    const graph = form(signal(model), eventGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(graph.addOns[0].maxQuantityPerUser().errors()).toEqual([]);
+    expect(
+      graph.addOns[0].registrationOptions[0].includedQuantity().errors(),
+    ).toEqual([]);
+
+    graph.addOns[0]
+      .maxQuantityPerUser()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY + 1);
+    expect(
+      graph.addOns[0]
+        .maxQuantityPerUser()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Maximum optional units cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`,
+    );
+
+    graph.addOns[0]
+      .maxQuantityPerUser()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY);
+    graph.addOns[0].registrationOptions[0]
+      .optionalPurchaseQuantity()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY - 3);
+    expect(
+      graph.addOns[0].registrationOptions[0]
+        .includedQuantity()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per registration.`,
+    );
+  });
+
+  it('accepts the add-on type cap and rejects cap plus one', () => {
+    const model = createEmptyEventGraphFormModel('Europe/Berlin');
+    model.addOns = Array.from({ length: MAX_EVENT_ADDON_TYPES }, () =>
+      createEventGraphAddon(),
+    );
+    const graph = form(signal(model), eventGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(graph.addOns().errors()).toEqual([]);
+
+    graph.addOns().value.set([...model.addOns, createEventGraphAddon()]);
+    expect(
+      graph
+        .addOns()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Events support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+    );
   });
 
   it('rejects cleared required dates and graph numbers without throwing', () => {

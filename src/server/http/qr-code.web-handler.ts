@@ -190,6 +190,7 @@ export const handleQrRegistrationCodeWebRequest = (
     const imageBytes = new Uint8Array(imageBuffer);
     return new Response(imageBytes, {
       headers: {
+        'Cache-Control': 'private, no-store',
         'Content-Type': 'image/png',
       },
       status: 200,

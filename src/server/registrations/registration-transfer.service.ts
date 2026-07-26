@@ -33,6 +33,11 @@ import {
   users,
   usersToTenants,
 } from '@db/schema';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
 import { registrationTransferAddonAllocationKey } from '@shared/registration-transfer';
 import {
   RegistrationTransferConflictError,
@@ -77,6 +82,7 @@ import {
   processRegistrationRefundClaim,
 } from '../payments/registration-refund';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
+import { safeServerErrorSummary } from '../utils/safe-server-error-summary';
 import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
@@ -85,11 +91,12 @@ import {
   completePaidRegistrationCheckout,
   registrationCheckoutInitialReconcileAt,
 } from './registration-checkout-completion';
-import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
+import { registrationCheckoutHasTooManyLines } from './registration-checkout-lines';
 import {
-  createRegistrationTransferCredentials,
-  registrationTransferCredentialHashes,
-} from './registration-transfer-credentials';
+  createRegistrationTransferClaimCode,
+  hashRegistrationTransferClaimCode,
+} from './registration-transfer-claim-code';
+import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
 import { expireRegistrationTransferCheckout } from './registration-transfer-finalization';
 import {
   registrationTransferBasePrice,
@@ -110,7 +117,7 @@ interface CancelRegistrationTransferInput {
 
 interface ClaimRegistrationTransferInput {
   readonly answers: readonly RegistrationTransferAnswerInput[];
-  readonly credential: string;
+  readonly claimCode: string;
   readonly tenant: TransferTenant;
   readonly user: TransferUser;
 }
@@ -122,7 +129,7 @@ interface CreateRegistrationTransferOfferInput {
 }
 
 interface GetRegistrationTransferClaimInput {
-  readonly credential: string;
+  readonly claimCode: string;
   readonly tenant: TransferTenant;
   readonly user: TransferUser;
 }
@@ -178,16 +185,39 @@ type TransferUser = Pick<
   'communicationEmail' | 'email' | 'id' | 'roleIds'
 >;
 
+const mapRegistrationTransferInternalError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, RegistrationTransferInternalError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logError(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => new RegistrationTransferInternalError({ message })),
+    );
+
+const failRegistrationTransferInternalError = (
+  operation: string,
+  message: string,
+  error: unknown,
+) =>
+  Effect.logError(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(
+      Effect.fail(new RegistrationTransferInternalError({ message })),
+    ),
+  );
+
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, RegistrationTransferInternalError, Database> =>
   Database.use((database) => operation(database)).pipe(
-    Effect.mapError(
-      (cause) =>
-        new RegistrationTransferInternalError({
-          cause,
-          message: 'Registration transfer storage failed',
-        }),
+    mapRegistrationTransferInternalError(
+      'registrationTransfer.storage',
+      'Registration transfer storage failed',
     ),
   );
 
@@ -255,13 +285,9 @@ export const resumeRegistrationTransferCheckout = Effect.fn(
       stripeAccount: paymentClaim.stripeAccountId,
     },
   ).pipe(
-    Effect.mapError(
-      (error) =>
-        new RegistrationTransferInternalError({
-          cause: error,
-          message:
-            'Transfer payment setup is still pending. Retry without creating another transfer.',
-        }),
+    mapRegistrationTransferInternalError(
+      'registrationTransfer.checkout.create',
+      'Transfer payment setup is still pending. Retry without creating another transfer.',
     ),
   );
   if (!session.url) {
@@ -325,13 +351,9 @@ export const resumeRegistrationTransferCheckout = Effect.fn(
       session.id,
       paymentClaim.stripeAccountId,
     ).pipe(
-      Effect.mapError(
-        (cause) =>
-          new RegistrationTransferInternalError({
-            cause,
-            message:
-              'Transfer payment state changed before Checkout was ready, and the unbound Checkout session could not be expired.',
-          }),
+      mapRegistrationTransferInternalError(
+        'registrationTransfer.checkout.expireUnbound',
+        'Transfer payment state changed before Checkout was ready, and the unbound Checkout session could not be expired.',
       ),
     );
     return yield* new RegistrationTransferConflictError({
@@ -522,7 +544,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
           new RegistrationTransferConflictError({ message: error.message }),
       ),
     );
-    const credentials = createRegistrationTransferCredentials();
+    const claimCredential = createRegistrationTransferClaimCode();
 
     const transferResult = yield* Database.use((database) =>
       database
@@ -1037,17 +1059,13 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             const priorRefundedBySource =
               priorRefundResolution.refundedBySourceTransactionId;
 
-            const claimUrl = yield* tenantOutboundUrl(
+            const claimPageUrl = yield* tenantOutboundUrl(
               lockedTenant,
-              `/registration-transfers/${encodeURIComponent(credentials.claimToken)}`,
+              '/registration-transfers',
             ).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new RegistrationTransferInternalError({
-                    cause,
-                    message:
-                      'Registration transfer claim URL could not be created',
-                  }),
+              mapRegistrationTransferInternalError(
+                'registrationTransfer.offer.claimUrl',
+                'Registration transfer claim URL could not be created',
               ),
             );
             const offerInsertNow = getServerNow(undefined).toJSDate();
@@ -1060,8 +1078,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             const inserted = yield* tx
               .insert(registrationTransfers)
               .values({
-                claimCodeHash: credentials.claimCodeHash,
-                claimTokenHash: credentials.claimTokenHash,
+                claimCodeHash: claimCredential.claimCodeHash,
                 eventId: lockedSource.eventId,
                 expiresAt: lockedExpiresAt,
                 registrationOptionId: lockedSource.registrationOptionId,
@@ -1199,7 +1216,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               transferId: transfer.id,
             });
             return {
-              claimUrl,
+              claimPageUrl,
               expiresAt: lockedExpiresAt,
               transferRows: inserted,
             };
@@ -1228,11 +1245,10 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               ) {
                 return Effect.fail(error);
               }
-              return Effect.fail(
-                new RegistrationTransferInternalError({
-                  cause: error,
-                  message: 'Registration transfer offer could not be saved',
-                }),
+              return failRegistrationTransferInternalError(
+                'registrationTransfer.offer.persist',
+                'Registration transfer offer could not be saved',
+                error,
               );
             },
           ),
@@ -1245,8 +1261,8 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
     }
 
     return RegistrationTransferOfferResult.make({
-      claimCode: credentials.claimCode,
-      claimUrl: transferResult.claimUrl,
+      claimCode: claimCredential.claimCode,
+      claimPageUrl: transferResult.claimPageUrl,
       expiresAt: transferResult.expiresAt.toISOString(),
       status: 'open' as const,
     });
@@ -1254,11 +1270,11 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
 );
 
 const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
-  credential,
+  claimCode,
   tenant,
   user,
 }: GetRegistrationTransferClaimInput) {
-  const credentialHashes = registrationTransferCredentialHashes(credential);
+  const claimCodeHash = hashRegistrationTransferClaimCode(claimCode);
   const transferRows = yield* databaseEffect((database) =>
     database
       .select({
@@ -1310,10 +1326,7 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
       .where(
         and(
           eq(registrationTransfers.tenantId, tenant.id),
-          or(
-            inArray(registrationTransfers.claimTokenHash, credentialHashes),
-            inArray(registrationTransfers.claimCodeHash, credentialHashes),
-          ),
+          eq(registrationTransfers.claimCodeHash, claimCodeHash),
         ),
       )
       .limit(1),
@@ -1697,13 +1710,9 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
         preflight.stripeCheckoutSessionId,
         preflight.stripeAccountId,
       ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new RegistrationTransferInternalError({
-              cause,
-              message:
-                'Checkout cancellation could not be confirmed. The source registration and transfer remain unchanged.',
-            }),
+        mapRegistrationTransferInternalError(
+          'registrationTransfer.cancel.checkout.retrieve',
+          'Checkout cancellation could not be confirmed. The source registration and transfer remain unchanged.',
         ),
       );
       if (checkoutSession.status === 'complete') {
@@ -1719,13 +1728,9 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
               preflight.stripeCheckoutSessionId,
               preflight.stripeAccountId,
             ).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new RegistrationTransferInternalError({
-                    cause,
-                    message:
-                      'Checkout cancellation could not be confirmed. The source registration and transfer remain unchanged.',
-                  }),
+              mapRegistrationTransferInternalError(
+                'registrationTransfer.cancel.checkout.expire',
+                'Checkout cancellation could not be confirmed. The source registration and transfer remain unchanged.',
               ),
             );
       if (expiredSession.status !== 'expired') {
@@ -1926,11 +1931,10 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
         Effect.catch((error) =>
           error instanceof RegistrationTransferInternalError
             ? Effect.fail(error)
-            : Effect.fail(
-                new RegistrationTransferInternalError({
-                  cause: error,
-                  message: 'Registration transfer cancellation failed',
-                }),
+            : failRegistrationTransferInternalError(
+                'registrationTransfer.cancel.persist',
+                'Registration transfer cancellation failed',
+                error,
               ),
         ),
       ),
@@ -1945,12 +1949,12 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
 
 const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
   answers,
-  credential,
+  claimCode,
   tenant,
   user,
 }: ClaimRegistrationTransferInput) {
   const now = getServerNow(undefined).toJSDate();
-  const credentialHashes = registrationTransferCredentialHashes(credential);
+  const claimCodeHash = hashRegistrationTransferClaimCode(claimCode);
   const claimRows = yield* databaseEffect((database) =>
     database
       .select({
@@ -1995,10 +1999,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
       .where(
         and(
           eq(registrationTransfers.tenantId, tenant.id),
-          or(
-            inArray(registrationTransfers.claimTokenHash, credentialHashes),
-            inArray(registrationTransfers.claimCodeHash, credentialHashes),
-          ),
+          eq(registrationTransfers.claimCodeHash, claimCodeHash),
         ),
       )
       .limit(1),
@@ -2123,6 +2124,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
   const paymentTransactionId = createId();
   const recipientSpotCount = transfer.sourceSpotCount;
   const guestCount = transfer.sourceSpotCount - 1;
+  if (guestCount < 0 || guestCount > MAX_REGISTRATION_GUESTS) {
+    return yield* new RegistrationTransferConflictError({
+      message: 'Transfer guest quantity exceeds the supported limit',
+    });
+  }
 
   const claimResult = yield* Database.use((database) =>
     database
@@ -2243,6 +2249,18 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             )
             .orderBy(registrationTransferBundleAddonPurchases.sourcePurchaseId)
             .for('update');
+          if (
+            bundleSnapshots.some(
+              (snapshot) =>
+                snapshot.quantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+                snapshot.includedQuantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+                snapshot.purchasedQuantity > MAX_REGISTRATION_ADDON_QUANTITY,
+            )
+          ) {
+            return yield* new RegistrationTransferConflictError({
+              message: 'Transfer add-on quantities exceed supported limits',
+            });
+          }
           const sourceFulfillment = yield* tx
             .select({
               addonId: eventRegistrationAddonPurchases.addonId,
@@ -2409,12 +2427,9 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             lockedTenant,
             `/events/${encodeURIComponent(transfer.eventId)}`,
           ).pipe(
-            Effect.mapError(
-              (cause) =>
-                new RegistrationTransferInternalError({
-                  cause,
-                  message: 'Transfer event URL could not be created',
-                }),
+            mapRegistrationTransferInternalError(
+              'registrationTransfer.claim.eventUrl',
+              'Transfer event URL could not be created',
             ),
           );
 
@@ -2510,22 +2525,38 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               ),
             )
             .for('update');
-          const answerInserts = yield* Effect.try({
-            catch: (error) =>
-              error instanceof EventRegistrationConflictError
-                ? new RegistrationTransferConflictError({
-                    message: error.message,
-                  })
-                : new RegistrationTransferInternalError({
-                    cause: error,
-                    message: 'Registration question validation failed',
-                  }),
+          const answerInserts = yield* Effect.try<
+            ReturnType<typeof validateRegistrationQuestionAnswers>,
+            unknown
+          >({
+            catch: (error) => error,
             try: () =>
               validateRegistrationQuestionAnswers({
                 answers,
                 questions: questionRows,
               }),
-          });
+          }).pipe(
+            Effect.catch(
+              (
+                error,
+              ): Effect.Effect<
+                never,
+                | RegistrationTransferConflictError
+                | RegistrationTransferInternalError
+              > =>
+                error instanceof EventRegistrationConflictError
+                  ? Effect.fail(
+                      new RegistrationTransferConflictError({
+                        message: error.message,
+                      }),
+                    )
+                  : failRegistrationTransferInternalError(
+                      'registrationTransfer.claim.validateQuestions',
+                      'Registration question validation failed',
+                      error,
+                    ),
+            ),
+          );
 
           const lockedBundleAddOns =
             bundleSnapshots.length === 0
@@ -2733,6 +2764,17 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               unitAmount: addOn.price,
             });
           }
+          if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+            return yield* new RegistrationTransferConflictError({
+              message:
+                'Registration checkout exceeds the supported line-item limit',
+            });
+          }
+          if (bundleAddOns.length > MAX_EVENT_ADDON_TYPES) {
+            return yield* new RegistrationTransferConflictError({
+              message: `A registration supports at most ${MAX_EVENT_ADDON_TYPES} add-on types`,
+            });
+          }
           let paymentClaim: RegistrationTransferPaymentClaim | undefined;
           if (
             requiresCheckout &&
@@ -2749,9 +2791,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 eventUrl,
                 expiresAt: checkoutExpiresAt,
                 lineItems: checkoutLineItems,
-                notificationEmail:
-                  recipientUser.communicationEmail?.trim() ||
-                  recipientUser.email,
+                notificationEmail: recipientUser.communicationEmail,
               },
               stripeAccountId: lockedStripeAccountId,
             };
@@ -3224,13 +3264,9 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             tenantId: tenant.id,
             transferId: transfer.transferId,
           }).pipe(
-            Effect.mapError(
-              (cause) =>
-                new RegistrationTransferInternalError({
-                  cause,
-                  message:
-                    'Recipient acquisition could not be established after transfer',
-                }),
+            mapRegistrationTransferInternalError(
+              'registrationTransfer.claim.persistAcquisition',
+              'Recipient acquisition could not be established after transfer',
             ),
           );
 
@@ -3246,8 +3282,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             yield* tx.insert(eventRegistrationQuestionAnswers).values(
               answerInserts.map((answer) => ({
                 answer: answer.answer,
+                eventId: transfer.eventId,
                 questionId: answer.questionId,
                 registrationId: recipientRegistrationId,
+                registrationOptionId: transfer.optionId,
+                tenantId: tenant.id,
               })),
             );
           }
@@ -3296,7 +3335,6 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           const sourceUsers = yield* tx
             .select({
               communicationEmail: users.communicationEmail,
-              email: users.email,
             })
             .from(users)
             .where(eq(users.id, transfer.sourceUserId))
@@ -3314,7 +3352,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             recipientUserId: transfer.sourceUserId,
             registrationId: recipientRegistrationId,
             tenant: lockedTenant,
-            to: sourceUser.communicationEmail?.trim() || sourceUser.email,
+            to: sourceUser.communicationEmail,
             transferOperationId,
           });
           yield* enqueueRegistrationTransferredEmail(tx, {
@@ -3324,7 +3362,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             recipientUserId: user.id,
             registrationId: recipientRegistrationId,
             tenant: lockedTenant,
-            to: recipientUser.communicationEmail?.trim() || recipientUser.email,
+            to: recipientUser.communicationEmail,
             transferOperationId,
           });
           const nextStatus =
@@ -3414,11 +3452,10 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           error instanceof RegistrationTransferConflictError ||
           error instanceof RegistrationTransferInternalError
             ? Effect.fail(error)
-            : Effect.fail(
-                new RegistrationTransferInternalError({
-                  cause: error,
-                  message: 'Registration transfer claim failed',
-                }),
+            : failRegistrationTransferInternalError(
+                'registrationTransfer.claim.persist',
+                'Registration transfer claim failed',
+                error,
               ),
         ),
       ),
@@ -3449,10 +3486,15 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                   'Registration transfer refund remains queued after immediate processing failed',
                 ).pipe(
                   Effect.annotateLogs({
-                    cause: String(cause),
                     refundClaimId,
                     transferId: transfer.transferId,
                   }),
+                  Effect.annotateLogs(
+                    safeServerErrorSummary(
+                      'registrationTransfer.claim.refundProcessing',
+                      cause,
+                    ),
+                  ),
                 );
           }),
         );
@@ -3569,13 +3611,9 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
         row.stripeCheckoutSessionId,
         row.stripeAccountId,
       ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new RegistrationTransferInternalError({
-              cause,
-              message:
-                'Transfer Checkout status could not be verified. Refresh and retry.',
-            }),
+        mapRegistrationTransferInternalError(
+          'registrationTransfer.checkout.retry.retrieve',
+          'Transfer Checkout status could not be verified. Refresh and retry.',
         ),
       );
       if (checkoutSession.status === 'open') {
@@ -3595,13 +3633,9 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
           },
           checkoutSession,
         ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new RegistrationTransferInternalError({
-                cause,
-                message:
-                  'Completed transfer Checkout could not be reconciled. Refresh and retry.',
-              }),
+          mapRegistrationTransferInternalError(
+            'registrationTransfer.checkout.retry.reconcile',
+            'Completed transfer Checkout could not be reconciled. Refresh and retry.',
           ),
         );
         return RegistrationTransferRetryCheckoutResult.make({

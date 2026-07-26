@@ -28,6 +28,11 @@ import {
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  type EventListingAudience,
+  eventListingAudienceDescriptions,
+  eventListingAudienceLabel,
+} from '@shared/event-listing-audience';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -348,7 +353,7 @@ export class EventDetailsComponent {
   protected readonly canOrganize = computed(() => {
     return this.canOrganizeQuery.isSuccess()
       ? this.canOrganizeQuery.data()
-      : false;
+      : null;
   });
   protected readonly canReview =
     this.permissions.hasPermission('events:review');
@@ -360,16 +365,17 @@ export class EventDetailsComponent {
       isCreator: this.isEventCreator(),
     });
   });
+  private readonly config = inject(ConfigService);
+  protected readonly discountCardsRequired = computed(
+    () => this.config.tenant.discountProviders?.esnCard?.status === 'enabled',
+  );
   protected readonly myCardsQuery = injectQuery(() =>
     this.operations.myCards(),
   );
-  private readonly config = inject(ConfigService);
   protected readonly cardExpiresBeforeEvent = computed(() => {
-    const isEsnCardEnabled =
-      this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
-    if (!isEsnCardEnabled) return false;
+    if (!this.discountCardsRequired()) return false;
     if (!this.eventQuery.isSuccess() || !this.myCardsQuery.isSuccess()) {
-      return false;
+      return null;
     }
     const event = this.eventQuery.data();
     const cards = this.myCardsQuery.data();
@@ -386,7 +392,6 @@ export class EventDetailsComponent {
   protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
   protected readonly eventAddonsForRegistrationOption =
     eventAddonsForRegistrationOption;
-
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -394,6 +399,10 @@ export class EventDetailsComponent {
     }
     return event.icon.iconColor;
   });
+  protected readonly eventListingAudienceDescriptions =
+    eventListingAudienceDescriptions;
+
+  protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
   protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
@@ -439,23 +448,24 @@ export class EventDetailsComponent {
     });
   }
 
-  async updateVisibility() {
+  async updateListingAudience() {
     if (!this.controlsInteractive() || !this.eventQuery.isSuccess()) return;
 
     const event = this.eventQuery.data();
 
-    const unlisted = await firstValueFrom(
-      this.dialog
-        .open(UpdateVisibilityDialogComponent, {
-          data: { event },
-        })
-        .afterClosed(),
-    );
-    if (unlisted !== null && unlisted !== undefined) {
+    const listingAudience: EventListingAudience | undefined =
+      await firstValueFrom(
+        this.dialog
+          .open(UpdateVisibilityDialogComponent, {
+            data: { event },
+          })
+          .afterClosed(),
+      );
+    if (listingAudience !== undefined) {
       this.updateListingMutation.mutate(
         {
           eventId: this.eventId(),
-          unlisted,
+          listingAudience,
         },
         {
           onSuccess: async () => {

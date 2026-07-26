@@ -52,14 +52,6 @@ resource "scaleway_container_namespace" "application" {
   tags = ["evorto", var.environment, "terraform"]
 }
 
-resource "scaleway_registry_namespace" "application" {
-  project_id  = var.project_id
-  region      = var.region
-  name        = "evorto-${var.environment}"
-  description = "Immutable Evorto ${var.environment} application images"
-  is_public   = false
-}
-
 resource "scaleway_container" "web" {
   namespace_id           = scaleway_container_namespace.application.id
   region                 = var.region
@@ -140,7 +132,7 @@ resource "scaleway_container" "worker" {
     interval          = "5s"
     timeout           = "1s"
     http {
-      path = "/healthz"
+      path = "/readyz"
     }
   }
 

@@ -65,15 +65,19 @@ test('Manage user profile', async ({
       uploadedByUserId: profileUser.id,
     });
     await database.insert(schema.financeReceipts).values({
+      alcoholAmount: 0,
       attachmentFileName: profileReceiptFileName,
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 2048,
       attachmentUploadId: profileReceiptUploadId,
       currency: seeded.tenant.currency,
+      depositAmount: 0,
       eventId: profileEventId,
+      hasAlcohol: false,
+      hasDeposit: false,
       id: profileReceiptId,
       purchaseCountry: 'DE',
-      receiptDate: seedDate,
+      receiptDate: seedDate.toISOString().slice(0, 10),
       status: 'submitted',
       submittedByUserId: profileUser.id,
       taxAmount: 300,
@@ -123,7 +127,7 @@ From here you can open the edit dialog to update your profile details.
 
 ## Claiming a private registration transfer
 
-If another participant sends you a manual transfer code, select **Claim transfer** under **Account Actions**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The same claim flow also opens directly from a private transfer link.
+If another participant sends you a transfer code, select **Claim transfer** under **Account Actions**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The claim page URL is generic and does not contain the private code.
 `,
     });
 

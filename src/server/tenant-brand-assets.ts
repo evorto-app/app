@@ -137,9 +137,8 @@ export const uploadTenantBrandAsset = (input: {
       key: storageKey,
     }).pipe(
       Effect.mapError(
-        (cause) =>
+        () =>
           new RpcInternalServerError({
-            cause,
             message: 'Failed to upload tenant brand asset',
           }),
       ),

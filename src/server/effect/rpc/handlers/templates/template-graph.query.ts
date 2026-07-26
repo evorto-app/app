@@ -17,11 +17,36 @@ import {
 
 type TemplateGraphReader = Pick<DatabaseClient, 'select'>;
 
+interface TemplateRole {
+  id: string;
+  name: string;
+}
+
 export const templateGraphNotFoundError = (templateId: string) =>
   new RpcBadRequestError({
     message: `Template ${templateId} was not found for the target tenant`,
     reason: 'templateNotFound',
   });
+
+export const getRequiredTemplateRole = ({
+  optionId,
+  roleId,
+  rolesById,
+  templateId,
+}: {
+  optionId: string;
+  roleId: string;
+  rolesById: ReadonlyMap<string, TemplateRole>;
+  templateId: string;
+}): TemplateRole => {
+  const role = rolesById.get(roleId);
+  if (!role) {
+    throw new Error(
+      `Persisted template ${templateId} registration option ${optionId} references missing tenant role ${roleId}`,
+    );
+  }
+  return role;
+};
 
 export const loadTemplateGraphDetail = Effect.fn(
   'Templates.loadTemplateGraphDetail',
@@ -36,11 +61,11 @@ export const loadTemplateGraphDetail = Effect.fn(
       description: eventTemplates.description,
       icon: eventTemplates.icon,
       id: eventTemplates.id,
+      listingAudience: eventTemplates.listingAudience,
       location: eventTemplates.location,
       planningTips: eventTemplates.planningTips,
       simpleModeEnabled: eventTemplates.simpleModeEnabled,
       title: eventTemplates.title,
-      unlisted: eventTemplates.unlisted,
     })
     .from(eventTemplates)
     .where(
@@ -261,6 +286,7 @@ export const loadTemplateGraphDetail = Effect.fn(
     description: template.description,
     icon: template.icon,
     id: template.id,
+    listingAudience: template.listingAudience,
     location: template.location ?? null,
     planningTips: template.planningTips?.trim() || null,
     questions: questions.map((question) => ({
@@ -272,14 +298,17 @@ export const loadTemplateGraphDetail = Effect.fn(
       description: option.description ?? null,
       esnCardDiscountedPrice: esnDiscountByOptionId.get(option.id) ?? null,
       registeredDescription: option.registeredDescription ?? null,
-      roles: option.roleIds.flatMap((roleId) => {
-        const role = rolesById.get(roleId);
-        return role ? [role] : [];
-      }),
+      roles: option.roleIds.map((roleId) =>
+        getRequiredTemplateRole({
+          optionId: option.id,
+          roleId,
+          rolesById,
+          templateId,
+        }),
+      ),
       stripeTaxRateId: option.stripeTaxRateId ?? null,
     })),
     simpleModeEnabled: template.simpleModeEnabled,
     title: template.title,
-    unlisted: template.unlisted,
   } satisfies TemplateGraphRecord;
 });

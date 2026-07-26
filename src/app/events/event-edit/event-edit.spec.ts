@@ -16,6 +16,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(false);
     expect(
@@ -25,6 +27,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
     expect(
@@ -34,6 +38,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: true,
         graphReadOnly: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
     expect(
@@ -43,6 +49,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: false,
         mutationPending: true,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
     expect(
@@ -52,6 +60,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: true,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
   });
@@ -64,6 +74,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
 
@@ -73,6 +85,53 @@ describe('eventEditSubmitDisabled', () => {
     );
     expect(template).toContain('Discount settings could not be loaded.');
     expect(template).toContain('discountProvidersQuery.refetch()');
+  });
+
+  it('blocks event edit submits until tax rates resolve successfully', () => {
+    expect(
+      eventEditSubmitDisabled({
+        discountProvidersReady: true,
+        formInvalid: false,
+        formSubmitting: false,
+        graphReadOnly: false,
+        mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: false,
+      }),
+    ).toBe(true);
+
+    const template = readFileSync(
+      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
+      'utf8',
+    );
+    expect(template).toContain('Tax rates could not be loaded.');
+    expect(template).toContain('taxRatesQuery.refetch()');
+  });
+
+  it('blocks paid graphs while Stripe is disconnected without resetting them', () => {
+    expect(
+      eventEditSubmitDisabled({
+        discountProvidersReady: true,
+        formInvalid: false,
+        formSubmitting: false,
+        graphReadOnly: false,
+        mutationPending: false,
+        paidGraphBlocked: true,
+        taxRatesReady: true,
+      }),
+    ).toBe(true);
+
+    const source = readFileSync(
+      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.ts'),
+      'utf8',
+    );
+    const template = readFileSync(
+      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
+      'utf8',
+    );
+    expect(source).not.toContain('resetEventGraphPayments');
+    expect(template).toContain('It remains');
+    expect(template).toContain('cannot be saved until Stripe is');
   });
 });
 
@@ -117,6 +176,37 @@ describe('event edit currency inputs', () => {
       'No add-ons yet. Add one to offer extras with registration.',
     );
     expect(template).not.toContain('Add-ons are disabled for this event.');
+  });
+
+  it('renders the shared add-on quantity and type limits', () => {
+    const schemaSource = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/events/event-edit/event-graph-form.schema.ts',
+      ),
+      'utf8',
+    );
+    const parentTemplate = readFileSync(
+      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
+      'utf8',
+    );
+    const addOnTemplate = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/events/event-edit/event-addon-editor.html',
+      ),
+      'utf8',
+    );
+
+    expect(schemaSource).toContain(
+      'max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY',
+    );
+    expect(addOnTemplate).toContain(
+      'At most {{ maxRegistrationAddonQuantity }} units per registration.',
+    );
+    expect(parentTemplate).toContain(
+      '[disabled]="eventModel().addOns.length >= maxEventAddonTypes"',
+    );
   });
 });
 

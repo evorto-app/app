@@ -1,3 +1,4 @@
+import type { EventCheckInTimingIssue } from '@shared/event-check-in';
 import type {
   EventsRegistrationAddonCancellationBlockedReason,
   EventsRegistrationAddonFulfillmentRecord,
@@ -197,6 +198,28 @@ export interface ScanRegistrationStatusIssueCopy {
   readonly title: string;
 }
 
+export const scanCheckInTimingIssueCopy = (
+  issue: EventCheckInTimingIssue | null,
+): null | ScanRegistrationStatusIssueCopy => {
+  switch (issue) {
+    case 'ended': {
+      return {
+        body: 'The event ended more than two hours ago, so check-in is closed. No check-in was recorded.',
+        title: 'Check-in closed',
+      };
+    }
+    case 'notOpen': {
+      return {
+        body: 'Check-in opens one hour before the event starts.',
+        title: 'Check-in not open',
+      };
+    }
+    case null: {
+      return null;
+    }
+  }
+};
+
 export const scanRegistrationStatusIssueCopy = (
   status: EventsRegistrationStatus,
 ): null | ScanRegistrationStatusIssueCopy => {
@@ -392,6 +415,7 @@ export class HandleRegistrationComponent {
     registrationAddonRefundStatusLabel;
   protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
   protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
+  protected readonly scanCheckInTimingIssueCopy = scanCheckInTimingIssueCopy;
   protected readonly scanRegistrationStatusIssueCopy =
     scanRegistrationStatusIssueCopy;
   protected readonly scanSpotCountLabel = scanSpotCountLabel;

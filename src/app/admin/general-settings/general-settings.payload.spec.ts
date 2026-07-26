@@ -9,7 +9,7 @@ import {
 const settingsModel: GeneralSettingsModel = {
   allowOther: true,
   buyEsnCardUrl: ' https://esncard.org/ ',
-  cancellationDeadlineHoursBeforeStart: 72.8,
+  cancellationDeadlineHoursBeforeStart: 72,
   currency: 'CZK',
   defaultLocation: {
     address: 'Amsterdam, Netherlands',
@@ -28,7 +28,7 @@ const settingsModel: GeneralSettingsModel = {
   legalNoticeText: ' Tenant imprint text ',
   legalNoticeUrl: ' https://section.example.org/imprint ',
   logoUrl: ' https://cdn.example.org/logo.svg ',
-  maxActiveRegistrationsPerUser: 4.8,
+  maxActiveRegistrationsPerUser: 4,
   receiptCountries: ['DE', 'NL'],
   refundFeesOnCancellation: false,
   seoDescription: ' Public tenant description ',
@@ -38,7 +38,7 @@ const settingsModel: GeneralSettingsModel = {
   termsUrl: ' https://section.example.org/terms ',
   theme: 'esn',
   timezone: 'Europe/Prague',
-  transferDeadlineHoursBeforeStart: 12.9,
+  transferDeadlineHoursBeforeStart: 12,
 };
 
 describe('generalSettingsPayloadFromModel', () => {
@@ -75,7 +75,6 @@ describe('generalSettingsPayloadFromModel', () => {
       generalSettingsPayloadFromModel({
         ...settingsModel,
         buyEsnCardUrl: ' ',
-        cancellationDeadlineHoursBeforeStart: -72,
         defaultLocation: null,
         emailSenderEmail: '',
         emailSenderName: '',
@@ -83,18 +82,16 @@ describe('generalSettingsPayloadFromModel', () => {
         legalNoticeText: '',
         legalNoticeUrl: '',
         logoUrl: '',
-        maxActiveRegistrationsPerUser: -3,
         seoDescription: '',
         seoTitle: '',
         stripeAccountId: '',
         termsText: '',
         termsUrl: '',
-        transferDeadlineHoursBeforeStart: -12,
       }),
     ).toEqual({
       allowOther: true,
       buyEsnCardUrl: undefined,
-      cancellationDeadlineHoursBeforeStart: 0,
+      cancellationDeadlineHoursBeforeStart: 72,
       currency: 'CZK',
       defaultLocation: null,
       emailSenderEmail: undefined,
@@ -104,7 +101,7 @@ describe('generalSettingsPayloadFromModel', () => {
       legalNoticeText: undefined,
       legalNoticeUrl: undefined,
       logoUrl: undefined,
-      maxActiveRegistrationsPerUser: 0,
+      maxActiveRegistrationsPerUser: 4,
       receiptCountries: ['DE', 'NL'],
       refundFeesOnCancellation: false,
       seoDescription: undefined,
@@ -114,7 +111,22 @@ describe('generalSettingsPayloadFromModel', () => {
       termsUrl: undefined,
       theme: 'esn',
       timezone: 'Europe/Prague',
-      transferDeadlineHoursBeforeStart: 0,
+      transferDeadlineHoursBeforeStart: 12,
+    });
+  });
+
+  it('does not truncate or clamp numeric settings at the payload boundary', () => {
+    expect(
+      generalSettingsPayloadFromModel({
+        ...settingsModel,
+        cancellationDeadlineHoursBeforeStart: -72,
+        maxActiveRegistrationsPerUser: 4.8,
+        transferDeadlineHoursBeforeStart: 12.9,
+      }),
+    ).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: -72,
+      maxActiveRegistrationsPerUser: 4.8,
+      transferDeadlineHoursBeforeStart: 12.9,
     });
   });
 });

@@ -154,9 +154,8 @@
                   <button
                     mat-button
                     type="button"
-                    (click)="
-                      chooseReceipt(receipt, group.eventTitle, group.eventStart)
-                    "
+                    [disabled]="receiptDetailPending()"
+                    (click)="chooseReceipt(receipt)"
                   >
                     Review
                   </button>
@@ -295,6 +294,10 @@
             </button>
           </div>
         </form>
+      } @else if (receiptDetailPending()) {
+        <p role="status" class="body-medium text-on-surface-variant">
+          Loading receipt details...
+        </p>
       } @else {
         <p class="body-medium text-on-surface-variant">
           Select a receipt to review.

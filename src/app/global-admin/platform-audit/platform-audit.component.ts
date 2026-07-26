@@ -1,12 +1,16 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import { injectInfiniteQuery } from '@tanstack/angular-query-experimental';
 
 import { type PlatformTenantAuditAction } from '../../../shared/platform-audit';
-import { type GlobalAdminPlatformAuditRecord } from '../../../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
+import {
+  type GlobalAdminPlatformAuditCursor,
+  type GlobalAdminPlatformAuditPage,
+  type GlobalAdminPlatformAuditRecord,
+} from '../../../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 
 export interface PlatformAuditDisplayRow {
@@ -15,7 +19,7 @@ export interface PlatformAuditDisplayRow {
 }
 
 const hiddenAuditField = (key: string): boolean =>
-  /(^id$|Id$|Ids$|digest|generation|idempotency|attempts?|hasLastError|hasRefundId|mode$|permissions$|stripeRefundStatus)/i.test(
+  /(^id$|Id$|Ids$|digest|generation|idempotency|attempts?|error|hasRefundId|mode$|payload|provider|stripeRefundStatus)/i.test(
     key,
   );
 
@@ -184,8 +188,21 @@ export const platformAuditTargetLabel = (
 export class PlatformAuditComponent {
   protected readonly actionLabel = platformAuditActionLabel;
   private readonly rpc = AppRpc.injectClient();
-  protected readonly auditQuery = injectQuery(() =>
-    this.rpc.globalAdmin.platformAudit.findMany.queryOptions(),
+  private readonly findAuditEntries =
+    this.rpc.globalAdmin.platformAudit.findMany;
+  protected readonly auditQuery = injectInfiniteQuery(() => ({
+    getNextPageParam: (lastPage: GlobalAdminPlatformAuditPage) =>
+      lastPage.nextCursor ?? undefined,
+    initialPageParam: null as GlobalAdminPlatformAuditCursor | null,
+    queryFn: ({
+      pageParam,
+    }: {
+      readonly pageParam: GlobalAdminPlatformAuditCursor | null;
+    }) => this.findAuditEntries.call({ cursor: pageParam }),
+    queryKey: this.findAuditEntries.queryKey({ cursor: null }),
+  }));
+  protected readonly auditEntries = computed(
+    () => this.auditQuery.data()?.pages.flatMap((page) => page.items) ?? [],
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly snapshotRows = platformAuditSnapshotRows;

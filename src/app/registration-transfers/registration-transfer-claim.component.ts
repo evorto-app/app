@@ -11,6 +11,7 @@ import {
   inject,
   Injectable,
   input,
+  output,
   signal,
   untracked,
 } from '@angular/core';
@@ -18,6 +19,7 @@ import {
   applyEach,
   form,
   FormField,
+  maxLength,
   required,
   schema,
   submit,
@@ -28,6 +30,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
   injectMutation,
   injectQuery,
@@ -65,6 +68,9 @@ const answerSchema = schema<TransferClaimAnswerModel>((answer) => {
     message: 'Answer this required question.',
     when: ({ valueOf }) => valueOf(answer.required),
   });
+  maxLength(answer.answer, MAX_REGISTRATION_ANSWER_LENGTH, {
+    message: `Answers must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer.`,
+  });
   validate(answer.answer, ({ value, valueOf }) => {
     const answerValue = value();
     return valueOf(answer.required) && answerValue && !answerValue.trim()
@@ -81,16 +87,16 @@ export const transferClaimFormSchema = schema<TransferClaimFormModel>(
 
 export const registrationTransferClaimPayload = ({
   answers,
-  credential,
+  claimCode,
 }: {
   answers: readonly { answer: string; questionId: string }[];
-  credential: string;
+  claimCode: string;
 }) => ({
   answers: answers.map((answer) => ({
     answer: answer.answer,
     questionId: answer.questionId,
   })),
-  credential,
+  claimCode,
 });
 
 export const registrationTransferCheckoutUrl = (
@@ -264,8 +270,8 @@ export class RegistrationTransferClaimOperations {
     return this.rpc.registrationTransfers.claim.mutationOptions();
   }
 
-  getClaim(credential: string) {
-    return this.rpc.registrationTransfers.getClaim.queryOptions({ credential });
+  getClaim(claimCode: string) {
+    return this.rpc.registrationTransfers.getClaim.queryOptions({ claimCode });
   }
 
   retryCheckout() {
@@ -289,7 +295,8 @@ export class RegistrationTransferClaimOperations {
   templateUrl: './registration-transfer-claim.component.html',
 })
 export class RegistrationTransferClaimComponent {
-  public readonly credential = input.required<string>();
+  public readonly claimCode = input.required<string>();
+  public readonly enterAnotherCode = output();
   private readonly claimModel = signal<TransferClaimFormModel>({
     answers: [],
   });
@@ -299,9 +306,11 @@ export class RegistrationTransferClaimComponent {
     this.operations.claim(),
   );
   protected readonly claimQuery = injectQuery(() =>
-    this.operations.getClaim(this.credential()),
+    this.operations.getClaim(this.claimCode()),
   );
   protected readonly lookupErrorCopy = registrationTransferLookupErrorCopy;
+  protected readonly maxRegistrationAnswerLength =
+    MAX_REGISTRATION_ANSWER_LENGTH;
   protected readonly retryMutation = injectMutation(() =>
     this.operations.retryCheckout(),
   );
@@ -313,7 +322,7 @@ export class RegistrationTransferClaimComponent {
 
   constructor() {
     effect(() => {
-      this.credential();
+      this.claimCode();
       this.unsafeCheckout.set(false);
     });
     effect(() => {
@@ -377,7 +386,7 @@ export class RegistrationTransferClaimComponent {
         const result = await this.claimMutation.mutateAsync(
           registrationTransferClaimPayload({
             answers: value.answers,
-            credential: this.credential(),
+            claimCode: this.claimCode(),
           }),
         );
         if (!this.openCheckout(result.checkoutUrl)) {

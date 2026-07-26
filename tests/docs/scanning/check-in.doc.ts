@@ -7,6 +7,7 @@ import {
   usersToAuthenticate,
 } from '../../../helpers/user-data';
 import {
+  eventInstances,
   eventRegistrationOptions,
   eventRegistrations,
 } from '../../../src/db/schema';
@@ -58,10 +59,26 @@ test('Check in event attendees', async ({
       `Expected registration option "${participantOption.id}" for check-in documentation`,
     );
   }
+  const [eventBefore] = await database
+    .select({
+      end: eventInstances.end,
+      start: eventInstances.start,
+    })
+    .from(eventInstances)
+    .where(eq(eventInstances.id, eventId));
+  if (!eventBefore) {
+    throw new Error(`Expected event "${eventId}" for check-in documentation`);
+  }
 
   const registrationId = getId();
+  const openEventStart = new Date(Date.now() - 30 * 60 * 1000);
+  const openEventEnd = new Date(Date.now() + 30 * 60 * 1000);
 
   try {
+    await database
+      .update(eventInstances)
+      .set({ end: openEventEnd, start: openEventStart })
+      .where(eq(eventInstances.id, eventId));
     await database.insert(eventRegistrations).values({
       checkedInGuestCount: 0,
       eventId,
@@ -82,7 +99,7 @@ test('Check in event attendees', async ({
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Before you start" %}
-You need a confirmed organizer/helper registration for the event or the **Organize all events** permission. Check-in is available during the event's check-in window. Use a secure, current browser on a device with a camera.
+You need a confirmed organizer/helper registration for the event or the **Organize all events** permission. Check-in opens one hour before the event starts and closes two hours after it ends. Use a secure, current browser on a device with a camera.
 {% /callout %}
 
 # Check in event attendees
@@ -131,7 +148,7 @@ The ticket identifies a registration; it is not permission to check someone in b
 - Close another app that may be using the camera.
 - If the device has no usable camera, scan the ticket with a phone's camera and open its Evorto link while signed in as an authorized organizer.
 - A visible error is different from an invalid ticket. Do not check someone in until Evorto shows the registration details.
-- **Invalid QR code** means the camera read a value that is not an Evorto registration-result link. Stay on the scanner, ask the attendee to show the confirmed ticket QR code rather than a payment receipt or screenshot of another code, and scan again. No check-in is recorded from the invalid value.
+- **Invalid QR code** means the camera read a value that is not an Evorto registration-result link. Stay on the scanner, ask the attendee to show the confirmed ticket QR code rather than a payment receipt or screenshot of another code, then select **Scan another code** when you are ready. No check-in is recorded from the invalid value.
 
 ## Verify the registration
 
@@ -140,8 +157,9 @@ After a valid ticket is scanned, check the attendee name, event, registration op
 - **Registration pending** means the attendee must open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.
 - **Registration on waitlist** means the attendee has no confirmed spot. Ask an organizer to review the waitlist and capacity; do not take payment or create another registration from the scanner.
 - **Registration cancelled** means the existing ticket cannot be checked in. Do not ask the attendee to pay or register again. Ask an organizer to review the existing cancellation or refund if it looks wrong.
+- **Check-in closed** means the event ended more than two hours ago. Evorto does not record a late check-in; correct the event times first if they are wrong.
 
-The scanner also warns when the ticket belongs to the signed-in organizer, the event is too far in the future, or a confirmed ticket has already been checked in.
+The scanner also warns when the ticket belongs to the signed-in organizer, check-in has not opened yet, or a confirmed ticket has already been checked in.
 `,
     });
 
@@ -193,11 +211,30 @@ The scanner also warns when the ticket belongs to the signed-in organizer, the e
       .update(eventRegistrations)
       .set({ status: 'CONFIRMED' })
       .where(eq(eventRegistrations.id, registrationId));
+    await database
+      .update(eventInstances)
+      .set({
+        end: new Date(Date.now() - 3 * 60 * 60 * 1000),
+        start: new Date(Date.now() - 5 * 60 * 60 * 1000),
+      })
+      .where(eq(eventInstances.id, eventId));
+    await page.goto(`/scan/registration/${registrationId}`);
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Check-in closed' }),
+    ).toContainText('ended more than two hours ago');
+    await expect(
+      page.getByRole('button', { name: 'Confirm check-in' }),
+    ).toBeDisabled();
+
+    await database
+      .update(eventInstances)
+      .set({ end: openEventEnd, start: openEventStart })
+      .where(eq(eventInstances.id, eventId));
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
       page.getByRole('heading', { level: 1, name: 'Registration scanned' }),
     ).toBeVisible();
-    await expect(page.getByText('Event starting in the future')).toHaveCount(0);
+    await expect(page.getByText('Check-in closed')).toHaveCount(0);
     await expect(page.getByText('Includes 2 guests.')).toBeVisible();
     await expect(page.getByText('0 checked in, 2 remaining.')).toBeVisible();
     const confirmAttendeeAndGuest = await fillScannerGuestCheckInCount(page, {
@@ -303,5 +340,9 @@ Never bypass a warning by changing the link or using another organization. Ask a
       .update(eventRegistrationOptions)
       .set({ checkedInSpots: optionBefore.checkedInSpots })
       .where(eq(eventRegistrationOptions.id, participantOption.id));
+    await database
+      .update(eventInstances)
+      .set({ end: eventBefore.end, start: eventBefore.start })
+      .where(eq(eventInstances.id, eventId));
   }
 });

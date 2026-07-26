@@ -66,9 +66,6 @@ test('tenant admin reviews users and manages role definitions @admin @permission
     .fill('Created by role management stabilization spec');
   await setRoleFormCheckbox('Show this role in the hub', true);
   await expect(roleFormCheckbox('Show this role in the hub')).toBeChecked();
-  await expect(
-    roleFormCheckbox('Collapse the members of this role by default'),
-  ).toBeVisible();
 
   await setRoleFormCheckbox(/^Events$/, true);
   await expect(roleFormCheckbox(/^Create events$/)).toBeChecked();

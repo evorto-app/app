@@ -1,9 +1,15 @@
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import {
   buildSelectableReceiptCountries,
   normalizeReceiptCountryCode,
   OTHER_RECEIPT_COUNTRY_CODE,
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
+import {
+  type FinanceReceiptAmounts,
+  isFinanceReceiptCalendarDate,
+  validateFinanceReceiptAmounts,
+} from '@shared/finance/receipt-values';
 import { and, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -71,6 +77,70 @@ export const validateReceiptCountryForTenant = (
     : null;
 };
 
+export const ensureValidFinanceReceiptAmounts = Effect.fn(
+  'Finance.ensureValidReceiptAmounts',
+)(function* (amounts: FinanceReceiptAmounts) {
+  const validationError = validateFinanceReceiptAmounts(amounts);
+  if (!validationError) {
+    return;
+  }
+
+  const error = {
+    alcoholAmountOutOfRange: {
+      message:
+        'Alcohol amount must be a non-negative whole minor-unit amount within the supported range',
+      reason: 'invalidAlcoholAmount',
+    },
+    alcoholFlagContradiction: {
+      message:
+        'Alcohol amount must be positive when alcohol is included and zero otherwise',
+      reason: 'alcoholAmountContradiction',
+    },
+    depositAmountOutOfRange: {
+      message:
+        'Deposit amount must be a non-negative whole minor-unit amount within the supported range',
+      reason: 'invalidDepositAmount',
+    },
+    depositAndAlcoholExceedTotal: {
+      message: 'Deposit and alcohol amounts exceed the total amount',
+      reason: 'inconsistentAmounts',
+    },
+    depositFlagContradiction: {
+      message:
+        'Deposit amount must be positive when a deposit is included and zero otherwise',
+      reason: 'depositAmountContradiction',
+    },
+    taxAmountExceedsTotal: {
+      message: 'Tax amount exceeds the total amount',
+      reason: 'taxAmountExceedsTotal',
+    },
+    taxAmountOutOfRange: {
+      message:
+        'Tax amount must be a non-negative whole minor-unit amount within the supported range',
+      reason: 'invalidTaxAmount',
+    },
+    totalAmountOutOfRange: {
+      message:
+        'Total amount must be a positive whole minor-unit amount within the supported range',
+      reason: 'invalidTotalAmount',
+    },
+  } as const;
+
+  return yield* new RpcBadRequestError(error[validationError]);
+});
+
+export const ensureValidFinanceReceiptCalendarDate = Effect.fn(
+  'Finance.ensureValidReceiptCalendarDate',
+)(function* (receiptDate: string) {
+  if (!isFinanceReceiptCalendarDate(receiptDate)) {
+    return yield* new RpcBadRequestError({
+      message:
+        'Receipt date must be a valid calendar date in YYYY-MM-DD format',
+      reason: 'invalidReceiptDate',
+    });
+  }
+});
+
 export const financeReceiptView = {
   alcoholAmount: financeReceipts.alcoholAmount,
   attachmentFileName: financeReceipts.attachmentFileName,
@@ -120,7 +190,7 @@ export const normalizeFinanceReceiptBaseRecord = (receipt: {
   id: string;
   previewImageUrl: null | string;
   purchaseCountry: string;
-  receiptDate: Date;
+  receiptDate: string;
   refundedAt: Date | null;
   refundTransactionId: null | string;
   rejectionReason: null | string;
@@ -144,7 +214,7 @@ export const normalizeFinanceReceiptBaseRecord = (receipt: {
   id: receipt.id,
   previewImageUrl: receipt.previewImageUrl ?? null,
   purchaseCountry: receipt.purchaseCountry,
-  receiptDate: receipt.receiptDate.toISOString(),
+  receiptDate: receipt.receiptDate,
   refundedAt: receipt.refundedAt?.toISOString() ?? null,
   refundTransactionId: receipt.refundTransactionId ?? null,
   rejectionReason: receipt.rejectionReason ?? null,

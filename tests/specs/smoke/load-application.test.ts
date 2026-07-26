@@ -13,14 +13,13 @@ test('navigate to events list', async ({ page }) => {
 test('redirect anonymous protected deep links to login during SSR', async ({
   page,
 }) => {
-  const response = await page.request.get(
-    '/registration-transfers/example-token?from=email',
-    { maxRedirects: 0 },
-  );
+  const response = await page.request.get('/registration-transfers', {
+    maxRedirects: 0,
+  });
 
   expect(response.status()).toBe(303);
   expect(response.headers()['location']).toBe(
-    '/forward-login?redirectUrl=%2Fregistration-transfers%2Fexample-token%3Ffrom%3Demail',
+    '/forward-login?redirectUrl=%2Fregistration-transfers',
   );
   expect(await response.text()).not.toContain('Unknown tenant');
 });

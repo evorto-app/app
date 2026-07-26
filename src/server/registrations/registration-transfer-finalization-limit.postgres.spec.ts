@@ -208,6 +208,7 @@ const seedTransferLimitFixture = async (
     description: 'Concurrent paid transfer finalization',
     icon: { iconColor: 0, iconName: 'circle' },
     id: templateId,
+    listingAudience: 'both',
     tenantId,
     title: 'Transfer limit',
   });
@@ -219,6 +220,7 @@ const seedTransferLimitFixture = async (
       end: new Date(now + (9 + index) * 24 * 60 * 60 * 1000),
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
+      listingAudience: 'both',
       start: new Date(now + (7 + index) * 24 * 60 * 60 * 1000),
       status: 'APPROVED',
       templateId,
@@ -343,7 +345,6 @@ const seedTransferLimitFixture = async (
         transferId,
       }) => ({
         claimCodeHash: `code-${transferId}`,
-        claimTokenHash: `token-${transferId}`,
         eventId,
         expiresAt: new Date(now + 60 * 60 * 1000),
         id: transferId,

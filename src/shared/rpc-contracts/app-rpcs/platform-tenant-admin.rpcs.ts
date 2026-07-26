@@ -10,6 +10,11 @@ import {
   PlatformTenantMutationContext,
   PlatformTenantTarget,
 } from './platform-operations.shared';
+import {
+  RoleNameAlreadyExistsError,
+  RoleWriteInput,
+  RoleWriteValidationError,
+} from './role-write.shared';
 
 const PlatformTenantUserPageLimit = nonNegativeNumber.check(
   Schema.isInt(),
@@ -30,7 +35,6 @@ const PlatformRoleIds = Schema.Array(Schema.NonEmptyString).check(
 export class PlatformRoleRecord extends Schema.Class<PlatformRoleRecord>(
   'PlatformRoleRecord',
 )({
-  collapseMembersInHup: Schema.Boolean,
   defaultOrganizerRole: Schema.Boolean,
   defaultUserRole: Schema.Boolean,
   description: Schema.NullOr(Schema.String),
@@ -59,20 +63,14 @@ export class PlatformTenantUsersListResult extends Schema.Class<PlatformTenantUs
   usersCount: nonNegativeNumber,
 }) {}
 
-const PlatformRoleWriteFields = {
-  collapseMembersInHup: Schema.Boolean,
-  defaultOrganizerRole: Schema.Boolean,
-  defaultUserRole: Schema.Boolean,
-  description: Schema.NullOr(Schema.String),
-  displayInHub: Schema.Boolean,
-  name: Schema.NonEmptyString,
-  permissions: Schema.mutable(Schema.Array(TenantRolePermissionSchema)),
-};
+export const PlatformRoleMutationRpcError = Schema.Union([
+  PlatformOperationRpcError,
+  RoleNameAlreadyExistsError,
+  RoleWriteValidationError,
+]);
 
-export const PlatformRoleWriteInput = Schema.Struct(PlatformRoleWriteFields);
-
-export type PlatformRoleWriteInput = Schema.Schema.Type<
-  typeof PlatformRoleWriteInput
+export type PlatformRoleMutationRpcError = Schema.Schema.Type<
+  typeof PlatformRoleMutationRpcError
 >;
 
 export class PlatformStripeTaxRateRecord extends Schema.Class<PlatformStripeTaxRateRecord>(
@@ -120,7 +118,7 @@ export type PlatformRoleTargetInput = Schema.Schema.Type<
 
 export const PlatformRoleCreateInput = Schema.Struct({
   ...PlatformTenantMutationContext.fields,
-  ...PlatformRoleWriteInput.fields,
+  ...RoleWriteInput.fields,
 });
 
 export type PlatformRoleCreateInput = Schema.Schema.Type<
@@ -188,7 +186,7 @@ export const PlatformRolesFindOne = asRpcQuery(
 
 export const PlatformRolesCreate = asRpcMutation(
   Rpc.make('platform.roles.create', {
-    error: PlatformOperationRpcError,
+    error: PlatformRoleMutationRpcError,
     payload: PlatformRoleCreateInput,
     success: PlatformRoleRecord,
   }),
@@ -196,7 +194,7 @@ export const PlatformRolesCreate = asRpcMutation(
 
 export const PlatformRolesUpdate = asRpcMutation(
   Rpc.make('platform.roles.update', {
-    error: PlatformOperationRpcError,
+    error: PlatformRoleMutationRpcError,
     payload: PlatformRoleUpdateInput,
     success: PlatformRoleRecord,
   }),

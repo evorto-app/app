@@ -1,6 +1,7 @@
 import type { TenantOnboardingRequirementsRecord } from '@shared/rpc-contracts/app-rpcs/onboarding.rpcs';
 import type { UsersAuthData } from '@shared/rpc-contracts/app-rpcs/users.rpcs';
 
+import { normalizeEmailAddress } from '@shared/notification-email';
 import { TenantOnboardingRequirementsChangedError } from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
 import { Schema } from 'effect';
 
@@ -84,7 +85,7 @@ export const createAccountPayloadFromModel = (
     questionId: answer.questionId,
     value: answer.value.trim(),
   })),
-  communicationEmail: model.communicationEmail.trim(),
+  communicationEmail: normalizeEmailAddress(model.communicationEmail),
   firstName: model.firstName.trim(),
   lastName: model.lastName.trim(),
   policyVersionId: model.policyVersionId,

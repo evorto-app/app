@@ -1,6 +1,12 @@
 import { Injector, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createOrdinaryTemplateGraphFormModel } from './ordinary-template-graph-form';
@@ -11,7 +17,6 @@ import {
 import {
   createTemplateGraphAddonFormModel,
   createTemplateGraphQuestionFormModel,
-  resetTemplateGraphPayments,
 } from './template-graph-form.model';
 
 describe('ordinaryTemplateGraphFormSchema', () => {
@@ -109,6 +114,115 @@ describe('ordinaryTemplateGraphFormSchema', () => {
 
     expect(price().hidden()).toBe(true);
     expect(price().errors()).toEqual([]);
+  });
+
+  it('accepts add-on quantity caps and rejects cap plus one', () => {
+    const model = createOrdinaryTemplateGraphFormModel();
+    const option = model.registrationOptions[0];
+    if (!option) throw new Error('Expected a registration option');
+    const addOn = createTemplateGraphAddonFormModel(option.key);
+    const mapping = addOn.registrationOptions[0];
+    if (!mapping) throw new Error('Expected an add-on mapping');
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    addOn.totalAvailableQuantity = 20;
+    mapping.includedQuantity = 4;
+    mapping.optionalPurchaseQuantity = MAX_REGISTRATION_ADDON_QUANTITY - 4;
+    model.addOns = [addOn];
+
+    const graph = form(signal(model), ordinaryTemplateGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(graph.addOns[0].maxQuantityPerUser().errors()).toEqual([]);
+    expect(
+      graph.addOns[0].registrationOptions[0].includedQuantity().errors(),
+    ).toEqual([]);
+
+    graph.addOns[0]
+      .maxQuantityPerUser()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY + 1);
+    expect(
+      graph.addOns[0]
+        .maxQuantityPerUser()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Maximum per user cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`,
+    );
+
+    graph.addOns[0]
+      .maxQuantityPerUser()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY);
+    graph.addOns[0].registrationOptions[0]
+      .optionalPurchaseQuantity()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY - 3);
+    expect(
+      graph.addOns[0].registrationOptions[0]
+        .includedQuantity()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per registration.`,
+    );
+  });
+
+  it('accepts the add-on type cap and rejects cap plus one', () => {
+    const model = createOrdinaryTemplateGraphFormModel({
+      addOns: Array.from({ length: MAX_EVENT_ADDON_TYPES }, () =>
+        createTemplateGraphAddonFormModel(),
+      ),
+    });
+    const graph = form(signal(model), ordinaryTemplateGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(graph.addOns().errors()).toEqual([]);
+
+    graph
+      .addOns()
+      .value.set([...model.addOns, createTemplateGraphAddonFormModel()]);
+    expect(
+      graph
+        .addOns()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Templates support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+    );
+  });
+
+  it('renders the same quantity and add-on type limits', () => {
+    const schemaSource = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema.ts',
+      ),
+      'utf8',
+    );
+    const addOnTemplate = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/shared/components/forms/template-graph-editor/template-addon-editor.component.html',
+      ),
+      'utf8',
+    );
+    const graphTemplate = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/shared/components/forms/template-graph-editor/template-graph-editor.component.html',
+      ),
+      'utf8',
+    );
+
+    expect(schemaSource).toContain(
+      'max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY',
+    );
+    expect(addOnTemplate).toContain(
+      'At most {{ maxRegistrationAddonQuantity }} units per registration.',
+    );
+    expect(graphTemplate).toContain(
+      '[disabled]="form.addOns.length >= maxEventAddonTypes"',
+    );
   });
 
   it('rejects cleared required graph numbers', () => {
@@ -237,45 +351,5 @@ describe('ordinaryTemplateGraphFormSchema', () => {
     expect(graph.registrationOptions[0].price().disabled()).toBe(false);
     expect(graph.addOns[0].isPaid().disabled()).toBe(false);
     expect(graph.addOns[0].price().disabled()).toBe(false);
-  });
-
-  it('clears only template payment fields after a confirmed disconnect', () => {
-    const source = createOrdinaryTemplateGraphFormModel({
-      addOns: [
-        {
-          ...createTemplateGraphAddonFormModel(),
-          isPaid: true,
-          price: 500,
-          stripeTaxRateId: 'txr_addon',
-          title: 'Retained add-on',
-        },
-      ],
-      title: 'Retained template',
-    });
-    source.registrationOptions[0] = {
-      ...source.registrationOptions[0],
-      esnCardDiscountedPrice: 800,
-      isPaid: true,
-      price: 1000,
-      roleIds: ['role-1'],
-      stripeTaxRateId: 'txr_option',
-    };
-
-    const reset = resetTemplateGraphPayments(source);
-
-    expect(reset.title).toBe('Retained template');
-    expect(reset.registrationOptions[0]).toMatchObject({
-      esnCardDiscountedPrice: '',
-      isPaid: false,
-      price: 0,
-      roleIds: ['role-1'],
-      stripeTaxRateId: '',
-    });
-    expect(reset.addOns[0]).toMatchObject({
-      isPaid: false,
-      price: 0,
-      stripeTaxRateId: '',
-      title: 'Retained add-on',
-    });
   });
 });

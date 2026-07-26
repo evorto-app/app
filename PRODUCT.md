@@ -168,6 +168,20 @@ Listing is separate from publishing. A published event may be:
 - listed for both
 - unlisted for both, reachable only by direct link
 
+Listing audiences are evaluated against the viewer's role-eligible registration
+options:
+
+- participant listing requires an eligible non-organizing option
+- organizer listing requires an eligible organizing option
+- both listing accepts either kind
+- unlisted events never appear in normal discovery
+
+Listing never makes an otherwise ineligible registration option available.
+Optionless operational events remain outside normal discovery for ordinary
+viewers; platform tenant inspectors can still find them. A separate product
+decision is required before announcement-style events gain a first-class
+discovery classifier. Do not infer an audience for them from missing options.
+
 Anonymous users may see events when those events have registration options available to roles that every new user receives by default in that tenant. Anonymous visibility should not show events that a user would lose access to immediately after signing in.
 
 ## Registration Model
@@ -179,8 +193,7 @@ A sign-up event has registration options. Registration options can represent par
 First-come-first-served and manual-approval (`application`) are supported
 relaunch registration modes. A manual approval remains pending until an
 authorized organizer approves it; a paid approval then follows the normal
-Stripe Checkout lifecycle. `random` registration is not a supported relaunch
-mode and must not appear as a usable stored-only configuration.
+Stripe Checkout lifecycle.
 
 Important rules:
 
@@ -245,7 +258,10 @@ without registrations remain valid.
 
 Registration questions attach to one concrete registration option. In advanced
 configuration, a shared question is represented by deliberate copies rather
-than an implicit organizer/participant shortcut.
+than an implicit organizer/participant shortcut. Once a question has an
+answer, its title, description, requiredness, sort order, registration-option
+assignment, and existence are historical facts. Ordinary organizers and
+platform administrators must preserve them exactly.
 
 ### Add-ons and fulfillment
 
@@ -378,10 +394,13 @@ changing its tax semantics.
 ## Check-in
 
 Confirmed organizers/helpers and users with the tenant-wide event-organizing
-capability may check attendees in. Check-in opens during a pre-start window
-appropriate for entrance logistics. Duplicate scans succeed with an explicit
-“already checked in” result, and organizers can check in a buyer and selected
-guest quantity separately so partial arrival is supported.
+capability may check attendees in. Check-in opens one hour before the event
+starts and closes two hours after the event ends. A check-in attempt outside
+that window returns an explicit `notOpen` or `ended` reason, and the server
+rechecks the event window under the registration transaction before writing.
+Duplicate scans during the window succeed with an explicit “already checked
+in” result, and organizers can check in a buyer and selected guest quantity
+separately so partial arrival is supported.
 
 ## Templates
 
@@ -501,11 +520,13 @@ Email is the first notification channel.
 
 Customer-facing email templates are rendered with React Email. Rendering stays
 separate from transactional delivery: templates enter the durable outbox and
-retain its recipient, idempotency, retry, and failure-observability rules.
+retain their recipient, enqueue idempotency, and failure-observability rules.
 
-After automatic delivery exhausts its retry budget, the outbox row remains
-stored and read-only for operational evidence. No exhausted-email recovery
-action is required for the current product scope.
+Each queued email gets one bounded provider request. An explicit provider
+rejection becomes a terminal failure. A timeout, lost response, or abandoned
+sending claim has an unknown outcome and remains terminal without automatic
+resend, because avoiding duplicate customer messages is more important than
+hiding an uncertain delivery.
 
 In scope:
 

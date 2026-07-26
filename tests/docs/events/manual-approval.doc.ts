@@ -663,6 +663,8 @@ A paid manual-approval option still begins with an application, not a payment. F
 ## Organizer approval requests payment
 
 Selecting **Approve application** reserves one spot and prepares one Stripe Checkout session. It does not confirm the participant yet. The organizer sees **Payment pending**, and the approval action is removed so repeated clicks cannot create another live payment.
+
+The queued approval email shows the payment deadline as a local \`day.month.year, hour:minute\` value in the organization's configured timezone. It includes both the timezone abbreviation and IANA zone name, so the participant does not have to interpret a raw UTC timestamp.
 `,
       });
       await approveButton.click();
@@ -724,6 +726,12 @@ Selecting **Approve application** reserves one spot and prepares one Stripe Chec
       expect(paymentApprovalEmails).toHaveLength(1);
       expect(paymentApprovalEmails[0]?.subject).toBe(
         'Registration approved: payment required',
+      );
+      expect(paymentApprovalEmails[0]?.text).toMatch(
+        /\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/u,
+      );
+      expect(paymentApprovalEmails[0]?.text).toContain(
+        `(${scenario.tenant.timezone})`,
       );
 
       await testInfo.attach('markdown', {

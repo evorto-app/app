@@ -3,12 +3,12 @@ import { Effect, Schema } from 'effect';
 
 import {
   PlatformRoleCreateInput,
+  PlatformRoleMutationRpcError,
   PlatformTaxRatesImportInput,
   PlatformTenantUsersListInput,
 } from './platform-tenant-admin.rpcs';
 
 const roleCreateInput = {
-  collapseMembersInHup: false,
   defaultOrganizerRole: false,
   defaultUserRole: true,
   description: '',
@@ -31,15 +31,43 @@ describe('platform tenant-admin RPC schemas', () => {
     }),
   );
 
-  it.effect('rejects platform-global permissions on tenant role writes', () =>
-    Effect.gen(function* () {
-      for (const permission of ['globalAdmin:*', 'globalAdmin:manageTenants']) {
-        const error = yield* Schema.decodeUnknownEffect(
-          PlatformRoleCreateInput,
-        )({ ...roleCreateInput, permissions: [permission] }).pipe(Effect.flip);
+  it.effect(
+    'keeps known permissions structural for typed server-side validation',
+    () =>
+      Effect.gen(function* () {
+        for (const permission of [
+          'globalAdmin:*',
+          'globalAdmin:manageTenants',
+        ]) {
+          const decoded = yield* Schema.decodeUnknownEffect(
+            PlatformRoleCreateInput,
+          )({ ...roleCreateInput, permissions: [permission] });
 
-        expect(error['_tag']).toBe('SchemaError');
-      }
+          expect(decoded.permissions).toEqual([permission]);
+        }
+      }),
+  );
+
+  it.effect('declares typed validation and duplicate-name errors', () =>
+    Effect.gen(function* () {
+      const validation = yield* Schema.decodeUnknownEffect(
+        PlatformRoleMutationRpcError,
+      )({
+        _tag: 'RoleWriteValidationError',
+        field: 'permissions',
+        message:
+          'Platform authority cannot be granted through an organization role',
+      });
+      expect(validation._tag).toBe('RoleWriteValidationError');
+
+      const duplicate = yield* Schema.decodeUnknownEffect(
+        PlatformRoleMutationRpcError,
+      )({
+        _tag: 'RoleNameAlreadyExistsError',
+        message: 'A role named Member already exists',
+        name: 'Member',
+      });
+      expect(duplicate._tag).toBe('RoleNameAlreadyExistsError');
     }),
   );
 

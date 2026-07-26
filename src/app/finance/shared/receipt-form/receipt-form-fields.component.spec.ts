@@ -52,4 +52,27 @@ describe('ReceiptFormFieldsComponent', () => {
     expect(text).toContain('Tax amount (CZK)');
     expect(text).not.toContain('(AUD)');
   });
+
+  it('keeps the receipt date as a calendar-date string and requires a positive bounded total', () => {
+    const fixture = TestBed.createComponent(ReceiptFormFieldsComponent);
+    const form = createReceiptForm(
+      TestBed.inject(NonNullableFormBuilder),
+      'AU',
+    );
+    fixture.componentRef.setInput('form', form);
+    fixture.componentRef.setInput('selectableCountries', ['AU']);
+    fixture.detectChanges();
+
+    const receiptDate = fixture.nativeElement.querySelector(
+      'input[type="date"]',
+    ) as HTMLInputElement | null;
+    expect(receiptDate?.value).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+
+    form.controls.totalAmount.setValue(0);
+    expect(form.controls.totalAmount.invalid).toBe(true);
+    form.controls.totalAmount.setValue(0.01);
+    expect(form.controls.totalAmount.valid).toBe(true);
+    form.controls.totalAmount.setValue(21_474_836.48);
+    expect(form.controls.totalAmount.invalid).toBe(true);
+  });
 });

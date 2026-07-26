@@ -5,6 +5,8 @@ set -euo pipefail
 readonly endpoint="${1:?Pass the private container endpoint}"
 readonly path="${2:?Pass the bounded operation path}"
 readonly body="${3:?Pass the bounded JSON body}"
+readonly connect_timeout_seconds=10
+readonly maximum_time_seconds=300
 
 : "${SCW_SECRET_KEY:?SCW_SECRET_KEY is required to invoke a private container}"
 
@@ -24,9 +26,11 @@ trap 'rm -f "${response_file}"' EXIT
 curl_exit=0
 http_status="$(
   curl \
+  --connect-timeout "${connect_timeout_seconds}" \
   --fail-with-body \
   --header 'Content-Type: application/json' \
   --header "X-Auth-Token: ${SCW_SECRET_KEY}" \
+  --max-time "${maximum_time_seconds}" \
   --output "${response_file}" \
   --request POST \
   --silent \

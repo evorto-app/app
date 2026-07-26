@@ -12,7 +12,7 @@ import { UsersAuthData } from './users.rpcs';
 export type RpcHeaders = Headers.Headers;
 
 export interface RpcRequestContextShape {
-  authData: Record<string, unknown> | UsersAuthData;
+  authData: UsersAuthData;
   authenticated: boolean;
   permissions: readonly Permission[];
   platformAuthority?: null | PlatformAdministratorAuthority;
@@ -28,5 +28,8 @@ export class RpcRequestContext extends Context.Service<
 
 export class RpcRequestContextMiddleware extends RpcMiddleware.Service<
   RpcRequestContextMiddleware,
-  { provides: RpcRequestContext }
+  {
+    provides: RpcRequestContext;
+    requires: RpcRequestContext;
+  }
 >()('@shared/rpc-contracts/app-rpcs/RpcRequestContextMiddleware') {}

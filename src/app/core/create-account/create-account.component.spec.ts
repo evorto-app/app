@@ -15,6 +15,7 @@ import {
 const loadAuthData = vi.fn();
 const loadRequirements = vi.fn();
 const completeOnboarding = vi.fn();
+const navigateAfterOnboarding = vi.fn();
 
 const onboardingRequirements = (
   questions: readonly {
@@ -70,15 +71,11 @@ describe('CreateAccountComponent load recovery', () => {
               mutationFn: completeOnboarding,
               mutationKey: ['complete-onboarding'],
             }),
-            maybeSelfFilter: () => ({ queryKey: ['maybe-self'] }),
+            navigateAfterCompletion: navigateAfterOnboarding,
             onboardingRequirements: () => ({
               queryFn: loadRequirements,
               queryKey: ['onboarding-requirements'],
             }),
-            onboardingStatusFilter: () => ({
-              queryKey: ['onboarding-status'],
-            }),
-            selfFilter: () => ({ queryKey: ['self'] }),
           },
         },
         {
@@ -287,6 +284,48 @@ describe('CreateAccountComponent load recovery', () => {
       fixture.nativeElement.querySelector('[data-question-id="question-1"]');
     expect(retainedAnswer?.value).toBe('Keep my answer');
     expect(loadRequirements).toHaveBeenCalledOnce();
+  });
+
+  it('performs a full navigation after onboarding refreshes server-derived permissions', async () => {
+    loadRequirements.mockResolvedValue(onboardingRequirements());
+    loadAuthData.mockResolvedValue({
+      email: 'alex@example.org',
+      email_verified: true,
+      family_name: 'Morgan',
+      given_name: 'Alex',
+    });
+    completeOnboarding.mockResolvedValue(undefined);
+
+    const fixture = TestBed.createComponent(CreateAccountComponent);
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector(
+          '[data-testid="communication-email"]',
+        ),
+      ).not.toBeNull();
+    });
+
+    const privacyCheckbox: HTMLInputElement | null =
+      fixture.nativeElement.querySelector('input[type="checkbox"]');
+    const form: HTMLFormElement | null =
+      fixture.nativeElement.querySelector('form');
+    expect(privacyCheckbox).not.toBeNull();
+    expect(form).not.toBeNull();
+
+    if (!privacyCheckbox || !form) return;
+    privacyCheckbox.click();
+    fixture.detectChanges();
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+
+    await vi.waitFor(() => {
+      expect(completeOnboarding).toHaveBeenCalledOnce();
+      expect(navigateAfterOnboarding).toHaveBeenCalledOnce();
+    });
   });
 
   it('reloads changed requirements and merges matching answers by question id', async () => {

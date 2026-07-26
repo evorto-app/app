@@ -52,9 +52,10 @@ export class AdminOverviewComponent {
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
   private readonly rpc = AppRpc.injectClient();
-  protected readonly pendingReviewsQuery = injectQuery(() =>
-    this.rpc.events.getPendingReviews.queryOptions(),
-  );
+  protected readonly pendingReviewsQuery = injectQuery(() => ({
+    ...this.rpc.events.getPendingReviews.queryOptions(),
+    enabled: this.canReviewEvents(),
+  }));
   protected readonly pendingReviewsCount = computed(() =>
     this.canReviewEvents() ? (this.pendingReviewsQuery.data()?.length ?? 0) : 0,
   );
@@ -64,7 +65,9 @@ export class AdminOverviewComponent {
     interval(60_000)
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
-        this.pendingReviewsQuery.refetch();
+        if (this.canReviewEvents()) {
+          void this.pendingReviewsQuery.refetch();
+        }
       });
   }
 }

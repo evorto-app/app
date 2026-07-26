@@ -1,8 +1,13 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  eventCheckInTimingIssue,
+  eventCheckInTimingMessage,
+} from '@shared/event-check-in';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import { registrationSpotCount } from '@shared/registration-spots';
 import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
 import {
+  EventCheckInUnavailableError,
   EventRegistrationConflictError,
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
@@ -13,17 +18,7 @@ import {
   type PlatformRegistrationsCancelInput,
   type PlatformRegistrationsCheckInInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  exists,
-  inArray,
-  isNull,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -65,8 +60,6 @@ import {
   writePlatformAudit,
 } from '../shared/platform-operation.service';
 
-const CHECK_IN_PRE_START_WINDOW_MS = 60 * 60 * 1000;
-
 type DatabaseReader = Pick<DatabaseClient, 'select'>;
 
 const PlatformRegistrationAuditState = Schema.Struct({
@@ -101,6 +94,24 @@ const databaseEffect = <A, R>(
   Database.use((database) =>
     operation(database).pipe(
       Effect.catch((error) =>
+        error instanceof RpcBadRequestError
+          ? Effect.fail(error)
+          : Effect.die(error),
+      ),
+    ),
+  );
+
+const checkInDatabaseEffect = <A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+): Effect.Effect<
+  A,
+  EventCheckInUnavailableError | RpcBadRequestError,
+  Database | R
+> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        error instanceof EventCheckInUnavailableError ||
         error instanceof RpcBadRequestError
           ? Effect.fail(error)
           : Effect.die(error),
@@ -260,9 +271,6 @@ const platformRegistrationNow = serverClockConfig.pipe(
   ),
 );
 
-const isWithinCheckInWindow = (eventStart: Date, now: Date): boolean =>
-  eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
-
 export const platformRegistrationCheckInPlan = ({
   checkedInGuestCount,
   checkInTime,
@@ -313,6 +321,7 @@ const platformRegistrationSelection = {
     eventRegistrationOptions.cancellationDeadlineHoursBeforeStart,
   checkedInGuestCount: eventRegistrations.checkedInGuestCount,
   checkInTime: eventRegistrations.checkInTime,
+  eventEnd: eventInstances.end,
   eventId: eventInstances.id,
   eventStart: eventInstances.start,
   eventTitle: eventInstances.title,
@@ -936,10 +945,11 @@ export const loadPlatformRegistrationDetail = Effect.fn(
   );
   const attendeeCheckedIn = registration.checkInTime !== null;
   const registrationStatusIssue = registration.status !== 'CONFIRMED';
-  const checkInTimingIssue = !isWithinCheckInWindow(
-    registration.eventStart,
+  const checkInTimingIssue = eventCheckInTimingIssue({
+    end: registration.eventEnd,
     now,
-  );
+    start: registration.eventStart,
+  });
   const alreadyFullyCheckedIn = attendeeCheckedIn && remainingGuestCount === 0;
   const cancellationDeadlineHoursBeforeStart =
     registration.cancellationDeadlineHoursBeforeStart ??
@@ -994,7 +1004,9 @@ export const loadPlatformRegistrationDetail = Effect.fn(
   return {
     ...normalizeRegistrationListRecord(registration),
     allowCheckIn:
-      !registrationStatusIssue && !checkInTimingIssue && !alreadyFullyCheckedIn,
+      !registrationStatusIssue &&
+      checkInTimingIssue === null &&
+      !alreadyFullyCheckedIn,
     attendeeCheckedIn,
     cancellation: {
       available: cancellationBlockedReason === null,
@@ -1140,7 +1152,7 @@ export const platformRegistrationHandlers = {
     return Effect.gen(function* () {
       const operation = yield* resolvePlatformMutation(input);
       return yield* providePlatformOperation(
-        databaseEffect((database) =>
+        checkInDatabaseEffect((database) =>
           Effect.gen(function* () {
             yield* ensurePlatformRegistrationMutationHasNoActiveTransfer(
               database,
@@ -1186,11 +1198,6 @@ export const platformRegistrationHandlers = {
                   },
                 );
 
-                const before = yield* loadPlatformRegistrationDetail(
-                  transaction,
-                  input.targetTenantId,
-                  input.registrationId,
-                );
                 const checkInPlan = yield* platformRegistrationCheckInPlan({
                   checkedInGuestCount: lockedRegistration.checkedInGuestCount,
                   checkInTime: lockedRegistration.checkInTime,
@@ -1199,16 +1206,48 @@ export const platformRegistrationHandlers = {
                   status: lockedRegistration.status,
                 });
 
+                const lockedEvents = yield* transaction
+                  .select({
+                    end: eventInstances.end,
+                    start: eventInstances.start,
+                  })
+                  .from(eventInstances)
+                  .where(
+                    and(
+                      eq(eventInstances.id, lockedRegistration.eventId),
+                      eq(eventInstances.tenantId, input.targetTenantId),
+                    ),
+                  )
+                  .for('share')
+                  .pipe(Effect.orDie);
+                const lockedEvent = lockedEvents[0];
+                if (!lockedEvent) {
+                  return yield* Effect.die(
+                    new Error(
+                      'Registration event was missing during platform check-in',
+                    ),
+                  );
+                }
                 const now = yield* platformRegistrationNow;
-                if (!isWithinCheckInWindow(new Date(before.event.start), now)) {
+                const timingIssue = eventCheckInTimingIssue({
+                  end: lockedEvent.end,
+                  now,
+                  start: lockedEvent.start,
+                });
+                if (timingIssue) {
                   return yield* Effect.fail(
-                    new RpcBadRequestError({
-                      message: 'Check-in is not open for this event yet',
-                      reason: 'checkInNotOpen',
+                    new EventCheckInUnavailableError({
+                      message: eventCheckInTimingMessage(timingIssue),
+                      reason: timingIssue,
                     }),
                   );
                 }
 
+                const before = yield* loadPlatformRegistrationDetail(
+                  transaction,
+                  input.targetTenantId,
+                  input.registrationId,
+                );
                 if (!checkInPlan.alreadyCheckedInWithoutMoreGuests) {
                   const updatedRegistrations = yield* transaction
                     .update(eventRegistrations)
@@ -1310,48 +1349,6 @@ export const platformRegistrationHandlers = {
             input.targetTenantId,
             input.registrationId,
           ),
-        ),
-        operation,
-        [],
-      );
-    }),
-  'platform.registrations.list': (
-    input: {
-      eventId?: string | undefined;
-      limit: number;
-      offset: number;
-      targetTenantId: string;
-    },
-    _options: unknown,
-  ) =>
-    Effect.gen(function* () {
-      const operation = yield* resolvePlatformRead(input.targetTenantId);
-      return yield* providePlatformOperation(
-        databaseEffect((database) =>
-          registrationBaseQuery(database)
-            .where(
-              and(
-                eq(eventRegistrations.tenantId, input.targetTenantId),
-                eq(eventInstances.tenantId, input.targetTenantId),
-                ...(input.eventId
-                  ? [eq(eventRegistrations.eventId, input.eventId)]
-                  : []),
-              ),
-            )
-            .orderBy(
-              desc(eventInstances.start),
-              asc(users.lastName),
-              asc(users.firstName),
-            )
-            .limit(input.limit)
-            .offset(input.offset)
-            .pipe(
-              Effect.map((registrations) =>
-                registrations.map((registration) =>
-                  normalizeRegistrationListRecord(registration),
-                ),
-              ),
-            ),
         ),
         operation,
         [],

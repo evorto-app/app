@@ -552,7 +552,7 @@ Open the template detail page and click **Create event**. The event form starts 
 
 Dates use the fixed **de-DE** format. Enter times in the organization's time zone; Evorto preserves that meaning even when an organizer's browser is set to another time zone.
 
-If **Event could not be created** appears, your entries remain in the form. Read the reason. For a temporary connection error, correct any affected field and click **Create event** again. If the reason says a registration option no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. If it mentions random allocation, return to the template, change every option to **First come, first served** or **Manual approval**, save the template, and then start event creation again. A restarted form does not retain unsaved event entries. Do not assume the event exists until its detail page opens and shows the event title.
+If **Event could not be created** appears, your entries remain in the form. Read the reason. For a temporary connection error, correct any affected field and click **Create event** again. If the reason says a registration option no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. A restarted form does not retain unsaved event entries. Do not assume the event exists until its detail page opens and shows the event title.
 `,
   });
   await page.getByRole('link', { name: 'Create event' }).click();

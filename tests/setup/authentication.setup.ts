@@ -1,6 +1,6 @@
-import fs from 'node:fs';
 import path from 'node:path';
 
+import { readOptionalE2eRuntimeState } from '../../helpers/testing/e2e-runtime-state';
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { test as setup } from '../support/fixtures/base-test';
 import { fillProtectedValue } from '../support/utils/fill-protected-value';
@@ -12,23 +12,13 @@ setup.describe.configure({ mode: 'serial' });
 setup.setTimeout(60_000);
 setup.use({ screenshot: 'off', trace: 'off', video: 'off' });
 
-const readRuntime = (): { tenantDomain?: string } | undefined => {
-  if (!fs.existsSync(runtimePath)) {
-    return undefined;
-  }
-
-  return JSON.parse(fs.readFileSync(runtimePath, 'utf-8')) as {
-    tenantDomain?: string;
-  };
-};
-
 const waitForRuntime = async (
   timeoutMs = 30_000,
-): Promise<{ tenantDomain?: string }> => {
+): Promise<{ tenantDomain: string }> => {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const runtime = readRuntime();
+    const runtime = readOptionalE2eRuntimeState(runtimePath);
     if (runtime) {
       return runtime;
     }
@@ -44,17 +34,15 @@ for (const userData of usersToAuthenticate) {
   setup(`authenticate ${userData.email}`, async ({ page }) => {
     const runtime = await waitForRuntime();
 
-    if (runtime.tenantDomain) {
-      await page.context().addCookies([
-        {
-          domain: 'localhost',
-          expires: -1,
-          name: 'evorto-tenant',
-          path: '/',
-          value: runtime.tenantDomain,
-        },
-      ]);
-    }
+    await page.context().addCookies([
+      {
+        domain: 'localhost',
+        expires: -1,
+        name: 'evorto-tenant',
+        path: '/',
+        value: runtime.tenantDomain,
+      },
+    ]);
 
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await page

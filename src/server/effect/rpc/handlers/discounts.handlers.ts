@@ -1,10 +1,7 @@
-import type { Headers } from 'effect/unstable/http';
-
 import {
   RpcBadRequestError,
   RpcForbiddenError,
   RpcInternalServerError,
-  RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import {
   DiscountCardConflictError,
@@ -12,14 +9,12 @@ import {
 } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
 import { resolveTenantDiscountProviders } from '@shared/tenant-config';
 import { and, eq } from 'drizzle-orm';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { userDiscountCards } from '../../../../db/schema';
-import { Tenant } from '../../../../types/custom/tenant';
-import { User } from '../../../../types/custom/user';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
   Adapters,
@@ -29,21 +24,13 @@ import {
   ProviderValidationUnavailableError,
   type ValidationResult,
 } from '../../../discounts/providers';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+import { safeServerErrorSummary } from '../../../utils/safe-server-error-summary';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
-
-const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
-  value: string | undefined,
-  schema: S,
-): S['Type'] =>
-  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const normalizeUserDiscountCardRecord = (
   card: Pick<
@@ -58,33 +45,6 @@ const normalizeUserDiscountCardRecord = (
   validTo: card.validTo?.toISOString() ?? null,
 });
 
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, RpcUnauthorizedError> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-
-const decodeUserHeader = (headers: Headers.Headers) =>
-  Effect.sync(() =>
-    decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.USER], Schema.NullOr(User)),
-  );
-
-const requireUserHeader = (
-  headers: Headers.Headers,
-): Effect.Effect<User, RpcUnauthorizedError> =>
-  Effect.gen(function* () {
-    const user = yield* decodeUserHeader(headers);
-    if (!user) {
-      return yield* Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-    }
-    return user;
-  });
-
 const validateDiscountCard = ({
   adapter,
   config,
@@ -97,36 +57,52 @@ const validateDiscountCard = ({
   ValidationResult,
   RpcBadRequestError | RpcInternalServerError
 > =>
-  Effect.tryPromise({
-    catch: (cause) => {
-      if (cause instanceof ProviderValidationUnavailableError) {
-        return new RpcBadRequestError({
-          message: 'Could not validate ESN card right now. Try again later.',
-          reason: `provider-${cause.reason}`,
-        });
-      }
-
-      return new RpcInternalServerError({
-        cause,
-        message: 'Discount card validation failed unexpectedly',
-      });
-    },
-    try: () =>
+  Effect.tryPromise<ValidationResult, unknown>({
+    catch: (cause) => cause,
+    try: (): Promise<ValidationResult> =>
       adapter.validate({
         config,
         identifier,
       }),
-  });
+  }).pipe(
+    Effect.catch(
+      (
+        error,
+      ): Effect.Effect<never, RpcBadRequestError | RpcInternalServerError> => {
+        if (error instanceof ProviderValidationUnavailableError) {
+          return Effect.fail(
+            new RpcBadRequestError({
+              message:
+                'Could not validate ESN card right now. Try again later.',
+              reason: `provider-${error.reason}`,
+            }),
+          );
+        }
+
+        return Effect.logError(
+          'Discount card validation failed unexpectedly',
+        ).pipe(
+          Effect.annotateLogs(
+            safeServerErrorSummary('discountCard.validate', error),
+          ),
+          Effect.andThen(
+            Effect.fail(
+              new RpcInternalServerError({
+                message: 'Discount card validation failed unexpectedly',
+              }),
+            ),
+          ),
+        );
+      },
+    ),
+  );
 
 export const discountHandlers = {
-  'discounts.deleteMyCard': (input, options) =>
+  'discounts.deleteMyCard': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const user = yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
 
       yield* databaseEffect((database) =>
         database
@@ -140,14 +116,11 @@ export const discountHandlers = {
           ),
       );
     }),
-  'discounts.getMyCards': (_payload, options) =>
+  'discounts.getMyCards': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const user = yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
       const cards = yield* databaseEffect((database) =>
         database.query.userDiscountCards.findMany({
           columns: {
@@ -166,13 +139,10 @@ export const discountHandlers = {
 
       return cards.map((card) => normalizeUserDiscountCardRecord(card));
     }),
-  'discounts.getTenantProviders': (_payload, options) =>
+  'discounts.getTenantProviders': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
       const resolvedTenant = yield* databaseEffect((database) =>
         database.query.tenants.findFirst({
           columns: {
@@ -191,14 +161,11 @@ export const discountHandlers = {
         type,
       }));
     }),
-  'discounts.refreshMyCard': (input, options) =>
+  'discounts.refreshMyCard': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const user = yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
 
       const tenantRecord = yield* databaseEffect((database) =>
         database.query.tenants.findFirst({
@@ -282,14 +249,11 @@ export const discountHandlers = {
 
       return normalizeUserDiscountCardRecord(updatedCard);
     }),
-  'discounts.upsertMyCard': (input, options) =>
+  'discounts.upsertMyCard': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const user = yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
 
       const tenantRecord = yield* databaseEffect((database) =>
         database.query.tenants.findFirst({

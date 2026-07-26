@@ -291,9 +291,9 @@ export const registrationTransferActionCopy = (registration: {
 
   if (registration.transferAvailable) {
     return {
-      buttonLabel: 'Create transfer link',
+      buttonLabel: 'Create transfer code',
       helperText:
-        'Create a private link and code for one eligible organization member. They review the current questions, add-ons, discount, and price before claiming it.',
+        'Create a private code for one eligible organization member. They enter it on the transfer claim page, then review the current questions, add-ons, discount, and price.',
     };
   }
 

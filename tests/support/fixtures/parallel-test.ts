@@ -7,6 +7,7 @@ import {
 } from '../../../helpers/seed-tenant';
 import { usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
+import type { EventListingAudience } from '../../../src/shared/event-listing-audience';
 import {
   applyPermissionDiff,
   PermissionDiff,
@@ -37,10 +38,10 @@ interface BaseFixtures {
       title: string;
       waitlistSpots: number;
     }[];
+    listingAudience: EventListingAudience;
     start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     title: string;
-    unlisted: boolean;
   }[];
   permissionOverride: (diff: PermissionDiff) => Promise<void>;
   registrations: {
@@ -98,7 +99,9 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
     async ({ database, falsoSeed, seedDate }, use, testInfo) => {
       const runId = buildRunId(`${falsoSeed}:retry-${testInfo.retry}`);
       const result = await seedTenant(database, {
+        currency: 'EUR',
         domain: `e2e-${runId}`,
+        name: `E2E ${runId}`,
         profile: 'test',
         runId,
         seedDate,

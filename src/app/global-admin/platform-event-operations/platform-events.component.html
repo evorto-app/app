@@ -48,9 +48,13 @@
           <div class="flex flex-wrap items-center gap-2">
             <h2 class="title-medium truncate">{{ event.title }}</h2>
             <app-event-status [status]="event.status" />
-            @if (event.unlisted) {
-              <span class="label-small text-on-surface-variant">Unlisted</span>
-            }
+            <span
+              class="label-small text-on-surface-variant"
+              [title]="eventListingAudienceDescriptions[event.listingAudience]"
+            >
+              Audience:
+              {{ eventListingAudienceLabel(event.listingAudience) }}
+            </span>
           </div>
           <p class="body-small text-on-surface-variant mt-1">
             @if (targetTenantOptionsQuery.isSuccess()) {

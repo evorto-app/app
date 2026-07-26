@@ -111,17 +111,16 @@ describe('registration transfer schema', () => {
     );
   });
 
-  it('stores only claim hashes and indexes expirable offers', () => {
+  it('stores only the claim-code hash and indexes expirable offers', () => {
     const tableConfig = getTableConfig(registrationTransfers);
     const columnNames = tableConfig.columns.map((column) => column.name);
     const expiryIndex = tableConfig.indexes.find(
       (index) => index.config.name === registrationTransferExpiryIndexName,
     );
 
-    expect(columnNames).toContain('claim_token_hash');
     expect(columnNames).toContain('claim_code_hash');
-    expect(columnNames).not.toContain('claim_token');
     expect(columnNames).not.toContain('claim_code');
+    expect(columnNames).not.toContain('claim_token_hash');
     expect(expiryIndex?.config.columns.map((column) => column.name)).toEqual([
       'status',
       'expires_at',

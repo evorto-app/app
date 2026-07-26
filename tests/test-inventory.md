@@ -25,86 +25,10 @@ Browser/manual exploration is still the right discovery tool for flows that are
 being stabilized. Once a flow decision is confirmed, persist the learning here
 by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
-## Active Files
-
-- Documentation journeys (`*.doc.ts`):
-  - docs/admin/email-outbox.doc.ts [admin, globalAdmin]
-  - docs/admin/global-admin.doc.ts [admin, globalAdmin]
-  - docs/admin/general-settings.doc.ts [admin]
-  - docs/admin/google-maps-location.doc.ts [admin, @needs-google-maps]
-  - docs/admin/platform-tenant-operations.doc.ts [admin, globalAdmin]
-  - docs/events/event-approval.doc.ts
-  - docs/events/event-discovery.doc.ts
-  - docs/events/manual-approval.doc.ts [stripe]
-  - docs/events/organizer-signup.doc.ts
-  - docs/events/event-management.doc.ts
-  - docs/events/register.doc.ts [stripe]
-  - docs/events/registration-cancellation.doc.ts [stripe]
-  - docs/events/registration-transfer.doc.ts
-  - docs/events/unlisted-admin.doc.ts
-  - docs/events/unlisted-user.doc.ts
-  - docs/finance/finance-overview.doc.ts [finance]
-  - docs/finance/inclusive-tax-rates.doc.ts [finance]
-  - docs/finance/receipt-review-reimbursement.doc.ts [finance]
-  - docs/finance/receipt-submission.doc.ts [finance]
-  - docs/profile/discounts.doc.ts [finance, @needs-live-esncard]
-  - docs/profile/user-profile.doc.ts
-  - docs/roles/about-permissions.doc.ts
-  - docs/roles/roles.doc.ts [admin, permissions]
-  - docs/scanning/addon-fulfillment.doc.ts
-  - docs/scanning/check-in.doc.ts
-  - docs/template-categories/categories.doc.ts
-  - docs/templates/templates.doc.ts
-  - docs/users/create-account.doc.ts [@needs-auth0-management]
-  - docs/users/tenant-onboarding.doc.ts [admin]
-  - docs/users/unknown-tenant-domain.doc.ts [public recovery]
-
-- Functional tests (`*.spec.ts` / `*.test.ts`):
-  - specs/admin/email-outbox.spec.ts [admin, globalAdmin]
-  - specs/admin/general-settings.spec.ts [admin]
-  - specs/admin/google-maps-location.spec.ts [admin, @needs-google-maps]
-  - specs/admin/global-admin-tenants.spec.ts [admin, globalAdmin]
-  - specs/admin/platform-tenant-operations.spec.ts [admin, globalAdmin]
-  - specs/admin/roles-management.spec.ts [admin, permissions]
-  - specs/admin/user-role-assignment.spec.ts [admin, permissions]
-  - specs/auth/storage-state-refresh.test.ts
-  - specs/discounts/esn-discounts.test.ts [finance]
-  - specs/events/events.test.ts
-  - specs/events/free-registration.test.ts
-  - specs/events/manual-approval.spec.ts [stripe]
-  - specs/events/negative-registration-states.spec.ts
-  - specs/events/organizer-signup.spec.ts
-  - specs/events/registration-addons.test.ts
-  - specs/events/registration-transfer.spec.ts
-  - specs/events/unlisted-visibility.test.ts
-  - specs/events/price-labels-inclusive.spec.ts [finance]
-  - specs/finance/finance-overview-permissions.spec.ts [finance, permissions]
-  - specs/finance/receipts-flows.spec.ts [finance]
-  - specs/finance/stripe-webhook-replay.spec.ts [finance, stripe]
-  - specs/finance/tax-rates/admin-import-tax-rates.spec.ts [finance]
-  - specs/permissions/global-admin-route-guard.spec.ts [permissions]
-  - specs/permissions/matrix.spec.ts [permissions]
-  - specs/permissions/override.test.ts [permissions]
-  - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
-  - specs/profile/create-account.spec.ts [@needs-auth0-management]
-  - specs/profile/tenant-onboarding.spec.ts [admin]
-  - specs/profile/user-profile-discounts.spec.ts [finance]
-  - specs/profile/user-profile-edit.spec.ts
-  - specs/profile/user-profile-events.spec.ts
-  - specs/profile/user-profile-live-esncard.spec.ts [@needs-live-esncard]
-  - specs/profile/user-profile-receipts.spec.ts [finance]
-  - specs/resilience/core-load-recovery.spec.ts [admin, finance, resilience, templates]
-  - specs/reporting/reporter-paths.test.ts
-  - specs/scanning/scanner.test.ts
-  - specs/screenshot/doc-screenshot.test.ts
-  - specs/seed/seed-baseline.test.ts
-  - specs/smoke/load-application.test.ts
-  - specs/smoke/semantic-theme-colors.test.ts
-  - specs/template-categories/template-categories.test.ts
-  - specs/templates/paid-option-requires-tax-rate.spec.ts [finance]
-  - specs/templates/registration-configuration.spec.ts
-  - specs/templates/template-actions-permissions.spec.ts [permissions]
-  - specs/templates/templates.test.ts
+Playwright discovers active `tests/docs/**/*.doc.ts` and
+`tests/specs/**/*.{spec,test}.ts` files directly. Use `bun run test:e2e --list`
+for the current executable inventory instead of maintaining a second file list
+here.
 
 ## Suite Ownership
 
@@ -153,9 +77,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/templates/registration-configuration.spec.ts` confirms every
     simple/advanced mode change, proves warning-only advanced states, requires
     the compatible advanced shape to be saved before a separate switch back to
-    simple, preserves stable option IDs and hidden mappings, blocks legacy
-    random graphs, and verifies that later template edits do not rewrite an
-    event-owned snapshot
+    simple, preserves stable option IDs and hidden mappings, and verifies that
+    later template edits do not rewrite an event-owned snapshot
   - shared registration-mode label coverage in `src/shared`
 - Required Google Maps provider path:
   - `specs/admin/google-maps-location.spec.ts` proves the live loader,
@@ -205,9 +128,6 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     application/API append-only tenant action audit records, full event graph
     writes, bounded
     registration reads, and required operator reasons
-  - `helpers/testing/email-outbox-kind-source.spec.ts` keeps the typed kinds,
-    operator labels, React Email producers, transactional transition splices,
-    and page-backed coverage aligned
 - Finance, receipts, tax, and Stripe:
   - `docs/finance/**`
   - `specs/finance/**`
@@ -239,7 +159,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 - `specs/events/price-labels-inclusive.spec.ts` has active page-level coverage
   for paid inclusive tax labels, free options without tax labels, zero percent
-  "Tax free" display, fallback tax labels when rate details are missing,
+  "Tax free" display, explicit unavailability when rate details are missing,
   discounted ESNcard prices retaining tax labels, and paid template detail
   summaries sharing the same inclusive price component.
 - Event detail component coverage pins review and submit-for-review action
@@ -316,7 +236,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   cancelled registration plus released waitlist counter, then restores touched
   registrations, generated questions, and option counters.
 - `docs/events/registration-transfer.doc.ts` generates the dedicated private
-  transfer-link guide, including bearer-credential handling, recipient review,
+  transfer-code guide, including code-only claim handling, recipient review,
   persisted in-place ownership transition, and page-backed paid-transfer states
   for pending Checkout, successful ownership transfer with refund processing,
   terminal source-refund failure, safe operator requeue, and completed refunds.
@@ -409,10 +329,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 The entries below are the areas to keep aligned as stabilization continues.
 Most are now covered by deterministic specs, generated docs, or source guards.
-This inventory is not the release-blocker ledger; use
-`APPLICATION_COMPLIANCE_AUDIT.md` for the complete production-readiness state.
-The external verification gates here are the in-app Browser manual review queue
-and the release-gated live ESNcard provider credential path.
+This inventory is not the application review queue; use
+`APPLICATION_REVIEW_QUEUE.md` for current review findings, simplification work,
+and completion evidence. The external verification gates here are the
+in-app Browser manual review queue and the release-gated live ESNcard provider
+credential path.
 
 - Profile/account:
   - Docker-backed system-Chrome profile edit persistence now passes against the
@@ -555,8 +476,10 @@ and the release-gated live ESNcard provider credential path.
     form is invalid, receipt details are loading, or the review mutation is
     pending, that receipt approval additionally requires the exact
     tenant/event/submitter-bound object to pass a storage existence check while
-    rejection remains available without that object, that reimbursement
-    recording stays disabled while the refund
+    rejection remains available without that object, that confirmed missing
+    evidence stays distinct from storage verification/signing outages, that
+    profile and non-preview approval/reimbursement queue reads make no storage
+    calls, that reimbursement recording stays disabled while the refund
     mutation is pending, and that finance receipt contact details prefer the
     submitter's notification email with login email fallback.
     `docs/finance/receipt-review-reimbursement.doc.ts` now follows the exact
@@ -679,7 +602,7 @@ and the release-gated live ESNcard provider credential path.
     coverage proves the general-settings page can persist editable
     URLs/SEO/legal-text/receipt-country/ESNcard fields with database readback,
     the form trims optional editable values before sending the RPC payload,
-    includes supported currency/locale/timezone selections in the update
+    includes supported currency/timezone selections in the update
     payload, and normalizes blank optional values before the RPC call. Server
     admin-handler coverage also pins that currency changes are rejected once
     template, event, receipt, or transaction data exists and that timezone
@@ -687,9 +610,9 @@ and the release-gated live ESNcard provider credential path.
     global-admin handler applies the same fail-closed currency rule to audited
     platform edits instead of silently reinterpreting stored minor units. Tenant
     schema, admin-handler, and
-    route coverage pin supported relaunch currency/locale/timezone values,
+    route coverage pin supported relaunch currency/timezone values,
     hosted legal text fields, public legal page routes, and tenant logo/favicon
-    upload storage paths while normalizing legacy context payloads.
+    upload storage paths.
     General-settings identity coverage also pins read-only tenant name, primary
     domain, and Stripe account support lookup labels.
     General-settings component coverage also pins that invalid, submitting, and
@@ -705,17 +628,20 @@ and the release-gated live ESNcard provider credential path.
     verification responsibility, the meaning of a zero registration limit,
     tenant boundaries, and save recovery behavior.
   - Global Email Outbox coverage now seeds uniquely identified queued,
-    scheduled-retry, active-sending, exhausted, and sent rows on a disposable
-    tenant and deletes those rows in cleanup. Functional and generated-doc
-    journeys navigate through the guarded global-admin shell, assert global
-    status summaries, tenant/recipient/attempt/error details, Refresh readback,
-    and the fixed server-side list scope: queued/sending/failed rows are shown
-    while sent rows remain summary-only. Permission coverage allows platform
-    admins and denies ordinary signed-in users on the direct outbox route. The
-    beginner guide distinguishes automatic queued retry, a time-limited sending
-    claim, automatic abandoned-claim recovery, and exhausted failures. Exhausted
-    rows intentionally remain stored and read-only; no requeue or edit recovery
-    action is required for the current product scope.
+    active-sending, explicitly failed, delivery-unknown, and sent rows on a
+    disposable tenant and deletes those rows in cleanup. Functional and
+    generated-doc journeys navigate through the guarded global-admin shell,
+    assert global status summaries, tenant/recipient/attempt/error details,
+    Refresh readback, and the fixed server-side list scope: unresolved rows are
+    shown while sent rows remain summary-only. Permission coverage allows
+    platform admins and denies ordinary signed-in users on the direct outbox
+    route. The beginner guide distinguishes the single queued provider request,
+    an active sending claim, an explicit provider rejection, and an ambiguous
+    outcome that is never resent automatically.
+    `src/server/notifications/email-delivery.postgres.spec.ts` proves with
+    PostgreSQL that expired and missing sending claims become terminal
+    delivery-unknown rows before a new queued message is dispatched exactly
+    once.
   - Trusted tenant URL coverage derives one secure HTTPS public origin from the
     normalized primary domain and rejects credentials, non-default ports,
     paths, fragments, alternate hosts, and absolute URL overrides. Production
@@ -816,11 +742,14 @@ and the release-gated live ESNcard provider credential path.
     unlisted in an isolated tenant, proves it is absent from the participant
     list, opens its direct link while signed in, then preserves the tenant
     routing cookie while proving the same detail page remains readable when
-    signed out with **Log in now**. Cleanup restores the original visibility.
+    signed out with **Log in now**. Cleanup restores the exact original listing
+    audience.
   - `docs/events/event-discovery.doc.ts` is the first source in the published
     **Find an event** guide. It uses two disposable approved/listed events to
     explain main navigation, tenant-timezone date groups, start times, and the
-    signed-in registration outline. It opens event details in the desktop
+    signed-in registration outline, and documents how participant, organizer,
+    both, and unlisted audiences interact with option eligibility. It opens
+    event details in the desktop
     list/detail layout and the compact full-width layout with **Back to events**,
     then executes and screenshots the distinct **No events found** and RPC error
     states. Cleanup deletes its registration, options, and events and restores

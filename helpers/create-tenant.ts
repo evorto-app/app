@@ -14,21 +14,25 @@ const length = 4;
 
 export const createId = init({ length });
 
+export type CreateSeedTenantInput = Partial<
+  InferInsertModel<typeof schema.tenants>
+> &
+  Pick<InferInsertModel<typeof schema.tenants>, 'currency' | 'domain' | 'name'>;
+
 export const createTenant = async (
   database: NodePgDatabase<typeof relations>,
-  tenantData?: Partial<InferInsertModel<typeof schema.tenants>>,
+  tenantData: CreateSeedTenantInput,
 ) => {
   const t0 = Date.now();
-  const domain = normalizeTenantDomain(tenantData?.domain ?? createId());
+  const domain = normalizeTenantDomain(tenantData.domain);
   const tenant = await database
     .insert(tenants)
     .values({
       ...tenantData,
       domain,
       id: getId(),
-      name: tenantData?.name ?? 'ESN Murnau',
       privacyPolicyText:
-        tenantData?.privacyPolicyText ??
+        tenantData.privacyPolicyText ??
         'Development and test tenant privacy policy. Seeded data must not be used as production legal text.',
     })
     .returning();

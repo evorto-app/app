@@ -1,6 +1,15 @@
 import type { EventGraphEditRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -13,10 +22,13 @@ import {
   eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
-  eventRegistrationQuestionAnswers,
   eventRegistrationQuestions,
   eventRegistrations,
 } from '../../../../../db/schema';
+import {
+  ensureAnsweredEventQuestionsUnchanged,
+  normalizeEventQuestionValues,
+} from '../../../../registrations/event-question-answer-guard';
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
@@ -77,14 +89,16 @@ export const validateEventGraphStructure = ({
     'addOns' | 'questions' | 'registrationOptions' | 'simpleModeEnabled'
   >;
 }): null | RpcBadRequestError => {
-  if (
-    before.registrationOptions.some(
-      (option) => option.registrationMode === 'random',
-    )
-  ) {
+  if (input.addOns.length > MAX_EVENT_ADDON_TYPES) {
     return invalidGraph(
-      'Random allocation is legacy-readable but cannot be written',
-      'unsupportedEventRegistrationMode',
+      `Events support at most ${MAX_EVENT_ADDON_TYPES} add-on types`,
+      'eventAddonTypeLimitExceeded',
+    );
+  }
+  if (input.questions.length > MAX_REGISTRATION_QUESTIONS) {
+    return invalidGraph(
+      `Events support at most ${MAX_REGISTRATION_QUESTIONS} registration questions`,
+      'eventQuestionLimitExceeded',
     );
   }
 
@@ -184,15 +198,6 @@ export const validateEventGraphStructure = ({
         'invalidEventRegistrationOption',
       );
     }
-    if (
-      option.registrationMode !== 'application' &&
-      option.registrationMode !== 'fcfs'
-    ) {
-      return invalidGraph(
-        'Random allocation is legacy-readable but cannot be written',
-        'unsupportedEventRegistrationMode',
-      );
-    }
   }
 
   const optionKeySet = new Set(optionKeys);
@@ -214,6 +219,7 @@ export const validateEventGraphStructure = ({
         !addOn.allowPurchaseDuringRegistration) ||
       isInvalidInteger(addOn.maxQuantityPerUser) ||
       addOn.maxQuantityPerUser === 0 ||
+      addOn.maxQuantityPerUser > MAX_REGISTRATION_ADDON_QUANTITY ||
       isInvalidInteger(addOn.price) ||
       isInvalidInteger(addOn.totalAvailableQuantity) ||
       hasDuplicates(mappedKeys) ||
@@ -223,6 +229,8 @@ export const validateEventGraphStructure = ({
           isInvalidInteger(mapping.includedQuantity) ||
           isInvalidInteger(mapping.optionalPurchaseQuantity) ||
           mapping.includedQuantity + mapping.optionalPurchaseQuantity === 0 ||
+          mapping.includedQuantity + mapping.optionalPurchaseQuantity >
+            MAX_REGISTRATION_ADDON_QUANTITY ||
           mapping.includedQuantity + mapping.optionalPurchaseQuantity >
             addOn.totalAvailableQuantity ||
           mapping.optionalPurchaseQuantity > addOn.maxQuantityPerUser,
@@ -238,6 +246,9 @@ export const validateEventGraphStructure = ({
   for (const question of input.questions) {
     if (
       !question.title.trim() ||
+      question.title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH ||
+      (question.description?.length ?? 0) >
+        MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH ||
       !optionKeySet.has(question.registrationOptionKey) ||
       isInvalidInteger(question.sortOrder)
     ) {
@@ -308,30 +319,6 @@ const ensureNoRemovedAddOnPurchases = Effect.fn(
     );
   }
 });
-
-const ensureNoQuestionAnswers = Effect.fn('Events.ensureNoQuestionAnswers')(
-  function* (database: DatabaseClient, removedQuestionIds: readonly string[]) {
-    if (removedQuestionIds.length === 0) return;
-    const answers = yield* database
-      .select({ id: eventRegistrationQuestionAnswers.id })
-      .from(eventRegistrationQuestionAnswers)
-      .where(
-        inArray(eventRegistrationQuestionAnswers.questionId, [
-          ...removedQuestionIds,
-        ]),
-      )
-      .limit(1)
-      .pipe(Effect.orDie);
-    if (answers.length > 0) {
-      return yield* Effect.fail(
-        invalidGraph(
-          'Answered event questions cannot be changed or removed',
-          'eventQuestionInUse',
-        ),
-      );
-    }
-  },
-);
 
 const mappingKey = (addOnId: string, optionId: string): string =>
   `${addOnId}:${optionId}`;
@@ -494,6 +481,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
           .values({
             discountedPrice: option.esnCardDiscountedPrice,
             discountType: 'esnCard',
+            eventId: input.eventId,
             registrationOptionId: optionId,
           })
           .pipe(Effect.orDie);
@@ -714,13 +702,35 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
       }
     }
 
+    const submittedPersistedQuestions = [];
+    for (const question of input.questions) {
+      if (!question.id) continue;
+      const registrationOptionId = optionIdByKey.get(
+        question.registrationOptionKey,
+      );
+      if (!registrationOptionId) {
+        return yield* Effect.die(
+          new Error('Validated question target is missing'),
+        );
+      }
+      submittedPersistedQuestions.push({
+        id: question.id,
+        ...normalizeEventQuestionValues({
+          ...question,
+          registrationOptionId,
+        }),
+      });
+    }
+    yield* ensureAnsweredEventQuestionsUnchanged(database, {
+      before: before.questions,
+      submitted: submittedPersistedQuestions,
+    });
     const submittedQuestionIds = new Set(
-      input.questions.flatMap((question) => (question.id ? [question.id] : [])),
+      submittedPersistedQuestions.map((question) => question.id),
     );
     const removedQuestionIds = before.questions
       .map((question) => question.id)
       .filter((id) => !submittedQuestionIds.has(id));
-    yield* ensureNoQuestionAnswers(database, removedQuestionIds);
     if (removedQuestionIds.length > 0) {
       yield* database
         .delete(eventRegistrationQuestions)
@@ -741,31 +751,11 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
           new Error('Validated question target is missing'),
         );
       }
-      const values = {
-        description: question.description?.trim() || null,
+      const values = normalizeEventQuestionValues({
+        ...question,
         registrationOptionId,
-        required: question.required,
-        sortOrder: question.sortOrder,
-        title: question.title.trim(),
-      };
+      });
       if (question.id) {
-        const beforeQuestion = before.questions.find(
-          (existing) => existing.id === question.id,
-        );
-        if (!beforeQuestion) {
-          return yield* Effect.die(
-            new Error('Validated event question is missing from prior graph'),
-          );
-        }
-        const questionChanged =
-          (beforeQuestion.description ?? '') !== (values.description ?? '') ||
-          beforeQuestion.registrationOptionId !== values.registrationOptionId ||
-          beforeQuestion.required !== values.required ||
-          beforeQuestion.sortOrder !== values.sortOrder ||
-          beforeQuestion.title !== values.title;
-        if (questionChanged) {
-          yield* ensureNoQuestionAnswers(database, [question.id]);
-        }
         yield* database
           .update(eventRegistrationQuestions)
           .set(values)

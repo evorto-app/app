@@ -32,7 +32,6 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en-GB' as const,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
@@ -44,7 +43,6 @@ const tenant = {
 } satisfies RpcRequestContextShape['tenant'];
 
 const createUser = (permissions: readonly Permission[]) => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
   email: 'alice@example.com',
   firstName: 'Alice',
@@ -152,13 +150,24 @@ describe('icon authoring authorization', () => {
   });
 
   it.effect(
-    'allows an explicitly audited global administrator without a tenant user',
+    'does not let platform authority bypass tenant capability checks',
     () =>
-      ensureIconUsageAuthorized(EventCreateIconUsage.make({})).pipe(
-        Effect.provide(
-          createContextLayer({ permissions: ['globalAdmin:manageTenants'] }),
-        ),
-      ),
+      Effect.gen(function* () {
+        const error = yield* ensureIconUsageAuthorized(
+          EventCreateIconUsage.make({}),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              permissions: ['globalAdmin:manageTenants'],
+              user: createUser([]),
+            }),
+          ),
+        );
+
+        expect(error._tag).toBe('RpcForbiddenError');
+        expect(error.permission).toBe('events:create');
+      }),
   );
 });
 

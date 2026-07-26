@@ -1,4 +1,6 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { CanonicalIban } from '@shared/iban';
+import { CanonicalEmailAddress } from '@shared/notification-email';
 import {
   literalUnion,
   nonNegativeNumber,
@@ -9,9 +11,16 @@ import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
-import { RegistrationTransferStatus } from '../../registration-transfer';
 import {
-  FinanceReceiptFieldsInput,
+  FinanceReceiptCalendarDate,
+  FinanceReceiptMinorUnitAmount,
+  FinanceReceiptPositiveMinorUnitAmount,
+  validateFinanceReceiptAmounts,
+} from '../../finance/receipt-values';
+import { RegistrationTransferStatus } from '../../registration-transfer';
+import { ReceiptMediaServiceUnavailableError } from './finance.errors';
+import {
+  FinanceReceiptFields,
   FinanceReceiptStatus,
   FinanceTransactionRecord,
 } from './finance.rpcs';
@@ -21,6 +30,11 @@ import {
   PlatformTenantTarget,
 } from './platform-operations.shared';
 
+export const PlatformFinanceReceiptRpcError = Schema.Union([
+  PlatformOperationRpcError,
+  ReceiptMediaServiceUnavailableError,
+]);
+
 const PlatformFinancePageLimit = positiveNumber.check(
   Schema.isInt(),
   Schema.isLessThanOrEqualTo(100),
@@ -29,7 +43,6 @@ const PlatformFinancePageLimit = positiveNumber.check(
 const PlatformFinancePageOffset = nonNegativeNumber.check(Schema.isInt());
 
 export const PlatformFinancePayoutType = literalUnion('iban', 'paypal');
-const PlatformFinanceMinorUnitAmount = nonNegativeNumber.check(Schema.isInt());
 
 export const PlatformFinanceRefundRecoveryMode = literalUnion(
   'newGeneration',
@@ -54,28 +67,26 @@ export const PlatformFinanceRefundLifecycleStatus = literalUnion(
 export class PlatformFinanceReceiptRecord extends Schema.Class<PlatformFinanceReceiptRecord>(
   'PlatformFinanceReceiptRecord',
 )({
-  alcoholAmount: Schema.Number,
+  alcoholAmount: FinanceReceiptMinorUnitAmount,
   attachmentFileName: Schema.NonEmptyString,
   attachmentMimeType: Schema.NonEmptyString,
   createdAt: Schema.NonEmptyString,
   currency: Tenant.fields.currency,
-  depositAmount: Schema.Number,
+  depositAmount: FinanceReceiptMinorUnitAmount,
   eventId: Schema.NonEmptyString,
   hasAlcohol: Schema.Boolean,
   hasDeposit: Schema.Boolean,
   id: Schema.NonEmptyString,
-  previewImageUrl: Schema.NullOr(Schema.NonEmptyString),
   purchaseCountry: Schema.NonEmptyString,
-  receiptDate: Schema.NonEmptyString,
-  receiptEvidenceAvailable: Schema.Boolean,
+  receiptDate: FinanceReceiptCalendarDate,
   refundedAt: Schema.NullOr(Schema.NonEmptyString),
   refundTransactionId: Schema.NullOr(Schema.NonEmptyString),
   rejectionReason: Schema.NullOr(Schema.String),
   reviewedAt: Schema.NullOr(Schema.NonEmptyString),
   status: FinanceReceiptStatus,
   submittedByUserId: Schema.NonEmptyString,
-  taxAmount: Schema.Number,
-  totalAmount: Schema.Number,
+  taxAmount: FinanceReceiptMinorUnitAmount,
+  totalAmount: FinanceReceiptPositiveMinorUnitAmount,
   updatedAt: Schema.NonEmptyString,
 }) {}
 
@@ -94,6 +105,8 @@ export class PlatformFinanceReceiptApprovalDetailRecord extends Schema.Class<Pla
   ...PlatformFinanceReceiptWithSubmitterRecord.fields,
   eventStart: Schema.NonEmptyString,
   eventTitle: Schema.NonEmptyString,
+  previewImageUrl: Schema.NullOr(Schema.NonEmptyString),
+  receiptEvidenceAvailable: Schema.Boolean,
 }) {}
 
 export class PlatformFinanceReceiptApprovalGroup extends Schema.Class<PlatformFinanceReceiptApprovalGroup>(
@@ -160,8 +173,8 @@ export class PlatformFinanceReimbursementGroup extends Schema.Class<PlatformFina
 )({
   currency: Tenant.fields.currency,
   payout: Schema.Struct({
-    iban: Schema.NullOr(Schema.NonEmptyString),
-    paypalEmail: Schema.NullOr(Schema.NonEmptyString),
+    iban: Schema.NullOr(CanonicalIban),
+    paypalEmail: Schema.NullOr(CanonicalEmailAddress),
   }),
   payoutVersions: Schema.Struct({
     iban: Schema.NullOr(Schema.NonEmptyString),
@@ -242,7 +255,7 @@ export const PlatformFinanceReceiptApprovalQueue = asRpcQuery(
 
 export const PlatformFinanceReceiptApprovalDetail = asRpcQuery(
   Rpc.make('platform.finance.receipts.approvalDetail', {
-    error: PlatformOperationRpcError,
+    error: PlatformFinanceReceiptRpcError,
     payload: Schema.Struct({
       ...PlatformTenantTarget.fields,
       id: Schema.NonEmptyString,
@@ -252,16 +265,16 @@ export const PlatformFinanceReceiptApprovalDetail = asRpcQuery(
 );
 
 export const PlatformFinanceReceiptReviewInput = Schema.Struct({
-  ...FinanceReceiptFieldsInput.fields,
+  ...FinanceReceiptFields.fields,
   ...PlatformTenantMutationContext.fields,
-  alcoholAmount: PlatformFinanceMinorUnitAmount,
-  depositAmount: PlatformFinanceMinorUnitAmount,
   id: Schema.NonEmptyString,
   rejectionReason: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   status: literalUnion('approved', 'rejected'),
-  taxAmount: PlatformFinanceMinorUnitAmount,
-  totalAmount: PlatformFinanceMinorUnitAmount,
-});
+}).check(
+  Schema.makeFilter((input) => validateFinanceReceiptAmounts(input) === null, {
+    message: 'Receipt amounts are contradictory',
+  }),
+);
 
 export type PlatformFinanceReceiptReviewInput = Schema.Schema.Type<
   typeof PlatformFinanceReceiptReviewInput
@@ -269,7 +282,7 @@ export type PlatformFinanceReceiptReviewInput = Schema.Schema.Type<
 
 export const PlatformFinanceReceiptReview = asRpcMutation(
   Rpc.make('platform.finance.receipts.review', {
-    error: PlatformOperationRpcError,
+    error: PlatformFinanceReceiptRpcError,
     payload: PlatformFinanceReceiptReviewInput,
     success: Schema.Struct({
       id: Schema.NonEmptyString,

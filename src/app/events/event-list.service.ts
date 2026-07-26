@@ -20,8 +20,6 @@ export class EventListService {
     this.rpc.users.maybeSelf.queryOptions(),
   );
 
-  private readonly includeUnlisted = signal(false);
-
   readonly canSeeDrafts = this.permissions.hasPermission('events:seeDrafts');
   readonly canSeeUnlisted =
     this.permissions.hasPermission('events:seeUnlisted');
@@ -69,9 +67,5 @@ export class EventListService {
 
   updateStartFilter(date: Date) {
     this.startFilter.set(date);
-  }
-
-  setIncludeUnlisted(value: boolean) {
-    this.includeUnlisted.set(value);
   }
 }

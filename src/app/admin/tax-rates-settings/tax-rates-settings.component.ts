@@ -20,7 +20,10 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
-import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-dialog/import-tax-rates-dialog.component';
+import {
+  ImportTaxRatesDialogComponent,
+  type ImportTaxRatesDialogData,
+} from '../components/import-tax-rates-dialog/import-tax-rates-dialog.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -49,7 +52,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       extended
       class="fab-fixed"
       (click)="openImportDialog()"
-      [disabled]="importedQuery.isLoading()"
+      [disabled]="!importedQuery.isSuccess()"
     >
       <fa-duotone-icon [icon]="faReceipt" />
       Import Tax Rates
@@ -343,7 +346,14 @@ export class TaxRatesSettingsComponent {
   }
 
   protected openImportDialog(): void {
+    if (!this.importedQuery.isSuccess()) return;
+
     const dialogReference = this.dialog.open(ImportTaxRatesDialogComponent, {
+      data: {
+        importedTaxRateIds: this.importedQuery
+          .data()
+          .map((rate) => rate.stripeTaxRateId),
+      } satisfies ImportTaxRatesDialogData,
       disableClose: true,
       width: '800px',
     });

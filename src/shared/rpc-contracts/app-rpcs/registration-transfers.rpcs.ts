@@ -1,5 +1,12 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
+import {
+  registrationTransferClaimCodePattern,
   RegistrationTransferRefundLifecycle,
   RegistrationTransferStatus,
   registrationTransferStatuses,
@@ -12,8 +19,8 @@ import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 import { Tenant } from '../../../types/custom/tenant';
 import { RegistrationTransfersRpcError } from './registration-transfers.errors';
 
-export const RegistrationTransferCredential = Schema.NonEmptyString.check(
-  Schema.isMaxLength(512),
+export const RegistrationTransferClaimCode = Schema.String.check(
+  Schema.isPattern(registrationTransferClaimCodePattern),
 );
 
 const NonNegativeQuantity = nonNegativeNumber.check(Schema.isInt());
@@ -22,7 +29,9 @@ const PositiveQuantity = positiveNumber.check(Schema.isInt());
 export class RegistrationTransferAnswerInput extends Schema.Class<RegistrationTransferAnswerInput>(
   'RegistrationTransferAnswerInput',
 )({
-  answer: Schema.String,
+  answer: Schema.String.check(
+    Schema.isMaxLength(MAX_REGISTRATION_ANSWER_LENGTH),
+  ),
   questionId: Schema.NonEmptyString,
 }) {}
 
@@ -54,8 +63,10 @@ export class RegistrationTransferBundleRecord extends Schema.Class<RegistrationT
 export class RegistrationTransferClaimInput extends Schema.Class<RegistrationTransferClaimInput>(
   'RegistrationTransferClaimInput',
 )({
-  answers: Schema.Array(RegistrationTransferAnswerInput),
-  credential: RegistrationTransferCredential,
+  answers: Schema.Array(RegistrationTransferAnswerInput).check(
+    Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+  ),
+  claimCode: RegistrationTransferClaimCode,
 }) {}
 
 export class RegistrationTransferEventRecord extends Schema.Class<RegistrationTransferEventRecord>(
@@ -70,10 +81,16 @@ export class RegistrationTransferEventRecord extends Schema.Class<RegistrationTr
 export class RegistrationTransferQuestionRecord extends Schema.Class<RegistrationTransferQuestionRecord>(
   'RegistrationTransferQuestionRecord',
 )({
-  description: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(
+    Schema.String.check(
+      Schema.isMaxLength(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+    ),
+  ),
   id: Schema.NonEmptyString,
   required: Schema.Boolean,
-  title: Schema.NonEmptyString,
+  title: Schema.NonEmptyString.check(
+    Schema.isMaxLength(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+  ),
 }) {}
 
 export class RegistrationTransferOptionRecord extends Schema.Class<RegistrationTransferOptionRecord>(
@@ -107,8 +124,8 @@ export class RegistrationTransferClaimRecord extends Schema.Class<RegistrationTr
 export class RegistrationTransferOfferResult extends Schema.Class<RegistrationTransferOfferResult>(
   'RegistrationTransferOfferResult',
 )({
-  claimCode: RegistrationTransferCredential,
-  claimUrl: Schema.NonEmptyString,
+  claimCode: RegistrationTransferClaimCode,
+  claimPageUrl: Schema.NonEmptyString,
   expiresAt: Schema.NonEmptyString,
   status: Schema.Literal(registrationTransferStatuses[0]),
 }) {}
@@ -148,7 +165,7 @@ export const RegistrationTransfersGetClaim = asRpcQuery(
   Rpc.make('registrationTransfers.getClaim', {
     error: RegistrationTransfersRpcError,
     payload: Schema.Struct({
-      credential: RegistrationTransferCredential,
+      claimCode: RegistrationTransferClaimCode,
     }),
     success: RegistrationTransferClaimRecord,
   }),

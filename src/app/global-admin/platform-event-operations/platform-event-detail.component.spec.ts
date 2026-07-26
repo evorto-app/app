@@ -1,11 +1,17 @@
 import '@angular/compiler';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 
 import {
   platformEventAddOnAvailabilityIssue,
   platformEventAddOnMappingIssue,
+  platformEventAddOnQuantityLimitIssue,
   platformEventAddOnStockIssue,
+  platformEventAddonTypeLimitIssue,
   platformEventDiscountedPriceIssue,
   platformEventEditorIsReadOnly,
   platformEventIntegerIssue,
@@ -16,8 +22,6 @@ import {
   platformEventRegistrationWindowHasValidOrder,
   platformEventSimpleModeIssue,
   platformEventTitleIssue,
-  unsupportedPlatformEventRegistrationOptions,
-  writablePlatformEventRegistrationOptions,
 } from './platform-event-detail.component';
 
 describe('platform event registration-mode compatibility', () => {
@@ -40,23 +44,6 @@ describe('platform event registration-mode compatibility', () => {
       '[attr.inert]="eventEditorIsReadOnly(event.status) ? \'\' : null"',
     );
     expect(template).toContain('Return this event to draft before editing it.');
-  });
-
-  it('identifies legacy random options without treating supported modes as blocked', () => {
-    const supportedOptions = [
-      { registrationMode: 'application' as const },
-      { registrationMode: 'fcfs' as const },
-    ] as const;
-    const randomOption = { registrationMode: 'random' as const };
-    const options = [...supportedOptions, randomOption];
-
-    expect(unsupportedPlatformEventRegistrationOptions(options)).toEqual([
-      randomOption,
-    ]);
-    expect(writablePlatformEventRegistrationOptions(options)).toBeUndefined();
-    expect(writablePlatformEventRegistrationOptions(supportedOptions)).toEqual(
-      supportedOptions,
-    );
   });
 
   it('keeps simple events to one organizer and one participant registration', () => {
@@ -92,7 +79,7 @@ describe('platform event registration-mode compatibility', () => {
     expect(template).toContain('@if (simpleModeIssue(); as error)');
   });
 
-  it('shows random allocation as a disabled update state, not a writable option', () => {
+  it('keeps platform event editing on the supported registration modes', () => {
     const source = readFileSync(
       nodePath.join(
         process.cwd(),
@@ -108,21 +95,48 @@ describe('platform event registration-mode compatibility', () => {
       'utf8',
     );
 
-    expect(template).toContain('Update registration mode');
-    expect(template).not.toContain('· {{ option.id }}');
-    expect(template).not.toContain('errorMessage(');
-    expect(source).not.toContain('getErrorMessage');
-    expect(template).toMatch(/<mat-option\s+disabled\s+value="random"/);
-    expect(template).not.toContain('<mat-option value="random"');
-    expect(template).toContain('unsupportedRegistrationOptions().length > 0');
+    expect(template).toContain('<mat-option value="fcfs"');
+    expect(template).toContain('<mat-option value="application"');
+    expect(template).not.toContain('unsupportedRegistrationOptions');
+    expect(source).not.toContain('unsupportedPlatformEventRegistrationOptions');
     expect(template).toContain('event.simpleModeEnabled');
     expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
-    expect(source).toContain('resetPlatformEventGraphPayments');
+    expect(source).not.toContain('resetPlatformEventGraphPayments');
+    expect(source).toContain('paidGraphBlocked');
     expect(template).toContain('[disabled]="!stripeConnected()"');
     expect(template).toContain('status could not be loaded');
+    expect(template).toContain('data is preserved');
+    expect(template).toContain('cannot be saved until Stripe is connected');
     expect(template).toContain('Event editing settings could not be loaded');
     expect(template).toContain('(click)="formOptionsQuery.refetch()"');
     expect(template).toContain('!formOptionsReady()');
+  });
+
+  it('uses the explicit listing audience for labels and updates', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
+      ),
+      'utf8',
+    );
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain(
+      'changeListing(listingAudience: EventListingAudience)',
+    );
+    expect(source).toContain('listingAudience,');
+    expect(template).toContain('listingAudience of eventListingAudiences');
+    expect(template).toContain(
+      'eventListingAudienceLabel(event.listingAudience)',
+    );
+    expect(template).toContain('(click)="changeListing(listingAudience)"');
   });
 
   it('blocks invalid target-timezone registration windows instead of saving stale instants', () => {
@@ -355,6 +369,51 @@ describe('platform event registration-mode compatibility', () => {
     expect(template).toContain('addOnMappingIssue(');
     expect(template).toContain('addOnAvailabilityIssue(addOn)');
     expect(template).toContain('paidTaxRateIssue(');
+  });
+
+  it('accepts platform add-on caps and rejects cap plus one', () => {
+    const addOn = {
+      maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+      totalAvailableQuantity: 100,
+    };
+
+    expect(
+      platformEventAddOnQuantityLimitIssue(MAX_REGISTRATION_ADDON_QUANTITY),
+    ).toBeNull();
+    expect(
+      platformEventAddOnQuantityLimitIssue(MAX_REGISTRATION_ADDON_QUANTITY + 1),
+    ).toBe(
+      `Maximum per attendee cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`,
+    );
+    expect(platformEventAddOnMappingIssue(addOn, 4, 6)).toBeNull();
+    expect(platformEventAddOnMappingIssue(addOn, 4, 7)).toBe(
+      `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per registration.`,
+    );
+    expect(
+      platformEventAddonTypeLimitIssue(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES }),
+      ),
+    ).toBeNull();
+    expect(
+      platformEventAddonTypeLimitIssue(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES + 1 }),
+      ),
+    ).toBe(`Events support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`);
+
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
+      ),
+      'utf8',
+    );
+    expect(
+      template.match(/\[max\]="maxRegistrationAddonQuantity"/g)?.length,
+    ).toBe(3);
+    expect(template).toContain(
+      '[disabled]="graph.addOns.length >= maxEventAddonTypes"',
+    );
+    expect(template).toContain('addOnTypeLimitIssue(graph.addOns)');
   });
 
   it('explains blank graph titles and invalid question targets before saving', () => {

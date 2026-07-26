@@ -11,7 +11,7 @@ import {
   markRegistrationTransferRefundRequeued,
   reconcileRegistrationTransferRefund,
 } from '@server/registrations/registration-transfer-refund-reconciliation';
-import { createRegistrationTransferCredentials } from '@server/registrations/registration-transfer-credentials';
+import { createRegistrationTransferClaimCode } from '@server/registrations/registration-transfer-claim-code';
 import { StripeClient } from '@server/stripe-client';
 import {
   type RegistrationRefundRequeueState,
@@ -203,7 +203,7 @@ interface PaidRegistrationTransferScenarioInput {
 }
 
 export interface PaidRegistrationTransferScenario {
-  readonly claimPath: string;
+  readonly claimCode: string;
   readonly eventId: string;
   readonly optionId: string;
   readonly recipientRegistrationId: string;
@@ -300,7 +300,7 @@ export const seedPaidRegistrationTransferScenario = async (
   const freeRedemptionEventId = createId();
   const freeCancellationEventId = createId();
   const transferId = createId();
-  const credentials = createRegistrationTransferCredentials();
+  const claimCredential = createRegistrationTransferClaimCode();
   const stripeAccountId = `acct_transfer_${transferId}`;
   const sourceStripeAccountId = `acct_transfer_source_${transferId}`;
   const checkoutSessionId = `cs_test_transfer_${recipientTransactionId}`;
@@ -350,7 +350,7 @@ export const seedPaidRegistrationTransferScenario = async (
     templateId: input.templateId,
     tenantId: input.tenant.id,
     title: input.title,
-    unlisted: true,
+    listingAudience: 'unlisted',
   });
   await input.database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,
@@ -821,8 +821,7 @@ export const seedPaidRegistrationTransferScenario = async (
       tenantId: input.tenant.id,
     });
   await input.database.insert(schema.registrationTransfers).values({
-    claimCodeHash: credentials.claimCodeHash,
-    claimTokenHash: credentials.claimTokenHash,
+    claimCodeHash: claimCredential.claimCodeHash,
     eventId,
     expiresAt: checkoutExpiresAt,
     id: transferId,
@@ -1363,7 +1362,7 @@ export const seedPaidRegistrationTransferScenario = async (
 
   return {
     cancelInheritedAddon,
-    claimPath: `/registration-transfers/${credentials.claimToken}`,
+    claimCode: claimCredential.claimCode,
     cleanup,
     completeCheckout,
     completeSourceRefunds,

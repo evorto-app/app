@@ -22,11 +22,27 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import {
   type MatSelectChange,
   MatSelectModule,
 } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
+import {
+  type EventListingAudience,
+  eventListingAudienceDescriptions,
+  eventListingAudienceLabel,
+  eventListingAudiences,
+} from '@shared/event-listing-audience';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { type PlatformEventDetailRecord } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import {
   injectMutation,
@@ -35,6 +51,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
   majorCurrencyInputToMinorUnits,
@@ -42,6 +59,7 @@ import {
 } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import {
+  graphHasPaidConfiguration,
   resetAddOnPayment,
   resetRegistrationPayment,
 } from '../../shared/components/forms/payment-configuration';
@@ -127,6 +145,26 @@ export const platformEventTitleIssue = (
   item: PlatformEventTitledItem,
 ): null | string => (title.trim() ? null : `Enter a ${item} title.`);
 
+export const platformEventQuestionTitleIssue = (title: string): null | string =>
+  platformEventTitleIssue(title, 'question') ??
+  (title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH
+    ? `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`
+    : null);
+
+export const platformEventQuestionDescriptionIssue = (
+  description: null | string,
+): null | string =>
+  (description?.length ?? 0) > MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH
+    ? `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`
+    : null;
+
+export const platformEventQuestionCountIssue = (
+  questions: readonly unknown[],
+): null | string =>
+  questions.length > MAX_REGISTRATION_QUESTIONS
+    ? `Events support at most ${MAX_REGISTRATION_QUESTIONS} registration questions.`
+    : null;
+
 export const platformEventQuestionOptionIssue = (
   registrationOptionId: string,
   registrationOptionIds: ReadonlySet<string>,
@@ -169,6 +207,20 @@ export const platformEventAddOnStockIssue = (
     ? 'Maximum per attendee cannot exceed available stock.'
     : null;
 
+export const platformEventAddOnQuantityLimitIssue = (
+  quantity: number,
+): null | string =>
+  quantity > MAX_REGISTRATION_ADDON_QUANTITY
+    ? `Maximum per attendee cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`
+    : null;
+
+export const platformEventAddonTypeLimitIssue = (
+  addOns: readonly unknown[],
+): null | string =>
+  addOns.length > MAX_EVENT_ADDON_TYPES
+    ? `Events support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`
+    : null;
+
 export const platformEventAddOnMappingIssue = (
   addOn: Pick<
     PlatformEventAddonEdit,
@@ -179,6 +231,9 @@ export const platformEventAddOnMappingIssue = (
 ): null | string => {
   const total = includedQuantity + optionalPurchaseQuantity;
   if (total === 0) return 'Include or offer at least one unit.';
+  if (total > MAX_REGISTRATION_ADDON_QUANTITY) {
+    return `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per registration.`;
+  }
   if (total > addOn.totalAvailableQuantity) {
     return 'Included and optional quantities cannot exceed available stock.';
   }
@@ -218,6 +273,7 @@ export const platformEventGraphHasIssues = (
     graph.registrationOptions.map((option) => option.id),
   );
   return (
+    platformEventAddonTypeLimitIssue(graph.addOns) !== null ||
     graph.registrationOptions.some(
       (option) =>
         platformEventTitleIssue(option.title, 'registration option') !== null ||
@@ -256,6 +312,8 @@ export const platformEventGraphHasIssues = (
           options.taxRateIds,
         ) !== null ||
         platformEventAddOnAvailabilityIssue(addOn) !== null ||
+        platformEventAddOnQuantityLimitIssue(addOn.maxQuantityPerUser) !==
+          null ||
         platformEventAddOnStockIssue(addOn) !== null ||
         platformEventIntegerIssue(addOn.totalAvailableQuantity, 0) !== null ||
         platformEventIntegerIssue(addOn.maxQuantityPerUser, 1) !== null ||
@@ -271,9 +329,11 @@ export const platformEventGraphHasIssues = (
             ) !== null,
         ),
     ) ||
+    platformEventQuestionCountIssue(graph.questions) !== null ||
     graph.questions.some(
       (question) =>
-        platformEventTitleIssue(question.title, 'question') !== null ||
+        platformEventQuestionTitleIssue(question.title) !== null ||
+        platformEventQuestionDescriptionIssue(question.description) !== null ||
         platformEventQuestionOptionIssue(
           question.registrationOptionId,
           registrationOptionIds,
@@ -319,31 +379,6 @@ export const platformEventRegistrationWindowHasValidOrder = (
     true,
   );
 
-type PlatformEventRegistrationWindowField =
-  'closeRegistrationTime' | 'openRegistrationTime';
-
-export const unsupportedPlatformEventRegistrationOptions = <
-  Option extends Pick<PlatformEventRegistrationOption, 'registrationMode'>,
->(
-  options: readonly Option[],
-): readonly Option[] =>
-  options.filter((option) => option.registrationMode === 'random');
-
-export const writablePlatformEventRegistrationOptions = <
-  Option extends Pick<PlatformEventRegistrationOption, 'registrationMode'>,
->(
-  options: readonly Option[],
-):
-  | readonly (Option & { registrationMode: 'application' | 'fcfs' })[]
-  | undefined => {
-  const supported = options.filter(
-    (option): option is Option & { registrationMode: 'application' | 'fcfs' } =>
-      option.registrationMode === 'application' ||
-      option.registrationMode === 'fcfs',
-  );
-  return supported.length === options.length ? supported : undefined;
-};
-
 export interface PlatformEventRegistrationOptionEdit extends Omit<
   PlatformEventRegistrationOption,
   'roleIds'
@@ -351,23 +386,8 @@ export interface PlatformEventRegistrationOptionEdit extends Omit<
   roleIds: string[];
 }
 
-export const resetPlatformEventGraphPayments = <
-  Model extends PlatformEventGraphEditModel,
->(
-  model: Model,
-): Model => {
-  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, null));
-  const registrationOptions = model.registrationOptions.map((option) =>
-    resetRegistrationPayment(option, null, null),
-  );
-  const unchanged =
-    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
-    registrationOptions.every(
-      (option, index) => option === model.registrationOptions[index],
-    );
-
-  return unchanged ? model : { ...model, addOns, registrationOptions };
-};
+type PlatformEventRegistrationWindowField =
+  'closeRegistrationTime' | 'openRegistrationTime';
 
 const textInputValue = (event: Event): string | undefined =>
   event.target instanceof HTMLInputElement ||
@@ -442,6 +462,7 @@ export class PlatformEventDetailOperations {
     MatExpansionModule,
     MatFormFieldModule,
     MatInputModule,
+    MatMenuModule,
     MatSelectModule,
     PlatformTenantPageHeaderComponent,
     RouterLink,
@@ -457,7 +478,10 @@ export class PlatformEventDetailComponent {
   protected readonly addOnAvailabilityIssue =
     platformEventAddOnAvailabilityIssue;
   protected readonly addOnMappingIssue = platformEventAddOnMappingIssue;
+  protected readonly addOnQuantityLimitIssue =
+    platformEventAddOnQuantityLimitIssue;
   protected readonly addOnStockIssue = platformEventAddOnStockIssue;
+  protected readonly addOnTypeLimitIssue = platformEventAddonTypeLimitIssue;
   protected readonly currencyAmountErrors = signal<ReadonlyMap<string, string>>(
     new Map(),
   );
@@ -508,6 +532,10 @@ export class PlatformEventDetailComponent {
     });
   });
   protected readonly eventEditorIsReadOnly = platformEventEditorIsReadOnly;
+  protected readonly eventListingAudienceDescriptions =
+    eventListingAudienceDescriptions;
+  protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
+  protected readonly eventListingAudiences = eventListingAudiences;
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findOne(this.tenantId(), this.eventId()),
   );
@@ -548,8 +576,31 @@ export class PlatformEventDetailComponent {
   protected readonly listingMutation = injectMutation(() =>
     this.operations.updateListing(),
   );
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationAddonQuantity =
+    MAX_REGISTRATION_ADDON_QUANTITY;
+  protected readonly maxRegistrationQuestionDescriptionLength =
+    MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
+  protected readonly maxRegistrationQuestionTitleLength =
+    MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
   protected readonly minorUnitsToMajorCurrencyInput =
     minorUnitsToMajorCurrencyInput;
+  protected readonly targetTenantQuery = injectQuery(() =>
+    this.operations.tenant(this.tenantId()),
+  );
+  protected readonly stripeDisconnected = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.stripeConnected === false,
+  );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.stripeDisconnected() && graphHasPaidConfiguration(this.graphModel()),
+  );
+  protected readonly questionDescriptionIssue =
+    platformEventQuestionDescriptionIssue;
+  protected readonly questionTitleIssue = platformEventQuestionTitleIssue;
   protected readonly registrationOptionIds = computed(
     () =>
       new Set(this.graphModel().registrationOptions.map((option) => option.id)),
@@ -564,18 +615,10 @@ export class PlatformEventDetailComponent {
       this.graphModel().registrationOptions,
     ),
   );
-  protected readonly targetTenantQuery = injectQuery(() =>
-    this.operations.tenant(this.tenantId()),
-  );
   protected readonly stripeConnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
       this.targetTenantQuery.data()?.stripeConnected === true,
-  );
-  protected readonly stripeDisconnected = computed(
-    () =>
-      this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === false,
   );
   protected readonly submitMutation = injectMutation(() =>
     this.operations.submitForReview(),
@@ -586,11 +629,6 @@ export class PlatformEventDetailComponent {
       : '',
   );
   protected readonly titleIssue = platformEventTitleIssue;
-  protected readonly unsupportedRegistrationOptions = computed(() =>
-    unsupportedPlatformEventRegistrationOptions(
-      this.graphModel().registrationOptions,
-    ),
-  );
   protected readonly updateMutation = injectMutation(() =>
     this.operations.update(),
   );
@@ -633,30 +671,17 @@ export class PlatformEventDetailComponent {
             roleIds: [...option.roleIds],
           })),
         };
-        this.graphModel.set(
-          this.stripeDisconnected()
-            ? resetPlatformEventGraphPayments(graph)
-            : graph,
-        );
+        this.graphModel.set(graph);
         this.invalidRegistrationWindowFields.set(new Set());
         this.currencyAmountErrors.set(new Map());
         this.editForm().reset();
         this.initializedEventKey.set(eventKey);
       });
     });
-    effect(() => {
-      if (!this.stripeDisconnected()) return;
-      const graph = this.graphModel();
-      const resetGraph = resetPlatformEventGraphPayments(graph);
-      if (resetGraph === graph) return;
-      untracked(() => {
-        this.graphModel.set(resetGraph);
-        this.currencyAmountErrors.set(new Map());
-      });
-    });
   }
 
   protected addAddOn(): void {
+    if (this.graphModel().addOns.length >= MAX_EVENT_ADDON_TYPES) return;
     this.graphModel.update((graph) => ({
       ...graph,
       addOns: [
@@ -712,7 +737,11 @@ export class PlatformEventDetailComponent {
 
   protected addQuestion(): void {
     const registrationOptionId = this.graphModel().registrationOptions[0]?.id;
-    if (!registrationOptionId) return;
+    if (
+      !registrationOptionId ||
+      this.graphModel().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.graphModel.update((graph) => ({
       ...graph,
       questions: [
@@ -732,23 +761,26 @@ export class PlatformEventDetailComponent {
     this.review(true);
   }
 
-  protected changeListing(unlisted: boolean): void {
+  protected changeListing(listingAudience: EventListingAudience): void {
     const reason = this.actionReason().trim();
     if (!reason || this.mutationPending()) return;
     void (async () => {
       try {
         await this.listingMutation.mutateAsync({
           eventId: this.eventId(),
+          listingAudience,
           reason,
           targetTenantId: this.tenantId(),
-          unlisted,
         });
         await this.refresh();
         this.actionReason.set('');
         this.notifications.showSuccess('Event listing updated');
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event listing could not be updated. Try again.',
+          getErrorMessage(
+            error,
+            'The event listing could not be updated. Try again.',
+          ),
         );
       }
     })();
@@ -864,7 +896,7 @@ export class PlatformEventDetailComponent {
       this.invalidRegistrationWindowFields().size > 0 ||
       this.hasInvalidRegistrationWindowOrder() ||
       this.simpleModeIssue() !== null ||
-      this.unsupportedRegistrationOptions().length > 0
+      this.paidGraphBlocked()
     ) {
       return;
     }
@@ -884,13 +916,7 @@ export class PlatformEventDetailComponent {
         );
         return;
       }
-      const graph = this.stripeDisconnected()
-        ? resetPlatformEventGraphPayments(this.graphModel())
-        : this.graphModel();
-      const registrationOptions = writablePlatformEventRegistrationOptions(
-        graph.registrationOptions,
-      );
-      if (!registrationOptions) return;
+      const graph = this.graphModel();
       try {
         await this.updateMutation.mutateAsync({
           addOns: graph.addOns,
@@ -901,16 +927,19 @@ export class PlatformEventDetailComponent {
           location: current.location,
           questions: graph.questions,
           reason: value.reason,
-          registrationOptions,
+          registrationOptions: graph.registrationOptions,
           start,
           targetTenantId: this.tenantId(),
           title: value.title,
         });
         await this.refresh();
         this.notifications.showSuccess('Event updated');
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event could not be updated. Review the details and try again.',
+          getErrorMessage(
+            error,
+            'The event could not be updated. Review the details and try again.',
+          ),
         );
       }
     });
@@ -1255,9 +1284,12 @@ export class PlatformEventDetailComponent {
         await this.refresh();
         this.actionReason.set('');
         this.notifications.showSuccess('Event submitted for review');
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event could not be submitted for review. Try again.',
+          getErrorMessage(
+            error,
+            'The event could not be submitted for review. Try again.',
+          ),
         );
       }
     })();
@@ -1322,9 +1354,12 @@ export class PlatformEventDetailComponent {
         this.notifications.showSuccess(
           approved ? 'Event approved' : 'Event returned to draft',
         );
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event review could not be saved. Try again.',
+          getErrorMessage(
+            error,
+            'The event review could not be saved. Try again.',
+          ),
         );
       }
     })();

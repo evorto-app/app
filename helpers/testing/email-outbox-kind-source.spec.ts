@@ -95,16 +95,4 @@ describe('email outbox kind source inventory', () => {
     expect(pageFlowSource).toContain("kind: 'registrationConfirmed'");
     expect(generatedGuideSource).toContain("kind: 'registrationConfirmed'");
   });
-
-  it('keeps the durable kind guard discoverable in the test inventory', () => {
-    const inventory = readSource('tests/test-inventory.md');
-
-    expect(inventory).toContain(
-      '`helpers/testing/email-outbox-kind-source.spec.ts` keeps the typed kinds,',
-    );
-    expect(inventory).toContain(
-      'operator labels, React Email producers, transactional transition splices,',
-    );
-    expect(inventory).toContain('and page-backed coverage aligned');
-  });
 });

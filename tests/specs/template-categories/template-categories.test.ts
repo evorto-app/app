@@ -1,9 +1,9 @@
-import { defaultStateFile } from '../../../helpers/user-data';
+import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.setTimeout(120000);
 
-test.use({ storageState: defaultStateFile });
+test.use({ storageState: adminStateFile });
 
 test('create template category', async ({
   database,

@@ -9,6 +9,7 @@ import {
   registrationAddonRefundStatusLabel,
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
+  scanCheckInTimingIssueCopy,
   scanGuestCheckInCountFromInput,
   scanRegistrationStatusIssueCopy,
   scanSpotCountLabel,
@@ -246,6 +247,20 @@ describe('scan registration status copy', () => {
       body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Ask an organizer to review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
       title: 'Registration on waitlist',
     });
+  });
+});
+
+describe('scan check-in timing copy', () => {
+  it('distinguishes a future event from a closed event', () => {
+    expect(scanCheckInTimingIssueCopy('notOpen')).toEqual({
+      body: 'Check-in opens one hour before the event starts.',
+      title: 'Check-in not open',
+    });
+    expect(scanCheckInTimingIssueCopy('ended')).toEqual({
+      body: 'The event ended more than two hours ago, so check-in is closed. No check-in was recorded.',
+      title: 'Check-in closed',
+    });
+    expect(scanCheckInTimingIssueCopy(null)).toBeNull();
   });
 });
 

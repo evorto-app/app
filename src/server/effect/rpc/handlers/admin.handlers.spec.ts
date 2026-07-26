@@ -1,15 +1,19 @@
-import { describe, expect, it } from '@effect/vitest';
+import { describe, expect, layer } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
+import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { StripeClient } from '../../../stripe-client';
+import { roleTenantNameUniqueConstraintName } from '../../../../db/schema';
+import { type Permission } from '../../../../shared/permissions/permissions';
 import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import { StripeClient } from '../../../stripe-client';
 import { adminHandlers } from './admin.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const createTenant = (id = 'tenant-1') => ({
   cancellationDeadlineHoursBeforeStart: 120,
@@ -24,8 +28,8 @@ const createTenant = (id = 'tenant-1') => ({
   domain: `${id}.example.com`,
   faviconUrl: null,
   id,
-  locale: 'en',
   logoUrl: null,
+  maxActiveRegistrationsPerUser: 0,
   name: id,
   privacyPolicyText: 'Current tenant privacy policy',
   privacyPolicyUrl: null,
@@ -40,32 +44,47 @@ const createTenant = (id = 'tenant-1') => ({
   transferDeadlineHoursBeforeStart: 0,
 });
 
-const createAdminHeaders = () => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-    'admin:manageRoles',
-  ]),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(createTenant()),
-});
-
 const createAdminOptions = () => ({
-  headers: Headers.fromInput(createAdminHeaders()),
+  headers: Headers.empty,
 });
 
-const createSettingsAdminHeaders = (stripeAccountId: null | string = null) => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-    'admin:changeSettings',
-  ]),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
-    ...createTenant(),
-    stripeAccountId,
-  }),
+const createSettingsAdminOptions = (
+  _stripeAccountId: null | string = null,
+) => ({
+  headers: Headers.empty,
 });
 
-const createSettingsAdminOptions = (stripeAccountId: null | string = null) => ({
-  headers: Headers.fromInput(createSettingsAdminHeaders(stripeAccountId)),
-});
+const createRequestContext = (
+  permissions: readonly Permission[],
+  stripeAccountId: null | string = null,
+) =>
+  ({
+    authData: {},
+    authenticated: true,
+    permissions,
+    platformAuthority: null,
+    tenant: {
+      ...createTenant(),
+      stripeAccountId,
+    },
+    user: null,
+    userAssigned: false,
+  }) satisfies RpcRequestContextShape;
+
+const adminPermissions = [
+  'admin:changeSettings',
+  'admin:manageRoles',
+  'admin:tax',
+  'internal:viewInternalPages',
+] as const satisfies readonly Permission[];
+
+const adminHandlerLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(
+    RpcRequestContext,
+    createRequestContext(adminPermissions),
+  ),
+);
 
 const createSettingsInput = () => ({
   allowOther: true,
@@ -82,6 +101,15 @@ const createSettingsInput = () => ({
   theme: 'evorto' as const,
   timezone: 'Europe/Berlin' as const,
   transferDeadlineHoursBeforeStart: 0,
+});
+
+const createRoleWriteInput = () => ({
+  defaultOrganizerRole: false,
+  defaultUserRole: true,
+  description: '  Default tenant member  ',
+  displayInHub: true,
+  name: '  Member  ',
+  permissions: ['users:viewAll', 'admin:manageRoles', 'users:viewAll'] as const,
 });
 
 const noLocaleMoneyDependentDataQuery = () => ({
@@ -258,17 +286,10 @@ class TaxRateStripeResponse extends Stripe.HttpClientResponse {
   }
 }
 
-const createTaxRateAdminOptions = () => ({
-  headers: Headers.fromInput({
-    [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-    [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-      'admin:tax',
-    ]),
-    [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
-      ...createTenant(),
-      stripeAccountId: 'acct_current',
-    }),
-  }),
+const createTaxRateAdminOptions = (
+  _stripeAccountId: null | string = 'acct_current',
+) => ({
+  headers: Headers.empty,
 });
 
 const createTaxRateImportDatabase = (input: {
@@ -317,18 +338,22 @@ const taxRateImportLayer = (database: object) =>
     ),
   );
 
+layer(adminHandlerLayer)((it) => {
 describe('adminHandlers role permissions', () => {
   it.effect('findMany requires role management permission', () =>
     Effect.gen(function* () {
       const error = yield* adminHandlers['admin.roles.findMany'](
         {},
         {
-          headers: Headers.fromInput({
-            [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-            [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([]),
-          }),
+          headers: Headers.empty,
         },
-      ).pipe(Effect.flip);
+      ).pipe(
+        Effect.provideService(
+          RpcRequestContext,
+          createRequestContext([]),
+        ),
+        Effect.flip,
+      );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.permission).toBe('admin:manageRoles');
@@ -342,7 +367,6 @@ describe('adminHandlers role permissions', () => {
           roles: {
             findFirst: () =>
               Effect.succeed({
-                collapseMembersInHub: true,
                 defaultOrganizerRole: false,
                 defaultUserRole: true,
                 description: 'Visible in the hub',
@@ -374,9 +398,174 @@ describe('adminHandlers role permissions', () => {
       expect(role).not.toHaveProperty('showInHub');
     }),
   );
+
+  it.effect('findHubRoles requires internal page visibility', () =>
+    Effect.gen(function* () {
+      const error = yield* adminHandlers['admin.roles.findHubRoles'](
+        undefined,
+        {
+          headers: Headers.empty,
+        },
+      ).pipe(
+        Effect.provideService(
+          RpcRequestContext,
+          createRequestContext([]),
+        ),
+        Effect.flip,
+      );
+
+      expect(error).toMatchObject({
+        _tag: 'RpcForbiddenError',
+        permission: 'internal:viewInternalPages',
+      });
+    }),
+  );
+
+  it.effect(
+    'returns a typed role-write validation error before persistence',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.roles.create'](
+          {
+            ...createRoleWriteInput(),
+            name: ' '.repeat(3),
+          },
+          createAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase({})), Effect.flip);
+
+        expect(error).toMatchObject({
+          _tag: 'RoleWriteValidationError',
+          field: 'name',
+          message: 'Role name is required',
+        });
+      }),
+  );
+
+  it.effect('persists the shared normalized role-write shape', () =>
+    Effect.gen(function* () {
+      let capturedValues: Record<string, unknown> | undefined;
+      const insertQuery = {
+        returning: () =>
+          Effect.succeed([
+            {
+              defaultOrganizerRole: false,
+              defaultUserRole: true,
+              description: 'Default tenant member',
+              displayInHub: true,
+              id: 'role-1',
+              name: 'Member',
+              permissions: ['admin:manageRoles', 'users:viewAll'],
+              sortOrder: 1,
+            },
+          ]),
+        values: (values: Record<string, unknown>) => {
+          capturedValues = values;
+          return insertQuery;
+        },
+      };
+      const transactionDatabase = {
+        execute: () => Effect.void,
+        insert: () => insertQuery,
+      };
+      const database = {
+        transaction: <A, E, R>(
+          run: (
+            database_: typeof transactionDatabase,
+          ) => Effect.Effect<A, E, R>,
+        ) => run(transactionDatabase),
+      };
+
+      const role = yield* adminHandlers['admin.roles.create'](
+        createRoleWriteInput(),
+        createAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)));
+
+      expect(capturedValues).toEqual({
+        defaultOrganizerRole: false,
+        defaultUserRole: true,
+        description: 'Default tenant member',
+        displayInHub: true,
+        name: 'Member',
+        permissions: ['admin:manageRoles', 'users:viewAll'],
+        tenantId: 'tenant-1',
+      });
+      expect(role.name).toBe('Member');
+    }),
+  );
+
+  it.effect(
+    'maps the tenant role-name constraint to a typed duplicate error',
+    () =>
+      Effect.gen(function* () {
+        const duplicate = new SqlError({
+          reason: new UniqueViolation({
+            cause: { code: '23505' },
+            constraint: roleTenantNameUniqueConstraintName,
+            message: 'duplicate key value violates unique constraint',
+            operation: 'INSERT',
+          }),
+        });
+        const insertQuery = {
+          returning: () => Effect.fail(duplicate),
+          values: () => insertQuery,
+        };
+        const transactionDatabase = {
+          execute: () => Effect.void,
+          insert: () => insertQuery,
+        };
+        const database = {
+          transaction: <A, E, R>(
+            run: (
+              database_: typeof transactionDatabase,
+            ) => Effect.Effect<A, E, R>,
+          ) => run(transactionDatabase),
+        };
+
+        const error = yield* adminHandlers['admin.roles.create'](
+          createRoleWriteInput(),
+          createAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+        expect(error).toMatchObject({
+          _tag: 'RoleNameAlreadyExistsError',
+          message: 'A role named Member already exists',
+          name: 'Member',
+        });
+      }),
+  );
 });
 
 describe('adminHandlers Stripe tax-rate import', () => {
+  it.effect('rejects import when the tenant has no connected account', () =>
+    Effect.gen(function* () {
+      const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
+        { ids: ['txr_admin'] },
+        createTaxRateAdminOptions(null),
+      ).pipe(Effect.flip);
+
+      expect(error).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        reason: 'stripeAccountRequired',
+      });
+    }),
+  );
+
+  it.effect(
+    'rejects provider listing when the tenant has no connected account',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.tenant.listStripeTaxRates'](
+          undefined,
+          createTaxRateAdminOptions(null),
+        ).pipe(Effect.flip);
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'stripeAccountRequired',
+        });
+      }),
+  );
+
   it.effect(
     'keeps a concurrent tenant account change in the expected channel',
     () =>
@@ -397,8 +586,9 @@ describe('adminHandlers Stripe tax-rate import', () => {
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          message: 'Stripe account changed while tax rates were loading',
-          reason: 'Reload the page and import rates from the current account.',
+          message:
+            'The tenant Stripe account changed while tax rates were being loaded; retry the import',
+          reason: 'stripeAccountChanged',
         });
       }),
   );
@@ -426,14 +616,30 @@ describe('adminHandlers Stripe tax-rate import', () => {
           _tag: 'RpcBadRequestError',
           message:
             'Imported tax-rate metadata belongs to a different Stripe account',
-          reason:
-            'Change or disconnect the Stripe account before importing this rate.',
+          reason: 'stripeTaxRateAccountConflict',
         });
       }),
   );
 });
 
 describe('adminHandlers tenant settings', () => {
+  it.effect('rejects fractional limits instead of changing them', () =>
+    Effect.gen(function* () {
+      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          ...createSettingsInput(),
+          maxActiveRegistrationsPerUser: 4.8,
+        },
+        createSettingsAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase({})), Effect.flip);
+
+      expect(error).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message: 'Updated tenant settings failed validation',
+      });
+    }),
+  );
+
   it.effect(
     'updates tenant SEO settings through the validated tenant shape',
     () =>
@@ -483,7 +689,7 @@ describe('adminHandlers tenant settings', () => {
             legalNoticeText: '  Tenant imprint text  ',
             legalNoticeUrl: ' https://section.example.org/imprint ',
             logoUrl: 'https://cdn.example.org/logo.svg',
-            maxActiveRegistrationsPerUser: 4.8,
+            maxActiveRegistrationsPerUser: 4,
             receiptCountries: ['NL'],
             refundFeesOnCancellation: false,
             seoDescription: '  Public description  ',
@@ -525,7 +731,6 @@ describe('adminHandlers tenant settings', () => {
           faviconUrl: 'https://cdn.example.org/favicon.ico',
           legalNoticeText: 'Tenant imprint text',
           legalNoticeUrl: 'https://section.example.org/imprint',
-          locale: 'de-DE',
           logoUrl: 'https://cdn.example.org/logo.svg',
           maxActiveRegistrationsPerUser: 4,
           refundFeesOnCancellation: false,
@@ -537,7 +742,6 @@ describe('adminHandlers tenant settings', () => {
           timezone: 'Australia/Brisbane',
           transferDeadlineHoursBeforeStart: 12,
         });
-        expect(capturedUpdate).not.toHaveProperty('locale');
       }),
   );
 

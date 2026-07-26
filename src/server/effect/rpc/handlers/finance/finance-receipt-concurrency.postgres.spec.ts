@@ -12,7 +12,12 @@ import {
   eventInstances,
   eventTemplateCategories,
   eventTemplates,
+  financeReceiptAlcoholAmountConsistentCheckName,
+  financeReceiptComponentsWithinTotalCheckName,
+  financeReceiptDepositAmountConsistentCheckName,
   financeReceipts,
+  financeReceiptTaxAmountValidCheckName,
+  financeReceiptTotalAmountPositiveCheckName,
   financeReceiptUploads,
   tenants,
   transactions,
@@ -175,6 +180,7 @@ describe('receipt review and reimbursement serialization', () => {
       description: 'Receipt lock template',
       icon: { iconColor: 0, iconName: 'circle' },
       id: templateId,
+      listingAudience: 'both',
       tenantId,
       title: 'Receipt lock template',
     });
@@ -184,6 +190,7 @@ describe('receipt review and reimbursement serialization', () => {
       end: new Date('2026-08-01T12:00:00.000Z'),
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
+      listingAudience: 'both',
       start: new Date('2026-08-01T10:00:00.000Z'),
       status: 'APPROVED',
       templateId,
@@ -215,17 +222,22 @@ describe('receipt review and reimbursement serialization', () => {
       uploadedByUserId: userId,
     });
     await database.insert(financeReceipts).values({
+      alcoholAmount: 0,
       attachmentFileName: 'receipt.png',
       attachmentMimeType: 'image/png',
       attachmentSizeBytes: 7,
       attachmentUploadId: receiptUploadId,
       currency: 'CZK',
+      depositAmount: 0,
       eventId,
+      hasAlcohol: false,
+      hasDeposit: false,
       id: receiptId,
       purchaseCountry: 'NL',
-      receiptDate: new Date('2026-07-31T00:00:00.000Z'),
+      receiptDate: '2026-07-31',
       status,
       submittedByUserId: userId,
+      taxAmount: 0,
       tenantId,
       totalAmount: 100,
     });
@@ -238,7 +250,6 @@ describe('receipt review and reimbursement serialization', () => {
       },
       domain: `${suffix}.receipt-lock.example`,
       id: tenantId,
-      locale: 'de-DE',
       name: `Receipt lock ${suffix}`,
       receiptSettings: { allowOther: false, receiptCountries: ['NL'] },
       stripeAccountId: null,
@@ -246,7 +257,6 @@ describe('receipt review and reimbursement serialization', () => {
       timezone: 'Europe/Berlin',
     };
     const user = {
-      attributes: [],
       auth0Id: `auth0|receipt-lock-${suffix}`,
       communicationEmail: `receipt-lock-${suffix}@example.com`,
       email: `receipt-lock-${suffix}@example.com`,
@@ -277,6 +287,47 @@ describe('receipt review and reimbursement serialization', () => {
 
     return { eventId, handlerLayer, receiptId, tenantId, userId };
   };
+
+  it('stores receipt dates as calendar days and rejects invalid amount states at the database boundary', async () => {
+    const fixture = await seedReceipt('submitted');
+    const stored = await pool.query<{ receiptDate: string }>(
+      'SELECT "receiptDate" FROM finance_receipts WHERE id = $1',
+      [fixture.receiptId],
+    );
+    expect(stored.rows[0]?.receiptDate).toBe('2026-07-31');
+
+    const invalidUpdates = [
+      {
+        constraint: financeReceiptTotalAmountPositiveCheckName,
+        sql: 'UPDATE finance_receipts SET "totalAmount" = 0 WHERE id = $1',
+      },
+      {
+        constraint: financeReceiptTaxAmountValidCheckName,
+        sql: 'UPDATE finance_receipts SET "taxAmount" = 101 WHERE id = $1',
+      },
+      {
+        constraint: financeReceiptDepositAmountConsistentCheckName,
+        sql: 'UPDATE finance_receipts SET "depositAmount" = 1, "hasDeposit" = false WHERE id = $1',
+      },
+      {
+        constraint: financeReceiptAlcoholAmountConsistentCheckName,
+        sql: 'UPDATE finance_receipts SET "alcoholAmount" = 0, "hasAlcohol" = true WHERE id = $1',
+      },
+      {
+        constraint: financeReceiptComponentsWithinTotalCheckName,
+        sql: 'UPDATE finance_receipts SET "depositAmount" = 60, "hasDeposit" = true, "alcoholAmount" = 50, "hasAlcohol" = true WHERE id = $1',
+      },
+    ];
+
+    for (const update of invalidUpdates) {
+      await expect(
+        pool.query(update.sql, [fixture.receiptId]),
+      ).rejects.toMatchObject({
+        code: '23514',
+        constraint: update.constraint,
+      });
+    }
+  });
 
   it(
     're-reads the locked amount and currency before inserting the reimbursement ledger row',

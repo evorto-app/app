@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
+  date,
   foreignKey,
   integer,
   pgEnum,
@@ -28,6 +30,17 @@ export const financeReceiptUploadStatus = pgEnum(
   'finance_receipt_upload_status',
   ['pending', 'ready', 'rejected', 'consumed'],
 );
+
+export const financeReceiptTotalAmountPositiveCheckName =
+  'finance_receipts_total_amount_positive';
+export const financeReceiptTaxAmountValidCheckName =
+  'finance_receipts_tax_amount_valid';
+export const financeReceiptDepositAmountConsistentCheckName =
+  'finance_receipts_deposit_amount_consistent';
+export const financeReceiptAlcoholAmountConsistentCheckName =
+  'finance_receipts_alcohol_amount_consistent';
+export const financeReceiptComponentsWithinTotalCheckName =
+  'finance_receipts_components_within_total';
 
 export const financeReceiptUploads = pgTable(
   'finance_receipt_uploads',
@@ -66,22 +79,22 @@ export const financeReceipts = pgTable(
   'finance_receipts',
   {
     ...modelOfTenant,
-    alcoholAmount: integer().notNull().default(0),
+    alcoholAmount: integer().notNull(),
     attachmentFileName: text().notNull(),
     attachmentMimeType: text().notNull(),
     attachmentSizeBytes: integer().notNull(),
     attachmentUploadId: varchar({ length: 20 }).notNull(),
     currency: currencyEnum().notNull(),
-    depositAmount: integer().notNull().default(0),
+    depositAmount: integer().notNull(),
     eventId: varchar({ length: 20 })
       .notNull()
       .references(() => eventInstances.id),
-    hasAlcohol: boolean().notNull().default(false),
-    hasDeposit: boolean().notNull().default(false),
+    hasAlcohol: boolean().notNull(),
+    hasDeposit: boolean().notNull(),
     previewImageId: text(),
     previewImageUrl: text(),
     purchaseCountry: text().notNull(),
-    receiptDate: timestamp().notNull(),
+    receiptDate: date().notNull(),
     refundedAt: timestamp(),
     refundedByUserId: varchar({ length: 20 }).references(() => users.id),
     refundTransactionId: varchar({ length: 20 }).references(
@@ -95,10 +108,30 @@ export const financeReceipts = pgTable(
     submittedByUserId: varchar({ length: 20 })
       .notNull()
       .references(() => users.id),
-    taxAmount: integer().notNull().default(0),
+    taxAmount: integer().notNull(),
     totalAmount: integer().notNull(),
   },
   (table) => [
+    check(
+      financeReceiptTotalAmountPositiveCheckName,
+      sql`${table.totalAmount} > 0`,
+    ),
+    check(
+      financeReceiptTaxAmountValidCheckName,
+      sql`${table.taxAmount} >= 0 AND ${table.taxAmount} <= ${table.totalAmount}`,
+    ),
+    check(
+      financeReceiptDepositAmountConsistentCheckName,
+      sql`(${table.hasDeposit} AND ${table.depositAmount} > 0 AND ${table.depositAmount} <= ${table.totalAmount}) OR (NOT ${table.hasDeposit} AND ${table.depositAmount} = 0)`,
+    ),
+    check(
+      financeReceiptAlcoholAmountConsistentCheckName,
+      sql`(${table.hasAlcohol} AND ${table.alcoholAmount} > 0 AND ${table.alcoholAmount} <= ${table.totalAmount}) OR (NOT ${table.hasAlcohol} AND ${table.alcoholAmount} = 0)`,
+    ),
+    check(
+      financeReceiptComponentsWithinTotalCheckName,
+      sql`CAST(${table.depositAmount} AS bigint) + CAST(${table.alcoholAmount} AS bigint) <= ${table.totalAmount}`,
+    ),
     unique('finance_receipts_attachment_upload_unique').on(
       table.attachmentUploadId,
     ),

@@ -1,11 +1,6 @@
 import type { GlobalAdminEmailOutboxKind } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
-import {
-  ChangeDetectionStrategy,
-  Component,
-  inject,
-  Injectable,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { AppRpc } from '@app/core/effect-rpc-angular-client';
 import { getErrorMessage } from '@app/core/error-message';
@@ -36,15 +31,6 @@ const emailOutboxStatusLabel = {
   suppressed: 'Suppressed',
 } as const;
 
-@Injectable({ providedIn: 'root' })
-export class EmailOutboxOperations {
-  private readonly rpc = AppRpc.injectClient();
-
-  overview() {
-    return this.rpc.globalAdmin.emailOutbox.findOverview.queryOptions();
-  }
-}
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [TenantDatePipe, FontAwesomeModule, MatButtonModule],
@@ -57,9 +43,9 @@ export class EmailOutboxComponent {
   protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly getErrorMessage = getErrorMessage;
   protected readonly kindLabel = emailOutboxKindLabel;
-  private readonly operations = inject(EmailOutboxOperations);
+  private readonly rpc = AppRpc.injectClient();
   protected readonly outboxQuery = injectQuery(() =>
-    this.operations.overview(),
+    this.rpc.globalAdmin.emailOutbox.findOverview.queryOptions(),
   );
   protected readonly statusLabel = emailOutboxStatusLabel;
 }

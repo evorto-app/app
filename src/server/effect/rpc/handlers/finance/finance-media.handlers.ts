@@ -14,6 +14,7 @@ import {
   FinanceResourceNotFoundError,
   ReceiptMediaInternalError,
 } from '../../../../../shared/rpc-contracts/app-rpcs/finance.errors';
+import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { canSubmitEventReceipts, databaseEffect } from './finance.shared';
 import {
@@ -24,8 +25,22 @@ import {
 
 const UPLOAD_POLICY_TTL_MILLISECONDS = 5 * 60 * 1000;
 
-const storageMutationError = (message: string, cause?: unknown) =>
-  new ReceiptMediaInternalError({ cause, message });
+const storageMutationError = (message: string) =>
+  new ReceiptMediaInternalError({ message });
+
+const mapStorageMutationError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, ReceiptMediaInternalError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logError(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => storageMutationError(message)),
+    );
 
 const finalizedUpload = (upload: {
   fileName: string;
@@ -113,8 +128,9 @@ export const financeMediaHandlers = {
           })
           .returning({ id: financeReceiptUploads.id }),
       ).pipe(
-        Effect.mapError((cause) =>
-          storageMutationError('Failed to prepare receipt upload', cause),
+        mapStorageMutationError(
+          'receiptMedia.upload.prepare',
+          'Failed to prepare receipt upload',
         ),
       );
       if (inserted.length !== 1) {
@@ -167,8 +183,9 @@ export const financeMediaHandlers = {
           },
         }),
       ).pipe(
-        Effect.mapError((cause) =>
-          storageMutationError('Failed to load receipt upload', cause),
+        mapStorageMutationError(
+          'receiptMedia.upload.load',
+          'Failed to load receipt upload',
         ),
       );
       const upload = yield* loadUpload;
@@ -219,8 +236,9 @@ export const financeMediaHandlers = {
               ),
             ),
         ).pipe(
-          Effect.mapError((cause) =>
-            storageMutationError('Failed to expire receipt upload', cause),
+          mapStorageMutationError(
+            'receiptMedia.upload.expire',
+            'Failed to expire receipt upload',
           ),
         );
         return yield* Effect.fail(
@@ -253,8 +271,9 @@ export const financeMediaHandlers = {
                 ),
               ),
           ).pipe(
-            Effect.mapError((cause) =>
-              storageMutationError('Failed to reject receipt upload', cause),
+            mapStorageMutationError(
+              'receiptMedia.upload.reject',
+              'Failed to reject receipt upload',
             ),
           ),
         ),
@@ -287,8 +306,9 @@ export const financeMediaHandlers = {
             sizeBytes: financeReceiptUploads.sizeBytes,
           }),
       ).pipe(
-        Effect.mapError((cause) =>
-          storageMutationError('Failed to finalize receipt upload', cause),
+        mapStorageMutationError(
+          'receiptMedia.upload.finalize',
+          'Failed to finalize receipt upload',
         ),
       );
       const finalized = completed[0];

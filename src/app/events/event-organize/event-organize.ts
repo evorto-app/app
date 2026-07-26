@@ -486,7 +486,7 @@ export class EventOrganize {
           eventId: this.eventId(),
           fields: {
             ...result.fields,
-            receiptDate: result.fields.receiptDate.toISOString(),
+            receiptDate: result.fields.receiptDate,
           },
         },
         {

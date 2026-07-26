@@ -2,34 +2,27 @@ import type {
   PlatformAuditSnapshot,
   PlatformTenantAuditAction,
 } from '@shared/platform-audit';
-import type { GlobalAdminTenantWriteInput } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
-import type { Headers } from 'effect/unstable/http';
+import type {
+  GlobalAdminPlatformAuditCursor,
+  GlobalAdminTenantWriteInput,
+} from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
 import {
   RpcBadRequestError,
   RpcForbiddenError,
-  RpcUnauthorizedError,
+  type RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
 import {
   GlobalAdminEmailOutboxOverview,
+  GlobalAdminPlatformAuditPage,
   GlobalAdminPlatformAuditRecord,
   GlobalAdminTenantRecord,
   type GlobalAdminTenantRecord as GlobalAdminTenantRecordType,
   GlobalAdminTenantUrlMigrationBlockedError,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import { normalizeTenantDomain } from '@shared/tenant-origin';
-import {
-  and,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNotNull,
-  isNull,
-  lte,
-  sql,
-} from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, lt, or } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 import { createHash } from 'node:crypto';
 
@@ -45,8 +38,10 @@ import {
   tenantStripeTaxRates,
 } from '../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
-import { TENANT_FORMATTING_LOCALE } from '../../../../types/custom/tenant';
-import { emailOutboxStaleSendingPredicate } from '../../../notifications/email-outbox-lease';
+import {
+  emailOutboxAbandonedSendingPredicate,
+  emailOutboxOverviewOrderBy,
+} from '../../../notifications/email-outbox-lease';
 import { normalizeTenantPrivacyPolicy } from '../../../onboarding/tenant-onboarding.service';
 import {
   stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
@@ -67,10 +62,7 @@ import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
 } from '../../../tenant-currency-integrity';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -95,41 +87,32 @@ const databaseEffectWithTenantUpdateError = <A>(
     ),
   );
 
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, RpcUnauthorizedError> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
+export const GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE = 50;
 
-const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
-  value: string | undefined,
-  schema: S,
-): S['Type'] =>
-  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+const platformAuditCursorPredicate = (
+  cursor: GlobalAdminPlatformAuditCursor | null,
+) => {
+  if (!cursor) return;
+
+  const createdAt = new Date(cursor.createdAt);
+  return or(
+    lt(platformAuditEntries.createdAt, createdAt),
+    and(
+      eq(platformAuditEntries.createdAt, createdAt),
+      gt(platformAuditEntries.id, cursor.id),
+    ),
+  );
+};
 
 const requirePlatformAdministrator = Effect.fn(
   'GlobalAdmin.requirePlatformAdministrator',
-)(function* (
-  headers: Headers.Headers,
-): Effect.fn.Return<
+)(function* (): Effect.fn.Return<
   PlatformAdministratorAuthority,
-  RpcForbiddenError | RpcUnauthorizedError
+  RpcForbiddenError | RpcUnauthorizedError,
+  RpcAccess
 > {
-  yield* ensureAuthenticated(headers);
-  const authority = yield* Effect.try({
-    catch: () =>
-      new RpcForbiddenError({
-        message: 'Platform administrator authority required',
-      }),
-    try: () =>
-      decodeHeaderJson(
-        headers[RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY],
-        Schema.NullOr(PlatformAdministratorAuthority),
-      ),
-  });
+  yield* RpcAccess.ensureAuthenticated();
+  const { platformAuthority: authority } = yield* RpcAccess.current();
 
   if (!authority) {
     return yield* new RpcForbiddenError({
@@ -177,7 +160,6 @@ const toGlobalAdminTenantRecord = (tenant: {
   currency: string;
   domain: string;
   id: string;
-  locale: string;
   name: string;
   stripeAccountId: null | string;
   theme: string;
@@ -202,7 +184,6 @@ const toPlatformTenantAuditSnapshot = (
     currency: tenant.currency,
     domain: tenant.domain,
     id: tenant.id,
-    locale: tenant.locale,
     name: tenant.name,
     ...privacyPolicy,
     stripeAccountId: tenant.stripeAccountId,
@@ -257,7 +238,6 @@ const globalAdminTenantColumns = {
   currency: true,
   domain: true,
   id: true,
-  locale: true,
   name: true,
   stripeAccountId: true,
   theme: true,
@@ -268,7 +248,6 @@ const globalAdminTenantReturningColumns = {
   currency: tenants.currency,
   domain: tenants.domain,
   id: tenants.id,
-  locale: tenants.locale,
   name: tenants.name,
   stripeAccountId: tenants.stripeAccountId,
   theme: tenants.theme,
@@ -312,100 +291,70 @@ const tenantUrlMigrationBlockedReason = ({
 };
 
 export const globalAdminHandlers = {
-  'globalAdmin.emailOutbox.findOverview': (_payload, options) =>
+  'globalAdmin.emailOutbox.findOverview': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* requirePlatformAdministrator(options.headers);
-      const now = new Date();
-      const [
-        statusCounts,
-        waitingForRetryRows,
-        staleSendingRows,
-        exhaustedRows,
-        itemRows,
-      ] = yield* databaseEffect((database) =>
-        Effect.all([
-          database
-            .select({
-              status: emailOutbox.status,
-              total: count(),
-            })
-            .from(emailOutbox)
-            .groupBy(emailOutbox.status),
-          database
-            .select({
-              total: count(),
-            })
-            .from(emailOutbox)
-            .where(
-              and(
-                inArray(emailOutbox.status, ['queued', 'failed']),
-                isNull(emailOutbox.exhaustedAt),
-                lte(emailOutbox.nextAttemptAt, now),
-                sql`${emailOutbox.attempts} < ${emailOutbox.maxAttempts}`,
-              ),
-            ),
-          database
-            .select({
-              total: count(),
-            })
-            .from(emailOutbox)
-            .where(emailOutboxStaleSendingPredicate()),
-          database
-            .select({
-              total: count(),
-            })
-            .from(emailOutbox)
-            .where(isNotNull(emailOutbox.exhaustedAt)),
-          database
-            .select({
-              attempts: emailOutbox.attempts,
-              createdAt: emailOutbox.createdAt,
-              deliveryUnknownAt: emailOutbox.deliveryUnknownAt,
-              exhaustedAt: emailOutbox.exhaustedAt,
-              id: emailOutbox.id,
-              kind: emailOutbox.kind,
-              lastAttemptAt: emailOutbox.lastAttemptAt,
-              lastError: emailOutbox.lastError,
-              maxAttempts: emailOutbox.maxAttempts,
-              nextAttemptAt: emailOutbox.nextAttemptAt,
-              provider: emailOutbox.provider,
-              providerMessageId: emailOutbox.providerMessageId,
-              recipient: emailOutbox.toEmail,
-              sentAt: emailOutbox.sentAt,
-              status: emailOutbox.status,
-              subject: emailOutbox.subject,
-              suppressedAt: emailOutbox.suppressedAt,
-              tenantDomain: tenants.domain,
-              tenantId: emailOutbox.tenantId,
-              tenantName: tenants.name,
-              tenantTimezone: tenants.timezone,
-              updatedAt: emailOutbox.updatedAt,
-            })
-            .from(emailOutbox)
-            .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
-            .where(
-              inArray(emailOutbox.status, [
-                'queued',
-                'sending',
-                'failed',
-                'deliveryUnknown',
-                'suppressed',
-              ]),
-            )
-            .orderBy(desc(emailOutbox.updatedAt))
-            .limit(100),
-        ]),
+      yield* requirePlatformAdministrator();
+      const [statusCounts, staleSendingRows, itemRows] = yield* databaseEffect(
+        (database) =>
+          Effect.all([
+            database
+              .select({
+                status: emailOutbox.status,
+                total: count(),
+              })
+              .from(emailOutbox)
+              .groupBy(emailOutbox.status),
+            database
+              .select({
+                total: count(),
+              })
+              .from(emailOutbox)
+              .where(emailOutboxAbandonedSendingPredicate()),
+            database
+              .select({
+                attempts: emailOutbox.attempts,
+                createdAt: emailOutbox.createdAt,
+                deliveryUnknownAt: emailOutbox.deliveryUnknownAt,
+                id: emailOutbox.id,
+                kind: emailOutbox.kind,
+                lastAttemptAt: emailOutbox.lastAttemptAt,
+                lastError: emailOutbox.lastError,
+                provider: emailOutbox.provider,
+                providerMessageId: emailOutbox.providerMessageId,
+                recipient: emailOutbox.toEmail,
+                sentAt: emailOutbox.sentAt,
+                status: emailOutbox.status,
+                subject: emailOutbox.subject,
+                suppressedAt: emailOutbox.suppressedAt,
+                tenantDomain: tenants.domain,
+                tenantId: emailOutbox.tenantId,
+                tenantName: tenants.name,
+                tenantTimezone: tenants.timezone,
+                updatedAt: emailOutbox.updatedAt,
+              })
+              .from(emailOutbox)
+              .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
+              .where(
+                inArray(emailOutbox.status, [
+                  'queued',
+                  'sending',
+                  'failed',
+                  'deliveryUnknown',
+                  'suppressed',
+                ]),
+              )
+              .orderBy(...emailOutboxOverviewOrderBy())
+              .limit(100),
+          ]),
       );
       const summary = {
         deliveryUnknown: 0,
-        exhausted: exhaustedRows[0]?.total ?? 0,
         failed: 0,
         queued: 0,
         sending: 0,
         sent: 0,
         staleSending: staleSendingRows[0]?.total ?? 0,
         suppressed: 0,
-        waitingForRetry: waitingForRetryRows[0]?.total ?? 0,
       };
       for (const row of statusCounts) {
         summary[row.status] = row.total;
@@ -416,9 +365,7 @@ export const globalAdminHandlers = {
           ...row,
           createdAt: row.createdAt.toISOString(),
           deliveryUnknownAt: row.deliveryUnknownAt?.toISOString() ?? null,
-          exhaustedAt: row.exhaustedAt?.toISOString() ?? null,
           lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
-          nextAttemptAt: row.nextAttemptAt.toISOString(),
           sentAt: row.sentAt?.toISOString() ?? null,
           suppressedAt: row.suppressedAt?.toISOString() ?? null,
           updatedAt: row.updatedAt.toISOString(),
@@ -426,9 +373,9 @@ export const globalAdminHandlers = {
         summary,
       });
     }),
-  'globalAdmin.platformAudit.findMany': (_payload, options) =>
+  'globalAdmin.platformAudit.findMany': (input, _options) =>
     Effect.gen(function* () {
-      yield* requirePlatformAdministrator(options.headers);
+      yield* requirePlatformAdministrator();
       const entries = yield* databaseEffect((database) =>
         database
           .select({
@@ -448,15 +395,37 @@ export const globalAdminHandlers = {
             tenants,
             eq(platformAuditEntries.targetTenantId, tenants.id),
           )
-          .orderBy(desc(platformAuditEntries.createdAt))
-          .limit(100),
+          .where(platformAuditCursorPredicate(input.cursor))
+          .orderBy(
+            desc(platformAuditEntries.createdAt),
+            asc(platformAuditEntries.id),
+          )
+          .limit(GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE + 1),
       );
 
-      return entries.map((entry) => toGlobalAdminPlatformAuditRecord(entry));
+      const pageEntries = entries.slice(
+        0,
+        GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE,
+      );
+      const items = pageEntries.map((entry) =>
+        toGlobalAdminPlatformAuditRecord(entry),
+      );
+      const lastEntry = pageEntries.at(-1);
+
+      return Schema.decodeUnknownSync(GlobalAdminPlatformAuditPage)({
+        items,
+        nextCursor:
+          entries.length > GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE && lastEntry
+            ? {
+                createdAt: lastEntry.createdAt.toISOString(),
+                id: lastEntry.id,
+              }
+            : null,
+      });
     }),
-  'globalAdmin.tenants.create': (input, options) =>
+  'globalAdmin.tenants.create': (input, _options) =>
     Effect.gen(function* () {
-      const authority = yield* requirePlatformAdministrator(options.headers);
+      const authority = yield* requirePlatformAdministrator();
       const tenantInput = yield* normalizeTenantWritePayload(input.tenant);
       const reason = yield* normalizeAuditReason(input.reason);
       const initialPrivacyPolicy = yield* normalizeTenantPrivacyPolicy(
@@ -492,7 +461,6 @@ export const globalAdminHandlers = {
               .insert(tenants)
               .values({
                 ...tenantInput,
-                locale: TENANT_FORMATTING_LOCALE,
                 privacyPolicyText: initialPrivacyPolicy.privacyPolicyText,
                 privacyPolicyUrl: initialPrivacyPolicy.privacyPolicyUrl,
                 stripeAccountId: tenantInput.stripeAccountId ?? null,
@@ -541,9 +509,9 @@ export const globalAdminHandlers = {
         ),
       );
     }),
-  'globalAdmin.tenants.findMany': (_payload, options) =>
+  'globalAdmin.tenants.findMany': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* requirePlatformAdministrator(options.headers);
+      yield* requirePlatformAdministrator();
       const allTenants = yield* databaseEffect((database) =>
         database.query.tenants.findMany({
           columns: globalAdminTenantColumns,
@@ -553,9 +521,9 @@ export const globalAdminHandlers = {
 
       return allTenants.map((tenant) => toGlobalAdminTenantRecord(tenant));
     }),
-  'globalAdmin.tenants.findOne': (input, options) =>
+  'globalAdmin.tenants.findOne': (input, _options) =>
     Effect.gen(function* () {
-      yield* requirePlatformAdministrator(options.headers);
+      yield* requirePlatformAdministrator();
       const tenant = yield* databaseEffect((database) =>
         database.query.tenants.findFirst({
           columns: globalAdminTenantColumns,
@@ -567,9 +535,9 @@ export const globalAdminHandlers = {
 
       return tenant ? toGlobalAdminTenantRecord(tenant) : null;
     }),
-  'globalAdmin.tenants.update': (input, options) =>
+  'globalAdmin.tenants.update': (input, _options) =>
     Effect.gen(function* () {
-      const authority = yield* requirePlatformAdministrator(options.headers);
+      const authority = yield* requirePlatformAdministrator();
       const { id } = input;
       const tenantInput = yield* normalizeTenantWritePayload(input.tenant);
       const reason = yield* normalizeAuditReason(input.reason);
@@ -727,7 +695,6 @@ export const globalAdminHandlers = {
               .update(tenants)
               .set({
                 ...tenantInput,
-                locale: TENANT_FORMATTING_LOCALE,
                 stripeAccountId: nextStripeAccountId,
               })
               .where(eq(tenants.id, id))

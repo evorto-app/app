@@ -8,7 +8,11 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import {
+  MAT_DIALOG_DATA,
+  MatDialogModule,
+  MatDialogRef,
+} from '@angular/material/dialog';
 import {
   injectMutation,
   injectQuery,
@@ -20,6 +24,20 @@ export const stripeTaxRatesDashboardLink = {
   href: 'https://dashboard.stripe.com/tax-rates',
   label: 'Open Stripe tax rates',
 };
+
+export interface ImportTaxRatesDialogData {
+  readonly importedTaxRateIds: readonly string[];
+}
+
+export function taxRateImportActionDisabled(input: {
+  mutationPending: boolean;
+  ratesReady: boolean;
+  selectedCount: number;
+}) {
+  return (
+    input.mutationPending || !input.ratesReady || input.selectedCount === 0
+  );
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,37 +51,29 @@ export const stripeTaxRatesDashboardLink = {
   templateUrl: './import-tax-rates-dialog.component.html',
 })
 export class ImportTaxRatesDialogComponent {
-  protected readonly selected = signal<string[]>([]);
   private readonly rpc = AppRpc.injectClient();
+  protected readonly ratesQuery = injectQuery(() =>
+    this.rpc.admin.tenant.listStripeTaxRates.queryOptions(),
+  );
+
+  protected readonly selected = signal<string[]>([]);
 
   private readonly importMutation = injectMutation(() =>
     this.rpc.admin.tenant.importStripeTaxRates.mutationOptions(),
   );
-
   protected readonly canImport = computed(
     () =>
       !taxRateImportActionDisabled({
         mutationPending: this.importMutation.isPending(),
+        ratesReady: this.ratesQuery.isSuccess(),
         selectedCount: this.selected().length,
       }),
   );
+
   protected readonly dashboardLink = stripeTaxRatesDashboardLink;
+  private readonly data = inject<ImportTaxRatesDialogData>(MAT_DIALOG_DATA);
 
-  protected readonly importedQuery = injectQuery(() =>
-    this.rpc.admin.tenant.listImportedTaxRates.queryOptions(),
-  );
-  protected readonly importedIds = computed(
-    () =>
-      new Set(
-        this.importedQuery.isSuccess()
-          ? this.importedQuery.data().map((r) => r.stripeTaxRateId)
-          : [],
-      ),
-  );
-
-  protected readonly ratesQuery = injectQuery(() =>
-    this.rpc.admin.tenant.listStripeTaxRates.queryOptions(),
-  );
+  protected readonly importedIds = new Set(this.data.importedTaxRateIds);
 
   private readonly dialogRef = inject(
     MatDialogRef<ImportTaxRatesDialogComponent>,
@@ -74,6 +84,7 @@ export class ImportTaxRatesDialogComponent {
     if (
       taxRateImportActionDisabled({
         mutationPending: this.importMutation.isPending(),
+        ratesReady: this.ratesQuery.isSuccess(),
         selectedCount: ids.length,
       })
     )

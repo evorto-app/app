@@ -63,7 +63,7 @@ test('Transfer a registration with a private offer', async ({
     templateId: template.id,
     tenantId: tenant.id,
     title: 'Registration transfer guide',
-    unlisted: true,
+    listingAudience: 'unlisted',
   });
   await database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,
@@ -100,9 +100,12 @@ test('Transfer a registration with a private offer', async ({
   });
   await database.insert(schema.eventRegistrationQuestionAnswers).values({
     answer: 'The previous owner entered this answer.',
+    eventId,
     id: createId(),
     questionId,
     registrationId: sourceRegistrationId,
+    registrationOptionId: optionId,
+    tenantId: tenant.id,
   });
   await database.insert(schema.registrationAcquisitions).values({
     acquiredAt: new Date(),
@@ -147,23 +150,23 @@ Neither account needs organizer or administrator access for this participant tra
 
 Only a confirmed registration within the configured transfer deadline can be offered. Existing attendee/guest check-in and add-on fulfillment history remain part of the fixed bundle and move unchanged.
 
-The private link and manual code grant access to the transfer offer. Share one of them privately with exactly one intended recipient.
+The private claim code grants access to the transfer offer. Share it privately with exactly one intended recipient. The claim page URL is generic and never contains the code.
 {% /callout %}
 
 # Transfer a registration
 
 The previous owner's answers and discounts do not transfer. Evorto checks the recipient's current role eligibility, asks the current questions, prices the fixed bundle from current base prices, and applies only the recipient's current eligible discounts. Guest quantity, every included/free/purchased add-on quantity, check-in state, and fulfillment history transfer unchanged; the recipient cannot omit or re-quantity them.
 
-## Create a private offer
+## Create a private code
 
-Open the event while signed in as the current registration owner. Under the confirmed ticket, select **Create transfer link**.
+Open the event while signed in as the current registration owner. Under the confirmed ticket, select **Create transfer code**.
 `,
     });
 
     await page.goto(`/events/${eventId}`);
     await waitForRegistrationPage(page);
     const createButton = page.getByRole('button', {
-      name: 'Create transfer link',
+      name: 'Create transfer code',
     });
     await expect(createButton).toBeVisible();
     // SSR exposes the action before Angular attaches its click listener.
@@ -178,13 +181,13 @@ Open the event while signed in as the current registration owner. Under the conf
     await createButton.click();
     const dialog = page.getByRole('dialog');
     await expect(
-      dialog.getByRole('heading', { name: 'Private transfer link created' }),
+      dialog.getByRole('heading', { name: 'Transfer code created' }),
     ).toBeVisible();
     await takeScreenshot(
       testInfo,
       dialog,
       page,
-      'Copy the private link or manual claim code',
+      'Copy the private claim code and generic claim page',
     );
     await dialog.getByRole('button', { name: 'Done' }).click();
     const firstOffer = await database.query.registrationTransfers.findFirst({
@@ -202,7 +205,7 @@ Open the event while signed in as the current registration owner. Under the conf
       body: `
 ## Cancel an offer before it is claimed
 
-While an offer is open, the current owner's ticket remains confirmed and the event page shows **Cancel transfer offer**. Select it if the private link or code was sent to the wrong person or should no longer be usable. Cancelling the offer invalidates its private link and manual code; it does not cancel or transfer the registration.
+While an offer is open, the current owner's ticket remains confirmed and the event page shows **Cancel transfer offer**. Select it if the private code was sent to the wrong person or should no longer be usable. Cancelling the offer invalidates its code; it does not cancel or transfer the registration.
 `,
     });
     await page.getByRole('button', { name: 'Cancel transfer offer' }).click();
@@ -232,9 +235,9 @@ While an offer is open, the current owner's ticket remains confirmed and the eve
 
     await createButton.click();
     await expect(
-      dialog.getByRole('heading', { name: 'Private transfer link created' }),
+      dialog.getByRole('heading', { name: 'Transfer code created' }),
     ).toBeVisible();
-    const claimCode = await dialog.getByLabel('Manual claim code').inputValue();
+    const claimCode = await dialog.getByLabel('Claim code').inputValue();
 
     await testInfo.attach('markdown', {
       body: `
@@ -242,7 +245,7 @@ The registration stays confirmed under the current owner's ownership while the o
 
 ## Review as the recipient
 
-Sign in to the intended recipient's account in the same organization, open **Profile**, and select **Claim transfer**. Paste the complete manual code, including its hyphens, and select **Review transfer**. You can use the private link instead when the sender shared it. If Evorto says the transfer could not be opened, select **Enter another code**, check that the complete current code was copied, and ask the sender for a new code if they cancelled or replaced the offer.
+Sign in to the intended recipient's account in the same organization, open **Profile**, and select **Claim transfer**. Paste the complete code, including its hyphens, and select **Review transfer**. If Evorto says the transfer could not be opened, select **Enter another code**, check that the complete current code was copied, and ask the sender for a new code if they cancelled or replaced the offer.
 
 Review the event, registration option, expiry, current price, current questions, fixed guest quantity, every add-on quantity, and existing check-in/fulfillment history. These bundle contents are read-only. Previous answers do not transfer: answer every currently required question for the recipient, then select **Claim registration** only when the current details are correct.
 `,
@@ -277,7 +280,7 @@ Review the event, registration option, expiry, current price, current questions,
     await expect(transferCodeForm).not.toHaveAttribute('jsaction', /submit/, {
       timeout: 20_000,
     });
-    await claimCodeInput.fill('NOT-A-VALID-TRANSFER-CODE');
+    await claimCodeInput.fill('0000-0000-0000-0000-0000-0000-0000-0000');
     await expect(reviewTransfer).toBeEnabled();
     await reviewTransfer.click();
     const invalidCodeAlert = recipientPage.page.getByRole('alert');
@@ -290,7 +293,7 @@ Review the event, registration option, expiry, current price, current questions,
       'Check the complete code and try again',
     );
     await invalidCodeAlert
-      .getByRole('link', { name: 'Enter another code' })
+      .getByRole('button', { name: 'Enter another code' })
       .click();
     await expect(
       recipientPage.page.getByRole('heading', {
@@ -827,7 +830,7 @@ After a recipient claims a paid registration, Evorto keeps one Stripe Checkout a
 
 ## Continue the existing Checkout
 
-Open the same private claim link. **Payment still required** means the reservation is waiting for payment. Select **Continue payment** to return to the already-created Stripe Checkout; do not start another claim.
+Open the generic claim page and enter the same private code. **Payment still required** means the reservation is waiting for payment. Select **Continue payment** to return to the already-created Stripe Checkout; do not start another claim.
 `,
     });
 
@@ -839,7 +842,18 @@ Open the same private claim link. **Payment still required** means the reservati
       tenantDomain: tenant.domain,
       testClock,
     });
-    await recipientPage.page.goto(scenario.claimPath);
+    await recipientPage.page.goto('/registration-transfers');
+    const reviewTransfer = recipientPage.page.getByRole('button', {
+      name: 'Review transfer',
+    });
+    const claimCodeForm = recipientPage.page.locator('form').filter({
+      has: reviewTransfer,
+    });
+    await expect(claimCodeForm).not.toHaveAttribute('jsaction', /submit/, {
+      timeout: 20_000,
+    });
+    await recipientPage.page.getByLabel('Claim code').fill(scenario.claimCode);
+    await reviewTransfer.click();
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Payment still required',

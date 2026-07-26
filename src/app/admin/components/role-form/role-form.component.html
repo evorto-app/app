@@ -4,11 +4,17 @@
     <mat-form-field class="w-full">
       <mat-label>Name</mat-label>
       <input matInput [formField]="form.name" />
+      @for (error of form.name().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field class="w-full">
       <mat-label>Description</mat-label>
       <textarea matInput [formField]="form.description"></textarea>
+      @for (error of form.description().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
     </mat-form-field>
 
     <mat-checkbox [formField]="form.defaultUserRole">
@@ -22,12 +28,6 @@
     <mat-checkbox [formField]="form.displayInHub">
       Show this role in the hub
     </mat-checkbox>
-
-    @if (form.displayInHub().value()) {
-      <mat-checkbox [formField]="form.collapseMembersInHup">
-        Collapse the members of this role by default
-      </mat-checkbox>
-    }
 
     <div class="grid grid-cols-1 gap-4 lg:col-span-2 lg:grid-cols-4">
       @for (group of groupStates(); track group.key) {

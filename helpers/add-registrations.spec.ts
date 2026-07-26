@@ -1,6 +1,9 @@
 import { describe, expect, it } from '@effect/vitest';
 
-import { claimRegistrationSeedUsers } from './add-registrations';
+import {
+  claimRegistrationSeedUsers,
+  validateRegistrationSeedEventOwnership,
+} from './add-registrations';
 
 const users = [
   { id: 'tester' },
@@ -86,5 +89,29 @@ describe('claimRegistrationSeedUsers', () => {
     expect(firstEvent.map((user) => user.id)).toContain('tester');
     expect(secondEvent.map((user) => user.id)).not.toContain('tester');
     expect(seededCountByUser.get('tester')).toBe(1);
+  });
+});
+
+describe('validateRegistrationSeedEventOwnership', () => {
+  const event = {
+    id: 'event-1',
+    registrationOptions: [],
+    start: new Date('2026-01-01T10:00:00.000Z'),
+    tenantId: 'tenant-1',
+    title: 'Event',
+  };
+
+  it('accepts events owned by the explicit seed tenant', () => {
+    expect(() =>
+      validateRegistrationSeedEventOwnership([event], 'tenant-1'),
+    ).not.toThrow();
+  });
+
+  it('rejects a cross-tenant event instead of using another tenant as a fallback', () => {
+    expect(() =>
+      validateRegistrationSeedEventOwnership([event], 'tenant-2'),
+    ).toThrow(
+      'Cannot seed event event-1 for tenant tenant-2: event belongs to tenant-1',
+    );
   });
 });

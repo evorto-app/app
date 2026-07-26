@@ -17,6 +17,10 @@ import {
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
 import {
+  isFinanceReceiptCalendarDate,
+  validateFinanceReceiptAmounts,
+} from '@shared/finance/receipt-values';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -26,6 +30,7 @@ import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { majorCurrencyInputToMinorUnits } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { ReceiptFormFieldsComponent } from '../shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../shared/receipt-form/receipt-form.model';
 import { isSafeReceiptPreviewUrl } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
@@ -175,7 +180,7 @@ export class ReceiptApprovalDetailComponent {
         hasAlcohol: receipt.hasAlcohol,
         hasDeposit: receipt.hasDeposit,
         purchaseCountry: receipt.purchaseCountry,
-        receiptDate: new Date(receipt.receiptDate),
+        receiptDate: receipt.receiptDate,
         taxAmount: receipt.taxAmount / 100,
         totalAmount: receipt.totalAmount / 100,
       });
@@ -231,24 +236,59 @@ export class ReceiptApprovalDetailComponent {
       return;
     }
 
-    const totalAmount = Math.round(value.totalAmount * 100);
-    const taxAmount = Math.round(value.taxAmount * 100);
-    const depositAmount = value.hasDeposit
-      ? Math.round(value.depositAmount * 100)
-      : 0;
-    const alcoholAmount = value.hasAlcohol
-      ? Math.round(value.alcoholAmount * 100)
-      : 0;
-    if (depositAmount + alcoholAmount > totalAmount) {
+    const parseAmount = (amount: number): null | number => {
+      const parsed = majorCurrencyInputToMinorUnits(String(amount), false);
+      return 'value' in parsed && typeof parsed.value === 'number'
+        ? parsed.value
+        : null;
+    };
+    const totalAmount = parseAmount(value.totalAmount);
+    const taxAmount = parseAmount(value.taxAmount);
+    const depositAmount = parseAmount(value.depositAmount);
+    const alcoholAmount = parseAmount(value.alcoholAmount);
+    if (
+      totalAmount === null ||
+      taxAmount === null ||
+      depositAmount === null ||
+      alcoholAmount === null
+    ) {
       this.notifications.showError(
-        'Deposit and alcohol amounts cannot exceed total amount',
+        'Enter amounts with no more than two decimal places',
       );
       return;
     }
 
-    const receiptDate = new Date(value.receiptDate);
-    if (Number.isNaN(receiptDate.getTime())) {
-      this.notifications.showError('Invalid receipt date');
+    const amountError = validateFinanceReceiptAmounts({
+      alcoholAmount,
+      depositAmount,
+      hasAlcohol: value.hasAlcohol,
+      hasDeposit: value.hasDeposit,
+      taxAmount,
+      totalAmount,
+    });
+    if (amountError) {
+      const message = {
+        alcoholAmountOutOfRange: 'Alcohol amount is outside the allowed range',
+        alcoholFlagContradiction:
+          'Alcohol amount must be positive when alcohol is included and zero otherwise',
+        depositAmountOutOfRange: 'Deposit amount is outside the allowed range',
+        depositAndAlcoholExceedTotal:
+          'Deposit and alcohol amounts cannot exceed total amount',
+        depositFlagContradiction:
+          'Deposit amount must be positive when a deposit is included and zero otherwise',
+        taxAmountExceedsTotal: 'Tax amount cannot exceed total amount',
+        taxAmountOutOfRange: 'Tax amount is outside the allowed range',
+        totalAmountOutOfRange:
+          'Total amount must be at least 0.01 and within the allowed range',
+      } as const;
+      this.notifications.showError(message[amountError]);
+      return;
+    }
+
+    if (!isFinanceReceiptCalendarDate(value.receiptDate)) {
+      this.notifications.showError(
+        'Enter a valid receipt date in YYYY-MM-DD format',
+      );
       return;
     }
 
@@ -260,7 +300,7 @@ export class ReceiptApprovalDetailComponent {
         hasDeposit: value.hasDeposit,
         id: receiptId,
         purchaseCountry: value.purchaseCountry,
-        receiptDate: receiptDate.toISOString(),
+        receiptDate: value.receiptDate,
         rejectionReason: status === 'rejected' ? rejectionReason : null,
         status,
         taxAmount,

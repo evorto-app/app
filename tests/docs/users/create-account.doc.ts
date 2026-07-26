@@ -15,8 +15,6 @@ import { hasAuth0ManagementEnvironment } from '../../support/config/environment'
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 
-// test.use({ storageState: defaultStateFile });
-
 // Keep credential discovery separate from test registration. The integration
 // journey fails its explicit precondition instead of being skipped or omitted.
 const hasManagementEnvironment = Effect.runSync(

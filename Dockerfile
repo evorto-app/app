@@ -2,25 +2,6 @@ FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703
 
 FROM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS base
 
-USER root
-RUN apt-get update \
-    && apt-get upgrade --yes --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
-# Canvas dependencies removed - not currently used in production
-# RUN apk add --no-cache \
-#     build-base \
-#     cairo-dev \
-#     jpeg-dev \
-#     pango-dev \
-#     musl-dev \
-#     giflib-dev \
-#     pixman-dev \
-#     pangomm-dev \
-#     libjpeg-turbo-dev \
-#     freetype-dev
-
-# RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER bun
 WORKDIR /app
 

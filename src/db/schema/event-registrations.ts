@@ -1,6 +1,8 @@
+import { MAX_REGISTRATION_GUESTS } from '@shared/registration-quantity-limits';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   foreignKey,
   index,
   integer,
@@ -59,6 +61,14 @@ export const eventRegistrations = pgTable(
       .references(() => users.id),
   },
   (table) => [
+    check(
+      'event_registrations_guest_count_bounded',
+      sql`${table.guestCount} BETWEEN 0 AND ${MAX_REGISTRATION_GUESTS}`,
+    ),
+    check(
+      'event_registrations_checked_in_guest_count_bounded',
+      sql`${table.checkedInGuestCount} BETWEEN 0 AND ${table.guestCount}`,
+    ),
     foreignKey({
       columns: [table.eventId, table.tenantId],
       foreignColumns: [eventInstances.id, eventInstances.tenantId],

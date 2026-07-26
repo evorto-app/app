@@ -184,6 +184,7 @@ const seedLimitFixture = async (
     description: 'Cross-event active-registration limit fixture',
     icon: { iconColor: 0, iconName: 'circle' },
     id: templateId,
+    listingAudience: 'both',
     tenantId,
     title: 'Limit concurrency',
   });
@@ -194,6 +195,7 @@ const seedLimitFixture = async (
       end: new Date(now + (9 + index) * 24 * 60 * 60 * 1000),
       icon: { iconColor: 0, iconName: 'circle' },
       id,
+      listingAudience: 'both',
       start: new Date(now + (7 + index) * 24 * 60 * 60 * 1000),
       status: 'APPROVED' as const,
       templateId,

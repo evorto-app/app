@@ -12,33 +12,12 @@ import { PlatformAdministratorAuthority } from '../../types/custom/platform-auth
 import { Tenant } from '../../types/custom/tenant';
 import { hasCurrentTenantOnboarding } from '../onboarding/tenant-onboarding.service';
 
-// Keep backward-compatible permission aliases while migrating toward a single
-// canonical set. This avoids breaking handlers that still check the old value.
-const expandPermissionAliases = (permission: Permission): Permission[] => {
-  if (permission === 'admin:manageTaxes') {
-    return ['admin:manageTaxes', 'admin:tax'];
-  }
-
-  return [permission];
-};
-
 const normalizePermissions = (permissions: readonly Permission[]) =>
-  uniq(
-    permissions.flatMap((permission) => expandPermissionAliases(permission)),
-  );
-
-const configuredLocalEndToEndGlobalAdminAuth0Ids = () =>
-  (process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'] ?? '')
-    .split(',')
-    .map((auth0Id) => auth0Id.trim())
-    .filter((auth0Id) => auth0Id.length > 0);
-
-const localEndToEndGlobalAdminOverrideEnabled = (): boolean =>
-  process.env['NODE_ENV'] === 'development' ||
-  process.env['NODE_ENV'] === 'test';
+  uniq(permissions);
 
 export const resolvePlatformAuthority = (
   oidcUser: unknown,
+  testGlobalAdminAuth0Ids: readonly string[] = [],
 ): PlatformAdministratorAuthority | undefined => {
   const user = asRecord(oidcUser);
   const appMetadata =
@@ -47,9 +26,7 @@ export const resolvePlatformAuthority = (
     asRecord(user?.['app_metadata']);
   const auth0Id = asString(user?.['sub']);
   const configuredLocalEndToEndGlobalAdmin =
-    localEndToEndGlobalAdminOverrideEnabled() &&
-    auth0Id !== undefined &&
-    configuredLocalEndToEndGlobalAdminAuth0Ids().includes(auth0Id);
+    auth0Id !== undefined && testGlobalAdminAuth0Ids.includes(auth0Id);
 
   const isPlatformAdministrator =
     appMetadata?.['platformAdministrator'] === true ||
@@ -66,7 +43,7 @@ export const resolvePlatformAuthority = (
 };
 
 export const resolveRequestPermissions = (input: {
-  oidcUser: unknown;
+  platformAuthority: PlatformAdministratorAuthority | undefined;
   user:
     | undefined
     | {
@@ -78,7 +55,7 @@ export const resolveRequestPermissions = (input: {
   ).accepted;
 
   return normalizePermissions([
-    ...(resolvePlatformAuthority(input.oidcUser)
+    ...(input.platformAuthority
       ? (['globalAdmin:manageTenants'] as const)
       : []),
     ...tenantPermissions,
@@ -257,27 +234,8 @@ export const resolveUserContext = (
 
     const roleIds = assignedRoles.map((role) => role.id);
 
-    const attributeResponse = yield* databaseEffect((database) =>
-      Effect.map(
-        getPreparedStatements(
-          database,
-        ).getUserAttributesByTenantAndUser.execute({
-          tenantId: input.tenantId,
-          userId: user.id,
-        }),
-        (result) => result[0],
-      ),
-    );
-
-    const attributes = [
-      ...(attributeResponse?.organizesSome
-        ? (['events:organizesSome'] as const)
-        : []),
-    ];
-
     return {
       ...user,
-      attributes,
       homeTenantName: user.homeTenant?.name,
       permissions: normalizePermissions(permissions),
       roleIds,

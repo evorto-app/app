@@ -285,7 +285,7 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
       hasAlcohol: true,
       hasDeposit: true,
       purchaseCountry: 'DE',
-      receiptDate: expect.any(Date),
+      receiptDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u),
       status: 'submitted',
       submittedByUserId: submitter.id,
       taxAmount: 210,

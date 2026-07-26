@@ -15,7 +15,7 @@ import { createElement, type CSSProperties, type ReactElement } from 'react';
 export interface ManualApprovalEmailProps {
   readonly eventTitle: string;
   readonly eventUrl: string;
-  readonly paymentDeadline: Date | null;
+  readonly paymentDeadlineText: null | string;
   readonly tenantName: string;
 }
 
@@ -174,10 +174,10 @@ const paragraph = (key: string, content: string): ReactElement =>
 export const ManualApprovalEmail = ({
   eventTitle,
   eventUrl,
-  paymentDeadline,
+  paymentDeadlineText,
   tenantName,
 }: ManualApprovalEmailProps): ReactElement => {
-  const paymentRequired = paymentDeadline !== null;
+  const paymentRequired = paymentDeadlineText !== null;
   return TransactionalEmailLayout({
     action: {
       href: eventUrl,
@@ -192,8 +192,8 @@ export const ManualApprovalEmail = ({
       ),
       paragraph(
         'status',
-        paymentDeadline
-          ? `Your spot is reserved until ${paymentDeadline.toISOString()}. Complete payment before that deadline to confirm your registration.`
+        paymentDeadlineText
+          ? `Your spot is reserved until ${paymentDeadlineText}. Complete payment before that deadline to confirm your registration.`
           : 'Your registration is confirmed.',
       ),
     ],
@@ -210,7 +210,7 @@ export const ManualApprovalEmail = ({
 ManualApprovalEmail.PreviewProps = {
   eventTitle: 'City tour',
   eventUrl: 'https://example.org/events/event-1',
-  paymentDeadline: null,
+  paymentDeadlineText: null,
   tenantName: 'Example Section',
 } satisfies ManualApprovalEmailProps;
 

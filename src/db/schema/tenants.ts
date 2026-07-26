@@ -25,13 +25,6 @@ export const applicationThemes = pgEnum('application_theme', ['evorto', 'esn']);
 
 export const currencyEnum = pgEnum('currency', ['EUR', 'CZK', 'AUD']);
 
-export const localeEnum = pgEnum('locale', [
-  'de-DE',
-  'en-AU',
-  'en-GB',
-  'en-US',
-]);
-
 export const tenants = pgTable(
   'tenants',
   {
@@ -56,7 +49,6 @@ export const tenants = pgTable(
       .primaryKey(),
     legalNoticeText: text('legal_notice_text'),
     legalNoticeUrl: text('legal_notice_url'),
-    locale: localeEnum().notNull().default('de-DE'),
     logoUrl: text('logo_url'),
     maxActiveRegistrationsPerUser: integer('max_active_registrations_per_user')
       .notNull()
@@ -95,6 +87,10 @@ export const tenants = pgTable(
     check(
       'tenants_cancellation_deadline_hours_nonnegative',
       sql`${table.cancellationDeadlineHoursBeforeStart} >= 0`,
+    ),
+    check(
+      'tenants_max_active_registrations_per_user_nonnegative',
+      sql`${table.maxActiveRegistrationsPerUser} >= 0`,
     ),
     check(
       'tenants_transfer_deadline_hours_nonnegative',

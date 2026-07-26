@@ -8,7 +8,6 @@ export const globalAdminTenantListErrorMessage = (error: unknown): string =>
 const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
   tenant.currency,
   tenant.domain,
-  tenant.locale,
   tenant.name,
   tenant.stripeAccountId ?? '',
   tenant.theme,
@@ -47,7 +46,6 @@ export const filterGlobalAdminTenants = (
 export const globalAdminTenantRows = (tenant: GlobalAdminTenantRecord) => [
   { label: 'Primary domain', value: tenant.domain },
   { label: 'Theme', value: tenant.theme },
-  { label: 'Locale', value: tenant.locale },
   { label: 'Currency', value: tenant.currency },
   { label: 'Timezone', value: tenant.timezone },
   {

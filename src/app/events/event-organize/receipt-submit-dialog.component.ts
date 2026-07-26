@@ -16,9 +16,14 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import {
+  isFinanceReceiptCalendarDate,
+  validateFinanceReceiptAmounts,
+} from '@shared/finance/receipt-values';
 
 import { ReceiptFormFieldsComponent } from '../../finance/shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../../finance/shared/receipt-form/receipt-form.model';
+import { majorCurrencyInputToMinorUnits } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 
 export type ReceiptSubmitDialogPayloadResult =
   | {
@@ -38,7 +43,7 @@ export interface ReceiptSubmitDialogResult {
     hasAlcohol: boolean;
     hasDeposit: boolean;
     purchaseCountry: string;
-    receiptDate: Date;
+    receiptDate: string;
     taxAmount: number;
     totalAmount: number;
   };
@@ -51,13 +56,20 @@ export interface ReceiptSubmitFormValue {
   hasAlcohol: boolean;
   hasDeposit: boolean;
   purchaseCountry: string;
-  receiptDate: Date;
+  receiptDate: string;
   taxAmount: number;
   totalAmount: number;
 }
 
 const supportedReceiptFile = (file: File): boolean =>
   file.type.startsWith('image/') || file.type === 'application/pdf';
+
+const parseRequiredMinorUnits = (value: number): null | number => {
+  const parsed = majorCurrencyInputToMinorUnits(String(value), false);
+  return 'value' in parsed && typeof parsed.value === 'number'
+    ? parsed.value
+    : null;
+};
 
 export const receiptSubmitDialogResultFromFormValue = ({
   attachmentName,
@@ -100,26 +112,51 @@ export const receiptSubmitDialogResultFromFormValue = ({
     };
   }
 
-  const totalAmount = Math.round(formValue.totalAmount * 100);
-  const taxAmount = Math.round(formValue.taxAmount * 100);
-  const depositAmount = formValue.hasDeposit
-    ? Math.round(formValue.depositAmount * 100)
-    : 0;
-  const alcoholAmount = formValue.hasAlcohol
-    ? Math.round(formValue.alcoholAmount * 100)
-    : 0;
-
-  if (depositAmount + alcoholAmount > totalAmount) {
+  const totalAmount = parseRequiredMinorUnits(formValue.totalAmount);
+  const taxAmount = parseRequiredMinorUnits(formValue.taxAmount);
+  const depositAmount = parseRequiredMinorUnits(formValue.depositAmount);
+  const alcoholAmount = parseRequiredMinorUnits(formValue.alcoholAmount);
+  if (
+    totalAmount === null ||
+    taxAmount === null ||
+    depositAmount === null ||
+    alcoholAmount === null
+  ) {
     return {
-      errorMessage: 'Deposit and alcohol cannot exceed the total amount.',
+      errorMessage: 'Enter amounts with no more than two decimal places.',
       result: null,
     };
   }
 
-  const receiptDate = new Date(formValue.receiptDate);
-  if (Number.isNaN(receiptDate.getTime())) {
+  const amountError = validateFinanceReceiptAmounts({
+    alcoholAmount,
+    depositAmount,
+    hasAlcohol: formValue.hasAlcohol,
+    hasDeposit: formValue.hasDeposit,
+    taxAmount,
+    totalAmount,
+  });
+  if (amountError) {
+    const errorMessage = {
+      alcoholAmountOutOfRange: 'Alcohol amount is outside the allowed range.',
+      alcoholFlagContradiction:
+        'Alcohol amount must be positive when alcohol is included and zero otherwise.',
+      depositAmountOutOfRange: 'Deposit amount is outside the allowed range.',
+      depositAndAlcoholExceedTotal:
+        'Deposit and alcohol cannot exceed the total amount.',
+      depositFlagContradiction:
+        'Deposit amount must be positive when a deposit is included and zero otherwise.',
+      taxAmountExceedsTotal: 'Tax amount cannot exceed the total amount.',
+      taxAmountOutOfRange: 'Tax amount is outside the allowed range.',
+      totalAmountOutOfRange:
+        'Total amount must be at least 0.01 and within the allowed range.',
+    } as const;
+    return { errorMessage: errorMessage[amountError], result: null };
+  }
+
+  if (!isFinanceReceiptCalendarDate(formValue.receiptDate)) {
     return {
-      errorMessage: 'Invalid receipt date.',
+      errorMessage: 'Enter a valid receipt date in YYYY-MM-DD format.',
       result: null,
     };
   }
@@ -134,7 +171,7 @@ export const receiptSubmitDialogResultFromFormValue = ({
         hasAlcohol: formValue.hasAlcohol,
         hasDeposit: formValue.hasDeposit,
         purchaseCountry: formValue.purchaseCountry,
-        receiptDate,
+        receiptDate: formValue.receiptDate,
         taxAmount,
         totalAmount,
       },

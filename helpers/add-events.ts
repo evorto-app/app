@@ -10,14 +10,11 @@ import type { SeedTemplate } from './add-templates';
 
 import { getId } from './get-id';
 import { getSeedDate } from './seed-clock';
+import { requireSeedRoles, requireSeedUserId } from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 
-const fallbackId = usersToAuthenticate[0].id;
-const adminUser =
-  usersToAuthenticate.find((user) => user.roles === 'admin')?.id ?? fallbackId;
-const organizerUser =
-  usersToAuthenticate.find((user) => user.roles === 'organizer')?.id ??
-  fallbackId;
+const adminUser = requireSeedUserId(usersToAuthenticate, 'admin');
+const organizerUser = requireSeedUserId(usersToAuthenticate, 'organizer');
 
 export interface AddEventsResult {
   events: Awaited<ReturnType<typeof loadCreatedEvents>>;
@@ -104,22 +101,10 @@ const resolveTaxRateSelection = (
 const fetchTenantTaxRates = async (
   database: NodePgDatabase<typeof relations>,
   tenantId: string,
-): Promise<TenantStripeTaxRate[]> => {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      return await database.query.tenantStripeTaxRates.findMany({
-        where: { tenantId },
-      });
-    } catch (error) {
-      if (attempt === 2) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
-    }
-  }
-
-  return [];
-};
+): Promise<TenantStripeTaxRate[]> =>
+  database.query.tenantStripeTaxRates.findMany({
+    where: { tenantId },
+  });
 
 const computeEventClock = (
   templateId: string,
@@ -321,7 +306,7 @@ const createEvents = (
       const eventClock = computeEventClock(template.id, index);
       let eventStart: Date;
       let status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
-      let unlisted: boolean;
+      let listingAudience: SeedEventInsert['listingAudience'];
       let creatorId: string;
 
       switch (index) {
@@ -336,7 +321,7 @@ const createEvents = (
             })
             .toJSDate();
           status = 'APPROVED';
-          unlisted = false;
+          listingAudience = 'both';
           creatorId = organizerUser;
 
           break;
@@ -352,7 +337,7 @@ const createEvents = (
             })
             .toJSDate();
           status = 'APPROVED';
-          unlisted = false;
+          listingAudience = 'both';
           creatorId = organizerUser;
 
           break;
@@ -368,7 +353,7 @@ const createEvents = (
             })
             .toJSDate();
           status = 'DRAFT';
-          unlisted = true;
+          listingAudience = 'unlisted';
           creatorId = organizerUser;
 
           break;
@@ -384,7 +369,7 @@ const createEvents = (
             })
             .toJSDate();
           status = 'PENDING_REVIEW';
-          unlisted = false;
+          listingAudience = 'both';
           creatorId = adminUser;
         }
       }
@@ -396,12 +381,13 @@ const createEvents = (
         end: DateTime.fromJSDate(eventStart).plus({ hours: 6 }).toJSDate(),
         icon: template.icon,
         id: eventId,
+        listingAudience,
+        reviewedAt: status === 'APPROVED' ? seedNow.toJSDate() : null,
         start: eventStart,
         status,
         templateId: template.id,
         tenantId: template.tenantId,
         title: `${template.title} ${index + 1}`,
-        unlisted,
       };
       events.push(event);
 
@@ -538,10 +524,7 @@ export const addEvents = async (
     throw new Error('No templates found for event creation');
   }
 
-  const defaultUserRoles = roles.filter((role) => role.defaultUserRole);
-  const defaultOrganizerRoles = roles.filter(
-    (role) => role.defaultOrganizerRole,
-  );
+  const { defaultOrganizerRoles, defaultUserRoles } = requireSeedRoles(roles);
 
   const seedNow = DateTime.fromJSDate(seedDate ?? getSeedDate(), {
     zone: 'utc',
@@ -633,25 +616,22 @@ export const addEvents = async (
     `Inserted ${allRegistrationOptions.length} event registration options`,
   );
 
-  try {
-    const paidParticipantOptions = allRegistrationOptions.filter(
-      (
-        option,
-      ): option is typeof option & {
-        id: string;
-      } => option.isPaid && !option.organizingRegistration,
+  const paidParticipantOptions = allRegistrationOptions.filter(
+    (
+      option,
+    ): option is typeof option & {
+      id: string;
+    } => option.isPaid && !option.organizingRegistration,
+  );
+  if (paidParticipantOptions.length > 0) {
+    await database.insert(schema.eventRegistrationOptionDiscounts).values(
+      paidParticipantOptions.map((option) => ({
+        discountedPrice: Math.max(0, (option.price ?? 0) - 500),
+        discountType: 'esnCard' as const,
+        eventId: option.eventId,
+        registrationOptionId: option.id,
+      })),
     );
-    if (paidParticipantOptions.length > 0) {
-      await database.insert(schema.eventRegistrationOptionDiscounts).values(
-        paidParticipantOptions.map((option) => ({
-          discountedPrice: Math.max(0, (option.price ?? 0) - 500),
-          discountType: 'esnCard' as const,
-          registrationOptionId: option.id,
-        })),
-      );
-    }
-  } catch (error) {
-    consola.warn('Failed to seed event discounts', error);
   }
 
   const createdEvents = await loadCreatedEvents(

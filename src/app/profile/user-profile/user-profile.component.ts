@@ -59,8 +59,17 @@ import {
   esnCardSubmitPayloadFromIdentifier,
 } from './user-profile.esn-card';
 
+type ProfileDataSection = Exclude<ProfileSection, 'overview'>;
 type ProfileEventRefund = UsersEventSummaryRecord['refunds'][number];
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
+
+export const profileSectionDataQueryEnabled = (
+  selectedSection: ProfileSection,
+  dataSection: ProfileDataSection,
+  esnEnabled: boolean,
+): boolean =>
+  selectedSection === dataSection &&
+  (dataSection !== 'discounts' || esnEnabled);
 
 export const profileEditActionDisabled = ({
   mutationPending,
@@ -78,7 +87,7 @@ export const isBrowsingOutsideHomeTenant = (
 
 export const profileUserAfterEdit = <
   T extends {
-    communicationEmail?: null | string | undefined;
+    communicationEmail: string;
     firstName: string;
     iban?: null | string | undefined;
     lastName: string;
@@ -89,7 +98,7 @@ export const profileUserAfterEdit = <
   result: EditProfileDialogResult,
 ): T => ({
   ...user,
-  communicationEmail: result.communicationEmail?.trim() || null,
+  communicationEmail: result.communicationEmail,
   firstName: result.firstName,
   iban: result.iban ?? null,
   lastName: result.lastName,
@@ -380,16 +389,11 @@ export class UserProfileComponent {
     const tenant = this.config.tenantSignal();
     return isBrowsingOutsideHomeTenant(user?.homeTenantId, tenant?.id);
   });
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.rpc.discounts.getTenantProviders.queryOptions(),
+  private readonly esnProvider = computed(
+    () => this.config.tenantSignal()?.discountProviders?.esnCard,
   );
   protected readonly buyEsnCardUrl = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return;
-    const providers = this.discountProvidersQuery.data();
-    const esnProvider = providers.find(
-      (provider) => provider.type === 'esnCard',
-    );
-    const buyEsnCardUrl = esnProvider?.config.buyEsnCardUrl?.trim();
+    const buyEsnCardUrl = this.esnProvider()?.config.buyEsnCardUrl?.trim();
     return buyEsnCardUrl && buyEsnCardUrl.length > 0
       ? buyEsnCardUrl
       : undefined;
@@ -407,11 +411,9 @@ export class UserProfileComponent {
   });
   protected readonly esnCardSaveDisabled = esnCardSaveDisabled;
   protected readonly esnCardStatusLabel = esnCardStatusLabel;
-  protected readonly esnEnabled = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return false;
-    const providers = this.discountProvidersQuery.data();
-    return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
-  });
+  protected readonly esnEnabled = computed(
+    () => this.esnProvider()?.status === 'enabled',
+  );
   protected readonly faCalendarDays = faCalendarDays;
   protected readonly faPencil = faPencil;
   protected readonly faReceipt = faReceipt;
@@ -419,10 +421,16 @@ export class UserProfileComponent {
   protected readonly faTags = faTags;
   protected readonly faTicket = faTicket;
   protected readonly faUser = faUser;
+  protected readonly selectedSection = signal<ProfileSection>('overview');
 
-  protected readonly myCardsQuery = injectQuery(() =>
-    this.rpc.discounts.getMyCards.queryOptions(),
-  );
+  protected readonly myCardsQuery = injectQuery(() => ({
+    ...this.rpc.discounts.getMyCards.queryOptions(),
+    enabled: profileSectionDataQueryEnabled(
+      this.selectedSection(),
+      'discounts',
+      this.esnEnabled(),
+    ),
+  }));
   protected readonly hasVerifiedEsnCard = computed(() => {
     if (!this.myCardsQuery.isSuccess()) return false;
     const cards = this.myCardsQuery.data();
@@ -431,9 +439,14 @@ export class UserProfileComponent {
     );
   });
 
-  protected readonly myReceiptsQuery = injectQuery(() =>
-    this.rpc.finance.receipts.my.queryOptions(),
-  );
+  protected readonly myReceiptsQuery = injectQuery(() => ({
+    ...this.rpc.finance.receipts.my.queryOptions(),
+    enabled: profileSectionDataQueryEnabled(
+      this.selectedSection(),
+      'receipts',
+      this.esnEnabled(),
+    ),
+  }));
   protected readonly profileEditActionDisabled = profileEditActionDisabled;
   protected readonly profileEventActionNote = profileEventActionNote;
   protected readonly profileEventAudienceLabel = profileEventAudienceLabel;
@@ -461,7 +474,6 @@ export class UserProfileComponent {
       (section) => section.key !== 'discounts' || this.esnEnabled(),
     ),
   );
-  protected readonly selectedSection = signal<ProfileSection>('overview');
   protected readonly setHomeTenantMutation = injectMutation(() =>
     this.rpc.users.setHomeTenant.mutationOptions(),
   );
@@ -471,9 +483,14 @@ export class UserProfileComponent {
   protected readonly upsertCardMutation = injectMutation(() =>
     this.rpc.discounts.upsertMyCard.mutationOptions(),
   );
-  protected readonly userEventsQuery = injectQuery(() =>
-    this.rpc.users.events.queryOptions(),
-  );
+  protected readonly userEventsQuery = injectQuery(() => ({
+    ...this.rpc.users.events.queryOptions(),
+    enabled: profileSectionDataQueryEnabled(
+      this.selectedSection(),
+      'events',
+      this.esnEnabled(),
+    ),
+  }));
 
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
@@ -543,7 +560,7 @@ export class UserProfileComponent {
       EditProfileDialogResult
     >(EditProfileDialogComponent, {
       data: {
-        communicationEmail: user.communicationEmail ?? user.email,
+        communicationEmail: user.communicationEmail,
         firstName: user.firstName,
         iban: user.iban ?? null,
         lastName: user.lastName,

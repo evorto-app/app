@@ -1,9 +1,5 @@
-import type { WritableRegistrationMode } from '@shared/registration-modes';
-
-import {
-  resetAddOnPayment,
-  resetRegistrationPayment,
-} from '../payment-configuration';
+import type { EventListingAudience } from '@shared/event-listing-audience';
+import type { RegistrationMode } from '@shared/registration-modes';
 
 export interface TemplateGraphAddonFormModel {
   allowMultiple: boolean;
@@ -32,13 +28,13 @@ export interface TemplateGraphFormModel {
   description: string;
   iconColor: number;
   iconName: string;
+  listingAudience: EventListingAudience;
   location: TemplateGraphLocationFormModel;
   planningTips: string;
   questions: TemplateGraphQuestionFormModel[];
   registrationOptions: TemplateGraphRegistrationOptionFormModel[];
   simpleModeEnabled: boolean;
   title: string;
-  unlisted: boolean;
 }
 
 export interface TemplateGraphLocationFormModel {
@@ -84,7 +80,7 @@ export interface TemplateGraphRegistrationOptionFormModel {
   price: number;
   refundFeesOnCancellation: TemplateGraphRefundFeesChoice;
   registeredDescription: string;
-  registrationMode: WritableRegistrationMode;
+  registrationMode: RegistrationMode;
   roleIds: string[];
   spots: number;
   stripeTaxRateId: string;
@@ -140,6 +136,7 @@ export const createTemplateGraphFormModel = (): TemplateGraphFormModel => ({
   description: '',
   iconColor: 0,
   iconName: 'calendar:fas',
+  listingAudience: 'both',
   location: createTemplateGraphLocationFormModel(),
   planningTips: '',
   questions: [],
@@ -157,7 +154,6 @@ export const createTemplateGraphFormModel = (): TemplateGraphFormModel => ({
   ],
   simpleModeEnabled: true,
   title: '',
-  unlisted: false,
 });
 
 export const createTemplateGraphAddonFormModel = (
@@ -198,21 +194,3 @@ export const createTemplateGraphQuestionFormModel = (
   sortOrder: 0,
   title: '',
 });
-
-export const resetTemplateGraphPayments = <
-  Model extends Pick<TemplateGraphFormModel, 'addOns' | 'registrationOptions'>,
->(
-  model: Model,
-): Model => {
-  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, ''));
-  const registrationOptions = model.registrationOptions.map((option) =>
-    resetRegistrationPayment(option, '', ''),
-  );
-  const unchanged =
-    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
-    registrationOptions.every(
-      (option, index) => option === model.registrationOptions[index],
-    );
-
-  return unchanged ? model : { ...model, addOns, registrationOptions };
-};

@@ -30,6 +30,22 @@ describe('platform audit schema', () => {
         columns: ['actor_id', 'created_at'],
         name: 'platform_audit_actor_created_idx',
       },
+      {
+        columns: ['created_at', 'id'],
+        name: 'platform_audit_created_id_idx',
+      },
+    ]);
+    const paginationIndex = tableConfig.indexes.find(
+      (candidate) => candidate.config.name === 'platform_audit_created_id_idx',
+    );
+    expect(
+      paginationIndex?.config.columns.map((column) => ({
+        name: column.name,
+        order: column.indexConfig.order,
+      })),
+    ).toEqual([
+      { name: 'created_at', order: 'desc' },
+      { name: 'id', order: 'asc' },
     ]);
     expect(tableConfig.columns.map((column) => column.name)).not.toContain(
       'deleted_at',

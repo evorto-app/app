@@ -1,12 +1,14 @@
-import { describe, expect, it, vi } from '@effect/vitest';
+import { expect, layer, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
 
 import { Database } from '../../../../db';
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import { RpcAccess } from './shared/rpc-access.service';
 import { taxRateHandlers } from './tax-rates.handlers';
 
 const tenant = {
@@ -20,7 +22,6 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
@@ -31,16 +32,29 @@ const tenant = {
   timezone: 'Europe/Amsterdam',
 };
 
-const createHeaders = (
+const createRequestContext = (
   permissions: readonly Permission[],
   currentTenant = tenant,
-) => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(permissions),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(currentTenant),
-});
+) =>
+  ({
+    authData: {},
+    authenticated: true,
+    permissions,
+    platformAuthority: null,
+    tenant: currentTenant,
+    user: null,
+    userAssigned: false,
+  }) satisfies RpcRequestContextShape;
 
-describe('taxRateHandlers permissions', () => {
+const taxRateHandlerLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(
+    RpcRequestContext,
+    createRequestContext(['templates:view']),
+  ),
+);
+
+layer(taxRateHandlerLayer)('taxRateHandlers permissions', (it) => {
   it.effect(
     'lists only compatible active inclusive rates for the current tenant',
     () =>
@@ -68,7 +82,7 @@ describe('taxRateHandlers permissions', () => {
         const result = yield* taxRateHandlers['taxRates.listActive'](
           undefined,
           {
-            headers: createHeaders(['templates:view']),
+            headers: Headers.empty,
           } as never,
         ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
@@ -107,12 +121,16 @@ describe('taxRateHandlers permissions', () => {
         const result = yield* taxRateHandlers['taxRates.listActive'](
           undefined,
           {
-            headers: createHeaders(['templates:view'], {
+            headers: Headers.empty,
+          } as never,
+        ).pipe(
+          Effect.provideService(
+            RpcRequestContext,
+            createRequestContext(['templates:view'], {
               ...tenant,
               stripeAccountId: null,
             }),
-          } as never,
-        ).pipe(
+          ),
           Effect.provide(
             Layer.succeed(Database, {
               query: { tenantStripeTaxRates: { findMany } },
@@ -136,8 +154,12 @@ describe('taxRateHandlers permissions', () => {
       };
 
       const result = yield* taxRateHandlers['taxRates.listActive'](undefined, {
-        headers: createHeaders(['events:create']),
+        headers: Headers.empty,
       } as never).pipe(
+        Effect.provideService(
+          RpcRequestContext,
+          createRequestContext(['events:create']),
+        ),
         Effect.provide(Layer.succeed(Database, database as never)),
       );
 
@@ -148,8 +170,11 @@ describe('taxRateHandlers permissions', () => {
   it.effect('rejects authenticated users without template visibility', () =>
     Effect.gen(function* () {
       const error = yield* taxRateHandlers['taxRates.listActive'](undefined, {
-        headers: createHeaders([]),
-      } as never).pipe(Effect.flip);
+        headers: Headers.empty,
+      } as never).pipe(
+        Effect.provideService(RpcRequestContext, createRequestContext([])),
+        Effect.flip,
+      );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.permission).toBe('templates:view');

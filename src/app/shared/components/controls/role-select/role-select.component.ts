@@ -1,3 +1,5 @@
+import type { RoleLookupRecord } from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
+
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import {
   ChangeDetectionStrategy,
@@ -20,25 +22,27 @@ import {
   MatAutocompleteModule,
   MatAutocompleteSelectedEvent,
 } from '@angular/material/autocomplete';
+import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faCircleXmark } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
-import { injectQueries } from '@tanstack/angular-query-experimental/inject-queries-experimental';
 
 import { AppRpc } from '../../../../core/effect-rpc-angular-client';
+
+interface SelectedRoleView {
+  readonly id: string;
+  readonly name: string;
+  readonly unavailable: boolean;
+}
 
 @Injectable({ providedIn: 'root' })
 export class RoleSelectQueries {
   private readonly rpc = AppRpc.injectClient();
 
-  findMany(search: string) {
-    return this.rpc.roles.findMany.queryOptions({ search });
-  }
-
-  findOne(id: string) {
-    return this.rpc.roles.findOne.queryOptions({ id });
+  catalog() {
+    return this.rpc.roles.findMany.queryOptions({});
   }
 }
 
@@ -46,6 +50,7 @@ export class RoleSelectQueries {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
+    MatButtonModule,
     MatFormFieldModule,
     MatAutocompleteModule,
     MatChipsModule,
@@ -63,44 +68,54 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   readonly touched = model<boolean>(false);
   readonly value = model<string[]>([]);
 
+  private readonly queries = inject(RoleSelectQueries);
+  protected readonly rolesQuery = injectQuery(() => this.queries.catalog());
   protected readonly searchModel = signal({ query: '' });
   protected readonly searchForm = form(this.searchModel, (schema) => {
     debounce(schema, 300);
-    disabled(schema.query, () => this.disabled() || this.readonly());
+    disabled(
+      schema.query,
+      () => this.disabled() || this.readonly() || !this.rolesQuery.isSuccess(),
+    );
   });
   protected readonly searchValue = computed(
     () => this.searchForm().value().query,
   );
-  private readonly queries = inject(RoleSelectQueries);
-  protected searchRoleQuery = injectQuery(() =>
-    this.queries.findMany(this.searchValue()),
+  protected readonly availableRoles = computed<readonly RoleLookupRecord[]>(
+    () => {
+      if (!this.rolesQuery.isSuccess()) return [];
+      const selected = new Set(this.value());
+      const search = this.searchValue().trim().toLowerCase();
+      return this.rolesQuery
+        .data()
+        .filter(
+          (role) =>
+            !selected.has(role.id) &&
+            (search.length === 0 || role.name.toLowerCase().includes(search)),
+        );
+    },
   );
-  protected currentRolesQuery = injectQueries(() => ({
-    queries: this.value().map((roleId) => this.queries.findOne(roleId)),
-  }));
-  protected readonly selectedRoleIds = computed(() => {
-    const selected = new Set((this.value() ?? []).filter(Boolean));
-    for (const role of this.currentRolesQuery()) {
-      const roleId = role.data()?.id;
-      if (roleId) {
-        selected.add(roleId);
-      }
-    }
-    return selected;
-  });
-  protected readonly availableRoles = computed(() => {
-    return this.searchRoleQuery.isSuccess()
-      ? this.searchRoleQuery
-          .data()
-          .filter((role) => !this.selectedRoleIds().has(role.id))
-      : [];
-  });
   protected faCircleXmark = faCircleXmark;
   protected readonly searchInputHasValue = signal(false);
+  protected readonly selectedRoles = computed<readonly SelectedRoleView[]>(
+    () => {
+      if (!this.rolesQuery.isSuccess()) return [];
+      const catalog = new Map(
+        this.rolesQuery.data().map((role) => [role.id, role]),
+      );
+      return this.value().map((roleId) => {
+        const role = catalog.get(roleId);
+        return role
+          ? { id: role.id, name: role.name, unavailable: false }
+          : { id: roleId, name: 'Unavailable role', unavailable: true };
+      });
+    },
+  );
   protected readonly hasChipGridRole = computed(
-    () =>
-      this.searchInputHasValue() ||
-      this.currentRolesQuery().some((role) => role.data() !== undefined),
+    () => this.searchInputHasValue() || this.selectedRoles().length > 0,
+  );
+  protected readonly unavailableSelectedRoleCount = computed(
+    () => this.selectedRoles().filter((role) => role.unavailable).length,
   );
 
   add() {

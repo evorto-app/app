@@ -1,5 +1,5 @@
 import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
-import { notificationEmailPattern } from '@shared/notification-email';
+import { isCanonicalEmailAddress } from '@shared/notification-email';
 import {
   TenantOnboardingConfigurationError,
   TenantOnboardingRequirementsChangedError,
@@ -48,6 +48,19 @@ const authDataString = (
   return typeof value === 'string' ? value.trim() || undefined : undefined;
 };
 
+const requireOnboardingAuth0Id = Effect.fn(
+  'onboarding.requireOnboardingAuth0Id',
+)(function* (authData: Record<string, unknown>) {
+  const auth0Id = authDataString(authData, 'sub');
+  if (!auth0Id) {
+    return yield* new RpcUnauthorizedError({
+      message:
+        'Your authenticated account is missing a stable identifier. Log out and sign in again.',
+    });
+  }
+  return auth0Id;
+});
+
 const failValidation = (field: string, message: string) =>
   Effect.fail(new TenantOnboardingValidationError({ field, message }));
 
@@ -66,7 +79,7 @@ export const normalizeOnboardingProfile = (input: {
   firstName: string;
   lastName: string;
 }) => {
-  const communicationEmail = input.communicationEmail.trim();
+  const communicationEmail = input.communicationEmail;
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
 
@@ -82,7 +95,7 @@ export const normalizeOnboardingProfile = (input: {
       'Last name must contain between 1 and 100 characters.',
     );
   }
-  if (!notificationEmailPattern.test(communicationEmail)) {
+  if (!isCanonicalEmailAddress(communicationEmail)) {
     return failValidation(
       'communicationEmail',
       'Enter a valid notification email address.',
@@ -519,13 +532,7 @@ export const onboardingHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const context = yield* RpcAccess.current();
-      const auth0Id = authDataString(context.authData, 'sub');
-      if (!auth0Id) {
-        return yield* new RpcUnauthorizedError({
-          message:
-            'Your authenticated account is missing a stable identifier. Log out and sign in again.',
-        });
-      }
+      const auth0Id = yield* requireOnboardingAuth0Id(context.authData);
       const requirements = yield* Database.use((database) =>
         resolveTenantOnboardingRequirements(database, {
           auth0Id,
@@ -551,10 +558,7 @@ export const onboardingHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const context = yield* RpcAccess.current();
-      const auth0Id = authDataString(context.authData, 'sub');
-      if (!auth0Id) {
-        return { complete: false };
-      }
+      const auth0Id = yield* requireOnboardingAuth0Id(context.authData);
       const requirements = yield* Database.use((database) =>
         resolveTenantOnboardingRequirements(database, {
           auth0Id,

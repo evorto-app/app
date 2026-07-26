@@ -1,6 +1,9 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
-import { literalUnion, nonNegativeNumber } from '@shared/schema-utilities';
+import {
+  literalUnion,
+  nonNegativePostgresInteger,
+} from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -8,7 +11,12 @@ import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 import { Tenant } from '../../../types/custom/tenant';
 import { GoogleLocation } from '../../../types/location';
 import { TenantRolePermissionSchema } from '../../permissions/permissions';
-import { AdminRoleRpcError, AdminTenantRpcError } from './admin.errors';
+import {
+  AdminRoleRpcError,
+  AdminRoleWriteRpcError,
+  AdminTenantRpcError,
+} from './admin.errors';
+import { RoleWriteInput } from './role-write.shared';
 
 const UrlString = Schema.String.pipe(
   Schema.check(
@@ -49,7 +57,6 @@ const OptionalSenderEmail = Schema.NonEmptyString.check(
 );
 
 export const AdminRoleRecord = Schema.Struct({
-  collapseMembersInHup: Schema.Boolean,
   defaultOrganizerRole: Schema.Boolean,
   defaultUserRole: Schema.Boolean,
   description: Schema.NullOr(Schema.String),
@@ -117,15 +124,7 @@ export const AdminRolesFindHubRoles = asRpcQuery(
   }),
 );
 
-export const AdminRolesCreateInput = Schema.Struct({
-  collapseMembersInHup: Schema.Boolean,
-  defaultOrganizerRole: Schema.Boolean,
-  defaultUserRole: Schema.Boolean,
-  description: Schema.NullOr(Schema.NonEmptyString),
-  displayInHub: Schema.Boolean,
-  name: Schema.NonEmptyString,
-  permissions: Schema.mutable(Schema.Array(TenantRolePermissionSchema)),
-});
+export const AdminRolesCreateInput = RoleWriteInput;
 
 export type AdminRolesCreateInput = Schema.Schema.Type<
   typeof AdminRolesCreateInput
@@ -133,7 +132,7 @@ export type AdminRolesCreateInput = Schema.Schema.Type<
 
 export const AdminRolesCreate = asRpcMutation(
   Rpc.make('admin.roles.create', {
-    error: AdminRoleRpcError,
+    error: AdminRoleWriteRpcError,
     payload: AdminRolesCreateInput,
     success: AdminRoleRecord,
   }),
@@ -170,7 +169,7 @@ export type AdminRolesUpdateInput = Schema.Schema.Type<
 
 export const AdminRolesUpdate = asRpcMutation(
   Rpc.make('admin.roles.update', {
-    error: AdminRoleRpcError,
+    error: AdminRoleWriteRpcError,
     payload: AdminRolesUpdateInput,
     success: AdminRoleRecord,
   }),
@@ -204,12 +203,23 @@ export type AdminTenantStripeTaxRateRecord = Schema.Schema.Type<
   typeof AdminTenantStripeTaxRateRecord
 >;
 
+const AdminTenantStripeTaxRateIds = Schema.Array(Schema.NonEmptyString).check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(100),
+);
+
+export const AdminTenantImportStripeTaxRatesInput = Schema.Struct({
+  ids: AdminTenantStripeTaxRateIds,
+});
+
+export type AdminTenantImportStripeTaxRatesInput = Schema.Schema.Type<
+  typeof AdminTenantImportStripeTaxRatesInput
+>;
+
 export const AdminTenantImportStripeTaxRates = asRpcMutation(
   Rpc.make('admin.tenant.importStripeTaxRates', {
     error: AdminTenantRpcError,
-    payload: Schema.Struct({
-      ids: Schema.Array(Schema.NonEmptyString),
-    }),
+    payload: AdminTenantImportStripeTaxRatesInput,
     success: Schema.Void,
   }),
 );
@@ -233,7 +243,7 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
 export const AdminTenantUpdateSettingsInput = Schema.Struct({
   allowOther: Schema.Boolean,
   buyEsnCardUrl: Schema.optional(UrlString),
-  cancellationDeadlineHoursBeforeStart: nonNegativeNumber,
+  cancellationDeadlineHoursBeforeStart: nonNegativePostgresInteger,
   currency: Tenant.fields.currency,
   defaultLocation: Schema.NullOr(GoogleLocation),
   emailSenderEmail: Schema.optional(OptionalSenderEmail),
@@ -243,7 +253,7 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   legalNoticeText: Schema.optional(Schema.String),
   legalNoticeUrl: Schema.optional(UrlString),
   logoUrl: Schema.optional(TenantBrandAssetUrlString),
-  maxActiveRegistrationsPerUser: nonNegativeNumber,
+  maxActiveRegistrationsPerUser: nonNegativePostgresInteger,
   receiptCountries: Schema.Array(Schema.NonEmptyString),
   refundFeesOnCancellation: Schema.Boolean,
   seoDescription: Schema.optional(Schema.String),
@@ -253,7 +263,7 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   termsUrl: Schema.optional(UrlString),
   theme: literalUnion('evorto', 'esn'),
   timezone: Tenant.fields.timezone,
-  transferDeadlineHoursBeforeStart: nonNegativeNumber,
+  transferDeadlineHoursBeforeStart: nonNegativePostgresInteger,
 });
 
 export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<

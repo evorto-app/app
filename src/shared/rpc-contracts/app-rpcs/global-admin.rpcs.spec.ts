@@ -5,6 +5,7 @@ import {
   GlobalAdminEmailOutboxKind,
   GlobalAdminEmailOutboxKinds,
   GlobalAdminEmailOutboxRecord,
+  GlobalAdminPlatformAuditCursor,
   GlobalAdminTenantCreateInput,
   GlobalAdminTenantUpdateError,
   GlobalAdminTenantUrlMigrationBlockedError,
@@ -41,13 +42,10 @@ describe('GlobalAdminEmailOutboxKind', () => {
         attempts: 0,
         createdAt: '2026-07-15T14:30:00.000Z',
         deliveryUnknownAt: null,
-        exhaustedAt: null,
         id: 'email-1',
         kind: 'registrationConfirmed',
         lastAttemptAt: null,
         lastError: null,
-        maxAttempts: 8,
-        nextAttemptAt: '2026-07-15T14:30:00.000Z',
         provider: null,
         providerMessageId: null,
         recipient: 'member@example.org',
@@ -62,6 +60,35 @@ describe('GlobalAdminEmailOutboxKind', () => {
         updatedAt: '2026-07-15T14:30:00.000Z',
       }),
     ).toMatchObject({ tenantTimezone: 'Australia/Brisbane' });
+  });
+});
+
+describe('GlobalAdminPlatformAuditCursor', () => {
+  it('accepts the explicit timestamp and id boundary returned by the server', () => {
+    expect(
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditCursor)({
+        createdAt: '2026-07-15T14:30:00.000Z',
+        id: 'audit-50',
+      }),
+    ).toEqual({
+      createdAt: '2026-07-15T14:30:00.000Z',
+      id: 'audit-50',
+    });
+  });
+
+  it('rejects invalid or non-canonical timestamps', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditCursor)({
+        createdAt: 'not-a-timestamp',
+        id: 'audit-50',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditCursor)({
+        createdAt: '2026-07-15T16:30:00.000+02:00',
+        id: 'audit-50',
+      }),
+    ).toThrow();
   });
 });
 

@@ -6,12 +6,21 @@ import {
   RpcUnauthorizedError,
   UnauthorizedRpcError,
 } from '@shared/errors/rpc-errors';
+import { EventCheckInTimingIssue } from '@shared/event-check-in';
 import { Schema } from 'effect';
 
 export type EventRegistrationError =
   | EventRegistrationConflictError
   | EventRegistrationInternalError
   | EventRegistrationNotFoundError;
+
+export class EventCheckInUnavailableError extends Schema.TaggedErrorClass<EventCheckInUnavailableError>()(
+  'EventCheckInUnavailableError',
+  {
+    message: Schema.String,
+    reason: EventCheckInTimingIssue,
+  },
+) {}
 
 export class EventConflictError extends Schema.TaggedErrorClass<EventConflictError>()(
   'EventConflictError',
@@ -38,7 +47,6 @@ export class EventRegistrationConflictError extends Schema.TaggedErrorClass<Even
 export class EventRegistrationInternalError extends Schema.TaggedErrorClass<EventRegistrationInternalError>()(
   'EventRegistrationInternalError',
   {
-    cause: Schema.optional(Schema.Defect()),
     message: Schema.String,
   },
 ) {}
@@ -132,6 +140,18 @@ export type EventsCheckInRegistrationError = Schema.Schema.Type<
   typeof EventsCheckInRegistrationError
 >;
 
+export const EventsCheckInRegistrationMutationError = Schema.Union([
+  EventCheckInUnavailableError,
+  EventRegistrationConflictError,
+  EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+]);
+export type EventsCheckInRegistrationMutationError = Schema.Schema.Type<
+  typeof EventsCheckInRegistrationMutationError
+>;
+
 export const EventsRegistrationAddonFulfillmentError = Schema.Union([
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -164,8 +184,13 @@ export type EventsSubmitForReviewRpcError = Schema.Schema.Type<
   typeof EventsSubmitForReviewRpcError
 >;
 
-export const EventsUpdateListingRpcError = ForbiddenOrUnauthorizedRpcError;
-export type EventsUpdateListingRpcError = ForbiddenOrUnauthorizedRpcError;
+export const EventsUpdateListingRpcError = Schema.Union([
+  EventNotFoundError,
+  ForbiddenOrUnauthorizedRpcError,
+]);
+export type EventsUpdateListingRpcError = Schema.Schema.Type<
+  typeof EventsUpdateListingRpcError
+>;
 
 export const EventsUpdateRpcError = Schema.Union([
   RpcBadRequestError,

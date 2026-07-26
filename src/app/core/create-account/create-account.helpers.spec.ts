@@ -216,12 +216,12 @@ describe('isTenantOnboardingRequirementsChangedError', () => {
 });
 
 describe('createAccountPayloadFromModel', () => {
-  it('trims account creation fields before submitting them', () => {
+  it('canonicalizes account creation fields before submitting them', () => {
     expect(
       createAccountPayloadFromModel({
         acceptedPrivacyPolicy: true,
         answers: [{ questionId: 'question-1', value: ' Student ' }],
-        communicationEmail: ' notify@example.com ',
+        communicationEmail: ' Notify@Example.COM ',
         firstName: ' Alice ',
         lastName: ' Doe ',
         policyVersionId: 'policy-2',

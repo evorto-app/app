@@ -1,11 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  graphHasPaidConfiguration,
   resetAddOnPayment,
   resetRegistrationPayment,
 } from './payment-configuration';
 
 describe('payment configuration reset', () => {
+  it('detects paid graph data without changing it', () => {
+    const graph = {
+      addOns: [{ isPaid: false }],
+      registrationOptions: [{ isPaid: true }],
+    };
+
+    expect(graphHasPaidConfiguration(graph)).toBe(true);
+    expect(graph).toEqual({
+      addOns: [{ isPaid: false }],
+      registrationOptions: [{ isPaid: true }],
+    });
+  });
+
   it('clears only registration payment fields', () => {
     expect(
       resetRegistrationPayment(

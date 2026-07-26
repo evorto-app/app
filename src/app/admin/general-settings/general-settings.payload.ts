@@ -36,17 +36,13 @@ export interface GeneralSettingsModel {
 const optionalTrimmed = (value: string): string | undefined =>
   value.trim() || undefined;
 
-const nonNegativeWholeHours = (value: number): number =>
-  Math.max(0, Math.trunc(value));
-
 export const generalSettingsPayloadFromModel = (
   settings: GeneralSettingsModel,
 ): AdminTenantUpdateSettingsInput => ({
   allowOther: settings.allowOther,
   buyEsnCardUrl: optionalTrimmed(settings.buyEsnCardUrl),
-  cancellationDeadlineHoursBeforeStart: nonNegativeWholeHours(
+  cancellationDeadlineHoursBeforeStart:
     settings.cancellationDeadlineHoursBeforeStart,
-  ),
   currency: settings.currency,
   defaultLocation: settings.defaultLocation,
   emailSenderEmail: optionalTrimmed(settings.emailSenderEmail),
@@ -56,9 +52,7 @@ export const generalSettingsPayloadFromModel = (
   legalNoticeText: optionalTrimmed(settings.legalNoticeText),
   legalNoticeUrl: optionalTrimmed(settings.legalNoticeUrl),
   logoUrl: optionalTrimmed(settings.logoUrl),
-  maxActiveRegistrationsPerUser: nonNegativeWholeHours(
-    settings.maxActiveRegistrationsPerUser,
-  ),
+  maxActiveRegistrationsPerUser: settings.maxActiveRegistrationsPerUser,
   receiptCountries: settings.receiptCountries,
   refundFeesOnCancellation: settings.refundFeesOnCancellation,
   seoDescription: optionalTrimmed(settings.seoDescription),
@@ -68,9 +62,7 @@ export const generalSettingsPayloadFromModel = (
   termsUrl: optionalTrimmed(settings.termsUrl),
   theme: settings.theme,
   timezone: settings.timezone,
-  transferDeadlineHoursBeforeStart: nonNegativeWholeHours(
-    settings.transferDeadlineHoursBeforeStart,
-  ),
+  transferDeadlineHoursBeforeStart: settings.transferDeadlineHoursBeforeStart,
 });
 
 export const requiresRuntimeSettingsReload = (

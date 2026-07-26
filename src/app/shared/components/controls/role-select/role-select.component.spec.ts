@@ -19,12 +19,20 @@ const role = {
   id: 'role-organizer',
   name: 'Organizer',
 };
+const financeRole = {
+  defaultOrganizerRole: false,
+  defaultUserRole: true,
+  id: 'role-finance',
+  name: 'Finance',
+};
 
 describe('RoleSelectComponent', () => {
   let fixture: ComponentFixture<RoleSelectComponent>;
+  const loadRoles = vi.fn(async () => [role, financeRole]);
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    loadRoles.mockReset().mockResolvedValue([role, financeRole]);
     queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -41,13 +49,9 @@ describe('RoleSelectComponent', () => {
         {
           provide: RoleSelectQueries,
           useValue: {
-            findMany: (search: string) => ({
-              queryFn: async () => [],
-              queryKey: ['roles', 'search', search],
-            }),
-            findOne: (id: string) => ({
-              queryFn: async () => ({ ...role, id }),
-              queryKey: ['roles', id],
+            catalog: () => ({
+              queryFn: loadRoles,
+              queryKey: ['roles', 'catalog'],
             }),
           },
         },
@@ -175,7 +179,7 @@ describe('RoleSelectComponent', () => {
     },
   );
 
-  it('tracks multiple role queries uniquely while the value resets', async () => {
+  it('tracks multiple catalog roles uniquely while the value resets', async () => {
     fixture.componentRef.setInput('value', ['role-organizer', 'role-finance']);
     await vi.waitFor(() => {
       fixture.detectChanges();
@@ -183,6 +187,7 @@ describe('RoleSelectComponent', () => {
         fixture.nativeElement.querySelectorAll('mat-chip-row'),
       ).toHaveLength(2);
     });
+    expect(loadRoles).toHaveBeenCalledOnce();
     const warning = vi
       .spyOn(console, 'warn')
       .mockImplementation((...messages) => void messages);
@@ -198,6 +203,74 @@ describe('RoleSelectComponent', () => {
       ),
     ).toBe(false);
     warning.mockRestore();
+  });
+
+  it('renders and removes a selected role that is missing from the catalog', async () => {
+    fixture.componentRef.setInput('value', ['missing-role']);
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(fixture.nativeElement.textContent).toContain(
+        'Unavailable role (no longer available)',
+      );
+      expect(fixture.nativeElement.textContent).toContain(
+        '1 selected role no longer exists',
+      );
+    });
+
+    const removeButton = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLButtonElement>(
+      'button[aria-label="Remove Unavailable role"]',
+    );
+    if (!removeButton) throw new Error('Expected the unavailable-role action');
+    removeButton.click();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.value()).toEqual([]);
+  });
+
+  it('keeps an unavailable catalog distinct from an empty catalog and retries', async () => {
+    loadRoles
+      .mockRejectedValueOnce(new Error('Role provider unavailable'))
+      .mockResolvedValue([role, financeRole]);
+
+    await queryClient.resetQueries({ queryKey: ['roles', 'catalog'] });
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(fixture.nativeElement.textContent).toContain(
+        'Roles could not be loaded.',
+      );
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+          'input[placeholder="Add Role..."]',
+        )?.disabled,
+      ).toBe(true);
+    });
+    expect(fixture.nativeElement.querySelectorAll('mat-chip-row')).toHaveLength(
+      0,
+    );
+
+    const retry = [
+      ...(
+        fixture.nativeElement as HTMLElement
+      ).querySelectorAll<HTMLButtonElement>('button'),
+    ].find((button) => button.textContent?.trim() === 'Try again');
+    if (!retry) throw new Error('Expected a role-catalog retry button');
+    retry.click();
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(fixture.nativeElement.textContent).not.toContain(
+        'Roles could not be loaded.',
+      );
+      expect(
+        fixture.nativeElement.querySelector(
+          'button[aria-label="Remove Organizer"]',
+        ),
+      ).not.toBeNull();
+    });
   });
 
   it('removes a selected role through the chip keyboard action', async () => {

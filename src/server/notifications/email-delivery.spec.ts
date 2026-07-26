@@ -5,20 +5,106 @@ import { emailOutbox } from '@db/schema';
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
 import {
   EmailDelivery,
-  EmailDeliveryPermanentError,
-  EmailDeliveryRetryableError,
+  EmailDeliveryRejectedError,
+  EmailDeliveryUnknownError,
 } from '@server/integrations/email-delivery';
 import { Effect, Exit, Layer } from 'effect';
 
 import {
+  enqueueManualApprovalEmail,
   enqueueReceiptReviewedEmail,
   enqueueRegistrationCancelledEmail,
   enqueueRegistrationConfirmedEmail,
   enqueueRegistrationTransferredEmail,
   enqueueWaitlistSpotAvailableEmail,
   handleEmailOutboxProcessorCause,
+  InvalidTenantEmailTimezoneError,
   processDueEmailOutbox,
 } from './email-delivery';
+
+const outboxNow = new Date('2026-07-09T10:00:00.000Z');
+
+const queuedOutboxRow = {
+  attempts: 0,
+  claimLeaseExpiresAt: null,
+  claimLeaseId: null,
+  createdAt: outboxNow,
+  deliveryUnknownAt: null,
+  html: '<p>Hello</p>',
+  id: 'email-1',
+  idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
+  kind: 'receiptReviewed' as const,
+  lastAttemptAt: null,
+  lastError: null,
+  provider: null,
+  providerMessageId: null,
+  replyToEmail: 'board@example.org',
+  replyToName: 'Example Section',
+  sentAt: null,
+  status: 'queued' as const,
+  subject: 'Receipt approved',
+  suppressedAt: null,
+  tenantId: 'tenant-1',
+  text: 'Hello',
+  toEmail: 'alice@example.com',
+  updatedAt: outboxNow,
+};
+
+const claimedOutboxRow = {
+  ...queuedOutboxRow,
+  attempts: 1,
+  claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
+  claimLeaseId: 'lease-1',
+  lastAttemptAt: outboxNow,
+  status: 'sending' as const,
+};
+
+const outboxDatabase = ({
+  abandonedIds = [],
+  claimWins = true,
+  queuedRows = [queuedOutboxRow],
+}: {
+  abandonedIds?: readonly string[];
+  claimWins?: boolean;
+  queuedRows?: readonly (typeof queuedOutboxRow)[];
+} = {}) => {
+  const updateSets: Record<string, unknown>[] = [];
+  const database = {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          orderBy: () => ({
+            limit: () => Effect.succeed(queuedRows),
+          }),
+        }),
+      }),
+    }),
+    update: () => ({
+      set: (values: Record<string, unknown>) => {
+        updateSets.push(values);
+        return {
+          where: () => ({
+            returning: () => {
+              if (
+                values.status === 'deliveryUnknown' &&
+                String(values.lastError).startsWith(
+                  'The delivery worker stopped',
+                )
+              ) {
+                return Effect.succeed(abandonedIds.map((id) => ({ id })));
+              }
+              if (values.status === 'sending') {
+                return Effect.succeed(claimWins ? [claimedOutboxRow] : []);
+              }
+              return Effect.succeed([{ id: claimedOutboxRow.id }]);
+            },
+          }),
+        };
+      },
+    }),
+  };
+  return { database, updateSets };
+};
 
 describe('email delivery', () => {
   afterEach(() => {
@@ -39,7 +125,7 @@ describe('email delivery', () => {
   );
 
   it.effect(
-    'queues receipt review notifications with fixed from and tenant reply-to',
+    'queues receipt review notifications with a tenant reply-to and no stored sender copy',
     () =>
       Effect.gen(function* () {
         let insertedValue: unknown;
@@ -81,8 +167,6 @@ describe('email delivery', () => {
 
         expect(insertedValue).toEqual(
           expect.objectContaining({
-            fromEmail: 'no-reply@notifications.evorto.app',
-            fromName: 'Evorto',
             idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
             kind: 'receiptReviewed',
             replyToEmail: 'board@example.org',
@@ -92,6 +176,83 @@ describe('email delivery', () => {
             toEmail: 'alice@example.com',
           }),
         );
+        expect(insertedValue).not.toHaveProperty('fromEmail');
+        expect(insertedValue).not.toHaveProperty('fromName');
+      }),
+  );
+
+  it.effect(
+    'formats a paid manual approval deadline in the authoritative tenant timezone',
+    () =>
+      Effect.gen(function* () {
+        let insertedValue: Record<string, unknown> | undefined;
+        const database = {
+          insert: () => ({
+            values: (value: Record<string, unknown>) => {
+              insertedValue = value;
+              return {
+                onConflictDoNothing: () => Effect.void,
+              };
+            },
+          }),
+        } as Pick<DatabaseClient, 'insert'>;
+
+        yield* enqueueManualApprovalEmail(database, {
+          approvalKey: 'transaction-1',
+          eventTitle: 'City tour',
+          eventUrl: 'https://section.example.org/events/event-1',
+          paymentDeadline: new Date('2026-07-15T14:30:00.000Z'),
+          registrationId: 'registration-1',
+          tenant: {
+            emailSenderEmail: 'board@example.org',
+            emailSenderName: 'Example Section',
+            id: 'tenant-1',
+            name: 'Example Section',
+            timezone: 'Australia/Brisbane',
+          },
+          to: 'alice@example.com',
+        });
+
+        expect(String(insertedValue?.text)).toContain(
+          '16.07.2026, 00:30 GMT+10 (Australia/Brisbane)',
+        );
+        expect(String(insertedValue?.text)).not.toContain(
+          '2026-07-15T14:30:00.000Z',
+        );
+      }),
+  );
+
+  it.effect(
+    'fails with a typed error when a persisted tenant timezone is invalid',
+    () =>
+      Effect.gen(function* () {
+        const insert = vi.fn();
+        const error = yield* enqueueManualApprovalEmail(
+          { insert } as Pick<DatabaseClient, 'insert'>,
+          {
+            approvalKey: 'transaction-1',
+            eventTitle: 'City tour',
+            eventUrl: 'https://section.example.org/events/event-1',
+            paymentDeadline: new Date('2026-07-15T14:30:00.000Z'),
+            registrationId: 'registration-1',
+            tenant: {
+              emailSenderEmail: 'board@example.org',
+              emailSenderName: 'Example Section',
+              id: 'tenant-1',
+              name: 'Example Section',
+              timezone: 'Invalid/Timezone',
+            },
+            to: 'alice@example.com',
+          },
+        ).pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(InvalidTenantEmailTimezoneError);
+        expect(error).toMatchObject({
+          _tag: 'InvalidTenantEmailTimezoneError',
+          tenantId: 'tenant-1',
+          timezone: 'Invalid/Timezone',
+        });
+        expect(insert).not.toHaveBeenCalled();
       }),
   );
 
@@ -308,219 +469,81 @@ describe('email delivery', () => {
       }),
   );
 
-  it.effect(
-    'sends due outbox rows through the delivery service with reply-to',
-    () =>
-      Effect.gen(function* () {
-        const now = new Date('2026-07-09T10:00:00.000Z');
-        const queuedRow = {
-          attempts: 0,
-          claimLeaseExpiresAt: null,
-          claimLeaseId: null,
-          createdAt: now,
-          exhaustedAt: null,
-          fromEmail: 'no-reply@notifications.evorto.app',
-          fromName: 'Evorto',
-          html: '<p>Hello</p>',
-          id: 'email-1',
-          idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
-          kind: 'receiptReviewed' as const,
-          lastAttemptAt: null,
-          lastError: null,
-          maxAttempts: 8,
-          nextAttemptAt: now,
-          provider: null,
-          providerMessageId: null,
-          replyToEmail: 'board@example.org',
-          replyToName: 'Example Section',
-          sentAt: null,
-          status: 'queued' as const,
-          subject: 'Receipt approved',
-          tenantId: 'tenant-1',
-          text: 'Hello',
-          toEmail: 'alice@example.com',
-          updatedAt: now,
-        };
-        const claimedRow = {
-          ...queuedRow,
-          attempts: 1,
-          claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
-          claimLeaseId: 'lease-1',
-          lastAttemptAt: now,
-          status: 'sending' as const,
-        };
-        const deliverMock = vi.fn(() =>
-          Effect.succeed({
-            _tag: 'Delivered' as const,
-            provider: 'fake' as const,
-            providerMessageId: 'fake-email-1',
-          }),
-        );
-        const updateSets: unknown[] = [];
-        const database = {
-          select: () => ({
-            from: () => ({
-              where: () => ({
-                orderBy: () => ({
-                  limit: () => Effect.succeed([queuedRow]),
-                }),
-              }),
-            }),
-          }),
-          update: () => ({
-            set: (values: { status?: string }) => {
-              updateSets.push(values);
-              return {
-                where: () => ({
-                  returning: () =>
-                    Effect.succeed(
-                      values.status === 'sending'
-                        ? [claimedRow]
-                        : [{ id: claimedRow.id }],
-                    ),
-                }),
-              };
-            },
-          }),
-        };
+  it.effect('sends a newly queued outbox row once with its reply-to', () =>
+    Effect.gen(function* () {
+      const deliverMock = vi.fn(() =>
+        Effect.succeed({
+          _tag: 'Delivered' as const,
+          provider: 'fake' as const,
+          providerMessageId: 'fake-email-1',
+        }),
+      );
+      const { database, updateSets } = outboxDatabase();
 
-        const processed = yield* processDueEmailOutbox(1).pipe(
-          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-          Effect.provide(EmailDelivery.layerFake(deliverMock)),
-        );
+      const processed = yield* processDueEmailOutbox(1).pipe(
+        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        Effect.provide(EmailDelivery.layerFake(deliverMock)),
+      );
 
-        expect(processed).toBe(1);
-        expect(deliverMock).toHaveBeenCalledOnce();
-        expect(deliverMock).toHaveBeenCalledWith(
-          expect.objectContaining({
-            idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
-            replyTo: {
-              email: 'board@example.org',
-              name: 'Example Section',
-            },
-            subject: 'Receipt approved',
-            to: 'alice@example.com',
-          }),
-        );
-        expect(updateSets).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({ status: 'sending' }),
-            expect.objectContaining({
-              claimLeaseExpiresAt: null,
-              claimLeaseId: null,
-              provider: 'fake',
-              providerMessageId: 'fake-email-1',
-              status: 'sent',
-            }),
-          ]),
-        );
-      }),
-  );
-
-  it.effect(
-    'reclaims an expired sending lease without consuming another attempt',
-    () =>
-      Effect.gen(function* () {
-        const now = new Date('2026-07-09T10:20:00.000Z');
-        const staleRow = {
-          attempts: 8,
-          claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
-          claimLeaseId: 'abandoned-lease',
-          createdAt: now,
-          exhaustedAt: null,
-          fromEmail: 'no-reply@notifications.evorto.app',
-          fromName: 'Evorto',
-          html: '<p>Hello</p>',
-          id: 'email-stale',
-          idempotencyKey: 'manual-approval/tenant-1/registration-1/confirmed',
-          kind: 'manualApproval' as const,
-          lastAttemptAt: new Date('2026-07-09T10:00:00.000Z'),
-          lastError: null,
-          maxAttempts: 8,
-          nextAttemptAt: new Date('2026-07-09T10:00:00.000Z'),
-          provider: null,
-          providerMessageId: null,
-          replyToEmail: null,
-          replyToName: null,
-          sentAt: null,
-          status: 'sending' as const,
-          subject: 'Registration approved',
-          tenantId: 'tenant-1',
-          text: 'Hello',
-          toEmail: 'alice@example.com',
-          updatedAt: new Date('2026-07-09T10:00:00.000Z'),
-        };
-        const reclaimedRow = {
-          ...staleRow,
-          claimLeaseExpiresAt: new Date('2026-07-09T10:30:00.000Z'),
-          claimLeaseId: 'replacement-lease',
-          lastAttemptAt: now,
-        };
-        const deliverMock = vi.fn(() =>
-          Effect.succeed({
-            _tag: 'Delivered' as const,
-            provider: 'fake' as const,
-            providerMessageId: 'fake-email-stale',
-          }),
-        );
-        const updateSets: {
-          claimLeaseExpiresAt?: unknown;
-          claimLeaseId?: null | string;
-          status?: string;
-        }[] = [];
-        const database = {
-          select: () => ({
-            from: () => ({
-              where: () => ({
-                orderBy: () => ({
-                  limit: () => Effect.succeed([staleRow]),
-                }),
-              }),
-            }),
-          }),
-          update: () => ({
-            set: (values: {
-              claimLeaseExpiresAt?: unknown;
-              claimLeaseId?: null | string;
-              status?: string;
-            }) => {
-              updateSets.push(values);
-              return {
-                where: () => ({
-                  returning: () =>
-                    Effect.succeed(
-                      values.status === 'sending'
-                        ? [reclaimedRow]
-                        : [{ id: staleRow.id }],
-                    ),
-                }),
-              };
-            },
-          }),
-        };
-
-        const processed = yield* processDueEmailOutbox(1).pipe(
-          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-          Effect.provide(EmailDelivery.layerFake(deliverMock)),
-        );
-
-        expect(processed).toBe(1);
-        expect(deliverMock).toHaveBeenCalledWith(
-          expect.objectContaining({
-            idempotencyKey: 'manual-approval/tenant-1/registration-1/confirmed',
-          }),
-        );
-        expect(reclaimedRow.attempts).toBe(8);
-        expect(updateSets).toEqual([
-          expect.objectContaining({
-            claimLeaseExpiresAt: expect.anything(),
-            claimLeaseId: expect.any(String),
-            status: 'sending',
-          }),
+      expect(processed).toBe(1);
+      expect(deliverMock).toHaveBeenCalledOnce();
+      expect(deliverMock).toHaveBeenCalledWith({
+        html: '<p>Hello</p>',
+        replyTo: {
+          email: 'board@example.org',
+          name: 'Example Section',
+        },
+        subject: 'Receipt approved',
+        text: 'Hello',
+        to: 'alice@example.com',
+      });
+      expect(updateSets).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ attempts: 1, status: 'sending' }),
           expect.objectContaining({
             claimLeaseExpiresAt: null,
             claimLeaseId: null,
+            provider: 'fake',
+            providerMessageId: 'fake-email-1',
             status: 'sent',
+          }),
+        ]),
+      );
+    }),
+  );
+
+  it.effect(
+    'marks missing and expired sending claims unknown without dispatching again',
+    () =>
+      Effect.gen(function* () {
+        const deliverMock = vi.fn(() =>
+          Effect.succeed({
+            _tag: 'Delivered' as const,
+            provider: 'fake' as const,
+            providerMessageId: 'must-not-send',
+          }),
+        );
+        const { database, updateSets } = outboxDatabase({
+          abandonedIds: ['expired-claim', 'missing-lease'],
+          queuedRows: [],
+        });
+
+        const processed = yield* processDueEmailOutbox(1).pipe(
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provide(EmailDelivery.layerFake(deliverMock)),
+        );
+
+        expect(processed).toBe(0);
+        expect(deliverMock).not.toHaveBeenCalled();
+        expect(updateSets).toEqual([
+          expect.objectContaining({
+            claimLeaseExpiresAt: null,
+            claimLeaseId: null,
+            deliveryUnknownAt: expect.any(Date),
+            lastError: expect.stringContaining(
+              'automatic resend is disabled to prevent duplicate email',
+            ),
+            status: 'deliveryUnknown',
           }),
         ]);
       }),
@@ -528,35 +551,6 @@ describe('email delivery', () => {
 
   it.effect('skips delivery when another worker wins the atomic claim', () =>
     Effect.gen(function* () {
-      const now = new Date('2026-07-09T10:20:00.000Z');
-      const staleRow = {
-        attempts: 1,
-        claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
-        claimLeaseId: 'abandoned-lease',
-        createdAt: now,
-        exhaustedAt: null,
-        fromEmail: 'no-reply@notifications.evorto.app',
-        fromName: 'Evorto',
-        html: '<p>Hello</p>',
-        id: 'email-stale',
-        idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
-        kind: 'receiptReviewed' as const,
-        lastAttemptAt: now,
-        lastError: null,
-        maxAttempts: 8,
-        nextAttemptAt: now,
-        provider: null,
-        providerMessageId: null,
-        replyToEmail: null,
-        replyToName: null,
-        sentAt: null,
-        status: 'sending' as const,
-        subject: 'Receipt approved',
-        tenantId: 'tenant-1',
-        text: 'Hello',
-        toEmail: 'alice@example.com',
-        updatedAt: now,
-      };
       const deliverMock = vi.fn(() =>
         Effect.succeed({
           _tag: 'Delivered' as const,
@@ -564,24 +558,7 @@ describe('email delivery', () => {
           providerMessageId: 'unexpected',
         }),
       );
-      const database = {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              orderBy: () => ({
-                limit: () => Effect.succeed([staleRow]),
-              }),
-            }),
-          }),
-        }),
-        update: () => ({
-          set: () => ({
-            where: () => ({
-              returning: () => Effect.succeed([]),
-            }),
-          }),
-        }),
-      };
+      const { database } = outboxDatabase({ claimWins: false });
 
       const processed = yield* processDueEmailOutbox(1).pipe(
         Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
@@ -593,181 +570,57 @@ describe('email delivery', () => {
     }),
   );
 
-  it.effect('requeues retryable outbox failures with backoff metadata', () =>
-    Effect.gen(function* () {
-      const now = new Date('2026-07-09T10:00:00.000Z');
-      vi.useFakeTimers();
-      vi.setSystemTime(now);
-      const queuedRow = {
-        attempts: 0,
-        claimLeaseExpiresAt: null,
-        claimLeaseId: null,
-        createdAt: now,
-        exhaustedAt: null,
-        fromEmail: 'no-reply@notifications.evorto.app',
-        fromName: 'Evorto',
-        html: '<p>Hello</p>',
-        id: 'email-1',
-        idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
-        kind: 'receiptReviewed' as const,
-        lastAttemptAt: null,
-        lastError: null,
-        maxAttempts: 8,
-        nextAttemptAt: now,
-        provider: null,
-        providerMessageId: null,
-        replyToEmail: null,
-        replyToName: null,
-        sentAt: null,
-        status: 'queued' as const,
-        subject: 'Receipt approved',
-        tenantId: 'tenant-1',
-        text: 'Hello',
-        toEmail: 'alice@example.com',
-        updatedAt: now,
-      };
-      const claimedRow = {
-        ...queuedRow,
-        attempts: 1,
-        claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
-        claimLeaseId: 'lease-1',
-        lastAttemptAt: now,
-        status: 'sending' as const,
-      };
-      const deliveryLayer = EmailDelivery.layerFake(() =>
-        Effect.fail(
-          new EmailDeliveryRetryableError({
-            message: 'tem email request failed with HTTP 500',
-            provider: 'tem',
-          }),
-        ),
-      );
-      const updateSets: unknown[] = [];
-      const database = {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              orderBy: () => ({
-                limit: () => Effect.succeed([queuedRow]),
-              }),
+  it.effect(
+    'keeps an ambiguous provider outcome terminal and never requeues',
+    () =>
+      Effect.gen(function* () {
+        const deliveryLayer = EmailDelivery.layerFake(() =>
+          Effect.fail(
+            new EmailDeliveryUnknownError({
+              message:
+                'tem email request failed with HTTP 503; delivery outcome is unknown',
+              provider: 'tem',
             }),
-          }),
-        }),
-        update: () => ({
-          set: (values: { status?: string }) => {
-            updateSets.push(values);
-            return {
-              where: () => ({
-                returning: () =>
-                  Effect.succeed(
-                    values.status === 'sending'
-                      ? [claimedRow]
-                      : [{ id: claimedRow.id }],
-                  ),
-              }),
-            };
-          },
-        }),
-      };
+          ),
+        );
+        const { database, updateSets } = outboxDatabase();
 
-      const processed = yield* processDueEmailOutbox(1).pipe(
-        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-        Effect.provide(deliveryLayer),
-      );
+        const processed = yield* processDueEmailOutbox(1).pipe(
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provide(deliveryLayer),
+        );
 
-      expect(processed).toBe(1);
-      expect(updateSets).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ status: 'sending' }),
+        expect(processed).toBe(1);
+        expect(updateSets.at(-1)).toEqual(
           expect.objectContaining({
             claimLeaseExpiresAt: null,
             claimLeaseId: null,
-            exhaustedAt: null,
-            lastError: 'tem email request failed with HTTP 500',
-            nextAttemptAt: new Date('2026-07-09T10:00:01.000Z'),
-            status: 'queued',
+            deliveryUnknownAt: expect.any(Date),
+            lastError:
+              'tem email request failed with HTTP 503; delivery outcome is unknown',
+            provider: 'tem',
+            status: 'deliveryUnknown',
           }),
-        ]),
-      );
-    }),
+        );
+        expect(updateSets).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ status: 'queued' }),
+          ]),
+        );
+      }),
   );
 
-  it.effect('marks non-retryable outbox failures as exhausted', () =>
+  it.effect('stores an explicit provider rejection as a terminal failure', () =>
     Effect.gen(function* () {
-      const now = new Date('2026-07-09T10:00:00.000Z');
-      vi.useFakeTimers();
-      vi.setSystemTime(now);
-      const queuedRow = {
-        attempts: 0,
-        claimLeaseExpiresAt: null,
-        claimLeaseId: null,
-        createdAt: now,
-        exhaustedAt: null,
-        fromEmail: 'no-reply@notifications.evorto.app',
-        fromName: 'Evorto',
-        html: '<p>Hello</p>',
-        id: 'email-1',
-        idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
-        kind: 'receiptReviewed' as const,
-        lastAttemptAt: null,
-        lastError: null,
-        maxAttempts: 8,
-        nextAttemptAt: now,
-        provider: null,
-        providerMessageId: null,
-        replyToEmail: null,
-        replyToName: null,
-        sentAt: null,
-        status: 'queued' as const,
-        subject: 'Receipt approved',
-        tenantId: 'tenant-1',
-        text: 'Hello',
-        toEmail: 'alice@example.com',
-        updatedAt: now,
-      };
-      const claimedRow = {
-        ...queuedRow,
-        attempts: 1,
-        claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
-        claimLeaseId: 'lease-1',
-        lastAttemptAt: now,
-        status: 'sending' as const,
-      };
       const deliveryLayer = EmailDelivery.layerFake(() =>
         Effect.fail(
-          new EmailDeliveryPermanentError({
+          new EmailDeliveryRejectedError({
             message: 'tem email request failed with HTTP 400',
             provider: 'tem',
           }),
         ),
       );
-      const updateSets: unknown[] = [];
-      const database = {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              orderBy: () => ({
-                limit: () => Effect.succeed([queuedRow]),
-              }),
-            }),
-          }),
-        }),
-        update: () => ({
-          set: (values: { status?: string }) => {
-            updateSets.push(values);
-            return {
-              where: () => ({
-                returning: () =>
-                  Effect.succeed(
-                    values.status === 'sending'
-                      ? [claimedRow]
-                      : [{ id: claimedRow.id }],
-                  ),
-              }),
-            };
-          },
-        }),
-      };
+      const { database, updateSets } = outboxDatabase();
 
       const processed = yield* processDueEmailOutbox(1).pipe(
         Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
@@ -775,18 +628,17 @@ describe('email delivery', () => {
       );
 
       expect(processed).toBe(1);
-      expect(updateSets).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ status: 'sending' }),
-          expect.objectContaining({
-            claimLeaseExpiresAt: null,
-            claimLeaseId: null,
-            exhaustedAt: now,
-            lastError: 'tem email request failed with HTTP 400',
-            nextAttemptAt: now,
-            status: 'failed',
-          }),
-        ]),
+      expect(updateSets.at(-1)).toEqual(
+        expect.objectContaining({
+          claimLeaseExpiresAt: null,
+          claimLeaseId: null,
+          lastError: 'tem email request failed with HTTP 400',
+          provider: 'tem',
+          status: 'failed',
+        }),
+      );
+      expect(updateSets).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ status: 'queued' })]),
       );
     }),
   );

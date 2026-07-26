@@ -109,6 +109,36 @@ export type GlobalAdminPlatformAuditRecord = Schema.Schema.Type<
   typeof GlobalAdminPlatformAuditRecord
 >;
 
+const GlobalAdminPlatformAuditCursorTimestamp = Schema.NonEmptyString.pipe(
+  Schema.check(
+    Schema.makeFilter((value) => {
+      const timestamp = new Date(value);
+      return Number.isNaN(timestamp.getTime()) ||
+        timestamp.toISOString() !== value
+        ? 'Expected a canonical UTC ISO timestamp'
+        : undefined;
+    }),
+  ),
+);
+
+export const GlobalAdminPlatformAuditCursor = Schema.Struct({
+  createdAt: GlobalAdminPlatformAuditCursorTimestamp,
+  id: Schema.NonEmptyString,
+});
+
+export type GlobalAdminPlatformAuditCursor = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditCursor
+>;
+
+export const GlobalAdminPlatformAuditPage = Schema.Struct({
+  items: Schema.Array(GlobalAdminPlatformAuditRecord),
+  nextCursor: Schema.NullOr(GlobalAdminPlatformAuditCursor),
+});
+
+export type GlobalAdminPlatformAuditPage = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditPage
+>;
+
 export const GlobalAdminEmailOutboxStatus = literalUnion(
   'queued',
   'sending',
@@ -139,13 +169,10 @@ export const GlobalAdminEmailOutboxRecord = Schema.Struct({
   attempts: Schema.Number,
   createdAt: Schema.NonEmptyString,
   deliveryUnknownAt: Schema.NullOr(Schema.NonEmptyString),
-  exhaustedAt: Schema.NullOr(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   kind: GlobalAdminEmailOutboxKind,
   lastAttemptAt: Schema.NullOr(Schema.NonEmptyString),
   lastError: Schema.NullOr(Schema.String),
-  maxAttempts: Schema.Number,
-  nextAttemptAt: Schema.NonEmptyString,
   provider: Schema.NullOr(literalUnion('fake', 'mailpit', 'tem')),
   providerMessageId: Schema.NullOr(Schema.NonEmptyString),
   recipient: Schema.NonEmptyString,
@@ -164,14 +191,12 @@ export const GlobalAdminEmailOutboxOverview = Schema.Struct({
   items: Schema.Array(GlobalAdminEmailOutboxRecord),
   summary: Schema.Struct({
     deliveryUnknown: Schema.Number,
-    exhausted: Schema.Number,
     failed: Schema.Number,
     queued: Schema.Number,
     sending: Schema.Number,
     sent: Schema.Number,
     staleSending: Schema.Number,
     suppressed: Schema.Number,
-    waitingForRetry: Schema.Number,
   }),
 });
 
@@ -210,8 +235,10 @@ export const GlobalAdminTenantsUpdate = asRpcMutation(
 export const GlobalAdminPlatformAuditFindMany = asRpcQuery(
   Rpc.make('globalAdmin.platformAudit.findMany', {
     error: GlobalAdminRpcError,
-    payload: Schema.Void,
-    success: Schema.Array(GlobalAdminPlatformAuditRecord),
+    payload: Schema.Struct({
+      cursor: Schema.NullOr(GlobalAdminPlatformAuditCursor),
+    }),
+    success: GlobalAdminPlatformAuditPage,
   }),
 );
 

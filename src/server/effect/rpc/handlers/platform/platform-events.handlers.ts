@@ -1,13 +1,19 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { EventListingAudience } from '@shared/event-listing-audience';
 import { type Permission } from '@shared/permissions/permissions';
 import {
   type PlatformAuditSnapshot,
   type PlatformTenantAuditAction,
 } from '@shared/platform-audit';
 import {
-  isWritableRegistrationMode,
-  requireWritableRegistrationMode,
-} from '@shared/registration-modes';
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import {
   PlatformEventAddonRecord,
   type PlatformEventDetailRecord,
@@ -29,7 +35,6 @@ import {
   eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
-  eventRegistrationQuestionAnswers,
   eventRegistrationQuestions,
   eventRegistrations,
   eventTemplates,
@@ -43,6 +48,10 @@ import {
   ensureStripeForStoredEventConfiguration,
 } from '../../../../payments/paid-event-configuration';
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
+import {
+  ensureAnsweredEventQuestionsUnchanged,
+  normalizeEventQuestionValues,
+} from '../../../../registrations/event-question-answer-guard';
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
@@ -89,6 +98,13 @@ export const platformEventGraphCompatibilityError = ({
   before: Pick<PlatformEventDetailRecord, 'simpleModeEnabled'>;
   input: Pick<PlatformEventsUpdateInput, 'addOns' | 'registrationOptions'>;
 }): null | RpcBadRequestError => {
+  if (input.addOns.length > MAX_EVENT_ADDON_TYPES) {
+    return new RpcBadRequestError({
+      message: `Events support at most ${MAX_EVENT_ADDON_TYPES} add-on types`,
+      reason: 'eventAddonTypeLimitExceeded',
+    });
+  }
+
   if (
     before.simpleModeEnabled &&
     !hasSimplePlatformEventShape(input.registrationOptions)
@@ -121,12 +137,14 @@ export const platformEventGraphCompatibilityError = ({
   if (
     input.addOns.some(
       (addOn) =>
+        addOn.maxQuantityPerUser > MAX_REGISTRATION_ADDON_QUANTITY ||
         addOn.maxQuantityPerUser > addOn.totalAvailableQuantity ||
         addOn.registrationOptions.some((mapping) => {
           const mappedQuantity =
             mapping.includedQuantity + mapping.optionalPurchaseQuantity;
           return (
             mappedQuantity === 0 ||
+            mappedQuantity > MAX_REGISTRATION_ADDON_QUANTITY ||
             mappedQuantity > addOn.totalAvailableQuantity ||
             mapping.optionalPurchaseQuantity > addOn.maxQuantityPerUser
           );
@@ -140,6 +158,29 @@ export const platformEventGraphCompatibilityError = ({
   }
 
   return null;
+};
+
+export const platformEventQuestionLimitError = (
+  questions: PlatformEventsUpdateInput['questions'],
+): null | RpcBadRequestError => {
+  if (questions.length > MAX_REGISTRATION_QUESTIONS) {
+    return new RpcBadRequestError({
+      message: `Events support at most ${MAX_REGISTRATION_QUESTIONS} registration questions`,
+      reason: 'eventQuestionLimitExceeded',
+    });
+  }
+  return questions.some(
+    (question) =>
+      !question.title.trim() ||
+      question.title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH ||
+      (question.description?.length ?? 0) >
+        MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  )
+    ? new RpcBadRequestError({
+        message: 'Event registration question text is invalid',
+        reason: 'invalidEventQuestion',
+      })
+    : null;
 };
 
 export const planPlatformEventAddonMappingChanges = (
@@ -188,6 +229,7 @@ const PlatformEventAuditState = Schema.Struct({
   iconColor: Schema.Number,
   iconName: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
+  listingAudience: EventListingAudience,
   locationName: Schema.NullOr(Schema.String),
   questions: Schema.Array(PlatformEventQuestionRecord),
   registrationCount: Schema.Number,
@@ -198,7 +240,6 @@ const PlatformEventAuditState = Schema.Struct({
   status: Schema.Literals(['APPROVED', 'DRAFT', 'PENDING_REVIEW']),
   statusComment: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 const databaseEffect = <A, R>(
@@ -237,6 +278,7 @@ export const loadPlatformEventDetail = Effect.fn(
       end: eventInstances.end,
       icon: eventInstances.icon,
       id: eventInstances.id,
+      listingAudience: eventInstances.listingAudience,
       location: eventInstances.location,
       reviewedAt: eventInstances.reviewedAt,
       simpleModeEnabled: eventInstances.simpleModeEnabled,
@@ -244,7 +286,6 @@ export const loadPlatformEventDetail = Effect.fn(
       status: eventInstances.status,
       statusComment: eventInstances.statusComment,
       title: eventInstances.title,
-      unlisted: eventInstances.unlisted,
     })
     .from(eventInstances)
     .innerJoin(users, eq(users.id, eventInstances.creatorId))
@@ -462,6 +503,7 @@ export const loadPlatformEventDetail = Effect.fn(
     end: event.end.toISOString(),
     icon: event.icon,
     id: event.id,
+    listingAudience: event.listingAudience,
     location: event.location ?? null,
     questions: questions.map((question) => ({
       ...question,
@@ -483,7 +525,6 @@ export const loadPlatformEventDetail = Effect.fn(
     status: event.status,
     statusComment: event.statusComment ?? null,
     title: event.title,
-    unlisted: event.unlisted,
   } satisfies PlatformEventDetailRecord;
 });
 
@@ -500,6 +541,7 @@ export const platformEventAuditSnapshot = (
     iconColor: event.icon.iconColor,
     iconName: event.icon.iconName,
     id: event.id,
+    listingAudience: event.listingAudience,
     locationName: event.location?.name ?? null,
     questions: event.questions,
     registrationCount: event.registrationCount,
@@ -510,7 +552,6 @@ export const platformEventAuditSnapshot = (
     status: event.status,
     statusComment: event.statusComment,
     title: event.title,
-    unlisted: event.unlisted,
   }),
 });
 
@@ -526,24 +567,11 @@ export const platformEventStateError = (
         reason: 'eventStateConflict',
       });
 
-export const platformUnsupportedRegistrationModeError = (
-  registrationModes: readonly ('application' | 'fcfs' | 'random')[],
-): null | RpcBadRequestError =>
-  registrationModes.some((mode) => !isWritableRegistrationMode(mode))
-    ? new RpcBadRequestError({
-        message:
-          'Random allocation is unsupported; replace it with first-come-first-served or manual approval',
-        reason: 'unsupportedRegistrationMode',
-      })
-    : null;
-
 export const validatePlatformEventCreateReferences = ({
   creatorMembershipFound,
-  registrationModes,
   templateFound,
 }: {
   creatorMembershipFound: boolean;
-  registrationModes: readonly ('application' | 'fcfs' | 'random')[];
   templateFound: boolean;
 }) => {
   if (!creatorMembershipFound) {
@@ -562,9 +590,6 @@ export const validatePlatformEventCreateReferences = ({
       }),
     );
   }
-  const modeError = platformUnsupportedRegistrationModeError(registrationModes);
-  if (modeError) return Effect.fail(modeError);
-
   return Effect.void;
 };
 
@@ -581,6 +606,8 @@ const updatePlatformEventGraph = Effect.fn(
     input,
   });
   if (compatibilityError) return yield* Effect.fail(compatibilityError);
+  const questionLimitError = platformEventQuestionLimitError(input.questions);
+  if (questionLimitError) return yield* Effect.fail(questionLimitError);
 
   const existingOptionIds = new Set(
     before.registrationOptions.map((option) => option.id),
@@ -709,6 +736,7 @@ const updatePlatformEventGraph = Effect.fn(
         .values({
           discountedPrice: option.esnCardDiscountedPrice,
           discountType: 'esnCard',
+          eventId: input.eventId,
           registrationOptionId: option.id,
         })
         .pipe(Effect.orDie);
@@ -950,45 +978,25 @@ const updatePlatformEventGraph = Effect.fn(
       }),
     );
   }
+  const submittedPersistedQuestions = input.questions.flatMap((question) =>
+    question.id
+      ? [
+          {
+            id: question.id,
+            ...normalizeEventQuestionValues(question),
+          },
+        ]
+      : [],
+  );
+  yield* ensureAnsweredEventQuestionsUnchanged(database, {
+    before: before.questions,
+    submitted: submittedPersistedQuestions,
+  });
   const removedQuestionIds: string[] = [];
   for (const id of existingQuestionIds) {
     if (!submittedExistingQuestionIds.has(id)) removedQuestionIds.push(id);
   }
   if (removedQuestionIds.length > 0) {
-    const answers = yield* database
-      .select({ id: eventRegistrationQuestionAnswers.id })
-      .from(eventRegistrationQuestionAnswers)
-      .innerJoin(
-        eventRegistrationQuestions,
-        eq(
-          eventRegistrationQuestions.id,
-          eventRegistrationQuestionAnswers.questionId,
-        ),
-      )
-      .innerJoin(
-        eventInstances,
-        eq(eventInstances.id, eventRegistrationQuestions.eventId),
-      )
-      .where(
-        and(
-          eq(eventInstances.id, input.eventId),
-          eq(eventInstances.tenantId, input.targetTenantId),
-          inArray(
-            eventRegistrationQuestionAnswers.questionId,
-            removedQuestionIds,
-          ),
-        ),
-      )
-      .limit(1)
-      .pipe(Effect.orDie);
-    if (answers.length > 0) {
-      return yield* Effect.fail(
-        new RpcBadRequestError({
-          message: 'Answered event questions cannot be removed',
-          reason: 'eventQuestionInUse',
-        }),
-      );
-    }
     yield* database
       .delete(eventRegistrationQuestions)
       .where(
@@ -1012,13 +1020,7 @@ const updatePlatformEventGraph = Effect.fn(
         }),
       );
     }
-    const values = {
-      description: question.description?.trim() || null,
-      registrationOptionId: question.registrationOptionId,
-      required: question.required,
-      sortOrder: question.sortOrder,
-      title: question.title.trim(),
-    };
+    const values = normalizeEventQuestionValues(question);
     if (question.id) {
       yield* database
         .update(eventRegistrationQuestions)
@@ -1149,7 +1151,6 @@ export const platformEventHandlers = {
               if (creatorMemberships.length === 0) {
                 yield* validatePlatformEventCreateReferences({
                   creatorMembershipFound: false,
-                  registrationModes: [],
                   templateFound: true,
                 });
                 return yield* Effect.die(
@@ -1173,7 +1174,6 @@ export const platformEventHandlers = {
               if (lockedTemplates.length === 0) {
                 yield* validatePlatformEventCreateReferences({
                   creatorMembershipFound: true,
-                  registrationModes: [],
                   templateFound: false,
                 });
                 return yield* Effect.die(
@@ -1190,9 +1190,6 @@ export const platformEventHandlers = {
               );
               yield* validatePlatformEventCreateReferences({
                 creatorMembershipFound: true,
-                registrationModes: template.registrationOptions.map(
-                  (option) => option.registrationMode,
-                ),
                 templateFound: true,
               });
 
@@ -1228,9 +1225,7 @@ export const platformEventHandlers = {
                   price: option.price,
                   refundFeesOnCancellation: option.refundFeesOnCancellation,
                   registeredDescription: option.registeredDescription,
-                  registrationMode: requireWritableRegistrationMode(
-                    option.registrationMode,
-                  ),
+                  registrationMode: option.registrationMode,
                   roleIds: option.roleIds,
                   sourceTemplateRegistrationOptionId: option.id,
                   spots: option.spots,
@@ -1370,10 +1365,10 @@ export const platformEventHandlers = {
             .select({
               end: eventInstances.end,
               id: eventInstances.id,
+              listingAudience: eventInstances.listingAudience,
               start: eventInstances.start,
               status: eventInstances.status,
               title: eventInstances.title,
-              unlisted: eventInstances.unlisted,
             })
             .from(eventInstances)
             .where(eq(eventInstances.tenantId, input.targetTenantId))
@@ -1512,10 +1507,6 @@ export const platformEventHandlers = {
     input: PlatformEventsUpdateInput,
     _options: unknown,
   ) => {
-    const modeError = platformUnsupportedRegistrationModeError(
-      input.registrationOptions.map((option) => option.registrationMode),
-    );
-    if (modeError) return Effect.fail(modeError);
     const title = input.title.trim();
     const start = new Date(input.start);
     const end = new Date(input.end);
@@ -1617,7 +1608,7 @@ export const platformEventHandlers = {
       (database) =>
         database
           .update(eventInstances)
-          .set({ unlisted: input.unlisted })
+          .set({ listingAudience: input.listingAudience })
           .where(
             and(
               eq(eventInstances.id, input.eventId),

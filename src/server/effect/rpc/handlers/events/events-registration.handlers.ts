@@ -3,6 +3,11 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import {
+  type EventCheckInTimingIssue,
+  eventCheckInTimingIssue,
+  eventCheckInTimingMessage,
+} from '@shared/event-check-in';
+import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
@@ -12,6 +17,7 @@ import {
   isActiveRegistrationTransferStatus,
 } from '@shared/registration-transfer';
 import {
+  EventCheckInUnavailableError,
   EventRegistrationConflictError,
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
@@ -67,7 +73,6 @@ import {
 } from '../../../../../db/schema';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { getServerNow } from '../../../../clock';
-import { formatConfigError } from '../../../../config/config-error';
 import { serverClockConfig } from '../../../../config/server-config';
 import {
   enqueueRegistrationCancelledEmail,
@@ -110,6 +115,7 @@ import { resolveRegistrationTransferRefundLifecycle } from '../../../../registra
 import { resolveRegistrationTransferDeadline } from '../../../../registrations/registration-transfer-state';
 import { StripeClient } from '../../../../stripe-client';
 import { tenantOutboundUrl } from '../../../../tenant-outbound-url';
+import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { isActiveRegistrationUniqueViolation } from './active-registration-constraint';
 import { EventRegistrationService } from './event-registration.service';
@@ -118,25 +124,52 @@ import { databaseEffect } from './events.shared';
 const isRegistrationScanRpcError = (
   error: unknown,
 ): error is
+  | EventCheckInUnavailableError
   | EventRegistrationConflictError
   | EventRegistrationInternalError
   | EventRegistrationNotFoundError
   | RpcForbiddenError
   | RpcUnauthorizedError =>
+  error instanceof EventCheckInUnavailableError ||
   error instanceof EventRegistrationConflictError ||
   error instanceof EventRegistrationInternalError ||
   error instanceof EventRegistrationNotFoundError ||
   error instanceof RpcForbiddenError ||
   error instanceof RpcUnauthorizedError;
 
+const failRegistrationInternalError = (
+  operation: string,
+  message: string,
+  error: unknown,
+) =>
+  Effect.logError(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(
+      Effect.fail(new EventRegistrationInternalError({ message })),
+    ),
+  );
+
+const mapRegistrationInternalError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, EventRegistrationInternalError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logError(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => new EventRegistrationInternalError({ message })),
+    );
+
 const mapRegistrationScanInternalError = (error: unknown) =>
   isRegistrationScanRpcError(error)
     ? Effect.fail(error)
-    : Effect.fail(
-        new EventRegistrationInternalError({
-          cause: error,
-          message: 'Internal server error',
-        }),
+    : failRegistrationInternalError(
+        'eventRegistration.scan',
+        'Internal server error',
+        error,
       );
 
 const isRegistrationMutationRpcError = (
@@ -152,72 +185,46 @@ const isRegistrationMutationRpcError = (
   error instanceof RpcUnauthorizedError;
 
 export const mapRegistrationMutationInternalError = (error: unknown) => {
-  if (error instanceof EventRegistrationInternalError) {
-    return Effect.logError(
-      'Event registration mutation failed internally',
-    ).pipe(
-      Effect.annotateLogs({ cause: error.cause ?? error }),
-      Effect.andThen(Effect.fail(withoutRegistrationInternalErrorCause(error))),
-    );
-  }
   return isRegistrationMutationRpcError(error)
     ? Effect.fail(error)
-    : Effect.logError('Event registration mutation failed internally').pipe(
-        Effect.annotateLogs({ cause: error }),
-        Effect.andThen(
-          Effect.fail(
-            new EventRegistrationInternalError({
-              message: 'Internal server error',
-            }),
-          ),
-        ),
+    : failRegistrationInternalError(
+        'eventRegistration.mutation',
+        'Internal server error',
+        error,
       );
 };
 
-export const withoutRegistrationInternalErrorCause = (
-  error: EventRegistrationInternalError,
-): EventRegistrationInternalError =>
-  new EventRegistrationInternalError({ message: error.message });
-
 const registrationHandlerNow = serverClockConfig.pipe(
-  Effect.mapError(
-    (error) =>
-      new EventRegistrationInternalError({
-        message: `Invalid server clock configuration:\n${formatConfigError(error)}`,
-      }),
+  mapRegistrationInternalError(
+    'eventRegistration.handlerClock.config',
+    'Invalid server clock configuration',
   ),
   Effect.flatMap(({ E2E_NOW_ISO }) =>
     Effect.try({
-      catch: (cause) =>
-        new EventRegistrationInternalError({
-          cause,
-          message: 'Invalid E2E_NOW_ISO server clock value',
-        }),
+      catch: (cause) => cause,
       try: () => getServerNow(Option.getOrUndefined(E2E_NOW_ISO)).toJSDate(),
-    }),
+    }).pipe(
+      mapRegistrationInternalError(
+        'eventRegistration.handlerClock',
+        'Invalid E2E_NOW_ISO server clock value',
+      ),
+    ),
   ),
 );
 
 const registrationNotificationEventUrl = (tenant: Tenant, eventId: string) =>
   tenantOutboundUrl(tenant, `/events/${encodeURIComponent(eventId)}`).pipe(
-    Effect.mapError(
-      (cause) =>
-        new EventRegistrationInternalError({
-          cause,
-          message: 'Tenant event URL is invalid for registration notifications',
-        }),
+    mapRegistrationInternalError(
+      'eventRegistration.notification.eventUrl',
+      'Tenant event URL is invalid for registration notifications',
     ),
   );
 
-const registrationNotificationEmail = (user: {
-  communicationEmail?: null | string;
-  email: string;
-}): string => user.communicationEmail?.trim() || user.email;
-
-const CHECK_IN_PRE_START_WINDOW_MS = 60 * 60 * 1000;
-
-const isWithinCheckInWindow = (eventStart: Date, now: Date): boolean =>
-  eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
+const checkInUnavailableError = (reason: EventCheckInTimingIssue) =>
+  new EventCheckInUnavailableError({
+    message: eventCheckInTimingMessage(reason),
+    reason,
+  });
 
 const normalizeTransferTargetSearch = (search: string | undefined) =>
   search?.trim().toLowerCase() ?? '';
@@ -898,7 +905,7 @@ export const cancelRegistrationForTenant = Effect.fn(
     );
   }
   const cancellationRecipient = registration.user
-    ? registrationNotificationEmail(registration.user)
+    ? registration.user.communicationEmail
     : null;
   const waitlistRecipients =
     registration.status === 'WAITLIST'
@@ -909,9 +916,7 @@ export const cancelRegistrationForTenant = Effect.fn(
               ? [
                   {
                     registrationId: waitlistRegistration.id,
-                    to: registrationNotificationEmail(
-                      waitlistRegistration.user,
-                    ),
+                    to: waitlistRegistration.user.communicationEmail,
                   },
                 ]
               : [],
@@ -2030,11 +2035,10 @@ export const cancelRegistrationForTenant = Effect.fn(
           error instanceof EventRegistrationInternalError ||
           error instanceof EventRegistrationNotFoundError
             ? Effect.fail(error)
-            : Effect.fail(
-                new EventRegistrationInternalError({
-                  cause: error,
-                  message: 'Internal server error',
-                }),
+            : failRegistrationInternalError(
+                'eventRegistration.cancel.persist',
+                'Internal server error',
+                error,
               ),
         ),
       ),
@@ -2050,12 +2054,7 @@ export const cancelRegistrationForTenant = Effect.fn(
     // so no database connection or row lock is held while Stripe responds.
     const expirationResult = yield* Effect.result(
       Effect.tryPromise({
-        catch: (cause) =>
-          new EventRegistrationInternalError({
-            cause,
-            message:
-              'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
-          }),
+        catch: (cause) => cause,
         try: () =>
           Promise.race([
             stripe.checkout.sessions.expire(
@@ -2072,19 +2071,16 @@ export const cancelRegistrationForTenant = Effect.fn(
               );
             }),
           ]),
-      }),
+      }).pipe(
+        mapRegistrationInternalError(
+          'eventRegistration.cancel.checkout.expire',
+          'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
+        ),
+      ),
     );
     const confirmedExpired = Result.isFailure(expirationResult)
       ? yield* Effect.tryPromise({
-          catch: (cause) =>
-            new EventRegistrationInternalError({
-              cause: {
-                expiryFailure: expirationResult.failure,
-                retrievalFailure: cause,
-              },
-              message:
-                'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
-            }),
+          catch: (cause) => cause,
           try: () =>
             Promise.race([
               stripe.checkout.sessions.retrieve(
@@ -2101,6 +2097,10 @@ export const cancelRegistrationForTenant = Effect.fn(
               }),
             ]),
         }).pipe(
+          mapRegistrationInternalError(
+            'eventRegistration.cancel.checkout.retrieve',
+            'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
+          ),
           Effect.map(
             (session) =>
               session.id === stripeCheckoutSessionId &&
@@ -2382,9 +2382,9 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     }
 
     const previousOwnerEmail = registration.user
-      ? registrationNotificationEmail(registration.user)
+      ? registration.user.communicationEmail
       : null;
-    const newOwnerEmail = registrationNotificationEmail(targetUser);
+    const newOwnerEmail = targetUser.communicationEmail;
     const transferEventUrl =
       registration.event.title && (previousOwnerEmail || newOwnerEmail)
         ? yield* registrationNotificationEventUrl(tenant, registration.eventId)
@@ -3445,13 +3445,9 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               spotCount: registrationSpotCount(lockedRegistration.guestCount),
               tenantId: tenant.id,
             }).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new EventRegistrationInternalError({
-                    cause,
-                    message:
-                      'Recipient acquisition could not be established after ownership transfer.',
-                  }),
+              mapRegistrationInternalError(
+                'eventRegistration.directTransfer.persistAcquisition',
+                'Recipient acquisition could not be established after ownership transfer.',
               ),
             );
             if (registration.event.title && transferEventUrl) {
@@ -3573,6 +3569,7 @@ export const eventRegistrationHandlers = {
           id: tenant.id,
           name: tenant.name,
           stripeAccountId: tenant.stripeAccountId,
+          timezone: tenant.timezone,
         },
       });
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
@@ -3671,13 +3668,6 @@ export const eventRegistrationHandlers = {
             id: registrationId,
             tenantId: tenant.id,
           },
-          with: {
-            event: {
-              columns: {
-                start: true,
-              },
-            },
-          },
         }),
       );
 
@@ -3733,38 +3723,21 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      if (registration.checkInTime && remainingGuestCount === 0) {
-        return {
-          alreadyCheckedIn: true,
-          checkInTime: registration.checkInTime.toISOString(),
-        };
-      }
-      if (registration.checkInTime && guestCheckInCount === 0) {
-        return {
-          alreadyCheckedIn: true,
-          checkInTime: registration.checkInTime.toISOString(),
-        };
-      }
       const now = yield* registrationHandlerNow;
-      if (
-        !registration.event ||
-        !isWithinCheckInWindow(registration.event.start, now)
-      ) {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message: 'Check-in is not open for this event yet',
-          }),
-        );
-      }
-
-      const checkInTime = now;
-      const checkedInSpotCount =
-        (registration.checkInTime ? 0 : 1) + guestCheckInCount;
       const checkedInRegistration = yield* Database.use((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
             const lockedRegistrations = yield* tx
-              .select({ status: eventRegistrations.status })
+              .select({
+                checkedInGuestCount: eventRegistrations.checkedInGuestCount,
+                checkInTime: eventRegistrations.checkInTime,
+                eventId: eventRegistrations.eventId,
+                guestCount: eventRegistrations.guestCount,
+                id: eventRegistrations.id,
+                registrationOptionId: eventRegistrations.registrationOptionId,
+                status: eventRegistrations.status,
+                userId: eventRegistrations.userId,
+              })
               .from(eventRegistrations)
               .where(
                 and(
@@ -3773,31 +3746,109 @@ export const eventRegistrationHandlers = {
                 ),
               )
               .for('update');
-            if (lockedRegistrations[0]?.status !== 'CONFIRMED') {
-              return {
-                alreadyCheckedIn: true,
-                checkInTime,
-              };
+            const lockedRegistration = lockedRegistrations[0];
+            if (!lockedRegistration) {
+              return yield* Effect.fail(
+                new EventRegistrationNotFoundError({
+                  message: 'Registration not found',
+                }),
+              );
+            }
+            if (lockedRegistration.userId === user.id) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Users cannot check in their own registration',
+                }),
+              );
+            }
+            if (lockedRegistration.status !== 'CONFIRMED') {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Only confirmed registrations can be checked in',
+                }),
+              );
             }
             yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
-              registrationId: registration.id,
+              registrationId: lockedRegistration.id,
               tenantId: tenant.id,
             }).pipe(Effect.catch(mapRegistrationTransferGuardError));
 
+            const lockedEvents = yield* tx
+              .select({
+                end: eventInstances.end,
+                start: eventInstances.start,
+              })
+              .from(eventInstances)
+              .where(
+                and(
+                  eq(eventInstances.id, lockedRegistration.eventId),
+                  eq(eventInstances.tenantId, tenant.id),
+                ),
+              )
+              .for('share');
+            const lockedEvent = lockedEvents[0];
+            if (!lockedEvent) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message: 'Registration event not found during check-in',
+                }),
+              );
+            }
+
+            if (
+              lockedRegistration.checkedInGuestCount < 0 ||
+              lockedRegistration.guestCount < 0 ||
+              lockedRegistration.checkedInGuestCount >
+                lockedRegistration.guestCount
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message: 'Registration check-in guest counts are invalid',
+                }),
+              );
+            }
+            const lockedRemainingGuestCount =
+              lockedRegistration.guestCount -
+              lockedRegistration.checkedInGuestCount;
+            if (guestCheckInCount > lockedRemainingGuestCount) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Guest check-in count exceeds remaining guests',
+                }),
+              );
+            }
+            const timingIssue = eventCheckInTimingIssue({
+              end: lockedEvent.end,
+              now,
+              start: lockedEvent.start,
+            });
+            if (timingIssue) {
+              return {
+                _tag: 'TimingIssue' as const,
+                reason: timingIssue,
+              };
+            }
+            if (lockedRegistration.checkInTime && guestCheckInCount === 0) {
+              return {
+                _tag: 'CheckedIn' as const,
+                alreadyCheckedIn: true,
+                checkInTime: lockedRegistration.checkInTime,
+              };
+            }
+            const checkedInSpotCount =
+              (lockedRegistration.checkInTime ? 0 : 1) + guestCheckInCount;
             const updatedRegistrations = yield* tx
               .update(eventRegistrations)
               .set({
-                ...(!registration.checkInTime && { checkInTime }),
+                ...(!lockedRegistration.checkInTime && { checkInTime: now }),
                 checkedInGuestCount: sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount}`,
               })
               .where(
                 and(
-                  eq(eventRegistrations.id, registration.id),
+                  eq(eventRegistrations.id, lockedRegistration.id),
                   eq(eventRegistrations.tenantId, tenant.id),
                   eq(eventRegistrations.status, 'CONFIRMED'),
-                  registration.checkInTime
-                    ? sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount} <= ${eventRegistrations.guestCount}`
-                    : isNull(eventRegistrations.checkInTime),
+                  eq(eventRegistrations.userId, lockedRegistration.userId),
                 ),
               )
               .returning({
@@ -3806,11 +3857,14 @@ export const eventRegistrationHandlers = {
                 id: eventRegistrations.id,
               });
 
-            if (updatedRegistrations.length === 0) {
-              return {
-                alreadyCheckedIn: true,
-                checkInTime,
-              };
+            const updatedRegistration = updatedRegistrations[0];
+            if (!updatedRegistration?.checkInTime) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'Locked registration check-in update did not persist',
+                }),
+              );
             }
 
             const updatedOptions = yield* tx
@@ -3822,9 +3876,12 @@ export const eventRegistrationHandlers = {
                 and(
                   eq(
                     eventRegistrationOptions.id,
-                    registration.registrationOptionId,
+                    lockedRegistration.registrationOptionId,
                   ),
-                  eq(eventRegistrationOptions.eventId, registration.eventId),
+                  eq(
+                    eventRegistrationOptions.eventId,
+                    lockedRegistration.eventId,
+                  ),
                 ),
               )
               .returning({
@@ -3840,13 +3897,19 @@ export const eventRegistrationHandlers = {
             }
 
             return {
+              _tag: 'CheckedIn' as const,
               alreadyCheckedIn: false,
-              checkInTime: updatedRegistrations[0].checkInTime ?? checkInTime,
+              checkInTime: updatedRegistration.checkInTime,
             };
           }),
         ),
       );
 
+      if (checkedInRegistration._tag === 'TimingIssue') {
+        return yield* Effect.fail(
+          checkInUnavailableError(checkedInRegistration.reason),
+        );
+      }
       return {
         alreadyCheckedIn: checkedInRegistration.alreadyCheckedIn,
         checkInTime: checkedInRegistration.checkInTime.toISOString(),
@@ -3881,6 +3944,7 @@ export const eventRegistrationHandlers = {
           with: {
             event: {
               columns: {
+                end: true,
                 start: true,
               },
             },
@@ -4785,21 +4849,7 @@ export const eventRegistrationHandlers = {
             orderId: result.orderId,
             status: 'checkoutRequired' as const,
           };
-    }).pipe(
-      Effect.tapError((error) =>
-        error instanceof EventRegistrationInternalError &&
-        error.cause !== undefined
-          ? Effect.logError(
-              'Post-registration add-on purchase failed internally',
-            ).pipe(Effect.annotateLogs({ cause: error.cause }))
-          : Effect.void,
-      ),
-      Effect.mapError((error) =>
-        error instanceof EventRegistrationInternalError
-          ? withoutRegistrationInternalErrorCause(error)
-          : error,
-      ),
-    ),
+    }),
   'events.redeemRegistrationAddon': (
     { operationKey, registrationAddonId, registrationId },
     _options,
@@ -4844,6 +4894,7 @@ export const eventRegistrationHandlers = {
           stripeAccountId: tenant.stripeAccountId,
         },
         user: {
+          communicationEmail: user.communicationEmail,
           email: user.email,
           id: user.id,
           roleIds: user.roleIds,
@@ -4872,6 +4923,7 @@ export const eventRegistrationHandlers = {
           with: {
             event: {
               columns: {
+                end: true,
                 start: true,
                 title: true,
               },
@@ -4927,14 +4979,15 @@ export const eventRegistrationHandlers = {
       const isAlreadyCheckedInIssue =
         registration.checkInTime !== null && remainingGuestCount === 0;
       const now = yield* registrationHandlerNow;
-      const isTimingIssue = !isWithinCheckInWindow(
-        registration.event.start,
+      const timingIssue = eventCheckInTimingIssue({
+        end: registration.event.end,
         now,
-      );
+        start: registration.event.start,
+      });
       const isAllowCheckin =
         !isRegistrationStatusIssue &&
         !isSameUserIssue &&
-        !isTimingIssue &&
+        timingIssue === null &&
         !isAlreadyCheckedInIssue;
       const discountedTransaction = registration.transactions.find(
         (transaction) =>
@@ -4954,7 +5007,7 @@ export const eventRegistrationHandlers = {
         appliedDiscountType,
         attendeeCheckedIn: registration.checkInTime !== null,
         checkedInGuestCount: registration.checkedInGuestCount,
-        checkInTimingIssue: isTimingIssue,
+        checkInTimingIssue: timingIssue,
         event: {
           start: registration.event.start.toISOString(),
           title: registration.event.title,

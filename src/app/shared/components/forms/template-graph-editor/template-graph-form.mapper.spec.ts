@@ -1,10 +1,10 @@
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
+import { eventListingAudiences } from '@shared/event-listing-audience';
 import { describe, expect, it } from 'vitest';
 
 import {
   classifyTemplateGraphRecord,
-  legacyRandomTemplateEditMessage,
   templateGraphLocationFormModelToValue,
   templateGraphLocationValueToFormModel,
   templateGraphRecordToFormModel,
@@ -65,6 +65,7 @@ const simpleTemplate = (): TemplateGraphRecord => ({
   description: 'Template description',
   icon: { iconColor: 0, iconName: 'calendar:fas' },
   id: 'template-1',
+  listingAudience: 'both',
   location: null,
   planningTips: null,
   questions: [
@@ -89,10 +90,23 @@ const simpleTemplate = (): TemplateGraphRecord => ({
   ],
   simpleModeEnabled: true,
   title: 'Simple template',
-  unlisted: false,
 });
 
 describe('template graph edit classification', () => {
+  it.each(eventListingAudiences)(
+    'preserves the %s listing audience in the editable model',
+    (listingAudience) => {
+      const result = templateGraphRecordToFormModel({
+        ...simpleTemplate(),
+        listingAudience,
+      });
+
+      expect(result).toMatchObject({
+        model: { listingAudience },
+      });
+    },
+  );
+
   it('requires exactly one organizer and one non-organizer option for simple compatibility', () => {
     expect(classifyTemplateGraphRecord(simpleTemplate())).toEqual({
       kind: 'simpleCompatible',
@@ -162,24 +176,6 @@ describe('template graph edit classification', () => {
         registrationOptionKey: 'organizer-option',
       },
     ]);
-  });
-
-  it('blocks a legacy random graph before constructing an editable form', () => {
-    const source = simpleTemplate();
-    const legacyRandom: TemplateGraphRecord = {
-      ...source,
-      registrationOptions: source.registrationOptions.map((option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-      ),
-    };
-
-    expect(classifyTemplateGraphRecord(legacyRandom)).toEqual({
-      kind: 'legacyRandomBlocked',
-      message: legacyRandomTemplateEditMessage,
-    });
-    expect(templateGraphRecordToFormModel(legacyRandom)).toEqual({
-      error: legacyRandomTemplateEditMessage,
-    });
   });
 });
 

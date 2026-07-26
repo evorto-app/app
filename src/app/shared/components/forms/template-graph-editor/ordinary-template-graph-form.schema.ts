@@ -3,11 +3,22 @@ import {
   applyEach,
   disabled,
   hidden,
+  max,
+  maxLength,
   min,
   required,
   schema,
   validate,
 } from '@angular/forms/signals';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import { templateGeneralFormSchema } from '../../../../templates/shared/template-form/template-general-form.schema';
@@ -33,6 +44,9 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
       message: 'Enter a per-user maximum.',
     });
     min(addOn.maxQuantityPerUser, 1);
+    max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY, {
+      message: `Maximum per user cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`,
+    });
     required(addOn.price, {
       message: 'Enter a price.',
       when: ({ valueOf }) => valueOf(addOn.isPaid),
@@ -94,6 +108,15 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
       );
       validate(mapping.includedQuantity, ({ value, valueOf }) =>
         value() + valueOf(mapping.optionalPurchaseQuantity) >
+        MAX_REGISTRATION_ADDON_QUANTITY
+          ? {
+              kind: 'max',
+              message: `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per registration.`,
+            }
+          : undefined,
+      );
+      validate(mapping.includedQuantity, ({ value, valueOf }) =>
+        value() + valueOf(mapping.optionalPurchaseQuantity) >
         valueOf(addOn.totalAvailableQuantity)
           ? {
               kind: 'max',
@@ -125,6 +148,16 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
 export const templateGraphQuestionFormSchema =
   schema<TemplateGraphQuestionFormModel>((question) => {
     required(question.title, { message: 'Enter a question.' });
+    maxLength(question.title, MAX_REGISTRATION_QUESTION_TITLE_LENGTH, {
+      message: `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`,
+    });
+    maxLength(
+      question.description,
+      MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+      {
+        message: `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
+      },
+    );
     required(question.registrationOptionKey, {
       message: 'Select a registration option.',
     });
@@ -135,6 +168,22 @@ export const templateGraphQuestionFormSchema =
 export const ordinaryTemplateGraphFormSchema =
   schema<OrdinaryTemplateGraphFormModel>((form) => {
     apply(form, templateGeneralFormSchema);
+    validate(form.addOns, ({ value }) =>
+      value().length > MAX_EVENT_ADDON_TYPES
+        ? {
+            kind: 'maxLength',
+            message: `Templates support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+          }
+        : undefined,
+    );
+    validate(form.questions, ({ value }) =>
+      value().length > MAX_REGISTRATION_QUESTIONS
+        ? {
+            kind: 'maxLength',
+            message: `Templates support at most ${MAX_REGISTRATION_QUESTIONS} registration questions.`,
+          }
+        : undefined,
+    );
     applyEach(
       form.registrationOptions,
       templateGraphRegistrationOptionFormSchema,

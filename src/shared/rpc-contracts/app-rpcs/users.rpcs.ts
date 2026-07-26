@@ -1,5 +1,6 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { notificationEmailPattern } from '@shared/notification-email';
+import { IbanInput } from '@shared/iban';
+import { EmailAddressInput } from '@shared/notification-email';
 import { literalUnion, positiveNumber } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
@@ -11,11 +12,8 @@ import {
   UserRpcError,
   UsersAssignRolesError,
   UsersFindManyError,
+  UsersUpdateProfileError,
 } from './users.errors';
-
-const NotificationEmail = Schema.NonEmptyString.check(
-  Schema.isPattern(notificationEmailPattern),
-);
 
 export const UsersAuthData = Schema.Struct({
   email: Schema.optional(Schema.NullOr(Schema.String)),
@@ -117,11 +115,11 @@ export const UsersSetHomeTenant = asRpcMutation(
 );
 
 export const UsersUpdateProfileInput = Schema.Struct({
-  communicationEmail: NotificationEmail,
+  communicationEmail: EmailAddressInput,
   firstName: Schema.NonEmptyString,
-  iban: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  iban: Schema.optional(Schema.NullOr(IbanInput)),
   lastName: Schema.NonEmptyString,
-  paypalEmail: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  paypalEmail: Schema.optional(Schema.NullOr(EmailAddressInput)),
 });
 
 export type UsersUpdateProfileInput = Schema.Schema.Type<
@@ -130,7 +128,7 @@ export type UsersUpdateProfileInput = Schema.Schema.Type<
 
 export const UsersUpdateProfile = asRpcMutation(
   Rpc.make('users.updateProfile', {
-    error: UserRpcError,
+    error: UsersUpdateProfileError,
     payload: UsersUpdateProfileInput,
     success: Schema.Void,
   }),

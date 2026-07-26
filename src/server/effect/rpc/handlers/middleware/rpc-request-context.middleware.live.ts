@@ -1,60 +1,8 @@
-import type { Headers } from 'effect/unstable/http';
+import { Layer } from 'effect';
 
-import { Effect, Layer, Schema } from 'effect';
-
-import { type Permission } from '../../../../../shared/permissions/permissions';
-import { ConfigPermissions } from '../../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import {
-  RpcRequestContext,
-  RpcRequestContextMiddleware,
-} from '../../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
-import { UsersAuthData } from '../../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
-import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
-import { Tenant } from '../../../../../types/custom/tenant';
-import { User } from '../../../../../types/custom/user';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
-
-const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
-  value: string | undefined,
-  schema: S,
-): S['Type'] =>
-  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-export const decodeRpcRequestContextFromHeaders = (
-  headers: Headers.Headers,
-) => ({
-  authData: decodeHeaderJson(
-    headers[RPC_CONTEXT_HEADERS.AUTH_DATA],
-    UsersAuthData,
-  ),
-  authenticated: headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true',
-  permissions: decodeHeaderJson(
-    headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
-    ConfigPermissions,
-  ) as readonly Permission[],
-  platformAuthority: decodeHeaderJson(
-    headers[RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY],
-    Schema.NullOr(PlatformAdministratorAuthority),
-  ),
-  tenant: decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.TENANT], Tenant),
-  user: decodeHeaderJson(
-    headers[RPC_CONTEXT_HEADERS.USER],
-    Schema.NullOr(User),
-  ),
-  userAssigned: headers[RPC_CONTEXT_HEADERS.USER_ASSIGNED] === 'true',
-});
+import { RpcRequestContextMiddleware } from '../../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 
 export const rpcRequestContextMiddlewareLive = Layer.succeed(
   RpcRequestContextMiddleware,
-  RpcRequestContextMiddleware.of((effect, { headers }) =>
-    effect.pipe(
-      Effect.provideService(
-        RpcRequestContext,
-        decodeRpcRequestContextFromHeaders(headers),
-      ),
-    ),
-  ),
+  RpcRequestContextMiddleware.of((effect) => effect),
 );

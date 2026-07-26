@@ -91,7 +91,7 @@ describe('PriceWithTaxComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Tax free');
   });
 
-  it('uses the fallback tax label when tax details are unavailable', async () => {
+  it('surfaces missing tax details instead of implying a tax result', async () => {
     const fixture = await renderPriceWithTax({
       amount: 1200,
       taxRate: {
@@ -100,6 +100,8 @@ describe('PriceWithTaxComponent', () => {
     });
 
     expect(fixture.nativeElement.textContent).toContain('CZK12.00');
-    expect(fixture.nativeElement.textContent).toContain('Incl. Tax');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Tax details unavailable',
+    );
   });
 });

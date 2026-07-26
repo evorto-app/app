@@ -490,7 +490,7 @@ describe('registration transfer claim lock source', () => {
     );
   });
 
-  it('builds transfer claim and event links from the normalized tenant domain', () => {
+  it('builds the generic transfer entry and event links from the normalized tenant domain', () => {
     const service = readSiblingSource('./registration-transfer.service.ts');
     const createOffer = service.slice(
       service.indexOf(
@@ -509,9 +509,8 @@ describe('registration transfer claim lock source', () => {
     expect(service).not.toContain('canonicalRootUrl');
     expect(service).not.toContain('transferBaseUrl');
     expect(createOffer).toContain('yield* tenantOutboundUrl(');
-    expect(createOffer).toContain(
-      '`/registration-transfers/${encodeURIComponent(credentials.claimToken)}`',
-    );
+    expect(createOffer).toContain("'/registration-transfers'");
+    expect(createOffer).not.toMatch(/registration-transfers\/\$\{/u);
     expect(lockedClaim).toContain('domain: tenants.domain');
     expect(lockedClaim).toContain('yield* tenantOutboundUrl(');
     expect(lockedClaim).toContain(

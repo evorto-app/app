@@ -1,5 +1,9 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a [routerLink]="['/global-admin/tenants', tenantId()]" mat-icon-button>
+  <a
+    [routerLink]="['/global-admin/tenants', tenantId()]"
+    mat-icon-button
+    aria-label="Back to organization"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">Edit organization</h1>

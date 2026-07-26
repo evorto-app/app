@@ -1,13 +1,7 @@
 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
   <mat-form-field>
     <mat-label>Receipt date</mat-label>
-    <input
-      matInput
-      [matDatepicker]="receiptDatePicker"
-      [formControl]="form().controls.receiptDate"
-    />
-    <mat-datepicker-toggle matIconSuffix [for]="receiptDatePicker" />
-    <mat-datepicker #receiptDatePicker />
+    <input matInput type="date" [formControl]="form().controls.receiptDate" />
   </mat-form-field>
 
   <mat-form-field>
@@ -25,7 +19,7 @@
     <mat-label>Total amount ({{ currencyCode() }})</mat-label>
     <input
       matInput
-      min="0"
+      min="0.01"
       step="0.01"
       type="number"
       [formControl]="form().controls.totalAmount"

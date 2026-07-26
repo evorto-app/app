@@ -143,6 +143,7 @@ describe('event-create Stripe account serialization', () => {
       description: '<p>Template</p>',
       icon,
       id: templateId,
+      listingAudience: 'both',
       tenantId,
       title: 'Template',
     });
@@ -175,6 +176,7 @@ describe('event-create Stripe account serialization', () => {
               end,
               icon,
               id: eventId,
+              listingAudience: 'both',
               start,
               templateId,
               tenantId,

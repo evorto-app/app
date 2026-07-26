@@ -18,7 +18,7 @@ export type StagingDatabaseInitializationState =
   'empty' | 'inconsistent' | 'initialized';
 
 export interface StagingDatabaseProbe {
-  readonly hasStagingTenant: () => Promise<boolean>;
+  readonly hasCompletedSeedMarker: () => Promise<boolean>;
   readonly tableHasRows: (tableName: string) => Promise<boolean>;
 }
 
@@ -26,7 +26,7 @@ export const resolveStagingDatabaseInitializationState = async (
   probe: StagingDatabaseProbe,
   tableNames: readonly string[] = applicationTableNames,
 ): Promise<StagingDatabaseInitializationState> => {
-  if (await probe.hasStagingTenant()) {
+  if (await probe.hasCompletedSeedMarker()) {
     return 'initialized';
   }
 
@@ -44,7 +44,9 @@ const quoteIdentifier = (identifier: string) =>
 
 export const inspectStagingDatabaseInitialization = (pool: Pool) =>
   resolveStagingDatabaseInitializationState({
-    hasStagingTenant: async () => {
+    // The staging tenant is the completion marker because setupDatabase writes
+    // every seeded row, including this tenant, in one transaction.
+    hasCompletedSeedMarker: async () => {
       const result = await pool.query<{ exists: boolean }>(
         'SELECT EXISTS (SELECT 1 FROM "tenants" WHERE "domain" = $1) AS "exists"',
         [stagingTenantDomain],

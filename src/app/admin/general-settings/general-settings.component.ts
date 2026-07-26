@@ -12,7 +12,6 @@ import {
 import {
   form,
   FormField,
-  min,
   required,
   schema,
   submit,
@@ -79,20 +78,42 @@ export const tenantTimezoneValidationError = (timezone: string) =>
         message: 'Enter a recognized city or region timezone.',
       };
 
+export const nonNegativeIntegerValidationError = (value: number) => {
+  if (!Number.isInteger(value)) {
+    return {
+      kind: 'integer',
+      message: 'Enter a whole number.',
+    };
+  }
+  if (value < 0) {
+    return {
+      kind: 'nonNegative',
+      message: 'Enter zero or more.',
+    };
+  }
+  return;
+};
+
 export const generalSettingsFormSchema = schema<GeneralSettingsModel>(
   (settings) => {
+    required(settings.maxActiveRegistrationsPerUser, {
+      message: 'Enter an active registration limit.',
+    });
+    validate(settings.maxActiveRegistrationsPerUser, ({ value }) =>
+      nonNegativeIntegerValidationError(value()),
+    );
     required(settings.cancellationDeadlineHoursBeforeStart, {
       message: 'Enter a cancellation deadline.',
     });
-    min(settings.cancellationDeadlineHoursBeforeStart, 0, {
-      message: 'Enter zero or more hours.',
-    });
+    validate(settings.cancellationDeadlineHoursBeforeStart, ({ value }) =>
+      nonNegativeIntegerValidationError(value()),
+    );
     required(settings.transferDeadlineHoursBeforeStart, {
       message: 'Enter a transfer deadline.',
     });
-    min(settings.transferDeadlineHoursBeforeStart, 0, {
-      message: 'Enter zero or more hours.',
-    });
+    validate(settings.transferDeadlineHoursBeforeStart, ({ value }) =>
+      nonNegativeIntegerValidationError(value()),
+    );
     validate(settings.timezone, ({ value }) =>
       tenantTimezoneValidationError(value()),
     );

@@ -1,5 +1,7 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { resolveReceiptCountrySettings } from '@shared/finance/receipt-countries';
+import { isCanonicalIban } from '@shared/iban';
+import { isCanonicalEmailAddress } from '@shared/notification-email';
 import { type Permission } from '@shared/permissions/permissions';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import { RegistrationTransferStatus } from '@shared/registration-transfer';
@@ -65,6 +67,8 @@ import {
   type RegistrationTransferRefundRequeueStatus,
 } from '../../../../registrations/registration-transfer-refund-reconciliation';
 import {
+  ensureValidFinanceReceiptAmounts,
+  ensureValidFinanceReceiptCalendarDate,
   financeReceiptView,
   normalizeFinanceReceiptBaseRecord,
   normalizeFinanceTransactionRecord,
@@ -74,7 +78,6 @@ import {
   ensureReceiptEvidenceAvailableForApproval,
   hasValidReceiptUploadBinding,
   withSignedReceiptPreviewUrl,
-  withSignedReceiptPreviewUrls,
 } from '../finance/receipt-media.service';
 import {
   providePlatformOperation,
@@ -90,13 +93,10 @@ type DatabaseTransaction = Parameters<
 
 type FinanceReceiptRow = Parameters<
   typeof normalizeFinanceReceiptBaseRecord
->[0] & {
-  readonly receiptEvidenceAvailable: boolean;
-};
+>[0];
 
 interface FinanceReceiptSubmitterRow extends FinanceReceiptRow {
-  readonly submittedByCommunicationEmail: null | string;
-  readonly submittedByEmail: string;
+  readonly submittedByCommunicationEmail: string;
   readonly submittedByFirstName: string;
   readonly submittedByLastName: string;
 }
@@ -242,12 +242,6 @@ const toTenantContext = (
     timezone: tenant.timezone,
   });
 
-const submitterEmail = (submitter: {
-  readonly submittedByCommunicationEmail: null | string;
-  readonly submittedByEmail: string;
-}): string =>
-  submitter.submittedByCommunicationEmail?.trim() || submitter.submittedByEmail;
-
 const financeReceiptUploadJoin = and(
   eq(financeReceipts.attachmentUploadId, financeReceiptUploads.id),
   eq(financeReceipts.tenantId, financeReceiptUploads.tenantId),
@@ -289,10 +283,21 @@ const loadReceiptEvidenceForApproval = Effect.fn(
 export const payoutDetailsVersion = (
   payoutType: Schema.Schema.Type<typeof PlatformFinancePayoutType>,
   payoutReference: string,
-): string =>
-  createHash('sha256')
-    .update(`platform-payout:v1:${payoutType}:${payoutReference.trim()}`)
+): string => {
+  const isCanonical =
+    payoutType === 'iban'
+      ? isCanonicalIban(payoutReference)
+      : isCanonicalEmailAddress(payoutReference);
+  if (!isCanonical) {
+    throw new Error(
+      `Cannot version a non-canonical ${payoutType} payout destination`,
+    );
+  }
+
+  return createHash('sha256')
+    .update(`platform-payout:v1:${payoutType}:${payoutReference}`)
     .digest('hex');
+};
 
 type RefundRecoveryModeCandidate = Pick<
   RefundRecoveryCandidate,
@@ -491,10 +496,8 @@ const toPlatformReceiptRecord = (receipt: FinanceReceiptRow) => {
     hasAlcohol: normalized.hasAlcohol,
     hasDeposit: normalized.hasDeposit,
     id: normalized.id,
-    previewImageUrl: normalized.previewImageUrl,
     purchaseCountry: normalized.purchaseCountry,
     receiptDate: normalized.receiptDate,
-    receiptEvidenceAvailable: receipt.receiptEvidenceAvailable,
     refundedAt: normalized.refundedAt,
     refundTransactionId: normalized.refundTransactionId,
     rejectionReason: normalized.rejectionReason,
@@ -510,7 +513,7 @@ const toPlatformReceiptRecord = (receipt: FinanceReceiptRow) => {
 const toPlatformReceiptWithSubmitter = (receipt: FinanceReceiptSubmitterRow) =>
   PlatformFinanceReceiptWithSubmitterRecord.make({
     ...toPlatformReceiptRecord(receipt),
-    submittedByEmail: submitterEmail(receipt),
+    submittedByEmail: receipt.submittedByCommunicationEmail,
     submittedByFirstName: receipt.submittedByFirstName,
     submittedByLastName: receipt.submittedByLastName,
   });
@@ -550,7 +553,7 @@ const reviewAuditSnapshot = (
     hasDeposit: receipt.hasDeposit,
     hasRejectionReason: Boolean(receipt.rejectionReason),
     purchaseCountry: receipt.purchaseCountry,
-    receiptDate: receipt.receiptDate.toISOString(),
+    receiptDate: receipt.receiptDate,
     reviewedAt: receipt.reviewedAt?.toISOString() ?? null,
     status: receipt.status,
     taxAmount: receipt.taxAmount,
@@ -630,7 +633,7 @@ export const platformReceiptReviewUpdate = (input: {
   readonly hasAlcohol: boolean;
   readonly hasDeposit: boolean;
   readonly purchaseCountry: string;
-  readonly receiptDate: Date;
+  readonly receiptDate: string;
   readonly rejectionReason: null | string;
   readonly reviewedAt: Date;
   readonly status: 'approved' | 'rejected';
@@ -703,20 +706,17 @@ export const platformReimbursementReceiptUpdate = (input: {
 });
 
 const runPlatformRead = Effect.fn('PlatformTenantFinance.runPlatformRead')(
-  function* <A, R>(
+  function* <A, E, R>(
     targetTenantId: string,
     allowedPermission: Permission,
-    read: (
-      database: DatabaseClient,
-      tenant: Tenant,
-    ) => Effect.Effect<A, RpcBadRequestError, R>,
+    read: (database: DatabaseClient, tenant: Tenant) => Effect.Effect<A, E, R>,
   ) {
     const operation = yield* resolvePlatformRead(targetTenantId);
 
     return yield* providePlatformOperation(
       Effect.gen(function* () {
         yield* RpcAccess.ensurePermission(allowedPermission);
-        return yield* databaseEffect((database) =>
+        return yield* Database.use((database) =>
           read(database, operation.targetTenant),
         );
       }),
@@ -737,20 +737,8 @@ const validateReceiptReviewInput = Effect.fn(
     });
   }
 
-  const depositAmount = input.hasDeposit ? input.depositAmount : 0;
-  const alcoholAmount = input.hasAlcohol ? input.alcoholAmount : 0;
-  if (depositAmount + alcoholAmount > input.totalAmount) {
-    return yield* new RpcBadRequestError({
-      message: 'Deposit and alcohol amounts exceed the total amount',
-      reason: 'inconsistentAmounts',
-    });
-  }
-  if (input.taxAmount > input.totalAmount) {
-    return yield* new RpcBadRequestError({
-      message: 'Tax amount exceeds the total amount',
-      reason: 'taxAmountExceedsTotal',
-    });
-  }
+  yield* ensureValidFinanceReceiptAmounts(input);
+  yield* ensureValidFinanceReceiptCalendarDate(input.receiptDate);
 
   const purchaseCountry = validateReceiptCountryForTenant(
     tenant,
@@ -763,19 +751,11 @@ const validateReceiptReviewInput = Effect.fn(
     });
   }
 
-  const receiptDate = new Date(input.receiptDate);
-  if (Number.isNaN(receiptDate.getTime())) {
-    return yield* new RpcBadRequestError({
-      message: 'Receipt date is invalid',
-      reason: 'invalidReceiptDate',
-    });
-  }
-
   return {
-    alcoholAmount,
-    depositAmount,
+    alcoholAmount: input.alcoholAmount,
+    depositAmount: input.depositAmount,
     purchaseCountry,
-    receiptDate,
+    receiptDate: input.receiptDate,
     rejectionReason: input.status === 'rejected' ? rejectionReason : null,
   };
 });
@@ -873,7 +853,6 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
               const receiptOwnerRows = yield* transaction
                 .select({
                   submittedByCommunicationEmail: users.communicationEmail,
-                  submittedByEmail: users.email,
                 })
                 .from(users)
                 .where(eq(users.id, before.submittedByUserId))
@@ -952,7 +931,7 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
                 rejectionReason: normalized.rejectionReason,
                 status: input.status,
                 tenant: targetTenant,
-                to: submitterEmail(receiptOwner),
+                to: receiptOwner.submittedByCommunicationEmail,
               });
               yield* writePlatformAudit(transaction, {
                 action: 'receipt.review',
@@ -1233,7 +1212,7 @@ const recordReimbursement = Effect.fn(
               input.payoutType === 'paypal'
                 ? payoutUser.paypalEmail
                 : payoutUser.iban;
-            if (!payoutReference?.trim()) {
+            if (!payoutReference) {
               return yield* new RpcBadRequestError({
                 message:
                   input.payoutType === 'paypal'
@@ -1243,6 +1222,25 @@ const recordReimbursement = Effect.fn(
                   input.payoutType === 'paypal'
                     ? 'missingPaypal'
                     : 'missingIban',
+              });
+            }
+            if (
+              input.payoutType === 'iban' &&
+              !isCanonicalIban(payoutReference)
+            ) {
+              return yield* new RpcBadRequestError({
+                message: 'Reimbursement recipient has an invalid IBAN',
+                reason: 'invalidIban',
+              });
+            }
+            if (
+              input.payoutType === 'paypal' &&
+              !isCanonicalEmailAddress(payoutReference)
+            ) {
+              return yield* new RpcBadRequestError({
+                message:
+                  'Reimbursement recipient has an invalid PayPal email address',
+                reason: 'invalidPaypal',
               });
             }
             if (
@@ -1368,7 +1366,6 @@ export const platformTenantFinanceHandlers = {
               eventStart: eventInstances.start,
               eventTitle: eventInstances.title,
               submittedByCommunicationEmail: users.communicationEmail,
-              submittedByEmail: users.email,
               submittedByFirstName: users.firstName,
               submittedByLastName: users.lastName,
             })
@@ -1401,6 +1398,8 @@ export const platformTenantFinanceHandlers = {
               ...toPlatformReceiptWithSubmitter(signedReceipt),
               eventStart: signedReceipt.eventStart.toISOString(),
               eventTitle: signedReceipt.eventTitle,
+              previewImageUrl: signedReceipt.previewImageUrl,
+              receiptEvidenceAvailable: signedReceipt.receiptEvidenceAvailable,
             }),
             tenantContext: toTenantContext(tenant),
           };
@@ -1418,7 +1417,6 @@ export const platformTenantFinanceHandlers = {
               eventStart: eventInstances.start,
               eventTitle: eventInstances.title,
               submittedByCommunicationEmail: users.communicationEmail,
-              submittedByEmail: users.email,
               submittedByFirstName: users.firstName,
               submittedByLastName: users.lastName,
             })
@@ -1443,8 +1441,6 @@ export const platformTenantFinanceHandlers = {
               desc(financeReceipts.createdAt),
             )
             .pipe(Effect.orDie);
-          const signedReceipts =
-            yield* withSignedReceiptPreviewUrls(receiptRows);
           const grouped = new Map<
             string,
             {
@@ -1454,7 +1450,7 @@ export const platformTenantFinanceHandlers = {
               receipts: ReturnType<typeof toPlatformReceiptWithSubmitter>[];
             }
           >();
-          for (const receipt of signedReceipts) {
+          for (const receipt of receiptRows) {
             const normalized = toPlatformReceiptWithSubmitter(receipt);
             const existing = grouped.get(receipt.eventId);
             if (existing) {
@@ -1493,7 +1489,6 @@ export const platformTenantFinanceHandlers = {
               recipientIban: users.iban,
               recipientPaypalEmail: users.paypalEmail,
               submittedByCommunicationEmail: users.communicationEmail,
-              submittedByEmail: users.email,
               submittedByFirstName: users.firstName,
               submittedByLastName: users.lastName,
             })
@@ -1519,8 +1514,6 @@ export const platformTenantFinanceHandlers = {
               desc(financeReceipts.createdAt),
             )
             .pipe(Effect.orDie);
-          const signedReceipts =
-            yield* withSignedReceiptPreviewUrls(receiptRows);
           const grouped = new Map<
             string,
             {
@@ -1538,7 +1531,7 @@ export const platformTenantFinanceHandlers = {
               totalAmount: number;
             }
           >();
-          for (const receipt of signedReceipts) {
+          for (const receipt of receiptRows) {
             const normalized = PlatformFinanceReimbursementReceipt.make({
               ...toPlatformReceiptWithSubmitter(receipt),
               eventStart: receipt.eventStart.toISOString(),
@@ -1566,7 +1559,7 @@ export const platformTenantFinanceHandlers = {
                   : null,
               },
               receipts: [normalized],
-              submittedByEmail: submitterEmail(receipt),
+              submittedByEmail: receipt.submittedByCommunicationEmail,
               submittedByFirstName: receipt.submittedByFirstName,
               submittedByLastName: receipt.submittedByLastName,
               submittedByUserId: receipt.submittedByUserId,

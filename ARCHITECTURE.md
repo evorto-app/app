@@ -148,7 +148,9 @@ Agents should:
 
 - derive types from Drizzle where possible
 - avoid duplicate handwritten DB model types
-- keep migrations explicit and committed
+- apply local schema changes directly from the current Drizzle source
+- explain and allowlist hosted schema changes before the private `ops` role
+  applies the packaged schema
 - define real database constraints where needed
 - keep relation optionality accurate
 - be careful with event/registration/payment archival model changes
@@ -168,6 +170,8 @@ High-risk data areas:
 - transfer-bundle identity across registration, add-on quantities, source
   payments, and fulfillment history
 - check-in state
+- check-in window enforcement against the transactionally reread event start
+  and end
 - receipt persistence
 - event archival
 
@@ -253,6 +257,9 @@ server permits immediate direct reassignment only when the free/no-refund
 bundle's registration option has no participant questions. Otherwise it routes
 the transfer through the private recipient claim, which validates current
 questions and atomically replaces any source answers with the recipient's own.
+An answered event question is immutable historical context: both ordinary and
+platform event mutation paths use the same answer guard before changing or
+removing its copy, requiredness, order, or registration-option assignment.
 
 Transfer ownership and refund provenance use an application-append-only
 acquisition ledger. Production server code inserts ownership epochs,
@@ -285,11 +292,12 @@ payment transitions belong in atomic, replay-safe state changes.
 
 Customer-facing email is rendered from React Email components and committed to
 the transactional outbox before delivery through the configured provider. Do
-not bypass the outbox for template rendering, delivery, idempotency, retries, or
-failure observability.
+not bypass the outbox for template rendering, enqueue idempotency,
+single-dispatch delivery, or failure observability.
 
-An exhausted outbox row remains stored and read-only. The current product does
-not expose an exhausted-email requeue or correction mutation.
+An explicit provider rejection is terminal. A provider timeout, unreadable
+success response, or abandoned sending claim becomes delivery-unknown and is
+never resent automatically.
 
 ## Location and Image Provider Boundary
 
@@ -336,17 +344,21 @@ Scaleway staging in `fr-par` is the first hosted target. The same immutable
 Linux/amd64 image starts as exactly one role:
 
 - `web` exposes public HTTP, RPC, and SSR and runs no background loops;
-- `worker` is private and exposes only bounded idempotent email, checkout,
-  refund, and receipt-orphan operations invoked by CRON triggers;
+- `worker` is private and exposes only bounded single-dispatch email plus
+  idempotent checkout, refund, and receipt-orphan operations invoked by CRON
+  triggers;
 - `ops` is private and exposes only schema explain/apply and confirmed staging
   reset-and-seed operations. It does not expose arbitrary commands.
 
 All roles reach PostgreSQL 17 over a private network with verified TLS and
-bounded pools. Static infrastructure is Terraform-owned; protected GitHub
-deployment workflows own immutable image revisions and synchronized
-role-scoped secret values. Staging uses `staging.evorto.app`. Production is
-defined as `alpha.evorto.app` but remains unprovisioned behind an explicit
-disabled gate until staging acceptance and a separate enablement decision.
+bounded pools. Bootstrap, staging, and production use fixed, independent
+Terraform state keys. Bootstrap owns projects, registries, and IAM; each
+environment root owns only its own static resources. Protected GitHub deployment
+workflows use project-scoped identities and own immutable image revisions and
+synchronized role-scoped secret values. Staging uses `staging.evorto.app`.
+Production is defined as `alpha.evorto.app` but remains unprovisioned behind an
+explicit disabled gate until staging acceptance and a separate enablement
+decision.
 
 The server resolves tenants from the real `Host` header, does not accept
 `X-Forwarded-Host` as tenant authority, and trusts forwarded scheme only at the
@@ -452,6 +464,19 @@ with an explicit organizing flag. Missing organizer or participant options are
 diagnostic warnings, not persistence blockers, because optionless operational
 events are valid. Mode changes require explicit confirmation; advanced-to-simple
 conversion additionally requires exactly one option of each kind.
+
+### Event listing audience
+
+Current default: an event persists exactly one `listingAudience` value:
+`participant`, `organizer`, `both`, or `unlisted`. Templates persist the default
+audience copied into a new event; the field does not control template-list
+visibility. Participant and organizer discovery are derived from the viewer's
+role eligibility for non-organizing and organizing registration options,
+respectively. Unlisted events are omitted from normal discovery.
+
+Optionless operational events remain visible only to platform tenant inspectors
+until the product defines an explicit announcement/discovery classifier. Do not
+add a missing-option fallback or infer an audience from event content.
 
 Add-ons are reusable event/template entities with explicit many-to-many option
 attachments. Each attachment must keep included entitlement quantity separate

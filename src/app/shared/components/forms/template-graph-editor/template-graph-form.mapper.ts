@@ -1,4 +1,3 @@
-import type { WritableRegistrationMode } from '@shared/registration-modes';
 import type {
   TemplateGraphInput,
   TemplateGraphRecord,
@@ -15,9 +14,6 @@ import {
   type TemplateGraphRegistrationOptionFormModel,
 } from './template-graph-form.model';
 
-export const legacyRandomTemplateEditMessage =
-  'Random allocation is unavailable. Create a new template using First come, first served or Manual approval instead.';
-
 export type TemplateGraphAdvancedCompatibilityReason =
   'registrationOptionCount' | 'registrationOptionKinds';
 
@@ -26,20 +22,12 @@ export type TemplateGraphEditClassification =
       kind: 'advancedCompatible';
       reasons: readonly TemplateGraphAdvancedCompatibilityReason[];
     }
-  | { kind: 'legacyRandomBlocked'; message: string }
   | { kind: 'simpleCompatible' };
 
 export type TemplateGraphFormLoadResult =
   { error: string } | { model: TemplateGraphFormModel };
 type TemplateGraphRegistrationOptionRecord =
   TemplateGraphRecord['registrationOptions'][number];
-
-type WritableTemplateGraphRegistrationOptionRecord = Omit<
-  TemplateGraphRegistrationOptionRecord,
-  'registrationMode'
-> & {
-  registrationMode: WritableRegistrationMode;
-};
 
 export const isSimpleCompatibleRegistrationOptions = (
   options: readonly { organizingRegistration: boolean }[],
@@ -50,17 +38,6 @@ export const isSimpleCompatibleRegistrationOptions = (
 export const classifyTemplateGraphRecord = (
   template: TemplateGraphRecord,
 ): TemplateGraphEditClassification => {
-  if (
-    template.registrationOptions.some(
-      (option) => option.registrationMode === 'random',
-    )
-  ) {
-    return {
-      kind: 'legacyRandomBlocked',
-      message: legacyRandomTemplateEditMessage,
-    };
-  }
-
   const reasons = new Set<TemplateGraphAdvancedCompatibilityReason>();
   if (template.registrationOptions.length !== 2) {
     reasons.add('registrationOptionCount');
@@ -128,7 +105,7 @@ export const templateGraphLocationValueToFormModel = (
 };
 
 const registrationRecordToFormModel = (
-  registration: WritableTemplateGraphRegistrationOptionRecord,
+  registration: TemplateGraphRegistrationOptionRecord,
 ): TemplateGraphRegistrationOptionFormModel => ({
   cancellationDeadlineHoursBeforeStart:
     registration.cancellationDeadlineHoursBeforeStart ?? '',
@@ -157,11 +134,6 @@ const registrationRecordToFormModel = (
 export const templateGraphRecordToFormModel = (
   template: TemplateGraphRecord,
 ): TemplateGraphFormLoadResult => {
-  const classification = classifyTemplateGraphRecord(template);
-  if (classification.kind === 'legacyRandomBlocked') {
-    return { error: classification.message };
-  }
-
   const registrationOptionIds = new Set(
     template.registrationOptions.map((option) => option.id),
   );
@@ -180,11 +152,6 @@ export const templateGraphRecordToFormModel = (
         'This template graph contains a registration-option reference that does not belong to the template.',
     };
   }
-
-  const writableRegistrationOptions = template.registrationOptions.filter(
-    (option): option is WritableTemplateGraphRegistrationOptionRecord =>
-      option.registrationMode !== 'random',
-  );
 
   return {
     model: {
@@ -212,6 +179,7 @@ export const templateGraphRecordToFormModel = (
       description: template.description,
       iconColor: template.icon.iconColor,
       iconName: template.icon.iconName,
+      listingAudience: template.listingAudience,
       location: templateGraphLocationValueToFormModel(template.location),
       planningTips: template.planningTips ?? '',
       questions: template.questions.map((question) => ({
@@ -223,12 +191,11 @@ export const templateGraphRecordToFormModel = (
         sortOrder: question.sortOrder,
         title: question.title,
       })),
-      registrationOptions: writableRegistrationOptions.map((option) =>
+      registrationOptions: template.registrationOptions.map((option) =>
         registrationRecordToFormModel(option),
       ),
       simpleModeEnabled: template.simpleModeEnabled,
       title: template.title,
-      unlisted: template.unlisted,
     },
   };
 };
@@ -352,6 +319,7 @@ export const templateGraphFormToPayload = (
     iconColor: model.iconColor,
     iconName: model.iconName.trim(),
   },
+  listingAudience: model.listingAudience,
   location: templateGraphLocationFormModelToValue(model.location),
   planningTips: optionalText(model.planningTips),
   questions: model.questions.map((question) => ({
@@ -368,5 +336,4 @@ export const templateGraphFormToPayload = (
   ),
   simpleModeEnabled: model.simpleModeEnabled,
   title: model.title.trim(),
-  unlisted: model.unlisted,
 });

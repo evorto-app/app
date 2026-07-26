@@ -50,4 +50,29 @@ describe('deployment-config', () => {
       }
     }),
   );
+
+  it.effect(
+    'rejects E2E authorization overrides in hosted startup config',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* readDeploymentConfig({
+          APP_ENVIRONMENT: 'staging',
+          E2E_GLOBAL_ADMIN_AUTH0_IDS: 'auth0|global-admin',
+        }).pipe(Effect.flip);
+
+        expect(error.message).toContain('E2E_GLOBAL_ADMIN_AUTH0_IDS');
+        expect(error.message).toContain('hosted environments');
+      }),
+  );
+
+  it.effect('allows E2E authorization overrides only in local config', () =>
+    Effect.gen(function* () {
+      const config = yield* readDeploymentConfig({
+        APP_ENVIRONMENT: 'local',
+        E2E_GLOBAL_ADMIN_AUTH0_IDS: 'auth0|global-admin',
+      });
+
+      expect(config).not.toHaveProperty('E2E_GLOBAL_ADMIN_AUTH0_IDS');
+    }),
+  );
 });

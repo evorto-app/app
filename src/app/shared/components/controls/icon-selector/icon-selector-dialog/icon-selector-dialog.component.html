@@ -14,34 +14,56 @@
         Search terms are limited to 64 characters.
       </p>
     }
-    <div class="grid grid-cols-4 gap-1 lg:grid-cols-6 lg:gap-2">
-      @for (icon of iconChoices(); track icon.id) {
-        <button
-          type="button"
-          mat-button
-          class="hover:bg-surface-container-high min-w-0! rounded p-2!"
-          [attr.aria-labelledby]="'select-icon-' + icon.id"
-          [mat-dialog-close]="icon.value"
-        >
-          <span class="flex flex-col items-center gap-2">
-            <app-icon
-              aria-hidden="true"
-              size="30"
-              [iconCommonName]="icon.value"
-            />
-            <span
-              aria-hidden="true"
-              class="bg-surface text-on-surface break-all rounded px-2 text-sm"
+    @if (searchWithinLimit()) {
+      @if (iconSearchQuery.isPending()) {
+        <p class="text-on-surface-variant text-sm" role="status">
+          Loading icons...
+        </p>
+      } @else if (iconSearchQuery.isError()) {
+        <div class="text-error grid gap-2 text-sm" role="alert">
+          <p>Icons could not be loaded.</p>
+          <div>
+            <button
+              type="button"
+              mat-stroked-button
+              [disabled]="iconSearchQuery.isFetching()"
+              (click)="iconSearchQuery.refetch()"
             >
-              {{ icon.friendlyName }}
-            </span>
-            <span class="sr-only" [id]="'select-icon-' + icon.id">
-              Select {{ icon.friendlyName }} icon
-            </span>
-          </span>
-        </button>
+              {{ iconSearchQuery.isFetching() ? "Retrying..." : "Try again" }}
+            </button>
+          </div>
+        </div>
+      } @else {
+        <div class="grid grid-cols-4 gap-1 lg:grid-cols-6 lg:gap-2">
+          @for (icon of iconChoices(); track icon.id) {
+            <button
+              type="button"
+              mat-button
+              class="hover:bg-surface-container-high min-w-0! rounded p-2!"
+              [attr.aria-labelledby]="'select-icon-' + icon.id"
+              [mat-dialog-close]="icon.value"
+            >
+              <span class="flex flex-col items-center gap-2">
+                <app-icon
+                  aria-hidden="true"
+                  size="30"
+                  [iconCommonName]="icon.value"
+                />
+                <span
+                  aria-hidden="true"
+                  class="bg-surface text-on-surface break-all rounded px-2 text-sm"
+                >
+                  {{ icon.friendlyName }}
+                </span>
+                <span class="sr-only" [id]="'select-icon-' + icon.id">
+                  Select {{ icon.friendlyName }} icon
+                </span>
+              </span>
+            </button>
+          }
+        </div>
       }
-    </div>
+    }
     @if (displayDirectAccess()) {
       <button
         type="button"

@@ -132,26 +132,14 @@ describe('paid configuration Stripe serialization source guards', () => {
       [
         standard,
         "'templates.create':",
-        "'templates.createSimpleTemplate':",
+        "'templates.findOne':",
         'TemplateGraphService.createTemplate(',
       ],
       [
         standard,
-        "'templates.createSimpleTemplate':",
-        "'templates.findOne':",
-        'SimpleTemplateService.createSimpleTemplate(',
-      ],
-      [
-        standard,
         "'templates.update':",
-        "'templates.updateSimpleTemplate':",
-        'TemplateGraphService.updateTemplate(',
-      ],
-      [
-        standard,
-        "'templates.updateSimpleTemplate':",
         'satisfies Partial<AppRpcHandlers>',
-        'SimpleTemplateService.updateSimpleTemplate(',
+        'TemplateGraphService.updateTemplate(',
       ],
       [
         platform,

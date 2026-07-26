@@ -12,77 +12,88 @@ import type { Tenant } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
-  legacyRandomTemplateEventMessage,
   templateAddOnCopyNotice,
   TemplateCreateEventComponent,
   templateCreateEventErrorMessage,
   TemplateCreateEventOperations,
   templateCreateEventSubmitDisabled,
-  templateHasLegacyRandomRegistration,
 } from './template-create-event.component';
 
 describe('templateCreateEventSubmitDisabled', () => {
   it('blocks template event creation while invalid, submitting, or awaiting the mutation', () => {
     expect(
       templateCreateEventSubmitDisabled({
+        discountProvidersReady: true,
         formInvalid: false,
         formSubmitting: false,
-        legacyRandomBlocked: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(false);
     expect(
       templateCreateEventSubmitDisabled({
+        discountProvidersReady: true,
         formInvalid: true,
         formSubmitting: false,
-        legacyRandomBlocked: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
     expect(
       templateCreateEventSubmitDisabled({
+        discountProvidersReady: true,
         formInvalid: false,
         formSubmitting: true,
-        legacyRandomBlocked: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
     expect(
       templateCreateEventSubmitDisabled({
+        discountProvidersReady: true,
         formInvalid: false,
         formSubmitting: false,
-        legacyRandomBlocked: false,
         mutationPending: true,
-      }),
-    ).toBe(true);
-    expect(
-      templateCreateEventSubmitDisabled({
-        formInvalid: false,
-        formSubmitting: false,
-        legacyRandomBlocked: true,
-        mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
   });
-});
 
-describe('template legacy random allocation guard', () => {
-  it('blocks event creation without coercing the template mode', () => {
-    const registrationOptions = [
-      { registrationMode: 'fcfs' },
-      { registrationMode: 'random' },
-    ];
-    expect(templateHasLegacyRandomRegistration(registrationOptions)).toBe(true);
-    expect(registrationOptions[1]?.registrationMode).toBe('random');
-    expect(legacyRandomTemplateEventMessage).toBe(
-      'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
-    );
+  it('blocks unresolved discount settings and paid graphs without rewriting them', () => {
     expect(
-      templateHasLegacyRandomRegistration([
-        { registrationMode: 'fcfs' },
-        { registrationMode: 'application' },
-      ]),
-    ).toBe(false);
+      templateCreateEventSubmitDisabled({
+        discountProvidersReady: false,
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
+      }),
+    ).toBe(true);
+    expect(
+      templateCreateEventSubmitDisabled({
+        discountProvidersReady: true,
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: false,
+        paidGraphBlocked: true,
+        taxRatesReady: true,
+      }),
+    ).toBe(true);
+    expect(
+      templateCreateEventSubmitDisabled({
+        discountProvidersReady: true,
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: false,
+      }),
+    ).toBe(true);
   });
 });
 
@@ -118,7 +129,9 @@ describe('templateCreateEventErrorMessage', () => {
 });
 
 const createEvent = vi.fn();
+const findDiscountProviders = vi.fn();
 const findTemplate = vi.fn();
+const findTaxRates = vi.fn();
 
 const normalizeText = (
   fixture: ComponentFixture<TemplateCreateEventComponent>,
@@ -130,7 +143,11 @@ describe('TemplateCreateEventComponent load recovery', () => {
   beforeEach(async () => {
     createEvent.mockReset();
     createEvent.mockResolvedValue({ id: 'event-1' });
+    findDiscountProviders.mockReset();
+    findDiscountProviders.mockResolvedValue([]);
     findTemplate.mockReset();
+    findTaxRates.mockReset();
+    findTaxRates.mockResolvedValue([]);
     queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -165,13 +182,17 @@ describe('TemplateCreateEventComponent load recovery', () => {
               mutationKey: ['create-event'],
             }),
             discountProviders: () => ({
-              queryFn: async () => [],
+              queryFn: findDiscountProviders,
               queryKey: ['discount-providers'],
             }),
             eventListFilter: () => ({ queryKey: ['events'] }),
             findTemplate: (id: string) => ({
               queryFn: findTemplate,
               queryKey: ['template', id],
+            }),
+            taxRates: () => ({
+              queryFn: findTaxRates,
+              queryKey: ['tax-rates'],
             }),
           },
         },
@@ -244,8 +265,8 @@ describe('TemplateCreateEventComponent load recovery', () => {
     const fixture = TestBed.createComponent(TemplateCreateEventComponent);
     fixture.componentRef.setInput('templateId', 'template-1');
     fixture.detectChanges();
-
     const root: HTMLElement = fixture.nativeElement;
+
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(
@@ -282,9 +303,6 @@ describe('TemplateCreateEventComponent load recovery', () => {
       'Registration option does not belong to the selected template',
     );
     expect(alert?.textContent).toContain('Your entries are still here.');
-    expect(alert?.textContent).toContain(
-      'If the template uses Random allocation, an authorized template editor must choose First come, first served or Manual approval before you try again.',
-    );
     expect(titleInput.value).toBe('Retained workshop');
 
     const retryButton = root.querySelector<HTMLButtonElement>(
@@ -292,5 +310,103 @@ describe('TemplateCreateEventComponent load recovery', () => {
     );
     expect(retryButton?.textContent?.trim()).toBe('Create event');
     expect(retryButton?.disabled).toBe(false);
+  });
+
+  it('surfaces unavailable discount settings and blocks creation until retry succeeds', async () => {
+    findTemplate.mockResolvedValue({
+      addOns: [],
+      categoryId: 'category-1',
+      description: '<p>Template</p>',
+      icon: {
+        iconColor: 2,
+        iconName: 'calendar:fas',
+      },
+      id: 'template-1',
+      location: null,
+      planningTips: null,
+      questions: [],
+      registrationOptions: [],
+      title: 'Weekly meetup',
+    });
+    findDiscountProviders
+      .mockRejectedValueOnce(new Error('Discount settings unavailable'))
+      .mockResolvedValue([]);
+
+    const fixture = TestBed.createComponent(TemplateCreateEventComponent);
+    fixture.componentRef.setInput('templateId', 'template-1');
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Discount settings could not be loaded.',
+      );
+    });
+    const alert = [
+      ...root.querySelectorAll<HTMLElement>('[role="alert"]'),
+    ].find((element) => element.textContent?.includes('Discount settings'));
+    const submitButton = root.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+    expect(submitButton?.disabled).toBe(true);
+    alert?.querySelector<HTMLButtonElement>('button')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findDiscountProviders).toHaveBeenCalledTimes(2);
+      expect(normalizeText(fixture)).not.toContain(
+        'Discount settings could not be loaded.',
+      );
+    });
+  });
+
+  it('surfaces unavailable tax rates and blocks creation until retry succeeds', async () => {
+    findTemplate.mockResolvedValue({
+      addOns: [],
+      categoryId: 'category-1',
+      description: '<p>Template</p>',
+      icon: {
+        iconColor: 2,
+        iconName: 'calendar:fas',
+      },
+      id: 'template-1',
+      location: null,
+      planningTips: null,
+      questions: [],
+      registrationOptions: [],
+      title: 'Weekly meetup',
+    });
+    findTaxRates
+      .mockRejectedValueOnce(new Error('Tax rates unavailable'))
+      .mockResolvedValue([]);
+
+    const fixture = TestBed.createComponent(TemplateCreateEventComponent);
+    fixture.componentRef.setInput('templateId', 'template-1');
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Tax rates could not be loaded.',
+      );
+    });
+    const alert = [
+      ...root.querySelectorAll<HTMLElement>('[role="alert"]'),
+    ].find((element) => element.textContent?.includes('Tax rates'));
+    const submitButton = root.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+    expect(submitButton?.disabled).toBe(true);
+    alert?.querySelector<HTMLButtonElement>('button')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findTaxRates).toHaveBeenCalledTimes(2);
+      expect(normalizeText(fixture)).not.toContain(
+        'Tax rates could not be loaded.',
+      );
+    });
   });
 });

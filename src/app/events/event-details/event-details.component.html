@@ -30,7 +30,7 @@
           <fa-duotone-icon [icon]="faEllipsisVertical" />
         </button>
         <mat-menu #menu="matMenu">
-          <button mat-menu-item (click)="updateVisibility()">
+          <button mat-menu-item (click)="updateListingAudience()">
             Update listing
           </button>
         </mat-menu>
@@ -67,6 +67,45 @@
         may not apply.
       </div>
     }
+    @if (eventQuery.isSuccess() && canOrganizeQuery.isError()) {
+      <div
+        class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
+        role="alert"
+      >
+        <p>Organizer access could not be checked.</p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="canOrganizeQuery.isFetching()"
+          (click)="canOrganizeQuery.refetch()"
+        >
+          {{ canOrganizeQuery.isFetching() ? "Retrying…" : "Try again" }}
+        </button>
+      </div>
+    }
+    @if (
+      eventQuery.isSuccess() &&
+      discountCardsRequired() &&
+      myCardsQuery.isError()
+    ) {
+      <div
+        class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
+        role="alert"
+      >
+        <p>
+          Discount-card eligibility could not be checked. Discount guidance is
+          unavailable.
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="myCardsQuery.isFetching()"
+          (click)="myCardsQuery.refetch()"
+        >
+          {{ myCardsQuery.isFetching() ? "Retrying…" : "Try again" }}
+        </button>
+      </div>
+    }
     @if (eventQuery.isSuccess()) {
       @if (canOrganize()) {
         <a routerLink="organize" matButton="filled">Organize this event</a>
@@ -91,14 +130,19 @@
               </span>
             }
           </div>
-          @if (eventQuery.data().unlisted) {
-            <div
-              class="bg-secondary-container text-on-secondary-container rounded px-3 py-2 body-small"
-            >
-              Unlisted: hidden from event lists, but eligible people with the
-              direct link can still open it.
-            </div>
-          }
+          <div
+            class="bg-secondary-container text-on-secondary-container rounded px-3 py-2 body-small"
+          >
+            <span class="font-medium">
+              {{ eventListingAudienceLabel(eventQuery.data().listingAudience) }}
+            </span>
+            —
+            {{
+              eventListingAudienceDescriptions[
+                eventQuery.data().listingAudience
+              ]
+            }}
+          </div>
 
           <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
             @if (canReview() && eventQuery.data().status === "PENDING_REVIEW") {

@@ -30,6 +30,18 @@ describe('app routes', () => {
     expect(routeFor('global-admin')?.canActivate).toEqual([authGuard]);
   });
 
+  it('exposes only the generic code-entry route for registration transfers', () => {
+    expect(routeFor('registration-transfers')?.canActivate).toEqual([
+      userAccountGuard,
+      authGuard,
+    ]);
+    expect(
+      routes
+        .map((route) => route.path)
+        .filter((path) => path?.startsWith('registration-transfers')),
+    ).toEqual(['registration-transfers']);
+  });
+
   it.each(['legal/imprint', 'legal/privacy', 'legal/terms'])(
     'keeps /%s publicly reachable for tenant-hosted legal pages',
     (path) => {

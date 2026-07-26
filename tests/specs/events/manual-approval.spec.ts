@@ -359,6 +359,12 @@ test.describe('Manual approval registrations', () => {
       expect(approvalEmails[0]?.subject).toBe(
         'Registration approved: payment required',
       );
+      expect(approvalEmails[0]?.text).toMatch(
+        /\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/u,
+      );
+      expect(approvalEmails[0]?.text).toContain(
+        `(${scenario.tenant.timezone})`,
+      );
 
       await page.reload();
       await waitForRegistrationStatus(page);

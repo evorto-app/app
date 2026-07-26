@@ -40,7 +40,7 @@ You must be signed in as a platform administrator. Organization roles, including
 
 # Review Global Email Delivery Health
 
-The **Email outbox** is an operational overview across every organization. Use it to understand whether Evorto has queued an email, is currently delivering it, will retry it, or has exhausted delivery attempts. The page does not expose message bodies or a manual retry control.
+The **Email outbox** is an operational overview across every organization. Each queued email gets one provider request. An explicit provider rejection becomes **Failed**; a timeout, lost response, or abandoned sending claim becomes **Delivery unknown** and is never resent automatically. The page does not expose message bodies or a retry control.
 `,
     });
 
@@ -75,33 +75,34 @@ The **Email outbox** is an operational overview across every organization. Use i
     ).toHaveText(/^[1-9]\d*$/);
 
     const queuedRow = outboxRow(page, scenario.queued);
-    const retryRow = outboxRow(page, scenario.retry);
+    const unknownRow = outboxRow(page, scenario.unknown);
     const sendingRow = outboxRow(page, scenario.sending);
-    const exhaustedRow = outboxRow(page, scenario.exhausted);
+    const failedRow = outboxRow(page, scenario.failed);
     await expect(queuedRow).toContainText('Queued');
-    await expect(queuedRow).toContainText('0/8');
+    await expect(queuedRow).toContainText('Attempts 0');
     await expect(queuedRow).toContainText('Not attempted');
-    await expect(retryRow).toContainText('Queued');
-    await expect(retryRow).toContainText('2/8');
-    await expect(retryRow).toContainText('Temporary provider timeout');
-    await expect(sendingRow).toContainText('Sending');
-    await expect(sendingRow).toContainText('1/8');
-    await expect(exhaustedRow).toContainText('Failed');
-    await expect(exhaustedRow).toContainText('8/8');
-    await expect(exhaustedRow).toContainText('Recipient address was rejected');
-    await expect(
-      exhaustedRow.getByText('Retries ended', { exact: true }),
-    ).toBeVisible();
-    await expect(exhaustedRow).toContainText(
-      'Automatic retries ended. Stored as read-only history.',
+    await expect(unknownRow).toContainText('Delivery unknown');
+    await expect(unknownRow).toContainText('Attempts 1');
+    await expect(unknownRow).toContainText(
+      'Provider accepted the request but its response was lost',
     );
-    await expect(exhaustedRow.getByText('Next attempt')).toHaveCount(0);
+    await expect(sendingRow).toContainText('Sending');
+    await expect(sendingRow).toContainText(
+      'Delivery attempt recorded. It will settle once or become unknown; it will not be resent.',
+    );
+    await expect(failedRow).toContainText('Failed');
+    await expect(failedRow).toContainText('Attempts 1');
+    await expect(failedRow).toContainText('Recipient address was rejected');
+    await expect(failedRow).toContainText(
+      'Rejected before provider acceptance. Stored as terminal operational evidence.',
+    );
+    await expect(failedRow.getByText('Next attempt')).toHaveCount(0);
     await expect(
       page.getByRole('heading', { name: 'Email delivery status' }),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Exhausted emails remain stored as read-only history. Automatic retries have ended; no recovery action is required.',
+        'Failed emails were explicitly rejected before acceptance. They remain stored as terminal operational evidence.',
         { exact: true },
       ),
     ).toBeVisible();
@@ -120,30 +121,31 @@ The **Email outbox** is an operational overview across every organization. Use i
       body: `
 ## Read the overview before the delivery details
 
-The four totals at the top count **Queued**, **Sending**, **Failed**, and **Sent** emails globally. They are not limited to your current organization. The **Email delivery status** banner summarizes exhausted failures and emails that have stayed in **Sending** for too long.
+The six totals at the top count **Queued**, **Sending**, **Failed**, **Sent**, **Unknown**, and **Suppressed** emails globally. They are not limited to your current organization. The **Email delivery status** banner calls out explicit rejections, unknown outcomes, and abandoned **Sending** claims.
 
-The **Delivery details** list is a fixed operational filter, not an interactive search:
+The **Delivery details** list is a bounded operational view, not an interactive search:
 
-- It shows the 100 most recently updated **queued**, **sending**, and **failed** rows.
+- It shows up to 100 **queued**, **sending**, **failed**, **delivery unknown**, and **suppressed** rows.
+- It puts **failed**, **delivery unknown**, and abandoned **sending** incidents before routine traffic, so newer routine rows cannot displace older incidents. Each group shows its newest rows first.
 - It omits successfully **sent** rows even though the Sent total still includes them.
-- When there are no active rows, the list says **No queued, sending, or failed emails.**
+- When there are no active rows, the list says **No unresolved email delivery records.**
 
-Each active row identifies the organization name and primary address, recipient, email kind, attempt count, last attempt, and last delivery error when one exists. Rows still eligible for automatic delivery show **Next attempt**; exhausted rows instead show that automatic retries ended and remain stored as read-only history. Check the organization before contacting its team: this is a cross-organization surface.
+Each row identifies the organization name and primary address, recipient, email kind, attempt count, last attempt, and last delivery error when one exists. Check the organization before contacting its team: this is a cross-organization surface.
 
 ## Interpret delivery states
 
-- **Queued, 0/8, Not attempted** means the email is waiting for its first delivery attempt.
-- **Queued** with a prior attempt and a **Last error** means an automatic retry is scheduled for **Next attempt**. Wait until that time, then use **Refresh** to read the latest state.
-- **Sending** means a delivery attempt is in progress. Do not infer that the email is permanently stuck from a brief **Sending** state; refresh later to check the outcome.
-- **Failed**, attempts equal to the maximum, and a **Retries ended** timestamp means automatic retries have stopped. The row remains stored as read-only history and intentionally has no **Next attempt** or recovery action. Record the organization, recipient, and last error for incident investigation.
+- **Queued, Attempts 0, Not attempted** means the email is waiting for its only provider request.
+- **Sending** means one delivery attempt was recorded but no terminal outcome is stored yet. Do not infer that the email is permanently stuck from a brief **Sending** state; refresh later to check whether it settled once or became unknown. It is never resent.
+- **Failed** means the provider explicitly rejected the request before accepting it.
+- **Delivery unknown** means Evorto cannot prove whether the provider accepted the email. It remains terminal and is not resent, preventing duplicate customer messages.
 
 There is currently no organization/status search control and no manual retry button on this page. **Refresh** only reloads the overview; it does not send or requeue an email.
 `,
     });
 
     await page.getByRole('button', { name: 'Refresh' }).click();
-    await expect(outboxRow(page, scenario.retry)).toContainText(
-      'Temporary provider timeout',
+    await expect(outboxRow(page, scenario.unknown)).toContainText(
+      'Provider accepted the request but its response was lost',
     );
 
     await testInfo.attach('markdown', {
@@ -152,7 +154,7 @@ There is currently no organization/status search control and no manual retry but
 
 A signed-in user without platform administrator authority is redirected to the forbidden page when opening **Email outbox** directly. Do not grant a broad organization role as a workaround; platform access is separate.
 
-For an exhausted row, capture the organization, recipient, attempt count, and last error while investigating the delivery or data problem. Do not expect a recovery action on this page. For a queued retry or an active **Sending** row, refresh later so automatic delivery can finish before manual investigation.
+For a **Failed** or **Delivery unknown** row, capture the organization, recipient, attempt count, and last error while investigating. Do not expect a recovery action on this page. For an active **Sending** row, refresh later so its single provider request can settle or become unknown.
 `,
     });
   } finally {

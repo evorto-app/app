@@ -53,7 +53,7 @@ const optionalRedactedString = (name: string) =>
     ),
   );
 
-export const deploymentConfig = Config.all({
+const deploymentConfigState = Config.all({
   APP_BOOTSTRAP: Config.boolean('APP_BOOTSTRAP').pipe(
     Config.withDefault(false),
   ),
@@ -64,6 +64,9 @@ export const deploymentConfig = Config.all({
   APP_SCHEMA_HASH: optionalTrimmedString('APP_SCHEMA_HASH'),
   COCKPIT_TRACES_ENDPOINT: Config.option(Config.url('COCKPIT_TRACES_ENDPOINT')),
   COCKPIT_TRACES_TOKEN: optionalRedactedString('COCKPIT_TRACES_TOKEN'),
+  E2E_GLOBAL_ADMIN_AUTH0_IDS: optionalTrimmedString(
+    'E2E_GLOBAL_ADMIN_AUTH0_IDS',
+  ),
   READINESS_TENANT_HOST: optionalTrimmedString('READINESS_TENANT_HOST'),
   TRACE_SAMPLING_RATIO: traceSamplingRatioConfig,
   TRUST_PLATFORM_PROXY: Config.boolean('TRUST_PLATFORM_PROXY').pipe(
@@ -71,6 +74,23 @@ export const deploymentConfig = Config.all({
   ),
   WORKER_TRIGGER_MODE: workerTriggerModeConfig,
 });
+
+export const deploymentConfig = deploymentConfigState.pipe(
+  Config.mapOrFail(
+    ({ E2E_GLOBAL_ADMIN_AUTH0_IDS: e2eGlobalAdminAuth0Ids, ...deployment }) =>
+      deployment.APP_ENVIRONMENT !== 'local' &&
+      Option.isSome(e2eGlobalAdminAuth0Ids)
+        ? Effect.fail(
+            new Config.ConfigError(
+              new ConfigProvider.SourceError({
+                message:
+                  'E2E_GLOBAL_ADMIN_AUTH0_IDS is reserved for local test authorization and must not be configured in hosted environments',
+              }),
+            ),
+          )
+        : Effect.succeed(deployment),
+  ),
+);
 
 export type DeploymentConfig = Config.Success<typeof deploymentConfig>;
 

@@ -25,12 +25,27 @@
         <input
           matInput
           type="number"
+          step="1"
           [formField]="addOn.totalAvailableQuantity"
         />
+        @for (error of addOn.totalAvailableQuantity().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
       </mat-form-field>
       <mat-form-field>
         <mat-label>Maximum optional units per user</mat-label>
-        <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+        <input
+          matInput
+          type="number"
+          step="1"
+          [formField]="addOn.maxQuantityPerUser"
+        />
+        <mat-hint>
+          At most {{ maxRegistrationAddonQuantity }} units per registration.
+        </mat-hint>
+        @for (error of addOn.maxQuantityPerUser().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
       </mat-form-field>
       <mat-checkbox [formField]="addOn.allowMultiple">
         Allow multiple units
@@ -52,17 +67,21 @@
         <mat-form-field>
           <mat-label>Tax rate</mat-label>
           <mat-select [formField]="addOn.stripeTaxRateId">
-            @if (taxRatesQuery.isPending()) {
+            @if (taxRateState() === "loading") {
               <mat-option disabled>Loading tax rates...</mat-option>
-            } @else if (taxRatesQuery.isSuccess()) {
-              @for (rate of taxRatesQuery.data(); track rate.id) {
+            } @else if (taxRateState() === "error") {
+              <mat-option disabled>Tax rates are unavailable</mat-option>
+            } @else if (taxRates(); as resolvedTaxRates) {
+              @for (rate of resolvedTaxRates; track rate.id) {
                 <mat-option [value]="rate.stripeTaxRateId">
                   {{ rate.displayName || rate.stripeTaxRateId }} —
                   {{ rate.percentage ?? "?" }}%
                 </mat-option>
               }
             } @else {
-              <mat-option disabled>Failed to load tax rates</mat-option>
+              <mat-option disabled>
+                Tax-rate state is inconsistent; reload the page
+              </mat-option>
             }
           </mat-select>
         </mat-form-field>
@@ -95,7 +114,8 @@
           <h3 class="title-medium">Available with registration options</h3>
           <p class="text-on-surface-variant text-sm">
             Included units are granted automatically. Optional units remain a
-            separate participant choice.
+            separate participant choice. Together they cannot exceed
+            {{ maxRegistrationAddonQuantity }} per registration.
           </p>
         </div>
         <button
@@ -136,16 +156,27 @@
             <input
               matInput
               type="number"
+              step="1"
               [formField]="mapping.includedQuantity"
             />
+            @for (error of mapping.includedQuantity().errors(); track error) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
           </mat-form-field>
           <mat-form-field>
             <mat-label>Optional quantity</mat-label>
             <input
               matInput
               type="number"
+              step="1"
               [formField]="mapping.optionalPurchaseQuantity"
             />
+            @for (
+              error of mapping.optionalPurchaseQuantity().errors();
+              track error
+            ) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
           </mat-form-field>
           <button
             type="button"

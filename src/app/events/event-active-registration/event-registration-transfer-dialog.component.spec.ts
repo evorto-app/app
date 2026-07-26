@@ -21,8 +21,8 @@ describe('EventRegistrationTransferDialogComponent', () => {
         {
           provide: MAT_DIALOG_DATA,
           useValue: {
-            claimCode: 'claim-code',
-            claimUrl: 'https://example.test/registration-transfers/claim-code',
+            claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
+            claimPageUrl: 'https://example.test/registration-transfers',
             expiresAt: '2030-05-01T12:00:00.000Z',
             status: 'open',
           } satisfies EventRegistrationTransferDialogData,
@@ -32,8 +32,8 @@ describe('EventRegistrationTransferDialogComponent', () => {
   });
 
   it.each([
-    ['Copy link', 'Claim link copied to clipboard.'],
     ['Copy code', 'Claim code copied to clipboard.'],
+    ['Copy claim page link', 'Claim page link copied to clipboard.'],
   ])('announces successful %s actions', (buttonLabel, announcement) => {
     const fixture = TestBed.createComponent(
       EventRegistrationTransferDialogComponent,
@@ -51,5 +51,26 @@ describe('EventRegistrationTransferDialogComponent', () => {
     expect(button).toBeDefined();
     expect(status?.getAttribute('aria-live')).toBe('polite');
     expect(status?.textContent).toContain(announcement);
+  });
+
+  it('keeps the private code separate from the generic claim page URL', () => {
+    const fixture = TestBed.createComponent(
+      EventRegistrationTransferDialogComponent,
+    );
+    fixture.detectChanges();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const inputs = [
+      ...nativeElement.querySelectorAll<HTMLInputElement>('input'),
+    ];
+    const claimCode = inputs.find((input) =>
+      input.value.includes('ABCD-1234'),
+    )?.value;
+    const claimPageUrl = inputs.find((input) =>
+      input.value.startsWith('https://'),
+    )?.value;
+
+    expect(claimCode).toBe('ABCD-1234-EF56-7890-ABCD-1234-EF56-7890');
+    expect(claimPageUrl).toBe('https://example.test/registration-transfers');
+    expect(claimPageUrl).not.toContain(claimCode);
   });
 });

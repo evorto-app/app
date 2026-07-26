@@ -14,6 +14,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faTrashCan } from '@fortawesome/duotone-regular-svg-icons';
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 
 import { CurrencyAmountInputComponent } from '../../controls/currency-amount-input/currency-amount-input.component';
 import { TemplateGraphAddonFormModel } from './template-graph-form.model';
@@ -53,4 +54,6 @@ export class TemplateAddonEditorComponent {
 
   protected readonly faPlus = faPlus;
   protected readonly faTrashCan = faTrashCan;
+  protected readonly maxRegistrationAddonQuantity =
+    MAX_REGISTRATION_ADDON_QUANTITY;
 }

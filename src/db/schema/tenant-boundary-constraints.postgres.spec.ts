@@ -9,12 +9,19 @@ import { relations } from '../relations';
 import {
   eventInstances,
   eventRegistrationEventTenantForeignKeyName,
+  eventRegistrationOptionCapacityCheckName,
   eventRegistrationOptionEventForeignKeyName,
+  eventRegistrationOptionPriceCheckName,
   eventRegistrationOptions,
+  eventRegistrationOptionTimeOrderCheckName,
   eventRegistrationQuestions,
   eventRegistrations,
+  eventReviewLifecycleCheckName,
   eventTemplateCategories,
+  eventTemplateCategoryTenantForeignKeyName,
   eventTemplates,
+  eventTemplateTenantForeignKeyName,
+  eventTimeOrderCheckName,
   registrationTransferAnswerQuestionOwnerForeignKeyName,
   registrationTransferAnswers,
   registrationTransferAnswerTransferOwnerForeignKeyName,
@@ -117,6 +124,7 @@ const seedFixture = async (
       description: 'Tenant boundary constraint fixture',
       icon: { iconColor: 0, iconName: 'circle' },
       id: templateId,
+      listingAudience: 'both',
       tenantId: fixture.tenantIds[index],
       title: `Tuple template ${index + 1}`,
     })),
@@ -128,6 +136,7 @@ const seedFixture = async (
       end: new Date(now + 2 * 24 * 60 * 60 * 1000),
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
+      listingAudience: 'both',
       start: new Date(now + 24 * 60 * 60 * 1000),
       templateId: fixture.templateIds[index],
       tenantId: fixture.tenantIds[index],
@@ -205,6 +214,26 @@ const expectForeignKeyViolation = async (
     const cause = error.cause;
     expect(cause).toBeInstanceOf(Error);
     expect(cause).toHaveProperty('code', '23503');
+    expect(cause).toHaveProperty('constraint', constraint);
+  }
+};
+
+const expectCheckViolation = async (
+  operation: PromiseLike<unknown>,
+  constraint: string,
+) => {
+  try {
+    await operation;
+    throw new Error(`Expected check constraint ${constraint} to reject`);
+  } catch (error) {
+    expect(error).toBeInstanceOf(DrizzleQueryError);
+    if (!(error instanceof DrizzleQueryError)) {
+      throw error;
+    }
+
+    const cause = error.cause;
+    expect(cause).toBeInstanceOf(Error);
+    expect(cause).toHaveProperty('code', '23514');
     expect(cause).toHaveProperty('constraint', constraint);
   }
 };
@@ -288,6 +317,121 @@ describe('tenant boundary constraints in PostgreSQL', () => {
     ).resolves.toBeDefined();
   });
 
+  it('rejects templates and events whose owner tuples cross tenants', async () => {
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 6);
+    await expectForeignKeyViolation(
+      database.insert(eventTemplates).values({
+        categoryId: fixture.categoryIds[1],
+        description: 'Mismatched template category tenant',
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: `tpl-owner-${suffix}`,
+        listingAudience: 'both',
+        tenantId: fixture.tenantIds[0],
+        title: 'Mismatched template',
+      }),
+      eventTemplateCategoryTenantForeignKeyName,
+    );
+    await expectForeignKeyViolation(
+      database.insert(eventInstances).values({
+        creatorId: fixture.userIds[0],
+        description: 'Mismatched event template tenant',
+        end: new Date(Date.now() + 2 * 60_000),
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: `event-owner-${suffix}`,
+        listingAudience: 'both',
+        start: new Date(Date.now() + 60_000),
+        templateId: fixture.templateIds[1],
+        tenantId: fixture.tenantIds[0],
+        title: 'Mismatched event',
+      }),
+      eventTemplateTenantForeignKeyName,
+    );
+  });
+
+  it('rejects invalid event and registration-option lifecycle state', async () => {
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 6);
+    const now = Date.now();
+
+    await expectCheckViolation(
+      database.insert(eventInstances).values({
+        creatorId: fixture.userIds[0],
+        description: 'Invalid event time order',
+        end: new Date(now + 60_000),
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: `event-time-${suffix}`,
+        listingAudience: 'both',
+        start: new Date(now + 60_000),
+        templateId: fixture.templateIds[0],
+        tenantId: fixture.tenantIds[0],
+        title: 'Invalid event time order',
+      }),
+      eventTimeOrderCheckName,
+    );
+    await expectCheckViolation(
+      database.insert(eventInstances).values({
+        creatorId: fixture.userIds[0],
+        description: 'Approved without review timestamp',
+        end: new Date(now + 2 * 60_000),
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: `event-review-${suffix}`,
+        listingAudience: 'both',
+        start: new Date(now + 60_000),
+        status: 'APPROVED',
+        templateId: fixture.templateIds[0],
+        tenantId: fixture.tenantIds[0],
+        title: 'Approved without review timestamp',
+      }),
+      eventReviewLifecycleCheckName,
+    );
+    await expectCheckViolation(
+      database.insert(eventRegistrationOptions).values({
+        closeRegistrationTime: new Date(now + 60_000),
+        confirmedSpots: 2,
+        eventId: fixture.eventIds[0],
+        id: `option-cap-${suffix}`,
+        isPaid: false,
+        openRegistrationTime: new Date(now),
+        organizingRegistration: false,
+        price: 0,
+        registrationMode: 'fcfs',
+        reservedSpots: 1,
+        spots: 2,
+        title: 'Invalid capacity',
+      }),
+      eventRegistrationOptionCapacityCheckName,
+    );
+    await expectCheckViolation(
+      database.insert(eventRegistrationOptions).values({
+        closeRegistrationTime: new Date(now + 60_000),
+        eventId: fixture.eventIds[0],
+        id: `option-price-${suffix}`,
+        isPaid: true,
+        openRegistrationTime: new Date(now),
+        organizingRegistration: false,
+        price: 0,
+        registrationMode: 'fcfs',
+        spots: 2,
+        title: 'Invalid price',
+      }),
+      eventRegistrationOptionPriceCheckName,
+    );
+    await expectCheckViolation(
+      database.insert(eventRegistrationOptions).values({
+        closeRegistrationTime: new Date(now),
+        eventId: fixture.eventIds[0],
+        id: `option-time-${suffix}`,
+        isPaid: false,
+        openRegistrationTime: new Date(now + 60_000),
+        organizingRegistration: false,
+        price: 0,
+        registrationMode: 'fcfs',
+        spots: 2,
+        title: 'Invalid registration window',
+      }),
+      eventRegistrationOptionTimeOrderCheckName,
+    );
+  });
+
   it('rejects a transfer whose source registration belongs to another event option', async () => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 6);
     const sourceRegistrationId = `reg-owner-${suffix}`;
@@ -303,7 +447,6 @@ describe('tenant boundary constraints in PostgreSQL', () => {
     await expectForeignKeyViolation(
       database.insert(registrationTransfers).values({
         claimCodeHash: `code-owner-${suffix}`,
-        claimTokenHash: `token-owner-${suffix}`,
         eventId: fixture.eventIds[1],
         expiresAt: new Date(Date.now() + 60_000),
         registrationOptionId: fixture.optionIds[1],
@@ -334,7 +477,6 @@ describe('tenant boundary constraints in PostgreSQL', () => {
     });
     await database.insert(registrationTransfers).values({
       claimCodeHash: `code-answer-${suffix}`,
-      claimTokenHash: `token-answer-${suffix}`,
       eventId: fixture.eventIds[0],
       expiresAt: new Date(Date.now() + 60_000),
       id: transferId,

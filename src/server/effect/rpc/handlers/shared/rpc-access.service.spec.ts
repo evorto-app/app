@@ -21,7 +21,6 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
@@ -84,12 +83,6 @@ describe('RpcAccess.ensurePermission', () => {
   it.effect('allows configured permission dependencies', () =>
     RpcAccess.ensurePermission('templates:view').pipe(
       Effect.provide(createContextLayer(['events:create'])),
-    ),
-  );
-
-  it.effect('allows legacy admin tax aliases', () =>
-    RpcAccess.ensurePermission('admin:tax').pipe(
-      Effect.provide(createContextLayer(['admin:manageTaxes'])),
     ),
   );
 

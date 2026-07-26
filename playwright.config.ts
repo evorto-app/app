@@ -204,45 +204,6 @@ export default defineConfig({
           }),
         ]
       : []),
-    // {
-    //   dependencies: ['setup'],
-    //   name: 'chromium',
-    //   use: { ...devices['Desktop Chrome'] },
-    // },
-    //
-    // {
-    //   dependencies: ['setup'],
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    //
-    // {
-    //   dependencies: ['setup'],
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
-
-    /* Test against mobile viewports. */
-    // {
-    //   dependencies: ['setup'],
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 7'] },
-    // },
-    // {
-    //   dependencies: ['setup'],
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 14'] },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    // },
   ],
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: reporters,
@@ -255,8 +216,6 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     colorScheme: 'light',
 
-    /* Ignore SSL errors when connecting to Auth0 and other external services */
-    ignoreHTTPSErrors: true,
     screenshot: 'off',
     trace: 'off',
     video: 'off',

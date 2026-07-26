@@ -167,7 +167,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(dockerfile).toContain('&& bun install --frozen-lockfile');
   });
 
-  it('keeps premium and brand icon packages on the Font Awesome registry path', () => {
+  it('keeps the premium icon package on the Font Awesome registry path', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
     ) as { dependencies: Record<string, string> };
@@ -179,18 +179,11 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.dependencies).toEqual(
       expect.objectContaining({
         '@fortawesome/duotone-regular-svg-icons': expect.any(String),
-        '@fortawesome/free-brands-svg-icons': expect.any(String),
       }),
     );
-
-    for (const packageName of [
-      '@fortawesome/duotone-regular-svg-icons',
-      '@fortawesome/free-brands-svg-icons',
-    ]) {
-      expect(lockfile).toContain(
-        `https://npm.fontawesome.com/${packageName}/-/`,
-      );
-    }
+    expect(lockfile).toContain(
+      'https://npm.fontawesome.com/@fortawesome/duotone-regular-svg-icons/-/',
+    );
   });
 
   it('keeps Docker startup scripts behind the non-mutating preflight', () => {

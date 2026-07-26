@@ -59,51 +59,50 @@ test('global admin reviews active Email Outbox delivery states and read-only his
     await expect(queuedRow).toContainText('Manual approval');
     await expect(queuedRow).toContainText(scenario.queued.recipient);
     await expect(queuedRow).toContainText(`${tenant.name} (${tenant.domain})`);
-    await expect(queuedRow).toContainText('0/8');
+    await expect(queuedRow).toContainText('Attempts 0');
     await expect(queuedRow).toContainText('Not attempted');
 
-    const retryRow = outboxRow(page, scenario.retry);
-    await expect(retryRow).toContainText('Receipt reviewed');
-    await expect(retryRow).toContainText('Queued');
-    await expect(retryRow).toContainText('2/8');
-    await expect(retryRow).toContainText('Temporary provider timeout');
-    await expect(retryRow.getByText('Next attempt')).toBeVisible();
+    const unknownRow = outboxRow(page, scenario.unknown);
+    await expect(unknownRow).toContainText('Receipt reviewed');
+    await expect(unknownRow).toContainText('Delivery unknown');
+    await expect(unknownRow).toContainText('Attempts 1');
+    await expect(unknownRow).toContainText(
+      'Provider accepted the request but its response was lost',
+    );
+    await expect(unknownRow.getByText('Next attempt')).toHaveCount(0);
 
     const sendingRow = outboxRow(page, scenario.sending);
     await expect(sendingRow).toContainText('Sending');
-    await expect(sendingRow).toContainText('1/8');
+    await expect(sendingRow).toContainText('Attempts 1');
     await expect(sendingRow.getByText('Last attempt')).toBeVisible();
 
-    const exhaustedRow = outboxRow(page, scenario.exhausted);
-    await expect(exhaustedRow).toContainText('Failed');
-    await expect(exhaustedRow).toContainText('8/8');
-    await expect(exhaustedRow).toContainText('Recipient address was rejected');
-    await expect(
-      exhaustedRow.getByText('Retries ended', { exact: true }),
-    ).toBeVisible();
-    await expect(exhaustedRow).toContainText(
-      'Automatic retries ended. Stored as read-only history.',
+    const failedRow = outboxRow(page, scenario.failed);
+    await expect(failedRow).toContainText('Failed');
+    await expect(failedRow).toContainText('Attempts 1');
+    await expect(failedRow).toContainText('Recipient address was rejected');
+    await expect(failedRow).toContainText(
+      'Rejected before provider acceptance. Stored as terminal operational evidence.',
     );
-    await expect(exhaustedRow.getByText('Next attempt')).toHaveCount(0);
+    await expect(failedRow.getByText('Next attempt')).toHaveCount(0);
     await expect(
       page.getByRole('heading', { name: 'Email delivery status' }),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Exhausted emails remain stored as read-only history. Automatic retries have ended; no recovery action is required.',
+        'Failed emails were explicitly rejected before acceptance. They remain stored as terminal operational evidence.',
         { exact: true },
       ),
     ).toBeVisible();
 
     // Sent rows contribute to the summary but the operational list is fixed to
-    // queued, sending, and failed deliveries.
+    // queued, sending, failed, unknown, and suppressed deliveries.
     await expect(
       page.getByRole('heading', { name: scenario.sent.subject }),
     ).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Refresh' }).click();
-    await expect(outboxRow(page, scenario.retry)).toContainText(
-      'Temporary provider timeout',
+    await expect(outboxRow(page, scenario.unknown)).toContainText(
+      'Provider accepted the request but its response was lost',
     );
   } finally {
     await scenario.cleanup();

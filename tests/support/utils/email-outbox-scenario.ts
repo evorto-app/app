@@ -16,14 +16,13 @@ export interface EmailOutboxScenarioItem {
 
 export interface EmailOutboxScenario {
   cleanup: () => Promise<void>;
-  exhausted: EmailOutboxScenarioItem;
+  failed: EmailOutboxScenarioItem;
+  unknown: EmailOutboxScenarioItem;
   queued: EmailOutboxScenarioItem;
-  retry: EmailOutboxScenarioItem;
   sending: EmailOutboxScenarioItem;
   sent: EmailOutboxScenarioItem;
 }
 
-const futureAttempt = new Date('2099-01-01T12:00:00.000Z');
 const activeClaimExpiry = new Date('2099-01-01T12:10:00.000Z');
 const priorAttempt = new Date('2026-01-15T12:00:00.000Z');
 
@@ -41,22 +40,18 @@ export const seedEmailOutboxScenario = async ({
     subject: `${label} delivery ${scope}`,
   });
   const queued = item('Queued');
-  const retry = item('Retry');
+  const unknown = item('Unknown');
   const sending = item('Sending');
-  const exhausted = item('Exhausted');
+  const failed = item('Failed');
   const sent = item('Sent');
-  const rows = [queued, retry, sending, exhausted, sent];
+  const rows = [queued, unknown, sending, failed, sent];
 
   await database.insert(schema.emailOutbox).values([
     {
-      fromEmail: 'no-reply@notifications.evorto.app',
-      fromName: 'Evorto',
       html: '<p>Queued operational test email</p>',
       id: queued.id,
       idempotencyKey: `outbox-docs/${tenant.id}/${queued.id}`,
       kind: 'manualApproval',
-      maxAttempts: 8,
-      nextAttemptAt: futureAttempt,
       status: 'queued',
       subject: queued.subject,
       tenantId: tenant.id,
@@ -64,36 +59,30 @@ export const seedEmailOutboxScenario = async ({
       toEmail: queued.recipient,
     },
     {
-      attempts: 2,
-      fromEmail: 'no-reply@notifications.evorto.app',
-      fromName: 'Evorto',
-      html: '<p>Scheduled retry operational test email</p>',
-      id: retry.id,
-      idempotencyKey: `outbox-docs/${tenant.id}/${retry.id}`,
+      attempts: 1,
+      deliveryUnknownAt: priorAttempt,
+      html: '<p>Unknown delivery operational test email</p>',
+      id: unknown.id,
+      idempotencyKey: `outbox-docs/${tenant.id}/${unknown.id}`,
       kind: 'receiptReviewed',
       lastAttemptAt: priorAttempt,
-      lastError: 'Temporary provider timeout',
-      maxAttempts: 8,
-      nextAttemptAt: futureAttempt,
-      status: 'queued',
-      subject: retry.subject,
+      lastError: 'Provider accepted the request but its response was lost',
+      provider: 'tem',
+      status: 'deliveryUnknown',
+      subject: unknown.subject,
       tenantId: tenant.id,
-      text: 'Scheduled retry operational test email',
-      toEmail: retry.recipient,
+      text: 'Unknown delivery operational test email',
+      toEmail: unknown.recipient,
     },
     {
       attempts: 1,
       claimLeaseExpiresAt: activeClaimExpiry,
       claimLeaseId: `lease-${sending.id}`,
-      fromEmail: 'no-reply@notifications.evorto.app',
-      fromName: 'Evorto',
       html: '<p>Sending operational test email</p>',
       id: sending.id,
       idempotencyKey: `outbox-docs/${tenant.id}/${sending.id}`,
       kind: 'manualApproval',
       lastAttemptAt: priorAttempt,
-      maxAttempts: 8,
-      nextAttemptAt: futureAttempt,
       status: 'sending',
       subject: sending.subject,
       tenantId: tenant.id,
@@ -101,35 +90,27 @@ export const seedEmailOutboxScenario = async ({
       toEmail: sending.recipient,
     },
     {
-      attempts: 8,
-      exhaustedAt: priorAttempt,
-      fromEmail: 'no-reply@notifications.evorto.app',
-      fromName: 'Evorto',
-      html: '<p>Exhausted operational test email</p>',
-      id: exhausted.id,
-      idempotencyKey: `outbox-docs/${tenant.id}/${exhausted.id}`,
+      attempts: 1,
+      html: '<p>Failed operational test email</p>',
+      id: failed.id,
+      idempotencyKey: `outbox-docs/${tenant.id}/${failed.id}`,
       kind: 'receiptReviewed',
       lastAttemptAt: priorAttempt,
       lastError: 'Recipient address was rejected',
-      maxAttempts: 8,
-      nextAttemptAt: futureAttempt,
+      provider: 'tem',
       status: 'failed',
-      subject: exhausted.subject,
+      subject: failed.subject,
       tenantId: tenant.id,
-      text: 'Exhausted operational test email',
-      toEmail: exhausted.recipient,
+      text: 'Failed operational test email',
+      toEmail: failed.recipient,
     },
     {
       attempts: 1,
-      fromEmail: 'no-reply@notifications.evorto.app',
-      fromName: 'Evorto',
       html: '<p>Sent operational test email</p>',
       id: sent.id,
       idempotencyKey: `outbox-docs/${tenant.id}/${sent.id}`,
       kind: 'manualApproval',
       lastAttemptAt: priorAttempt,
-      maxAttempts: 8,
-      nextAttemptAt: futureAttempt,
       provider: 'fake',
       providerMessageId: `fake-${sent.id}`,
       sentAt: priorAttempt,
@@ -150,9 +131,9 @@ export const seedEmailOutboxScenario = async ({
         ),
       );
     },
-    exhausted,
+    failed,
+    unknown,
     queued,
-    retry,
     sending,
     sent,
   };

@@ -15,6 +15,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import { NotificationService } from '../../core/notification.service';
 import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
   createRoleFormModel,
@@ -39,6 +41,7 @@ export class RoleCreateComponent {
     signal(createRoleFormModel()),
     roleFormSchema,
   );
+  private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 
@@ -50,6 +53,11 @@ export class RoleCreateComponent {
     this.createRoleMutation.mutate(
       { ...role },
       {
+        onError: (error) => {
+          this.notifications.showError(
+            getErrorMessage(error, 'Failed to create role'),
+          );
+        },
         onSuccess: async (data) => {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['admin', 'roles.findMany']),

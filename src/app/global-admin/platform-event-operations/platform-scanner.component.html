@@ -18,23 +18,39 @@
       <mat-label>Ticket link or registration ID</mat-label>
       <input
         matInput
-        [disabled]="!lookupInteractive()"
+        [disabled]="!lookupInteractive() || lookupPending()"
         [value]="lookupValue()"
+        [attr.aria-describedby]="
+          lookupError() ? 'platform-scanner-lookup-error' : null
+        "
+        [attr.aria-invalid]="lookupError() ? true : null"
         (input)="setLookupValue($event)"
       />
-      @if (lookupError()) {
-        <mat-error>{{ lookupError() }}</mat-error>
-      }
     </mat-form-field>
     <button
       class="sm:mt-2"
       mat-flat-button
       type="submit"
-      [disabled]="!lookupInteractive()"
+      [disabled]="!lookupInteractive() || lookupPending()"
     >
-      Open registration
+      {{
+        lookupPending()
+          ? "Opening registration…"
+          : lookupNavigationFailed()
+            ? "Try opening registration again"
+            : "Open registration"
+      }}
     </button>
   </form>
+  @if (lookupError()) {
+    <p
+      id="platform-scanner-lookup-error"
+      class="body-medium text-error"
+      role="alert"
+    >
+      {{ lookupError() }}
+    </p>
+  }
 </section>
 
 @if (registrationId()) {
@@ -158,9 +174,16 @@
             </span>
             <span>{{ registrationStatusIssue.body }}</span>
           </p>
-        } @else if (registration.checkInTimingIssue) {
-          <p class="bg-tertiary-container text-on-tertiary-container mt-4 p-3">
-            Check-in opens one hour before the event starts.
+        } @else if (
+          platformCheckInTimingIssueCopy(registration.checkInTimingIssue);
+          as timingIssue
+        ) {
+          <p
+            class="bg-tertiary-container text-on-tertiary-container mt-4 p-3"
+            role="alert"
+          >
+            <span class="title-small block">{{ timingIssue.title }}</span>
+            <span>{{ timingIssue.body }}</span>
           </p>
         } @else if (!registration.allowCheckIn) {
           <p class="bg-surface-container mt-4 p-3">
@@ -355,72 +378,3 @@
     </section>
   }
 }
-
-<section class="border-outline-variant border-t pt-6">
-  <div class="mb-3 flex flex-wrap items-center gap-2">
-    <h2 class="title-medium">
-      {{ eventId() ? "Event registrations" : "Recent registrations" }}
-    </h2>
-    <span class="body-small text-on-surface-variant">First 100 results</span>
-    <span class="grow"></span>
-    <a
-      mat-button
-      [routerLink]="['/global-admin/tenants', tenantId(), 'events']"
-    >
-      Events
-    </a>
-  </div>
-  @if (registrationsQuery.isPending()) {
-    <p role="status">Loading registrations...</p>
-  } @else if (registrationsQuery.isError()) {
-    <div
-      class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
-      role="alert"
-    >
-      <p>Registrations for this organization could not be loaded.</p>
-      <button
-        mat-stroked-button
-        type="button"
-        [disabled]="registrationsQuery.isFetching()"
-        (click)="registrationsQuery.refetch()"
-      >
-        {{ registrationsQuery.isFetching() ? "Retrying..." : "Try again" }}
-      </button>
-    </div>
-  } @else if (registrationsQuery.isSuccess()) {
-    <div class="divide-outline-variant divide-y">
-      @for (registration of registrationsQuery.data(); track registration.id) {
-        <article
-          class="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-        >
-          <div>
-            <p class="body-medium">
-              {{ registration.attendee.firstName }}
-              {{ registration.attendee.lastName }}
-            </p>
-            <p class="body-small text-on-surface-variant">
-              {{ registration.event.title }} ·
-              {{ registration.registrationOptionTitle }} ·
-              {{ platformRegistrationStatusLabel(registration.status) }}
-            </p>
-          </div>
-          <a
-            mat-button
-            [routerLink]="[
-              '/global-admin/tenants',
-              tenantId(),
-              'scanner',
-              registration.id,
-            ]"
-          >
-            Open registration
-          </a>
-        </article>
-      } @empty {
-        <p class="body-medium text-on-surface-variant py-4">
-          No registrations found.
-        </p>
-      }
-    </div>
-  }
-</section>

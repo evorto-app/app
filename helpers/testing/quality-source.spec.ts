@@ -64,19 +64,6 @@ describe('quality source', () => {
     expect(queue).not.toContain('fallback Playwright browser MCP');
   });
 
-  it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
-    const source = readSource('tests/test-inventory.md');
-
-    expect(source).toContain('## Stabilization Coverage Watchlist');
-    expect(source).not.toContain('## Stabilization Coverage Still Needed');
-    expect(source).toContain(
-      'Most are now covered by deterministic specs, generated docs, or source guards',
-    );
-    expect(source).toContain('in-app Browser manual review queue');
-    expect(source).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
-    expect(source).toContain('E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER');
-  });
-
   it('keeps quality guidance honest about blocked Browser review', () => {
     const source = readSource('QUALITY.md');
 

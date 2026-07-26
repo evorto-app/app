@@ -1,3 +1,12 @@
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { registrationSpotCount } from '@shared/registration-spots';
 import {
   resolveTenantDiscountProviders,
@@ -31,7 +40,6 @@ import {
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
 import { getServerNow } from '../../../../clock';
-import { formatConfigError } from '../../../../config/config-error';
 import { serverConfig } from '../../../../config/server-config';
 import {
   buildCheckoutSessionExpiresAt,
@@ -49,11 +57,13 @@ import {
   settleAcquisitionComponentTerms,
 } from '../../../../registrations/registration-acquisition-write';
 import { registrationCheckoutInitialReconcileAt } from '../../../../registrations/registration-checkout-completion';
+import { registrationCheckoutHasTooManyLines } from '../../../../registrations/registration-checkout-lines';
 import { StripeClient } from '../../../../stripe-client';
 import {
   tenantOutboundRootUrl,
   tenantOutboundUrl,
 } from '../../../../tenant-outbound-url';
+import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import {
   ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
   isUniqueConstraintViolation,
@@ -71,15 +81,42 @@ const databaseEffect = <A>(
   // callers get deterministic domain errors instead of partial success.
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
+const mapEventRegistrationInternalError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, EventRegistrationInternalError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logError(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => new EventRegistrationInternalError({ message })),
+    );
+
+const failEventRegistrationInternalError = (
+  operation: string,
+  message: string,
+  error: unknown,
+) =>
+  Effect.logError(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(
+      Effect.fail(new EventRegistrationInternalError({ message })),
+    ),
+  );
+
 const registrationServiceNow = (pinnedNowIso?: string) =>
   Effect.try({
-    catch: (cause) =>
-      new EventRegistrationInternalError({
-        cause,
-        message: 'Invalid E2E_NOW_ISO server clock value',
-      }),
+    catch: (cause) => cause,
     try: () => getServerNow(pinnedNowIso).toJSDate(),
-  });
+  }).pipe(
+    mapEventRegistrationInternalError(
+      'eventRegistration.clock',
+      'Invalid E2E_NOW_ISO server clock value',
+    ),
+  );
 
 export const isDefinitiveCheckoutSessionCreateFailure = (
   error: unknown,
@@ -101,11 +138,7 @@ const expireCheckoutSession = (sessionId: string, stripeAccount: string) =>
   Effect.gen(function* () {
     const stripe = yield* StripeClient;
     const expiredSession = yield* Effect.tryPromise({
-      catch: (cause) =>
-        new EventRegistrationInternalError({
-          cause,
-          message: 'Failed to expire unbound stripe checkout session',
-        }),
+      catch: (cause) => cause,
       try: () =>
         Promise.race([
           stripe.checkout.sessions.expire(sessionId, undefined, {
@@ -118,7 +151,12 @@ const expireCheckoutSession = (sessionId: string, stripeAccount: string) =>
             );
           }),
         ]),
-    });
+    }).pipe(
+      mapEventRegistrationInternalError(
+        'eventRegistration.checkout.expireUnbound',
+        'Failed to expire unbound stripe checkout session',
+      ),
+    );
     if (expiredSession.status !== 'expired') {
       return yield* Effect.fail(
         new EventRegistrationInternalError({
@@ -236,6 +274,7 @@ export interface ApproveManualRegistrationArguments {
     | 'id'
     | 'name'
     | 'stripeAccountId'
+    | 'timezone'
   >;
 }
 
@@ -296,8 +335,9 @@ export const decodeRegistrationCheckoutSnapshot = Effect.fn(
   'EventRegistrationService.decodeRegistrationCheckoutSnapshot',
 )((snapshot: unknown, message: string) =>
   Schema.decodeUnknownEffect(RegistrationCheckoutSnapshotSchema)(snapshot).pipe(
-    Effect.mapError(
-      (cause) => new EventRegistrationInternalError({ cause, message }),
+    mapEventRegistrationInternalError(
+      'eventRegistration.checkoutSnapshot.decode',
+      message,
     ),
   ),
 );
@@ -608,7 +648,7 @@ const resumeDirectRegistrationCheckout = Effect.fn(
     ),
   );
 
-  const createSessionEffect = createHostedCheckoutSession(
+  const session = yield* createHostedCheckoutSession(
     buildRegistrationCheckoutParameters({
       appFee: paymentClaim.appFee,
       currency: paymentClaim.currency,
@@ -625,23 +665,16 @@ const resumeDirectRegistrationCheckout = Effect.fn(
       stripeAccount,
     },
   ).pipe(
-    Effect.mapError(
-      (cause) =>
-        new EventRegistrationInternalError({
-          cause,
-          message:
-            'Payment setup is still pending. Retry registration or cancel it.',
-        }),
-    ),
-  );
-  const session = yield* createSessionEffect.pipe(
-    Effect.catch((error) =>
-      isDefinitiveCheckoutSessionCreateFailure(error.cause)
-        ? releaseDirectCheckoutClaim(null).pipe(
-            Effect.andThen(Effect.fail(error)),
-          )
-        : Effect.fail(error),
-    ),
+    Effect.catch((error) => {
+      const publicFailure = failEventRegistrationInternalError(
+        'eventRegistration.checkout.create',
+        'Payment setup is still pending. Retry registration or cancel it.',
+        error,
+      );
+      return isDefinitiveCheckoutSessionCreateFailure(error)
+        ? releaseDirectCheckoutClaim(null).pipe(Effect.andThen(publicFailure))
+        : publicFailure;
+    }),
   );
   if (!session.url) {
     const missingUrlError = new EventRegistrationInternalError({
@@ -819,11 +852,10 @@ const resumeDirectRegistrationCheckout = Effect.fn(
         Effect.catch((error) =>
           error instanceof EventRegistrationInternalError
             ? Effect.fail(error)
-            : Effect.fail(
-                new EventRegistrationInternalError({
-                  cause: error,
-                  message: 'Failed to persist registration checkout',
-                }),
+            : failEventRegistrationInternalError(
+                'eventRegistration.checkout.persist',
+                'Failed to persist registration checkout',
+                error,
               ),
         ),
       ),
@@ -874,13 +906,9 @@ const resumeDirectRegistrationCheckout = Effect.fn(
 
   if (bindingResult._tag === 'RegistrationUnavailable') {
     yield* expireCheckoutSession(session.id, stripeAccount).pipe(
-      Effect.mapError(
-        (cause) =>
-          new EventRegistrationInternalError({
-            cause,
-            message:
-              'Registration was cancelled, but its checkout session could not be expired',
-          }),
+      mapEventRegistrationInternalError(
+        'eventRegistration.checkout.expireCancelled',
+        'Registration was cancelled, but its checkout session could not be expired',
       ),
     );
     return yield* Effect.fail(
@@ -916,8 +944,7 @@ interface RegisterForEventArguments {
     >
   > &
     Pick<Tenant, 'currency' | 'domain' | 'id' | 'stripeAccountId'>;
-  user: Partial<Pick<User, 'communicationEmail'>> &
-    Pick<User, 'email' | 'id' | 'roleIds'>;
+  user: Pick<User, 'communicationEmail' | 'email' | 'id' | 'roleIds'>;
 }
 
 interface RegistrationAddonInput {
@@ -1122,8 +1149,24 @@ export const validateRegistrationQuestionAnswers = ({
   answers: readonly RegistrationQuestionAnswerInput[] | undefined;
   questions: readonly RegistrationQuestionRecord[];
 }): readonly { answer: string; questionId: string }[] => {
+  if ((answers?.length ?? 0) > MAX_REGISTRATION_QUESTIONS) {
+    throw new EventRegistrationConflictError({
+      message: `A registration supports at most ${MAX_REGISTRATION_QUESTIONS} question answers`,
+    });
+  }
+
   const normalizedAnswers = new Map<string, string>();
   for (const answer of answers ?? []) {
+    if (normalizedAnswers.has(answer.questionId)) {
+      throw new EventRegistrationConflictError({
+        message: 'Each registration question can be answered at most once',
+      });
+    }
+    if (answer.answer.length > MAX_REGISTRATION_ANSWER_LENGTH) {
+      throw new EventRegistrationConflictError({
+        message: `Registration answers must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer`,
+      });
+    }
     normalizedAnswers.set(answer.questionId, answer.answer.trim());
   }
 
@@ -1162,15 +1205,25 @@ export const validateRegistrationAddons = ({
   fulfilledQuantity: number;
   selectedQuantity: number;
 })[] => {
+  if ((addOns?.length ?? 0) > MAX_EVENT_ADDON_TYPES) {
+    throw new EventRegistrationConflictError({
+      message: `A registration supports at most ${MAX_EVENT_ADDON_TYPES} add-on types`,
+    });
+  }
+
   const availableAddOnById = new Map(
     availableAddOns.map((addOn) => [addOn.addOnId, addOn]),
   );
   const selectedAddOns = new Map<string, number>();
 
   for (const addOn of addOns ?? []) {
-    if (!Number.isInteger(addOn.quantity) || addOn.quantity < 0) {
+    if (
+      !Number.isInteger(addOn.quantity) ||
+      addOn.quantity < 0 ||
+      addOn.quantity > MAX_REGISTRATION_ADDON_QUANTITY
+    ) {
       throw new EventRegistrationConflictError({
-        message: 'Add-on quantity must be a non-negative integer',
+        message: `Add-on quantity must be an integer between 0 and ${MAX_REGISTRATION_ADDON_QUANTITY}`,
       });
     }
     if (addOn.quantity === 0) {
@@ -1224,6 +1277,11 @@ export const validateRegistrationAddons = ({
       }
       const fulfilledQuantity =
         availableAddOn.includedQuantity + selectedQuantity;
+      if (fulfilledQuantity > MAX_REGISTRATION_ADDON_QUANTITY) {
+        throw new EventRegistrationConflictError({
+          message: `A registration supports at most ${MAX_REGISTRATION_ADDON_QUANTITY} units of one add-on`,
+        });
+      }
       if (fulfilledQuantity > availableAddOn.totalAvailableQuantity) {
         throw new EventRegistrationConflictError({
           message: 'Add-on quantity is no longer available',
@@ -1262,11 +1320,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const serverEnvironment = yield* serverConfig
           .parse(configProvider)
           .pipe(
-            Effect.mapError(
-              (error) =>
-                new EventRegistrationInternalError({
-                  message: `Invalid server configuration:\n${formatConfigError(error)}`,
-                }),
+            mapEventRegistrationInternalError(
+              'eventRegistration.approval.serverConfig',
+              'Invalid server configuration',
             ),
           );
         const pinnedNowIso = Option.getOrUndefined(
@@ -1274,12 +1330,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         );
         const now = yield* registrationServiceNow(pinnedNowIso);
         yield* tenantOutboundRootUrl(tenant).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventRegistrationInternalError({
-                cause,
-                message: 'Invalid tenant domain configuration',
-              }),
+          mapEventRegistrationInternalError(
+            'eventRegistration.tenantUrl.validate',
+            'Invalid tenant domain configuration',
           ),
         );
 
@@ -1403,6 +1456,21 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const orderedAddonPurchases = orderRegistrationAddonPurchases(
           registration.addonPurchases,
         );
+        if (
+          registration.guestCount > MAX_REGISTRATION_GUESTS ||
+          orderedAddonPurchases.some(
+            (purchase) =>
+              purchase.quantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+              purchase.purchasedQuantity > MAX_REGISTRATION_ADDON_QUANTITY,
+          )
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'Registration quantities exceed the supported checkout limits',
+            }),
+          );
+        }
         const registeredSpotCount = registrationSpotCount(
           registration.guestCount,
         );
@@ -1530,18 +1598,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           tenant,
           `/events/${encodeURIComponent(eventId)}`,
         ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventRegistrationInternalError({
-                cause,
-                message:
-                  'Tenant event URL is invalid for registration approval',
-              }),
+          mapEventRegistrationInternalError(
+            'eventRegistration.approval.eventUrl',
+            'Tenant event URL is invalid for registration approval',
           ),
         );
-        const notificationEmail =
-          registration.user.communicationEmail?.trim() ||
-          registration.user.email;
+        const notificationEmail = registration.user.communicationEmail;
         const checkoutExpiresAt = buildCheckoutSessionExpiresAt(24 * 60, {
           pinnedNowIso,
         });
@@ -1587,6 +1649,21 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
             unitAmount: addOnPurchase.unitPrice,
           });
+        }
+        if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'Registration checkout exceeds the supported line-item limit',
+            }),
+          );
+        }
+        if (orderedAddonPurchases.length > MAX_EVENT_ADDON_TYPES) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: `A registration supports at most ${MAX_EVENT_ADDON_TYPES} add-on types`,
+            }),
+          );
         }
         const checkoutRequest = {
           customerEmail: registration.user.email,
@@ -1975,13 +2052,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     spotCount: registeredSpotCount,
                     tenantId: tenant.id,
                   }).pipe(
-                    Effect.mapError(
-                      (cause) =>
-                        new EventRegistrationInternalError({
-                          cause,
-                          message:
-                            'Approved registration acquisition could not be persisted',
-                        }),
+                    mapEventRegistrationInternalError(
+                      'eventRegistration.approval.persistAcquisition',
+                      'Approved registration acquisition could not be persisted',
                     ),
                   );
                   yield* enqueueManualApprovalEmail(tx, {
@@ -2025,11 +2098,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 error instanceof EventRegistrationInternalError ||
                 error instanceof EventRegistrationNotFoundError
                   ? Effect.fail(error)
-                  : Effect.fail(
-                      new EventRegistrationInternalError({
-                        cause: error,
-                        message: 'Failed to claim registration approval',
-                      }),
+                  : failEventRegistrationInternalError(
+                      'eventRegistration.approval.claim',
+                      'Failed to claim registration approval',
+                      error,
                     ),
               ),
             ),
@@ -2244,7 +2316,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           ),
         );
 
-        const createSessionEffect = createHostedCheckoutSession(
+        const session = yield* createHostedCheckoutSession(
           buildRegistrationCheckoutParameters({
             appFee: paymentClaim.appFee,
             currency: paymentClaim.currency,
@@ -2261,21 +2333,16 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             stripeAccount,
           },
         ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventRegistrationInternalError({
-                cause,
-                message:
-                  'Payment setup is still pending. Retry approval or cancel the registration.',
-              }),
-          ),
-        );
-        const session = yield* createSessionEffect.pipe(
-          Effect.catch((error) =>
-            isDefinitiveCheckoutSessionCreateFailure(error.cause)
-              ? releaseApprovalClaim().pipe(Effect.andThen(Effect.fail(error)))
-              : Effect.fail(error),
-          ),
+          Effect.catch((error) => {
+            const publicFailure = failEventRegistrationInternalError(
+              'eventRegistration.approval.checkout.create',
+              'Payment setup is still pending. Retry approval or cancel the registration.',
+              error,
+            );
+            return isDefinitiveCheckoutSessionCreateFailure(error)
+              ? releaseApprovalClaim().pipe(Effect.andThen(publicFailure))
+              : publicFailure;
+          }),
         );
         if (!session.url) {
           const missingUrlError = new EventRegistrationInternalError({
@@ -2486,11 +2553,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               Effect.catch((error) =>
                 error instanceof EventRegistrationInternalError
                   ? Effect.fail(error)
-                  : Effect.fail(
-                      new EventRegistrationInternalError({
-                        cause: error,
-                        message: 'Failed to persist registration checkout',
-                      }),
+                  : failEventRegistrationInternalError(
+                      'eventRegistration.approval.checkout.persist',
+                      'Failed to persist registration checkout',
+                      error,
                     ),
               ),
             ),
@@ -2541,13 +2607,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
         if (bindingResult._tag === 'RegistrationUnavailable') {
           yield* expireCheckoutSession(session.id, stripeAccount).pipe(
-            Effect.mapError(
-              (cause) =>
-                new EventRegistrationInternalError({
-                  cause,
-                  message:
-                    'Registration was cancelled, but its checkout session could not be expired',
-                }),
+            mapEventRegistrationInternalError(
+              'eventRegistration.approval.checkout.expireCancelled',
+              'Registration was cancelled, but its checkout session could not be expired',
             ),
           );
           return yield* Effect.fail(
@@ -2575,11 +2637,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const serverEnvironment = yield* serverConfig
           .parse(configProvider)
           .pipe(
-            Effect.mapError(
-              (error) =>
-                new EventRegistrationInternalError({
-                  message: `Invalid server configuration:\n${formatConfigError(error)}`,
-                }),
+            mapEventRegistrationInternalError(
+              'eventRegistration.create.serverConfig',
+              'Invalid server configuration',
             ),
           );
         const pinnedNowIso = Option.getOrUndefined(
@@ -2589,19 +2649,20 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           tenant,
           `/events/${encodeURIComponent(eventId)}`,
         ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventRegistrationInternalError({
-                cause,
-                message: 'Invalid tenant domain configuration',
-              }),
+          mapEventRegistrationInternalError(
+            'eventRegistration.create.eventUrl',
+            'Invalid tenant domain configuration',
           ),
         );
         const now = yield* registrationServiceNow(pinnedNowIso);
-        if (!Number.isInteger(guestCount) || guestCount < 0) {
+        if (
+          !Number.isInteger(guestCount) ||
+          guestCount < 0 ||
+          guestCount > MAX_REGISTRATION_GUESTS
+        ) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Guest count must be a non-negative integer',
+              message: `Guest count must be an integer between 0 and ${MAX_REGISTRATION_GUESTS}`,
             }),
           );
         }
@@ -2751,13 +2812,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         }
         const manualApproval =
           registrationOption.registrationMode === 'application';
-        if (registrationOption.registrationMode !== 'fcfs' && !manualApproval) {
-          return yield* Effect.fail(
-            new EventRegistrationConflictError({
-              message: 'Registration option mode is not supported',
-            }),
-          );
-        }
         if (registrationOption.organizingRegistration && guestCount > 0) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
@@ -3048,6 +3102,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               unitAmount: addOn.price,
             });
           }
+          if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message:
+                  'Registration checkout exceeds the supported line-item limit',
+              }),
+            );
+          }
           directCheckout = {
             appFee: Math.round(effectiveTotalPrice * 0.035),
             request: {
@@ -3056,7 +3118,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               eventUrl,
               expiresAt: buildCheckoutSessionExpiresAt(30, { pinnedNowIso }),
               lineItems: checkoutLineItems,
-              notificationEmail: user.email,
+              notificationEmail: user.communicationEmail,
             },
             transactionId: createId(),
           };
@@ -3236,8 +3298,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   yield* tx.insert(eventRegistrationQuestionAnswers).values(
                     answerInserts.map((answer) => ({
                       answer: answer.answer,
+                      eventId,
                       questionId: answer.questionId,
                       registrationId: userRegistration.id,
+                      registrationOptionId: registrationOption.id,
+                      tenantId: tenant.id,
                     })),
                   );
                 }
@@ -3400,13 +3465,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     spotCount: requestedSpotCount,
                     tenantId: tenant.id,
                   }).pipe(
-                    Effect.mapError(
-                      (cause) =>
-                        new EventRegistrationInternalError({
-                          cause,
-                          message:
-                            'Direct registration acquisition could not be persisted',
-                        }),
+                    mapEventRegistrationInternalError(
+                      'eventRegistration.create.persistAcquisition',
+                      'Direct registration acquisition could not be persisted',
                     ),
                   );
                 }
@@ -3436,21 +3497,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                       }),
                     );
                   }
-                  const communicationEmail =
-                    user.communicationEmail === undefined
-                      ? (yield* tx.query.users.findFirst({
-                          columns: {
-                            communicationEmail: true,
-                          },
-                          where: { id: user.id },
-                        }))?.communicationEmail
-                      : user.communicationEmail;
                   yield* enqueueRegistrationConfirmedEmail(tx, {
                     eventTitle: registrationOption.event.title,
                     registrationId: userRegistration.id,
                     tenant: emailTenant,
                     ticketUrl: directConfirmationTicketUrl,
-                    to: communicationEmail?.trim() || user.email,
+                    to: user.communicationEmail,
                   });
                 }
 
@@ -3557,11 +3609,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           const serverEnvironment = yield* serverConfig
             .parse(configProvider)
             .pipe(
-              Effect.mapError(
-                (error) =>
-                  new EventRegistrationInternalError({
-                    message: `Invalid server configuration:\n${formatConfigError(error)}`,
-                  }),
+              mapEventRegistrationInternalError(
+                'eventRegistration.waitlist.serverConfig',
+                'Invalid server configuration',
               ),
             );
           const pinnedNowIso = Option.getOrUndefined(
@@ -3813,8 +3863,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     yield* tx.insert(eventRegistrationQuestionAnswers).values(
                       answerInserts.map((answer) => ({
                         answer: answer.answer,
+                        eventId,
                         questionId: answer.questionId,
                         registrationId: createdRegistrations[0].id,
+                        registrationOptionId: registrationOption.id,
+                        tenantId: tenant.id,
                       })),
                     );
                   }

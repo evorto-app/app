@@ -81,13 +81,6 @@ const invalidSourceTemplateRegistrationOptionError = () =>
     reason: 'templateRegistrationOptionMismatch',
   });
 
-const unsupportedSourceTemplateRegistrationModeError = () =>
-  new RpcBadRequestError({
-    message:
-      'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
-    reason: 'unsupportedTemplateRegistrationMode',
-  });
-
 const invalidTemplateError = () =>
   new RpcBadRequestError({
     message: 'Template does not exist for this tenant',
@@ -288,7 +281,11 @@ const validateCopiedTemplateDiscount = ({
     return null;
   }
 
-  if (esnCardEnabledForTenant && discount.discountedPrice > option.price) {
+  if (!esnCardEnabledForTenant) {
+    return unavailableEsnCardDiscountError();
+  }
+
+  if (discount.discountedPrice > option.price) {
     return invalidEsnCardDiscountPriceError();
   }
 
@@ -397,8 +394,8 @@ export const createEventGraph = (input: EventCreateInput) =>
     const templateDefaults = yield* databaseEffect((database) =>
       database
         .select({
+          listingAudience: eventTemplates.listingAudience,
           simpleModeEnabled: eventTemplates.simpleModeEnabled,
-          unlisted: eventTemplates.unlisted,
         })
         .from(eventTemplates)
         .where(
@@ -434,20 +431,10 @@ export const createEventGraph = (input: EventCreateInput) =>
       database.query.templateRegistrationOptions.findMany({
         columns: {
           id: true,
-          registrationMode: true,
         },
         where: { templateId: input.templateId },
       }),
     );
-    if (
-      tenantTemplateOptions.some(
-        (option) => option.registrationMode === 'random',
-      )
-    ) {
-      return yield* Effect.fail(
-        unsupportedSourceTemplateRegistrationModeError(),
-      );
-    }
     const templateOptionIds = tenantTemplateOptions.map((option) => option.id);
     if (
       !templateOptionSnapshotIsComplete(
@@ -584,13 +571,13 @@ export const createEventGraph = (input: EventCreateInput) =>
           description: sanitizedDescription,
           end,
           icon: input.icon,
+          listingAudience: templateDefaults.listingAudience,
           location: input.location ?? null,
           simpleModeEnabled: templateDefaults.simpleModeEnabled,
           start,
           templateId: input.templateId,
           tenantId: tenant.id,
           title: input.title,
-          unlisted: templateDefaults?.unlisted ?? false,
         })
         .returning({
           id: eventInstances.id,
@@ -662,12 +649,10 @@ export const createEventGraph = (input: EventCreateInput) =>
           ) {
             continue;
           }
-          if (discount.discountType === 'esnCard' && !esnCardEnabledForTenant) {
-            continue;
-          }
           discountInserts.push({
             discountedPrice: discount.discountedPrice,
             discountType: discount.discountType,
+            eventId: event.id,
             registrationOptionId: createdOptionSource.createdOptionId,
           });
         }
@@ -1178,6 +1163,7 @@ export const eventLifecycleHandlers = {
               yield* tx.insert(eventRegistrationOptionDiscounts).values({
                 discountedPrice,
                 discountType: 'esnCard',
+                eventId: input.eventId,
                 registrationOptionId: option.id,
               });
             }
@@ -1356,21 +1342,27 @@ export const eventLifecycleHandlers = {
           .pipe(Effect.catchTag('SqlError', Effect.die)),
       );
     }),
-  'events.updateListing': ({ eventId, unlisted }, _options) =>
+  'events.updateListing': ({ eventId, listingAudience }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('events:changeListing');
       const { tenant } = yield* RpcAccess.current();
 
-      yield* databaseEffect((database) =>
+      const updatedEvents = yield* databaseEffect((database) =>
         database
           .update(eventInstances)
-          .set({ unlisted })
+          .set({ listingAudience })
           .where(
             and(
               eq(eventInstances.tenantId, tenant.id),
               eq(eventInstances.id, eventId),
             ),
-          ),
+          )
+          .returning({ id: eventInstances.id }),
       );
+      if (!updatedEvents[0]) {
+        return yield* Effect.fail(
+          new EventNotFoundError({ id: eventId, message: 'Event not found' }),
+        );
+      }
     }),
 } satisfies Partial<AppRpcHandlers>;

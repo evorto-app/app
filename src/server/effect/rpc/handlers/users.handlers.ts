@@ -1,15 +1,15 @@
-import type { Headers } from 'effect/unstable/http';
-
 import {
-  RpcForbiddenError,
+  RpcBadRequestError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
+import { isCanonicalIban } from '@shared/iban';
+import { isCanonicalEmailAddress } from '@shared/notification-email';
 import {
   UserRoleAssignmentNotFoundError,
   UserSelfRoleRemovalError,
 } from '@shared/rpc-contracts/app-rpcs/users.errors';
 import { and, count, eq, gte, ilike, inArray, lte } from 'drizzle-orm';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 import { DateTime } from 'luxon';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -24,81 +24,15 @@ import {
   users,
   usersToTenants,
 } from '../../../../db/schema';
-import {
-  includesPermission,
-  type Permission,
-} from '../../../../shared/permissions/permissions';
-import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import {
-  UsersAuthData,
-  type UsersEventSummaryRecord,
-} from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
-import { Tenant } from '../../../../types/custom/tenant';
-import { User } from '../../../../types/custom/user';
+import { includesPermission } from '../../../../shared/permissions/permissions';
+import { type UsersEventSummaryRecord } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { lockTenantRoleGraph } from '../../../roles/tenant-role-graph';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
-
-const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
-  value: string | undefined,
-  schema: S,
-): S['Type'] =>
-  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, RpcUnauthorizedError> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-
-const ensurePermission = (
-  headers: Headers.Headers,
-  permission: Permission,
-): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
-  Effect.gen(function* () {
-    yield* ensureAuthenticated(headers);
-    const currentPermissions = decodeHeaderJson(
-      headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
-      ConfigPermissions,
-    );
-
-    if (!includesPermission(permission, currentPermissions)) {
-      return yield* Effect.fail(
-        new RpcForbiddenError({ message: 'Forbidden', permission }),
-      );
-    }
-  });
-
-const decodeUserHeader = (headers: Headers.Headers) =>
-  Effect.sync(() =>
-    decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.USER], Schema.NullOr(User)),
-  );
-
-const decodeAuthDataHeader = (headers: Headers.Headers) =>
-  decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.AUTH_DATA], UsersAuthData);
-
-const requireUserHeader = (
-  headers: Headers.Headers,
-): Effect.Effect<User, RpcUnauthorizedError> =>
-  Effect.gen(function* () {
-    const user = yield* decodeUserHeader(headers);
-    if (!user) {
-      return yield* Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-    }
-    return user;
-  });
 
 export const normalizeUsersFindManySearch = (
   search: string | undefined,
@@ -292,14 +226,11 @@ export const tenantDayBounds = (timezone: string, now = DateTime.now()) => {
 };
 
 export const userHandlers = {
-  'users.assignRoles': ({ roleIds, userId }, options) =>
+  'users.assignRoles': ({ roleIds, userId }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'users:assignRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const currentUser = yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensurePermission('users:assignRoles');
+      const { tenant } = yield* RpcAccess.current();
+      const currentUser = yield* RpcAccess.requireUser();
       const nextRoleIds = uniqueRoleIds(roleIds);
 
       yield* Database.use((database) =>
@@ -383,15 +314,16 @@ export const userHandlers = {
           ),
       );
     }),
-  'users.authData': (_payload, options) =>
-    Effect.sync(() => decodeAuthDataHeader(options.headers)),
-  'users.canUseScanner': (_payload, options) =>
+  'users.authData': (_payload, _options) =>
+    RpcAccess.current().pipe(Effect.map((context) => context.authData)),
+  'users.canUseScanner': (_payload, _options) =>
     Effect.gen(function* () {
-      if (options.headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] !== 'true') {
+      const context = yield* RpcAccess.current();
+      if (!context.authenticated) {
         return false;
       }
 
-      const user = yield* decodeUserHeader(options.headers);
+      const { tenant, user } = context;
       if (!user) {
         return false;
       }
@@ -399,10 +331,6 @@ export const userHandlers = {
         return true;
       }
 
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
       const { end, start } = tenantDayBounds(tenant.timezone);
       const organizingRegistrations = yield* databaseEffect((database) =>
         database
@@ -436,14 +364,11 @@ export const userHandlers = {
 
       return organizingRegistrations.length > 0;
     }),
-  'users.events': (_payload, options) =>
+  'users.events': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const user = yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
 
       const refundRegistrationRows = yield* databaseEffect((database) =>
         database.query.transactions.findMany({
@@ -615,13 +540,10 @@ export const userHandlers = {
           title: registration.event.title,
         }));
     }),
-  'users.findMany': (input, options) =>
+  'users.findMany': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'users:viewAll');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('users:viewAll');
+      const { tenant } = yield* RpcAccess.current();
       const search = normalizeUsersFindManySearch(input.search);
       const usersFilter = search
         ? and(
@@ -717,20 +639,18 @@ export const userHandlers = {
 
       return { users: Object.values(userMap), usersCount };
     }),
-  'users.maybeSelf': (_payload, options) => decodeUserHeader(options.headers),
-  'users.self': (_payload, options) =>
+  'users.maybeSelf': (_payload, _options) =>
+    RpcAccess.current().pipe(Effect.map((context) => context.user)),
+  'users.self': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      return yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensureAuthenticated();
+      return yield* RpcAccess.requireUser();
     }),
-  'users.setHomeTenant': (_payload, options) =>
+  'users.setHomeTenant': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const user = yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
 
       yield* Database.use((database) =>
         database
@@ -771,10 +691,37 @@ export const userHandlers = {
 
       return { homeTenantId: tenant.id, homeTenantName: tenant.name };
     }),
-  'users.updateProfile': (input, options) =>
+  'users.updateProfile': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const user = yield* requireUserHeader(options.headers);
+      yield* RpcAccess.ensureAuthenticated();
+      const user = yield* RpcAccess.requireUser();
+
+      if (!isCanonicalEmailAddress(input.communicationEmail)) {
+        return yield* new RpcBadRequestError({
+          message: 'Notification email must be a valid canonical email address',
+          reason: 'invalidCommunicationEmail',
+        });
+      }
+      if (
+        input.iban !== null &&
+        input.iban !== undefined &&
+        !isCanonicalIban(input.iban)
+      ) {
+        return yield* new RpcBadRequestError({
+          message: 'IBAN must have a valid country, length, and checksum',
+          reason: 'invalidIban',
+        });
+      }
+      if (
+        input.paypalEmail !== null &&
+        input.paypalEmail !== undefined &&
+        !isCanonicalEmailAddress(input.paypalEmail)
+      ) {
+        return yield* new RpcBadRequestError({
+          message: 'PayPal email must be a valid canonical email address',
+          reason: 'invalidPaypalEmail',
+        });
+      }
 
       yield* databaseEffect((database) =>
         database
@@ -789,8 +736,6 @@ export const userHandlers = {
           .where(eq(users.id, user.id)),
       );
     }),
-  'users.userAssigned': (_payload, options) =>
-    Effect.succeed(
-      options.headers[RPC_CONTEXT_HEADERS.USER_ASSIGNED] === 'true',
-    ),
+  'users.userAssigned': (_payload, _options) =>
+    RpcAccess.current().pipe(Effect.map((context) => context.userAssigned)),
 } satisfies Partial<AppRpcHandlers>;

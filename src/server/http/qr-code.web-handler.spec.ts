@@ -20,7 +20,6 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
@@ -38,9 +37,8 @@ const createUser = ({
   id?: string;
   permissions?: readonly Permission[];
 } = {}) => ({
-  attributes: [],
   auth0Id: `auth0|${id}`,
-  communicationEmail: undefined,
+  communicationEmail: `${id}@example.com`,
   email: `${id}@example.com`,
   firstName: 'Test',
   iban: undefined,
@@ -155,6 +153,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
         });
 
         expect(response.status).toBe(200);
+        expect(response.headers.get('Cache-Control')).toBe('private, no-store');
         expect(response.headers.get('Content-Type')).toBe('image/png');
         expect(
           (yield* Effect.promise(() => response.arrayBuffer())).byteLength,

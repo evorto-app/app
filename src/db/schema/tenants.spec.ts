@@ -1,18 +1,9 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
-import { localeEnum, tenants } from './tenants';
+import { tenants } from './tenants';
 
 describe('tenant runtime settings schema', () => {
-  it('defaults new tenants to the fixed formatting locale', () => {
-    const localeColumn = getTableConfig(tenants).columns.find(
-      (column) => column.name === 'locale',
-    );
-
-    expect(localeEnum.enumValues).toContain('de-DE');
-    expect(localeColumn?.default).toBe('de-DE');
-  });
-
   it('stores arbitrary validated IANA timezone names with the Berlin default', () => {
     const timezoneColumn = getTableConfig(tenants).columns.find(
       (column) => column.name === 'timezone',
@@ -28,5 +19,15 @@ describe('tenant runtime settings schema', () => {
       timezone: 'America/New_York',
     } satisfies typeof tenants.$inferInsert;
     expect(tenantInsert.timezone).toBe('America/New_York');
+  });
+
+  it('rejects negative registration-policy values at the database boundary', () => {
+    expect(getTableConfig(tenants).checks.map((check) => check.name)).toEqual(
+      expect.arrayContaining([
+        'tenants_cancellation_deadline_hours_nonnegative',
+        'tenants_max_active_registrations_per_user_nonnegative',
+        'tenants_transfer_deadline_hours_nonnegative',
+      ]),
+    );
   });
 });

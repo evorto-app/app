@@ -7,8 +7,6 @@ import {
   advancedEventGraphWarnings,
   eventGraphFormToPayload,
   eventGraphRecordToFormModel,
-  legacyRandomEventEditMessage,
-  resetEventGraphPayments,
   simpleEventGraphIssue,
 } from './event-graph-form.model';
 
@@ -128,66 +126,6 @@ describe('event graph form mapping', () => {
     expect(payloadResult.payload.questions[0]).toMatchObject({
       id: 'question-1',
       registrationOptionKey: 'participant-option',
-    });
-  });
-
-  it('blocks unavailable random allocation without coercing it', () => {
-    const source = eventGraph();
-    const result = eventGraphRecordToFormModel(
-      {
-        ...source,
-        registrationOptions: source.registrationOptions.map((option, index) =>
-          index === 1 ? { ...option, registrationMode: 'random' } : option,
-        ),
-      },
-      DEFAULT_TENANT_TIMEZONE,
-    );
-    expect(legacyRandomEventEditMessage).toBe(
-      'Random allocation is unavailable. An authorized event editor must choose First come, first served or Manual approval before anyone can edit this registration setup.',
-    );
-    expect(result).toEqual({ error: legacyRandomEventEditMessage });
-  });
-
-  it('clears event payment fields without changing graph configuration', () => {
-    const loadResult = eventGraphRecordToFormModel(
-      eventGraph(),
-      DEFAULT_TENANT_TIMEZONE,
-    );
-    if (!('model' in loadResult)) throw new Error('Expected writable graph');
-    const source = {
-      ...loadResult.model,
-      addOns: loadResult.model.addOns.map((addOn) => ({
-        ...addOn,
-        isPaid: true,
-        price: 500,
-        stripeTaxRateId: 'txr_addon',
-      })),
-      registrationOptions: loadResult.model.registrationOptions.map(
-        (option) => ({
-          ...option,
-          esnCardDiscountedPrice: 750,
-          isPaid: true,
-          price: 1000,
-          stripeTaxRateId: 'txr_option',
-        }),
-      ),
-    };
-
-    const reset = resetEventGraphPayments(source);
-
-    expect(reset.registrationOptions[0]).toMatchObject({
-      esnCardDiscountedPrice: '',
-      isPaid: false,
-      price: 0,
-      roleIds: source.registrationOptions[0]?.roleIds,
-      stripeTaxRateId: null,
-    });
-    expect(reset.addOns[0]).toMatchObject({
-      isPaid: false,
-      price: 0,
-      registrationOptions: source.addOns[0]?.registrationOptions,
-      stripeTaxRateId: null,
-      title: source.addOns[0]?.title,
     });
   });
 

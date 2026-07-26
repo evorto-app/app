@@ -29,14 +29,35 @@
     </mat-form-field>
     <mat-form-field>
       <mat-label>IBAN (for reimbursements)</mat-label>
-      <input matInput [formField]="profileForm.iban" />
+      <input
+        matInput
+        autocomplete="off"
+        autocapitalize="characters"
+        [formField]="profileForm.iban"
+      />
+      @if (profileForm.iban().touched() && profileForm.iban().invalid()) {
+        <mat-error>
+          Enter a valid IBAN, including its country code and check digits.
+        </mat-error>
+      }
       <mat-hint
         >Used for manual receipt reimbursements across organizations.</mat-hint
       >
     </mat-form-field>
     <mat-form-field>
       <mat-label>PayPal email (for reimbursements)</mat-label>
-      <input matInput [formField]="profileForm.paypalEmail" />
+      <input
+        matInput
+        type="email"
+        autocomplete="email"
+        [formField]="profileForm.paypalEmail"
+      />
+      @if (
+        profileForm.paypalEmail().touched() &&
+        profileForm.paypalEmail().invalid()
+      ) {
+        <mat-error>Enter a valid PayPal email address.</mat-error>
+      }
       <mat-hint
         >Used for manual receipt reimbursements across organizations.</mat-hint
       >

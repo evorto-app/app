@@ -859,7 +859,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       fixture.detectChanges();
       expect(root.querySelector('input')?.hasAttribute('disabled')).toBe(true);
       expect(findButton(fixture, 'Cancel registration')?.disabled).toBe(true);
-      expect(findButton(fixture, 'Create transfer link')?.disabled).toBe(true);
+      expect(findButton(fixture, 'Create transfer code')?.disabled).toBe(true);
     });
   });
 
@@ -1046,18 +1046,20 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
 });
 
 describe('registration transfer offer dialog source', () => {
-  it('keeps private credentials and ownership transition copy explicit', () => {
+  it('keeps the private code separate from the generic entry page', () => {
     const template = readSource(
       'src/app/events/event-active-registration/event-registration-transfer-dialog.component.html',
     );
     const normalizedTemplate = template.replaceAll(/\s+/gu, ' ');
 
-    expect(normalizedTemplate).toContain('Claim link');
-    expect(normalizedTemplate).toContain('Manual claim code');
+    expect(normalizedTemplate).toContain('Claim code');
+    expect(normalizedTemplate).toContain('Claim page');
     expect(normalizedTemplate).toContain(
-      'Send either the link or code to one person you trust.',
+      'Send the code to one person you trust.',
     );
-    expect(normalizedTemplate).toContain('Keep both private.');
+    expect(normalizedTemplate).toContain(
+      'generic page link does not contain the private code',
+    );
     expect(normalizedTemplate).toContain(
       'stays active until the recipient is confirmed.',
     );

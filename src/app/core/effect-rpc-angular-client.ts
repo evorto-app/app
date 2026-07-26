@@ -130,7 +130,9 @@ type AppRpcClient = ReturnType<
   ReturnType<typeof createAppRpcFactory>['injectClient']
 >;
 
-const APP_RPC_CLIENT = new InjectionToken<AppRpcClient>('APP_RPC_CLIENT');
+export const APP_RPC_CLIENT = new InjectionToken<AppRpcClient>(
+  'APP_RPC_CLIENT',
+);
 
 const createAppRpcClient = (): AppRpcClient => {
   const rpcLayer = inject(EFFECT_RPC_PROTOCOL_HTTP_LAYER);

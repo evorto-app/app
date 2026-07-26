@@ -37,6 +37,7 @@ export interface ManualApprovalScenario {
     domain: string;
     id: string;
     stripeAccountId: null | string;
+    timezone: string;
   };
 }
 
@@ -310,6 +311,7 @@ export const seedManualApprovalScenario = async ({
       domain: tenant.domain,
       id: tenant.id,
       stripeAccountId: tenant.stripeAccountId,
+      timezone: tenant.timezone,
     },
   };
 };

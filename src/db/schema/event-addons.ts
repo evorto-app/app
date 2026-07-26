@@ -1,3 +1,4 @@
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -51,6 +52,10 @@ export const eventAddons = pgTable(
       'event_addons_max_quantity_per_user_positive',
       sql`${table.maxQuantityPerUser} > 0`,
     ),
+    check(
+      'event_addons_max_quantity_per_user_bounded',
+      sql`${table.maxQuantityPerUser} <= ${MAX_REGISTRATION_ADDON_QUANTITY}`,
+    ),
     check('event_addons_price_nonnegative', sql`${table.price} >= 0`),
     check(
       'event_addons_stock_nonnegative',
@@ -92,6 +97,10 @@ export const addonToEventRegistrationOptions = pgTable(
     check(
       'addon_to_event_registration_options_quantity_present',
       sql`${table.includedQuantity} + ${table.optionalPurchaseQuantity} > 0`,
+    ),
+    check(
+      'addon_to_event_registration_options_quantity_bounded',
+      sql`${table.includedQuantity} + ${table.optionalPurchaseQuantity} <= ${MAX_REGISTRATION_ADDON_QUANTITY}`,
     ),
     foreignKey({
       columns: [table.addonId, table.eventId],

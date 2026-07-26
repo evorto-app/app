@@ -171,6 +171,7 @@ const seedFixture = async (
     description: 'Add-on purchase test',
     icon: { iconColor: 0, iconName: 'circle' },
     id: templateId,
+    listingAudience: 'both',
     tenantId,
     title: 'Add-on purchase',
   });
@@ -180,6 +181,7 @@ const seedFixture = async (
     end: new Date(now + 2 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
+    listingAudience: 'both',
     start: new Date(now + 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,

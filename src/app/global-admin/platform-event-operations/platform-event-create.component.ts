@@ -28,6 +28,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import {
@@ -198,9 +199,12 @@ export class PlatformEventCreateComponent {
           'events',
           created.id,
         ]);
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event could not be created. Review the details and try again.',
+          getErrorMessage(
+            error,
+            'The event could not be created. Review the details and try again.',
+          ),
         );
       }
     });

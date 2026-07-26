@@ -13,15 +13,16 @@ export interface TaxRateInfo {
  * Examples:
  * - "Incl. 19% VAT"
  * - "Tax free" (for 0%)
- * - "Incl. Tax" (fallback when details unavailable)
+ * - "Tax details unavailable" when a paid price has no validated tax metadata
  *
  * @param taxRate Tax rate information or null/undefined if unavailable
  * @returns Formatted inclusive tax label string
  */
 export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
-  // If no tax rate info available, use fallback
+  // Missing metadata is invalid for a paid price. Surface it rather than
+  // implying that an unspecified tax was included.
   if (!taxRate || (!taxRate.percentage && !taxRate.displayName)) {
-    return 'Incl. Tax';
+    return 'Tax details unavailable';
   }
 
   // Handle zero percent case - show "Tax free" instead of "Incl. 0%"
@@ -48,34 +49,7 @@ export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
     return `Incl. ${taxRate.displayName}`;
   }
 
-  // Fallback
-  return 'Incl. Tax';
-}
-
-/**
- * Formats a price with inclusive tax label
- *
- * @param amount Price amount (in cents or smallest currency unit)
- * @param currency Currency code (default: EUR)
- * @param taxRate Tax rate information
- * @returns Formatted price with tax label, e.g. "€25.00 Incl. 19% VAT"
- */
-export function formatPriceWithTax(
-  amount: number,
-  currency = 'EUR',
-  taxRate?: null | TaxRateInfo,
-): string {
-  // Format the price amount
-  const formatter = new Intl.NumberFormat('en-US', {
-    currency: currency.toUpperCase(),
-    minimumFractionDigits: 2,
-    style: 'currency',
-  });
-
-  const formattedAmount = formatter.format(amount / 100); // Assuming amount is in cents
-  const taxLabel = formatInclusiveTaxLabel(taxRate);
-
-  return `${formattedAmount} ${taxLabel}`;
+  return 'Tax details unavailable';
 }
 
 /**

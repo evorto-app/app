@@ -21,6 +21,10 @@ import {
   transactions,
   usersToTenants,
 } from '../../../../../db/schema';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '../../../../../shared/registration-question-limits';
 import { StripeClient } from '../../../../stripe-client';
 import {
   type ApproveManualRegistrationArguments,
@@ -52,6 +56,7 @@ const createStripeTestClient = (): Stripe => {
 const stripeClient = createStripeTestClient();
 const tenantPublicOrigin = {
   domain: 'tenant.example.com',
+  timezone: 'Europe/Berlin',
 } as const;
 const selectLockedTenantMembership = () => ({
   from: (table: unknown) => ({
@@ -136,6 +141,36 @@ const paidManualApprovalRegistration = {
   },
   userId: 'user-1',
 } as const;
+
+interface ManualApprovalAddonPurchaseFixture {
+  readonly addOn: {
+    readonly stripeTaxRateId: null | string;
+    readonly title: string;
+  };
+  readonly addonId: string;
+  readonly id: string;
+  readonly purchasedQuantity: number;
+  readonly quantity: number;
+  readonly taxRateDisplayName: null | string;
+  readonly taxRateInclusive: boolean | null;
+  readonly taxRatePercentage: null | string;
+  readonly unitPrice: number;
+}
+
+type ManualApprovalRegistrationFixture = Omit<
+  typeof paidManualApprovalRegistration,
+  'addonPurchases' | 'registrationOption'
+> & {
+  readonly addonPurchases: readonly ManualApprovalAddonPurchaseFixture[];
+  readonly registrationOption: {
+    readonly eventId: string;
+    readonly id: string;
+    readonly isPaid: boolean;
+    readonly price: number;
+    readonly registrationMode: 'application';
+    readonly stripeTaxRateId: null | string;
+  };
+};
 
 const createPaidManualApprovalDatabase = ({
   bindingCommitAmbiguous = false,
@@ -227,9 +262,7 @@ const createManualApprovalDatabase = ({
   lockedStripeAccountId?: null | string;
   operationOrder?: string[];
   persistCommittedEmail?: boolean;
-  registration?:
-    | typeof freeManualApprovalRegistration
-    | typeof paidManualApprovalRegistration;
+  registration?: ManualApprovalRegistrationFixture;
   registrationStatuses?: readonly ('CANCELLED' | 'PENDING')[];
 } = {}) => {
   let bindingUpdateCount = 0;
@@ -514,6 +547,7 @@ const createManualApprovalDatabase = ({
     getClaim: () => claim,
     operationOrder,
     reservationUpdateCount: () => reservationUpdateCount,
+    transactionCount: () => transactionCount,
   };
 };
 
@@ -946,9 +980,9 @@ describe('EventRegistrationService', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationInternalError);
         expect(error).toMatchObject({
-          cause: { _tag: 'SchemaError' },
           message: 'Invalid persisted checkout request',
         });
+        expect(error).not.toHaveProperty('cause');
       }),
     );
   });
@@ -1304,6 +1338,52 @@ describe('EventRegistrationService', () => {
           'stripeCheckoutSessionId',
         );
         expect(createSession).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect(
+    'rejects an oversized Checkout before reserving capacity or add-on stock',
+    () =>
+      Effect.gen(function* () {
+        const registration: ManualApprovalRegistrationFixture = {
+          ...paidManualApprovalRegistration,
+          addonPurchases: Array.from({ length: 100 }, (_, index) => ({
+            addOn: {
+              stripeTaxRateId: null,
+              title: `Add-on ${index}`,
+            },
+            addonId: `addon-${index}`,
+            id: `purchase-${index}`,
+            purchasedQuantity: 1,
+            quantity: 1,
+            taxRateDisplayName: null,
+            taxRateInclusive: null,
+            taxRatePercentage: null,
+            unitPrice: 100,
+          })),
+        };
+        const approvalDatabase = createManualApprovalDatabase({ registration });
+        const checkoutStripeClient = createStripeTestClient();
+        const createSession = vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        );
+
+        const error = yield* runManualApproval({
+          database: approvalDatabase.database,
+          stripe: checkoutStripeClient,
+        }).pipe(Effect.flip);
+
+        expect(error).toMatchObject({
+          _tag: 'EventRegistrationConflictError',
+          message:
+            'Registration checkout exceeds the supported line-item limit',
+        });
+        expect(approvalDatabase.transactionCount()).toBe(0);
+        expect(approvalDatabase.claimInsertCount()).toBe(0);
+        expect(approvalDatabase.reservationUpdateCount()).toBe(0);
+        expect(approvalDatabase.operationOrder).toEqual([]);
+        expect(createSession).not.toHaveBeenCalled();
       }),
   );
 
@@ -2285,6 +2365,49 @@ describe('EventRegistrationService', () => {
         }),
       ).toThrow('Registration question does not belong to this option');
     });
+
+    it('rejects duplicate question answers instead of silently overwriting', () => {
+      expect(() =>
+        validateRegistrationQuestionAnswers({
+          answers: [
+            { answer: 'First', questionId: 'question-1' },
+            { answer: 'Second', questionId: 'question-1' },
+          ],
+          questions: [{ id: 'question-1', required: false }],
+        }),
+      ).toThrow('Each registration question can be answered at most once');
+    });
+
+    it('rejects excessive answer counts and answer text', () => {
+      expect(() =>
+        validateRegistrationQuestionAnswers({
+          answers: Array.from(
+            { length: MAX_REGISTRATION_QUESTIONS + 1 },
+            (_, index) => ({
+              answer: 'Answer',
+              questionId: `question-${index}`,
+            }),
+          ),
+          questions: [],
+        }),
+      ).toThrow(
+        `A registration supports at most ${MAX_REGISTRATION_QUESTIONS} question answers`,
+      );
+
+      expect(() =>
+        validateRegistrationQuestionAnswers({
+          answers: [
+            {
+              answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1),
+              questionId: 'question-1',
+            },
+          ],
+          questions: [{ id: 'question-1', required: false }],
+        }),
+      ).toThrow(
+        `Registration answers must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer`,
+      );
+    });
   });
 
   it.effect(
@@ -3044,55 +3167,6 @@ describe('EventRegistrationService', () => {
     }),
   );
 
-  it.effect('rejects registration for unsupported registration modes', () =>
-    Effect.gen(function* () {
-      const updateOptionCounters = vi.fn();
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                registrationMode: 'random',
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-        update: updateOptionCounters,
-      };
-
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 0,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Registration option mode is not supported');
-      expect(updateOptionCounters).not.toHaveBeenCalled();
-    }),
-  );
-
   it.effect(
     'creates manual approval applications without reserving capacity',
     () =>
@@ -3417,7 +3491,7 @@ describe('EventRegistrationService', () => {
   );
 
   it.effect(
-    'preserves the Stripe cause and retains an incomplete payment claim',
+    'redacts the Stripe cause and retains an incomplete payment claim',
     () =>
       Effect.gen(function* () {
         const approvalDatabase = createManualApprovalDatabase();
@@ -3441,14 +3515,7 @@ describe('EventRegistrationService', () => {
         expect(error.message).toBe(
           'Payment setup is still pending. Retry approval or cancel the registration.',
         );
-        if (error instanceof EventRegistrationInternalError) {
-          expect(error.cause).toEqual(
-            expect.objectContaining({
-              _tag: 'StripeCheckoutError',
-              cause: stripeCause,
-            }),
-          );
-        }
+        expect(error).not.toHaveProperty('cause');
         expect(approvalDatabase.operationOrder).toEqual([
           'claim',
           'reserve',
@@ -3632,14 +3699,7 @@ describe('EventRegistrationService', () => {
         expect(firstError.message).toBe(
           'Payment setup is still pending. Retry registration or cancel it.',
         );
-        if (firstError instanceof EventRegistrationInternalError) {
-          expect(firstError.cause).toEqual(
-            expect.objectContaining({
-              _tag: 'StripeCheckoutError',
-              cause: stripeCause,
-            }),
-          );
-        }
+        expect(firstError).not.toHaveProperty('cause');
         expect(directDatabase.claimInsertCount()).toBe(1);
         expect(directDatabase.reservationUpdateCount()).toBe(1);
         expect(directDatabase.bindingUpdateCount()).toBe(0);

@@ -367,6 +367,8 @@ describe('eventAddonsForRegistrationOption', () => {
 });
 
 const findEvent = vi.fn();
+const findCanOrganize = vi.fn();
+const findMyCards = vi.fn();
 const findRegistrationStatus = vi.fn();
 
 const eventDetails = {
@@ -376,6 +378,7 @@ const eventDetails = {
   end: '2030-01-02T12:00:00.000Z',
   icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
   id: 'event-1',
+  listingAudience: 'both' as const,
   location: null,
   registrationOptions: [],
   registrationOptionsHiddenByEligibility: false,
@@ -384,7 +387,6 @@ const eventDetails = {
   status: 'APPROVED' as const,
   statusComment: null,
   title: 'Recovery workshop',
-  unlisted: false,
 };
 
 const normalizeText = (fixture: ComponentFixture<EventDetailsComponent>) =>
@@ -412,6 +414,10 @@ describe('EventDetailsComponent load recovery', () => {
 
   beforeEach(async () => {
     findEvent.mockReset();
+    findCanOrganize.mockReset();
+    findCanOrganize.mockResolvedValue(false);
+    findMyCards.mockReset();
+    findMyCards.mockResolvedValue([]);
     findRegistrationStatus.mockReset();
     queryClient = new QueryClient({
       defaultOptions: {
@@ -432,7 +438,11 @@ describe('EventDetailsComponent load recovery', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenant: { discountProviders: null },
+            tenant: {
+              discountProviders: {
+                esnCard: { config: {}, status: 'enabled' },
+              },
+            },
             updateDescription: vi.fn(),
             updateTitle: vi.fn(),
           },
@@ -441,7 +451,7 @@ describe('EventDetailsComponent load recovery', () => {
           provide: EventDetailsOperations,
           useValue: {
             canOrganize: () => ({
-              queryFn: async () => false,
+              queryFn: findCanOrganize,
               queryKey: ['event-can-organize', 'event-1'],
             }),
             eventListFilter: () => ({ queryKey: ['events'] }),
@@ -451,7 +461,7 @@ describe('EventDetailsComponent load recovery', () => {
               queryKey: ['event', id],
             }),
             myCards: () => ({
-              queryFn: async () => [],
+              queryFn: findMyCards,
               queryKey: ['my-cards'],
             }),
             pendingReviewsFilter: () => ({
@@ -595,6 +605,76 @@ describe('EventDetailsComponent load recovery', () => {
     expect(findEvent).toHaveBeenCalledOnce();
     expect(findRegistrationStatus).toHaveBeenCalledTimes(2);
     expect(normalizeText(fixture)).toContain('Recovery workshop');
+  });
+
+  it('surfaces an unavailable organizer capability instead of treating it as denied', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findCanOrganize
+      .mockRejectedValueOnce(new Error('Capability unavailable'))
+      .mockResolvedValue(false);
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Organizer access could not be checked.',
+      );
+    });
+    const alert = [
+      ...fixture.nativeElement.querySelectorAll('[role="alert"]'),
+    ].find((element: HTMLElement) =>
+      element.textContent?.includes('Organizer access'),
+    ) as HTMLElement | undefined;
+    alert?.querySelector<HTMLButtonElement>('button')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findCanOrganize).toHaveBeenCalledTimes(2);
+      expect(normalizeText(fixture)).not.toContain(
+        'Organizer access could not be checked.',
+      );
+    });
+  });
+
+  it('surfaces unavailable discount eligibility instead of treating it as no card', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findMyCards
+      .mockRejectedValueOnce(new Error('Discount cards unavailable'))
+      .mockResolvedValue([]);
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Discount-card eligibility could not be checked.',
+      );
+    });
+    const alert = [
+      ...fixture.nativeElement.querySelectorAll('[role="alert"]'),
+    ].find((element: HTMLElement) =>
+      element.textContent?.includes('Discount-card eligibility'),
+    ) as HTMLElement | undefined;
+    alert?.querySelector<HTMLButtonElement>('button')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findMyCards).toHaveBeenCalledTimes(2);
+      expect(normalizeText(fixture)).not.toContain(
+        'Discount-card eligibility could not be checked.',
+      );
+    });
   });
 
   it.each([

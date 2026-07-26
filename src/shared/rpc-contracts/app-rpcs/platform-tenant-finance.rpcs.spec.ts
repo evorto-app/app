@@ -2,6 +2,7 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
+  PlatformFinanceReceiptApprovalDetailRecord,
   PlatformFinanceReceiptRecord,
   PlatformFinanceReceiptReviewInput,
   PlatformFinanceRecordReimbursementInput,
@@ -21,7 +22,7 @@ describe('platform tenant finance RPC schemas', () => {
       id: 'receipt-1',
       purchaseCountry: 'DE',
       reason: 'Review a production receipt on behalf of the tenant',
-      receiptDate: '2026-07-10T00:00:00.000Z',
+      receiptDate: '2026-07-10',
       status: 'approved' as const,
       targetTenantId: 'tenant-1',
       taxAmount: 100,
@@ -196,7 +197,7 @@ describe('platform tenant finance RPC schemas', () => {
     });
   });
 
-  it('keeps receipt storage keys outside the platform response', () => {
+  it('keeps storage keys and preview state outside platform queue records', () => {
     const decoded = Schema.decodeUnknownSync(PlatformFinanceReceiptRecord)({
       alcoholAmount: 0,
       attachmentFileName: 'receipt.pdf',
@@ -211,7 +212,7 @@ describe('platform tenant finance RPC schemas', () => {
       id: 'receipt-1',
       previewImageUrl: 'https://signed.example.org/receipt',
       purchaseCountry: 'DE',
-      receiptDate: '2026-07-09T00:00:00.000Z',
+      receiptDate: '2026-07-09',
       receiptEvidenceAvailable: true,
       refundedAt: null,
       refundTransactionId: null,
@@ -225,7 +226,46 @@ describe('platform tenant finance RPC schemas', () => {
     });
 
     expect(decoded).not.toHaveProperty('attachmentStorageKey');
+    expect(decoded).not.toHaveProperty('previewImageUrl');
+    expect(decoded).not.toHaveProperty('receiptEvidenceAvailable');
     expect(decoded.currency).toBe('AUD');
+  });
+
+  it('includes signed preview state only in an approval detail record', () => {
+    const decoded = Schema.decodeUnknownSync(
+      PlatformFinanceReceiptApprovalDetailRecord,
+    )({
+      alcoholAmount: 0,
+      attachmentFileName: 'receipt.pdf',
+      attachmentMimeType: 'application/pdf',
+      createdAt: '2026-07-10T10:00:00.000Z',
+      currency: 'AUD',
+      depositAmount: 0,
+      eventId: 'event-1',
+      eventStart: '2026-07-20T10:00:00.000Z',
+      eventTitle: 'Welcome dinner',
+      hasAlcohol: false,
+      hasDeposit: false,
+      id: 'receipt-1',
+      previewImageUrl: 'https://signed.example.org/receipt',
+      purchaseCountry: 'DE',
+      receiptDate: '2026-07-09',
+      receiptEvidenceAvailable: true,
+      refundedAt: null,
+      refundTransactionId: null,
+      rejectionReason: null,
+      reviewedAt: null,
+      status: 'submitted',
+      submittedByEmail: 'participant@example.test',
+      submittedByFirstName: 'Pat',
+      submittedByLastName: 'Example',
+      submittedByUserId: 'user-1',
+      taxAmount: 100,
+      totalAmount: 1000,
+      updatedAt: '2026-07-10T10:00:00.000Z',
+    });
+
     expect(decoded.previewImageUrl).toBe('https://signed.example.org/receipt');
+    expect(decoded.receiptEvidenceAvailable).toBe(true);
   });
 });

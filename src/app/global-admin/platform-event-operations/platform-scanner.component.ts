@@ -1,3 +1,4 @@
+import type { EventCheckInTimingIssue } from '@shared/event-check-in';
 import type { PlatformRegistrationDetailRecord } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 
 import {
@@ -16,7 +17,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import {
   injectMutation,
   injectQuery,
@@ -25,6 +26,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { platformEventInstantToDisplayDateTime } from './platform-event-date-time';
@@ -48,10 +50,35 @@ export const registrationIdFromPlatformScannerInput = (
   }
 };
 
+export const platformScannerNavigationErrorMessage =
+  'The registration could not be opened. Check that this organization still exists, then try again.';
+
 export interface PlatformRegistrationStatusIssueCopy {
   readonly body: string;
   readonly title: string;
 }
+
+export const platformCheckInTimingIssueCopy = (
+  issue: EventCheckInTimingIssue | null,
+): null | PlatformRegistrationStatusIssueCopy => {
+  switch (issue) {
+    case 'ended': {
+      return {
+        body: 'The event ended more than two hours ago, so check-in is closed. No check-in was recorded.',
+        title: 'Check-in closed',
+      };
+    }
+    case 'notOpen': {
+      return {
+        body: 'Check-in opens one hour before the event starts.',
+        title: 'Check-in not open',
+      };
+    }
+    case null: {
+      return null;
+    }
+  }
+};
 
 export const platformRegistrationStatusIssueCopy = (
   status: PlatformRegistrationDetailRecord['status'],
@@ -173,15 +200,6 @@ export class PlatformScannerOperations {
     });
   }
 
-  list(targetTenantId: string, eventId: string | undefined) {
-    return this.rpc.platform.registrations.list.queryOptions({
-      eventId,
-      limit: 100,
-      offset: 0,
-      targetTenantId,
-    });
-  }
-
   registrationFilter() {
     return this.rpc.queryFilter(['platform', 'registrations']);
   }
@@ -194,13 +212,11 @@ export class PlatformScannerOperations {
     MatFormFieldModule,
     MatInputModule,
     PlatformTenantPageHeaderComponent,
-    RouterLink,
   ],
   selector: 'app-platform-scanner',
   templateUrl: './platform-scanner.component.html',
 })
 export class PlatformScannerComponent {
-  readonly eventId = input<string>();
   readonly registrationId = input<string>();
   readonly tenantId = input.required<string>();
 
@@ -239,15 +255,16 @@ export class PlatformScannerComponent {
   });
   protected readonly lookupError = signal('');
   protected readonly lookupInteractive = signal(false);
+  protected readonly lookupNavigationFailed = signal(false);
+  protected readonly lookupPending = signal(false);
   protected readonly lookupValue = signal('');
+  protected readonly platformCheckInTimingIssueCopy =
+    platformCheckInTimingIssueCopy;
   protected readonly platformRegistrationStatusIssueCopy =
     platformRegistrationStatusIssueCopy;
   protected readonly platformRegistrationStatusLabel =
     platformRegistrationStatusLabel;
   protected readonly reason = signal('');
-  protected readonly registrationsQuery = injectQuery(() =>
-    this.operations.list(this.tenantId(), this.eventId()),
-  );
   protected readonly targetTenantOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
@@ -287,9 +304,12 @@ export class PlatformScannerComponent {
         await this.refreshRegistration();
         this.resetActionState();
         this.notifications.showSuccess('Registration approved');
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The registration could not be approved. Try again.',
+          getErrorMessage(
+            error,
+            'The registration could not be approved. Try again.',
+          ),
         );
       }
     })();
@@ -332,9 +352,12 @@ export class PlatformScannerComponent {
         await this.refreshRegistration();
         this.resetActionState();
         this.notifications.showSuccess('Registration cancelled');
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The registration could not be cancelled. Try again.',
+          getErrorMessage(
+            error,
+            'The registration could not be cancelled. Try again.',
+          ),
         );
       }
     })();
@@ -362,9 +385,12 @@ export class PlatformScannerComponent {
         await this.refreshRegistration();
         this.resetActionState();
         this.notifications.showSuccess('Registration checked in');
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The registration could not be checked in. Try again.',
+          getErrorMessage(
+            error,
+            'The registration could not be checked in. Try again.',
+          ),
         );
       }
     })();
@@ -397,15 +423,12 @@ export class PlatformScannerComponent {
       this.lookupError.set(
         'Paste the complete attendee ticket link or enter a registration ID.',
       );
+      this.lookupNavigationFailed.set(false);
       return;
     }
     this.lookupError.set('');
-    void this.router.navigate([
-      '/global-admin/tenants',
-      this.tenantId(),
-      'scanner',
-      registrationId,
-    ]);
+    this.lookupNavigationFailed.set(false);
+    void this.navigateToRegistration(registrationId);
   }
 
   protected setGuestCount(event: Event): void {
@@ -415,14 +438,41 @@ export class PlatformScannerComponent {
   }
 
   protected setLookupValue(event: Event): void {
-    if (event.target instanceof HTMLInputElement) {
-      this.lookupValue.set(event.target.value);
+    if (!(event.target instanceof HTMLInputElement)) {
+      return;
     }
+
+    this.lookupValue.set(event.target.value);
+    this.lookupError.set('');
+    this.lookupNavigationFailed.set(false);
   }
 
   protected setReason(event: Event): void {
     if (event.target instanceof HTMLTextAreaElement) {
       this.reason.set(event.target.value);
+    }
+  }
+
+  private async navigateToRegistration(registrationId: string): Promise<void> {
+    if (this.lookupPending()) return;
+
+    this.lookupPending.set(true);
+    try {
+      const navigated = await this.router.navigate([
+        '/global-admin/tenants',
+        this.tenantId(),
+        'scanner',
+        registrationId,
+      ]);
+      if (!navigated) {
+        this.lookupError.set(platformScannerNavigationErrorMessage);
+        this.lookupNavigationFailed.set(true);
+      }
+    } catch {
+      this.lookupError.set(platformScannerNavigationErrorMessage);
+      this.lookupNavigationFailed.set(true);
+    } finally {
+      this.lookupPending.set(false);
     }
   }
 

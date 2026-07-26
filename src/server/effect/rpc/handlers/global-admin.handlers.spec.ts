@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from '@effect/vitest';
+import { expect, layer, vi } from '@effect/vitest';
+import { type SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect, Layer } from 'effect';
 import Stripe from 'stripe';
 
@@ -8,16 +10,19 @@ import {
   tenantPrivacyPolicyVersions,
   tenants as tenantsTable,
 } from '../../../../db/schema';
+import { type Permission } from '../../../../shared/permissions/permissions';
+import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
 import { StripeClient } from '../../../stripe-client';
 import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
-import {
+  GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE,
   globalAdminHandlers,
   tenantPrivacyPolicyDigest,
 } from './global-admin.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const platformAuthority = PlatformAdministratorAuthority.make({
   actorEmail: 'platform@example.org',
@@ -26,16 +31,39 @@ const platformAuthority = PlatformAdministratorAuthority.make({
 });
 
 const createHeaders = (
-  permissions: readonly string[],
+  _permissions: readonly string[],
+  _options: { authenticated?: boolean; platformAdministrator?: boolean } = {},
+) => ({});
+
+const createRequestContext = (
+  permissions: readonly Permission[],
   options: { authenticated?: boolean; platformAdministrator?: boolean } = {},
-) => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]:
-    options.authenticated === false ? 'false' : 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(permissions),
-  [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]: encodeRpcContextHeaderJson(
-    options.platformAdministrator === false ? null : platformAuthority,
+) =>
+  ({
+    authData: {},
+    authenticated: options.authenticated !== false,
+    permissions,
+    platformAuthority:
+      options.platformAdministrator === false ? null : platformAuthority,
+    tenant: {
+      currency: 'EUR',
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      name: 'Tenant',
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+    },
+    user: null,
+    userAssigned: false,
+  }) satisfies RpcRequestContextShape;
+
+const globalAdminHandlerLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(
+    RpcRequestContext,
+    createRequestContext(['globalAdmin:manageTenants']),
   ),
-});
+);
 
 const provideDatabase = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
@@ -116,7 +144,6 @@ const createStripeAccountChangeDatabase = ({
     currency: 'EUR',
     domain: 'tenant.example.com',
     id: 'tenant-1',
-    locale: 'de-DE',
     name: 'Tenant',
     stripeAccountId: 'acct_current',
     theme: 'evorto',
@@ -247,7 +274,7 @@ const createStripeAccountUpdateInput = (stripeAccountId?: string) => ({
   },
 });
 
-describe('globalAdminHandlers', () => {
+layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
   it.effect('allows tenant reads through explicit platform authority', () =>
     Effect.gen(function* () {
       const database = {
@@ -279,7 +306,6 @@ describe('globalAdminHandlers', () => {
                   currency: 'EUR',
                   domain: 'tenant.example.com',
                   id: 'tenant-1',
-                  locale: 'de-DE',
                   name: 'Tenant',
                   stripeAccountId: 'acct_123',
                   theme: 'esn',
@@ -301,7 +327,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: 'acct_123',
           stripeConnected: true,
@@ -324,7 +349,6 @@ describe('globalAdminHandlers', () => {
                       currency: 'EUR',
                       domain: 'tenant.example.com',
                       id: 'tenant-1',
-                      locale: 'de-DE',
                       name: 'Tenant',
                       stripeAccountId: null,
                       theme: 'evorto',
@@ -347,7 +371,6 @@ describe('globalAdminHandlers', () => {
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: null,
         stripeConnected: false,
@@ -395,7 +418,16 @@ describe('globalAdminHandlers', () => {
             platformAdministrator: false,
           }),
         } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+      ).pipe(
+        Effect.provideService(
+          RpcRequestContext,
+          createRequestContext(['globalAdmin:manageTenants'], {
+            platformAdministrator: false,
+          }),
+        ),
+        Effect.provide(provideDatabase(database)),
+        Effect.flip,
+      );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.message).toBe('Platform administrator authority required');
@@ -415,115 +447,122 @@ describe('globalAdminHandlers', () => {
       const error = yield* globalAdminHandlers['globalAdmin.tenants.findMany'](
         undefined,
         {
-          headers: {
-            [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'false',
-            [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-              'globalAdmin:manageTenants',
-            ]),
-            [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]:
-              encodeRpcContextHeaderJson(platformAuthority),
-          },
+          headers: {},
         } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+      ).pipe(
+        Effect.provideService(
+          RpcRequestContext,
+          createRequestContext(['globalAdmin:manageTenants'], {
+            authenticated: false,
+          }),
+        ),
+        Effect.provide(provideDatabase(database)),
+        Effect.flip,
+      );
 
       expect(error['_tag']).toBe('RpcUnauthorizedError');
     }),
   );
 
-  it.effect('summarizes email outbox retry and exhaustion state', () =>
-    Effect.gen(function* () {
-      const now = new Date('2026-07-09T10:00:00.000Z');
-      const exhaustedAt = new Date('2026-07-09T09:00:00.000Z');
-      const selectResults = [
-        [
-          { status: 'failed', total: 2 },
-          { status: 'queued', total: 1 },
-        ],
-        [{ total: 1 }],
-        [{ total: 1 }],
-        [{ total: 1 }],
-        [
-          {
-            attempts: 8,
-            createdAt: now,
-            deliveryUnknownAt: null,
-            exhaustedAt,
-            id: 'email-1',
-            kind: 'receiptReviewed',
-            lastAttemptAt: exhaustedAt,
-            lastError: 'tem email request failed with HTTP 400',
-            maxAttempts: 8,
-            nextAttemptAt: exhaustedAt,
-            provider: 'tem',
-            providerMessageId: null,
-            recipient: 'member@example.org',
-            sentAt: null,
-            status: 'failed',
-            subject: 'Receipt rejected',
-            suppressedAt: null,
-            tenantDomain: 'section.example.org',
-            tenantId: 'tenant-1',
-            tenantName: 'Section',
-            tenantTimezone: 'Australia/Brisbane',
-            updatedAt: exhaustedAt,
-          },
-        ],
-      ];
-      const select = vi.fn(() => {
-        const result = selectResults.shift();
-        if (!result) {
-          throw new Error('unexpected select');
-        }
-        return {
-          from: () => ({
-            groupBy: () => Effect.succeed(result),
-            innerJoin: () => ({
-              where: () => ({
-                orderBy: () => ({
-                  limit: () => Effect.succeed(result),
+  it.effect(
+    'summarizes single-dispatch state and bounds an incident-first detail page',
+    () =>
+      Effect.gen(function* () {
+        const now = new Date('2026-07-09T10:00:00.000Z');
+        const failedAt = new Date('2026-07-09T09:00:00.000Z');
+        let itemLimit: number | undefined;
+        let itemOrderByExpressions: readonly unknown[] = [];
+        const selectResults = [
+          [
+            { status: 'failed', total: 2 },
+            { status: 'queued', total: 1 },
+          ],
+          [{ total: 1 }],
+          [
+            {
+              attempts: 1,
+              createdAt: now,
+              deliveryUnknownAt: null,
+              id: 'email-1',
+              kind: 'receiptReviewed',
+              lastAttemptAt: failedAt,
+              lastError: 'tem email request failed with HTTP 400',
+              provider: 'tem',
+              providerMessageId: null,
+              recipient: 'member@example.org',
+              sentAt: null,
+              status: 'failed',
+              subject: 'Receipt rejected',
+              suppressedAt: null,
+              tenantDomain: 'section.example.org',
+              tenantId: 'tenant-1',
+              tenantName: 'Section',
+              tenantTimezone: 'Australia/Brisbane',
+              updatedAt: failedAt,
+            },
+          ],
+        ];
+        const select = vi.fn(() => {
+          const result = selectResults.shift();
+          if (!result) {
+            throw new Error('unexpected select');
+          }
+          return {
+            from: () => ({
+              groupBy: () => Effect.succeed(result),
+              innerJoin: () => ({
+                where: () => ({
+                  orderBy: (...expressions: readonly unknown[]) => {
+                    itemOrderByExpressions = expressions;
+                    return {
+                      limit: (limit: number) => {
+                        itemLimit = limit;
+                        return Effect.succeed(result);
+                      },
+                    };
+                  },
                 }),
               }),
+              where: () => Effect.succeed(result),
             }),
-            where: () => Effect.succeed(result),
+          };
+        });
+        const database = { select };
+
+        const overview = yield* globalAdminHandlers[
+          'globalAdmin.emailOutbox.findOverview'
+        ](undefined, {
+          headers: createHeaders(['globalAdmin:manageTenants']),
+        } as never).pipe(Effect.provide(provideDatabase(database)));
+
+        expect(overview.summary).toEqual({
+          deliveryUnknown: 0,
+          failed: 2,
+          queued: 1,
+          sending: 0,
+          sent: 0,
+          staleSending: 1,
+          suppressed: 0,
+        });
+        expect(select).toHaveBeenNthCalledWith(
+          3,
+          expect.objectContaining({ tenantTimezone: expect.anything() }),
+        );
+        expect(itemOrderByExpressions).toHaveLength(3);
+        expect(itemLimit).toBe(100);
+        expect(overview.items).toEqual([
+          expect.objectContaining({
+            attempts: 1,
+            id: 'email-1',
+            lastError: 'tem email request failed with HTTP 400',
+            status: 'failed',
+            tenantTimezone: 'Australia/Brisbane',
           }),
-        };
-      });
-      const database = { select };
-
-      const overview = yield* globalAdminHandlers[
-        'globalAdmin.emailOutbox.findOverview'
-      ](undefined, {
-        headers: createHeaders(['globalAdmin:manageTenants']),
-      } as never).pipe(Effect.provide(provideDatabase(database)));
-
-      expect(overview.summary).toEqual({
-        deliveryUnknown: 0,
-        exhausted: 1,
-        failed: 2,
-        queued: 1,
-        sending: 0,
-        sent: 0,
-        staleSending: 1,
-        suppressed: 0,
-        waitingForRetry: 1,
-      });
-      expect(select).toHaveBeenNthCalledWith(
-        5,
-        expect.objectContaining({ tenantTimezone: expect.anything() }),
-      );
-      expect(overview.items).toEqual([
-        expect.objectContaining({
-          exhaustedAt: '2026-07-09T09:00:00.000Z',
-          id: 'email-1',
-          lastError: 'tem email request failed with HTTP 400',
-          status: 'failed',
-          tenantTimezone: 'Australia/Brisbane',
-        }),
-      ]);
-    }),
+        ]);
+      }),
   );
 
-  it.effect('returns application append-only platform audit entries', () =>
+  it.effect('returns a bounded, deterministically ordered audit page', () =>
     Effect.gen(function* () {
       const createdAt = new Date('2026-07-10T09:15:00.000Z');
       const after = {
@@ -533,7 +572,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'section.example.org',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Section',
           stripeAccountId: null,
           stripeConnected: false,
@@ -541,43 +579,121 @@ describe('globalAdminHandlers', () => {
           timezone: 'Europe/Berlin',
         },
       } as const;
-      const selectQuery = {
-        from: () => selectQuery,
-        leftJoin: () => selectQuery,
-        limit: () =>
-          Effect.succeed([
-            {
-              action: 'tenant.create' as const,
-              actorEmail: 'platform@example.org',
-              actorId: 'auth0|platform-admin',
-              after,
-              before: null,
-              createdAt,
-              id: 'audit-1',
-              reason: 'Provision requested by section board',
-              targetTenantId: 'tenant-1',
-              targetTenantName: 'Section',
-            },
-          ]),
-        orderBy: () => selectQuery,
-      };
-      const database = { select: () => selectQuery };
-
-      const entries = yield* globalAdminHandlers[
-        'globalAdmin.platformAudit.findMany'
-      ](undefined, { headers: createHeaders([]) } as never).pipe(
-        Effect.provide(provideDatabase(database)),
-      );
-
-      expect(entries).toEqual([
-        expect.objectContaining({
-          action: 'tenant.create',
+      const rows = Array.from(
+        { length: GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE + 1 },
+        (_, index) => ({
+          action: 'tenant.create' as const,
+          actorEmail: 'platform@example.org',
           actorId: 'auth0|platform-admin',
-          createdAt: '2026-07-10T09:15:00.000Z',
+          after,
+          before: null,
+          createdAt,
+          id: `audit-${(index + 1).toString().padStart(3, '0')}`,
           reason: 'Provision requested by section board',
           targetTenantId: 'tenant-1',
           targetTenantName: 'Section',
         }),
+      );
+      let limit: number | undefined;
+      let orderByExpressions: readonly SQL[] = [];
+      let whereExpression: SQL | undefined;
+      const selectQuery = {
+        from: () => selectQuery,
+        leftJoin: () => selectQuery,
+        limit: (nextLimit: number) => {
+          limit = nextLimit;
+          return Effect.succeed(rows);
+        },
+        orderBy: (...expressions: readonly SQL[]) => {
+          orderByExpressions = expressions;
+          return selectQuery;
+        },
+        where: (expression: SQL | undefined) => {
+          whereExpression = expression;
+          return selectQuery;
+        },
+      };
+      const database = { select: () => selectQuery };
+
+      const page = yield* globalAdminHandlers[
+        'globalAdmin.platformAudit.findMany'
+      ]({ cursor: null }, { headers: createHeaders([]) } as never).pipe(
+        Effect.provide(provideDatabase(database)),
+      );
+
+      expect(whereExpression).toBeUndefined();
+      expect(limit).toBe(GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE + 1);
+      expect(
+        orderByExpressions.map(
+          (expression) => new PgDialect().sqlToQuery(expression).sql,
+        ),
+      ).toEqual([
+        '"platform_audit_entries"."created_at" desc',
+        '"platform_audit_entries"."id" asc',
+      ]);
+      expect(page.items).toHaveLength(GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE);
+      expect(page.items[0]).toEqual(
+        expect.objectContaining({
+          action: 'tenant.create',
+          actorId: 'auth0|platform-admin',
+          createdAt: '2026-07-10T09:15:00.000Z',
+          id: 'audit-001',
+          reason: 'Provision requested by section board',
+          targetTenantId: 'tenant-1',
+          targetTenantName: 'Section',
+        }),
+      );
+      expect(page.items.at(-1)?.id).toBe('audit-050');
+      expect(page.nextCursor).toEqual({
+        createdAt: '2026-07-10T09:15:00.000Z',
+        id: 'audit-050',
+      });
+    }),
+  );
+
+  it.effect('continues after equal timestamps by ascending audit id', () =>
+    Effect.gen(function* () {
+      const cursor = {
+        createdAt: '2026-07-10T09:15:00.000Z',
+        id: 'audit-050',
+      };
+      let whereExpression: SQL | undefined;
+      const selectQuery = {
+        from: () => selectQuery,
+        leftJoin: () => selectQuery,
+        limit: () => Effect.succeed([]),
+        orderBy: () => selectQuery,
+        where: (expression: SQL | undefined) => {
+          whereExpression = expression;
+          return selectQuery;
+        },
+      };
+      const database = { select: () => selectQuery };
+
+      const page = yield* globalAdminHandlers[
+        'globalAdmin.platformAudit.findMany'
+      ]({ cursor }, { headers: createHeaders([]) } as never).pipe(
+        Effect.provide(provideDatabase(database)),
+      );
+
+      expect(page).toEqual({ items: [], nextCursor: null });
+      if (!whereExpression) {
+        throw new Error('Expected an audit cursor predicate');
+      }
+      const cursorQuery = new PgDialect().sqlToQuery(whereExpression);
+      expect(cursorQuery.sql).toContain(
+        '"platform_audit_entries"."created_at" < $1',
+      );
+      expect(cursorQuery.sql).toContain(
+        '"platform_audit_entries"."created_at" = $2',
+      );
+      expect(cursorQuery.sql).toContain('"platform_audit_entries"."id" > $3');
+      expect(cursorQuery.sql).toContain(' or ');
+      expect(cursorQuery.sql).toContain(' and ');
+      expect(cursorQuery.params).toEqual([
+        cursor.createdAt,
+        cursor.createdAt,
+        cursor.id,
       ]);
     }),
   );
@@ -599,7 +715,16 @@ describe('globalAdminHandlers', () => {
             platformAdministrator: false,
           }),
         } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+      ).pipe(
+        Effect.provideService(
+          RpcRequestContext,
+          createRequestContext(['globalAdmin:manageTenants'], {
+            platformAdministrator: false,
+          }),
+        ),
+        Effect.provide(provideDatabase(database)),
+        Effect.flip,
+      );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.message).toBe('Platform administrator authority required');
@@ -618,7 +743,6 @@ describe('globalAdminHandlers', () => {
               currency: 'CZK',
               domain: 'section.example.org',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Example Section',
               stripeAccountId: 'acct_123',
               theme: 'esn',
@@ -685,7 +809,6 @@ describe('globalAdminHandlers', () => {
       expect(capturedInsert).toMatchObject({
         currency: 'CZK',
         domain: 'section.example.org',
-        locale: 'de-DE',
         name: 'Example Section',
         privacyPolicyText: 'Section privacy policy',
         privacyPolicyUrl: null,
@@ -817,7 +940,6 @@ describe('globalAdminHandlers', () => {
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'de-DE',
         name: 'Tenant before update',
         stripeAccountId: 'acct_previous',
         theme: 'evorto',
@@ -830,7 +952,6 @@ describe('globalAdminHandlers', () => {
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Tenant',
               stripeAccountId: null,
               theme: 'evorto',
@@ -899,7 +1020,6 @@ describe('globalAdminHandlers', () => {
 
       expect(capturedUpdate).toMatchObject({
         domain: 'tenant.example.com',
-        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: null,
       });
@@ -923,7 +1043,6 @@ describe('globalAdminHandlers', () => {
         resourceId: 'tenant-1',
         resourceType: 'tenant',
         state: {
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: null,
         },
@@ -941,7 +1060,6 @@ describe('globalAdminHandlers', () => {
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Tenant',
               stripeAccountId: 'acct_current',
               theme: 'evorto',
@@ -1114,7 +1232,6 @@ describe('globalAdminHandlers', () => {
             currency: 'EUR' as const,
             domain: 'tenant.example.com',
             id: 'tenant-1',
-            locale: 'de-DE',
             name: 'Tenant',
             stripeAccountId: 'acct_current',
             theme: 'evorto' as const,
@@ -1219,7 +1336,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR' as const,
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: null,
           theme: 'evorto',
@@ -1306,7 +1422,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant before update',
           stripeAccountId: 'acct_current',
           theme: 'evorto',

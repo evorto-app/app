@@ -52,6 +52,12 @@ describe('container image pinning source', () => {
     expect(dependabot).toContain('- package-ecosystem: "docker-compose"');
   });
 
+  it('updates operating-system packages only through pinned base images', () => {
+    const dockerfile = source('Dockerfile');
+
+    expect(dockerfile).not.toMatch(/\b(?:apt|apt-get|apk)\b/u);
+  });
+
   it('exports private source maps but removes them from the runtime image', () => {
     const dockerfile = source('Dockerfile');
     const verifier = source('ops/scaleway/verify-runtime-image.sh');
@@ -82,6 +88,25 @@ describe('container image pinning source', () => {
       '**/*.auto.tfvars',
     ]) {
       expect(dockerIgnore).toContain(excludedPath);
+    }
+
+    for (const excludedPath of [
+      'tests',
+      '.e2e-runtime.json',
+      '.playwright-cli',
+      'coverage',
+      'playwright-report',
+      'test-results',
+      'repos',
+    ]) {
+      expect(dockerIgnore).toMatch(
+        new RegExp(`^${excludedPath.replaceAll('.', '\\.')}\\s*$`, 'mu'),
+      );
+    }
+    for (const runtimeInput of ['helpers', 'ops', 'public', 'src']) {
+      expect(dockerIgnore).not.toMatch(
+        new RegExp(`^${runtimeInput}(?:/|\\s*$)`, 'mu'),
+      );
     }
   });
 

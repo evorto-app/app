@@ -14,6 +14,7 @@ import {
   addonToEventRegistrationOptions,
   emailOutbox,
   eventAddons,
+  eventInstances,
   eventRegistrationAddonFulfillmentEvents,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
@@ -58,9 +59,9 @@ import {
   registrationTransferBlockedReason,
   resolveCancellationDeadlineHoursBeforeStart,
   resolveRefundFeesOnCancellation,
-  withoutRegistrationInternalErrorCause,
 } from './events-registration.handlers';
 import {
+  EventCheckInUnavailableError,
   EventRegistrationConflictError,
   EventRegistrationInternalError,
 } from './events.errors';
@@ -126,7 +127,6 @@ const tenant = {
   emailSenderEmail: 'board@tenant.example.com',
   emailSenderName: 'Tenant Board',
   id: 'tenant-1',
-  locale: 'en',
   maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
@@ -147,7 +147,6 @@ const createUser = ({
   id?: string;
   permissions?: readonly Permission[];
 } = {}) => ({
-  attributes: [],
   auth0Id: `auth0|${id}`,
   communicationEmail: `${id}.contact@example.com`,
   email: `${id}@example.com`,
@@ -216,6 +215,7 @@ const scannedRegistration = {
   checkedInGuestCount: 0,
   checkInTime: null,
   event: {
+    end: new Date(Date.now() + 2 * 60 * 60 * 1000),
     start: new Date(Date.now() + 30 * 60 * 1000),
     title: 'City tour',
   },
@@ -465,7 +465,15 @@ const createAcquisitionRows = ({
 
 const createRegistrationMutationGuardSelect = ({
   activeTransfers = [],
+  checkedInGuestCount = 0,
+  checkInTime = null,
+  eventEnd = new Date(Date.now() + 2 * 60 * 60 * 1000),
+  eventId = 'event-1',
+  eventStart = new Date(Date.now() + 30 * 60 * 1000),
+  guestCount = 0,
+  registrationOptionId = 'option-1',
   status = 'CONFIRMED',
+  userId = 'attendee-1',
 }: {
   activeTransfers?: readonly {
     id: string;
@@ -473,7 +481,15 @@ const createRegistrationMutationGuardSelect = ({
     sourceRegistrationId: string;
     status: 'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
   }[];
-  status?: 'CONFIRMED' | 'PENDING';
+  checkedInGuestCount?: number;
+  checkInTime?: Date | null;
+  eventEnd?: Date;
+  eventId?: string;
+  eventStart?: Date;
+  guestCount?: number;
+  registrationOptionId?: string;
+  status?: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+  userId?: string;
 } = {}) => ({
   select: () => ({
     from: (table: unknown) => ({
@@ -481,10 +497,28 @@ const createRegistrationMutationGuardSelect = ({
         for: () =>
           Effect.succeed(
             table === eventRegistrations
-              ? [{ status }]
-              : table === registrationTransfers
-                ? activeTransfers
-                : [],
+              ? [
+                  {
+                    checkedInGuestCount,
+                    checkInTime,
+                    eventId,
+                    guestCount,
+                    id: 'registration-1',
+                    registrationOptionId,
+                    status,
+                    userId,
+                  },
+                ]
+              : table === eventInstances
+                ? [
+                    {
+                      end: eventEnd,
+                      start: eventStart,
+                    },
+                  ]
+                : table === registrationTransfers
+                  ? activeTransfers
+                  : [],
           ),
       }),
     }),
@@ -1870,31 +1904,20 @@ describe('event registration owner add-on status', () => {
     ).toBe('activeTransfer');
   });
 
-  it('removes internal causes before an add-on purchase error crosses RPC', () => {
-    const sanitized = withoutRegistrationInternalErrorCause(
-      new EventRegistrationInternalError({
-        cause: new Error('duplicate key violates secret_constraint_name'),
-        message: 'Add-on purchase reservation failed',
-      }),
-    );
-
-    expect(sanitized.message).toBe('Add-on purchase reservation failed');
-    expect(sanitized).not.toHaveProperty('cause');
-  });
-
   it.effect(
-    'removes internal causes before a registration mutation error crosses RPC',
+    'preserves an expected cause-free registration mutation error',
     () =>
       Effect.gen(function* () {
-        const sanitized = yield* mapRegistrationMutationInternalError(
-          new EventRegistrationInternalError({
-            cause: new Error('duplicate key violates secret_constraint_name'),
-            message: 'Registration payment setup failed',
-          }),
+        const internalError = new EventRegistrationInternalError({
+          message: 'Registration payment setup failed',
+        });
+        const mapped = yield* mapRegistrationMutationInternalError(
+          internalError,
         ).pipe(Effect.flip);
 
-        expect(sanitized.message).toBe('Registration payment setup failed');
-        expect(sanitized).not.toHaveProperty('cause');
+        expect(mapped).toBe(internalError);
+        expect(mapped.message).toBe('Registration payment setup failed');
+        expect(mapped).not.toHaveProperty('cause');
       }),
   );
 
@@ -5885,10 +5908,44 @@ describe('event registration scan handlers', () => {
       );
 
       expect(result.allowCheckin).toBe(false);
-      expect(result.checkInTimingIssue).toBe(true);
+      expect(result.checkInTimingIssue).toBe('notOpen');
       expect(result.registrationStatus).toBe('CONFIRMED');
       expect(result.registrationStatusIssue).toBe(false);
       expect(result.sameUserIssue).toBe(false);
+    }),
+  );
+
+  it.effect('reports a scan after the post-event grace period as ended', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                ...scannedRegistration,
+                event: {
+                  ...scannedRegistration.event,
+                  end: new Date(Date.now() - 3 * 60 * 60 * 1000),
+                  start: new Date(Date.now() - 5 * 60 * 60 * 1000),
+                },
+              }),
+          },
+        },
+      };
+
+      const result = yield* eventRegistrationHandlers[
+        'events.registrationScanned'
+      ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+        Effect.provide(
+          createContextLayer({
+            database,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(result.allowCheckin).toBe(false);
+      expect(result.checkInTimingIssue).toBe('ended');
     }),
   );
 
@@ -5905,6 +5962,7 @@ describe('event registration scan handlers', () => {
                   ...scannedRegistration,
                   event: {
                     ...scannedRegistration.event,
+                    end: new Date('2026-09-15T14:00:00.000Z'),
                     start: new Date('2026-09-15T12:30:00.000Z'),
                   },
                 }),
@@ -5925,7 +5983,7 @@ describe('event registration scan handlers', () => {
         );
 
         expect(result.allowCheckin).toBe(true);
-        expect(result.checkInTimingIssue).toBe(false);
+        expect(result.checkInTimingIssue).toBeNull();
       }),
   );
 
@@ -6026,7 +6084,7 @@ describe('event registration scan handlers', () => {
         expect(result.alreadyCheckedInIssue).toBe(false);
         expect(result.attendeeCheckedIn).toBe(true);
         expect(result.checkedInGuestCount).toBe(1);
-        expect(result.checkInTimingIssue).toBe(false);
+        expect(result.checkInTimingIssue).toBeNull();
         expect(result.guestCount).toBe(2);
         expect(result.remainingGuestCount).toBe(1);
       }),
@@ -6039,7 +6097,10 @@ describe('event registration scan handlers', () => {
         const nowIso = '2026-09-15T12:00:00.000Z';
         const updateCalls: string[] = [];
         const tx = {
-          ...createRegistrationMutationGuardSelect(),
+          ...createRegistrationMutationGuardSelect({
+            eventEnd: new Date('2026-09-15T14:00:00.000Z'),
+            eventStart: new Date('2026-09-15T12:30:00.000Z'),
+          }),
           update: (table: unknown) => ({
             set: (values: { checkInTime?: Date }) => ({
               where: () => ({
@@ -6228,11 +6289,124 @@ describe('event registration scan handlers', () => {
       }),
   );
 
+  it.effect(
+    'rejects check-in when cancellation wins the registration lock',
+    () =>
+      Effect.gen(function* () {
+        const tx = {
+          ...createRegistrationMutationGuardSelect({ status: 'CANCELLED' }),
+          update: vi.fn(),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 30 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  userId: 'attendee-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ](
+          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Only confirmed registrations can be checked in',
+        );
+        expect(tx.update).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect('rejects a guest increment consumed by a concurrent check-in', () =>
+    Effect.gen(function* () {
+      const persistedCheckInTime = new Date('2026-09-18T09:45:00.000Z');
+      const tx = {
+        ...createRegistrationMutationGuardSelect({
+          checkedInGuestCount: 1,
+          checkInTime: persistedCheckInTime,
+          guestCount: 1,
+        }),
+        update: vi.fn(),
+      };
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkedInGuestCount: 0,
+                checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 30 * 60 * 1000),
+                },
+                eventId: 'event-1',
+                guestCount: 1,
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'CONFIRMED',
+                userId: 'attendee-1',
+              }),
+          },
+        },
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
+      };
+
+      const error = yield* eventRegistrationHandlers[
+        'events.checkInRegistration'
+      ](
+        { guestCheckInCount: 1, registrationId: 'registration-1' },
+        emptyHandlerOptions,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer({
+            database,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Guest check-in count exceeds remaining guests',
+      );
+      expect(tx.update).not.toHaveBeenCalled();
+    }),
+  );
+
   it.effect('records selected guest check-ins with the attendee check-in', () =>
     Effect.gen(function* () {
       const updateSets: unknown[] = [];
       const tx = {
-        ...createRegistrationMutationGuardSelect(),
+        ...createRegistrationMutationGuardSelect({ guestCount: 2 }),
         update: (table: unknown) => ({
           set: (values: unknown) => {
             updateSets.push(values);
@@ -6410,8 +6584,72 @@ describe('event registration scan handlers', () => {
       }),
   );
 
-  it.effect('rejects check-in before the pre-start window opens', () =>
+  it.effect(
+    'rejects check-in from the event reread after locking the registration',
+    () =>
+      Effect.gen(function* () {
+        const tx = {
+          ...createRegistrationMutationGuardSelect({
+            eventEnd: new Date(Date.now() + 3 * 60 * 60 * 1000),
+            eventStart: new Date(Date.now() + 2 * 60 * 60 * 1000),
+          }),
+          update: vi.fn(),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  userId: 'attendee-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ](
+          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error).toBeInstanceOf(EventCheckInUnavailableError);
+        expect(error).toMatchObject({
+          message: 'Check-in opens one hour before this event starts',
+          reason: 'notOpen',
+        });
+        expect(database.transaction).toHaveBeenCalledOnce();
+        expect(tx.update).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect('rejects check-in after the two-hour post-event grace period', () =>
     Effect.gen(function* () {
+      const tx = {
+        ...createRegistrationMutationGuardSelect({
+          eventEnd: new Date(Date.now() - 3 * 60 * 60 * 1000),
+          eventStart: new Date(Date.now() - 5 * 60 * 60 * 1000),
+        }),
+        update: vi.fn(),
+      };
       const database = {
         query: {
           eventRegistrations: {
@@ -6419,9 +6657,6 @@ describe('event registration scan handlers', () => {
               Effect.succeed({
                 checkedInGuestCount: 0,
                 checkInTime: null,
-                event: {
-                  start: new Date(Date.now() + 2 * 60 * 60 * 1000),
-                },
                 eventId: 'event-1',
                 guestCount: 0,
                 id: 'registration-1',
@@ -6431,7 +6666,9 @@ describe('event registration scan handlers', () => {
               }),
           },
         },
-        transaction: vi.fn(),
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
       };
 
       const error = yield* eventRegistrationHandlers[
@@ -6449,15 +6686,23 @@ describe('event registration scan handlers', () => {
         ),
       );
 
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Check-in is not open for this event yet');
-      expect(database.transaction).not.toHaveBeenCalled();
+      expect(error).toBeInstanceOf(EventCheckInUnavailableError);
+      expect(error).toMatchObject({
+        message: 'Check-in closed two hours after this event ended',
+        reason: 'ended',
+      });
+      expect(database.transaction).toHaveBeenCalledOnce();
+      expect(tx.update).not.toHaveBeenCalled();
     }),
   );
 
   it.effect('treats duplicate check-in as an idempotent success', () =>
     Effect.gen(function* () {
       const checkInTime = new Date('2026-09-18T09:45:00.000Z');
+      const tx = {
+        ...createRegistrationMutationGuardSelect({ checkInTime }),
+        update: vi.fn(),
+      };
       const database = {
         query: {
           eventRegistrations: {
@@ -6469,6 +6714,7 @@ describe('event registration scan handlers', () => {
                   start: new Date(Date.now() + 2 * 60 * 60 * 1000),
                 },
                 eventId: 'event-1',
+                guestCount: 0,
                 id: 'registration-1',
                 registrationOptionId: 'option-1',
                 status: 'CONFIRMED',
@@ -6485,7 +6731,9 @@ describe('event registration scan handlers', () => {
               ]),
           },
         },
-        transaction: vi.fn(),
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
       };
 
       const result = yield* eventRegistrationHandlers[
@@ -6499,7 +6747,8 @@ describe('event registration scan handlers', () => {
         alreadyCheckedIn: true,
         checkInTime: '2026-09-18T09:45:00.000Z',
       });
-      expect(database.transaction).not.toHaveBeenCalled();
+      expect(database.transaction).toHaveBeenCalledOnce();
+      expect(tx.update).not.toHaveBeenCalled();
     }),
   );
 

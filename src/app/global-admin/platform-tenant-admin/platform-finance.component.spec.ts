@@ -13,6 +13,7 @@ import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  PlatformFinanceReceiptApprovalDetailRecord,
   PlatformFinanceReceiptWithSubmitterRecord,
   PlatformFinanceRefundLifecycleSummary,
   PlatformFinanceRefundRecoveryRecord,
@@ -23,6 +24,10 @@ import {
 import { NotificationService } from '../../core/notification.service';
 import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import {
+  type ReimbursementConfirmationData,
+  ReimbursementConfirmationDialogComponent,
+} from '../../finance/shared/reimbursement-confirmation-dialog/reimbursement-confirmation-dialog.component';
+import {
   PlatformFinanceComponent,
   PlatformFinanceOperations,
   platformReceiptEvidenceUnavailableNotice,
@@ -31,10 +36,6 @@ import {
   platformTransactionMethodLabel,
   platformTransactionStatusLabel,
 } from './platform-finance.component';
-import {
-  type PlatformReimbursementConfirmationData,
-  PlatformReimbursementConfirmationDialogComponent,
-} from './platform-reimbursement-confirmation-dialog.component';
 import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
 
 @Component({
@@ -228,6 +229,7 @@ describe('platform refund lifecycle copy', () => {
 });
 
 const loadRecoveryQueue = vi.fn();
+const loadApprovalDetail = vi.fn();
 const loadReimbursementQueue = vi.fn();
 const loadTransactions = vi.fn();
 const openDialog = vi.fn();
@@ -239,6 +241,43 @@ const tenantContext = PlatformFinanceTenantContext.make({
   targetTenantId: 'tenant-1',
   timezone: 'Australia/Brisbane',
 });
+
+const approvalQueueReceipt = (id: string) =>
+  PlatformFinanceReceiptWithSubmitterRecord.make({
+    alcoholAmount: 0,
+    attachmentFileName: `${id}.pdf`,
+    attachmentMimeType: 'application/pdf',
+    createdAt: '2026-07-10T10:00:00.000Z',
+    currency: 'EUR',
+    depositAmount: 0,
+    eventId: `event-${id}`,
+    hasAlcohol: false,
+    hasDeposit: false,
+    id,
+    purchaseCountry: 'DE',
+    receiptDate: '2026-07-09',
+    refundedAt: null,
+    refundTransactionId: null,
+    rejectionReason: null,
+    reviewedAt: null,
+    status: 'submitted',
+    submittedByEmail: 'participant@example.test',
+    submittedByFirstName: 'Pat',
+    submittedByLastName: 'Example',
+    submittedByUserId: 'user-participant',
+    taxAmount: 190,
+    totalAmount: 1190,
+    updatedAt: '2026-07-10T10:00:00.000Z',
+  });
+
+const approvalDetailReceipt = (id: string) =>
+  PlatformFinanceReceiptApprovalDetailRecord.make({
+    ...approvalQueueReceipt(id),
+    eventStart: '2026-07-20T10:00:00.000Z',
+    eventTitle: 'Approval event',
+    previewImageUrl: `https://example.test/${id}.pdf`,
+    receiptEvidenceAvailable: true,
+  });
 
 const reimbursementReceipt = (
   id: string,
@@ -258,10 +297,8 @@ const reimbursementReceipt = (
     hasAlcohol: false,
     hasDeposit: false,
     id,
-    previewImageUrl: `https://example.test/${id}.pdf`,
     purchaseCountry: 'DE',
     receiptDate: '2026-07-09',
-    receiptEvidenceAvailable: true,
     refundedAt: null,
     refundTransactionId: null,
     rejectionReason: null,
@@ -324,6 +361,12 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    loadApprovalDetail.mockImplementation(
+      async (_targetTenantId: string, id: string) => ({
+        receipt: approvalDetailReceipt(id),
+        tenantContext,
+      }),
+    );
     loadRecoveryQueue.mockResolvedValue({ claims: [], tenantContext });
     loadReimbursementQueue.mockResolvedValue({ groups: [], tenantContext });
     loadTransactions.mockResolvedValue({
@@ -364,6 +407,10 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
         {
           provide: PlatformFinanceOperations,
           useValue: {
+            approvalDetail: (targetTenantId: string, id: string) => ({
+              queryFn: () => loadApprovalDetail(targetTenantId, id),
+              queryKey: ['platform-finance', 'approval-detail', id],
+            }),
             approvalQueue: () => ({
               queryFn: async () => ({ groups: [], tenantContext }),
               queryKey: ['platform-finance', 'approval'],
@@ -608,7 +655,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
 
     await vi.waitFor(() => {
       expect(openDialog).toHaveBeenCalledWith(
-        PlatformReimbursementConfirmationDialogComponent,
+        ReimbursementConfirmationDialogComponent,
         {
           data: {
             currency: 'EUR',
@@ -617,7 +664,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
             receiptCount: 2,
             recipient: 'Ada Lovelace',
             totalAmount: 2900,
-          } satisfies PlatformReimbursementConfirmationData,
+          } satisfies ReimbursementConfirmationData,
           width: 'min(38rem, calc(100vw - 2rem))',
         },
       );
@@ -834,35 +881,50 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     });
   });
 
-  it('clears tenant-scoped selections and form models when the tenant changes', async () => {
-    const receipt = PlatformFinanceReceiptWithSubmitterRecord.make({
-      alcoholAmount: 0,
-      attachmentFileName: 'tenant-a-receipt.pdf',
-      attachmentMimeType: 'application/pdf',
-      createdAt: '2026-07-10T10:00:00.000Z',
-      currency: 'EUR',
-      depositAmount: 0,
-      eventId: 'tenant-a-event',
-      hasAlcohol: false,
-      hasDeposit: false,
-      id: 'tenant-a-receipt',
-      previewImageUrl: 'https://example.test/tenant-a-receipt.pdf',
-      purchaseCountry: 'DE',
-      receiptDate: '2026-07-09',
-      receiptEvidenceAvailable: true,
-      refundedAt: null,
-      refundTransactionId: null,
-      rejectionReason: null,
-      reviewedAt: null,
-      status: 'submitted',
-      submittedByEmail: 'tenant-a-participant@example.test',
-      submittedByFirstName: 'Tenant A',
-      submittedByLastName: 'Participant',
-      submittedByUserId: 'tenant-a-user',
-      taxAmount: 190,
-      totalAmount: 1190,
-      updatedAt: '2026-07-10T10:00:00.000Z',
+  it('ignores an in-flight receipt detail after the tenant changes', async () => {
+    interface ApprovalDetailResult {
+      receipt: PlatformFinanceReceiptApprovalDetailRecord;
+      tenantContext: PlatformFinanceTenantContext;
+    }
+    let resolveDetail: ((detail: ApprovalDetailResult) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const pendingDetail = new Promise<ApprovalDetailResult>((resolve) => {
+      resolveDetail = resolve;
     });
+    loadApprovalDetail.mockImplementationOnce(() => pendingDetail);
+
+    const fixture = TestBed.createComponent(PlatformFinanceComponent);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const detailPromise = component['chooseReceipt'](
+      approvalQueueReceipt('stale-receipt'),
+    );
+
+    await vi.waitFor(() => {
+      expect(component['receiptDetailPending']()).toBe(true);
+    });
+
+    fixture.componentRef.setInput('tenantId', 'tenant-2');
+    fixture.detectChanges();
+    expect(component['receiptDetailPending']()).toBe(false);
+
+    if (!resolveDetail) {
+      throw new Error('Expected the receipt detail request to be pending');
+    }
+    resolveDetail({
+      receipt: approvalDetailReceipt('stale-receipt'),
+      tenantContext,
+    });
+    await detailPromise;
+
+    expect(component['selectedReceipt']()).toBeNull();
+    expect(component['reviewForm'].id().value()).toBe('');
+  });
+
+  it('clears tenant-scoped selections and form models when the tenant changes', async () => {
+    const receipt = approvalQueueReceipt('tenant-a-receipt');
     const reimbursementGroup = PlatformFinanceReimbursementGroup.make({
       currency: 'EUR',
       payout: {
@@ -914,11 +976,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       expect(component['reimbursementQueueQuery'].isSuccess()).toBe(true);
     });
 
-    component['chooseReceipt'](
-      receipt,
-      'Tenant A event',
-      '2026-07-20T10:00:00.000Z',
-    );
+    await component['chooseReceipt'](receipt);
     component['chooseReimbursement'](reimbursementGroup);
     component['chooseRefundClaim'](refundClaim);
     component['reviewModel'].update((model) => ({
@@ -936,6 +994,13 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     component['transactionPageIndex'].set(4);
 
     expect(component['selectedReceipt']()).not.toBeNull();
+    expect(loadApprovalDetail).toHaveBeenCalledWith(
+      'tenant-1',
+      'tenant-a-receipt',
+    );
+    expect(component['selectedReceipt']()?.receipt.previewImageUrl).toBe(
+      'https://example.test/tenant-a-receipt.pdf',
+    );
     expect(component['selectedReimbursement']()).not.toBeNull();
     expect(component['selectedRefundClaim']()).not.toBeNull();
 

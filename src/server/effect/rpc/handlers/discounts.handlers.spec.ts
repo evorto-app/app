@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@effect/vitest';
+import { expect, layer, vi } from '@effect/vitest';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
@@ -6,14 +6,15 @@ import * as Headers from 'effect/unstable/http/Headers';
 import { Database } from '../../../../db';
 import { userDiscountCards } from '../../../../db/schema';
 import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import {
   Adapters,
   ProviderValidationUnavailableError,
 } from '../../../discounts/providers';
-import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
 import { discountHandlers } from './discounts.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const createTenant = (id = 'tenant-1') => ({
   currency: 'EUR' as const,
@@ -26,7 +27,6 @@ const createTenant = (id = 'tenant-1') => ({
   },
   domain: `${id}.example.com`,
   id,
-  locale: 'en',
   name: id,
   receiptSettings: {
     allowOther: false,
@@ -38,8 +38,8 @@ const createTenant = (id = 'tenant-1') => ({
 });
 
 const createUser = () => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
+  communicationEmail: 'alice@example.com',
   email: 'alice@example.com',
   firstName: 'Alice',
   iban: null,
@@ -50,14 +50,25 @@ const createUser = () => ({
   roleIds: [],
 });
 
-const createHeaders = (tenant = createTenant(), user = createUser()) =>
-  Headers.fromInput({
-    [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-    [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-    [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-  });
+const createHeaders = (_tenant = createTenant(), _user = createUser()) =>
+  Headers.empty;
 
-describe('discountHandlers', () => {
+const discountRequestContext = {
+  authData: {},
+  authenticated: true,
+  permissions: [],
+  platformAuthority: null,
+  tenant: createTenant('tenant-2'),
+  user: createUser(),
+  userAssigned: true,
+} satisfies RpcRequestContextShape;
+
+const discountHandlerLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(RpcRequestContext, discountRequestContext),
+);
+
+layer(discountHandlerLayer)('discountHandlers', (it) => {
   it.effect('getMyCards reads discount cards for the current tenant', () =>
     Effect.gen(function* () {
       const findMany = vi.fn(() =>

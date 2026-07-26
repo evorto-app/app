@@ -25,7 +25,6 @@ describe('PermissionSchema', () => {
     expect(
       Schema.decodeUnknownSync(Schema.Array(PermissionSchema))([
         ...ALL_PERMISSIONS,
-        'admin:manageTaxes',
         'globalAdmin:*',
         'globalAdmin:manageTenants',
       ]),
@@ -34,14 +33,13 @@ describe('PermissionSchema', () => {
 });
 
 describe('TenantRolePermissionSchema', () => {
-  it('accepts concrete tenant permissions, tenant wildcards, and legacy tax aliases', () => {
+  it('accepts concrete tenant permissions and tenant wildcards', () => {
     expect(
       Schema.decodeUnknownSync(Schema.Array(TenantRolePermissionSchema))([
         'events:viewPublic',
         'events:*',
-        'admin:manageTaxes',
       ]),
-    ).toEqual(['events:viewPublic', 'events:*', 'admin:manageTaxes']);
+    ).toEqual(['events:viewPublic', 'events:*']);
   });
 
   it('rejects both platform-global permissions', () => {
@@ -135,10 +133,6 @@ describe('includesPermission', () => {
 
   it('allows configured permission dependencies', () => {
     expect(includesPermission('templates:view', ['events:create'])).toBe(true);
-  });
-
-  it('allows legacy admin tax aliases', () => {
-    expect(includesPermission('admin:tax', ['admin:manageTaxes'])).toBe(true);
   });
 
   it('allows group wildcard checks against concrete permissions', () => {

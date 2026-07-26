@@ -11,6 +11,7 @@ import {
   profileEventGuestLabel,
   profileEventNextStepLabel,
   profileEventPassLabel,
+  profileSectionDataQueryEnabled,
   profileSectionFromFragment,
   profileTransferClaimPath,
   profileUserAfterEdit,
@@ -23,6 +24,26 @@ import {
 describe('profile account actions', () => {
   it('links the transfer claim action to the manual-code entry page', () => {
     expect(profileTransferClaimPath).toBe('/registration-transfers');
+  });
+});
+
+describe('profile section data queries', () => {
+  it('loads only the active section and keeps discounts provider-gated', () => {
+    expect(profileSectionDataQueryEnabled('overview', 'events', true)).toBe(
+      false,
+    );
+    expect(profileSectionDataQueryEnabled('events', 'events', false)).toBe(
+      true,
+    );
+    expect(profileSectionDataQueryEnabled('events', 'receipts', true)).toBe(
+      false,
+    );
+    expect(
+      profileSectionDataQueryEnabled('discounts', 'discounts', false),
+    ).toBe(false);
+    expect(profileSectionDataQueryEnabled('discounts', 'discounts', true)).toBe(
+      true,
+    );
   });
 });
 

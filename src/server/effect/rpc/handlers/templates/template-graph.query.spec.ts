@@ -1,6 +1,8 @@
 import { describe, expect, it } from '@effect/vitest';
 import { readFileSync } from 'node:fs';
 
+import { getRequiredTemplateRole } from './template-graph.query';
+
 const readSource = (file: string) =>
   readFileSync(new URL(file, import.meta.url), 'utf8');
 
@@ -29,5 +31,30 @@ describe('tenant template graph query source guards', () => {
     expect(platformEventSource).toContain('loadTemplateGraphDetail');
     expect(platformTemplateSource).toContain('loadTemplateGraphDetail');
     expect(platformTemplateSource).not.toContain('loadPlatformTemplateDetail');
+  });
+
+  it('surfaces an unresolved persisted role instead of dropping it', () => {
+    const rolesById = new Map([
+      ['role-found', { id: 'role-found', name: 'Found role' }],
+    ]);
+
+    expect(
+      getRequiredTemplateRole({
+        optionId: 'option-1',
+        roleId: 'role-found',
+        rolesById,
+        templateId: 'template-1',
+      }),
+    ).toEqual({ id: 'role-found', name: 'Found role' });
+    expect(() =>
+      getRequiredTemplateRole({
+        optionId: 'option-1',
+        roleId: 'role-missing',
+        rolesById,
+        templateId: 'template-1',
+      }),
+    ).toThrowError(
+      'Persisted template template-1 registration option option-1 references missing tenant role role-missing',
+    );
   });
 });

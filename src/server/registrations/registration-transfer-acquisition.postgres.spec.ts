@@ -172,6 +172,7 @@ const seedAcquisitionFixture = async (
     description: 'Registration acquisition ledger test',
     icon: { iconColor: 0, iconName: 'circle' },
     id: templateId,
+    listingAudience: 'both',
     tenantId,
     title: 'Acquisition ledger',
   });
@@ -181,6 +182,7 @@ const seedAcquisitionFixture = async (
     end: new Date(now + 2 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
+    listingAudience: 'both',
     start: new Date(now + 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -376,7 +378,6 @@ const seedAcquisitionFixture = async (
   await database.insert(registrationTransfers).values([
     {
       claimCodeHash: `code-${firstTransferId}`,
-      claimTokenHash: `token-${firstTransferId}`,
       completedAt: firstTransferredAt,
       eventId,
       expiresAt: new Date(now + 60 * 60 * 1000),
@@ -397,7 +398,6 @@ const seedAcquisitionFixture = async (
     },
     {
       claimCodeHash: `code-${secondTransferId}`,
-      claimTokenHash: `token-${secondTransferId}`,
       completedAt: secondTransferredAt,
       eventId,
       expiresAt: new Date(now + 60 * 60 * 1000),
@@ -742,7 +742,6 @@ const seedPaidRepeatTransferCheckout = async (
   });
   await database.insert(registrationTransfers).values({
     claimCodeHash: `code-${transferId}`,
-    claimTokenHash: `token-${transferId}`,
     eventId: fixture.eventId,
     expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     id: transferId,

@@ -137,6 +137,7 @@ describe('tenant currency financial-configuration serialization', () => {
               description: 'Must not persist under a changed currency',
               icon: { iconColor: 0, iconName: 'circle' },
               id: fixture.templateId,
+              listingAudience: 'both',
               tenantId: fixture.tenantId,
               title: 'Stale currency template',
             });
@@ -185,6 +186,7 @@ describe('tenant currency financial-configuration serialization', () => {
               description: 'First financial configuration',
               icon: { iconColor: 0, iconName: 'circle' },
               id: fixture.templateId,
+              listingAudience: 'both',
               tenantId: fixture.tenantId,
               title: 'First currency template',
             });

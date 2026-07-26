@@ -41,6 +41,10 @@ resource "scaleway_rdb_instance" "application" {
   }
 
   tags = ["evorto", var.environment, "terraform", "private-only"]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "scaleway_rdb_database" "application" {

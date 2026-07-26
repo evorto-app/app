@@ -14,6 +14,7 @@ import {
   disabled,
   form,
   FormField,
+  max,
   maxLength,
   min,
   minLength,
@@ -34,6 +35,11 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
 import {
+  isFinanceReceiptCalendarDate,
+  maximumFinanceReceiptMinorUnits,
+  validateFinanceReceiptAmounts,
+} from '@shared/finance/receipt-values';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -41,6 +47,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import type {
+  PlatformFinanceReceiptApprovalDetailRecord,
   PlatformFinanceReceiptWithSubmitterRecord,
   PlatformFinanceRefundLifecycleSummary,
   PlatformFinanceRefundRecoveryRecord,
@@ -50,13 +57,14 @@ import type {
 } from '../../../shared/rpc-contracts/app-rpcs/platform-tenant-finance.rpcs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
-import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import {
-  type PlatformReimbursementConfirmationData,
-  PlatformReimbursementConfirmationDialogComponent,
-} from './platform-reimbursement-confirmation-dialog.component';
+  type ReimbursementConfirmationData,
+  ReimbursementConfirmationDialogComponent,
+} from '../../finance/shared/reimbursement-confirmation-dialog/reimbursement-confirmation-dialog.component';
+import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
 
 interface ReceiptReviewModel {
@@ -88,7 +96,7 @@ interface ReimbursementModel {
 interface SelectedReceiptContext {
   eventStart: string;
   eventTitle: string;
-  receipt: PlatformFinanceReceiptWithSubmitterRecord;
+  receipt: PlatformFinanceReceiptApprovalDetailRecord;
 }
 
 interface SelectedReimbursementContext {
@@ -214,6 +222,13 @@ const emptyReview = (): ReceiptReviewModel => ({
 export class PlatformFinanceOperations {
   private readonly rpc = AppRpc.injectClient();
 
+  approvalDetail(targetTenantId: string, id: string) {
+    return this.rpc.platform.finance.receipts.approvalDetail.queryOptions({
+      id,
+      targetTenantId,
+    });
+  }
+
   approvalQueue(targetTenantId: string) {
     return this.rpc.platform.finance.receipts.approvalQueue.queryOptions({
       targetTenantId,
@@ -301,6 +316,7 @@ export class PlatformFinanceComponent {
       ? this.approvalQueueQuery.data().tenantContext.receiptCountryConfig
       : { allowOther: false, receiptCountries: [] },
   );
+  protected readonly receiptDetailPending = signal(false);
   protected readonly recoveryQueueQuery = injectQuery(() =>
     this.operations.recoveryQueue(this.tenantId()),
   );
@@ -360,8 +376,8 @@ export class PlatformFinanceComponent {
   protected readonly reimbursementQueueQuery = injectQuery(() =>
     this.operations.reimbursementQueue(this.tenantId()),
   );
-  private readonly reviewModel = signal<ReceiptReviewModel>(emptyReview());
 
+  private readonly reviewModel = signal<ReceiptReviewModel>(emptyReview());
   protected readonly reviewForm = form(this.reviewModel, (review) => {
     required(review.id);
     required(review.purchaseCountry, { message: 'Select a purchase country.' });
@@ -380,13 +396,14 @@ export class PlatformFinanceComponent {
     min(review.alcoholAmount, 0);
     min(review.depositAmount, 0);
     min(review.taxAmount, 0);
-    min(review.totalAmount, 0);
+    min(review.totalAmount, 1);
     for (const amount of [
       review.alcoholAmount,
       review.depositAmount,
       review.taxAmount,
       review.totalAmount,
     ]) {
+      max(amount, maximumFinanceReceiptMinorUnits);
       validate(amount, ({ value }) =>
         Number.isInteger(value())
           ? undefined
@@ -396,6 +413,30 @@ export class PlatformFinanceComponent {
             },
       );
     }
+    validate(review.receiptDate, ({ value }) =>
+      isFinanceReceiptCalendarDate(value())
+        ? undefined
+        : {
+            kind: 'calendarDate',
+            message: 'Enter a valid date in YYYY-MM-DD format.',
+          },
+    );
+    validate(review.totalAmount, ({ valueOf }) =>
+      validateFinanceReceiptAmounts({
+        alcoholAmount: valueOf(review.alcoholAmount),
+        depositAmount: valueOf(review.depositAmount),
+        hasAlcohol: valueOf(review.hasAlcohol),
+        hasDeposit: valueOf(review.hasDeposit),
+        taxAmount: valueOf(review.taxAmount),
+        totalAmount: valueOf(review.totalAmount),
+      })
+        ? {
+            kind: 'receiptAmounts',
+            message:
+              'Amounts must match the deposit and alcohol choices and stay within the total.',
+          }
+        : undefined,
+    );
   });
   protected readonly reviewMutation = injectMutation(() =>
     this.operations.reviewReceipt(),
@@ -439,6 +480,7 @@ export class PlatformFinanceComponent {
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
+  private receiptDetailRequestId = 0;
 
   constructor() {
     effect(() => {
@@ -452,27 +494,63 @@ export class PlatformFinanceComponent {
     this.transactionPageSize.set(event.pageSize);
   }
 
-  protected chooseReceipt(
+  protected async chooseReceipt(
     receipt: PlatformFinanceReceiptWithSubmitterRecord,
-    eventTitle: string,
-    eventStart: string,
-  ): void {
-    this.selectedReceipt.set({ eventStart, eventTitle, receipt });
-    this.reviewModel.set({
-      alcoholAmount: receipt.alcoholAmount,
-      depositAmount: receipt.depositAmount,
-      hasAlcohol: receipt.hasAlcohol,
-      hasDeposit: receipt.hasDeposit,
-      id: receipt.id,
-      purchaseCountry: receipt.purchaseCountry,
-      reason: '',
-      receiptDate: receipt.receiptDate.slice(0, 10),
-      rejectionReason: '',
-      status: 'approved',
-      taxAmount: receipt.taxAmount,
-      totalAmount: receipt.totalAmount,
-    });
+  ): Promise<void> {
+    if (this.receiptDetailPending()) return;
+
+    const targetTenantId = this.tenantId();
+    const requestId = ++this.receiptDetailRequestId;
+    this.receiptDetailPending.set(true);
+    this.selectedReceipt.set(null);
+    this.reviewModel.set(emptyReview());
     this.reviewForm().reset();
+
+    try {
+      const detail = await this.queryClient.fetchQuery(
+        this.operations.approvalDetail(targetTenantId, receipt.id),
+      );
+      if (
+        this.receiptDetailRequestId !== requestId ||
+        this.tenantId() !== targetTenantId
+      ) {
+        return;
+      }
+
+      this.selectedReceipt.set({
+        eventStart: detail.receipt.eventStart,
+        eventTitle: detail.receipt.eventTitle,
+        receipt: detail.receipt,
+      });
+      this.reviewModel.set({
+        alcoholAmount: detail.receipt.alcoholAmount,
+        depositAmount: detail.receipt.depositAmount,
+        hasAlcohol: detail.receipt.hasAlcohol,
+        hasDeposit: detail.receipt.hasDeposit,
+        id: detail.receipt.id,
+        purchaseCountry: detail.receipt.purchaseCountry,
+        reason: '',
+        receiptDate: detail.receipt.receiptDate,
+        rejectionReason: '',
+        status: 'approved',
+        taxAmount: detail.receipt.taxAmount,
+        totalAmount: detail.receipt.totalAmount,
+      });
+      this.reviewForm().reset();
+    } catch (error) {
+      if (
+        this.receiptDetailRequestId === requestId &&
+        this.tenantId() === targetTenantId
+      ) {
+        this.notifications.showError(
+          getErrorMessage(error, 'Receipt details could not be loaded'),
+        );
+      }
+    } finally {
+      if (this.receiptDetailRequestId === requestId) {
+        this.receiptDetailPending.set(false);
+      }
+    }
   }
 
   protected chooseRefundClaim(
@@ -540,7 +618,7 @@ export class PlatformFinanceComponent {
       const recipient =
         `${selectedGroup.submittedByFirstName} ${selectedGroup.submittedByLastName}`.trim() ||
         selectedGroup.submittedByEmail;
-      const confirmation: PlatformReimbursementConfirmationData = {
+      const confirmation: ReimbursementConfirmationData = {
         currency: selectedGroup.currency,
         payoutDestination,
         payoutMethod:
@@ -552,10 +630,10 @@ export class PlatformFinanceComponent {
       const confirmed = await firstValueFrom(
         this.dialog
           .open<
-            PlatformReimbursementConfirmationDialogComponent,
-            PlatformReimbursementConfirmationData,
+            ReimbursementConfirmationDialogComponent,
+            ReimbursementConfirmationData,
             boolean
-          >(PlatformReimbursementConfirmationDialogComponent, {
+          >(ReimbursementConfirmationDialogComponent, {
             data: confirmation,
             width: 'min(38rem, calc(100vw - 2rem))',
           })
@@ -695,6 +773,8 @@ export class PlatformFinanceComponent {
   private resetTenantScopedState(): void {
     this.transactionPageIndex.set(0);
 
+    this.receiptDetailRequestId += 1;
+    this.receiptDetailPending.set(false);
     this.selectedReceipt.set(null);
     this.reviewModel.set(emptyReview());
     this.reviewForm().reset();
