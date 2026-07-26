@@ -441,7 +441,7 @@ export const includesPermission = (
   }
 
   if (permission.includes(':*')) {
-    const [group] = permission.split(':');
+    const [group] = permission.split(':', 1);
     if (permissions.some((granted) => granted.startsWith(`${group}:`))) {
       return true;
     }
@@ -449,7 +449,7 @@ export const includesPermission = (
     return true;
   }
 
-  const [group] = permission.split(':');
+  const [group] = permission.split(':', 1);
   if (permissions.includes(`${group}:*` as Permission)) {
     return true;
   }

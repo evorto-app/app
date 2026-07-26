@@ -28,25 +28,6 @@ const trustedReceiptPreviewHost = (hostname: string): boolean =>
   hostname === 's3.fr-par.scw.cloud' ||
   hostname.endsWith('.s3.fr-par.scw.cloud');
 
-export function isSafeReceiptPreviewUrl(
-  previewUrl: null | string,
-): previewUrl is string {
-  if (!previewUrl) {
-    return false;
-  }
-
-  try {
-    const baseUrl = globalThis.location?.origin ?? 'http://localhost';
-    const url = new URL(previewUrl, baseUrl);
-    return (
-      (url.protocol === 'https:' || url.protocol === 'http:') &&
-      trustedReceiptPreviewHost(url.hostname)
-    );
-  } catch {
-    return false;
-  }
-}
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -89,4 +70,23 @@ export class ReceiptPreviewDialogComponent {
       return this.sanitizer.bypassSecurityTrustResourceUrl(previewUrl);
     },
   );
+}
+
+export function isSafeReceiptPreviewUrl(
+  previewUrl: null | string,
+): previewUrl is string {
+  if (!previewUrl) {
+    return false;
+  }
+
+  try {
+    const baseUrl = globalThis.location?.origin ?? 'http://localhost';
+    const url = new URL(previewUrl, baseUrl);
+    return (
+      (url.protocol === 'https:' || url.protocol === 'http:') &&
+      trustedReceiptPreviewHost(url.hostname)
+    );
+  } catch {
+    return false;
+  }
 }

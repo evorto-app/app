@@ -59,9 +59,9 @@ if (
 }
 
 const fontAwesomePackages = Object.entries(lockfile.packages).filter(
-  ([packageName, descriptor]) => {
+  ([lockPackageKey, descriptor]) => {
     if (
-      !packageName.startsWith("@fortawesome/") ||
+      !lockPackageKey.startsWith("@fortawesome/") ||
       !Array.isArray(descriptor)
     ) {
       return false;
@@ -77,6 +77,23 @@ const fontAwesomePackages = Object.entries(lockfile.packages).filter(
 if (fontAwesomePackages.length === 0) {
   throw new Error("bun.lock contains no Font Awesome registry packages");
 }
+
+const parseResolvedPackage = (lockPackageKey, resolvedPackage) => {
+  const versionDelimiter = resolvedPackage.lastIndexOf("@");
+  const packageName = resolvedPackage.slice(0, versionDelimiter);
+  const version = resolvedPackage.slice(versionDelimiter + 1);
+  if (
+    !packageName.startsWith("@fortawesome/") ||
+    packageName.includes("\\") ||
+    packageName.split("/").length !== 2 ||
+    !version ||
+    version.includes("/") ||
+    version.includes("\\")
+  ) {
+    throw new Error(`Unexpected locked package identity for ${lockPackageKey}`);
+  }
+  return { packageName, version };
+};
 
 const token = process.env.FONT_AWESOME_TOKEN;
 if (!token) {
@@ -109,7 +126,7 @@ const runTar = (arguments_) => {
 };
 
 try {
-  for (const [packageName, descriptor] of fontAwesomePackages) {
+  for (const [lockPackageKey, descriptor] of fontAwesomePackages) {
     const [resolvedPackage, packageUrl, , integrity] = descriptor;
     if (
       typeof resolvedPackage !== "string" ||
@@ -117,22 +134,18 @@ try {
       typeof integrity !== "string" ||
       !integrity.startsWith("sha512-")
     ) {
-      throw new Error(`Invalid locked package metadata for ${packageName}`);
+      throw new Error(`Invalid locked package metadata for ${lockPackageKey}`);
     }
 
     const url = new URL(packageUrl);
     if (url.protocol !== "https:" || url.hostname !== "npm.fontawesome.com") {
-      throw new Error(`Unexpected registry URL for ${packageName}`);
+      throw new Error(`Unexpected registry URL for ${lockPackageKey}`);
     }
 
-    const resolvedPrefix = `${packageName}@`;
-    if (!resolvedPackage.startsWith(resolvedPrefix)) {
-      throw new Error(`Unexpected locked package identity for ${packageName}`);
-    }
-    const version = resolvedPackage.slice(resolvedPrefix.length);
-    if (!version || version.includes("/") || version.includes("\\")) {
-      throw new Error(`Unsafe locked package version for ${packageName}`);
-    }
+    const { packageName, version } = parseResolvedPackage(
+      lockPackageKey,
+      resolvedPackage,
+    );
 
     const cacheDirectory = path.join(
       cacheRoot,

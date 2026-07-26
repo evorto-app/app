@@ -474,12 +474,15 @@ This walkthrough uses a disposable draft so every saved field can be read back w
     const advancedModeButton = page.getByTestId('event-mode-advanced');
     await expect(simpleModeButton).toHaveAttribute('aria-pressed', 'true');
     await advancedModeButton.click();
-    const modeDialog = page.getByRole('dialog').filter({
-      has: page.getByRole('heading', {
-        exact: true,
-        name: 'Change registration configuration?',
-      }),
-    });
+    const modeDialog = page
+      .getByRole('dialog')
+      .filter({
+        has: page.getByRole('heading', {
+          exact: true,
+          name: 'Change registration configuration?',
+        }),
+      })
+      .last();
     await expect(modeDialog).toContainText(
       'Advanced mode keeps both current options',
     );
@@ -496,6 +499,7 @@ This walkthrough uses a disposable draft so every saved field can be read back w
     await modeDialog
       .getByRole('button', { exact: true, name: 'Keep current mode' })
       .click();
+    await expect(modeDialog).toBeHidden();
     await expect(simpleModeButton).toHaveAttribute('aria-pressed', 'true');
     await expect(editableTitle).toHaveValue(savedEditableTitle);
 
@@ -511,7 +515,8 @@ Selecting a mode first opens a confirmation. Choose **Keep current mode** if you
     });
 
     await advancedModeButton.click();
-    await page
+    await expect(modeDialog).toBeVisible();
+    await modeDialog
       .getByRole('button', { exact: true, name: 'Use advanced mode' })
       .click();
     await expect(advancedModeButton).toHaveAttribute('aria-pressed', 'true');

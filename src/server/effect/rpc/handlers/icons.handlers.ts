@@ -58,7 +58,7 @@ const getFriendlyIconName = Effect.fn('icons.getFriendlyIconName')(function* (
     });
   }
 
-  const [name] = icon.split(':');
+  const [name] = icon.split(':', 1);
   if (!name) {
     return yield* new InvalidIconNameError({
       iconName: icon,

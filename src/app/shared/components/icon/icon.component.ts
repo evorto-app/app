@@ -25,12 +25,12 @@ export class IconComponent {
   });
   protected iconName = computed(() => {
     const commonName = this.iconCommonName().iconName;
-    const [name] = commonName.split(':');
+    const [name] = commonName.split(':', 1);
     return name || 'nothing-found';
   });
   protected iconSet = computed(() => {
     const commonName = this.iconCommonName().iconName;
-    const [, set] = commonName.split(':');
+    const [, set] = commonName.split(':', 2);
     return set || 'fluent';
   });
   protected iconUrl = computed(() => {
