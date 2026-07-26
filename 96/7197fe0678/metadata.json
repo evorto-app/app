@@ -5,26 +5,23 @@
   "branch": "codex/reduce-trace-costs",
   "checkpoints_count": 0,
   "files_touched": [
-    ".changeset/reduce-custom-trace-costs.md",
-    "helpers/testing/esncard-release-source.spec.ts",
-    "package.json",
-    "src/server/discounts/providers/index.spec.ts",
-    "src/server/discounts/providers/index.ts",
-    "tests/docs/admin/google-maps-location.doc.ts"
+    "helpers/testing/scaleway-deploy-role.spec.ts",
+    "src/server.ts",
+    "src/server/effect/server-trace-policy.spec.ts"
   ],
   "sessions": [
     {
       "metadata": "/96/7197fe0678/0/metadata.json",
       "transcript": "/96/7197fe0678/0/full.jsonl",
       "content_hash": "/96/7197fe0678/0/content_hash.txt",
-      "prompt": "/96/7197fe0678/0/prompt.txt"
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 73330840,
+    "input_tokens": 134288,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 5311705856,
-    "output_tokens": 6653399,
-    "api_call_count": 34388
+    "cache_read_tokens": 9199616,
+    "output_tokens": 7069,
+    "api_call_count": 56
   }
 }
