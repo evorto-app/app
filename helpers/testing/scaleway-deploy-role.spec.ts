@@ -24,7 +24,7 @@ afterEach(() => {
 interface CurrentContainer {
   environment_variables: Record<string, string>;
   image: string;
-  secret_environment_variables: { key: string }[];
+  secret_environment_variables: Record<string, string>;
   status: string;
 }
 
@@ -33,7 +33,7 @@ const runDeployRole = ({
   currentContainer = {
     environment_variables: {},
     image: 'rg.fr-par.scw.cloud/evorto-staging/evorto:old',
-    secret_environment_variables: [],
+    secret_environment_variables: {},
     status: 'ready',
   },
   secretValue = 'test-secret',
@@ -152,14 +152,19 @@ const currentContainerFromArguments = (
       }),
   ),
   image: imageReference,
-  secret_environment_variables: arguments_
-    .filter((argument) => argument.startsWith('secret-environment-variables.'))
-    .map((argument) => ({
-      key: argument.slice(
-        'secret-environment-variables.'.length,
-        argument.indexOf('='),
-      ),
-    })),
+  secret_environment_variables: Object.fromEntries(
+    arguments_
+      .filter((argument) =>
+        argument.startsWith('secret-environment-variables.'),
+      )
+      .map((argument) => [
+        argument.slice(
+          'secret-environment-variables.'.length,
+          argument.indexOf('='),
+        ),
+        'redacted',
+      ]),
+  ),
   status: 'ready',
 });
 
