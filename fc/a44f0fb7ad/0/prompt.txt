@@ -39,3 +39,7 @@ What work and decisions remain now?
 ---
 
 Can you implement the new decisions and then tell me what still needs my review?
+
+---
+
+THere was some interference with docker and the tests, double check your setup and try again if something failed
