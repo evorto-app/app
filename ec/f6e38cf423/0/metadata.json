@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ecf6e38cf423",
+  "session_id": "019fa365-9247-7123-b1ee-d0b36fec8091",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-27T13:43:54.194242Z",
+  "branch": "codex/staging-latency-runbooks",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/scaleway-staging.yml",
+    ".github/workflows/staging-latency.yml",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "helpers/testing/staging-latency-probe.spec.ts",
+    "infrastructure/scaleway/LATENCY_MONITORING.md",
+    "ops/scaleway/probe-http-latency.sh"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "06438c1e4f79",
+  "checkpoint_transcript_start": 1720,
+  "transcript_lines_at_start": 1720,
+  "token_usage": {
+    "input_tokens": 134357,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3164672,
+    "output_tokens": 12101,
+    "api_call_count": 34
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-27T13:43:53.984227Z",
+    "agent_lines": 118,
+    "agent_removed": 16,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 118,
+    "total_lines_changed": 134,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

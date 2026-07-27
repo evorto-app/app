@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ecf6e38cf423",
+  "strategy": "manual-commit",
+  "branch": "codex/staging-latency-runbooks",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/scaleway-staging.yml",
+    ".github/workflows/staging-latency.yml",
+    "helpers/testing/scaleway-hosting-source.spec.ts",
+    "helpers/testing/staging-latency-probe.spec.ts",
+    "infrastructure/scaleway/LATENCY_MONITORING.md",
+    "ops/scaleway/probe-http-latency.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ec/f6e38cf423/0/metadata.json",
+      "transcript": "/ec/f6e38cf423/0/full.jsonl",
+      "content_hash": "/ec/f6e38cf423/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 134357,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3164672,
+    "output_tokens": 12101,
+    "api_call_count": 34
+  }
+}
