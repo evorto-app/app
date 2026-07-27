@@ -1,0 +1,15 @@
+We can not run e2e tests atm, they are running somewhere else
+
+---
+
+Babysit the pr with reviews from copilot and tell me once it is settled
+
+---
+
+<heartbeat>
+  <automation_id>babysit-evorto-pr-124</automation_id>
+  <current_time_iso>2026-07-27T13:28:26.878Z</current_time_iso>
+  <instructions>
+Monitor https://github.com/evorto-app/app/pull/124 until it is genuinely settled. Check required GitHub checks, the requested copilot-pull-request-reviewer review, review threads, and actionable feedback from Copilot, CodeRabbit, Qodo, or maintainers. If feedback is actionable and correct, inspect the repository guidance and applicable skills, implement only changes within this PR's observability scope, run the required non-E2E validation, commit, sync, push, reply to or resolve the addressed review thread, and continue monitoring. Do not run bun run test:e2e or bun run test:e2e:docs while the user's concurrent E2E run remains active. Do not merge the PR. Preserve the unrelated stash commit 2300e41b1f4193229c1d78e8d46b5ba27f146748 and do not include it in the PR. Treat settled as: required checks are terminal and green, Copilot has completed its review, and no actionable or unresolved review feedback remains. If not settled, continue quietly unless material state changes. Once settled, tell the user the final status, summarize any review-driven changes, and pause this heartbeat so it does not run again.
+  </instructions>
+</heartbeat>
