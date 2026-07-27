@@ -1,0 +1,86 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b86a0c14fd3d",
+  "session_id": "019fa36c-6399-7ad1-8ed3-a62910869e0b",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-27T13:12:19.015841Z",
+  "branch": "codex/update-docs-publication",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "helpers/testing/publish-documentation.spec.ts",
+    "helpers/testing/publish-documentation.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "a37ff97ff722",
+  "token_usage": {
+    "input_tokens": 606465,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 18973440,
+    "output_tokens": 49750,
+    "api_call_count": 160
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-27T13:12:18.942655Z",
+    "agent_lines": 38,
+    "agent_removed": 16,
+    "human_added": 5,
+    "human_modified": 10,
+    "human_removed": 0,
+    "total_committed": 52,
+    "total_lines_changed": 77,
+    "agent_percentage": 70.12987012987013,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 17
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 17
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 17
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 14,
+      "user_lines_removed": 9,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 17,
+      "user_added_per_file": {
+        "helpers/README.md": 2,
+        "helpers/testing/publish-documentation.spec.ts": 1,
+        "package.json": 1,
+        "tests/README.md": 10
+      },
+      "user_removed_per_file": {
+        "helpers/testing/publish-documentation.spec.ts": 1,
+        "package.json": 1,
+        "tests/README.md": 7
+      }
+    }
+  ]
+}
