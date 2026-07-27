@@ -191,6 +191,8 @@ describe('receipt review and reimbursement serialization', () => {
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
       listingAudience: 'both',
+      reviewedAt: new Date('2026-07-30T00:00:00.000Z'),
+      reviewedBy: userId,
       start: new Date('2026-08-01T10:00:00.000Z'),
       status: 'APPROVED',
       templateId,

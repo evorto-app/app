@@ -74,7 +74,17 @@ const expectGlobalAdminTenantFormSurface = async (
 ) => {
   await expect(page.getByLabel('Organization name')).toBeVisible();
   await expect(page.getByLabel('Primary domain')).toBeVisible();
-  await expect(page.getByLabel('Theme')).toBeVisible();
+  const themeSelect = page.getByLabel('Theme');
+  await expect(themeSelect).toBeVisible();
+  await themeSelect.click();
+  await expect(
+    page.getByRole('option', { name: 'Default theme' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('option', { name: 'Classic Evorto theme' }),
+  ).toBeVisible();
+  await expect(page.getByRole('option', { name: 'ESN theme' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(page.getByLabel('Stripe account ID')).toBeVisible();
   await expect(page.getByLabel('Currency')).toBeVisible();
   await expect(page.getByLabel('Timezone')).toBeVisible();

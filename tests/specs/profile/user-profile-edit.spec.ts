@@ -91,13 +91,17 @@ test('profile edit persists notification email and reimbursement details', async
     await fillControlledTextField(firstNameInput, originalUser.firstName);
     await fillControlledTextField(notificationEmailInput, notificationEmail);
     await fillControlledTextField(ibanInput, ` ${iban} `);
-    await fillControlledTextField(paypalEmailInput, ` ${paypalEmail} `);
+    await paypalEmailInput.fill(` ${paypalEmail} `);
+    await paypalEmailInput.blur();
+    // Browsers strip surrounding whitespace from type=email values before
+    // Angular receives the input event.
+    await expect(paypalEmailInput).toHaveValue(paypalEmail);
 
     // Keep every signal-backed field stable through the final form update.
     await expect(firstNameInput).toHaveValue(originalUser.firstName);
     await expect(notificationEmailInput).toHaveValue(notificationEmail);
     await expect(ibanInput).toHaveValue(` ${iban} `);
-    await expect(paypalEmailInput).toHaveValue(` ${paypalEmail} `);
+    await expect(paypalEmailInput).toHaveValue(paypalEmail);
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
 

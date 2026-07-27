@@ -93,7 +93,7 @@ test.describe('Event listing audience visibility', () => {
         .where(eq(schema.eventRegistrationOptions.id, participantOption.id));
       await database
         .update(schema.eventRegistrationOptions)
-        .set({ roleIds: ['listing-audience-ineligible-role'] })
+        .set({ roleIds: ['listing-ineligible'] })
         .where(eq(schema.eventRegistrationOptions.id, organizerOption.id));
 
       await expectAudienceVisibility('participant', true);

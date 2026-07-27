@@ -284,6 +284,9 @@ const makeServiceLayer = (url: string, stripe: Stripe) => {
 type ApprovalInput = Parameters<
   typeof EventRegistrationService.approveManualRegistration
 >[0];
+type RegistrationCheckoutRetryInput = Parameters<
+  typeof EventRegistrationService.retryRegistrationCheckout
+>[0];
 type RegistrationInput = Parameters<
   typeof EventRegistrationService.registerForEvent
 >[0];
@@ -309,6 +312,21 @@ const runRegistration = (
 ) =>
   Effect.runPromise(
     EventRegistrationService.registerForEvent(input).pipe(
+      Effect.match({
+        onFailure: (error) => ({ error, status: 'failure' as const }),
+        onSuccess: () => ({ status: 'success' as const }),
+      }),
+      Effect.provide(EventRegistrationService.Default),
+      Effect.provide(serviceLayer),
+    ),
+  );
+
+const runRegistrationCheckoutRetry = (
+  input: RegistrationCheckoutRetryInput,
+  serviceLayer: ReturnType<typeof makeServiceLayer>,
+) =>
+  Effect.runPromise(
+    EventRegistrationService.retryRegistrationCheckout(input).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
         onSuccess: () => ({ status: 'success' as const }),
@@ -461,6 +479,7 @@ const approvalInput = (fixture: Fixture): ApprovalInput => ({
     id: fixture.tenantId,
     name: 'Concurrency test',
     stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
+    timezone: 'Europe/Berlin',
   },
 });
 
@@ -477,6 +496,7 @@ const directRegistrationInput = (fixture: Fixture): RegistrationInput => ({
     stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
   },
   user: {
+    communicationEmail: `${fixture.userId}@example.com`,
     email: `${fixture.userId}@example.com`,
     id: fixture.userId,
     roleIds: [],
@@ -548,6 +568,8 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
     listingAudience: 'both',
+    reviewedAt: new Date(now),
+    reviewedBy: userId,
     start: new Date(now + 7 * 24 * 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -588,6 +610,8 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: 1000,
+    discountAmount: 0,
     eventId,
     id: registrationId,
     registrationOptionId: optionId,
@@ -891,8 +915,9 @@ describe('database registration concurrency invariants', () => {
         pool.query(
           `
             INSERT INTO event_registrations
-              (id, "tenantId", "eventId", "registrationOptionId", status, "userId")
-            VALUES ($1, $2, $3, $4, 'PENDING', $5)
+              (id, "tenantId", "eventId", "registrationOptionId", status, "userId",
+               base_price_at_registration, discount_amount)
+            VALUES ($1, $2, $3, $4, 'PENDING', $5, 1000, 0)
           `,
           [
             makeId('forged-reg', suffix),
@@ -920,6 +945,7 @@ describe('database registration concurrency invariants', () => {
     await database.insert(transactions).values({
       amount: 1000,
       currency: 'EUR',
+      eventId: fixture.eventId,
       eventRegistrationId: fixture.registrationId,
       id: makeId('claim', randomUUID().replaceAll('-', '').slice(0, 8)),
       method: 'stripe',
@@ -940,12 +966,13 @@ describe('database registration concurrency invariants', () => {
         pool.query(
           `
             INSERT INTO transactions
-              (id, "tenantId", amount, currency, "eventRegistrationId", method, status, type)
-            VALUES ($1, $2, 1000, 'EUR', $3, 'stripe', 'pending', 'registration')
+              (id, "tenantId", amount, currency, "eventId", "eventRegistrationId", method, status, type)
+            VALUES ($1, $2, 1000, 'EUR', $3, $4, 'stripe', 'pending', 'registration')
           `,
           [
             makeId('forged-claim', suffix),
             forgedTenantId,
+            fixture.eventId,
             fixture.registrationId,
           ],
         ),
@@ -1212,10 +1239,11 @@ describe('database registration concurrency invariants', () => {
         `
           /* inverse-user-lock-regression */
           INSERT INTO event_registrations
-            (id, "tenantId", "eventId", "registrationOptionId", status, "userId")
+            (id, "tenantId", "eventId", "registrationOptionId", status, "userId",
+             base_price_at_registration, discount_amount)
           VALUES
-            ($1, $2, $3, $4, 'PENDING', $5),
-            ($6, $2, $3, $4, 'WAITLIST', $7)
+            ($1, $2, $3, $4, 'PENDING', $5, 1000, 0),
+            ($6, $2, $3, $4, 'WAITLIST', $7, NULL, NULL)
         `,
         [
           sourceRegistrationId,
@@ -1652,9 +1680,22 @@ describe('direct paid registration concurrency', () => {
     expect(stateAfterFailure.addOn?.totalAvailableQuantity).toBe(3);
     expect(stateAfterFailure.purchases).toHaveLength(1);
 
-    expect(await runRegistration(input, serviceLayer)).toEqual({
-      status: 'success',
-    });
+    const pendingRegistration = stateAfterFailure.registrations[0];
+    if (!pendingRegistration) {
+      throw new Error(
+        'Expected one pending registration after failed Checkout',
+      );
+    }
+    expect(
+      await runRegistrationCheckoutRetry(
+        {
+          registrationId: pendingRegistration.id,
+          tenantId: fixture.tenantId,
+          userId: fixture.userId,
+        },
+        serviceLayer,
+      ),
+    ).toEqual({ status: 'success' });
     assertEquivalentStripeRequests(fakeHttpClient.createRequests);
     assertStripeRequestUsesTaxRate(
       fakeHttpClient.createRequests[0],

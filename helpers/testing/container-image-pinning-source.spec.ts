@@ -38,7 +38,7 @@ describe('container image pinning source', () => {
     ].flatMap((match) => (match[1] === undefined ? [] : [match[1]]));
     const imageReferences = [...dockerfileImages, ...composeImages];
 
-    expect(imageReferences).toHaveLength(7);
+    expect(imageReferences).toHaveLength(8);
     for (const imageReference of imageReferences) {
       expect(imageReference, imageReference).toMatch(immutableTaggedImage);
       expect(imageReference, imageReference).not.toContain(':latest@');
@@ -56,6 +56,43 @@ describe('container image pinning source', () => {
     const dockerfile = source('Dockerfile');
 
     expect(dockerfile).not.toMatch(/\b(?:apt|apt-get|apk)\b/u);
+  });
+
+  it('keeps the production runtime distroless and starts Bun directly', () => {
+    const dockerfile = source('Dockerfile');
+    const compose = source('docker-compose.yml');
+    const baselineWorkflow = source('.github/workflows/e2e-baseline.yml');
+    const verifier = source('ops/scaleway/verify-runtime-image.sh');
+    const productionStage = dockerfile.slice(
+      dockerfile.indexOf('FROM distroless-runtime AS production'),
+    );
+    const evortoService = compose.match(
+      /^ {2}evorto:[\s\S]*?(?=^ {2}worker:)/mu,
+    )?.[0];
+    const workerService = compose.match(
+      /^ {2}worker:[\s\S]*?(?=^ {2}stripe:)/mu,
+    )?.[0];
+
+    expect(dockerfile).toContain(
+      'FROM gcr.io/distroless/base-nossl-debian13:nonroot@sha256:',
+    );
+    expect(productionStage).toContain(
+      'COPY --from=base /usr/local/bin/bun /usr/local/bin/bun',
+    );
+    expect(productionStage).toContain('USER 65532:65532');
+    expect(productionStage).toContain('ENTRYPOINT ["/usr/local/bin/bun"]');
+    expect(productionStage).toContain('CMD ["dist/evorto/server/server.mjs"]');
+    expect(evortoService).toBeDefined();
+    expect(evortoService).not.toContain('command:');
+    expect(evortoService).not.toContain('server.log');
+    expect(evortoService).not.toContain('mkfifo');
+    expect(workerService).toBeDefined();
+    expect(workerService).not.toContain('command:');
+    expect(baselineWorkflow).not.toContain('/app/logs/server.log');
+    expect(verifier).toContain("runtime_user}\" != '65532:65532'");
+    expect(verifier).toContain(
+      'runtime_entrypoint}" != \'["/usr/local/bin/bun"]\'',
+    );
   });
 
   it('exports private source maps but removes them from the runtime image', () => {

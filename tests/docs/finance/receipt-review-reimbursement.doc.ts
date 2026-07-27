@@ -6,10 +6,7 @@ import {
   addConsumedFinanceReceiptUpload,
 } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
-import {
-  adminStateFile,
-  usersToAuthenticate,
-} from '../../../helpers/user-data';
+import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -24,21 +21,8 @@ test('Review and reimburse receipts @finance', async ({
   seeded,
   tenant,
 }, testInfo) => {
-  const organizerUser = usersToAuthenticate.find(
-    (user) => user.roles === 'organizer',
-  );
-  if (!organizerUser) {
-    throw new Error('Expected seeded organizer user for receipt docs');
-  }
-
-  const originalOrganizer = await database.query.users.findFirst({
-    where: { id: organizerUser.id },
-  });
-  if (!originalOrganizer) {
-    throw new Error('Expected organizer user record for receipt docs');
-  }
-
   const eventId = seeded.scenario.events.past.eventId;
+  const reimbursementUserId = getId();
   const receiptId = getId();
   const receiptFileName = `receipt-review-doc-${seedDate.getTime()}.pdf`;
   const missingEvidenceReceiptId = getId();
@@ -53,14 +37,16 @@ test('Review and reimburse receipts @finance', async ({
   let refundTransactionId: string | undefined;
 
   try {
-    await database
-      .update(schema.users)
-      .set({
-        communicationEmail: organizerCommunicationEmail,
-        iban: 'DE89370400440532013000',
-        paypalEmail: 'organizer-refunds@example.com',
-      })
-      .where(eq(schema.users.id, organizerUser.id));
+    await database.insert(schema.users).values({
+      auth0Id: `test|receipt-doc-${reimbursementUserId}`,
+      communicationEmail: organizerCommunicationEmail,
+      email: `receipt-doc-${reimbursementUserId}@example.test`,
+      firstName: 'Event',
+      iban: 'DE89370400440532013000',
+      id: reimbursementUserId,
+      lastName: 'Organizer',
+      paypalEmail: 'organizer-refunds@example.com',
+    });
 
     const receiptUpload = await addAvailableConsumedFinanceReceiptUpload(
       database,
@@ -70,7 +56,7 @@ test('Review and reimburse receipts @finance', async ({
         mimeType: 'application/pdf',
         sourceFilePath: path.resolve('tests/fixtures/sample-receipt.pdf'),
         tenantId: tenant.id,
-        uploadedByUserId: organizerUser.id,
+        uploadedByUserId: reimbursementUserId,
       },
     );
     receiptUploadId = receiptUpload.id;
@@ -80,7 +66,7 @@ test('Review and reimburse receipts @finance', async ({
       mimeType: 'application/pdf',
       sizeBytes: 1024,
       tenantId: tenant.id,
-      uploadedByUserId: organizerUser.id,
+      uploadedByUserId: reimbursementUserId,
     });
     await database.insert(schema.financeReceipts).values([
       {
@@ -98,7 +84,7 @@ test('Review and reimburse receipts @finance', async ({
           .toISOString()
           .slice(0, 10),
         status: 'submitted',
-        submittedByUserId: organizerUser.id,
+        submittedByUserId: reimbursementUserId,
         taxAmount: 0,
         tenantId: tenant.id,
         totalAmount: 1450,
@@ -118,7 +104,7 @@ test('Review and reimburse receipts @finance', async ({
           .toISOString()
           .slice(0, 10),
         status: 'submitted',
-        submittedByUserId: organizerUser.id,
+        submittedByUserId: reimbursementUserId,
         taxAmount: 100,
         tenantId: tenant.id,
         totalAmount: 1000,
@@ -341,6 +327,22 @@ After approval, return to **Finances** and open **Receipt reimbursements**. The 
     await reimbursementSection
       .getByRole('button', { name: 'Record reimbursement' })
       .click();
+    const confirmationDialog = page.getByRole('dialog', {
+      name: 'Record reimbursement?',
+    });
+    await expect(confirmationDialog).toBeVisible();
+    await expect(
+      confirmationDialog.getByText('Bank transfer · DE89370400440532013000'),
+    ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      confirmationDialog,
+      page,
+      'Confirm receipt reimbursement',
+    );
+    await confirmationDialog
+      .getByRole('button', { name: 'Record reimbursement' })
+      .click();
     await expect(
       page.getByText('Reimbursement transaction recorded'),
     ).toBeVisible();
@@ -381,16 +383,6 @@ Recording reimbursement updates the receipt to **Reimbursed** and creates a succ
     });
   } finally {
     await database
-      .update(schema.users)
-      .set({
-        communicationEmail: originalOrganizer.communicationEmail,
-        firstName: originalOrganizer.firstName,
-        iban: originalOrganizer.iban,
-        lastName: originalOrganizer.lastName,
-        paypalEmail: originalOrganizer.paypalEmail,
-      })
-      .where(eq(schema.users.id, organizerUser.id));
-    await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, receiptId));
     await database
@@ -419,5 +411,8 @@ Recording reimbursement updates the receipt to **Reimbursed** and creates a succ
           rejectionNotificationIdempotencyKey,
         ]),
       );
+    await database
+      .delete(schema.users)
+      .where(eq(schema.users.id, reimbursementUserId));
   }
 });

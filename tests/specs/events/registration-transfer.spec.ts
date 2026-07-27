@@ -1,6 +1,5 @@
 import { createId } from '@db/create-id';
 import * as schema from '@db/schema';
-import type { Page } from '@playwright/test';
 import { and, eq, inArray, like } from 'drizzle-orm';
 
 import {
@@ -12,6 +11,7 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 import { seedPaidRegistrationTransferScenario } from '../../support/utils/paid-registration-transfer-scenario';
+import { openRegistrationTransferClaim } from '../../support/utils/registration-transfer-claim-page';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
@@ -20,17 +20,6 @@ test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 // exercise user row locks. Keep the tests independent, but run this file in
 // order so fullyParallel does not create a fixture-only cross-transfer deadlock.
 test.describe.configure({ mode: 'default' });
-
-const openRegistrationTransferClaim = async (page: Page, claimCode: string) => {
-  await page.goto('/registration-transfers');
-  const reviewTransfer = page.getByRole('button', { name: 'Review transfer' });
-  const codeForm = page.locator('form').filter({ has: reviewTransfer });
-  await expect(codeForm).not.toHaveAttribute('jsaction', /submit/, {
-    timeout: 20_000,
-  });
-  await page.getByLabel('Claim code').fill(claimCode);
-  await reviewTransfer.click();
-};
 
 test('transfers a free registration through a private claim code', async ({
   browser,
@@ -62,6 +51,8 @@ test('transfers a free registration through a private claim code', async ({
     end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
+    reviewedAt: testClock.toJSDate(),
+    reviewedBy: recipient.id,
     start: startsAt,
     status: 'APPROVED',
     templateId: template.id,
@@ -86,7 +77,10 @@ test('transfers a free registration through a private claim code', async ({
     transferDeadlineHoursBeforeStart: 0,
   });
   await database.insert(schema.eventRegistrations).values({
+    appliedDiscountedPrice: null,
+    appliedDiscountType: null,
     basePriceAtRegistration: 0,
+    discountAmount: 0,
     eventId,
     guestCount: 0,
     id: sourceRegistrationId,
@@ -353,6 +347,8 @@ test('offers a paid registration privately while rejecting a source self-claim',
     end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
+    reviewedAt: testClock.toJSDate(),
+    reviewedBy: recipient.id,
     start: startsAt,
     status: 'APPROVED',
     templateId: template.id,
@@ -377,7 +373,10 @@ test('offers a paid registration privately while rejecting a source self-claim',
     transferDeadlineHoursBeforeStart: 0,
   });
   await database.insert(schema.eventRegistrations).values({
+    appliedDiscountedPrice: null,
+    appliedDiscountType: null,
     basePriceAtRegistration: 1800,
+    discountAmount: 0,
     eventId,
     id: sourceRegistrationId,
     registrationOptionId: optionId,
@@ -844,7 +843,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
     });
 
     expect(await scenario.completeCheckout()).toBe('finalized');
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Transfer complete — refund processing',
@@ -1268,7 +1267,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
           sourceTransactionId === scenario.sourceTransactionId,
       )?.refundTransactionId,
     );
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Transfer complete — refund needs attention',
@@ -1295,7 +1294,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
       recoveryMode: 'newGeneration',
       transferStatus: 'requeued',
     });
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Transfer complete — refund processing',

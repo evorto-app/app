@@ -127,6 +127,9 @@ test('submit receipt through Events and organizer navigation', async ({
     });
     await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
     await expect(receiptDialog).not.toBeVisible();
+    await expect(page.getByText('Receipt submitted')).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(
       receiptSection.getByText(path.basename(receiptFile), { exact: true }),
     ).toBeVisible({ timeout: 20_000 });
@@ -206,19 +209,8 @@ test('approve and record receipt reimbursements in finance', async ({
   tenant,
 }) => {
   const currency = 'CZK';
-  const organizerUser = usersToAuthenticate.find(
-    (user) => user.roles === 'organizer',
-  );
-  if (!organizerUser) {
-    throw new Error('Expected seeded organizer user');
-  }
-  const originalOrganizer = await database.query.users.findFirst({
-    where: { id: organizerUser.id },
-  });
-  if (!originalOrganizer) {
-    throw new Error('Expected seeded organizer user record');
-  }
   const seededEventId = seeded.scenario.events.past.eventId;
+  const reimbursementUserId = getId();
   const receiptId = getId();
   const receiptFileName = `approval-reimbursement-${seedDate.getTime()}.pdf`;
   let receiptUploadId: string | undefined;
@@ -228,14 +220,16 @@ test('approve and record receipt reimbursements in finance', async ({
       .update(schema.tenants)
       .set({ currency })
       .where(eq(schema.tenants.id, tenant.id));
-    await database
-      .update(schema.users)
-      .set({
-        communicationEmail: `delivered+receipt-flow-${receiptId}@notifications.example.test`,
-        iban: 'DE89370400440532013000',
-        paypalEmail: 'organizer-refunds@example.com',
-      })
-      .where(eq(schema.users.id, organizerUser.id));
+    await database.insert(schema.users).values({
+      auth0Id: `test|receipt-reimbursement-${reimbursementUserId}`,
+      communicationEmail: `delivered+receipt-flow-${receiptId}@notifications.example.test`,
+      email: `receipt-flow-${reimbursementUserId}@example.test`,
+      firstName: 'Receipt',
+      iban: 'DE89370400440532013000',
+      id: reimbursementUserId,
+      lastName: 'Recipient',
+      paypalEmail: 'organizer-refunds@example.com',
+    });
 
     receiptUploadId = await seedPendingReceiptForApproval({
       currency,
@@ -244,7 +238,7 @@ test('approve and record receipt reimbursements in finance', async ({
       receiptFileName,
       receiptId,
       seedDate,
-      submittedByUserId: organizerUser.id,
+      submittedByUserId: reimbursementUserId,
       tenantId: tenant.id,
     });
 
@@ -308,6 +302,17 @@ test('approve and record receipt reimbursements in finance', async ({
     await expect(issueRefundButton).toBeEnabled();
     await issueRefundButton.click();
 
+    const confirmationDialog = page.getByRole('dialog', {
+      name: 'Record reimbursement?',
+    });
+    await expect(confirmationDialog).toBeVisible();
+    await expect(
+      confirmationDialog.getByText('Bank transfer · DE89370400440532013000'),
+    ).toBeVisible();
+    await confirmationDialog
+      .getByRole('button', { name: 'Record reimbursement' })
+      .click();
+
     await expect(
       page.getByText('Reimbursement transaction recorded'),
     ).toBeVisible();
@@ -348,16 +353,6 @@ test('approve and record receipt reimbursements in finance', async ({
       });
   } finally {
     await database
-      .update(schema.users)
-      .set({
-        communicationEmail: originalOrganizer.communicationEmail,
-        firstName: originalOrganizer.firstName,
-        iban: originalOrganizer.iban,
-        lastName: originalOrganizer.lastName,
-        paypalEmail: originalOrganizer.paypalEmail,
-      })
-      .where(eq(schema.users.id, organizerUser.id));
-    await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, receiptId));
     if (receiptUploadId) {
@@ -370,6 +365,9 @@ test('approve and record receipt reimbursements in finance', async ({
         .delete(schema.transactions)
         .where(eq(schema.transactions.id, refundTransactionId));
     }
+    await database
+      .delete(schema.users)
+      .where(eq(schema.users.id, reimbursementUserId));
   }
 });
 

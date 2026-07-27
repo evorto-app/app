@@ -67,7 +67,28 @@
         may not apply.
       </div>
     }
-    @if (eventQuery.isSuccess() && canOrganizeQuery.isError()) {
+    @if (eventQuery.isSuccess() && selfQuery.isError()) {
+      <div
+        class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
+        role="alert"
+      >
+        <p>
+          Your account state could not be checked. Organizer access and
+          discount-card guidance are unavailable.
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="selfQuery.isFetching()"
+          (click)="selfQuery.refetch()"
+        >
+          {{ selfQuery.isFetching() ? "Retrying…" : "Try again" }}
+        </button>
+      </div>
+    }
+    @if (
+      eventQuery.isSuccess() && isAuthenticated() && canOrganizeQuery.isError()
+    ) {
       <div
         class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
         role="alert"
@@ -85,6 +106,7 @@
     }
     @if (
       eventQuery.isSuccess() &&
+      isAuthenticated() &&
       discountCardsRequired() &&
       myCardsQuery.isError()
     ) {

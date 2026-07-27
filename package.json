@@ -47,7 +47,8 @@
     "docker:webserver": "bun run docker:check && dotenv -c dev -- bash helpers/testing/docker-webserver.sh",
     "deps:update:angular": "bun run dev:ng update @angular/cli @angular/cdk @angular/core @angular/material angular-eslint --allow-dirty",
     "deps:update:drizzle": "bun add drizzle-orm@rc && bun add -D drizzle-seed@rc drizzle-kit@rc",
-    "ui:theme:generate": "bun run dev:ng generate @angular/material:theme-color --include-high-contrast --primary-color=#0891b2 --interactive=false --directory=src/ --force",
+    "ui:theme:generate": "bun run dev:ng generate @angular/material:theme-color --include-high-contrast --primary-color=#4956C8 --secondary-color=#62677A --tertiary-color=#FFB26B --neutral-color=#F7F4ED --neutral-variant-color=#72778A --error-color=#B3261E --interactive=false --directory=src/ --force",
+    "ui:theme:generate:classic": "bun run dev:ng generate @angular/material:theme-color --include-high-contrast --primary-color=#0891b2 --interactive=false --directory=src/_classic --force",
     "ui:theme:generate:esn": "bun run dev:ng generate @angular/material:theme-color --include-high-contrast --primary-color=#00aeef --secondary-color=#ec008c --tertiary-color=#7ac143 --interactive=false --directory=src/_esn --force"
   },
   "private": true,

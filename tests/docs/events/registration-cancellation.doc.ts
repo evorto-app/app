@@ -130,6 +130,8 @@ test.describe('Participant registration cancellation', () => {
         end: eventWindow.end,
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
+        reviewedAt: testClock.toJSDate(),
+        reviewedBy: waitlistedParticipant.id,
         start: eventWindow.start,
         status: 'APPROVED',
         templateId: template.id,
@@ -137,30 +139,42 @@ test.describe('Participant registration cancellation', () => {
         title: eventTitle,
         listingAudience: 'both',
       });
-      await database.insert(schema.eventRegistrationOptions).values({
-        cancellationDeadlineHoursBeforeStart: 0,
-        closeRegistrationTime: eventWindow.closeRegistrationTime,
-        confirmedSpots: 2,
-        eventId,
-        id: optionId,
-        isPaid: false,
-        openRegistrationTime: eventWindow.openRegistrationTime,
-        organizingRegistration: false,
-        price: 0,
-        registrationMode: 'fcfs',
-        roleIds: [],
-        spots: 2,
-        title: 'Free participant',
-        waitlistSpots: 1,
-      });
+      const [registrationOption] = await database
+        .insert(schema.eventRegistrationOptions)
+        .values({
+          cancellationDeadlineHoursBeforeStart: 0,
+          closeRegistrationTime: eventWindow.closeRegistrationTime,
+          confirmedSpots: 2,
+          eventId,
+          id: optionId,
+          isPaid: false,
+          openRegistrationTime: eventWindow.openRegistrationTime,
+          organizingRegistration: false,
+          price: 0,
+          registrationMode: 'fcfs',
+          roleIds: [],
+          spots: 2,
+          title: 'Free participant',
+          waitlistSpots: 1,
+        })
+        .returning({
+          id: schema.eventRegistrationOptions.id,
+          price: schema.eventRegistrationOptions.price,
+        });
+      if (!registrationOption) {
+        throw new Error('Expected the free cancellation registration option');
+      }
       // Keep shared authenticated-user FK locks in separate autocommit
       // statements so parallel guides cannot form a cross-user lock cycle.
       await database.insert(schema.eventRegistrations).values({
-        basePriceAtRegistration: 0,
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: registrationOption.price,
+        discountAmount: 0,
         eventId,
         guestCount: 1,
         id: registrationId,
-        registrationOptionId: optionId,
+        registrationOptionId: registrationOption.id,
         status: 'CONFIRMED',
         tenantId: tenant.id,
         userId: participant.id,
@@ -1771,6 +1785,7 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
     page,
     seeded,
     tenant,
+    testClock,
   }, testInfo) => {
     const participant = requireUserFixture('user');
     const eventCreator = requireUserFixture('admin');
@@ -1801,6 +1816,8 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
         end: eventWindow.end,
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
+        reviewedAt: testClock.toJSDate(),
+        reviewedBy: eventCreator.id,
         start: eventWindow.start,
         status: 'APPROVED',
         templateId: template.id,
@@ -1808,26 +1825,38 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
         title: eventTitle,
         listingAudience: 'both',
       });
-      await database.insert(schema.eventRegistrationOptions).values({
-        cancellationDeadlineHoursBeforeStart: passedDeadlineHours,
-        closeRegistrationTime: eventWindow.closeRegistrationTime,
-        confirmedSpots: 1,
-        eventId,
-        id: optionId,
-        isPaid: false,
-        openRegistrationTime: eventWindow.openRegistrationTime,
-        organizingRegistration: false,
-        price: 0,
-        registrationMode: 'fcfs',
-        roleIds: [],
-        spots: 5,
-        title: 'Free deadline-controlled participant',
-      });
+      const [registrationOption] = await database
+        .insert(schema.eventRegistrationOptions)
+        .values({
+          cancellationDeadlineHoursBeforeStart: passedDeadlineHours,
+          closeRegistrationTime: eventWindow.closeRegistrationTime,
+          confirmedSpots: 1,
+          eventId,
+          id: optionId,
+          isPaid: false,
+          openRegistrationTime: eventWindow.openRegistrationTime,
+          organizingRegistration: false,
+          price: 0,
+          registrationMode: 'fcfs',
+          roleIds: [],
+          spots: 5,
+          title: 'Free deadline-controlled participant',
+        })
+        .returning({
+          id: schema.eventRegistrationOptions.id,
+          price: schema.eventRegistrationOptions.price,
+        });
+      if (!registrationOption) {
+        throw new Error('Expected the deadline-controlled registration option');
+      }
       await database.insert(schema.eventRegistrations).values({
-        basePriceAtRegistration: 0,
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: registrationOption.price,
+        discountAmount: 0,
         eventId,
         id: registrationId,
-        registrationOptionId: optionId,
+        registrationOptionId: registrationOption.id,
         status: 'CONFIRMED',
         tenantId: tenant.id,
         userId: participant.id,
@@ -1941,6 +1970,7 @@ test.describe('Organizer registration cancellation', () => {
     page,
     seeded,
     tenant,
+    testClock,
   }, testInfo) => {
     const organizer = requireUserFixture('admin');
     const participant = requireUserFixture('user');
@@ -1979,6 +2009,8 @@ test.describe('Organizer registration cancellation', () => {
         end: eventWindow.end,
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
+        reviewedAt: testClock.toJSDate(),
+        reviewedBy: organizer.id,
         start: eventWindow.start,
         status: 'APPROVED',
         templateId: template.id,
@@ -1986,27 +2018,41 @@ test.describe('Organizer registration cancellation', () => {
         title: eventTitle,
         listingAudience: 'both',
       });
-      await database.insert(schema.eventRegistrationOptions).values({
-        cancellationDeadlineHoursBeforeStart: passedDeadlineHours,
-        closeRegistrationTime: eventWindow.closeRegistrationTime,
-        confirmedSpots: 2,
-        eventId,
-        id: optionId,
-        isPaid: false,
-        openRegistrationTime: eventWindow.openRegistrationTime,
-        organizingRegistration: false,
-        price: 0,
-        registrationMode: 'fcfs',
-        roleIds: [],
-        spots: 10,
-        title: 'Participant',
-      });
+      const [registrationOption] = await database
+        .insert(schema.eventRegistrationOptions)
+        .values({
+          cancellationDeadlineHoursBeforeStart: passedDeadlineHours,
+          closeRegistrationTime: eventWindow.closeRegistrationTime,
+          confirmedSpots: 2,
+          eventId,
+          id: optionId,
+          isPaid: false,
+          openRegistrationTime: eventWindow.openRegistrationTime,
+          organizingRegistration: false,
+          price: 0,
+          registrationMode: 'fcfs',
+          roleIds: [],
+          spots: 10,
+          title: 'Participant',
+        })
+        .returning({
+          id: schema.eventRegistrationOptions.id,
+          price: schema.eventRegistrationOptions.price,
+        });
+      if (!registrationOption) {
+        throw new Error(
+          'Expected the organizer cancellation registration option',
+        );
+      }
       await database.insert(schema.eventRegistrations).values({
-        basePriceAtRegistration: 0,
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: registrationOption.price,
+        discountAmount: 0,
         eventId,
         guestCount: 1,
         id: registrationId,
-        registrationOptionId: optionId,
+        registrationOptionId: registrationOption.id,
         status: 'CONFIRMED',
         tenantId: tenant.id,
         userId: participant.id,

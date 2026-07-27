@@ -37,6 +37,15 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
 
+interface SeededRegistrationOwner {
+  readonly categoryId: string;
+  readonly eventId: string;
+  readonly optionId: string;
+  readonly registrationId: string;
+  readonly tenantId: string;
+  readonly userId: string;
+}
+
 interface TenantFixture {
   readonly categoryId?: string;
   readonly eventId?: string;
@@ -52,6 +61,104 @@ type TestDatabase = NodePgDatabase<typeof relations>;
 
 const makeId = (prefix: string, suffix: string) =>
   `${prefix}-${suffix}`.slice(0, 20);
+
+const seedRegistrationOwner = async (
+  database: TestDatabase,
+  input: {
+    readonly domain: string;
+    readonly name: string;
+    readonly now: number;
+    readonly price: number;
+    readonly registrationStatus: 'CONFIRMED' | 'PENDING';
+    readonly stripeAccountId: null | string;
+    readonly suffix: string;
+  },
+): Promise<SeededRegistrationOwner> => {
+  const tenantId = makeId('tenant', input.suffix);
+  const userId = makeId('user', input.suffix);
+  const categoryId = makeId('category', input.suffix);
+  const templateId = makeId('template', input.suffix);
+  const eventId = makeId('event', input.suffix);
+  const optionId = makeId('option', input.suffix);
+  const registrationId = makeId('registration', input.suffix);
+
+  await database.insert(tenants).values({
+    domain: input.domain,
+    id: tenantId,
+    name: input.name,
+    stripeAccountId: input.stripeAccountId,
+  });
+  await database.insert(users).values({
+    auth0Id: `auth0|url-race-${input.suffix}`,
+    communicationEmail: `${input.suffix}@example.com`,
+    email: `${input.suffix}@example.com`,
+    firstName: 'URL',
+    id: userId,
+    lastName: 'Race',
+  });
+  await database.insert(eventTemplateCategories).values({
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: categoryId,
+    tenantId,
+    title: input.name,
+  });
+  await database.insert(eventTemplates).values({
+    categoryId,
+    description: `${input.name} fixture`,
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: templateId,
+    listingAudience: 'both',
+    tenantId,
+    title: input.name,
+  });
+  await database.insert(eventInstances).values({
+    creatorId: userId,
+    description: `${input.name} event`,
+    end: new Date(input.now + 8 * 24 * 60 * 60 * 1000),
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: eventId,
+    listingAudience: 'both',
+    reviewedAt: new Date(input.now),
+    reviewedBy: userId,
+    start: new Date(input.now + 7 * 24 * 60 * 60 * 1000),
+    status: 'APPROVED',
+    templateId,
+    tenantId,
+    title: input.name,
+  });
+  await database.insert(eventRegistrationOptions).values({
+    closeRegistrationTime: new Date(input.now + 6 * 24 * 60 * 60 * 1000),
+    eventId,
+    id: optionId,
+    isPaid: input.price > 0,
+    openRegistrationTime: new Date(input.now - 24 * 60 * 60 * 1000),
+    organizingRegistration: false,
+    price: input.price,
+    registrationMode: 'fcfs',
+    reservedSpots: input.registrationStatus === 'PENDING' ? 1 : 0,
+    spots: 10,
+    title: 'Participant',
+  });
+  await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: input.price,
+    discountAmount: 0,
+    eventId,
+    id: registrationId,
+    registrationOptionId: optionId,
+    status: input.registrationStatus,
+    tenantId,
+    userId,
+  });
+
+  return {
+    categoryId,
+    eventId,
+    optionId,
+    registrationId,
+    tenantId,
+    userId,
+  };
+};
 
 const makeDatabaseServiceLayer = (url: string) =>
   databaseLayer.pipe(
@@ -234,16 +341,19 @@ describe('tenant public URL migration serialization', () => {
 
   it('makes a concurrent URL migration observe and reject a newly committed active transfer offer', async () => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
-    const tenantId = makeId('tenant', suffix);
-    const userId = makeId('user', suffix);
-    const categoryId = makeId('category', suffix);
-    const templateId = makeId('template', suffix);
-    const eventId = makeId('event', suffix);
-    const optionId = makeId('option', suffix);
-    const registrationId = makeId('registration', suffix);
     const transferId = makeId('transfer', suffix);
     const domain = `${suffix}.url-race.example`;
     const now = Date.now();
+    const { categoryId, eventId, optionId, registrationId, tenantId, userId } =
+      await seedRegistrationOwner(database, {
+        domain,
+        name: `URL race ${suffix}`,
+        now,
+        price: 0,
+        registrationStatus: 'CONFIRMED',
+        stripeAccountId: null,
+        suffix,
+      });
     const fixture = {
       categoryId,
       eventId,
@@ -254,68 +364,6 @@ describe('tenant public URL migration serialization', () => {
       userId,
     } satisfies TenantFixture;
     fixtures.push(fixture);
-
-    await database.insert(tenants).values({
-      domain,
-      id: tenantId,
-      name: `URL race ${suffix}`,
-    });
-    await database.insert(users).values({
-      auth0Id: `auth0|url-race-${suffix}`,
-      communicationEmail: `${suffix}@example.com`,
-      email: `${suffix}@example.com`,
-      firstName: 'URL',
-      id: userId,
-      lastName: 'Race',
-    });
-    await database.insert(eventTemplateCategories).values({
-      icon: { iconColor: 0, iconName: 'circle' },
-      id: categoryId,
-      tenantId,
-      title: 'URL migration race',
-    });
-    await database.insert(eventTemplates).values({
-      categoryId,
-      description: 'Tenant URL migration race fixture',
-      icon: { iconColor: 0, iconName: 'circle' },
-      id: templateId,
-      listingAudience: 'both',
-      tenantId,
-      title: 'URL migration race',
-    });
-    await database.insert(eventInstances).values({
-      creatorId: userId,
-      description: 'Tenant URL migration race event',
-      end: new Date(now + 8 * 24 * 60 * 60 * 1000),
-      icon: { iconColor: 0, iconName: 'circle' },
-      id: eventId,
-      listingAudience: 'both',
-      start: new Date(now + 7 * 24 * 60 * 60 * 1000),
-      status: 'APPROVED',
-      templateId,
-      tenantId,
-      title: 'URL migration race event',
-    });
-    await database.insert(eventRegistrationOptions).values({
-      closeRegistrationTime: new Date(now + 6 * 24 * 60 * 60 * 1000),
-      eventId,
-      id: optionId,
-      isPaid: false,
-      openRegistrationTime: new Date(now - 24 * 60 * 60 * 1000),
-      organizingRegistration: false,
-      price: 0,
-      registrationMode: 'fcfs',
-      spots: 10,
-      title: 'Participant',
-    });
-    await database.insert(eventRegistrations).values({
-      eventId,
-      id: registrationId,
-      registrationOptionId: optionId,
-      status: 'CONFIRMED',
-      tenantId,
-      userId,
-    });
 
     const { promise: releaseOffer, resolve: allowOfferCommit } =
       Promise.withResolvers<undefined>();
@@ -399,16 +447,28 @@ describe('tenant public URL migration serialization', () => {
 
   it('makes a concurrent URL migration observe and reject a newly committed Stripe obligation', async () => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
-    const tenantId = makeId('tenant', suffix);
     const transactionId = makeId('checkout', suffix);
     const domain = `${suffix}.stripe-url-race.example`;
     const stripeAccountId = `acct_${suffix}`;
-    fixtures.push({ tenantId, transactionId });
-    await database.insert(tenants).values({
-      domain,
-      id: tenantId,
-      name: `Stripe URL race ${suffix}`,
-      stripeAccountId,
+    const now = Date.now();
+    const { categoryId, eventId, optionId, registrationId, tenantId, userId } =
+      await seedRegistrationOwner(database, {
+        domain,
+        name: `Stripe URL race ${suffix}`,
+        now,
+        price: 1000,
+        registrationStatus: 'PENDING',
+        stripeAccountId,
+        suffix,
+      });
+    fixtures.push({
+      categoryId,
+      eventId,
+      optionId,
+      registrationId,
+      tenantId,
+      transactionId,
+      userId,
     });
 
     const { promise: releaseCheckout, resolve: allowCheckoutCommit } =
@@ -424,10 +484,14 @@ describe('tenant public URL migration serialization', () => {
             yield* tx.insert(transactions).values({
               amount: 1000,
               currency: 'EUR',
+              eventId,
+              eventRegistrationId: registrationId,
+              executiveUserId: userId,
               id: transactionId,
               method: 'stripe',
               status: 'pending',
               stripeAccountId: lockedAccount,
+              targetUserId: userId,
               tenantId,
               type: 'registration',
             });

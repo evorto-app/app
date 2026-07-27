@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { gaStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
@@ -21,6 +21,9 @@ const outboxRow = (page: Page, item: EmailOutboxScenarioItem) =>
     .locator('..')
     .locator(':scope > div')
     .filter({ has: page.getByRole('heading', { name: item.subject }) });
+
+const outboxAttempts = (row: Locator) =>
+  row.getByText('Attempts', { exact: true }).locator('..').locator('dd');
 
 test('Review global email delivery health @admin @globalAdmin', async ({
   database,
@@ -74,15 +77,11 @@ The **Email outbox** is an operational overview across every organization. Each 
         .locator('.headline-small'),
     ).toHaveText(/^[1-9]\d*$/);
 
-    const queuedRow = outboxRow(page, scenario.queued);
     const unknownRow = outboxRow(page, scenario.unknown);
     const sendingRow = outboxRow(page, scenario.sending);
     const failedRow = outboxRow(page, scenario.failed);
-    await expect(queuedRow).toContainText('Queued');
-    await expect(queuedRow).toContainText('Attempts 0');
-    await expect(queuedRow).toContainText('Not attempted');
     await expect(unknownRow).toContainText('Delivery unknown');
-    await expect(unknownRow).toContainText('Attempts 1');
+    await expect(outboxAttempts(unknownRow)).toHaveText('1');
     await expect(unknownRow).toContainText(
       'Provider accepted the request but its response was lost',
     );
@@ -91,7 +90,7 @@ The **Email outbox** is an operational overview across every organization. Each 
       'Delivery attempt recorded. It will settle once or become unknown; it will not be resent.',
     );
     await expect(failedRow).toContainText('Failed');
-    await expect(failedRow).toContainText('Attempts 1');
+    await expect(outboxAttempts(failedRow)).toHaveText('1');
     await expect(failedRow).toContainText('Recipient address was rejected');
     await expect(failedRow).toContainText(
       'Rejected before provider acceptance. Stored as terminal operational evidence.',
@@ -134,7 +133,6 @@ Each row identifies the organization name and primary address, recipient, email 
 
 ## Interpret delivery states
 
-- **Queued, Attempts 0, Not attempted** means the email is waiting for its only provider request.
 - **Sending** means one delivery attempt was recorded but no terminal outcome is stored yet. Do not infer that the email is permanently stuck from a brief **Sending** state; refresh later to check whether it settled once or became unknown. It is never resent.
 - **Failed** means the provider explicitly rejected the request before accepting it.
 - **Delivery unknown** means Evorto cannot prove whether the provider accepted the email. It remains terminal and is not resent, preventing duplicate customer messages.

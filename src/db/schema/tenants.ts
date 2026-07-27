@@ -21,7 +21,11 @@ import {
 import { GoogleLocationType } from '../../types/location';
 import { createId } from '../create-id';
 
-export const applicationThemes = pgEnum('application_theme', ['evorto', 'esn']);
+export const applicationThemes = pgEnum('application_theme', [
+  'evorto',
+  'classic',
+  'esn',
+]);
 
 export const currencyEnum = pgEnum('currency', ['EUR', 'CZK', 'AUD']);
 

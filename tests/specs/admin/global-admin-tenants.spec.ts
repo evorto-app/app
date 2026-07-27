@@ -26,12 +26,10 @@ const fillTenantSearch = async (page: Page, value: string) => {
 const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
-  await expect(page.getByText('Locale').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText('evorto').first()).toBeVisible();
-  await expect(page.getByText('de-DE').first()).toBeVisible();
   await expect(page.getByText('EUR').first()).toBeVisible();
   await expect(page.getByText('Europe/Berlin').first()).toBeVisible();
 };
@@ -47,7 +45,17 @@ const expectTenantFormScope = async (
 
   await expect(form.getByLabel('Organization name')).toBeVisible();
   await expect(form.getByLabel('Primary domain')).toBeVisible();
-  await expect(form.getByLabel('Theme')).toBeVisible();
+  const themeSelect = form.getByLabel('Theme');
+  await expect(themeSelect).toBeVisible();
+  await themeSelect.click();
+  await expect(
+    page.getByRole('option', { name: 'Default theme' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('option', { name: 'Classic Evorto theme' }),
+  ).toBeVisible();
+  await expect(page.getByRole('option', { name: 'ESN theme' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(form.getByLabel('Stripe account ID')).toBeVisible();
   await expect(form.getByLabel('Currency')).toBeVisible();
   await expect(form.getByLabel('Timezone')).toBeVisible();
@@ -170,6 +178,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   const createTenantInputs = page.locator('form input');
   await createTenantInputs.first().fill(createdTenantName);
   await createTenantInputs.nth(1).fill('section.example.org/path');
+  await page.getByLabel('Stripe account ID').fill(expectedStripeAccountId);
   await page
     .getByLabel('Privacy policy text')
     .fill('Privacy policy for the new section.');
@@ -212,7 +221,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
       currency: 'EUR',
       domain: createdTenantDomain,
       name: createdTenantName,
-      stripeAccountId: null,
+      stripeAccountId: expectedStripeAccountId,
       theme: 'evorto',
       timezone: 'Europe/Berlin',
     }),
@@ -246,13 +255,15 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
 
   blockedMigrationTransactionId = getId();
   await database.insert(schema.transactions).values({
-    amount: 1000,
+    amount: -1000,
     currency: createdTenant.currency,
     id: blockedMigrationTransactionId,
+    manuallyCreated: true,
     method: 'stripe',
     status: 'pending',
+    stripeAccountId: expectedStripeAccountId,
     tenantId: createdTenant.id,
-    type: 'registration',
+    type: 'refund',
   });
   await page.getByRole('link', { name: 'Edit organization' }).click();
   await expect(

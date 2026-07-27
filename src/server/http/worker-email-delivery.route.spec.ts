@@ -110,7 +110,11 @@ describe('worker email delivery route', () => {
         webHandler.handler(
           new Request(`https://worker.internal${WORKER_EMAIL_DELIVERY_PATH}`, {
             body: JSON.stringify({ limit: 1 }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              host: 'worker.internal',
+              'x-forwarded-proto': 'https',
+            },
             method: 'POST',
           }),
         ),

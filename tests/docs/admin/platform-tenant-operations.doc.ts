@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
@@ -19,6 +19,7 @@ test('Manage one organization and review change history', async ({
   seeded,
   templates,
   tenant,
+  testClock,
 }, testInfo) => {
   // This guide intentionally exercises six audited operations and their
   // persisted readbacks in one continuous organization-scoped journey.
@@ -74,7 +75,12 @@ test('Manage one organization and review change history', async ({
   const registrationSpotCount = 2;
   const originalOptionCounters =
     await database.query.eventRegistrationOptions.findFirst({
-      columns: { checkedInSpots: true, confirmedSpots: true },
+      columns: {
+        checkedInSpots: true,
+        confirmedSpots: true,
+        reservedSpots: true,
+        spots: true,
+      },
       where: {
         event: { tenantId: tenant.id },
         eventId: checkInEvent.id,
@@ -84,6 +90,31 @@ test('Manage one organization and review change history', async ({
   if (!originalOptionCounters) {
     throw new Error('Expected the documented check-in option to exist');
   }
+  const originalCheckInEventWindow =
+    await database.query.eventInstances.findFirst({
+      columns: { end: true, start: true },
+      where: { id: checkInEvent.id, tenantId: tenant.id },
+    });
+  if (!originalCheckInEventWindow) {
+    throw new Error('Expected the documented check-in event to exist');
+  }
+  const confirmedSpots =
+    originalOptionCounters.confirmedSpots + registrationSpotCount;
+  const checkedInSpots = originalOptionCounters.checkedInSpots;
+  if (
+    confirmedSpots + originalOptionCounters.reservedSpots >
+      originalOptionCounters.spots ||
+    checkedInSpots > confirmedSpots
+  ) {
+    throw new Error(
+      'The documented check-in option lacks coherent capacity for the confirmed registration',
+    );
+  }
+  const scannerNow = testClock.toJSDate();
+  const openCheckInEventWindow = {
+    end: new Date(scannerNow.getTime() + 30 * 60 * 1000),
+    start: new Date(scannerNow.getTime() - 30 * 60 * 1000),
+  };
 
   let receiptUploadId: string | undefined;
   let temporaryRecordsInserted = false;
@@ -146,6 +177,15 @@ test('Manage one organization and review change history', async ({
           ),
         );
     }
+    await cleanupDatabase
+      .update(schema.eventInstances)
+      .set(originalCheckInEventWindow)
+      .where(
+        and(
+          eq(schema.eventInstances.id, checkInEvent.id),
+          eq(schema.eventInstances.tenantId, tenant.id),
+        ),
+      );
     if (receiptUploadId) {
       await cleanupDatabase
         .delete(schema.financeReceiptUploads)
@@ -185,6 +225,19 @@ test('Manage one organization and review change history', async ({
   );
   receiptUploadId = createdReceiptUploadId;
   await database.transaction(async (transaction) => {
+    const activatedEvents = await transaction
+      .update(schema.eventInstances)
+      .set(openCheckInEventWindow)
+      .where(
+        and(
+          eq(schema.eventInstances.id, checkInEvent.id),
+          eq(schema.eventInstances.tenantId, tenant.id),
+        ),
+      )
+      .returning({ id: schema.eventInstances.id });
+    if (activatedEvents.length !== 1) {
+      throw new Error('Could not activate the documented check-in event');
+    }
     await transaction.insert(schema.financeReceipts).values({
       alcoholAmount: 0,
       attachmentFileName: receiptFileName,
@@ -204,26 +257,49 @@ test('Manage one organization and review change history', async ({
       totalAmount: 1200,
     });
     await transaction.insert(schema.eventRegistrations).values({
-      basePriceAtRegistration: 0,
+      appliedDiscountedPrice: null,
+      appliedDiscountType: null,
+      basePriceAtRegistration: checkInOption.price,
+      checkedInGuestCount: 0,
+      discountAmount: 0,
       eventId: checkInEvent.id,
       guestCount: 1,
       id: registrationId,
       registrationOptionId: checkInOption.id,
       status: 'CONFIRMED',
+      stripeTaxRateId: checkInOption.stripeTaxRateId,
+      taxRateDisplayName: null,
+      taxRateInclusive: null,
+      taxRatePercentage: null,
       tenantId: tenant.id,
       userId: assignmentScenario.user.id,
     });
-    await transaction
+    const updatedOptions = await transaction
       .update(schema.eventRegistrationOptions)
       .set({
-        confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registrationSpotCount}`,
+        checkedInSpots,
+        confirmedSpots,
       })
       .where(
         and(
           eq(schema.eventRegistrationOptions.id, checkInOption.id),
           eq(schema.eventRegistrationOptions.eventId, checkInEvent.id),
+          eq(
+            schema.eventRegistrationOptions.checkedInSpots,
+            originalOptionCounters.checkedInSpots,
+          ),
+          eq(
+            schema.eventRegistrationOptions.confirmedSpots,
+            originalOptionCounters.confirmedSpots,
+          ),
         ),
+      )
+      .returning({ id: schema.eventRegistrationOptions.id });
+    if (updatedOptions.length !== 1) {
+      throw new Error(
+        'The documented check-in option counters changed during fixture setup',
       );
+    }
   });
   temporaryRecordsInserted = true;
 

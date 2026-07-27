@@ -9,7 +9,10 @@ import { createId } from '../../../src/db/create-id';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { deleteRegistrationAcquisitionLedger } from './registration-acquisition-cleanup';
-import { futureServerEventWindow } from './server-test-clock';
+import {
+  futureServerEventWindow,
+  latestServerOrWallNow,
+} from './server-test-clock';
 
 type TestDatabase = NodePgDatabase<typeof relations>;
 
@@ -264,6 +267,8 @@ export const seedOrganizerSignupScenario = async ({
       icon: sourceEvent.icon,
       id: eventId,
       location: sourceEvent.location,
+      reviewedAt: latestServerOrWallNow(),
+      reviewedBy: reviewer.id,
       simpleModeEnabled: mode === 'simple',
       start: eventWindow.start,
       status: 'APPROVED',

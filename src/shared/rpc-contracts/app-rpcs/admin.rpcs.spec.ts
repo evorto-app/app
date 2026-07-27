@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { supportedTenantThemes } from '../../../types/custom/tenant';
 import { maximumPostgresInteger } from '../../schema-utilities';
 import { AdminRoleWriteRpcError } from './admin.errors';
 import {
@@ -97,6 +98,17 @@ const currentTenantSettingsInput = {
 };
 
 describe('AdminTenantUpdateSettingsInput', () => {
+  it('accepts the default, classic Evorto, and ESN themes', () => {
+    for (const theme of supportedTenantThemes) {
+      expect(() =>
+        Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+          ...currentTenantSettingsInput,
+          theme,
+        }),
+      ).not.toThrow();
+    }
+  });
+
   it('accepts the current tenant general-settings surface', () => {
     expect(() =>
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)(

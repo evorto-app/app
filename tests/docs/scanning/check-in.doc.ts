@@ -22,6 +22,7 @@ test('Check in event attendees', async ({
   database,
   page,
   seeded,
+  testClock,
 }, testInfo) => {
   const eventId = seeded.scenario.events.past.eventId;
   const event = seeded.events.find((seededEvent) => seededEvent.id === eventId);
@@ -46,7 +47,12 @@ test('Check in event attendees', async ({
   }
 
   const [optionBefore] = await database
-    .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+    .select({
+      checkedInSpots: eventRegistrationOptions.checkedInSpots,
+      confirmedSpots: eventRegistrationOptions.confirmedSpots,
+      reservedSpots: eventRegistrationOptions.reservedSpots,
+      spots: eventRegistrationOptions.spots,
+    })
     .from(eventRegistrationOptions)
     .where(
       and(
@@ -71,23 +77,64 @@ test('Check in event attendees', async ({
   }
 
   const registrationId = getId();
-  const openEventStart = new Date(Date.now() - 30 * 60 * 1000);
-  const openEventEnd = new Date(Date.now() + 30 * 60 * 1000);
+  const registrationSpotCount = 3;
+  const confirmedSpots = optionBefore.confirmedSpots + registrationSpotCount;
+  if (
+    confirmedSpots + optionBefore.reservedSpots > optionBefore.spots ||
+    optionBefore.checkedInSpots > confirmedSpots
+  ) {
+    throw new Error(
+      `Registration option "${participantOption.id}" lacks coherent capacity for check-in documentation`,
+    );
+  }
+  const scannerNow = testClock.toJSDate();
+  const openEventStart = new Date(scannerNow.getTime() - 30 * 60 * 1000);
+  const openEventEnd = new Date(scannerNow.getTime() + 30 * 60 * 1000);
 
   try {
     await database
       .update(eventInstances)
       .set({ end: openEventEnd, start: openEventStart })
       .where(eq(eventInstances.id, eventId));
-    await database.insert(eventRegistrations).values({
-      checkedInGuestCount: 0,
-      eventId,
-      guestCount: 2,
-      id: registrationId,
-      registrationOptionId: participantOption.id,
-      status: 'CONFIRMED',
-      tenantId: seeded.tenant.id,
-      userId: attendee.id,
+    await database.transaction(async (transaction) => {
+      const updatedOptions = await transaction
+        .update(eventRegistrationOptions)
+        .set({ confirmedSpots })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, eventId),
+            eq(eventRegistrationOptions.id, participantOption.id),
+            eq(
+              eventRegistrationOptions.checkedInSpots,
+              optionBefore.checkedInSpots,
+            ),
+            eq(
+              eventRegistrationOptions.confirmedSpots,
+              optionBefore.confirmedSpots,
+            ),
+          ),
+        )
+        .returning({ id: eventRegistrationOptions.id });
+      if (updatedOptions.length !== 1) {
+        throw new Error(
+          `Registration option "${participantOption.id}" counters changed before check-in documentation setup`,
+        );
+      }
+
+      await transaction.insert(eventRegistrations).values({
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: participantOption.price,
+        checkedInGuestCount: 0,
+        discountAmount: 0,
+        eventId,
+        guestCount: 2,
+        id: registrationId,
+        registrationOptionId: participantOption.id,
+        status: 'CONFIRMED',
+        tenantId: seeded.tenant.id,
+        userId: attendee.id,
+      });
     });
 
     await installMockCamera(page, 'allowed');
@@ -214,8 +261,8 @@ The scanner also warns when the ticket belongs to the signed-in organizer, check
     await database
       .update(eventInstances)
       .set({
-        end: new Date(Date.now() - 3 * 60 * 60 * 1000),
-        start: new Date(Date.now() - 5 * 60 * 60 * 1000),
+        end: new Date(scannerNow.getTime() - 3 * 60 * 60 * 1000),
+        start: new Date(scannerNow.getTime() - 5 * 60 * 60 * 1000),
       })
       .where(eq(eventInstances.id, eventId));
     await page.goto(`/scan/registration/${registrationId}`);
@@ -338,7 +385,10 @@ Never bypass a warning by changing the link or using another organization. Ask a
       .where(eq(eventRegistrations.id, registrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: optionBefore.checkedInSpots })
+      .set({
+        checkedInSpots: optionBefore.checkedInSpots,
+        confirmedSpots: optionBefore.confirmedSpots,
+      })
       .where(eq(eventRegistrationOptions.id, participantOption.id));
     await database
       .update(eventInstances)

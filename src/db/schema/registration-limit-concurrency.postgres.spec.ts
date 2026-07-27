@@ -162,8 +162,8 @@ const seedLimitFixture = async (
   });
   await database.insert(users).values({
     auth0Id: `auth0|limit-${suffix}`,
-    communicationEmail: `${suffix}@example.com`,
-    email: `${suffix}@example.com`,
+    communicationEmail: `${userId}@example.com`,
+    email: `${userId}@example.com`,
     firstName: 'Limit',
     id: userId,
     lastName: 'Tester',
@@ -196,6 +196,8 @@ const seedLimitFixture = async (
       icon: { iconColor: 0, iconName: 'circle' },
       id,
       listingAudience: 'both',
+      reviewedAt: new Date(now - 24 * 60 * 60 * 1000),
+      reviewedBy: userId,
       start: new Date(now + (7 + index) * 24 * 60 * 60 * 1000),
       status: 'APPROVED' as const,
       templateId,
@@ -287,6 +289,7 @@ const registrationInput = (
     stripeAccountId: null,
   },
   user: {
+    communicationEmail: `${fixture.userId}@example.com`,
     email: `${fixture.userId}@example.com`,
     id: fixture.userId,
     roleIds: [],

@@ -60,6 +60,7 @@ Unlisted events are hidden from public lists. Admins choose one of four explicit
   await expect(eventActionsButton).toBeEnabled({ timeout: 20_000 });
   await eventActionsButton.click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
+  const listingDialog = page.locator('mat-dialog-container');
   const audienceSelect = page.getByRole('combobox', {
     name: 'Listing audience',
   });
@@ -67,13 +68,10 @@ Unlisted events are hidden from public lists. Admins choose one of four explicit
   await page
     .getByRole('option', { name: eventListingAudienceLabels.unlisted })
     .click();
-  await expect(page.getByText(/hidden from event discovery/i)).toBeVisible();
-  await takeScreenshot(
-    testInfo,
-    page.locator('mat-dialog-container').first(),
-    page,
-    'Update listing dialog',
-  );
+  await expect(
+    listingDialog.getByText(/hidden from event discovery/i),
+  ).toBeVisible();
+  await takeScreenshot(testInfo, listingDialog, page, 'Update listing dialog');
   await page.getByRole('button', { name: 'Save' }).click();
 
   // Verify unlisted badge is visible for admins on the details page

@@ -505,15 +505,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
     );
-    expect(evortoService).toContain("trap 'cleanup_server TERM 143' TERM");
-    expect(evortoService).toContain(
-      'kill -"$$signal" "$$server_pid" 2>/dev/null || true',
-    );
-    expect(evortoService).toContain('finish_tee()');
-    expect(evortoService).toContain('sleep 2');
-    expect(evortoService).toContain(
-      'kill -TERM "$$tee_pid" 2>/dev/null || true',
-    );
+    expect(evortoService).not.toContain('command:');
+    expect(evortoService).not.toContain('server.log');
+    expect(evortoService).not.toContain('mkfifo');
 
     expect(mailpitService).toContain('axllent/mailpit:v1.28.2@sha256:');
     expect(mailpitService).toContain('MAILPIT_HOST_PORT');
@@ -524,6 +518,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(workerService).toContain(
       'MAILPIT_API_URL: http://mailpit:8025/api/v1/send',
     );
+    expect(workerService).not.toContain('command:');
 
     expect(stripeService).toContain('STRIPE_API_KEY:');
     expect(stripeService).toContain(

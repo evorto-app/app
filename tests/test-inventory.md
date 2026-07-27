@@ -152,8 +152,8 @@ here.
     registrations, and checked-in scanner aggregates.
   - `specs/smoke/load-application.test.ts`
   - `specs/smoke/semantic-theme-colors.test.ts` verifies the rendered success
-    and warning role pairs for Evorto and ESN themes in light, dark, and
-    increased-contrast modes.
+    and warning role pairs for the default Evorto, classic Evorto, and ESN
+    themes in light, dark, and increased-contrast modes.
 
 ## Intentional Gaps and Gates
 

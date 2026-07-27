@@ -173,9 +173,15 @@ Choose **Add receipt**. The form contains:
     body: `
 ## Recover from an incomplete submission
 
-Choose **Submit receipt** before selecting a file to see the safe validation state. The dialog stays open and explains that an image or PDF is required, so none of the partial values are uploaded or saved.
+Enter a valid total and tax amount, then choose **Submit receipt** before selecting a file to see the safe validation state. The dialog stays open and explains that an image or PDF is required, so none of the partial values are uploaded or saved.
 `,
   });
+  await receiptDialog
+    .getByLabel(`Total amount (${tenant.currency})`)
+    .fill('14.50');
+  await receiptDialog
+    .getByLabel(`Tax amount (${tenant.currency})`)
+    .fill('2.10');
   await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
   await expect(
     receiptDialog.getByText('Choose an image or PDF receipt file.'),

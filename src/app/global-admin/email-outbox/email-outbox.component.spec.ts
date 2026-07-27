@@ -75,6 +75,54 @@ describe('EmailOutboxComponent overview', () => {
     TestBed.resetTestingModule();
   });
 
+  it('renders a queued email before its single provider attempt', async () => {
+    loadOverview.mockResolvedValue({
+      items: [
+        {
+          attempts: 0,
+          createdAt: '2026-07-15T14:30:00.000Z',
+          deliveryUnknownAt: null,
+          id: 'email-queued',
+          kind: 'manualApproval',
+          lastAttemptAt: null,
+          lastError: null,
+          provider: null,
+          providerMessageId: null,
+          recipient: 'member@example.org',
+          sentAt: null,
+          status: 'queued',
+          subject: 'Manual approval',
+          suppressedAt: null,
+          tenantDomain: 'section.example.org',
+          tenantId: 'tenant-1',
+          tenantName: 'Section',
+          tenantTimezone: 'Australia/Brisbane',
+          updatedAt: '2026-07-15T14:30:00.000Z',
+        },
+      ],
+      summary: {
+        deliveryUnknown: 0,
+        failed: 0,
+        queued: 1,
+        sending: 0,
+        sent: 0,
+        staleSending: 0,
+        suppressed: 0,
+      },
+    });
+
+    const fixture = TestBed.createComponent(EmailOutboxComponent);
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const text = normalizeText(fixture);
+      expect(text).toContain('Waiting for its single provider request.');
+      expect(text).toMatch(/Attempts\s*0/);
+      expect(text).toContain('Not attempted');
+    });
+  });
+
   it('renders each Brisbane row in Brisbane when the host tenant is Berlin', async () => {
     loadOverview.mockResolvedValue({
       items: [

@@ -1,9 +1,27 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
-import { tenants } from './tenants';
+import { applicationThemes, tenants } from './tenants';
 
 describe('tenant runtime settings schema', () => {
+  it('uses the new Evorto theme by default while retaining both previous themes', () => {
+    expect(applicationThemes.enumValues).toEqual(['evorto', 'classic', 'esn']);
+
+    const themeColumn = getTableConfig(tenants).columns.find(
+      (column) => column.name === 'theme',
+    );
+
+    expect(themeColumn?.notNull).toBe(true);
+    expect(themeColumn?.default).toBe('evorto');
+
+    const classicTenantInsert = {
+      domain: 'classic.example.com',
+      name: 'Classic Section',
+      theme: 'classic',
+    } satisfies typeof tenants.$inferInsert;
+    expect(classicTenantInsert.theme).toBe('classic');
+  });
+
   it('stores arbitrary validated IANA timezone names with the Berlin default', () => {
     const timezoneColumn = getTableConfig(tenants).columns.find(
       (column) => column.name === 'timezone',

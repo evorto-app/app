@@ -84,8 +84,6 @@ test('Join another organization and choose your home organization', async ({
     domain: joinedTenantDomain,
     id: joinedTenantId,
     name: 'Example Exchange Network',
-    privacyPolicyText:
-      'We use your onboarding answers to provide organization membership services.',
   });
   await database.insert(schema.roles).values({
     defaultUserRole: true,
@@ -346,10 +344,11 @@ test('Publish and complete member onboarding @admin', async ({
     throw new Error('Expected the documented tenant administrator');
   }
 
-  const originalTenant = await database.query.tenants.findFirst({
+  const tenantExists = await database.query.tenants.findFirst({
+    columns: { id: true },
     where: { id: tenant.id },
   });
-  if (!originalTenant) {
+  if (!tenantExists) {
     throw new Error('Expected the documented tenant');
   }
   const originalPolicies =
@@ -434,13 +433,6 @@ test('Publish and complete member onboarding @admin', async ({
           ),
         );
     }
-    await cleanupDatabase
-      .update(schema.tenants)
-      .set({
-        privacyPolicyText: originalTenant.privacyPolicyText,
-        privacyPolicyUrl: originalTenant.privacyPolicyUrl,
-      })
-      .where(eq(schema.tenants.id, tenant.id));
   });
   registerDatabaseCleanup(async () => admin.context.close());
 

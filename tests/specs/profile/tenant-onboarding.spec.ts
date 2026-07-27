@@ -24,13 +24,16 @@ test('a tenant admin publishes a version and is immediately required to re-accep
     tenantDomain: tenant.domain,
     testClock,
   });
-  const originalTenant = await database.query.tenants.findFirst({
-    where: { id: tenant.id },
-  });
   const originalPolicies =
     await database.query.tenantPrivacyPolicyVersions.findMany({
       where: { tenantId: tenant.id },
     });
+  const originalPolicy = originalPolicies.toSorted(
+    (left, right) => right.version - left.version,
+  )[0];
+  if (!originalPolicy?.privacyPolicyText) {
+    throw new Error('Expected seeded tenant privacy policy text');
+  }
   const originalQuestions =
     await database.query.tenantOnboardingQuestions.findMany({
       where: { tenantId: tenant.id },
@@ -105,15 +108,6 @@ test('a tenant admin publishes a version and is immediately required to re-accep
           ),
         );
     }
-    if (originalTenant) {
-      await cleanupDatabase
-        .update(schema.tenants)
-        .set({
-          privacyPolicyText: originalTenant.privacyPolicyText,
-          privacyPolicyUrl: originalTenant.privacyPolicyUrl,
-        })
-        .where(eq(schema.tenants.id, tenant.id));
-    }
   });
   registerDatabaseCleanup(async () => admin.context.close());
 
@@ -129,13 +123,10 @@ test('a tenant admin publishes a version and is immediately required to re-accep
     'Publishing changed policy text or a changed link immediately requires every member, including you, to accept the new version before continuing in this organization.',
   );
   await expect(settings).not.toHaveAttribute('ngh', /.*/);
-  if (!originalTenant?.privacyPolicyText) {
-    throw new Error('Expected seeded tenant privacy policy text');
-  }
   const privacyPolicyText = settings.getByRole('textbox', {
     name: 'Privacy policy text',
   });
-  await expect(privacyPolicyText).toHaveValue(originalTenant.privacyPolicyText);
+  await expect(privacyPolicyText).toHaveValue(originalPolicy.privacyPolicyText);
   await privacyPolicyText.fill(
     'Updated privacy policy for the current academic year.',
   );

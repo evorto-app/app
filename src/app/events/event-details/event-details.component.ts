@@ -330,10 +330,13 @@ export class EventDetailsComponent {
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findEvent(this.eventId()),
   );
-  protected readonly selfQery = injectQuery(() => this.operations.self());
+  protected readonly selfQuery = injectQuery(() => this.operations.self());
   private readonly isEventCreator = computed(() => {
+    if (!this.selfQuery.isSuccess() || this.selfQuery.isFetching()) {
+      return false;
+    }
     const event = this.eventQuery.data();
-    const self = this.selfQery.data();
+    const self = this.selfQuery.data();
     return !!event && !!self && event.creatorId === self.id;
   });
   private permissions = inject(PermissionsService);
@@ -348,11 +351,18 @@ export class EventDetailsComponent {
       status: event.status,
     });
   });
-  protected readonly canOrganizeQuery = injectQuery(() =>
-    this.operations.canOrganize(this.eventId()),
+  protected readonly isAuthenticated = computed(
+    () =>
+      this.selfQuery.isSuccess() &&
+      !this.selfQuery.isFetching() &&
+      this.selfQuery.data() !== null,
   );
+  protected readonly canOrganizeQuery = injectQuery(() => ({
+    ...this.operations.canOrganize(this.eventId()),
+    enabled: this.isAuthenticated(),
+  }));
   protected readonly canOrganize = computed(() => {
-    return this.canOrganizeQuery.isSuccess()
+    return this.isAuthenticated() && this.canOrganizeQuery.isSuccess()
       ? this.canOrganizeQuery.data()
       : null;
   });
@@ -370,11 +380,12 @@ export class EventDetailsComponent {
   protected readonly discountCardsRequired = computed(
     () => this.config.tenant.discountProviders?.esnCard?.status === 'enabled',
   );
-  protected readonly myCardsQuery = injectQuery(() =>
-    this.operations.myCards(),
-  );
+  protected readonly myCardsQuery = injectQuery(() => ({
+    ...this.operations.myCards(),
+    enabled: this.isAuthenticated() && this.discountCardsRequired(),
+  }));
   protected readonly cardExpiresBeforeEvent = computed(() => {
-    if (!this.discountCardsRequired()) return false;
+    if (!this.isAuthenticated() || !this.discountCardsRequired()) return false;
     if (!this.eventQuery.isSuccess() || !this.myCardsQuery.isSuccess()) {
       return null;
     }

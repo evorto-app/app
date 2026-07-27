@@ -13,6 +13,7 @@ import {
 } from '@shared/permissions/permissions';
 import { registrationSpotCount } from '@shared/registration-spots';
 import {
+  type ActiveRegistrationTransferStatus,
   activeRegistrationTransferStatuses,
   isActiveRegistrationTransferStatus,
 } from '@shared/registration-transfer';
@@ -104,6 +105,7 @@ import {
 import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
+  registrationTransferMutationBlockingStatuses,
   RegistrationTransferMutationConflict,
 } from '../../../../registrations/registration-transfer-mutation-guard';
 import {
@@ -500,7 +502,7 @@ export const registrationCancellationStripeRefundTerms = ({
 const activeRegistrationTransferConflict = () =>
   new EventRegistrationConflictError({
     message:
-      'This registration has an active transfer. Resolve or cancel the transfer before changing the registration.',
+      'This registration has an active transfer. Complete or resolve the transfer before changing the registration.',
   });
 
 export const mapRegistrationTransferGuardError = Effect.fn(
@@ -543,23 +545,19 @@ const registrationCancellationStateChanged = ({
     (expectedPaymentPending !== undefined &&
       paymentPending !== expectedPaymentPending));
 
-const findActiveRegistrationTransfer = (
+const findRegistrationTransfer = (
   database: DatabaseClient,
-  input: { readonly registrationId: string; readonly tenantId: string },
+  input: {
+    readonly registrationId: string;
+    readonly statuses: readonly ActiveRegistrationTransferStatus[];
+    readonly tenantId: string;
+  },
 ) =>
   database.query.registrationTransfers.findFirst({
     columns: { id: true },
     where: {
-      OR: [
-        {
-          sourceRegistrationId: input.registrationId,
-          status: { in: [...activeRegistrationTransferStatuses] },
-        },
-        {
-          recipientRegistrationId: input.registrationId,
-          status: 'checkout_pending',
-        },
-      ],
+      sourceRegistrationId: input.registrationId,
+      status: { in: [...input.statuses] },
       tenantId: input.tenantId,
     },
   });
@@ -851,8 +849,9 @@ export const cancelRegistrationForTenant = Effect.fn(
   }
 
   const activeTransfer = yield* databaseEffect((database) =>
-    findActiveRegistrationTransfer(database, {
+    findRegistrationTransfer(database, {
       registrationId: registration.id,
+      statuses: registrationTransferMutationBlockingStatuses,
       tenantId: tenant.id,
     }),
   );
@@ -2302,8 +2301,9 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     }
 
     const activeTransfer = yield* databaseEffect((database) =>
-      findActiveRegistrationTransfer(database, {
+      findRegistrationTransfer(database, {
         registrationId: registration.id,
+        statuses: activeRegistrationTransferStatuses,
         tenantId: tenant.id,
       }),
     );
@@ -3699,8 +3699,9 @@ export const eventRegistrationHandlers = {
       }
 
       const activeTransfer = yield* databaseEffect((database) =>
-        findActiveRegistrationTransfer(database, {
+        findRegistrationTransfer(database, {
           registrationId: registration.id,
+          statuses: registrationTransferMutationBlockingStatuses,
           tenantId: tenant.id,
         }),
       );

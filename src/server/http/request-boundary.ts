@@ -11,6 +11,13 @@ import { applySecurityHeaders } from './security-headers';
 const validHost =
   /^(?:[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:]+\])(?::[0-9]{1,5})?$/u;
 
+export interface NodeRequestBoundaryInput {
+  readonly encryptedTransport: boolean;
+  readonly headers: Headers;
+  readonly requestTarget: string | undefined;
+  readonly trustPlatformProxy: boolean;
+}
+
 export interface RequestBoundary {
   readonly headers: Headers;
   readonly protocol: RequestProtocol;
@@ -110,10 +117,36 @@ export const resolveRequestBoundary = ({
   }
 };
 
+export const resolveNodeRequestBoundary = ({
+  encryptedTransport,
+  headers,
+  requestTarget,
+  trustPlatformProxy,
+}: NodeRequestBoundaryInput): RequestBoundary | undefined =>
+  resolveRequestBoundary({
+    headers,
+    requestTarget,
+    transportProtocol: encryptedTransport ? 'https' : 'http',
+    trustPlatformProxy,
+  });
+
 export interface RequestBoundaryMiddlewareOptions {
   readonly transportProtocol: RequestProtocol;
   readonly trustPlatformProxy: boolean;
 }
+
+export const requestBoundaryRouteLayers = <
+  ApplicationRoutes,
+  RequestBoundary,
+  ResponseMiddleware,
+>(
+  applicationRoutes: ApplicationRoutes,
+  requestBoundary: RequestBoundary,
+  responseMiddleware: ResponseMiddleware,
+) => ({
+  bun: [applicationRoutes, requestBoundary, responseMiddleware] as const,
+  normalizedNode: [applicationRoutes, responseMiddleware] as const,
+});
 
 const invalidRequestResponse = applySecurityHeaders(
   HttpServerResponse.text('Invalid Host or request target', { status: 400 }),
@@ -148,10 +181,20 @@ export const makeRequestBoundaryMiddleware = (
           return invalidRequestResponse;
         }
 
-        const normalizedRequest = request.modify({
-          headers: EffectHeaders.fromInput(boundary.headers),
-          url: boundary.requestTarget,
-        });
+        const sourceRequest = yield* HttpServerRequest.toWeb(request).pipe(
+          Effect.orDie,
+        );
+        const body = sourceRequest.body;
+        const requestInit = {
+          headers: boundary.headers,
+          method: sourceRequest.method,
+          redirect: sourceRequest.redirect,
+          signal: sourceRequest.signal,
+          ...(body && { body, duplex: 'half' as const }),
+        } satisfies RequestInit & { duplex?: 'half' };
+        const normalizedRequest = HttpServerRequest.fromWeb(
+          new Request(boundary.url, requestInit),
+        ).modify({ remoteAddress: request.remoteAddress });
 
         return yield* Effect.provideService(
           effect,

@@ -94,6 +94,7 @@ export const seedManualApprovalScenario = async ({
       domain: true,
       id: true,
       stripeAccountId: true,
+      timezone: true,
     },
     where: { id: seeded.tenant.id },
   });
@@ -108,6 +109,30 @@ export const seedManualApprovalScenario = async ({
   }
   if (kind === 'paid' && !tenant.stripeAccountId) {
     throw new Error('Paid manual approval scenario requires a Stripe account');
+  }
+  const selectedTaxRate =
+    option.stripeTaxRateId && tenant.stripeAccountId
+      ? await database.query.tenantStripeTaxRates.findFirst({
+          columns: {
+            displayName: true,
+            inclusive: true,
+            percentage: true,
+            stripeTaxRateId: true,
+          },
+          where: {
+            active: true,
+            inclusive: true,
+            stripeAccountId: tenant.stripeAccountId,
+            stripeTaxRateId: option.stripeTaxRateId,
+            tenantId: tenant.id,
+          },
+        })
+      : undefined;
+  if (
+    option.stripeTaxRateId &&
+    (!selectedTaxRate || selectedTaxRate.percentage === null)
+  ) {
+    throw new Error(`Seeded ${kind} scenario tax configuration is unavailable`);
   }
 
   const originalRegistrations =
@@ -269,39 +294,59 @@ export const seedManualApprovalScenario = async ({
         baseUrl,
       ).toString();
 
-      await database
-        .update(schema.eventRegistrationOptions)
-        .set({ reservedSpots: 1 })
-        .where(eq(schema.eventRegistrationOptions.id, option.id));
-      await database.insert(schema.transactions).values({
-        amount: option.price,
-        appFee: Math.round(option.price * 0.035),
-        comment: `Recover payment setup for ${event.title}`,
-        currency: tenant.currency,
-        eventId: event.id,
-        eventRegistrationId: registrationId,
-        executiveUserId: requiredTestUser('admin').id,
-        id: transactionId,
-        method: 'stripe',
-        status: 'pending',
-        stripeAccountId: tenant.stripeAccountId,
-        stripeCheckoutRequest: {
-          customerEmail: participant.email,
-          eventTitle: event.title,
-          eventUrl,
-          expiresAt: Math.floor(Date.now() / 1000) + 23 * 60 * 60,
-          lineItems: [
-            {
-              name: `Registration fee for ${event.title}`,
-              quantity: 1,
-              unitAmount: option.price,
-            },
-          ],
-          notificationEmail: participant.email,
-        },
-        targetUserId: participant.id,
-        tenantId: tenant.id,
-        type: 'registration',
+      await database.transaction(async (transaction) => {
+        await transaction
+          .update(schema.eventRegistrationOptions)
+          .set({ reservedSpots: 1 })
+          .where(eq(schema.eventRegistrationOptions.id, option.id));
+        await transaction
+          .update(schema.eventRegistrations)
+          .set({
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
+            basePriceAtRegistration: option.price,
+            discountAmount: 0,
+            ...(selectedTaxRate && {
+              stripeTaxRateId: selectedTaxRate.stripeTaxRateId,
+              taxRateDisplayName: selectedTaxRate.displayName,
+              taxRateInclusive: selectedTaxRate.inclusive,
+              taxRatePercentage: selectedTaxRate.percentage,
+            }),
+          })
+          .where(eq(schema.eventRegistrations.id, registrationId));
+        await transaction.insert(schema.transactions).values({
+          amount: option.price,
+          appFee: Math.round(option.price * 0.035),
+          comment: `Recover payment setup for ${event.title}`,
+          currency: tenant.currency,
+          eventId: event.id,
+          eventRegistrationId: registrationId,
+          executiveUserId: requiredTestUser('admin').id,
+          id: transactionId,
+          method: 'stripe',
+          status: 'pending',
+          stripeAccountId: tenant.stripeAccountId,
+          stripeCheckoutRequest: {
+            customerEmail: participant.email,
+            eventTitle: event.title,
+            eventUrl,
+            expiresAt: Math.floor(Date.now() / 1000) + 23 * 60 * 60,
+            lineItems: [
+              {
+                name: `Registration fee for ${event.title}`,
+                quantity: 1,
+                ...(option.stripeTaxRateId && {
+                  taxRateId: option.stripeTaxRateId,
+                }),
+                unitAmount: option.price,
+              },
+            ],
+            notificationEmail: participant.email,
+          },
+          targetUserId: participant.id,
+          tenantId: tenant.id,
+          type: 'registration',
+        });
       });
 
       return transactionId;

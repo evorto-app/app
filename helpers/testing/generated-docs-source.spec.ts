@@ -1967,9 +1967,8 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('checkedInSpots: optionBefore.checkedInSpots + 2');
     expect(source).toContain('optionBefore.checkedInSpots + 3');
     expect(source).toContain('.delete(eventRegistrations)');
-    expect(source).toContain(
-      '.set({ checkedInSpots: optionBefore.checkedInSpots })',
-    );
+    expect(source).toContain('checkedInSpots: optionBefore.checkedInSpots,');
+    expect(source).toContain('confirmedSpots: optionBefore.confirmedSpots,');
     expect(source).not.toContain('a QR code is enough to check in');
   });
 

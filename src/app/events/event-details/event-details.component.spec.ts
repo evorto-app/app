@@ -370,6 +370,15 @@ const findEvent = vi.fn();
 const findCanOrganize = vi.fn();
 const findMyCards = vi.fn();
 const findRegistrationStatus = vi.fn();
+const findSelf = vi.fn();
+const tenantConfig = {
+  discountProviders: {
+    esnCard: {
+      config: {},
+      status: 'enabled' as 'disabled' | 'enabled',
+    },
+  },
+};
 
 const eventDetails = {
   addOns: [],
@@ -419,6 +428,9 @@ describe('EventDetailsComponent load recovery', () => {
     findMyCards.mockReset();
     findMyCards.mockResolvedValue([]);
     findRegistrationStatus.mockReset();
+    findSelf.mockReset();
+    findSelf.mockResolvedValue({ id: 'user-1' });
+    tenantConfig.discountProviders.esnCard.status = 'enabled';
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { gcTime: 0, retry: false },
@@ -438,11 +450,7 @@ describe('EventDetailsComponent load recovery', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenant: {
-              discountProviders: {
-                esnCard: { config: {}, status: 'enabled' },
-              },
-            },
+            tenant: tenantConfig,
             updateDescription: vi.fn(),
             updateTitle: vi.fn(),
           },
@@ -476,7 +484,7 @@ describe('EventDetailsComponent load recovery', () => {
               mutationKey: ['review-event'],
             }),
             self: () => ({
-              queryFn: async () => null,
+              queryFn: findSelf,
               queryKey: ['maybe-self'],
             }),
             submitForReview: () => ({
@@ -640,6 +648,213 @@ describe('EventDetailsComponent load recovery', () => {
         'Organizer access could not be checked.',
       );
     });
+  });
+
+  it('does not check organizer capability for an anonymous visitor', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findSelf.mockResolvedValue(null);
+    findCanOrganize.mockRejectedValue(new Error('Authentication required'));
+    findMyCards.mockRejectedValue(new Error('Authentication required'));
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+      expect(findSelf).toHaveBeenCalledOnce();
+    });
+    expect(findCanOrganize).not.toHaveBeenCalled();
+    expect(findMyCards).not.toHaveBeenCalled();
+    expect(normalizeText(fixture)).not.toContain(
+      'Organizer access could not be checked.',
+    );
+    expect(normalizeText(fixture)).not.toContain(
+      'Discount-card eligibility could not be checked.',
+    );
+  });
+
+  it('surfaces an unavailable identity check and retries it explicitly', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findSelf
+      .mockRejectedValueOnce(new Error('Identity unavailable'))
+      .mockResolvedValue({ id: 'user-1' });
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Your account state could not be checked.',
+      );
+    });
+    expect(findCanOrganize).not.toHaveBeenCalled();
+    expect(findMyCards).not.toHaveBeenCalled();
+
+    const alert = [
+      ...fixture.nativeElement.querySelectorAll('[role="alert"]'),
+    ].find((element: HTMLElement) =>
+      element.textContent?.includes('account state'),
+    ) as HTMLElement | undefined;
+    alert?.querySelector<HTMLButtonElement>('button')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findSelf).toHaveBeenCalledTimes(2);
+      expect(normalizeText(fixture)).not.toContain(
+        'Your account state could not be checked.',
+      );
+    });
+    expect(findCanOrganize).toHaveBeenCalledOnce();
+    expect(findMyCards).toHaveBeenCalledOnce();
+  });
+
+  it('removes cached creator controls when a fresh identity check fails', async () => {
+    findEvent.mockResolvedValue({
+      ...eventDetails,
+      creatorId: 'user-1',
+      status: 'DRAFT',
+    });
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findSelf
+      .mockResolvedValueOnce({ id: 'user-1' })
+      .mockRejectedValueOnce(new Error('Identity unavailable'));
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('app-event-status'),
+      ).not.toBeNull();
+      expect(normalizeText(fixture)).toContain('Edit Event');
+      expect(normalizeText(fixture)).toContain('Submit for Review');
+    });
+
+    await queryClient.refetchQueries({
+      exact: true,
+      queryKey: ['maybe-self'],
+    });
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Your account state could not be checked.',
+      );
+      expect(
+        fixture.nativeElement.querySelector('app-event-status'),
+      ).toBeNull();
+      expect(normalizeText(fixture)).not.toContain('Edit Event');
+      expect(normalizeText(fixture)).not.toContain('Submit for Review');
+    });
+    expect(findSelf).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes identity-derived controls and disables personal queries during an identity refresh', async () => {
+    let resolveIdentityRefresh:
+      ((identity: { id: string }) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const identityRefresh = new Promise<{ id: string }>((resolve) => {
+      resolveIdentityRefresh = resolve;
+    });
+    findEvent.mockResolvedValue({
+      ...eventDetails,
+      creatorId: 'user-1',
+      status: 'DRAFT',
+    });
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findSelf
+      .mockResolvedValueOnce({ id: 'user-1' })
+      .mockReturnValueOnce(identityRefresh);
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findCanOrganize).toHaveBeenCalledOnce();
+      expect(findMyCards).toHaveBeenCalledOnce();
+      expect(
+        fixture.nativeElement.querySelector('app-event-status'),
+      ).not.toBeNull();
+      expect(normalizeText(fixture)).toContain('Edit Event');
+      expect(normalizeText(fixture)).toContain('Submit for Review');
+    });
+
+    const refetch = queryClient.refetchQueries({
+      exact: true,
+      queryKey: ['maybe-self'],
+    });
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findSelf).toHaveBeenCalledTimes(2);
+      expect(
+        fixture.nativeElement.querySelector('app-event-status'),
+      ).toBeNull();
+      expect(normalizeText(fixture)).not.toContain('Edit Event');
+      expect(normalizeText(fixture)).not.toContain('Submit for Review');
+      expect(
+        queryClient
+          .getQueryCache()
+          .find({ exact: true, queryKey: ['event-can-organize', 'event-1'] })
+          ?.isActive(),
+      ).toBe(false);
+      expect(
+        queryClient
+          .getQueryCache()
+          .find({ exact: true, queryKey: ['my-cards'] })
+          ?.isActive(),
+      ).toBe(false);
+    });
+    expect(findCanOrganize).toHaveBeenCalledOnce();
+    expect(findMyCards).toHaveBeenCalledOnce();
+
+    resolveIdentityRefresh?.({ id: 'user-1' });
+    await refetch;
+  });
+
+  it('does not load personal cards for an authenticated tenant with the provider disabled', async () => {
+    tenantConfig.discountProviders.esnCard.status = 'disabled';
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+      expect(findSelf).toHaveBeenCalledOnce();
+      expect(findCanOrganize).toHaveBeenCalledOnce();
+    });
+    expect(findMyCards).not.toHaveBeenCalled();
+    expect(
+      queryClient
+        .getQueryCache()
+        .find({ exact: true, queryKey: ['my-cards'] })
+        ?.isActive(),
+    ).toBe(false);
   });
 
   it('surfaces unavailable discount eligibility instead of treating it as no card', async () => {

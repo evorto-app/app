@@ -379,6 +379,7 @@ const createEvents = (
         id: eventId,
         listingAudience,
         reviewedAt: status === 'APPROVED' ? seedNow.toJSDate() : null,
+        reviewedBy: status === 'APPROVED' ? adminUser : null,
         start: eventStart,
         status,
         templateId: template.id,

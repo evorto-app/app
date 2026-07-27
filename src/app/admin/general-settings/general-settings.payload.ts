@@ -28,7 +28,7 @@ export interface GeneralSettingsModel {
   stripeAccountId: string;
   termsText: string;
   termsUrl: string;
-  theme: 'esn' | 'evorto';
+  theme: AdminTenantUpdateSettingsInput['theme'];
   timezone: SupportedTenantTimezone;
   transferDeadlineHoursBeforeStart: number;
 }

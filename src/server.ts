@@ -79,7 +79,8 @@ import {
 } from './server/http/request-body';
 import {
   makeRequestBoundaryMiddleware,
-  resolveRequestBoundary,
+  requestBoundaryRouteLayers,
+  resolveNodeRequestBoundary,
 } from './server/http/request-boundary';
 import { runRpcIngressPolicy } from './server/http/rpc-ingress-policy';
 import { applySecurityHeaders } from './server/http/security-headers';
@@ -124,7 +125,9 @@ import { validateRuntimeRoleConfiguration } from './server/runtime/runtime-role'
 import { stripeClientLayer } from './server/stripe-client';
 import { sanitizeRelativeRedirectPath } from './shared/auth-redirect';
 
-const angularApp = new AngularAppEngine();
+const angularApp = new AngularAppEngine({
+  trustProxyHeaders: ['x-forwarded-proto'],
+});
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
 const keyValueStoreDirectory = '.cache/evorto/server-kv';
@@ -714,7 +717,7 @@ const bootstrapRoutesLayer = Layer.mergeAll(
   responseMiddlewareLayer,
 );
 
-const webRoutesLayer = Layer.mergeAll(
+const webApplicationRoutesLayer = Layer.mergeAll(
   healthRouteLayer,
   applicationReadinessRouteLayer,
   versionRouteLayer,
@@ -730,8 +733,18 @@ const webRoutesLayer = Layer.mergeAll(
   stripeWebhookRouteLayer,
   rpcRouteLayer,
   staticAndAngularCatchAllLayer,
+);
+
+const webRouteLayers = requestBoundaryRouteLayers(
+  webApplicationRoutesLayer,
   requestBoundaryLayer,
   responseMiddlewareLayer,
+);
+
+const webRoutesLayer = Layer.mergeAll(...webRouteLayers.bun);
+
+const normalizedNodeWebRoutesLayer = Layer.mergeAll(
+  ...webRouteLayers.normalizedNode,
 );
 
 const workerRoutesLayer = Layer.mergeAll(
@@ -792,7 +805,7 @@ const getRequestHandler = () => {
   const requestRuntimeLayer = handlerRuntimeLayer.pipe(
     Layer.provideMerge(configuredDatabaseLayer),
   );
-  const handlerAppLayer = webRoutesLayer.pipe(
+  const handlerAppLayer = normalizedNodeWebRoutesLayer.pipe(
     HttpLayerRouter.provideRequest(requestRuntimeLayer),
   );
   const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
@@ -869,13 +882,11 @@ const nodeRequestHeaders = (request: IncomingMessage) => {
 const toNodeWebRequest = async (request: IncomingMessage) => {
   const method = request.method ?? 'GET';
   const headers = nodeRequestHeaders(request);
-  const requestBoundary = resolveRequestBoundary({
+  const requestBoundary = resolveNodeRequestBoundary({
+    encryptedTransport:
+      'encrypted' in request.socket && request.socket.encrypted === true,
     headers,
     requestTarget: request.url,
-    transportProtocol:
-      'encrypted' in request.socket && request.socket.encrypted === true
-        ? 'https'
-        : 'http',
     trustPlatformProxy: requestBoundaryDeployment.TRUST_PLATFORM_PROXY,
   });
   if (!requestBoundary) {

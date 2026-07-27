@@ -221,6 +221,8 @@ const seedTransferLimitFixture = async (
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
       listingAudience: 'both',
+      reviewedAt: new Date(now - 2 * 60 * 60 * 1000),
+      reviewedBy: sourceUserId,
       start: new Date(now + (7 + index) * 24 * 60 * 60 * 1000),
       status: 'APPROVED',
       templateId,
@@ -248,6 +250,8 @@ const seedTransferLimitFixture = async (
 
   const registrationValues: (typeof eventRegistrations.$inferInsert)[] =
     candidates.map(({ eventId, optionId, registrationId, sourceUserId }) => ({
+      basePriceAtRegistration: 1000,
+      discountAmount: 0,
       eventId,
       id: registrationId,
       registrationOptionId: optionId,

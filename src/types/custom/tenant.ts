@@ -12,6 +12,7 @@ import { Effect, Schema, SchemaGetter } from 'effect';
 import { GoogleLocation } from '../location';
 
 export const supportedTenantCurrencies = ['EUR', 'CZK', 'AUD'] as const;
+export const supportedTenantThemes = ['evorto', 'classic', 'esn'] as const;
 export const TENANT_FORMATTING_LOCALE = 'de-DE' as const;
 export const DEFAULT_TENANT_TIMEZONE = 'Europe/Berlin' as const;
 export const supportedTenantTimezones = [
@@ -21,6 +22,7 @@ export const supportedTenantTimezones = [
 ] as const;
 
 const SupportedTenantCurrency = literalUnion(...supportedTenantCurrencies);
+const SupportedTenantTheme = literalUnion(...supportedTenantThemes);
 
 export const isIanaTimezone = (value: string): boolean => {
   if (
@@ -88,7 +90,7 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   stripeAccountId: optionalNullable(Schema.NonEmptyString),
   termsText: optionalNullable(Schema.NonEmptyString),
   termsUrl: optionalNullable(Schema.NonEmptyString),
-  theme: literalUnion('evorto', 'esn'),
+  theme: SupportedTenantTheme,
   timezone: TenantTimezone,
   transferDeadlineHoursBeforeStart: nonNegativePostgresInteger,
 }) {}

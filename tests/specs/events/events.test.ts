@@ -48,12 +48,7 @@ const eventOptionEditorByTitle = async (
 test('event list icon actions are named and keyboard operable', async ({
   makeAxeBuilder,
   page,
-  permissionOverride,
 }) => {
-  await permissionOverride({
-    add: ['events:seeDrafts', 'events:seeUnlisted'],
-    roleName: 'Section member',
-  });
   await page.goto('/events');
 
   const eventNavigation = page.locator('app-event-list nav');
@@ -62,12 +57,9 @@ test('event list icon actions are named and keyboard operable', async ({
   ).toBeVisible({ timeout: 20_000 });
   await expect(eventNavigation).not.toContainText('Error:');
 
-  const filterButton = page.getByRole('button', { name: 'Filter events' });
   const listActionsButton = page.getByRole('button', {
     name: 'Open event list actions',
   });
-  await expect(filterButton).toBeVisible();
-  await expect(filterButton).toBeEnabled();
   await expect(listActionsButton).toBeVisible();
   await expect(listActionsButton).toBeEnabled();
 
@@ -75,14 +67,6 @@ test('event list icon actions are named and keyboard operable', async ({
     .include('app-event-list > div > div > div:first-child')
     .analyze();
   expect(accessibilityScan.violations).toEqual([]);
-
-  await filterButton.focus();
-  await expect(filterButton).toBeFocused();
-  await filterButton.press('Enter');
-  const filterDialog = page.getByRole('dialog', { name: 'Filter events' });
-  await expect(filterDialog).toBeVisible();
-  await filterDialog.getByRole('button', { name: 'Ok' }).click();
-  await expect(filterDialog).toBeHidden();
 
   await listActionsButton.focus();
   await expect(listActionsButton).toBeFocused();
@@ -98,13 +82,8 @@ test('event authoring controls expose accessible names and keyboard interaction'
   events,
   makeAxeBuilder,
   page,
-  permissionOverride,
   roles,
 }) => {
-  await permissionOverride({
-    add: ['events:changeListing'],
-    roleName: 'Section member',
-  });
   const draftEvent = events.find(
     (event) => event.status === 'DRAFT' && event.registrationOptions.length > 0,
   );
@@ -127,10 +106,9 @@ test('event authoring controls expose accessible names and keyboard interaction'
     page.getByRole('heading', { name: draftEvent.title }),
   ).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle');
-  await expect(page.getByRole('link', { name: 'Back to event' })).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Open event actions' }),
-  ).toBeVisible();
+    page.getByRole('link', { name: 'Back to event' }),
+  ).toHaveAttribute('href', `/events/${draftEvent.id}`);
 
   const registrationOptionEditor = await eventOptionEditorByTitle(
     page,

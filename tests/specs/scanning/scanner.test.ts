@@ -11,6 +11,7 @@ import {
 import type { relations } from '../../../src/db/relations';
 import {
   eventAddons,
+  eventInstances,
   eventRegistrationAddonFulfillmentAllocations,
   eventRegistrationAddonFulfillmentEvents,
   eventRegistrationAddonPurchaseLots,
@@ -36,6 +37,59 @@ import {
 test.use({ storageState: adminStateFile });
 
 type TestDatabase = NodePgDatabase<typeof relations>;
+type RegistrationPriceSnapshot = Pick<
+  typeof eventRegistrations.$inferInsert,
+  | 'basePriceAtRegistration'
+  | 'discountAmount'
+  | 'stripeTaxRateId'
+  | 'taxRateDisplayName'
+  | 'taxRateInclusive'
+  | 'taxRatePercentage'
+>;
+
+const openScannerEventCheckInWindow = async ({
+  database,
+  eventId,
+  now,
+}: {
+  database: TestDatabase;
+  eventId: string;
+  now: Date;
+}) => {
+  const [eventBefore] = await database
+    .select({
+      end: eventInstances.end,
+      start: eventInstances.start,
+    })
+    .from(eventInstances)
+    .where(eq(eventInstances.id, eventId));
+  if (!eventBefore) {
+    throw new Error(`Expected scanner event "${eventId}"`);
+  }
+
+  const activatedEvents = await database
+    .update(eventInstances)
+    .set({
+      end: new Date(now.getTime() + 30 * 60 * 1000),
+      start: new Date(now.getTime() - 30 * 60 * 1000),
+    })
+    .where(eq(eventInstances.id, eventId))
+    .returning({ id: eventInstances.id });
+  if (activatedEvents.length !== 1) {
+    throw new Error(`Could not activate scanner event "${eventId}"`);
+  }
+
+  return async () => {
+    const restoredEvents = await database
+      .update(eventInstances)
+      .set(eventBefore)
+      .where(eq(eventInstances.id, eventId))
+      .returning({ id: eventInstances.id });
+    if (restoredEvents.length !== 1) {
+      throw new Error(`Could not restore scanner event "${eventId}"`);
+    }
+  };
+};
 
 const requireScannerFixture = async ({
   database,
@@ -58,9 +112,59 @@ const requireScannerFixture = async ({
       'Expected participant registration option for scanner coverage',
     );
   }
+  if (registrationOption.isPaid && !registrationOption.stripeTaxRateId) {
+    throw new Error(
+      `Paid registration option "${registrationOption.id}" is missing its Stripe tax rate`,
+    );
+  }
+  if (!registrationOption.isPaid && registrationOption.stripeTaxRateId) {
+    throw new Error(
+      `Free registration option "${registrationOption.id}" unexpectedly has a Stripe tax rate`,
+    );
+  }
+
+  const taxRate = registrationOption.stripeTaxRateId
+    ? await database.query.tenantStripeTaxRates.findFirst({
+        columns: {
+          active: true,
+          displayName: true,
+          inclusive: true,
+          percentage: true,
+          stripeAccountId: true,
+        },
+        where: {
+          stripeTaxRateId: registrationOption.stripeTaxRateId,
+          tenantId: seeded.tenant.id,
+        },
+      })
+    : undefined;
+  if (
+    registrationOption.stripeTaxRateId &&
+    (!taxRate ||
+      !taxRate.active ||
+      taxRate.percentage === null ||
+      taxRate.stripeAccountId !== seeded.tenant.stripeAccountId)
+  ) {
+    throw new Error(
+      `Registration option "${registrationOption.id}" does not reference an active, complete tax rate for its tenant Stripe account`,
+    );
+  }
+  const registrationPriceSnapshot = {
+    basePriceAtRegistration: registrationOption.price,
+    discountAmount: 0,
+    stripeTaxRateId: registrationOption.stripeTaxRateId,
+    taxRateDisplayName: taxRate?.displayName ?? null,
+    taxRateInclusive: taxRate?.inclusive ?? null,
+    taxRatePercentage: taxRate?.percentage ?? null,
+  } satisfies RegistrationPriceSnapshot;
 
   const [optionBefore] = await database
-    .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+    .select({
+      checkedInSpots: eventRegistrationOptions.checkedInSpots,
+      confirmedSpots: eventRegistrationOptions.confirmedSpots,
+      reservedSpots: eventRegistrationOptions.reservedSpots,
+      spots: eventRegistrationOptions.spots,
+    })
     .from(eventRegistrationOptions)
     .where(
       and(
@@ -91,6 +195,81 @@ const requireScannerFixture = async ({
     userId: scannerUserId,
   });
 
+  const insertConfirmedRegistration = async (input: {
+    checkedInGuestCount?: number;
+    checkInTime?: Date;
+    guestCount: number;
+    registrationId: string;
+  }) => {
+    const checkedInGuestCount = input.checkedInGuestCount ?? 0;
+    if (
+      checkedInGuestCount < 0 ||
+      checkedInGuestCount > input.guestCount ||
+      (!input.checkInTime && checkedInGuestCount !== 0)
+    ) {
+      throw new Error(
+        `Scanner registration "${input.registrationId}" has inconsistent checked-in guest state`,
+      );
+    }
+
+    const registrationSpotCount = input.guestCount + 1;
+    const initialCheckedInSpotCount = input.checkInTime
+      ? checkedInGuestCount + 1
+      : 0;
+    const confirmedSpots = optionBefore.confirmedSpots + registrationSpotCount;
+    const checkedInSpots =
+      optionBefore.checkedInSpots + initialCheckedInSpotCount;
+    if (
+      confirmedSpots + optionBefore.reservedSpots > optionBefore.spots ||
+      checkedInSpots > confirmedSpots
+    ) {
+      throw new Error(
+        `Registration option "${registrationOption.id}" lacks coherent capacity for scanner fixture "${input.registrationId}"`,
+      );
+    }
+
+    await database.transaction(async (transaction) => {
+      const updatedOptions = await transaction
+        .update(eventRegistrationOptions)
+        .set({ checkedInSpots, confirmedSpots })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, eventId),
+            eq(eventRegistrationOptions.id, registrationOption.id),
+            eq(
+              eventRegistrationOptions.checkedInSpots,
+              optionBefore.checkedInSpots,
+            ),
+            eq(
+              eventRegistrationOptions.confirmedSpots,
+              optionBefore.confirmedSpots,
+            ),
+          ),
+        )
+        .returning({ id: eventRegistrationOptions.id });
+      if (updatedOptions.length !== 1) {
+        throw new Error(
+          `Registration option "${registrationOption.id}" counters changed before scanner fixture setup`,
+        );
+      }
+
+      await transaction.insert(eventRegistrations).values({
+        ...registrationPriceSnapshot,
+        checkedInGuestCount,
+        ...(input.checkInTime && { checkInTime: input.checkInTime }),
+        eventId,
+        guestCount: input.guestCount,
+        id: input.registrationId,
+        registrationOptionId: registrationOption.id,
+        status: 'CONFIRMED',
+        tenantId: seeded.tenant.id,
+        userId: scannerUserId,
+      });
+    });
+
+    return checkedInSpots;
+  };
+
   return {
     cleanupUser: async () => {
       await database
@@ -99,8 +278,23 @@ const requireScannerFixture = async ({
       await database.delete(users).where(eq(users.id, scannerUserId));
     },
     eventId,
+    insertConfirmedRegistration,
     optionBefore,
     registrationOptionId: registrationOption.id,
+    restoreOptionCounters: async () => {
+      await database
+        .update(eventRegistrationOptions)
+        .set({
+          checkedInSpots: optionBefore.checkedInSpots,
+          confirmedSpots: optionBefore.confirmedSpots,
+        })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, eventId),
+            eq(eventRegistrationOptions.id, registrationOption.id),
+          ),
+        );
+    },
     tenantId: seeded.tenant.id,
     userId: scannerUserId,
   };
@@ -195,15 +389,9 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
   const checklistTitle = 'Photo acknowledgement';
 
   try {
-    await database.insert(eventRegistrations).values({
-      checkedInGuestCount: 0,
-      eventId: scannerFixture.eventId,
+    await scannerFixture.insertConfirmedRegistration({
       guestCount: 0,
-      id: registrationId,
-      registrationOptionId: scannerFixture.registrationOptionId,
-      status: 'CONFIRMED',
-      tenantId: scannerFixture.tenantId,
-      userId: scannerFixture.userId,
+      registrationId,
     });
     await seedScannerRegistrationAcquisition({
       acquisitionId,
@@ -657,6 +845,7 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
           checklistAddOnId,
         ]),
       );
+    await scannerFixture.restoreOptionCounters();
   }
 });
 
@@ -685,15 +874,9 @@ test.describe('organizer add-on cancellation permissions', () => {
         remove: ['events:cancelRegistrations'],
         roleName: 'Section member',
       });
-      await database.insert(eventRegistrations).values({
-        checkedInGuestCount: 0,
-        eventId: scannerFixture.eventId,
+      await scannerFixture.insertConfirmedRegistration({
         guestCount: 0,
-        id: registrationId,
-        registrationOptionId: scannerFixture.registrationOptionId,
-        status: 'CONFIRMED',
-        tenantId: scannerFixture.tenantId,
-        userId: scannerFixture.userId,
+        registrationId,
       });
       await seedScannerRegistrationAcquisition({
         acquisitionId,
@@ -757,6 +940,7 @@ test.describe('organizer add-on cancellation permissions', () => {
         .delete(eventRegistrations)
         .where(eq(eventRegistrations.id, registrationId));
       await database.delete(eventAddons).where(eq(eventAddons.id, addOnId));
+      await scannerFixture.restoreOptionCounters();
     }
   });
 });
@@ -765,27 +949,32 @@ test('scan confirmed registration records check-in', async ({
   database,
   page,
   seeded,
+  testClock,
 }) => {
   const scannerFixture = await requireScannerFixture({ database, seeded });
   const registrationId = getId();
+  const restoreEventTiming = await openScannerEventCheckInWindow({
+    database,
+    eventId: scannerFixture.eventId,
+    now: testClock.toJSDate(),
+  });
 
   try {
-    await database.insert(eventRegistrations).values({
-      checkedInGuestCount: 0,
-      eventId: scannerFixture.eventId,
+    await scannerFixture.insertConfirmedRegistration({
       guestCount: 2,
-      id: registrationId,
-      registrationOptionId: scannerFixture.registrationOptionId,
-      status: 'CONFIRMED',
-      tenantId: scannerFixture.tenantId,
-      userId: scannerFixture.userId,
+      registrationId,
     });
 
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
       page.getByRole('heading', { name: 'Registration scanned' }),
     ).toBeVisible();
-    await expect(page.getByText('Event starting in the future')).toHaveCount(0);
+    await expect(
+      page.getByText('Check-in closed', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText('Check-in not open', { exact: true }),
+    ).toHaveCount(0);
     const confirmCheckIn = await fillScannerGuestCheckInCount(page, {
       guestCount: 2,
       includeAttendee: true,
@@ -833,15 +1022,11 @@ test('scan confirmed registration records check-in', async ({
       { timeout: 15_000 },
     );
   } finally {
+    await restoreEventTiming();
     await database
       .delete(eventRegistrations)
       .where(eq(eventRegistrations.id, registrationId));
-    await database
-      .update(eventRegistrationOptions)
-      .set({ checkedInSpots: scannerFixture.optionBefore.checkedInSpots })
-      .where(
-        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
-      );
+    await scannerFixture.restoreOptionCounters();
     await scannerFixture.cleanupUser();
   }
 });
@@ -851,29 +1036,23 @@ test('scan checked-in registration records remaining guest arrival', async ({
   page,
   seedDate,
   seeded,
+  testClock,
 }) => {
   const scannerFixture = await requireScannerFixture({ database, seeded });
   const registrationId = getId();
-  const checkedInBaseline = scannerFixture.optionBefore.checkedInSpots + 2;
+  const restoreEventTiming = await openScannerEventCheckInWindow({
+    database,
+    eventId: scannerFixture.eventId,
+    now: testClock.toJSDate(),
+  });
 
   try {
-    await database.insert(eventRegistrations).values({
+    const checkedInBaseline = await scannerFixture.insertConfirmedRegistration({
       checkedInGuestCount: 1,
       checkInTime: seedDate,
-      eventId: scannerFixture.eventId,
       guestCount: 2,
-      id: registrationId,
-      registrationOptionId: scannerFixture.registrationOptionId,
-      status: 'CONFIRMED',
-      tenantId: scannerFixture.tenantId,
-      userId: scannerFixture.userId,
+      registrationId,
     });
-    await database
-      .update(eventRegistrationOptions)
-      .set({ checkedInSpots: checkedInBaseline })
-      .where(
-        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
-      );
 
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
@@ -929,15 +1108,11 @@ test('scan checked-in registration records remaining guest arrival', async ({
       { timeout: 15_000 },
     );
   } finally {
+    await restoreEventTiming();
     await database
       .delete(eventRegistrations)
       .where(eq(eventRegistrations.id, registrationId));
-    await database
-      .update(eventRegistrationOptions)
-      .set({ checkedInSpots: scannerFixture.optionBefore.checkedInSpots })
-      .where(
-        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
-      );
+    await scannerFixture.restoreOptionCounters();
     await scannerFixture.cleanupUser();
   }
 });

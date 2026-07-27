@@ -22,11 +22,33 @@ cleanup() {
 }
 trap cleanup EXIT
 
+runtime_user="$(docker inspect --format '{{.Config.User}}' "${container_id}")"
+runtime_entrypoint="$(docker inspect --format '{{json .Config.Entrypoint}}' "${container_id}")"
+runtime_command="$(docker inspect --format '{{json .Config.Cmd}}' "${container_id}")"
+if [[ "${runtime_user}" != '65532:65532' ]]; then
+  echo "Runtime image must run as the explicit non-root user 65532:65532; found ${runtime_user:-root}." >&2
+  exit 1
+fi
+if [[ "${runtime_entrypoint}" != '["/usr/local/bin/bun"]' ]]; then
+  echo "Runtime image must start Bun directly; found entrypoint ${runtime_entrypoint}." >&2
+  exit 1
+fi
+if [[ "${runtime_command}" != '["dist/evorto/server/server.mjs"]' ]]; then
+  echo "Runtime image has an unexpected default command: ${runtime_command}." >&2
+  exit 1
+fi
+
 docker export "${container_id}" | tee >(tar --list --file=- >"${archive_listing}") | tar --extract --file=- --directory="${runtime_root}"
 
 if grep -Eiq '(^|/)(\.env([^/]*)?|instrument\.mjs|@sentry|@neondatabase|resend)(/|$)|\.map$' "${archive_listing}"; then
   echo 'Runtime image contains a forbidden secret, provider, instrumentation, or source-map path.' >&2
   grep -Ei '(^|/)(\.env([^/]*)?|instrument\.mjs|@sentry|@neondatabase|resend)(/|$)|\.map$' "${archive_listing}" >&2
+  exit 1
+fi
+
+if grep -Eiq '^(bin|usr/bin)/(ba)?sh$' "${archive_listing}"; then
+  echo 'Runtime image contains a shell even though the application starts Bun directly.' >&2
+  grep -Ei '^(bin|usr/bin)/(ba)?sh$' "${archive_listing}" >&2
   exit 1
 fi
 

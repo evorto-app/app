@@ -57,8 +57,10 @@ test('Find a listed event', async ({
       tenantId: tenant.id,
     },
   });
-  if (!sourceEvent) {
-    throw new Error('Expected the seeded event-discovery source event');
+  if (!sourceEvent?.reviewedAt || !sourceEvent.reviewedBy) {
+    throw new Error(
+      'Expected the approved event-discovery source event with review metadata',
+    );
   }
 
   const originalEventTimes = await database.query.eventInstances.findMany({
@@ -110,12 +112,14 @@ test('Find a listed event', async ({
       end: registeredWindow.end,
       icon: sourceEvent.icon,
       id: registeredEventId,
+      listingAudience: 'participant',
+      reviewedAt: sourceEvent.reviewedAt,
+      reviewedBy: sourceEvent.reviewedBy,
       start: registeredWindow.start,
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
       tenantId: tenant.id,
       title: registeredTitle,
-      listingAudience: 'participant',
     },
     {
       creatorId: participant.id,
@@ -124,12 +128,14 @@ test('Find a listed event', async ({
       end: otherWindow.end,
       icon: sourceEvent.icon,
       id: otherEventId,
+      listingAudience: 'participant',
+      reviewedAt: sourceEvent.reviewedAt,
+      reviewedBy: sourceEvent.reviewedBy,
       start: otherWindow.start,
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
       tenantId: tenant.id,
       title: otherTitle,
-      listingAudience: 'participant',
     },
   ]);
   await database.insert(schema.eventRegistrationOptions).values([

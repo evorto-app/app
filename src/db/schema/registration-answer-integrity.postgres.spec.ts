@@ -202,6 +202,8 @@ const seedFixture = async (
     },
   ]);
   await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: 0,
+    discountAmount: 0,
     eventId: fixture.eventIds[0],
     id: fixture.registrationId,
     registrationOptionId: fixture.optionIds[0],

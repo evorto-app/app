@@ -262,7 +262,7 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   stripeAccountId: Schema.optional(Schema.NonEmptyString),
   termsText: Schema.optional(Schema.String),
   termsUrl: Schema.optional(UrlString),
-  theme: literalUnion('evorto', 'esn'),
+  theme: Tenant.fields.theme,
   timezone: Tenant.fields.timezone,
   transferDeadlineHoursBeforeStart: nonNegativePostgresInteger,
 });

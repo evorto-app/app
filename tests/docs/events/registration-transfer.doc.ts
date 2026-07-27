@@ -15,6 +15,7 @@ import { openAuthenticatedTestPage } from '../../support/utils/authenticated-tes
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { seedPaidRegistrationTransferScenario } from '../../support/utils/paid-registration-transfer-scenario';
+import { openRegistrationTransferClaim } from '../../support/utils/registration-transfer-claim-page';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -58,6 +59,8 @@ test('Transfer a registration with a private offer', async ({
     end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
+    reviewedAt: testClock.toJSDate(),
+    reviewedBy: recipient.id,
     start: startsAt,
     status: 'APPROVED',
     templateId: template.id,
@@ -90,7 +93,10 @@ test('Transfer a registration with a private offer', async ({
     title: 'What should the organizer know?',
   });
   await database.insert(schema.eventRegistrations).values({
+    appliedDiscountedPrice: null,
+    appliedDiscountType: null,
     basePriceAtRegistration: 0,
+    discountAmount: 0,
     eventId,
     id: sourceRegistrationId,
     registrationOptionId: optionId,
@@ -841,18 +847,7 @@ Open the generic claim page and enter the same private code. **Payment still req
       tenantDomain: tenant.domain,
       testClock,
     });
-    await recipientPage.page.goto('/registration-transfers');
-    const reviewTransfer = recipientPage.page.getByRole('button', {
-      name: 'Review transfer',
-    });
-    const claimCodeForm = recipientPage.page.locator('form').filter({
-      has: reviewTransfer,
-    });
-    await expect(claimCodeForm).not.toHaveAttribute('jsaction', /submit/, {
-      timeout: 20_000,
-    });
-    await recipientPage.page.getByLabel('Claim code').fill(scenario.claimCode);
-    await reviewTransfer.click();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Payment still required',
@@ -915,7 +910,7 @@ Open the generic claim page and enter the same private code. **Payment still req
     );
 
     expect(await scenario.completeCheckout()).toBe('finalized');
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Transfer complete — refund processing',
@@ -1483,7 +1478,7 @@ The previous owner can reopen the event at any time. **Transferred registrations
     if (!failedRefundEvidence?.stripeRefundId) {
       throw new Error('Expected the failed provider refund identifier');
     }
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Transfer complete — refund needs attention',
@@ -1634,7 +1629,7 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
         name: 'Retry failed refund',
       }),
     ).toHaveCount(0);
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Transfer complete — refund processing',

@@ -18,7 +18,6 @@ export interface EmailOutboxScenario {
   cleanup: () => Promise<void>;
   failed: EmailOutboxScenarioItem;
   unknown: EmailOutboxScenarioItem;
-  queued: EmailOutboxScenarioItem;
   sending: EmailOutboxScenarioItem;
   sent: EmailOutboxScenarioItem;
 }
@@ -39,25 +38,13 @@ export const seedEmailOutboxScenario = async ({
     recipient: `outbox-${label.toLocaleLowerCase()}-${scope}@example.org`,
     subject: `${label} delivery ${scope}`,
   });
-  const queued = item('Queued');
   const unknown = item('Unknown');
   const sending = item('Sending');
   const failed = item('Failed');
   const sent = item('Sent');
-  const rows = [queued, unknown, sending, failed, sent];
+  const rows = [unknown, sending, failed, sent];
 
   await database.insert(schema.emailOutbox).values([
-    {
-      html: '<p>Queued operational test email</p>',
-      id: queued.id,
-      idempotencyKey: `outbox-docs/${tenant.id}/${queued.id}`,
-      kind: 'manualApproval',
-      status: 'queued',
-      subject: queued.subject,
-      tenantId: tenant.id,
-      text: 'Queued operational test email',
-      toEmail: queued.recipient,
-    },
     {
       attempts: 1,
       deliveryUnknownAt: priorAttempt,
@@ -133,7 +120,6 @@ export const seedEmailOutboxScenario = async ({
     },
     failed,
     unknown,
-    queued,
     sending,
     sent,
   };

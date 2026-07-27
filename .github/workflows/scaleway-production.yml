@@ -191,15 +191,20 @@ jobs:
           target_reference="rg.fr-par.scw.cloud/evorto-production/evorto@${target_digest}"
           docker pull --platform linux/amd64 "${target_reference}"
           bash ops/scaleway/verify-runtime-image.sh "${target_reference}"
-          packaged_schema_hash="$(
-            docker run \
+          schema_container_id="$(
+            docker create \
               --platform linux/amd64 \
-              --rm \
-              --entrypoint sha256sum \
-              "${target_reference}" \
-              /app/dist/evorto/ops/schema.mjs \
-              | awk '{print $1}'
+              "${target_reference}"
           )"
+          packaged_schema_file="${RUNNER_TEMP}/packaged-schema.mjs"
+          docker cp \
+            "${schema_container_id}:/app/dist/evorto/ops/schema.mjs" \
+            "${packaged_schema_file}"
+          docker rm "${schema_container_id}" >/dev/null
+          packaged_schema_hash="$(
+            sha256sum "${packaged_schema_file}" | awk '{print $1}'
+          )"
+          rm -f "${packaged_schema_file}"
           if [ "${packaged_schema_hash}" != "${{ steps.staging.outputs.schema_hash }}" ]; then
             echo "::error::Production image schema hash differs from the staging manifest"
             exit 1

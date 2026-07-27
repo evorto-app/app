@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { supportedTenantThemes } from '../../../types/custom/tenant';
 import {
   GlobalAdminEmailOutboxKind,
   GlobalAdminEmailOutboxKinds,
@@ -93,6 +94,17 @@ describe('GlobalAdminPlatformAuditCursor', () => {
 });
 
 describe('GlobalAdminTenantWriteInput', () => {
+  it('accepts every selectable tenant theme', () => {
+    for (const theme of supportedTenantThemes) {
+      expect(() =>
+        Schema.decodeUnknownSync(GlobalAdminTenantWriteInput)({
+          ...tenantWriteInput,
+          theme,
+        }),
+      ).not.toThrow();
+    }
+  });
+
   it('accepts the global-admin tenant create/edit surface', () => {
     expect(() =>
       Schema.decodeUnknownSync(GlobalAdminTenantWriteInput)(tenantWriteInput),

@@ -144,6 +144,8 @@ const seedFixture = async (
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
     listingAudience: 'both',
+    reviewedAt: new Date(now),
+    reviewedBy: userId,
     start: new Date(now - 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -183,6 +185,8 @@ const seedFixture = async (
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: 0,
+    discountAmount: 0,
     eventId,
     id: registrationId,
     registrationOptionId: optionId,

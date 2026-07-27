@@ -61,6 +61,7 @@ test('Create and manage events', async ({
   page,
   roles,
   seeded,
+  testClock,
 }, testInfo) => {
   const target = events.find(
     (event) => event.id === seeded.scenario.events.freeOpen.eventId,
@@ -792,6 +793,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     .where(
       and(
         eq(eventRegistrationOptions.eventId, scannerEventId),
+        eq(eventRegistrationOptions.isPaid, false),
         eq(eventRegistrationOptions.organizingRegistration, false),
       ),
     )
@@ -801,7 +803,40 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       'Expected seeded participant option for scanner documentation',
     );
   }
+  if (scannerRegistrationOption.stripeTaxRateId !== null) {
+    throw new Error(
+      'Expected seeded free scanner registration option without a Stripe tax rate',
+    );
+  }
+  const [scannerEventTiming] = await database
+    .select({
+      end: eventInstances.end,
+      start: eventInstances.start,
+    })
+    .from(eventInstances)
+    .where(
+      and(
+        eq(eventInstances.id, scannerEventId),
+        eq(eventInstances.tenantId, seeded.tenant.id),
+      ),
+    )
+    .limit(1);
+  if (!scannerEventTiming) {
+    throw new Error('Expected seeded event timing for scanner documentation');
+  }
   const initialCheckedInSpots = scannerRegistrationOption.checkedInSpots;
+  const initialConfirmedSpots = scannerRegistrationOption.confirmedSpots;
+  const scannerRegistrationSpotCount = 3;
+  const scannerConfirmedSpots =
+    initialConfirmedSpots + scannerRegistrationSpotCount;
+  if (
+    scannerConfirmedSpots + scannerRegistrationOption.reservedSpots >
+    scannerRegistrationOption.spots
+  ) {
+    throw new Error(
+      'Expected enough seeded participant capacity for scanner documentation',
+    );
+  }
   const scannerUser = usersToAuthenticate.find(
     (user) => user.stateFile === emptyStateFile,
   );
@@ -809,17 +844,68 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     throw new Error('Expected regular user fixture for scanner documentation');
   }
   const scannerRegistrationId = getId();
+  const scannerNow = testClock.toJSDate();
 
   try {
-    await database.insert(eventRegistrations).values({
-      checkedInGuestCount: 0,
-      eventId: scannerEventId,
-      guestCount: 2,
-      id: scannerRegistrationId,
-      registrationOptionId: scannerRegistrationOption.id,
-      status: 'CONFIRMED',
-      tenantId: seeded.tenant.id,
-      userId: scannerUser.id,
+    const openedScannerEvents = await database
+      .update(eventInstances)
+      .set({
+        end: new Date(scannerNow.getTime() + 30 * 60 * 1000),
+        start: new Date(scannerNow.getTime() - 30 * 60 * 1000),
+      })
+      .where(
+        and(
+          eq(eventInstances.id, scannerEventId),
+          eq(eventInstances.tenantId, seeded.tenant.id),
+        ),
+      )
+      .returning({ id: eventInstances.id });
+    if (openedScannerEvents.length !== 1) {
+      throw new Error(
+        'Expected to open the seeded event check-in window for scanner documentation',
+      );
+    }
+
+    await database.transaction(async (transaction) => {
+      const updatedOptions = await transaction
+        .update(eventRegistrationOptions)
+        .set({
+          checkedInSpots: initialCheckedInSpots,
+          confirmedSpots: scannerConfirmedSpots,
+        })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, scannerEventId),
+            eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+            eq(eventRegistrationOptions.checkedInSpots, initialCheckedInSpots),
+            eq(eventRegistrationOptions.confirmedSpots, initialConfirmedSpots),
+          ),
+        )
+        .returning({ id: eventRegistrationOptions.id });
+      if (updatedOptions.length !== 1) {
+        throw new Error(
+          'Seeded participant counters changed before scanner documentation setup',
+        );
+      }
+
+      await transaction.insert(eventRegistrations).values({
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: scannerRegistrationOption.price,
+        checkedInGuestCount: 0,
+        discountAmount: 0,
+        eventId: scannerEventId,
+        guestCount: 2,
+        id: scannerRegistrationId,
+        registrationOptionId: scannerRegistrationOption.id,
+        status: 'CONFIRMED',
+        stripeTaxRateId: null,
+        taxRateDisplayName: null,
+        taxRateInclusive: null,
+        taxRatePercentage: null,
+        tenantId: seeded.tenant.id,
+        userId: scannerUser.id,
+      });
     });
 
     await page.goto(`/scan/registration/${scannerRegistrationId}`);
@@ -828,6 +914,12 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     ).toBeVisible();
     await expect(page.getByText('Includes 2 guests.')).toBeVisible();
     await expect(page.getByText('0 checked in, 2 remaining.')).toBeVisible();
+    await expect(
+      page.getByText('Check-in closed', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText('Check-in not open', { exact: true }),
+    ).toHaveCount(0);
     const confirmScannerCheckIn = await fillScannerGuestCheckInCount(page, {
       guestCount: 2,
       includeAttendee: true,
@@ -852,6 +944,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
         const option = await database.query.eventRegistrationOptions.findFirst({
           columns: {
             checkedInSpots: true,
+            confirmedSpots: true,
           },
           where: { id: scannerRegistrationOption.id },
         });
@@ -860,12 +953,14 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
           checkedIn: registration?.checkInTime !== null,
           checkedInGuestCount: registration?.checkedInGuestCount,
           checkedInSpots: option?.checkedInSpots,
+          confirmedSpots: option?.confirmedSpots,
         };
       })
       .toEqual({
         checkedIn: true,
         checkedInGuestCount: 2,
         checkedInSpots: initialCheckedInSpots + 3,
+        confirmedSpots: scannerConfirmedSpots,
       });
     await page.goto(`/events/${scannerEventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
@@ -881,11 +976,26 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       .set({ checkedInSpots: initialCheckedInSpots })
       .where(
         and(
+          eq(eventRegistrationOptions.eventId, scannerEventId),
           eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
-          eq(
-            eventRegistrationOptions.checkedInSpots,
-            initialCheckedInSpots + 3,
-          ),
+        ),
+      );
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: initialConfirmedSpots })
+      .where(
+        and(
+          eq(eventRegistrationOptions.eventId, scannerEventId),
+          eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+        ),
+      );
+    await database
+      .update(eventInstances)
+      .set(scannerEventTiming)
+      .where(
+        and(
+          eq(eventInstances.id, scannerEventId),
+          eq(eventInstances.tenantId, seeded.tenant.id),
         ),
       );
   }

@@ -80,6 +80,18 @@ Use **Admin Tools** -> **General settings** to review and change the organizatio
     await expect(
       generalSettings.getByRole('combobox', { name: 'Timezone' }),
     ).toHaveCount(0);
+    const themeSelect = generalSettings.getByRole('combobox', {
+      name: 'Site theme',
+    });
+    await themeSelect.click();
+    await expect(
+      page.getByRole('option', { name: 'Default theme' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('option', { name: 'Classic Evorto theme' }),
+    ).toBeVisible();
+    await expect(page.getByRole('option', { name: 'ESN theme' })).toBeVisible();
+    await page.keyboard.press('Escape');
     await takeScreenshot(
       testInfo,
       generalSettings,
@@ -283,7 +295,7 @@ The current general settings page supports:
 - A read-only **Organization** summary with its name and public domain.
 - **Operations settings** for email reply-to name/email, Stripe account id, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior. Users with event-review access can review submitted events.
 - **Default Location** for event location search bias.
-- **Site theme** for the organization's theme.
+- **Site theme** with the new Evorto theme as the default, plus the retained Classic Evorto and ESN themes.
 - A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field for the city or region used for event times. Currency and timezone can be changed before the organization has event or payment data; after that, Evorto prevents the change.
 - **Logo URL** and **Favicon URL** for organization brand assets. Admins can upload PNG, JPEG, WebP, or GIF logos; favicons also support ICO files. Externally hosted URLs are still supported. The configured favicon updates the browser tab icon.
 - **SEO title** and **SEO description** for public-page previews.
@@ -398,14 +410,35 @@ When both fields are saved, the public footer gives the external URL precedence 
         columns: {
           legalNoticeText: true,
           legalNoticeUrl: true,
-          privacyPolicyText: true,
-          privacyPolicyUrl: true,
           termsText: true,
           termsUrl: true,
         },
         where: { id: tenant.id },
+        with: {
+          privacyPolicyVersions: {
+            columns: {
+              privacyPolicyText: true,
+              privacyPolicyUrl: true,
+            },
+            limit: 1,
+            orderBy: {
+              version: 'desc',
+            },
+          },
+        },
       });
-      return persistedTenant;
+      const currentPrivacyPolicy = persistedTenant?.privacyPolicyVersions[0];
+      if (!persistedTenant || !currentPrivacyPolicy) {
+        return null;
+      }
+      return {
+        legalNoticeText: persistedTenant.legalNoticeText,
+        legalNoticeUrl: persistedTenant.legalNoticeUrl,
+        privacyPolicyText: currentPrivacyPolicy.privacyPolicyText,
+        privacyPolicyUrl: currentPrivacyPolicy.privacyPolicyUrl,
+        termsText: persistedTenant.termsText,
+        termsUrl: persistedTenant.termsUrl,
+      };
     })
     .toEqual({
       legalNoticeText,
