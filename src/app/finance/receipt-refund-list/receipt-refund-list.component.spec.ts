@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { isSafeReceiptPreviewUrl } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 import {
   receiptReimbursementCanRecord,
+  receiptReimbursementConfirmationData,
   receiptReimbursementGroupKey,
   receiptReimbursementHasPayoutDetails,
   receiptReimbursementManualNotice,
@@ -77,6 +78,40 @@ describe('receiptReimbursementCanRecord', () => {
         'paypal',
       ),
     ).toBe(true);
+  });
+
+  it('bounds each reimbursement to 100 receipts', () => {
+    expect(
+      receiptReimbursementCanRecord(
+        Array.from({ length: 101 }, (_, index) => `receipt-${index}`),
+        { iban: 'DE123', paypalEmail: null },
+        'iban',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('receiptReimbursementConfirmationData', () => {
+  it('shows the exact manual payout that will be recorded', () => {
+    expect(
+      receiptReimbursementConfirmationData({
+        currency: 'EUR',
+        payoutDestination: 'DE123',
+        payoutType: 'iban',
+        receiptCount: 2,
+        recipientEmail: 'ada@example.test',
+        recipientFirstName: 'Ada',
+        recipientLastName: 'Lovelace',
+        totalAmount: 4200,
+      }),
+    ).toEqual({
+      currency: 'EUR',
+      payoutDestination: 'DE123',
+      payoutMethod: 'Bank transfer',
+      receiptCount: 2,
+      recipient: 'Ada Lovelace',
+      totalAmount: 4200,
+    });
   });
 });
 

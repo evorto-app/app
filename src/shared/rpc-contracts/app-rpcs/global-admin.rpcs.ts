@@ -1,5 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { literalUnion } from '@shared/schema-utilities';
+import { CanonicalUtcTimestamp, literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -109,20 +109,8 @@ export type GlobalAdminPlatformAuditRecord = Schema.Schema.Type<
   typeof GlobalAdminPlatformAuditRecord
 >;
 
-const GlobalAdminPlatformAuditCursorTimestamp = Schema.NonEmptyString.pipe(
-  Schema.check(
-    Schema.makeFilter((value) => {
-      const timestamp = new Date(value);
-      return Number.isNaN(timestamp.getTime()) ||
-        timestamp.toISOString() !== value
-        ? 'Expected a canonical UTC ISO timestamp'
-        : undefined;
-    }),
-  ),
-);
-
 export const GlobalAdminPlatformAuditCursor = Schema.Struct({
-  createdAt: GlobalAdminPlatformAuditCursorTimestamp,
+  createdAt: CanonicalUtcTimestamp,
   id: Schema.NonEmptyString,
 });
 

@@ -1,11 +1,23 @@
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
 import {
+  eventListOrder,
   eventOrganizeCapabilities,
   groupEventsByTenantDay,
   organizeOverviewAccessAllowed,
   organizerRegistrationApprovalState,
 } from './events-query.handlers';
+
+describe('eventListOrder', () => {
+  it('uses event ID as the deterministic tie-breaker for offset paging', () => {
+    const dialect = new PgDialect();
+
+    expect(
+      eventListOrder().map((order) => dialect.sqlToQuery(order).sql),
+    ).toEqual(['"event_instances"."start" asc', '"event_instances"."id" asc']);
+  });
+});
 
 describe('organizeOverviewAccessAllowed', () => {
   it('allows broad organizers and confirmed event organizers', () => {

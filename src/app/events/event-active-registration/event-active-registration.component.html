@@ -63,6 +63,20 @@
               Your payment link is being prepared. Refresh this page shortly.
               Your registration is not confirmed until payment succeeds.
             </div>
+            @if (!recipientTransferCheckoutPending(registration)) {
+              <button
+                mat-flat-button
+                type="button"
+                [disabled]="retryRegistrationCheckoutMutation.isPending()"
+                (click)="retryRegistrationCheckout(registration)"
+              >
+                {{
+                  retryRegistrationCheckoutMutation.isPending()
+                    ? "Preparing payment…"
+                    : "Try payment setup again"
+                }}
+              </button>
+            }
           }
         } @else {
           <div class="text-warning @md:col-span-2" role="status">
@@ -501,6 +515,21 @@
   >
     <h3 class="title-medium">Registration cancellation failed</h3>
     <p>{{ errorMessage(cancelRegistrationMutation.error()) }}</p>
+  </div>
+}
+@if (retryRegistrationCheckoutMutation.isError()) {
+  <div
+    class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
+    role="alert"
+  >
+    <h3 class="title-medium">Registration payment setup failed</h3>
+    <p>
+      {{
+        registrationCheckoutErrorMessage(
+          retryRegistrationCheckoutMutation.error()
+        )
+      }}
+    </p>
   </div>
 }
 @if (transferRegistrationMutation.isError()) {

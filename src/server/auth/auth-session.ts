@@ -313,15 +313,21 @@ export const toAuthSession = (sessionData: SessionData | undefined) => {
 export const resolveRequestOrigin = (
   request: HttpServerRequest.HttpServerRequest,
 ) => {
-  const protocol =
-    getHeaderValue(request.headers, 'x-forwarded-proto') ??
-    getHeaderValue(request.headers, 'x-forwarded-protocol') ??
-    'http';
-  const host = getHeaderValue(request.headers, 'host') ?? 'localhost:4000';
+  const protocol = getHeaderValue(request.headers, 'x-forwarded-proto');
+  if (protocol !== 'http' && protocol !== 'https') {
+    throw new Error('Normalized request protocol is missing or invalid');
+  }
+
+  const host = getHeaderValue(request.headers, 'host');
+  if (!host) {
+    throw new Error('Normalized request Host is missing');
+  }
+
+  const origin = new URL(`${protocol}://${host}`).origin;
 
   return {
     isSecure: protocol === 'https',
-    origin: `${protocol}://${host}`,
+    origin,
     protocol,
   };
 };

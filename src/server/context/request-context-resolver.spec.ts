@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from '@effect/vitest';
-import { Effect, Layer } from 'effect';
+import { Cause, Effect, Exit, Layer } from 'effect';
 
 import { Database } from '../../db';
 import {
@@ -14,12 +14,27 @@ const createTenant = (domain: string) => ({
   cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR',
   defaultLocation: null,
-  discountProviders: null,
+  discountProviders: {
+    esnCard: {
+      config: {},
+      status: 'disabled',
+    },
+  },
   domain,
   id: `tenant-${domain}`,
   maxActiveRegistrationsPerUser: 0,
   name: domain,
-  receiptSettings: null,
+  privacyPolicyVersions: [
+    {
+      privacyPolicyText: 'Tenant privacy policy',
+      privacyPolicyUrl: null,
+    },
+  ],
+  receiptSettings: {
+    allowOther: false,
+    receiptCountries: ['DE', 'CZ'],
+  },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto',
   timezone: 'Europe/Berlin',
@@ -81,6 +96,32 @@ describe('request-context-resolver', () => {
           domain: 'tenant.example.com',
         });
       }),
+  );
+
+  it.effect('uses the latest versioned privacy policy as the only truth', () =>
+    Effect.gen(function* () {
+      const tenantExecute = vi.fn(({ domain }: { domain: string }) =>
+        Effect.succeed({
+          ...createTenant(domain),
+          privacyPolicyVersions: [
+            {
+              privacyPolicyText: 'Latest privacy policy',
+              privacyPolicyUrl: null,
+            },
+          ],
+        }),
+      );
+      const database = createPreparedDatabase({ tenantExecute });
+
+      const result = yield* resolveTenantContext({
+        cookies: undefined,
+        protocol: 'https',
+        requestHost: 'tenant.example.com',
+      }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+      expect(result.tenant?.privacyPolicyText).toBe('Latest privacy policy');
+      expect(result.tenant?.privacyPolicyUrl).toBeNull();
+    }),
   );
 
   it.effect('uses the tenant cookie for localhost requests', () =>
@@ -168,7 +209,7 @@ describe('request-context-resolver', () => {
     const oidcUser = {
       email: 'platform@example.org',
       'evorto.app/app_metadata': {
-        globalAdmin: true,
+        platformAdministrator: true,
       },
       sub: 'auth0|platform-admin',
     };
@@ -187,6 +228,17 @@ describe('request-context-resolver', () => {
         kind: 'platformAdministrator',
       }),
     );
+  });
+
+  it('does not accept the removed globalAdmin metadata alias', () => {
+    expect(
+      resolvePlatformAuthority({
+        'evorto.app/app_metadata': {
+          globalAdmin: true,
+        },
+        sub: 'auth0|legacy-platform-admin',
+      }),
+    ).toBeUndefined();
   });
 
   it('uses only explicitly injected test authority ids and ignores ambient process state', () => {
@@ -288,7 +340,7 @@ describe('request-context-resolver', () => {
   );
 
   it.effect(
-    'discards poisoned platform permissions while preserving tenant role permissions',
+    'fails visibly when persisted tenant roles contain platform authority',
     () =>
       Effect.gen(function* () {
         const database = createPreparedDatabase({
@@ -321,31 +373,29 @@ describe('request-context-resolver', () => {
           ),
         });
 
-        const user = yield* resolveUserContext(
+        const exit = yield* resolveUserContext(
           {
             isAuthenticated: true,
             oidcUser: { sub: 'auth0|tenant-user' },
             tenantId: 'tenant-1',
           },
           () => Effect.succeed(true),
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        ).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.exit,
+        );
 
-        expect(user?.permissions).toEqual(['events:viewPublic', 'events:*']);
-        expect(user?.roleIds).toEqual(['role-mixed']);
-        expect(user).not.toHaveProperty('attributes');
-        expect(
-          resolveRequestPermissions({
-            platformAuthority: undefined,
-            user,
-          }),
-        ).not.toContain('globalAdmin:manageTenants');
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          expect(String(Cause.squash(exit.cause))).toContain('globalAdmin');
+        }
       }),
   );
 
   it('retains platform-global authority for genuine platform principals', () => {
     const platformAuthority = resolvePlatformAuthority({
       'evorto.app/app_metadata': {
-        globalAdmin: true,
+        platformAdministrator: true,
       },
       sub: 'auth0|platform-admin',
     });

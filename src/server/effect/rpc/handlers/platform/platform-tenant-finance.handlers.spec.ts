@@ -33,7 +33,6 @@ import {
   platformTenantFinanceHandlers,
   refundRecoveryAuditSnapshot,
   reimbursementAuditSnapshot,
-  resolvePlatformReimbursementCurrency,
   toPlatformFinanceTransactionRecord,
   toRefundRecoveryRecord,
 } from './platform-tenant-finance.handlers';
@@ -115,7 +114,6 @@ const submittedReceiptEvidence = {
   attachmentFileName: 'receipt.pdf',
   attachmentMimeType: 'application/pdf',
   attachmentStorageKey: 'receipts/tenant-1/event-1/user-1/upload-1-receipt.pdf',
-  attachmentStorageUrl: 'https://storage.example.test/receipt.pdf',
   attachmentUploadConsumedAt: new Date('2026-07-10T08:00:00.000Z'),
   attachmentUploadedAt: new Date('2026-07-10T07:59:00.000Z'),
   attachmentUploadedByUserId: 'user-1',
@@ -634,9 +632,15 @@ describe('platform tenant finance handlers', () => {
     ).toBeNull();
   });
 
-  it('creates a typed reimbursement audit envelope without payout or participant PII', () => {
+  it('creates a typed reimbursement audit envelope with only masked payout evidence', () => {
+    const payoutFingerprint = payoutDetailsVersion(
+      'paypal',
+      'participant@example.test',
+    );
     const snapshot = reimbursementAuditSnapshot({
       currency: 'EUR',
+      payoutDestinationMasked: 'p•••@e•••.test',
+      payoutFingerprint,
       payoutType: 'paypal',
       receiptIds: ['receipt-1', 'receipt-2'],
       refundedAt: new Date('2026-07-10T10:00:00.000Z'),
@@ -650,6 +654,8 @@ describe('platform tenant finance handlers', () => {
       resourceType: 'receipt',
       state: {
         currency: 'EUR',
+        payoutDestinationMasked: 'p•••@e•••.test',
+        payoutFingerprint,
         payoutType: 'paypal',
         receiptCount: 2,
         receiptIds: ['receipt-1', 'receipt-2'],
@@ -672,24 +678,6 @@ describe('platform tenant finance handlers', () => {
       expect(encoded).not.toContain(forbiddenField);
     }
   });
-
-  it.effect('accepts only one recorded currency per reimbursement batch', () =>
-    Effect.gen(function* () {
-      expect(
-        yield* resolvePlatformReimbursementCurrency([
-          { currency: 'CZK' },
-          { currency: 'CZK' },
-        ]),
-      ).toBe('CZK');
-
-      const error = yield* resolvePlatformReimbursementCurrency([
-        { currency: 'EUR' },
-        { currency: 'AUD' },
-      ]).pipe(Effect.flip);
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('mismatchedReceiptCurrency');
-    }),
-  );
 
   it('audits refund recovery mode and state without error text or Stripe identifiers', () => {
     const snapshot = refundRecoveryAuditSnapshot({

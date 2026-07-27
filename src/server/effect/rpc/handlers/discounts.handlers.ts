@@ -15,11 +15,10 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { userDiscountCards } from '../../../../db/schema';
-import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
   Adapters,
+  PROVIDER_TYPES,
   type ProviderAdapter,
-  PROVIDERS,
   type ProviderType,
   ProviderValidationUnavailableError,
   type ValidationResult,
@@ -47,11 +46,9 @@ const normalizeUserDiscountCardRecord = (
 
 const validateDiscountCard = ({
   adapter,
-  config,
   identifier,
 }: {
-  adapter: ProviderAdapter<unknown>;
-  config: unknown;
+  adapter: ProviderAdapter;
   identifier: string;
 }): Effect.Effect<
   ValidationResult,
@@ -61,7 +58,6 @@ const validateDiscountCard = ({
     catch: (cause) => cause,
     try: (): Promise<ValidationResult> =>
       adapter.validate({
-        config,
         identifier,
       }),
   }).pipe(
@@ -155,8 +151,8 @@ export const discountHandlers = {
         resolvedTenant?.discountProviders,
       );
 
-      return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
-        config: normalizeEsnCardConfig(config[type].config),
+      return PROVIDER_TYPES.map((type: ProviderType) => ({
+        config: config[type].config,
         status: config[type].status,
         type,
       }));
@@ -181,7 +177,7 @@ export const discountHandlers = {
         tenantRecord?.discountProviders,
       );
       const provider = providers[input.type];
-      if (!provider || provider.status !== 'enabled') {
+      if (provider.status !== 'enabled') {
         return yield* Effect.fail(
           new RpcForbiddenError({ message: 'Forbidden' }),
         );
@@ -210,13 +206,8 @@ export const discountHandlers = {
       }
 
       const adapter = Adapters[input.type];
-      if (!adapter) {
-        return normalizeUserDiscountCardRecord(card);
-      }
-
       const result = yield* validateDiscountCard({
         adapter,
-        config: provider.config,
         identifier: card.identifier,
       });
       const updatedCards = yield* databaseEffect((database) =>
@@ -269,7 +260,7 @@ export const discountHandlers = {
         tenantRecord?.discountProviders,
       );
       const provider = providers[input.type];
-      if (!provider || provider.status !== 'enabled') {
+      if (provider.status !== 'enabled') {
         return yield* Effect.fail(
           new RpcForbiddenError({ message: 'Forbidden' }),
         );
@@ -313,23 +304,17 @@ export const discountHandlers = {
       );
 
       const adapter = Adapters[input.type];
-      const validationResult = adapter
-        ? yield* validateDiscountCard({
-            adapter,
-            config: provider.config,
-            identifier: input.identifier,
-          })
-        : null;
-      const validatedCardFields =
-        validationResult === null
-          ? {}
-          : {
-              lastCheckedAt: new Date(),
-              metadata: validationResult.metadata,
-              status: validationResult.status,
-              validFrom: validationResult.validFrom ?? undefined,
-              validTo: validationResult.validTo ?? undefined,
-            };
+      const validationResult = yield* validateDiscountCard({
+        adapter,
+        identifier: input.identifier,
+      });
+      const validatedCardFields = {
+        lastCheckedAt: new Date(),
+        metadata: validationResult.metadata,
+        status: validationResult.status,
+        validFrom: validationResult.validFrom ?? undefined,
+        validTo: validationResult.validTo ?? undefined,
+      };
       const upsertedCards = existingCard
         ? yield* databaseEffect((database) =>
             database

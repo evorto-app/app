@@ -70,33 +70,37 @@ export const normalizeReceiptCountryCode = (value: string): null | string => {
   return normalized;
 };
 
-export const resolveAllowedReceiptCountries = (
-  configuredCountries: readonly string[] | undefined,
-): string[] => {
-  const normalized = (configuredCountries ?? [])
-    .map((country) => normalizeReceiptCountryCode(country))
-    .filter((country): country is string => country !== null);
+export const isCanonicalReceiptCountryCode = (value: string): boolean =>
+  normalizeReceiptCountryCode(value) === value;
 
-  if (normalized.length > 0) {
-    return [...new Set(normalized)];
+export const resolveReceiptCountrySettings = (configuredSettings: {
+  allowOther: boolean;
+  receiptCountries: readonly string[];
+}): ReceiptCountrySettings => {
+  if (configuredSettings.receiptCountries.length === 0) {
+    throw new Error('At least one receipt country must be configured');
   }
 
-  return [...DEFAULT_RECEIPT_COUNTRIES];
-};
+  const receiptCountries = configuredSettings.receiptCountries.map(
+    (country) => {
+      if (!isCanonicalReceiptCountryCode(country)) {
+        throw new Error(
+          'Receipt countries must use supported uppercase two-letter codes',
+        );
+      }
+      return country;
+    },
+  );
 
-export const resolveReceiptCountrySettings = (
-  configuredSettings:
-    | undefined
-    | {
-        allowOther?: boolean | undefined;
-        receiptCountries?: readonly string[] | undefined;
-      },
-): ReceiptCountrySettings => ({
-  allowOther: configuredSettings?.allowOther === true,
-  receiptCountries: resolveAllowedReceiptCountries(
-    configuredSettings?.receiptCountries,
-  ),
-});
+  if (new Set(receiptCountries).size !== receiptCountries.length) {
+    throw new Error('Receipt countries must not contain duplicates');
+  }
+
+  return {
+    allowOther: configuredSettings.allowOther,
+    receiptCountries,
+  };
+};
 
 export const buildSelectableReceiptCountries = (
   settings: ReceiptCountrySettings,
@@ -104,3 +108,11 @@ export const buildSelectableReceiptCountries = (
   settings.allowOther
     ? [...settings.receiptCountries, OTHER_RECEIPT_COUNTRY_CODE]
     : [...settings.receiptCountries];
+
+export const firstReceiptCountry = (countries: readonly string[]): string => {
+  const first = countries[0];
+  if (!first) {
+    throw new Error('At least one receipt country must be configured');
+  }
+  return first;
+};

@@ -588,7 +588,6 @@ const submittedReceiptRow = {
   attachmentFileName: 'receipt.png',
   attachmentMimeType: 'image/png',
   attachmentStorageKey: 'receipts/tenant-2/event-1/user-1/upload-1-receipt.png',
-  attachmentStorageUrl: 'https://storage.example/foreign-receipt.png',
   attachmentUploadConsumedAt: new Date('2026-05-19T09:59:00.000Z'),
   attachmentUploadedAt: new Date('2026-05-19T09:58:00.000Z'),
   attachmentUploadedByUserId: 'user-1',
@@ -605,7 +604,6 @@ const submittedReceiptRow = {
   hasAlcohol: false,
   hasDeposit: false,
   id: 'receipt-1',
-  previewImageUrl: 'https://attacker.example/preview.png',
   purchaseCountry: 'NL',
   receiptDate: '2026-05-18',
   refundedAt: null,
@@ -663,13 +661,11 @@ const databaseWithReceiptReviewLifecycle = ({
     ...submittedReceiptRow,
     attachmentStorageKey:
       'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
-    attachmentStorageUrl: 'https://storage.example.test/receipt.png',
   },
   preflightEvidence = {
     ...submittedReceiptRow,
     attachmentStorageKey:
       'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
-    attachmentStorageUrl: 'https://storage.example.test/receipt.png',
   },
 }: {
   lockedEvidence?: typeof submittedReceiptRow;
@@ -808,7 +804,6 @@ describe('finance profile receipt reads', () => {
                 {
                   ...submittedReceiptRow,
                   attachmentStorageKey,
-                  attachmentStorageUrl: 'local-unavailable://receipt',
                 },
               ]),
               receiptMediaService: {
@@ -1063,12 +1058,14 @@ describe('finance receipt media permissions', () => {
   );
 
   it.effect(
-    'discards a losing promoted object after a concurrent finalization wins',
+    'does not repeat storage inspection after a concurrent finalization wins',
     () =>
       Effect.gen(function* () {
         const winnerStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
-        const losingStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'b'.repeat(64)}-receipt.png`;
         const discarded: string[] = [];
+        const inspectUpload = vi.fn(() =>
+          Effect.dieMessage('Concurrent callers must not inspect storage'),
+        );
 
         const result = yield* financeHandlers[
           'finance.receiptMedia.finalizeUpload'
@@ -1081,13 +1078,7 @@ describe('finance receipt media permissions', () => {
                   Effect.sync(() => {
                     discarded.push(storageKey);
                   }),
-                inspectUpload: () =>
-                  Effect.succeed({
-                    mimeType: 'image/png',
-                    sizeBytes: 7,
-                    storageKey: losingStorageKey,
-                    storageUrl: `s3://bucket/${losingStorageKey}`,
-                  }),
+                inspectUpload,
               },
             }),
           ),
@@ -1099,7 +1090,8 @@ describe('finance receipt media permissions', () => {
           sizeBytes: 7,
           uploadId: 'upload-1',
         });
-        expect(discarded).toEqual([losingStorageKey]);
+        expect(inspectUpload).not.toHaveBeenCalled();
+        expect(discarded).toEqual([]);
       }),
   );
 });
@@ -1616,8 +1608,6 @@ describe('finance receipt approval evidence', () => {
             ...submittedReceiptRow,
             attachmentStorageKey:
               'receipts/tenant-1/event-1/user-1/upload-2-receipt.png',
-            attachmentStorageUrl:
-              'https://storage.example.test/upload-2-receipt.png',
           },
         });
         const objectExists = vi.fn(() => Effect.succeed(true));
@@ -1658,8 +1648,6 @@ describe('finance receipt approval evidence', () => {
           ...submittedReceiptRow,
           attachmentStorageKey:
             'receipts/tenant-1/event-1/user-1/upload-1-replaced.png',
-          attachmentStorageUrl:
-            'https://storage.example.test/upload-1-replaced.png',
         },
       });
       const error = yield* financeHandlers['finance.receipts.review'](

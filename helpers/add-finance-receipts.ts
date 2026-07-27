@@ -77,7 +77,6 @@ export const addFinanceReceipts = async (
     consumedAt: now,
     mimeType: 'application/pdf',
     status: 'consumed' as const,
-    storageUrl: 'local-unavailable://receipt',
     tenantId: options.tenantId,
     uploadedAt: now,
   }));
@@ -100,8 +99,6 @@ export const addFinanceReceipts = async (
     {
       alcoholAmount: 0,
       attachmentFileName: 'kitchen-supplies.pdf',
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 42_000,
       attachmentUploadId: kitchenSuppliesUploadId,
       currency: options.currency,
       depositAmount: 0,
@@ -119,8 +116,6 @@ export const addFinanceReceipts = async (
     {
       alcoholAmount: 300,
       attachmentFileName: 'venue-deposit.pdf',
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 48_000,
       attachmentUploadId: venueDepositUploadId,
       currency: options.currency,
       depositAmount: 1000,
@@ -140,8 +135,6 @@ export const addFinanceReceipts = async (
     {
       alcoholAmount: 200,
       attachmentFileName: 'transport-ticket.pdf',
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 21_000,
       attachmentUploadId: transportTicketUploadId,
       currency: options.currency,
       depositAmount: 0,
@@ -161,8 +154,6 @@ export const addFinanceReceipts = async (
     {
       alcoholAmount: 0,
       attachmentFileName: 'profile-receipt.pdf',
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 30_000,
       attachmentUploadId: profileReceiptUploadId,
       currency: options.currency,
       depositAmount: 0,

@@ -21,14 +21,13 @@ import { ReceiptMediaService } from './handlers/finance/receipt-media.service';
 import { rpcRequestContextMiddlewareLive } from './handlers/middleware/rpc-request-context.middleware.live';
 import { RpcAccess } from './handlers/shared/rpc-access.service';
 
-type AppRpcHttpAppShape = (
-  request: HttpServerRequest.HttpServerRequest,
-  requestContext: RpcRequestContextShape,
-) => Effect.Effect<HttpServerResponse.HttpServerResponse, never, Scope.Scope>;
-
 class AppRpcHttpApp extends Context.Service<
   AppRpcHttpApp,
-  AppRpcHttpAppShape
+  Effect.Effect<
+    HttpServerResponse.HttpServerResponse,
+    never,
+    HttpServerRequest.HttpServerRequest | RpcRequestContext | Scope.Scope
+  >
 >()('@server/effect/rpc/AppRpcHttpApp') {}
 
 // The largest current RPC upload is a 5 MiB brand asset encoded as base64.
@@ -58,20 +57,19 @@ const appRpcRuntimeLayer = Layer.mergeAll(
   serverLoggerLayer,
 );
 
-const makeAppRpcHttpApp: AppRpcHttpAppShape = (request, requestContext) =>
+export const appRpcHttpAppLayer = Layer.effect(AppRpcHttpApp)(
   RpcServer.toHttpEffect(ServerAppRpcs).pipe(
     Effect.provide(appRpcRuntimeLayer),
-    Effect.provideService(HttpServerRequest.HttpServerRequest, request),
-    Effect.provideService(RpcRequestContext, requestContext),
-  );
-
-export const appRpcHttpAppLayer = Layer.succeed(
-  AppRpcHttpApp,
-  makeAppRpcHttpApp,
+  ),
 );
 
 export const handleAppRpcHttpRequest = (
   request: HttpServerRequest.HttpServerRequest,
   requestContext: RpcRequestContextShape,
 ) =>
-  AppRpcHttpApp.use((appRpcHttpApp) => appRpcHttpApp(request, requestContext));
+  AppRpcHttpApp.use((appRpcHttpApp) =>
+    appRpcHttpApp.pipe(
+      Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+      Effect.provideService(RpcRequestContext, requestContext),
+    ),
+  );

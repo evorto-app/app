@@ -132,16 +132,37 @@ describe('tenant role graph concurrency boundary', () => {
   });
 
   it('holds the role graph lock across event option validation and writes', () => {
-    const source = readSource(
+    const lifecycleHandlers = readSource(
       'src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts',
     );
+    const eventCreate = lifecycleHandlers.slice(
+      lifecycleHandlers.indexOf('export const createEventGraph'),
+      lifecycleHandlers.indexOf('const isExpectedEventCreateError'),
+    );
+    const eventGraph = readSource(
+      'src/server/effect/rpc/handlers/events/event-graph.service.ts',
+    );
+    const eventUpdate = eventGraph.slice(
+      eventGraph.indexOf('export const updateEventGraph'),
+    );
 
-    expect(
-      occurrenceCount(source, 'lockTenantRoleGraph('),
-    ).toBeGreaterThanOrEqual(2);
-    expect(
-      occurrenceCount(source, 'tenantRoleIdsExist('),
-    ).toBeGreaterThanOrEqual(2);
+    expect(occurrenceCount(eventCreate, 'lockTenantRoleGraph(')).toBe(1);
+    expect(occurrenceCount(eventCreate, 'tenantRoleIdsExist(')).toBe(1);
+    expect(eventCreate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      eventCreate.indexOf('tenantRoleIdsExist('),
+    );
+    expect(eventCreate.indexOf('tenantRoleIdsExist(')).toBeLessThan(
+      eventCreate.indexOf('.insert(eventRegistrationOptions)'),
+    );
+
+    expect(occurrenceCount(eventUpdate, 'lockTenantRoleGraph(')).toBe(1);
+    expect(occurrenceCount(eventUpdate, 'tenantRoleIdsExist(')).toBe(1);
+    expect(eventUpdate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      eventUpdate.indexOf('tenantRoleIdsExist('),
+    );
+    expect(eventUpdate.indexOf('tenantRoleIdsExist(')).toBeLessThan(
+      eventUpdate.indexOf('.update(eventRegistrationOptions)'),
+    );
   });
 
   it('locks platform event creation before establishing its transaction snapshot', () => {

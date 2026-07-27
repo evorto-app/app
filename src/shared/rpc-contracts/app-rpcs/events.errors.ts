@@ -93,14 +93,14 @@ export type EventsEventListRpcError = Schema.Schema.Type<
   typeof EventsEventListRpcError
 >;
 
-export const EventsFindOneForEditRpcError = Schema.Union([
+export const EventsFindGraphForEditRpcError = Schema.Union([
   EventConflictError,
   EventNotFoundError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 ]);
-export type EventsFindOneForEditRpcError = Schema.Schema.Type<
-  typeof EventsFindOneForEditRpcError
+export type EventsFindGraphForEditRpcError = Schema.Schema.Type<
+  typeof EventsFindGraphForEditRpcError
 >;
 
 export const EventsFindOneRpcError = EventNotFoundError;

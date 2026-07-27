@@ -54,8 +54,6 @@ export const tenants = pgTable(
       .notNull()
       .default(0),
     name: varchar().notNull(),
-    privacyPolicyText: text('privacy_policy_text'),
-    privacyPolicyUrl: text('privacy_policy_url'),
     receiptSettings: jsonb('receipt_settings')
       .$type<TenantReceiptSettings>()
       .notNull()

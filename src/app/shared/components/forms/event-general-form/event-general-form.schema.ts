@@ -1,13 +1,6 @@
 import type { IconValue } from '@shared/types/icon';
 
-import {
-  apply,
-  applyEach,
-  disabled,
-  schema,
-  validate,
-} from '@angular/forms/signals';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
+import { apply, applyEach, disabled, schema } from '@angular/forms/signals';
 import { DateTime } from 'luxon';
 
 import {
@@ -49,14 +42,6 @@ export const createEventGeneralFormModel = (
 };
 
 export const eventGeneralFormSchema = schema<EventGeneralFormModel>((form) => {
-  validate(form.description, ({ value }) => {
-    return hasTemporaryRichTextImageSources(value())
-      ? {
-          kind: 'richTextPendingUpload',
-          message: 'Wait for image uploads to finish before saving.',
-        }
-      : undefined;
-  });
   applyEach(form.registrationOptions, registrationOptionFormSchema);
 });
 

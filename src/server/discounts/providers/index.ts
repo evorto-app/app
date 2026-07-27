@@ -1,20 +1,9 @@
-import { Schema } from 'effect';
-
-export interface ProviderAdapter<TConfig> {
-  validate: (arguments_: {
-    config: TConfig;
-    identifier: string;
-  }) => Promise<ValidationResult>;
+export interface ProviderAdapter {
+  validate: (arguments_: { identifier: string }) => Promise<ValidationResult>;
 }
 
-export interface ProviderConfig<TConfig extends Schema.Top = Schema.Top> {
-  configSchema: TConfig;
-  description?: string;
-  displayName: string;
-  type: ProviderType;
-}
-
-export type ProviderType = 'esnCard';
+export const PROVIDER_TYPES = ['esnCard'] as const;
+export type ProviderType = (typeof PROVIDER_TYPES)[number];
 
 export interface ValidationResult {
   metadata?: unknown;
@@ -39,21 +28,6 @@ const isAbortError = (error: unknown): boolean =>
   error instanceof Error && error.name === 'AbortError';
 
 const isValidDate = (date: Date): boolean => !Number.isNaN(date.getTime());
-
-// ESN Card example config schema (placeholder)
-const EsnConfig = Schema.Struct({
-  apiKey: Schema.NonEmptyString,
-  apiUrl: Schema.NonEmptyString,
-});
-
-export const PROVIDERS: Record<ProviderType, ProviderConfig> = {
-  esnCard: {
-    configSchema: EsnConfig,
-    description: 'Validate ESN cards and eligibility windows.',
-    displayName: 'ESN Card',
-    type: 'esnCard',
-  },
-};
 
 export const validateEsnCard = async ({
   fetchImpl = fetch,
@@ -118,11 +92,10 @@ export const validateEsnCard = async ({
   }
 };
 
-export const Adapters: Partial<Record<ProviderType, ProviderAdapter<unknown>>> =
-  {
-    esnCard: {
-      async validate({ identifier }) {
-        return validateEsnCard({ identifier });
-      },
+export const Adapters: Record<ProviderType, ProviderAdapter> = {
+  esnCard: {
+    async validate({ identifier }) {
+      return validateEsnCard({ identifier });
     },
-  };
+  },
+};

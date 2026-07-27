@@ -212,8 +212,10 @@ const createContextLayer = ({
 const scannedRegistration = {
   appliedDiscountedPrice: null,
   appliedDiscountType: null,
+  basePriceAtRegistration: 0,
   checkedInGuestCount: 0,
   checkInTime: null,
+  discountAmount: 0,
   event: {
     end: new Date(Date.now() + 2 * 60 * 60 * 1000),
     start: new Date(Date.now() + 30 * 60 * 1000),
@@ -1940,9 +1942,9 @@ describe('event registration owner add-on status', () => {
           addonPurchases: [includedPurchase],
           appliedDiscountedPrice: null,
           appliedDiscountType: null,
-          basePriceAtRegistration: null,
+          basePriceAtRegistration: 1200,
           checkInTime: null,
-          discountAmount: null,
+          discountAmount: 0,
           event: {
             end: eventEnd,
             start: eventStart,

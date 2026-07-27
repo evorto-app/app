@@ -19,7 +19,6 @@ import {
   MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
   MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import { templateGeneralFormSchema } from '../../../../templates/shared/template-form/template-general-form.schema';
 import { OrdinaryTemplateGraphFormModel } from './ordinary-template-graph-form';
@@ -32,14 +31,6 @@ import { templateGraphRegistrationOptionFormSchema } from './template-graph-regi
 export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
   (addOn) => {
     required(addOn.title, { message: 'Enter an add-on name.' });
-    validate(addOn.description, ({ value }) =>
-      hasTemporaryRichTextImageSources(value())
-        ? {
-            kind: 'richTextPendingUpload',
-            message: 'Wait for image uploads to finish before saving.',
-          }
-        : undefined,
-    );
     required(addOn.maxQuantityPerUser, {
       message: 'Enter a per-user maximum.',
     });

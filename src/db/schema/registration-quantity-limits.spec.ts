@@ -54,18 +54,27 @@ describe('registration quantity database limits', () => {
   it('keeps transfer and refund-allocation snapshots bounded', () => {
     expect(checkNames(registrationTransfers)).toEqual(
       expect.arrayContaining([
-        'registration_transfers_recipient_spot_count_bounded',
         'registration_transfers_source_spot_count_bounded',
+        'registration_transfers_source_spot_count_positive',
       ]),
     );
-    expect(checkNames(registrationTransferBundleAddonPurchases)).toContain(
-      'registration_transfer_bundle_quantity_bounded',
+    expect(checkNames(registrationTransferBundleAddonPurchases)).toEqual(
+      expect.arrayContaining([
+        'registration_transfer_bundle_quantity_bounded',
+        'registration_transfer_bundle_refund_bounds',
+      ]),
     );
-    expect(checkNames(registrationTransferBundleAddonPurchaseLots)).toContain(
-      'registration_transfer_bundle_addon_lot_quantity_bounded',
+    expect(checkNames(registrationTransferBundleAddonPurchaseLots)).toEqual(
+      expect.arrayContaining([
+        'registration_transfer_bundle_addon_lot_fulfillment_bounds',
+        'registration_transfer_bundle_addon_lot_quantity_bounded',
+      ]),
     );
-    expect(checkNames(registrationAcquisitions)).toContain(
-      'registration_acquisition_spot_count_bounded',
+    expect(checkNames(registrationAcquisitions)).toEqual(
+      expect.arrayContaining([
+        'registration_acquisition_spot_count_bounded',
+        'registration_acquisition_spot_count_positive',
+      ]),
     );
     expect(checkNames(registrationAcquisitionComponents)).toContain(
       'registration_acquisition_component_quantity_bounded',

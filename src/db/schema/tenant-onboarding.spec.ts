@@ -6,12 +6,14 @@ import {
   tenantOnboardingQuestions,
   tenantPrivacyPolicyAcceptances,
   tenantPrivacyPolicyVersions,
+  tenants,
   users,
 } from '.';
 
 describe('tenant onboarding schema', () => {
   it('keeps every privacy policy version uniquely addressable per tenant', () => {
     const config = getTableConfig(tenantPrivacyPolicyVersions);
+    const tenantConfig = getTableConfig(tenants);
 
     expect(config.checks.map((check) => check.name)).toContain(
       'tenant_privacy_policy_versions_has_content',
@@ -19,6 +21,13 @@ describe('tenant onboarding schema', () => {
     expect(config.indexes.map((index) => index.config.name)).toContain(
       'tenant_privacy_policy_versions_number_unique',
     );
+    expect(
+      tenantConfig.columns.some(
+        (column) =>
+          column.name === 'privacy_policy_text' ||
+          column.name === 'privacy_policy_url',
+      ),
+    ).toBe(false);
   });
 
   it('enforces question type and option consistency in the database', () => {

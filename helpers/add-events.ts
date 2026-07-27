@@ -10,7 +10,11 @@ import type { SeedTemplate } from './add-templates';
 
 import { getId } from './get-id';
 import { getSeedDate } from './seed-clock';
-import { requireSeedRoles, requireSeedUserId } from './seed-requirements';
+import {
+  requireSeedRoles,
+  requireSeedStripeTaxRates,
+  requireSeedUserId,
+} from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 
 const adminUser = requireSeedUserId(usersToAuthenticate, 'admin');
@@ -70,9 +74,8 @@ interface SeedScenarioOptionHandle {
 }
 
 interface TaxRateSelection {
-  defaultRateId: null | string;
-  vat7Id: null | string;
-  vat19Id: null | string;
+  vat7Id: string;
+  vat19Id: string;
 }
 
 type TenantStripeTaxRate = InferSelectModel<typeof schema.tenantStripeTaxRates>;
@@ -88,13 +91,10 @@ const demoTemplateLimits = {
 const resolveTaxRateSelection = (
   taxRates: TenantStripeTaxRate[],
 ): TaxRateSelection => {
-  const vat19 = taxRates.find((rate) => rate.percentage === '19');
-  const vat7 = taxRates.find((rate) => rate.percentage === '7');
-  const defaultRate = vat19 ?? vat7 ?? taxRates[0];
+  const { vat7, vat19 } = requireSeedStripeTaxRates(taxRates);
   return {
-    defaultRateId: defaultRate?.stripeTaxRateId ?? null,
-    vat7Id: vat7?.stripeTaxRateId ?? null,
-    vat19Id: vat19?.stripeTaxRateId ?? null,
+    vat7Id: vat7.stripeTaxRateId,
+    vat19Id: vat19.stripeTaxRateId,
   };
 };
 
@@ -294,12 +294,8 @@ const createEvents = (
   const scenario: ScenarioCandidates = {};
 
   const eventsPerTemplate = options.profile === 'demo' ? 4 : 3;
-  const participantTaxRateId = options.paid
-    ? (taxRateSelection.vat19Id ?? taxRateSelection.defaultRateId)
-    : null;
-  const organizerTaxRateId = options.paid
-    ? (taxRateSelection.vat7Id ?? taxRateSelection.defaultRateId)
-    : null;
+  const participantTaxRateId = options.paid ? taxRateSelection.vat19Id : null;
+  const organizerTaxRateId = options.paid ? taxRateSelection.vat7Id : null;
 
   for (const [templateIndex, template] of templates.entries()) {
     for (let index = 0; index < eventsPerTemplate; index += 1) {

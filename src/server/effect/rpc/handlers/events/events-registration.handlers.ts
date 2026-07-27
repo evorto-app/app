@@ -101,6 +101,7 @@ import {
   RegistrationAcquisitionWriteError,
   settleAcquisitionComponentTerms,
 } from '../../../../registrations/registration-acquisition-write';
+import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
   RegistrationTransferMutationConflict,
@@ -121,16 +122,16 @@ import { isActiveRegistrationUniqueViolation } from './active-registration-const
 import { EventRegistrationService } from './event-registration.service';
 import { databaseEffect } from './events.shared';
 
-const isRegistrationScanRpcError = (
-  error: unknown,
-): error is
-  | EventCheckInUnavailableError
+type RegistrationScanRpcError =
   | EventRegistrationConflictError
   | EventRegistrationInternalError
   | EventRegistrationNotFoundError
   | RpcForbiddenError
-  | RpcUnauthorizedError =>
-  error instanceof EventCheckInUnavailableError ||
+  | RpcUnauthorizedError;
+
+const isRegistrationScanRpcError = (
+  error: unknown,
+): error is RegistrationScanRpcError =>
   error instanceof EventRegistrationConflictError ||
   error instanceof EventRegistrationInternalError ||
   error instanceof EventRegistrationNotFoundError ||
@@ -171,6 +172,16 @@ const mapRegistrationScanInternalError = (error: unknown) =>
         'Internal server error',
         error,
       );
+
+const mapCheckInMutationInternalError = (
+  error: unknown,
+): Effect.Effect<
+  never,
+  EventCheckInUnavailableError | RegistrationScanRpcError
+> =>
+  error instanceof EventCheckInUnavailableError
+    ? Effect.fail(error)
+    : mapRegistrationScanInternalError(error);
 
 const isRegistrationMutationRpcError = (
   error: unknown,
@@ -3395,7 +3406,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 appliedDiscountedPrice: recipientPrice.appliedDiscountedPrice,
                 appliedDiscountType: recipientPrice.appliedDiscountType,
                 basePriceAtRegistration: optionBasePrice,
-                discountAmount: recipientPrice.discountAmount,
+                discountAmount: recipientPrice.discountAmount ?? 0,
                 stripeTaxRateId: lockedPricing.optionStripeTaxRateId,
                 taxRateDisplayName: registrationTaxRate?.displayName,
                 taxRateInclusive: registrationTaxRate?.inclusive,
@@ -3583,12 +3594,6 @@ export const eventRegistrationHandlers = {
       expectedStatus,
       registrationId,
       requireOrganizerAccess: true,
-    }),
-  'events.cancelPendingRegistration': ({ registrationId }, _options) =>
-    cancelRegistration({
-      expectedPaymentPending: false,
-      expectedStatus: 'PENDING',
-      registrationId,
     }),
   'events.cancelRegistration': (
     { expectedPaymentPending, expectedStatus, registrationId },
@@ -3914,7 +3919,7 @@ export const eventRegistrationHandlers = {
         alreadyCheckedIn: checkedInRegistration.alreadyCheckedIn,
         checkInTime: checkedInRegistration.checkInTime.toISOString(),
       };
-    }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+    }).pipe(Effect.catch(mapCheckInMutationInternalError)),
   'events.findTransferTargets': (
     { eventId, registrationId, search },
     _options,
@@ -4206,7 +4211,6 @@ export const eventRegistrationHandlers = {
               columns: {
                 cancellationDeadlineHoursBeforeStart: true,
                 organizingRegistration: true,
-                price: true,
                 registeredDescription: true,
                 title: true,
                 transferDeadlineHoursBeforeStart: true,
@@ -4214,7 +4218,6 @@ export const eventRegistrationHandlers = {
             },
             transactions: {
               columns: {
-                amount: true,
                 method: true,
                 status: true,
                 stripeCheckoutUrl: true,
@@ -4582,29 +4585,20 @@ export const eventRegistrationHandlers = {
             );
           }
 
-          const registrationTransaction = registration.transactions.find(
+          const paymentPending = registration.transactions.some(
             (transaction) =>
-              transaction.type === 'registration' &&
-              transaction.amount < registrationOption.price,
+              transaction.status === 'pending' &&
+              transaction.type === 'registration',
           );
-
-          const discountedPrice =
-            registration.appliedDiscountedPrice ??
-            registrationTransaction?.amount ??
-            undefined;
-          const appliedDiscountType =
-            registration.appliedDiscountType ??
-            (discountedPrice === undefined ? undefined : ('esnCard' as const));
-          const basePriceAtRegistration =
-            registration.basePriceAtRegistration ??
-            (discountedPrice === undefined
-              ? undefined
-              : registrationOption.price);
-          const discountAmount =
-            registration.discountAmount ??
-            (discountedPrice === undefined
-              ? undefined
-              : registrationOption.price - discountedPrice);
+          const priceSnapshot = readRegistrationPriceSnapshot({
+            appliedDiscountedPrice: registration.appliedDiscountedPrice,
+            appliedDiscountType: registration.appliedDiscountType,
+            basePriceAtRegistration: registration.basePriceAtRegistration,
+            discountAmount: registration.discountAmount,
+            paymentPending,
+            registrationId: registration.id,
+            status: registration.status,
+          });
 
           const activeTransfer =
             activeTransferByRegistrationId.get(registration.id) ?? null;
@@ -4748,24 +4742,17 @@ export const eventRegistrationHandlers = {
                   ]
                 : [],
             ),
-            appliedDiscountedPrice: discountedPrice,
-            appliedDiscountType,
-            basePriceAtRegistration,
+            ...priceSnapshot,
             ...cancellationAvailability,
             checkoutUrl: registration.transactions.find(
               (transaction) =>
                 transaction.method === 'stripe' &&
                 transaction.type === 'registration',
             )?.stripeCheckoutUrl,
-            discountAmount,
             guestCount: registration.guestCount,
             id: registration.id,
             organizingRegistration: registrationOption.organizingRegistration,
-            paymentPending: registration.transactions.some(
-              (transaction) =>
-                transaction.status === 'pending' &&
-                transaction.type === 'registration',
-            ),
+            paymentPending,
             registeredDescription: registrationOption.registeredDescription,
             registrationAddOns,
             registrationOptionId: registration.registrationOptionId,
@@ -4912,8 +4899,10 @@ export const eventRegistrationHandlers = {
           columns: {
             appliedDiscountedPrice: true,
             appliedDiscountType: true,
+            basePriceAtRegistration: true,
             checkedInGuestCount: true,
             checkInTime: true,
+            discountAmount: true,
             eventId: true,
             guestCount: true,
             status: true,
@@ -4930,13 +4919,13 @@ export const eventRegistrationHandlers = {
             },
             registrationOption: {
               columns: {
-                price: true,
                 title: true,
               },
             },
             transactions: {
               columns: {
-                amount: true,
+                status: true,
+                type: true,
               },
               where: {
                 type: 'registration',
@@ -4989,22 +4978,24 @@ export const eventRegistrationHandlers = {
         !isSameUserIssue &&
         timingIssue === null &&
         !isAlreadyCheckedInIssue;
-      const discountedTransaction = registration.transactions.find(
-        (transaction) =>
-          transaction.amount < registration.registrationOption.price,
-      );
-      const appliedDiscountedPrice =
-        registration.appliedDiscountedPrice ??
-        discountedTransaction?.amount ??
-        null;
-      const appliedDiscountType =
-        registration.appliedDiscountType ??
-        (appliedDiscountedPrice === null ? null : ('esnCard' as const));
+      const priceSnapshot = readRegistrationPriceSnapshot({
+        appliedDiscountedPrice: registration.appliedDiscountedPrice,
+        appliedDiscountType: registration.appliedDiscountType,
+        basePriceAtRegistration: registration.basePriceAtRegistration,
+        discountAmount: registration.discountAmount,
+        paymentPending: registration.transactions.some(
+          (transaction) =>
+            transaction.status === 'pending' &&
+            transaction.type === 'registration',
+        ),
+        registrationId,
+        status: registration.status,
+      });
 
       return {
         allowCheckin: isAllowCheckin,
         alreadyCheckedInIssue: isAlreadyCheckedInIssue,
-        appliedDiscountType,
+        appliedDiscountType: priceSnapshot.appliedDiscountType,
         attendeeCheckedIn: registration.checkInTime !== null,
         checkedInGuestCount: registration.checkedInGuestCount,
         checkInTimingIssue: timingIssue,
@@ -5026,6 +5017,18 @@ export const eventRegistrationHandlers = {
         },
       };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+  'events.retryRegistrationCheckout': ({ registrationId }, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+
+      return yield* EventRegistrationService.retryRegistrationCheckout({
+        registrationId,
+        tenantId: tenant.id,
+        userId: user.id,
+      });
+    }).pipe(Effect.catch(mapRegistrationMutationInternalError)),
   'events.transferEventRegistration': (
     { eventId, previewVersion, registrationId, targetUserId },
     _options,

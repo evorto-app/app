@@ -142,36 +142,18 @@ const isStripeMissingResourceError = (error: unknown): boolean =>
 
 export const registrationCheckoutMetadataOwnsClaim = (input: {
   readonly identity: RegistrationCheckoutCompletionIdentity;
-  readonly paymentIntentId: string | undefined;
-  readonly persistedPaymentIntentId: null | string;
   readonly session: Stripe.Checkout.Session;
   readonly transferId: null | string;
 }): boolean => {
   const metadata = input.session.metadata ?? {};
-  const metadataRegistrationId = metadata['registrationId'];
-  const metadataTenantId = metadata['tenantId'];
-  const metadataTransactionId = metadata['transactionId'];
-  const hasAnyOwnershipMetadata = Boolean(
-    metadataRegistrationId || metadataTenantId || metadataTransactionId,
+  return (
+    metadata['registrationId'] === input.identity.registrationId &&
+    metadata['tenantId'] === input.identity.tenantId &&
+    metadata['transactionId'] === input.identity.transactionId &&
+    (input.transferId === null
+      ? metadata['transferId'] === undefined
+      : metadata['transferId'] === input.transferId)
   );
-  const hasExactOwnershipMetadata =
-    metadataRegistrationId === input.identity.registrationId &&
-    metadataTenantId === input.identity.tenantId &&
-    metadataTransactionId === input.identity.transactionId;
-
-  if (hasAnyOwnershipMetadata && !hasExactOwnershipMetadata) return false;
-  if (
-    !hasAnyOwnershipMetadata &&
-    (!input.paymentIntentId ||
-      input.persistedPaymentIntentId !== input.paymentIntentId)
-  ) {
-    return false;
-  }
-
-  const metadataTransferId = metadata['transferId'];
-  return input.transferId
-    ? metadataTransferId === input.transferId || !hasAnyOwnershipMetadata
-    : !metadataTransferId;
 };
 
 type RegistrationCheckoutTransaction = Pick<
@@ -193,7 +175,9 @@ const establishPaidInitialRegistrationAcquisition = Effect.fn(
     readonly paymentSettlement: AcquisitionPaymentSettlement;
     readonly registration: {
       readonly appliedDiscountedPrice: null | number;
+      readonly appliedDiscountType: null | string;
       readonly basePriceAtRegistration: null | number;
+      readonly discountAmount: null | number;
       readonly stripeTaxRateDisplayName: null | string;
       readonly stripeTaxRateInclusive: boolean | null;
       readonly stripeTaxRatePercentage: null | string;
@@ -250,8 +234,30 @@ const establishPaidInitialRegistrationAcquisition = Effect.fn(
     );
   }
 
-  const basePrice = input.registration.basePriceAtRegistration ?? 0;
-  const effectivePrice = input.registration.appliedDiscountedPrice ?? basePrice;
+  const {
+    appliedDiscountedPrice,
+    appliedDiscountType,
+    basePriceAtRegistration: basePrice,
+    discountAmount,
+  } = input.registration;
+  if (
+    basePrice === null ||
+    discountAmount === null ||
+    basePrice < 0 ||
+    discountAmount < 0 ||
+    (appliedDiscountedPrice === null
+      ? appliedDiscountType !== null || discountAmount !== 0
+      : appliedDiscountType === null ||
+        appliedDiscountedPrice < 0 ||
+        appliedDiscountedPrice > basePrice ||
+        discountAmount !== basePrice - appliedDiscountedPrice)
+  ) {
+    return yield* failStateConflict(
+      input,
+      'Registration Checkout price snapshot is missing or inconsistent',
+    );
+  }
+  const effectivePrice = appliedDiscountedPrice ?? basePrice;
   const settledComponents = settleAcquisitionComponentTerms({
     payment: input.paymentSettlement,
     terms: [
@@ -392,7 +398,6 @@ export const completePaidRegistrationCheckout = Effect.fn(
         .select({
           amount: transactions.amount,
           currency: transactions.currency,
-          persistedPaymentIntentId: transactions.stripePaymentIntentId,
           transferId: registrationTransfers.id,
         })
         .from(transactions)
@@ -438,8 +443,6 @@ export const completePaidRegistrationCheckout = Effect.fn(
       if (
         !registrationCheckoutMetadataOwnsClaim({
           identity: input,
-          paymentIntentId,
-          persistedPaymentIntentId: claim.persistedPaymentIntentId,
           session,
           transferId: claim.transferId,
         })
@@ -603,7 +606,9 @@ export const completePaidRegistrationCheckout = Effect.fn(
         const lockedRegistrations = yield* tx
           .select({
             appliedDiscountedPrice: eventRegistrations.appliedDiscountedPrice,
+            appliedDiscountType: eventRegistrations.appliedDiscountType,
             basePriceAtRegistration: eventRegistrations.basePriceAtRegistration,
+            discountAmount: eventRegistrations.discountAmount,
             eventId: eventRegistrations.eventId,
             guestCount: eventRegistrations.guestCount,
             registrationOptionId: eventRegistrations.registrationOptionId,

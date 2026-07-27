@@ -17,7 +17,6 @@ const receipt = (
   overrides: Partial<ReceiptWithStoragePreview> = {},
 ): ReceiptWithStoragePreview => ({
   attachmentStorageKey: 'receipts/tenant-1/event-1/user-1/upload-1-receipt.pdf',
-  attachmentStorageUrl: 'https://storage.example/receipt.pdf',
   attachmentUploadConsumedAt: new Date('2026-07-10T08:00:00.000Z'),
   attachmentUploadedAt: new Date('2026-07-10T07:59:00.000Z'),
   attachmentUploadedByUserId: 'user-1',
@@ -26,7 +25,6 @@ const receipt = (
   attachmentUploadStatus: 'consumed',
   attachmentUploadTenantId: 'tenant-1',
   eventId: 'event-1',
-  previewImageUrl: null,
   submittedByUserId: 'user-1',
   tenantId: 'tenant-1',
   ...overrides,

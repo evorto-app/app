@@ -3,6 +3,7 @@ import { CanActivateFn, Router } from '@angular/router';
 import { QueryClient } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { eventRouteErrorPath } from '../event-rpc-error';
 
 export const eventOrganizerGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
@@ -19,8 +20,7 @@ export const eventOrganizerGuard: CanActivateFn = async (route) => {
       rpc.events.canOrganize.queryOptions({ eventId }),
     );
     return canOrganize ? true : router.createUrlTree(['/403']);
-  } catch {
-    // Event not found or access denied
-    return router.createUrlTree(['/404']);
+  } catch (error) {
+    return router.createUrlTree([eventRouteErrorPath(error)]);
   }
 };

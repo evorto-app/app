@@ -20,15 +20,6 @@
       <button
         type="button"
         mat-icon-button
-        aria-label="Filter events"
-        (click)="openFilterPanel()"
-        *appIfAnyPermission="['events:seeDrafts', 'events:seeUnlisted']"
-      >
-        <fa-icon [icon]="faFilter" />
-      </button>
-      <button
-        type="button"
-        mat-icon-button
         aria-label="Open event list actions"
         [matMenuTriggerFor]="menu"
       >
@@ -79,7 +70,7 @@
           </button>
         </div>
       } @else if (eventQuery.isSuccess()) {
-        @for (day of eventQuery.data(); track day.day) {
+        @for (day of eventDays(); track day.day) {
           <p
             class="title-medium sticky top-0 lg:-top-4 z-10 bg-surface-container px-4 py-2"
           >
@@ -137,6 +128,35 @@
           }
         } @empty {
           <p>No events found</p>
+        }
+        @if (
+          eventQuery.hasNextPage() ||
+          eventQuery.isFetchingNextPage() ||
+          eventQuery.isFetchNextPageError()
+        ) {
+          <div
+            class="border-outline-variant mt-2 flex flex-col items-start gap-2 border-t px-4 py-3"
+          >
+            @if (eventQuery.isFetchNextPageError()) {
+              <p class="body-medium text-error" role="alert">
+                More events could not be loaded. The events above are still
+                available.
+              </p>
+            }
+            <button
+              mat-button
+              type="button"
+              [disabled]="eventQuery.isFetchingNextPage()"
+              (click)="eventQuery.fetchNextPage()"
+            >
+              Load more
+            </button>
+            @if (eventQuery.isFetchingNextPage()) {
+              <p class="body-small text-on-surface-variant" role="status">
+                Loading more events…
+              </p>
+            }
+          </div>
         }
       }
     </nav>

@@ -1,5 +1,5 @@
 import { describe, expect, layer } from '@effect/vitest';
-import { Effect, Layer } from 'effect';
+import { Effect, Exit, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
 import Stripe from 'stripe';
@@ -80,10 +80,7 @@ const adminPermissions = [
 
 const adminHandlerLayer = Layer.mergeAll(
   RpcAccess.Default,
-  Layer.succeed(
-    RpcRequestContext,
-    createRequestContext(adminPermissions),
-  ),
+  Layer.succeed(RpcRequestContext, createRequestContext(adminPermissions)),
 );
 
 const createSettingsInput = () => ({
@@ -286,12 +283,6 @@ class TaxRateStripeResponse extends Stripe.HttpClientResponse {
   }
 }
 
-const createTaxRateAdminOptions = (
-  _stripeAccountId: null | string = 'acct_current',
-) => ({
-  headers: Headers.empty,
-});
-
 const createTaxRateImportDatabase = (input: {
   readonly existingRateStripeAccountId?: string | undefined;
   readonly lockedStripeAccountId: null | string;
@@ -339,175 +330,150 @@ const taxRateImportLayer = (database: object) =>
   );
 
 layer(adminHandlerLayer)((it) => {
-describe('adminHandlers role permissions', () => {
-  it.effect('findMany requires role management permission', () =>
-    Effect.gen(function* () {
-      const error = yield* adminHandlers['admin.roles.findMany'](
-        {},
-        {
-          headers: Headers.empty,
-        },
-      ).pipe(
-        Effect.provideService(
-          RpcRequestContext,
-          createRequestContext([]),
-        ),
-        Effect.flip,
-      );
+  describe('adminHandlers role permissions', () => {
+    it.effect('findMany requires role management permission', () =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.roles.findMany'](
+          {},
+          {
+            headers: Headers.empty,
+          },
+        ).pipe(
+          Effect.provideService(RpcRequestContext, createRequestContext([])),
+          Effect.flip,
+        );
 
-      expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('admin:manageRoles');
-    }),
-  );
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(error.permission).toBe('admin:manageRoles');
+      }),
+    );
 
-  it.effect('findOne returns the canonical hub visibility field only', () =>
-    Effect.gen(function* () {
-      const database = {
-        query: {
-          roles: {
-            findFirst: () =>
-              Effect.succeed({
+    it.effect('findOne returns the canonical role fields only', () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            roles: {
+              findFirst: () =>
+                Effect.succeed({
+                  defaultOrganizerRole: false,
+                  defaultUserRole: true,
+                  description: 'Visible in the hub',
+                  displayInHub: true,
+                  id: 'role-1',
+                  name: 'Member',
+                  permissions: ['events:viewPublic'],
+                  sortOrder: 1,
+                }),
+            },
+          },
+        };
+
+        const role = yield* adminHandlers['admin.roles.findOne'](
+          { id: 'role-1' },
+          createAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)));
+
+        expect(role).toMatchObject({
+          displayInHub: true,
+          id: 'role-1',
+          name: 'Member',
+          permissions: ['events:viewPublic'],
+        });
+        expect(role).not.toHaveProperty('showInHub');
+      }),
+    );
+
+    it.effect(
+      'fails visibly when a persisted role contains platform authority',
+      () =>
+        Effect.gen(function* () {
+          const database = {
+            query: {
+              roles: {
+                findFirst: () =>
+                  Effect.succeed({
+                    defaultOrganizerRole: false,
+                    defaultUserRole: true,
+                    description: 'Corrupt persisted role',
+                    displayInHub: true,
+                    id: 'role-corrupt',
+                    name: 'Corrupt',
+                    permissions: ['events:viewPublic', 'globalAdmin:*'],
+                    sortOrder: 1,
+                  }),
+              },
+            },
+          };
+
+          const exit = yield* adminHandlers['admin.roles.findOne'](
+            { id: 'role-corrupt' },
+            createAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)), Effect.exit);
+
+          expect(Exit.isFailure(exit)).toBe(true);
+        }),
+    );
+
+    it.effect('findHubRoles requires internal page visibility', () =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.roles.findHubRoles'](
+          undefined,
+          {
+            headers: Headers.empty,
+          },
+        ).pipe(
+          Effect.provideService(RpcRequestContext, createRequestContext([])),
+          Effect.flip,
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'RpcForbiddenError',
+          permission: 'internal:viewInternalPages',
+        });
+      }),
+    );
+
+    it.effect(
+      'returns a typed role-write validation error before persistence',
+      () =>
+        Effect.gen(function* () {
+          const error = yield* adminHandlers['admin.roles.create'](
+            {
+              ...createRoleWriteInput(),
+              name: ' '.repeat(3),
+            },
+            createAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase({})), Effect.flip);
+
+          expect(error).toMatchObject({
+            _tag: 'RoleWriteValidationError',
+            field: 'name',
+            message: 'Role name is required',
+          });
+        }),
+    );
+
+    it.effect('persists the shared normalized role-write shape', () =>
+      Effect.gen(function* () {
+        let capturedValues: Record<string, unknown> | undefined;
+        const insertQuery = {
+          returning: () =>
+            Effect.succeed([
+              {
                 defaultOrganizerRole: false,
                 defaultUserRole: true,
-                description: 'Visible in the hub',
+                description: 'Default tenant member',
                 displayInHub: true,
                 id: 'role-1',
                 name: 'Member',
-                permissions: [
-                  'events:viewPublic',
-                  'globalAdmin:*',
-                  'globalAdmin:manageTenants',
-                ],
+                permissions: ['admin:manageRoles', 'users:viewAll'],
                 sortOrder: 1,
-              }),
+              },
+            ]),
+          values: (values: Record<string, unknown>) => {
+            capturedValues = values;
+            return insertQuery;
           },
-        },
-      };
-
-      const role = yield* adminHandlers['admin.roles.findOne'](
-        { id: 'role-1' },
-        createAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)));
-
-      expect(role).toMatchObject({
-        displayInHub: true,
-        id: 'role-1',
-        name: 'Member',
-        permissions: ['events:viewPublic'],
-      });
-      expect(role).not.toHaveProperty('showInHub');
-    }),
-  );
-
-  it.effect('findHubRoles requires internal page visibility', () =>
-    Effect.gen(function* () {
-      const error = yield* adminHandlers['admin.roles.findHubRoles'](
-        undefined,
-        {
-          headers: Headers.empty,
-        },
-      ).pipe(
-        Effect.provideService(
-          RpcRequestContext,
-          createRequestContext([]),
-        ),
-        Effect.flip,
-      );
-
-      expect(error).toMatchObject({
-        _tag: 'RpcForbiddenError',
-        permission: 'internal:viewInternalPages',
-      });
-    }),
-  );
-
-  it.effect(
-    'returns a typed role-write validation error before persistence',
-    () =>
-      Effect.gen(function* () {
-        const error = yield* adminHandlers['admin.roles.create'](
-          {
-            ...createRoleWriteInput(),
-            name: ' '.repeat(3),
-          },
-          createAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase({})), Effect.flip);
-
-        expect(error).toMatchObject({
-          _tag: 'RoleWriteValidationError',
-          field: 'name',
-          message: 'Role name is required',
-        });
-      }),
-  );
-
-  it.effect('persists the shared normalized role-write shape', () =>
-    Effect.gen(function* () {
-      let capturedValues: Record<string, unknown> | undefined;
-      const insertQuery = {
-        returning: () =>
-          Effect.succeed([
-            {
-              defaultOrganizerRole: false,
-              defaultUserRole: true,
-              description: 'Default tenant member',
-              displayInHub: true,
-              id: 'role-1',
-              name: 'Member',
-              permissions: ['admin:manageRoles', 'users:viewAll'],
-              sortOrder: 1,
-            },
-          ]),
-        values: (values: Record<string, unknown>) => {
-          capturedValues = values;
-          return insertQuery;
-        },
-      };
-      const transactionDatabase = {
-        execute: () => Effect.void,
-        insert: () => insertQuery,
-      };
-      const database = {
-        transaction: <A, E, R>(
-          run: (
-            database_: typeof transactionDatabase,
-          ) => Effect.Effect<A, E, R>,
-        ) => run(transactionDatabase),
-      };
-
-      const role = yield* adminHandlers['admin.roles.create'](
-        createRoleWriteInput(),
-        createAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)));
-
-      expect(capturedValues).toEqual({
-        defaultOrganizerRole: false,
-        defaultUserRole: true,
-        description: 'Default tenant member',
-        displayInHub: true,
-        name: 'Member',
-        permissions: ['admin:manageRoles', 'users:viewAll'],
-        tenantId: 'tenant-1',
-      });
-      expect(role.name).toBe('Member');
-    }),
-  );
-
-  it.effect(
-    'maps the tenant role-name constraint to a typed duplicate error',
-    () =>
-      Effect.gen(function* () {
-        const duplicate = new SqlError({
-          reason: new UniqueViolation({
-            cause: { code: '23505' },
-            constraint: roleTenantNameUniqueConstraintName,
-            message: 'duplicate key value violates unique constraint',
-            operation: 'INSERT',
-          }),
-        });
-        const insertQuery = {
-          returning: () => Effect.fail(duplicate),
-          values: () => insertQuery,
         };
         const transactionDatabase = {
           execute: () => Effect.void,
@@ -521,42 +487,72 @@ describe('adminHandlers role permissions', () => {
           ) => run(transactionDatabase),
         };
 
-        const error = yield* adminHandlers['admin.roles.create'](
+        const role = yield* adminHandlers['admin.roles.create'](
           createRoleWriteInput(),
           createAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        ).pipe(Effect.provide(provideDatabase(database)));
 
-        expect(error).toMatchObject({
-          _tag: 'RoleNameAlreadyExistsError',
-          message: 'A role named Member already exists',
+        expect(capturedValues).toEqual({
+          defaultOrganizerRole: false,
+          defaultUserRole: true,
+          description: 'Default tenant member',
+          displayInHub: true,
           name: 'Member',
+          permissions: ['admin:manageRoles', 'users:viewAll'],
+          tenantId: 'tenant-1',
         });
+        expect(role.name).toBe('Member');
       }),
-  );
-});
+    );
 
-describe('adminHandlers Stripe tax-rate import', () => {
-  it.effect('rejects import when the tenant has no connected account', () =>
-    Effect.gen(function* () {
-      const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
-        { ids: ['txr_admin'] },
-        createTaxRateAdminOptions(null),
-      ).pipe(Effect.flip);
+    it.effect(
+      'maps the tenant role-name constraint to a typed duplicate error',
+      () =>
+        Effect.gen(function* () {
+          const duplicate = new SqlError({
+            reason: new UniqueViolation({
+              cause: { code: '23505' },
+              constraint: roleTenantNameUniqueConstraintName,
+              message: 'duplicate key value violates unique constraint',
+              operation: 'INSERT',
+            }),
+          });
+          const insertQuery = {
+            returning: () => Effect.fail(duplicate),
+            values: () => insertQuery,
+          };
+          const transactionDatabase = {
+            execute: () => Effect.void,
+            insert: () => insertQuery,
+          };
+          const database = {
+            transaction: <A, E, R>(
+              run: (
+                database_: typeof transactionDatabase,
+              ) => Effect.Effect<A, E, R>,
+            ) => run(transactionDatabase),
+          };
 
-      expect(error).toMatchObject({
-        _tag: 'RpcBadRequestError',
-        reason: 'stripeAccountRequired',
-      });
-    }),
-  );
+          const error = yield* adminHandlers['admin.roles.create'](
+            createRoleWriteInput(),
+            createAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
-  it.effect(
-    'rejects provider listing when the tenant has no connected account',
-    () =>
+          expect(error).toMatchObject({
+            _tag: 'RoleNameAlreadyExistsError',
+            message: 'A role named Member already exists',
+            name: 'Member',
+          });
+        }),
+    );
+  });
+
+  describe('adminHandlers Stripe tax-rate import', () => {
+    it.effect('rejects import when the tenant has no connected account', () =>
       Effect.gen(function* () {
-        const error = yield* adminHandlers['admin.tenant.listStripeTaxRates'](
-          undefined,
-          createTaxRateAdminOptions(null),
+        const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
+          { ids: ['txr_admin'] },
+          createAdminOptions(),
         ).pipe(Effect.flip);
 
         expect(error).toMatchObject({
@@ -564,85 +560,275 @@ describe('adminHandlers Stripe tax-rate import', () => {
           reason: 'stripeAccountRequired',
         });
       }),
-  );
+    );
 
-  it.effect(
-    'keeps a concurrent tenant account change in the expected channel',
-    () =>
-      Effect.gen(function* () {
-        const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
-          { ids: ['txr_admin'] },
-          createTaxRateAdminOptions(),
-        ).pipe(
-          Effect.provide(
-            taxRateImportLayer(
-              createTaxRateImportDatabase({
-                lockedStripeAccountId: 'acct_changed',
-              }),
+    it.effect(
+      'rejects provider listing when the tenant has no connected account',
+      () =>
+        Effect.gen(function* () {
+          const error = yield* adminHandlers['admin.tenant.listStripeTaxRates'](
+            undefined,
+            createAdminOptions(),
+          ).pipe(Effect.flip);
+
+          expect(error).toMatchObject({
+            _tag: 'RpcBadRequestError',
+            reason: 'stripeAccountRequired',
+          });
+        }),
+    );
+
+    it.effect(
+      'keeps a concurrent tenant account change in the expected channel',
+      () =>
+        Effect.gen(function* () {
+          const error = yield* adminHandlers[
+            'admin.tenant.importStripeTaxRates'
+          ]({ ids: ['txr_admin'] }, createAdminOptions()).pipe(
+            Effect.provideService(
+              RpcRequestContext,
+              createRequestContext(adminPermissions, 'acct_current'),
             ),
-          ),
-          Effect.flip,
-        );
+            Effect.provide(
+              taxRateImportLayer(
+                createTaxRateImportDatabase({
+                  lockedStripeAccountId: 'acct_changed',
+                }),
+              ),
+            ),
+            Effect.flip,
+          );
+
+          expect(error).toMatchObject({
+            _tag: 'RpcBadRequestError',
+            message:
+              'The tenant Stripe account changed while tax rates were being loaded; retry the import',
+            reason: 'stripeAccountChanged',
+          });
+        }),
+    );
+
+    it.effect(
+      'keeps a conflicting stored rate account in the expected channel',
+      () =>
+        Effect.gen(function* () {
+          const error = yield* adminHandlers[
+            'admin.tenant.importStripeTaxRates'
+          ]({ ids: ['txr_admin'] }, createAdminOptions()).pipe(
+            Effect.provideService(
+              RpcRequestContext,
+              createRequestContext(adminPermissions, 'acct_current'),
+            ),
+            Effect.provide(
+              taxRateImportLayer(
+                createTaxRateImportDatabase({
+                  existingRateStripeAccountId: 'acct_foreign',
+                  lockedStripeAccountId: 'acct_current',
+                }),
+              ),
+            ),
+            Effect.flip,
+          );
+
+          expect(error).toMatchObject({
+            _tag: 'RpcBadRequestError',
+            message:
+              'Imported tax-rate metadata belongs to a different Stripe account',
+            reason: 'stripeTaxRateAccountConflict',
+          });
+        }),
+    );
+  });
+
+  describe('adminHandlers tenant settings', () => {
+    it.effect('rejects fractional limits instead of changing them', () =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            maxActiveRegistrationsPerUser: 4.8,
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase({})), Effect.flip);
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          message:
-            'The tenant Stripe account changed while tax rates were being loaded; retry the import',
-          reason: 'stripeAccountChanged',
+          message: 'Updated tenant settings failed validation',
         });
       }),
-  );
+    );
 
-  it.effect(
-    'keeps a conflicting stored rate account in the expected channel',
-    () =>
+    it.effect(
+      'updates tenant SEO settings through the validated tenant shape',
+      () =>
+        Effect.gen(function* () {
+          let capturedUpdate: Record<string, unknown> | undefined;
+          const updateQuery = {
+            returning: () =>
+              Effect.succeed([
+                {
+                  id: 'tenant-1',
+                },
+              ]),
+            set: (value: Record<string, unknown>) => {
+              capturedUpdate = value;
+              return updateQuery;
+            },
+            where: () => updateQuery,
+          };
+          const database = withTenantSettingsTransaction({
+            query: {
+              eventInstances: {
+                findFirst: () => Effect.succeed(null),
+              },
+              eventTemplates: {
+                findFirst: () => Effect.succeed(null),
+              },
+              financeReceipts: {
+                findFirst: () => Effect.succeed(null),
+              },
+              transactions: {
+                findFirst: () => Effect.succeed(null),
+              },
+            },
+            update: () => updateQuery,
+          });
+
+          const result = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              allowOther: true,
+              cancellationDeadlineHoursBeforeStart: 96,
+              currency: 'AUD',
+              defaultLocation: null,
+              emailSenderEmail: ' events@section.example.org ',
+              emailSenderName: ' Example Section ',
+              esnCardEnabled: false,
+              faviconUrl: ' https://cdn.example.org/favicon.ico ',
+              legalNoticeText: '  Tenant imprint text  ',
+              legalNoticeUrl: ' https://section.example.org/imprint ',
+              logoUrl: 'https://cdn.example.org/logo.svg',
+              maxActiveRegistrationsPerUser: 4,
+              receiptCountries: ['NL'],
+              refundFeesOnCancellation: false,
+              seoDescription: '  Public description  ',
+              seoTitle: '  Public title  ',
+              stripeAccountId: ' acct_123 ',
+              termsText: ' Tenant terms text ',
+              termsUrl: 'https://section.example.org/terms',
+              theme: 'evorto',
+              timezone: 'Australia/Brisbane',
+              transferDeadlineHoursBeforeStart: 12,
+            },
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)));
+
+          expect(capturedUpdate).toMatchObject({
+            cancellationDeadlineHoursBeforeStart: 96,
+            currency: 'AUD',
+            emailSenderEmail: 'events@section.example.org',
+            emailSenderName: 'Example Section',
+            faviconUrl: 'https://cdn.example.org/favicon.ico',
+            legalNoticeText: 'Tenant imprint text',
+            legalNoticeUrl: 'https://section.example.org/imprint',
+            logoUrl: 'https://cdn.example.org/logo.svg',
+            maxActiveRegistrationsPerUser: 4,
+            refundFeesOnCancellation: false,
+            seoDescription: 'Public description',
+            seoTitle: 'Public title',
+            stripeAccountId: 'acct_123',
+            termsText: 'Tenant terms text',
+            termsUrl: 'https://section.example.org/terms',
+            timezone: 'Australia/Brisbane',
+            transferDeadlineHoursBeforeStart: 12,
+          });
+          expect(result).toMatchObject({
+            cancellationDeadlineHoursBeforeStart: 96,
+            currency: 'AUD',
+            emailSenderEmail: 'events@section.example.org',
+            emailSenderName: 'Example Section',
+            faviconUrl: 'https://cdn.example.org/favicon.ico',
+            legalNoticeText: 'Tenant imprint text',
+            legalNoticeUrl: 'https://section.example.org/imprint',
+            logoUrl: 'https://cdn.example.org/logo.svg',
+            maxActiveRegistrationsPerUser: 4,
+            refundFeesOnCancellation: false,
+            seoDescription: 'Public description',
+            seoTitle: 'Public title',
+            stripeAccountId: 'acct_123',
+            termsText: 'Tenant terms text',
+            termsUrl: 'https://section.example.org/terms',
+            timezone: 'Australia/Brisbane',
+            transferDeadlineHoursBeforeStart: 12,
+          });
+        }),
+    );
+
+    it.effect('persists a validated Google default location', () =>
       Effect.gen(function* () {
-        const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
-          { ids: ['txr_admin'] },
-          createTaxRateAdminOptions(),
-        ).pipe(
-          Effect.provide(
-            taxRateImportLayer(
-              createTaxRateImportDatabase({
-                existingRateStripeAccountId: 'acct_foreign',
-                lockedStripeAccountId: 'acct_current',
-              }),
-            ),
-          ),
-          Effect.flip,
-        );
-
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          message:
-            'Imported tax-rate metadata belongs to a different Stripe account',
-          reason: 'stripeTaxRateAccountConflict',
+        let capturedUpdate: Record<string, unknown> | undefined;
+        const updateQuery = {
+          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+          set: (value: Record<string, unknown>) => {
+            capturedUpdate = value;
+            return updateQuery;
+          },
+          where: () => updateQuery,
+        };
+        const database = withTenantSettingsTransaction({
+          update: () => updateQuery,
         });
+        const defaultLocation = {
+          address: 'Alexanderplatz, Berlin, Germany',
+          coordinates: {
+            lat: 52.5219,
+            lng: 13.4132,
+          },
+          name: 'Alexanderplatz',
+          placeId: 'place-alexanderplatz',
+          type: 'google' as const,
+        };
+
+        const result = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            defaultLocation,
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)));
+
+        expect(capturedUpdate).toMatchObject({ defaultLocation });
+        expect(result.defaultLocation).toEqual(defaultLocation);
       }),
-  );
-});
+    );
 
-describe('adminHandlers tenant settings', () => {
-  it.effect('rejects fractional limits instead of changing them', () =>
-    Effect.gen(function* () {
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          ...createSettingsInput(),
-          maxActiveRegistrationsPerUser: 4.8,
-        },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase({})), Effect.flip);
+    it.effect('rejects invalid tenant legal-link URLs', () =>
+      Effect.gen(function* () {
+        const database = {
+          update: () => {
+            throw new Error('database should not be touched');
+          },
+        };
 
-      expect(error).toMatchObject({
-        _tag: 'RpcBadRequestError',
-        message: 'Updated tenant settings failed validation',
-      });
-    }),
-  );
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            allowOther: true,
+            currency: 'EUR',
+            defaultLocation: null,
+            esnCardEnabled: false,
+            legalNoticeUrl: 'not a url',
+            receiptCountries: ['NL'],
+            theme: 'evorto',
+            timezone: 'Europe/Berlin',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
-  it.effect(
-    'updates tenant SEO settings through the validated tenant shape',
-    () =>
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe('Invalid tenant legal links');
+      }),
+    );
+
+    it.effect('preserves uploaded tenant brand asset route URLs', () =>
       Effect.gen(function* () {
         let capturedUpdate: Record<string, unknown> | undefined;
         const updateQuery = {
@@ -659,227 +845,30 @@ describe('adminHandlers tenant settings', () => {
           where: () => updateQuery,
         };
         const database = withTenantSettingsTransaction({
-          query: {
-            eventInstances: {
-              findFirst: () => Effect.succeed(null),
-            },
-            eventTemplates: {
-              findFirst: () => Effect.succeed(null),
-            },
-            financeReceipts: {
-              findFirst: () => Effect.succeed(null),
-            },
-            transactions: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
           update: () => updateQuery,
         });
 
         const result = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            allowOther: true,
-            cancellationDeadlineHoursBeforeStart: 96,
-            currency: 'AUD',
-            defaultLocation: null,
-            emailSenderEmail: ' events@section.example.org ',
-            emailSenderName: ' Example Section ',
-            esnCardEnabled: false,
-            faviconUrl: ' https://cdn.example.org/favicon.ico ',
-            legalNoticeText: '  Tenant imprint text  ',
-            legalNoticeUrl: ' https://section.example.org/imprint ',
-            logoUrl: 'https://cdn.example.org/logo.svg',
-            maxActiveRegistrationsPerUser: 4,
-            receiptCountries: ['NL'],
-            refundFeesOnCancellation: false,
-            seoDescription: '  Public description  ',
-            seoTitle: '  Public title  ',
-            stripeAccountId: ' acct_123 ',
-            termsText: ' Tenant terms text ',
-            termsUrl: 'https://section.example.org/terms',
-            theme: 'evorto',
-            timezone: 'Australia/Brisbane',
-            transferDeadlineHoursBeforeStart: 12,
+            ...createSettingsInput(),
+            faviconUrl: ' /tenant-assets/tenant-1/favicon/favicon.ico ',
+            logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
           },
           createSettingsAdminOptions(),
         ).pipe(Effect.provide(provideDatabase(database)));
 
         expect(capturedUpdate).toMatchObject({
-          cancellationDeadlineHoursBeforeStart: 96,
-          currency: 'AUD',
-          emailSenderEmail: 'events@section.example.org',
-          emailSenderName: 'Example Section',
-          faviconUrl: 'https://cdn.example.org/favicon.ico',
-          legalNoticeText: 'Tenant imprint text',
-          legalNoticeUrl: 'https://section.example.org/imprint',
-          logoUrl: 'https://cdn.example.org/logo.svg',
-          maxActiveRegistrationsPerUser: 4,
-          refundFeesOnCancellation: false,
-          seoDescription: 'Public description',
-          seoTitle: 'Public title',
-          stripeAccountId: 'acct_123',
-          termsText: 'Tenant terms text',
-          termsUrl: 'https://section.example.org/terms',
-          timezone: 'Australia/Brisbane',
-          transferDeadlineHoursBeforeStart: 12,
+          faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
+          logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
         });
         expect(result).toMatchObject({
-          cancellationDeadlineHoursBeforeStart: 96,
-          currency: 'AUD',
-          emailSenderEmail: 'events@section.example.org',
-          emailSenderName: 'Example Section',
-          faviconUrl: 'https://cdn.example.org/favicon.ico',
-          legalNoticeText: 'Tenant imprint text',
-          legalNoticeUrl: 'https://section.example.org/imprint',
-          logoUrl: 'https://cdn.example.org/logo.svg',
-          maxActiveRegistrationsPerUser: 4,
-          refundFeesOnCancellation: false,
-          seoDescription: 'Public description',
-          seoTitle: 'Public title',
-          stripeAccountId: 'acct_123',
-          termsText: 'Tenant terms text',
-          termsUrl: 'https://section.example.org/terms',
-          timezone: 'Australia/Brisbane',
-          transferDeadlineHoursBeforeStart: 12,
+          faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
+          logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
         });
       }),
-  );
+    );
 
-  it.effect('persists a validated Google default location', () =>
-    Effect.gen(function* () {
-      let capturedUpdate: Record<string, unknown> | undefined;
-      const updateQuery = {
-        returning: () => Effect.succeed([{ id: 'tenant-1' }]),
-        set: (value: Record<string, unknown>) => {
-          capturedUpdate = value;
-          return updateQuery;
-        },
-        where: () => updateQuery,
-      };
-      const database = withTenantSettingsTransaction({
-        update: () => updateQuery,
-      });
-      const defaultLocation = {
-        address: 'Alexanderplatz, Berlin, Germany',
-        coordinates: {
-          lat: 52.5219,
-          lng: 13.4132,
-        },
-        name: 'Alexanderplatz',
-        placeId: 'place-alexanderplatz',
-        type: 'google' as const,
-      };
-
-      const result = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          ...createSettingsInput(),
-          defaultLocation,
-        },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)));
-
-      expect(capturedUpdate).toMatchObject({ defaultLocation });
-      expect(result.defaultLocation).toEqual(defaultLocation);
-    }),
-  );
-
-  it.effect('rejects invalid tenant legal-link URLs', () =>
-    Effect.gen(function* () {
-      const database = {
-        update: () => {
-          throw new Error('database should not be touched');
-        },
-      };
-
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          allowOther: true,
-          currency: 'EUR',
-          defaultLocation: null,
-          esnCardEnabled: false,
-          legalNoticeUrl: 'not a url',
-          receiptCountries: ['NL'],
-          theme: 'evorto',
-          timezone: 'Europe/Berlin',
-        },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
-
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe('Invalid tenant legal links');
-    }),
-  );
-
-  it.effect('preserves uploaded tenant brand asset route URLs', () =>
-    Effect.gen(function* () {
-      let capturedUpdate: Record<string, unknown> | undefined;
-      const updateQuery = {
-        returning: () =>
-          Effect.succeed([
-            {
-              id: 'tenant-1',
-            },
-          ]),
-        set: (value: Record<string, unknown>) => {
-          capturedUpdate = value;
-          return updateQuery;
-        },
-        where: () => updateQuery,
-      };
-      const database = withTenantSettingsTransaction({
-        update: () => updateQuery,
-      });
-
-      const result = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          ...createSettingsInput(),
-          faviconUrl: ' /tenant-assets/tenant-1/favicon/favicon.ico ',
-          logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
-        },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)));
-
-      expect(capturedUpdate).toMatchObject({
-        faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
-        logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
-      });
-      expect(result).toMatchObject({
-        faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
-        logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
-      });
-    }),
-  );
-
-  it.effect('rejects invalid tenant brand asset URLs', () =>
-    Effect.gen(function* () {
-      const database = {
-        update: () => {
-          throw new Error('database should not be touched');
-        },
-      };
-
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          allowOther: true,
-          currency: 'EUR',
-          defaultLocation: null,
-          esnCardEnabled: false,
-          logoUrl: 'file:///tmp/logo.svg',
-          receiptCountries: ['NL'],
-          theme: 'evorto',
-          timezone: 'Europe/Berlin',
-        },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
-
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe('Invalid tenant brand assets');
-    }),
-  );
-
-  it.effect(
-    'rejects uploaded tenant brand asset paths with encoded separators',
-    () =>
+    it.effect('rejects invalid tenant brand asset URLs', () =>
       Effect.gen(function* () {
         const database = {
           update: () => {
@@ -893,7 +882,7 @@ describe('adminHandlers tenant settings', () => {
             currency: 'EUR',
             defaultLocation: null,
             esnCardEnabled: false,
-            logoUrl: '/tenant-assets/tenant-1/logo/..%2Fsecret.png',
+            logoUrl: 'file:///tmp/logo.svg',
             receiptCountries: ['NL'],
             theme: 'evorto',
             timezone: 'Europe/Berlin',
@@ -904,146 +893,87 @@ describe('adminHandlers tenant settings', () => {
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Invalid tenant brand assets');
       }),
-  );
+    );
 
-  it.effect(
-    'rejects uploaded brand asset paths owned by another tenant or asset kind',
-    () =>
-      Effect.gen(function* () {
-        const database = {
-          update: () => {
-            throw new Error('database should not be touched');
-          },
-        };
+    it.effect(
+      'rejects uploaded tenant brand asset paths with encoded separators',
+      () =>
+        Effect.gen(function* () {
+          const database = {
+            update: () => {
+              throw new Error('database should not be touched');
+            },
+          };
 
-        for (const logoUrl of [
-          '/tenant-assets/tenant-2/logo/logo.png',
-          '/tenant-assets/tenant-1/favicon/logo.png',
-        ]) {
           const error = yield* adminHandlers['admin.tenant.updateSettings'](
             {
-              ...createSettingsInput(),
-              logoUrl,
+              allowOther: true,
+              currency: 'EUR',
+              defaultLocation: null,
+              esnCardEnabled: false,
+              logoUrl: '/tenant-assets/tenant-1/logo/..%2Fsecret.png',
+              receiptCountries: ['NL'],
+              theme: 'evorto',
+              timezone: 'Europe/Berlin',
             },
             createSettingsAdminOptions(),
           ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
           expect(error['_tag']).toBe('RpcBadRequestError');
           expect(error.message).toBe('Invalid tenant brand assets');
-          expect(error.reason).toContain(
-            'uploaded logo path for the current tenant',
-          );
-        }
-      }),
-  );
+        }),
+    );
 
-  it.effect('rejects currency changes when tenant events exist', () =>
-    Effect.gen(function* () {
-      const database = withTenantSettingsTransaction({
-        query: {
-          eventInstances: {
-            findFirst: () => Effect.succeed({ id: 'event-1' }),
-          },
-          eventTemplates: {
-            findFirst: () => Effect.succeed(null),
-          },
-          financeReceipts: {
-            findFirst: () => {
-              throw new Error('receipt query should not be touched');
+    it.effect(
+      'rejects uploaded brand asset paths owned by another tenant or asset kind',
+      () =>
+        Effect.gen(function* () {
+          const database = {
+            update: () => {
+              throw new Error('database should not be touched');
             },
-          },
-          transactions: {
-            findFirst: () => {
-              throw new Error('transaction query should not be touched');
-            },
-          },
-        },
-        update: () => {
-          throw new Error('database update should not be touched');
-        },
-      });
+          };
 
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          ...createSettingsInput(),
-          currency: 'CZK',
-        },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          for (const logoUrl of [
+            '/tenant-assets/tenant-2/logo/logo.png',
+            '/tenant-assets/tenant-1/favicon/logo.png',
+          ]) {
+            const error = yield* adminHandlers['admin.tenant.updateSettings'](
+              {
+                ...createSettingsInput(),
+                logoUrl,
+              },
+              createSettingsAdminOptions(),
+            ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe(
-        'Tenant currency is locked by existing financial configuration',
-      );
-    }),
-  );
+            expect(error['_tag']).toBe('RpcBadRequestError');
+            expect(error.message).toBe('Invalid tenant brand assets');
+            expect(error.reason).toContain(
+              'uploaded logo path for the current tenant',
+            );
+          }
+        }),
+    );
 
-  it.effect('rejects currency changes when tenant templates exist', () =>
-    Effect.gen(function* () {
-      const database = withTenantSettingsTransaction({
-        query: {
-          eventInstances: {
-            findFirst: () => {
-              throw new Error('event query should not be touched');
-            },
-          },
-          eventTemplates: {
-            findFirst: () => Effect.succeed({ id: 'template-1' }),
-          },
-          financeReceipts: {
-            findFirst: () => {
-              throw new Error('receipt query should not be touched');
-            },
-          },
-          transactions: {
-            findFirst: () => {
-              throw new Error('transaction query should not be touched');
-            },
-          },
-        },
-        update: () => {
-          throw new Error('database update should not be touched');
-        },
-      });
-
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          ...createSettingsInput(),
-          currency: 'AUD',
-        },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
-
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toContain('dedicated currency migration');
-    }),
-  );
-
-  it.effect.each(['receipt', 'transaction'] as const)(
-    'rejects currency changes when tenant %s data exists',
-    (dependentData) =>
+    it.effect('rejects currency changes when tenant events exist', () =>
       Effect.gen(function* () {
         const database = withTenantSettingsTransaction({
           query: {
             eventInstances: {
-              findFirst: () => Effect.succeed(null),
+              findFirst: () => Effect.succeed({ id: 'event-1' }),
             },
             eventTemplates: {
               findFirst: () => Effect.succeed(null),
             },
             financeReceipts: {
-              findFirst: () =>
-                Effect.succeed(
-                  dependentData === 'receipt' ? { id: 'receipt-1' } : null,
-                ),
+              findFirst: () => {
+                throw new Error('receipt query should not be touched');
+              },
             },
             transactions: {
-              findFirst: () =>
-                Effect.succeed(
-                  dependentData === 'transaction'
-                    ? { id: 'transaction-1' }
-                    : null,
-                ),
+              findFirst: () => {
+                throw new Error('transaction query should not be touched');
+              },
             },
           },
           update: () => {
@@ -1060,70 +990,118 @@ describe('adminHandlers tenant settings', () => {
         ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Tenant currency is locked by existing financial configuration',
+        );
+      }),
+    );
+
+    it.effect('rejects currency changes when tenant templates exist', () =>
+      Effect.gen(function* () {
+        const database = withTenantSettingsTransaction({
+          query: {
+            eventInstances: {
+              findFirst: () => {
+                throw new Error('event query should not be touched');
+              },
+            },
+            eventTemplates: {
+              findFirst: () => Effect.succeed({ id: 'template-1' }),
+            },
+            financeReceipts: {
+              findFirst: () => {
+                throw new Error('receipt query should not be touched');
+              },
+            },
+            transactions: {
+              findFirst: () => {
+                throw new Error('transaction query should not be touched');
+              },
+            },
+          },
+          update: () => {
+            throw new Error('database update should not be touched');
+          },
+        });
+
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            currency: 'AUD',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toContain('dedicated currency migration');
       }),
-  );
+    );
 
-  it.effect('rejects timezone changes when tenant transactions exist', () =>
-    Effect.gen(function* () {
-      const database = withTenantSettingsTransaction({
-        query: {
-          eventInstances: {
-            findFirst: () => Effect.succeed(null),
-          },
-          transactions: {
-            findFirst: () => Effect.succeed({ id: 'transaction-1' }),
-          },
-        },
-        update: () => {
-          throw new Error('database update should not be touched');
-        },
-      });
-
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          ...createSettingsInput(),
-          timezone: 'Europe/Prague',
-        },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
-
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe(
-        'Tenant currency and timezone settings are locked',
-      );
-    }),
-  );
-
-  it.effect(
-    'uses the locked tenant runtime settings when the request context is stale',
-    () =>
-      Effect.gen(function* () {
-        const database = withTenantSettingsTransaction(
-          {
+    it.effect.each(['receipt', 'transaction'] as const)(
+      'rejects currency changes when tenant %s data exists',
+      (dependentData) =>
+        Effect.gen(function* () {
+          const database = withTenantSettingsTransaction({
             query: {
               eventInstances: {
-                findFirst: () => Effect.succeed({ id: 'event-1' }),
+                findFirst: () => Effect.succeed(null),
+              },
+              eventTemplates: {
+                findFirst: () => Effect.succeed(null),
+              },
+              financeReceipts: {
+                findFirst: () =>
+                  Effect.succeed(
+                    dependentData === 'receipt' ? { id: 'receipt-1' } : null,
+                  ),
               },
               transactions: {
-                findFirst: () => {
-                  throw new Error('transaction query should not be touched');
-                },
+                findFirst: () =>
+                  Effect.succeed(
+                    dependentData === 'transaction'
+                      ? { id: 'transaction-1' }
+                      : null,
+                  ),
               },
             },
             update: () => {
               throw new Error('database update should not be touched');
             },
+          });
+
+          const error = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              ...createSettingsInput(),
+              currency: 'CZK',
+            },
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error.reason).toContain('dedicated currency migration');
+        }),
+    );
+
+    it.effect('rejects timezone changes when tenant transactions exist', () =>
+      Effect.gen(function* () {
+        const database = withTenantSettingsTransaction({
+          query: {
+            eventInstances: {
+              findFirst: () => Effect.succeed(null),
+            },
+            transactions: {
+              findFirst: () => Effect.succeed({ id: 'transaction-1' }),
+            },
           },
-          {
-            lockedTimezone: 'Europe/Prague',
+          update: () => {
+            throw new Error('database update should not be touched');
           },
-        );
+        });
 
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
           {
             ...createSettingsInput(),
-            timezone: 'Europe/Amsterdam',
+            timezone: 'Europe/Prague',
           },
           createSettingsAdminOptions(),
         ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
@@ -1133,217 +1111,258 @@ describe('adminHandlers tenant settings', () => {
           'Tenant currency and timezone settings are locked',
         );
       }),
-  );
+    );
 
-  it.effect(
-    'uses the locked tenant account and blocks a stale-header account clear while Stripe obligations are pending',
-    () =>
-      Effect.gen(function* () {
-        const database = withTenantSettingsTransaction(
-          {
-            update: () => {
-              throw new Error('database update should not be touched');
-            },
-          },
-          {
-            hasPendingStripeObligations: true,
-            lockedStripeAccountId: 'acct_existing',
-          },
-        );
-
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(),
-            timezone: 'Europe/Amsterdam',
-          },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe(
-          'Stripe account cannot change while registration Checkouts or refunds are pending',
-        );
-      }),
-  );
-
-  it.effect(
-    'blocks Stripe account removal while paid event configuration exists',
-    () =>
-      Effect.gen(function* () {
-        const database = withTenantSettingsTransaction(
-          {
-            update: () => {
-              throw new Error('database update should not be touched');
-            },
-          },
-          {
-            hasPaidEventConfiguration: true,
-            lockedStripeAccountId: 'acct_existing',
-          },
-        );
-
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          createSettingsInput(),
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe(
-          'Stripe account cannot be disconnected while paid event configuration exists',
-        );
-        expect(error.reason).toContain(
-          'Make every event and template registration option and add-on free',
-        );
-      }),
-  );
-
-  it.effect(
-    'allows Stripe account rotation when no tax-rate bindings exist',
-    () =>
-      Effect.gen(function* () {
-        let deletedTaxMetadata = false;
-        const updateQuery = {
-          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
-          set: () => updateQuery,
-          where: () => updateQuery,
-        };
-        const database = withTenantSettingsTransaction(
-          {
-            delete: () => ({
-              where: () => {
-                deletedTaxMetadata = true;
-                return Effect.void;
+    it.effect(
+      'uses the locked tenant runtime settings when the request context is stale',
+      () =>
+        Effect.gen(function* () {
+          const database = withTenantSettingsTransaction(
+            {
+              query: {
+                eventInstances: {
+                  findFirst: () => Effect.succeed({ id: 'event-1' }),
+                },
+                transactions: {
+                  findFirst: () => {
+                    throw new Error('transaction query should not be touched');
+                  },
+                },
               },
-            }),
-            update: () => updateQuery,
-          },
-          {
-            lockedStripeAccountId: 'acct_existing',
-            rotationTargetStripeAccountId: 'acct_next',
-          },
-        );
-
-        const result = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(),
-            stripeAccountId: 'acct_next',
-            timezone: 'Europe/Amsterdam',
-          },
-          createSettingsAdminOptions('acct_existing'),
-        ).pipe(Effect.provide(taxRateImportLayer(database)));
-
-        expect(deletedTaxMetadata).toBe(true);
-        expect(result.stripeAccountId).toBe('acct_next');
-      }),
-  );
-
-  it.effect(
-    'blocks Stripe disconnect while tax-rate bindings remain assigned',
-    () =>
-      Effect.gen(function* () {
-        const database = withTenantSettingsTransaction(
-          {
-            update: () => {
-              throw new Error('database update should not be touched');
-            },
-          },
-          {
-            hasStripeTaxRateConfiguration: true,
-            lockedStripeAccountId: 'acct_existing',
-          },
-        );
-
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(),
-            stripeAccountId: undefined,
-            timezone: 'Europe/Amsterdam',
-          },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe(
-          'Stripe account cannot be disconnected while tax rates remain assigned',
-        );
-        expect(error.reason).toContain('before disconnecting Stripe');
-      }),
-  );
-
-  it.effect(
-    'removes old-account and legacy tax metadata before rotating Stripe accounts',
-    () =>
-      Effect.gen(function* () {
-        let deletedTaxMetadata = false;
-        const updateQuery = {
-          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
-          set: () => updateQuery,
-          where: () => updateQuery,
-        };
-        const database = withTenantSettingsTransaction(
-          {
-            delete: () => ({
-              where: () => {
-                deletedTaxMetadata = true;
-                return Effect.void;
+              update: () => {
+                throw new Error('database update should not be touched');
               },
-            }),
-            update: () => updateQuery,
-          },
-          {
-            lockedStripeAccountId: 'acct_existing',
-            rotationTargetStripeAccountId: 'acct_new',
-          },
-        );
+            },
+            {
+              lockedTimezone: 'Europe/Prague',
+            },
+          );
 
-        const result = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(),
-            stripeAccountId: 'acct_new',
-            timezone: 'Europe/Amsterdam',
-          },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)));
+          const error = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              ...createSettingsInput(),
+              timezone: 'Europe/Amsterdam',
+            },
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
-        expect(deletedTaxMetadata).toBe(true);
-        expect(result.stripeAccountId).toBe('acct_new');
-      }),
-  );
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error.message).toBe(
+            'Tenant currency and timezone settings are locked',
+          );
+        }),
+    );
 
-  it.effect(
-    'allows other tenant edits when the locked Stripe account is unchanged',
-    () =>
-      Effect.gen(function* () {
-        let updateCalled = false;
-        const updateQuery = {
-          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
-          set: () => {
-            updateCalled = true;
-            return updateQuery;
-          },
-          where: () => updateQuery,
-        };
-        const database = withTenantSettingsTransaction(
-          { update: () => updateQuery },
-          {
-            hasPendingStripeObligations: true,
-            lockedStripeAccountId: 'acct_existing',
-          },
-        );
+    it.effect(
+      'uses the locked tenant account and blocks a stale-header account clear while Stripe obligations are pending',
+      () =>
+        Effect.gen(function* () {
+          const database = withTenantSettingsTransaction(
+            {
+              update: () => {
+                throw new Error('database update should not be touched');
+              },
+            },
+            {
+              hasPendingStripeObligations: true,
+              lockedStripeAccountId: 'acct_existing',
+            },
+          );
 
-        const result = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(),
-            seoTitle: 'Updated title',
-            stripeAccountId: 'acct_existing',
-            timezone: 'Europe/Amsterdam',
-          },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)));
+          const error = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              ...createSettingsInput(),
+              timezone: 'Europe/Amsterdam',
+            },
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
-        expect(updateCalled).toBe(true);
-        expect(result.seoTitle).toBe('Updated title');
-        expect(result.stripeAccountId).toBe('acct_existing');
-      }),
-  );
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error.message).toBe(
+            'Stripe account cannot change while registration Checkouts or refunds are pending',
+          );
+        }),
+    );
+
+    it.effect(
+      'blocks Stripe account removal while paid event configuration exists',
+      () =>
+        Effect.gen(function* () {
+          const database = withTenantSettingsTransaction(
+            {
+              update: () => {
+                throw new Error('database update should not be touched');
+              },
+            },
+            {
+              hasPaidEventConfiguration: true,
+              lockedStripeAccountId: 'acct_existing',
+            },
+          );
+
+          const error = yield* adminHandlers['admin.tenant.updateSettings'](
+            createSettingsInput(),
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error.message).toBe(
+            'Stripe account cannot be disconnected while paid event configuration exists',
+          );
+          expect(error.reason).toContain(
+            'Make every event and template registration option and add-on free',
+          );
+        }),
+    );
+
+    it.effect(
+      'allows Stripe account rotation when no tax-rate bindings exist',
+      () =>
+        Effect.gen(function* () {
+          let deletedTaxMetadata = false;
+          const updateQuery = {
+            returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+            set: () => updateQuery,
+            where: () => updateQuery,
+          };
+          const database = withTenantSettingsTransaction(
+            {
+              delete: () => ({
+                where: () => {
+                  deletedTaxMetadata = true;
+                  return Effect.void;
+                },
+              }),
+              update: () => updateQuery,
+            },
+            {
+              lockedStripeAccountId: 'acct_existing',
+              rotationTargetStripeAccountId: 'acct_next',
+            },
+          );
+
+          const result = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              ...createSettingsInput(),
+              stripeAccountId: 'acct_next',
+              timezone: 'Europe/Amsterdam',
+            },
+            createSettingsAdminOptions('acct_existing'),
+          ).pipe(Effect.provide(taxRateImportLayer(database)));
+
+          expect(deletedTaxMetadata).toBe(true);
+          expect(result.stripeAccountId).toBe('acct_next');
+        }),
+    );
+
+    it.effect(
+      'blocks Stripe disconnect while tax-rate bindings remain assigned',
+      () =>
+        Effect.gen(function* () {
+          const database = withTenantSettingsTransaction(
+            {
+              update: () => {
+                throw new Error('database update should not be touched');
+              },
+            },
+            {
+              hasStripeTaxRateConfiguration: true,
+              lockedStripeAccountId: 'acct_existing',
+            },
+          );
+
+          const error = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              ...createSettingsInput(),
+              stripeAccountId: undefined,
+              timezone: 'Europe/Amsterdam',
+            },
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error.message).toBe(
+            'Stripe account cannot be disconnected while tax rates remain assigned',
+          );
+          expect(error.reason).toContain('before disconnecting Stripe');
+        }),
+    );
+
+    it.effect(
+      'removes old-account and legacy tax metadata before rotating Stripe accounts',
+      () =>
+        Effect.gen(function* () {
+          let deletedTaxMetadata = false;
+          const updateQuery = {
+            returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+            set: () => updateQuery,
+            where: () => updateQuery,
+          };
+          const database = withTenantSettingsTransaction(
+            {
+              delete: () => ({
+                where: () => {
+                  deletedTaxMetadata = true;
+                  return Effect.void;
+                },
+              }),
+              update: () => updateQuery,
+            },
+            {
+              lockedStripeAccountId: 'acct_existing',
+              rotationTargetStripeAccountId: 'acct_new',
+            },
+          );
+
+          const result = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              ...createSettingsInput(),
+              stripeAccountId: 'acct_new',
+              timezone: 'Europe/Amsterdam',
+            },
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)));
+
+          expect(deletedTaxMetadata).toBe(true);
+          expect(result.stripeAccountId).toBe('acct_new');
+        }),
+    );
+
+    it.effect(
+      'allows other tenant edits when the locked Stripe account is unchanged',
+      () =>
+        Effect.gen(function* () {
+          let updateCalled = false;
+          const updateQuery = {
+            returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+            set: () => {
+              updateCalled = true;
+              return updateQuery;
+            },
+            where: () => updateQuery,
+          };
+          const database = withTenantSettingsTransaction(
+            { update: () => updateQuery },
+            {
+              hasPendingStripeObligations: true,
+              lockedStripeAccountId: 'acct_existing',
+            },
+          );
+
+          const result = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              ...createSettingsInput(),
+              seoTitle: 'Updated title',
+              stripeAccountId: 'acct_existing',
+              timezone: 'Europe/Amsterdam',
+            },
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)));
+
+          expect(updateCalled).toBe(true);
+          expect(result.seoTitle).toBe('Updated title');
+          expect(result.stripeAccountId).toBe('acct_existing');
+        }),
+    );
+  });
 });

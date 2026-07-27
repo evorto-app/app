@@ -69,6 +69,47 @@ export const eventRegistrations = pgTable(
       'event_registrations_checked_in_guest_count_bounded',
       sql`${table.checkedInGuestCount} BETWEEN 0 AND ${table.guestCount}`,
     ),
+    check(
+      'event_registrations_price_snapshot_complete',
+      sql`(
+        (
+          ${table.basePriceAtRegistration} IS NULL
+          AND ${table.discountAmount} IS NULL
+          AND ${table.appliedDiscountedPrice} IS NULL
+          AND ${table.appliedDiscountType} IS NULL
+        )
+        OR (
+          ${table.basePriceAtRegistration} IS NOT NULL
+          AND ${table.discountAmount} IS NOT NULL
+        )
+      )`,
+    ),
+    check(
+      'event_registrations_price_snapshot_consistent',
+      sql`(
+        ${table.basePriceAtRegistration} IS NULL
+        OR (
+          ${table.basePriceAtRegistration} >= 0
+          AND ${table.discountAmount} >= 0
+          AND (
+            (
+              ${table.appliedDiscountedPrice} IS NULL
+              AND ${table.appliedDiscountType} IS NULL
+              AND ${table.discountAmount} = 0
+            )
+            OR (
+              ${table.appliedDiscountedPrice} BETWEEN 0 AND ${table.basePriceAtRegistration}
+              AND ${table.appliedDiscountType} IS NOT NULL
+              AND ${table.discountAmount} = ${table.basePriceAtRegistration} - ${table.appliedDiscountedPrice}
+            )
+          )
+        )
+      )`,
+    ),
+    check(
+      'event_registrations_confirmed_price_snapshot',
+      sql`${table.status} <> 'CONFIRMED' OR ${table.basePriceAtRegistration} IS NOT NULL`,
+    ),
     foreignKey({
       columns: [table.eventId, table.tenantId],
       foreignColumns: [eventInstances.id, eventInstances.tenantId],

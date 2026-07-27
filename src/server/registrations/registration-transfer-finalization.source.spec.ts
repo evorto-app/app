@@ -13,7 +13,10 @@ describe('registration transfer transactional finalization source', () => {
     );
 
     expect(finalization).toContain(
-      'transfer.recipientRegistrationId !== transfer.sourceRegistrationId',
+      'const recipientRegistrationId = transfer.sourceRegistrationId',
+    );
+    expect(finalization).not.toContain(
+      'registrationTransfers.recipientRegistrationId',
     );
     expect(finalization).toContain(
       '.from(registrationTransferBundleAddonPurchases)',
@@ -241,8 +244,8 @@ describe('registration transfer transactional finalization source', () => {
 
     expect(expiry).toContain('.update(transactions)');
     expect(expiry).toContain("status: 'cancelled'");
-    expect(expiry).toContain(
-      'transfer.recipientRegistrationId !== transfer.sourceRegistrationId',
+    expect(expiry).not.toContain(
+      'registrationTransfers.recipientRegistrationId',
     );
     expect(expiry).toContain("status: 'expired'");
     expect(expiry).not.toContain('.update(eventRegistrations)');
@@ -446,8 +449,8 @@ describe('registration transfer claim lock source', () => {
     expect(cancellation).toContain(
       'eq(registrationTransfers.recipientUserId, user.id)',
     );
-    expect(cancellation).toContain(
-      'locked.recipientRegistrationId !== locked.sourceRegistrationId',
+    expect(cancellation).not.toContain(
+      'registrationTransfers.recipientRegistrationId',
     );
     expect(cancellation).toContain('.update(transactions)');
     expect(cancellation).not.toContain('.update(eventRegistrations)');

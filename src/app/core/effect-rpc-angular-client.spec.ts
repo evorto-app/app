@@ -1,12 +1,17 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   resolveServerRpcOrigin,
   resolveTrustedServerRpcOrigin,
+  ServerRpcOriginResolutionError,
 } from './effect-rpc-angular-client';
 
 describe('effect-rpc-angular-client', () => {
   const originalSsrRpcOrigin = process.env['SSR_RPC_ORIGIN'];
+
+  beforeEach(() => {
+    delete process.env['SSR_RPC_ORIGIN'];
+  });
 
   afterEach(() => {
     if (originalSsrRpcOrigin === undefined) {
@@ -40,32 +45,32 @@ describe('effect-rpc-angular-client', () => {
     ).toBe('https://alpha.evorto.app');
   });
 
-  it('uses forwarded headers when SSR request urls are relative', () => {
-    expect(
-      resolveServerRpcOrigin({
-        headers: new Headers({
-          host: 'internal.evorto.local',
-          'x-forwarded-host': 'alpha.evorto.app',
-          'x-forwarded-proto': 'https',
+  it.each(['/events?foo=bar', '://invalid-url', 'file:///tmp/rpc'])(
+    'rejects an invalid Angular request origin: %s',
+    (url) => {
+      expect(() =>
+        resolveServerRpcOrigin({
+          url,
         }),
-        url: '/events?foo=bar',
+      ).toThrow(ServerRpcOriginResolutionError);
+    },
+  );
+
+  it('does not use the request origin when configured SSR_RPC_ORIGIN is invalid', () => {
+    process.env['SSR_RPC_ORIGIN'] = 'ftp://internal.example.com';
+
+    expect(() =>
+      resolveServerRpcOrigin({
+        url: 'https://alpha.evorto.app/events',
       }),
-    ).toBe('https://alpha.evorto.app');
+    ).toThrow(ServerRpcOriginResolutionError);
   });
 
-  it('falls back to forwarded headers when the SSR request url is malformed', () => {
-    expect(
-      resolveServerRpcOrigin({
-        headers: new Headers({
-          'x-forwarded-host': 'beta.evorto.app',
-          'x-forwarded-proto': 'https',
-        }),
-        url: '://invalid-url',
-      }),
-    ).toBe('https://beta.evorto.app');
-  });
-
-  it('falls back to the local dev origin when no SSR request is available', () => {
-    expect(resolveServerRpcOrigin()).toBe('http://localhost:4200');
+  it('fails visibly when no SSR origin source is available', () => {
+    expect(() => resolveServerRpcOrigin()).toThrowError(
+      new ServerRpcOriginResolutionError(
+        'SSR RPC origin is unavailable: set SSR_RPC_ORIGIN or provide an absolute Angular REQUEST URL',
+      ),
+    );
   });
 });

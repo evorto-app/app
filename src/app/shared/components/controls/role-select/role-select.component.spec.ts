@@ -210,9 +210,11 @@ describe('RoleSelectComponent', () => {
 
     await vi.waitFor(async () => {
       await fixture.whenStable();
-      expect(fixture.nativeElement.textContent).toContain(
-        'Unavailable role (no longer available)',
+      const selectedRole = (fixture.nativeElement as HTMLElement).querySelector(
+        'mat-chip-row',
       );
+      expect(selectedRole?.textContent).toContain('Unavailable role');
+      expect(selectedRole?.textContent).toContain('(no longer available)');
       expect(fixture.nativeElement.textContent).toContain(
         '1 selected role no longer exists',
       );

@@ -19,7 +19,6 @@ import {
   MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
   MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import type { EventGraphFormModel } from './event-graph-form.model';
 
@@ -41,21 +40,12 @@ const positiveIntegerError = (value: number) =>
       }
     : undefined;
 
-const richTextUploadError = (value: string) =>
-  hasTemporaryRichTextImageSources(value)
-    ? {
-        kind: 'richTextPendingUpload',
-        message: 'Wait for image uploads to finish before saving.',
-      }
-    : undefined;
-
 export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
   required(form.title, { message: 'Enter an event title.' });
   required(form.description, { message: 'Enter an event description.' });
   required(form.icon, { message: 'Choose an event icon.' });
   required(form.start, { message: 'Enter an event start.' });
   required(form.end, { message: 'Enter an event end.' });
-  validate(form.description, ({ value }) => richTextUploadError(value()));
   validate(form.end, ({ value, valueOf }) => {
     const end = value();
     const start = valueOf(form.start);
@@ -104,10 +94,6 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
     required(option.closeRegistrationTime, {
       message: 'Enter a registration closing time.',
     });
-    validate(option.description, ({ value }) => richTextUploadError(value()));
-    validate(option.registeredDescription, ({ value }) =>
-      richTextUploadError(value()),
-    );
     validate(option.closeRegistrationTime, ({ value, valueOf }) => {
       const close = value();
       const open = valueOf(option.openRegistrationTime);
@@ -196,7 +182,6 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
 
   applyEach(form.addOns, (addOn) => {
     required(addOn.title, { message: 'Enter an add-on name.' });
-    validate(addOn.description, ({ value }) => richTextUploadError(value()));
     required(addOn.price, {
       message: 'Enter a price.',
       when: ({ valueOf }) => valueOf(addOn.isPaid),

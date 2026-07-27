@@ -174,6 +174,17 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).toThrow();
   });
 
+  it('requires canonical supported receipt country codes', () => {
+    for (const receiptCountries of [['de'], ['US', 'XX']]) {
+      expect(() =>
+        Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+          ...currentTenantSettingsInput,
+          receiptCountries,
+        }),
+      ).toThrow();
+    }
+  });
+
   it('rejects invalid sender email settings', () => {
     expect(() =>
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({

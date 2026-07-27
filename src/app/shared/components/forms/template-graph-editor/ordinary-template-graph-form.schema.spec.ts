@@ -269,11 +269,10 @@ describe('ordinaryTemplateGraphFormSchema', () => {
     expect(graph.questions[0].sortOrder().errors()).not.toEqual([]);
   });
 
-  it('rejects unfinished uploads and registration windows that close before opening', () => {
+  it('rejects registration windows that close before opening', () => {
     const model = createOrdinaryTemplateGraphFormModel();
     const option = model.registrationOptions[0];
     if (!option) throw new Error('Expected a registration option');
-    option.description = '<img src="blob:pending-upload" />';
     option.openRegistrationOffset = 10;
     option.closeRegistrationOffset = 11;
 
@@ -281,12 +280,6 @@ describe('ordinaryTemplateGraphFormSchema', () => {
       injector: TestBed.inject(Injector),
     });
 
-    expect(
-      graph.registrationOptions[0]
-        .description()
-        .errors()
-        .map((error) => error.message),
-    ).toContain('Wait for image uploads to finish before saving.');
     expect(
       graph.registrationOptions[0]
         .closeRegistrationOffset()

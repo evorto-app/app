@@ -1,4 +1,9 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  isAllowedReceiptMimeType,
+  maximumReceiptOriginalSizeBytes,
+  validateReceiptFileMetadata,
+} from '@shared/finance/receipt-media';
 import { Context, Effect, Layer } from 'effect';
 import { createHash } from 'node:crypto';
 
@@ -9,27 +14,19 @@ import {
   ReceiptMediaServiceUnavailableError,
 } from './finance.errors';
 
-export const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
-const receiptMimeTypes = new Set([
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
 
 export interface ReceiptWithStoragePreview {
   attachmentStorageKey: null | string;
-  attachmentStorageUrl: null | string;
   attachmentUploadConsumedAt: Date | null;
   attachmentUploadedAt: Date | null;
   attachmentUploadedByUserId: string;
   attachmentUploadEventId: string;
   attachmentUploadId: string;
-  attachmentUploadStatus: 'consumed' | 'pending' | 'ready' | 'rejected';
+  attachmentUploadStatus:
+    'cleaning' | 'consumed' | 'finalizing' | 'pending' | 'ready' | 'rejected';
   attachmentUploadTenantId: string;
   eventId: string;
-  previewImageUrl: null | string;
   submittedByUserId: string;
   tenantId: string;
 }
@@ -40,7 +37,6 @@ interface AvailableReceiptEvidence extends ValidReceiptEvidenceBinding {
 
 interface ReceiptWithValidStoragePreview extends ReceiptWithStoragePreview {
   attachmentStorageKey: string;
-  attachmentStorageUrl: string;
   attachmentUploadConsumedAt: Date;
   attachmentUploadedAt: Date;
 }
@@ -50,29 +46,16 @@ interface ValidReceiptEvidenceBinding {
   storageKey: string;
 }
 
-export const isAllowedReceiptMimeType = (mimeType: string): boolean =>
-  receiptMimeTypes.has(mimeType);
-
 export const validateReceiptUploadMetadata = (input: {
   mimeType: string;
   sizeBytes: number;
 }) =>
   Effect.gen(function* () {
-    if (!isAllowedReceiptMimeType(input.mimeType)) {
+    const validationError = validateReceiptFileMetadata(input);
+    if (validationError) {
       return yield* Effect.fail(
         new ReceiptMediaBadRequestError({
-          message: 'Receipts must be JPEG, PNG, WebP, or PDF files',
-        }),
-      );
-    }
-    if (
-      !Number.isSafeInteger(input.sizeBytes) ||
-      input.sizeBytes <= 0 ||
-      input.sizeBytes > MAX_RECEIPT_ORIGINAL_SIZE_BYTES
-    ) {
-      return yield* Effect.fail(
-        new ReceiptMediaBadRequestError({
-          message: 'Receipt file must be between 1 byte and 20 MB',
+          message: validationError,
         }),
       );
     }
@@ -132,7 +115,6 @@ export const hasValidReceiptUploadBinding = (
     receipt.attachmentUploadStatus === 'consumed' &&
     receipt.attachmentUploadedAt !== null &&
     receipt.attachmentUploadConsumedAt !== null &&
-    receipt.attachmentStorageUrl !== null &&
     receipt.attachmentStorageKey.startsWith(expectedStoragePrefix) &&
     receipt.attachmentStorageKey.length > expectedStoragePrefix.length
   );
@@ -433,7 +415,6 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
         'ReceiptMediaService.discardPromotedUpload',
       )(function* (storageKey: string) {
         yield* objectStorage.deleteObject(storageKey).pipe(
-          Effect.retry({ times: 3 }),
           Effect.tapError((error) =>
             logReceiptStorageFailure(
               'receiptMedia.discardPromotedUpload',
@@ -474,7 +455,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
           if (
             body.byteLength !== input.sizeBytes ||
             body.byteLength <= 0 ||
-            body.byteLength > MAX_RECEIPT_ORIGINAL_SIZE_BYTES
+            body.byteLength > maximumReceiptOriginalSizeBytes
           ) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
@@ -516,7 +497,6 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             mimeType: detectedMimeType,
             sizeBytes: body.byteLength,
             storageKey: stored.storageKey,
-            storageUrl: stored.storageUrl,
           };
         },
       );

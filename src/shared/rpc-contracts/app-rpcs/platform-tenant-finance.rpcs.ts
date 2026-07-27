@@ -17,6 +17,7 @@ import {
   FinanceReceiptPositiveMinorUnitAmount,
   validateFinanceReceiptAmounts,
 } from '../../finance/receipt-values';
+import { maximumFinanceReimbursementReceiptCount } from '../../finance/reimbursement';
 import { RegistrationTransferStatus } from '../../registration-transfer';
 import { ReceiptMediaServiceUnavailableError } from './finance.errors';
 import {
@@ -304,7 +305,7 @@ export const PlatformFinanceRecordReimbursementInput = Schema.Struct({
   payoutType: PlatformFinancePayoutType,
   payoutVersion: Schema.NonEmptyString,
   receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString).check(
-    Schema.isMaxLength(100),
+    Schema.isMaxLength(maximumFinanceReimbursementReceiptCount),
   ),
 });
 

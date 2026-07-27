@@ -24,7 +24,6 @@ import {
   tenantOnboardingQuestions,
   tenantPrivacyPolicyAcceptances,
   tenantPrivacyPolicyVersions,
-  tenants,
   users,
   usersToTenants,
 } from '../../../../db/schema';
@@ -502,10 +501,6 @@ export const onboardingHandlers = {
                 }
               }
 
-              yield* tx
-                .update(tenants)
-                .set(policy)
-                .where(eq(tenants.id, context.tenant.id));
               const affectedUsers = policyResult.changed
                 ? yield* countAffectedTenantUsers(tx, context.tenant.id)
                 : 0;

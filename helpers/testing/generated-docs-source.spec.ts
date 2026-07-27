@@ -1433,12 +1433,14 @@ describe('generated docs source current behavior', () => {
     expect(paidTransferScenarioSource).toContain(
       'sourceTransactionIds: [sourceTransactionId, sourceAddonTransactionId]',
     );
-    expect(paidTransferScenarioSource).toContain(
+    expect(paidTransferScenarioSource).not.toContain(
       'recipientRegistrationId: sourceRegistrationId',
     );
-    expect(paidTransferScenarioSource).toContain('recipientSpotCount: 2');
+    expect(paidTransferScenarioSource).not.toContain('recipientSpotCount: 2');
     expect(paidTransferScenarioSource).toContain('sourceSpotCount: 2');
-    expect(paidTransferScenarioSource).toContain('reservedAdditionalSpots: 0');
+    expect(paidTransferScenarioSource).not.toContain(
+      'reservedAdditionalSpots: 0',
+    );
     expect(paidTransferScenarioSource).not.toContain(
       'sourcePaymentTransactionId',
     );

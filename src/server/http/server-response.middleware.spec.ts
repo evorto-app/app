@@ -110,14 +110,46 @@ describe('server response middleware', () => {
       new URL('../../server.ts', import.meta.url),
       'utf8',
     );
+    const nodeHandlerStart = serverSource.indexOf(
+      'const getRequestHandler = () => {',
+    );
+    const nodeHandlerEnd = serverSource.indexOf(
+      'const requestPathname =',
+      nodeHandlerStart,
+    );
+    const nodeHandlerSource = serverSource.slice(
+      nodeHandlerStart,
+      nodeHandlerEnd,
+    );
+    const bunServerStart = serverSource.indexOf('const bunServeOptions = {');
+    const bunServerEnd = serverSource.indexOf(
+      'return yield* Effect.scoped(',
+      bunServerStart,
+    );
+    const bunServerSource = serverSource.slice(bunServerStart, bunServerEnd);
 
-    expect(
-      serverSource.match(
-        /HttpLayerRouter\.serve\([^,]+,\s*\{\s*disableLogger:\s*true,\s*\}\)/gu,
-      ),
-    ).toHaveLength(4);
-    expect(serverSource).toMatch(
-      /HttpLayerRouter\.toWebHandler\(\s*handlerAppLayer,\s*\{\s*disableLogger:\s*true\s*\},?\s*\)/gu,
+    expect(nodeHandlerStart).toBeGreaterThanOrEqual(0);
+    expect(nodeHandlerEnd).toBeGreaterThan(nodeHandlerStart);
+    expect(nodeHandlerSource).toContain(
+      'HttpLayerRouter.toWebHandler(\n    handlerAppLayer,\n    { disableLogger: true },\n  )',
+    );
+
+    expect(bunServerStart).toBeGreaterThanOrEqual(0);
+    expect(bunServerEnd).toBeGreaterThan(bunServerStart);
+    expect(bunServerSource).toContain(
+      'const bunServeOptions = {\n    disableLogger: true,\n  } as const;',
+    );
+    expect(bunServerSource).toContain(
+      'HttpLayerRouter.serve(bootstrapRoutesLayer, bunServeOptions)',
+    );
+    expect(bunServerSource).toContain(
+      'HttpLayerRouter.serve(webRoutesLayer, bunServeOptions)',
+    );
+    expect(bunServerSource).toContain(
+      'HttpLayerRouter.serve(\n            configuredWorkerRoutesLayer,\n            bunServeOptions,\n          )',
+    );
+    expect(bunServerSource).toContain(
+      'HttpLayerRouter.serve(opsRoutesLayer, bunServeOptions)',
     );
   });
 

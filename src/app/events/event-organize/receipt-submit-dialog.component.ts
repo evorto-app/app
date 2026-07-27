@@ -16,6 +16,11 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { firstReceiptCountry } from '@shared/finance/receipt-countries';
+import {
+  receiptFileAccept,
+  validateReceiptFileMetadata,
+} from '@shared/finance/receipt-media';
 import {
   isFinanceReceiptCalendarDate,
   validateFinanceReceiptAmounts,
@@ -61,9 +66,6 @@ export interface ReceiptSubmitFormValue {
   totalAmount: number;
 }
 
-const supportedReceiptFile = (file: File): boolean =>
-  file.type.startsWith('image/') || file.type === 'application/pdf';
-
 const parseRequiredMinorUnits = (value: number): null | number => {
   const parsed = majorCurrencyInputToMinorUnits(String(value), false);
   return 'value' in parsed && typeof parsed.value === 'number'
@@ -91,9 +93,13 @@ export const receiptSubmitDialogResultFromFormValue = ({
     };
   }
 
-  if (!supportedReceiptFile(file)) {
+  const fileValidationError = validateReceiptFileMetadata({
+    mimeType: file.type,
+    sizeBytes: file.size,
+  });
+  if (fileValidationError) {
     return {
-      errorMessage: 'Only image and PDF files are supported.',
+      errorMessage: fileValidationError,
       result: null,
     };
   }
@@ -209,13 +215,12 @@ export class ReceiptSubmitDialogComponent {
   private readonly defaultCountry =
     this.selectableCountries.find(
       (country) => country === this.data.defaultCountry,
-    ) ??
-    this.selectableCountries[0] ??
-    'DE';
+    ) ?? firstReceiptCountry(this.selectableCountries);
   protected readonly form = createReceiptForm(
     this.formBuilder,
     this.defaultCountry,
   );
+  protected readonly receiptFileAccept = receiptFileAccept;
   private readonly dialogRef = inject(
     MatDialogRef<ReceiptSubmitDialogComponent, ReceiptSubmitDialogResult>,
   );

@@ -131,6 +131,8 @@ Use:
 - Effect Schema for input/output validation
 - typed error channels
 - explicit domain error mapping
+- one typed `RpcRequestContext` service provided at the HTTP request boundary;
+  trusted identity, tenant, and permission state never travels through headers
 
 Do not introduce new Express/Hono server paths.
 

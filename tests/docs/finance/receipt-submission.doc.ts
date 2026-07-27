@@ -277,8 +277,6 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
     expect.objectContaining({
       alcoholAmount: 300,
       attachmentFileName: receiptName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: receiptFileSize,
       currency: tenant.currency,
       depositAmount: 250,
       eventId,
@@ -305,9 +303,6 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
   if (!uploadedReceipt) {
     throw new Error('Expected bound receipt upload after documentation upload');
   }
-  if (!uploadedReceipt.storageUrl) {
-    throw new Error('Expected receipt upload to have an object-storage URL');
-  }
 
   const receiptDigest = createHash('sha256')
     .update(await readFile(receiptFile))
@@ -330,13 +325,6 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
       uploadedAt: expect.any(Date),
     }),
   );
-
-  const storageUrl = new URL(uploadedReceipt.storageUrl);
-  const storagePathSegments = storageUrl.pathname.split('/').filter(Boolean);
-  const receiptKeySegments = expectedStorageKey.split('/');
-  expect(storageUrl.protocol).toBe('s3:');
-  expect(storageUrl.hostname).not.toBe('');
-  expect(storagePathSegments).toEqual(receiptKeySegments);
 
   const submissionEmails = await database
     .select({ id: schema.emailOutbox.id })

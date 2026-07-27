@@ -2,6 +2,7 @@ import {
   RpcBadRequestError,
   RpcForbiddenError,
 } from '@shared/errors/rpc-errors';
+import { resolveFinanceReimbursementBatch } from '@shared/finance/reimbursement';
 import { isCanonicalIban } from '@shared/iban';
 import { isCanonicalEmailAddress } from '@shared/notification-email';
 import {
@@ -208,50 +209,16 @@ export const financeReceiptsHandlers = {
               });
             }
 
-            const targetUserId = receipts[0]?.submittedByUserId;
-            if (!targetUserId) {
-              return yield* new RpcBadRequestError({
-                message: 'Refund target user is missing',
-                reason: 'missingTargetUser',
-              });
+            const reimbursementBatch =
+              resolveFinanceReimbursementBatch(receipts);
+            if (reimbursementBatch.error) {
+              return yield* new RpcBadRequestError(reimbursementBatch.error);
             }
-            if (
-              receipts.some(
-                (receipt) => receipt.submittedByUserId !== targetUserId,
-              )
-            ) {
-              return yield* new RpcBadRequestError({
-                message: 'Refund receipts must belong to the same submitter',
-                reason: 'mismatchedSubmitter',
-              });
-            }
-
-            const receiptCurrency = receipts[0]?.currency;
-            if (!receiptCurrency) {
-              return yield* new RpcBadRequestError({
-                message: 'Refund receipt currency is missing',
-                reason: 'missingReceiptCurrency',
-              });
-            }
-            if (
-              receipts.some((receipt) => receipt.currency !== receiptCurrency)
-            ) {
-              return yield* new RpcBadRequestError({
-                message: 'Refund receipts must use the same recorded currency',
-                reason: 'mismatchedReceiptCurrency',
-              });
-            }
-
-            const totalAmount = receipts.reduce(
-              (sum, receipt) => sum + receipt.totalAmount,
-              0,
-            );
-            if (totalAmount <= 0) {
-              return yield* new RpcBadRequestError({
-                message: 'Reimbursement total must be positive',
-                reason: 'invalidReimbursementTotal',
-              });
-            }
+            const {
+              currency: receiptCurrency,
+              targetUserId,
+              totalAmount,
+            } = reimbursementBatch;
 
             const payoutUsers = yield* tx
               .select({
@@ -270,54 +237,56 @@ export const financeReceiptsHandlers = {
                 resource: 'payoutUser',
               });
             }
-            if (input.payoutType === 'iban' && !payoutUser.iban) {
-              return yield* new RpcBadRequestError({
-                message: 'Reimbursement recipient is missing an IBAN',
-                reason: 'missingIban',
-              });
-            }
-            if (input.payoutType === 'paypal' && !payoutUser.paypalEmail) {
-              return yield* new RpcBadRequestError({
-                message:
-                  'Reimbursement recipient is missing a PayPal email address',
-                reason: 'missingPaypal',
-              });
-            }
-            if (
-              input.payoutType === 'iban' &&
-              (!isCanonicalIban(input.payoutReference) ||
-                !isCanonicalIban(payoutUser.iban))
-            ) {
-              return yield* new RpcBadRequestError({
-                message: 'Reimbursement recipient has an invalid IBAN',
-                reason: 'invalidIban',
-              });
-            }
-            if (
-              input.payoutType === 'paypal' &&
-              (!isCanonicalEmailAddress(input.payoutReference) ||
-                !isCanonicalEmailAddress(payoutUser.paypalEmail))
-            ) {
-              return yield* new RpcBadRequestError({
-                message:
-                  'Reimbursement recipient has an invalid PayPal email address',
-                reason: 'invalidPaypal',
-              });
-            }
-
-            const expectedPayoutReference =
-              input.payoutType === 'paypal'
-                ? payoutUser.paypalEmail
-                : payoutUser.iban;
-            if (
-              !expectedPayoutReference ||
-              input.payoutReference !== expectedPayoutReference
-            ) {
-              return yield* new RpcBadRequestError({
-                message:
-                  'Payout reference does not match the selected recipient',
-                reason: 'payoutReferenceMismatch',
-              });
+            if (input.payoutType === 'iban') {
+              const iban = payoutUser.iban;
+              if (!iban) {
+                return yield* new RpcBadRequestError({
+                  message: 'Reimbursement recipient is missing an IBAN',
+                  reason: 'missingIban',
+                });
+              }
+              if (
+                !isCanonicalIban(input.payoutReference) ||
+                !isCanonicalIban(iban)
+              ) {
+                return yield* new RpcBadRequestError({
+                  message: 'Reimbursement recipient has an invalid IBAN',
+                  reason: 'invalidIban',
+                });
+              }
+              if (input.payoutReference !== iban) {
+                return yield* new RpcBadRequestError({
+                  message:
+                    'Payout reference does not match the selected recipient',
+                  reason: 'payoutReferenceMismatch',
+                });
+              }
+            } else {
+              const paypalEmail = payoutUser.paypalEmail;
+              if (!paypalEmail) {
+                return yield* new RpcBadRequestError({
+                  message:
+                    'Reimbursement recipient is missing a PayPal email address',
+                  reason: 'missingPaypal',
+                });
+              }
+              if (
+                !isCanonicalEmailAddress(input.payoutReference) ||
+                !isCanonicalEmailAddress(paypalEmail)
+              ) {
+                return yield* new RpcBadRequestError({
+                  message:
+                    'Reimbursement recipient has an invalid PayPal email address',
+                  reason: 'invalidPaypal',
+                });
+              }
+              if (input.payoutReference !== paypalEmail) {
+                return yield* new RpcBadRequestError({
+                  message:
+                    'Payout reference does not match the selected recipient',
+                  reason: 'payoutReferenceMismatch',
+                });
+              }
             }
 
             const uniqueEventIds = [
@@ -986,8 +955,6 @@ export const financeReceiptsHandlers = {
               .values({
                 alcoholAmount: input.fields.alcoholAmount,
                 attachmentFileName: input.attachment.fileName,
-                attachmentMimeType: upload.mimeType,
-                attachmentSizeBytes: upload.sizeBytes,
                 attachmentUploadId: upload.id,
                 currency: tenant.currency,
                 depositAmount: input.fields.depositAmount,

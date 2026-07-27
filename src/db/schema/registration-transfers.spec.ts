@@ -20,26 +20,6 @@ import {
   registrationTransferSourceRegistrationOwnerForeignKeyName,
 } from './registration-transfers';
 
-const expectCheckSql = ({
-  name,
-  sql,
-  table,
-}: {
-  name: string;
-  sql: string;
-  table: Parameters<typeof getTableConfig>[0];
-}) => {
-  const constraint = getTableConfig(table).checks.find(
-    (candidate) => candidate.name === name,
-  );
-
-  expect(constraint).toBeDefined();
-  if (!constraint) {
-    throw new Error(`Expected ${name} check constraint`);
-  }
-  expect(new PgDialect().sqlToQuery(constraint.value).sql).toBe(sql);
-};
-
 const expectForeignKey = ({
   columns,
   foreignColumns,
@@ -135,42 +115,22 @@ describe('registration transfer schema', () => {
       expect.arrayContaining([
         'compensation_refund_transaction_id',
         'recipient_checkout_transaction_id',
-        'recipient_registration_id',
-        'recipient_spot_count',
-        'reserved_additional_spots',
         'source_registration_id',
         'source_spot_count',
       ]),
     );
+    expect(columnNames).not.toContain('recipient_registration_id');
+    expect(columnNames).not.toContain('recipient_spot_count');
+    expect(columnNames).not.toContain('reserved_additional_spots');
     expect(columnNames).not.toContain('refund_transaction_id');
     expect(columnNames).not.toContain('source_payment_transaction_id');
     expect(columnNames).not.toContain('source_refund_amount');
     expect(columnNames).not.toContain('source_refund_application_fee');
     expect(tableConfig.checks.map((constraint) => constraint.name)).toEqual(
       expect.arrayContaining([
-        'registration_transfers_recipient_is_source_registration',
-        'registration_transfers_recipient_preserves_spots',
-        'registration_transfers_recipient_spot_count_positive',
-        'registration_transfers_reserved_spots_nonnegative',
         'registration_transfers_source_spot_count_positive',
       ]),
     );
-
-    expectCheckSql({
-      name: 'registration_transfers_recipient_is_source_registration',
-      sql: `"registration_transfers"."recipient_registration_id" IS NULL OR "registration_transfers"."recipient_registration_id" = "registration_transfers"."source_registration_id"`,
-      table: registrationTransfers,
-    });
-    expectCheckSql({
-      name: 'registration_transfers_recipient_preserves_spots',
-      sql: `"registration_transfers"."recipient_spot_count" IS NULL OR "registration_transfers"."recipient_spot_count" = "registration_transfers"."source_spot_count"`,
-      table: registrationTransfers,
-    });
-    expectCheckSql({
-      name: 'registration_transfers_reserved_spots_nonnegative',
-      sql: `"registration_transfers"."reserved_additional_spots" = 0`,
-      table: registrationTransfers,
-    });
 
     expectUniqueConstraint({
       columns: ['id', 'tenantId'],
@@ -192,12 +152,6 @@ describe('registration transfer schema', () => {
       columns: ['recipient_checkout_transaction_id', 'tenantId'],
       foreignColumns: ['id', 'tenantId'],
       name: 'registration_transfers_recipient_checkout_tenant_fk',
-      table: registrationTransfers,
-    });
-    expectForeignKey({
-      columns: ['recipient_registration_id', 'tenantId'],
-      foreignColumns: ['id', 'tenantId'],
-      name: 'registration_transfers_recipient_registration_tenant_fk',
       table: registrationTransfers,
     });
     expectForeignKey({

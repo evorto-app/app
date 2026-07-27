@@ -667,9 +667,12 @@ export class PlatformFinanceComponent {
             receiptIds: [],
           });
         }
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The reimbursement could not be recorded. Review the details and try again.',
+          getErrorMessage(
+            error,
+            'The reimbursement could not be recorded. Review the details and try again.',
+          ),
         );
       }
     });
@@ -695,9 +698,12 @@ export class PlatformFinanceComponent {
         );
         this.selectedRefundClaim.set(null);
         this.refundRecoveryModel.set({ reason: '', refundClaimId: '' });
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The refund recovery action could not be saved. Try again.',
+          getErrorMessage(
+            error,
+            'The refund recovery action could not be saved. Try again.',
+          ),
         );
       }
     });
@@ -740,9 +746,12 @@ export class PlatformFinanceComponent {
         );
         this.selectedReceipt.set(null);
         this.reviewModel.set(emptyReview());
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The receipt review could not be saved. Review the details and try again.',
+          getErrorMessage(
+            error,
+            'The receipt review could not be saved. Review the details and try again.',
+          ),
         );
       }
     });

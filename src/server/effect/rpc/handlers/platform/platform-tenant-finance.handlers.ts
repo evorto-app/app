@@ -1,5 +1,9 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { resolveReceiptCountrySettings } from '@shared/finance/receipt-countries';
+import {
+  maskFinancePayoutDestination,
+  resolveFinanceReimbursementBatch,
+} from '@shared/finance/reimbursement';
 import { isCanonicalIban } from '@shared/iban';
 import { isCanonicalEmailAddress } from '@shared/notification-email';
 import { type Permission } from '@shared/permissions/permissions';
@@ -91,9 +95,10 @@ type DatabaseTransaction = Parameters<
   Parameters<DatabaseClient['transaction']>[0]
 >[0];
 
-type FinanceReceiptRow = Parameters<
-  typeof normalizeFinanceReceiptBaseRecord
->[0];
+type FinanceReceiptRow = Omit<
+  Parameters<typeof normalizeFinanceReceiptBaseRecord>[0],
+  'previewImageUrl'
+>;
 
 interface FinanceReceiptSubmitterRow extends FinanceReceiptRow {
   readonly submittedByCommunicationEmail: string;
@@ -186,6 +191,8 @@ const PlatformFinanceReceiptReviewAuditState = Schema.Struct({
 
 const PlatformFinanceReimbursementAuditState = Schema.Struct({
   currency: Tenant.fields.currency,
+  payoutDestinationMasked: Schema.NonEmptyString,
+  payoutFingerprint: Schema.String.check(Schema.isPattern(/^[a-f\d]{64}$/u)),
   payoutType: PlatformFinancePayoutType,
   receiptCount: Schema.Number,
   receiptIds: Schema.Array(Schema.NonEmptyString),
@@ -483,7 +490,10 @@ export const toRefundRecoveryRecord = (claim: RefundRecoveryCandidate) => {
 };
 
 const toPlatformReceiptRecord = (receipt: FinanceReceiptRow) => {
-  const normalized = normalizeFinanceReceiptBaseRecord(receipt);
+  const normalized = normalizeFinanceReceiptBaseRecord({
+    ...receipt,
+    previewImageUrl: null,
+  });
 
   return {
     alcoholAmount: normalized.alcoholAmount,
@@ -563,6 +573,8 @@ const reviewAuditSnapshot = (
 
 export const reimbursementAuditSnapshot = (input: {
   readonly currency: Tenant['currency'];
+  readonly payoutDestinationMasked: string;
+  readonly payoutFingerprint: string;
   readonly payoutType: Schema.Schema.Type<typeof PlatformFinancePayoutType>;
   readonly receiptIds: readonly string[];
   readonly refundedAt: Date | null;
@@ -580,6 +592,8 @@ export const reimbursementAuditSnapshot = (input: {
     resourceType: 'receipt',
     state: Schema.decodeUnknownSync(PlatformFinanceReimbursementAuditState)({
       currency: input.currency,
+      payoutDestinationMasked: input.payoutDestinationMasked,
+      payoutFingerprint: input.payoutFingerprint,
       payoutType: input.payoutType,
       receiptCount: input.receiptIds.length,
       receiptIds: input.receiptIds,
@@ -647,30 +661,6 @@ export const platformReceiptReviewUpdate = (input: {
 export const canPlatformReviewReceipt = (
   status: FinanceReceiptTableRow['status'],
 ): boolean => status === 'submitted';
-
-export const resolvePlatformReimbursementCurrency = Effect.fn(
-  'PlatformTenantFinance.resolveReimbursementCurrency',
-)(function* (
-  receipts: readonly {
-    currency: Tenant['currency'];
-  }[],
-) {
-  const receiptCurrency = receipts[0]?.currency;
-  if (!receiptCurrency) {
-    return yield* new RpcBadRequestError({
-      message: 'Reimbursement receipt currency is missing',
-      reason: 'missingReceiptCurrency',
-    });
-  }
-  if (receipts.some((receipt) => receipt.currency !== receiptCurrency)) {
-    return yield* new RpcBadRequestError({
-      message: 'A reimbursement batch must use one recorded receipt currency',
-      reason: 'mismatchedReceiptCurrency',
-    });
-  }
-
-  return receiptCurrency;
-});
 
 export const platformReimbursementTransactionInsert = (input: {
   readonly currency: Tenant['currency'];
@@ -1170,26 +1160,16 @@ const recordReimbursement = Effect.fn(
               });
             }
 
-            const targetUserId = lockedReceipts[0]?.submittedByUserId;
-            if (!targetUserId) {
-              return yield* new RpcBadRequestError({
-                message: 'Reimbursement recipient is missing',
-                reason: 'missingTargetUser',
-              });
+            const reimbursementBatch =
+              resolveFinanceReimbursementBatch(lockedReceipts);
+            if (reimbursementBatch.error) {
+              return yield* new RpcBadRequestError(reimbursementBatch.error);
             }
-            if (
-              lockedReceipts.some(
-                (receipt) => receipt.submittedByUserId !== targetUserId,
-              )
-            ) {
-              return yield* new RpcBadRequestError({
-                message: 'Receipts must belong to the same submitter',
-                reason: 'mismatchedSubmitter',
-              });
-            }
-
-            const receiptCurrency =
-              yield* resolvePlatformReimbursementCurrency(lockedReceipts);
+            const {
+              currency: receiptCurrency,
+              targetUserId,
+              totalAmount,
+            } = reimbursementBatch;
 
             const payoutUsers = yield* transaction
               .select({
@@ -1243,27 +1223,21 @@ const recordReimbursement = Effect.fn(
                 reason: 'invalidPaypal',
               });
             }
-            if (
-              payoutDetailsVersion(input.payoutType, payoutReference) !==
-              input.payoutVersion
-            ) {
+            const payoutFingerprint = payoutDetailsVersion(
+              input.payoutType,
+              payoutReference,
+            );
+            if (payoutFingerprint !== input.payoutVersion) {
               return yield* new RpcBadRequestError({
                 message:
                   'The recipient payout details changed. Refresh the queue and verify the current destination before recording the reimbursement.',
                 reason: 'payoutDetailsChanged',
               });
             }
-
-            const totalAmount = lockedReceipts.reduce(
-              (sum, receipt) => sum + receipt.totalAmount,
-              0,
+            const payoutDestinationMasked = maskFinancePayoutDestination(
+              input.payoutType,
+              payoutReference,
             );
-            if (totalAmount <= 0) {
-              return yield* new RpcBadRequestError({
-                message: 'Reimbursement total must be positive',
-                reason: 'invalidReimbursementTotal',
-              });
-            }
             const eventIds = [
               ...new Set(lockedReceipts.map((receipt) => receipt.eventId)),
             ];
@@ -1321,6 +1295,8 @@ const recordReimbursement = Effect.fn(
               action: 'receipt.reimburse',
               after: reimbursementAuditSnapshot({
                 currency: receiptCurrency,
+                payoutDestinationMasked,
+                payoutFingerprint,
                 payoutType: input.payoutType,
                 receiptIds,
                 refundedAt,
@@ -1330,6 +1306,8 @@ const recordReimbursement = Effect.fn(
               }),
               before: reimbursementAuditSnapshot({
                 currency: receiptCurrency,
+                payoutDestinationMasked,
+                payoutFingerprint,
                 payoutType: input.payoutType,
                 receiptIds,
                 refundedAt: null,
@@ -1607,7 +1585,7 @@ export const platformTenantFinanceHandlers = {
               transferEventId: registrationTransfers.eventId,
               transferId: registrationTransfers.id,
               transferRecipientRegistrationId:
-                registrationTransfers.recipientRegistrationId,
+                registrationTransfers.sourceRegistrationId,
               transferSourceRegistrationId:
                 registrationTransfers.sourceRegistrationId,
               transferStatus: registrationTransfers.status,

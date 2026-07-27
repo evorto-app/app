@@ -43,8 +43,6 @@ test('profile receipts show submitted receipt status and event context', async (
     await database.insert(schema.financeReceipts).values({
       alcoholAmount: 0,
       attachmentFileName: receiptFileName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 2048,
       attachmentUploadId: receiptUploadId,
       currency: seeded.tenant.currency,
       depositAmount: 0,

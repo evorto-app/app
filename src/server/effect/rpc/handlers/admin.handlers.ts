@@ -1,13 +1,11 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { resolveReceiptCountrySettings } from '@shared/finance/receipt-countries';
 import {
   AdminRoleNotFoundError,
   AdminTenantNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/admin.errors';
 import { RoleNameAlreadyExistsError } from '@shared/rpc-contracts/app-rpcs/role-write.shared';
-import {
-  resolveTenantReceiptSettings,
-  type TenantDiscountProviders,
-} from '@shared/tenant-config';
+import { type TenantDiscountProviders } from '@shared/tenant-config';
 import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -19,10 +17,7 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
-import {
-  partitionTenantRolePermissions,
-  type Permission,
-} from '../../../../shared/permissions/permissions';
+import { AdminRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
@@ -320,14 +315,7 @@ const normalizeHubRoleRecord = (role: {
   };
 };
 
-const normalizeAdminRoleRecord = <
-  Role extends { permissions: readonly Permission[] },
->(
-  role: Role,
-) => ({
-  ...role,
-  permissions: partitionTenantRolePermissions(role.permissions).accepted,
-});
+const decodeAdminRoleRecord = Schema.decodeUnknownSync(AdminRoleRecord);
 
 export const adminHandlers = {
   'admin.roles.create': (input, _options) =>
@@ -366,7 +354,7 @@ export const adminHandlers = {
         return yield* Effect.die(new Error('Role insert returned no rows'));
       }
 
-      return normalizeAdminRoleRecord(createdRole);
+      return decodeAdminRoleRecord(createdRole);
     }),
   'admin.roles.delete': ({ id }, _options) =>
     Effect.gen(function* () {
@@ -479,7 +467,7 @@ export const adminHandlers = {
         }),
       );
 
-      return tenantRoles.map((role) => normalizeAdminRoleRecord(role));
+      return tenantRoles.map((role) => decodeAdminRoleRecord(role));
     }),
   'admin.roles.findOne': ({ id }, _options) =>
     Effect.gen(function* () {
@@ -506,7 +494,7 @@ export const adminHandlers = {
         );
       }
 
-      return normalizeAdminRoleRecord(role);
+      return decodeAdminRoleRecord(role);
     }),
   'admin.roles.search': ({ search }, _options) =>
     Effect.gen(function* () {
@@ -533,7 +521,7 @@ export const adminHandlers = {
         }),
       );
 
-      return matchingRoles.map((role) => normalizeAdminRoleRecord(role));
+      return matchingRoles.map((role) => decodeAdminRoleRecord(role));
     }),
   'admin.roles.update': ({ id, ...input }, _options) =>
     Effect.gen(function* () {
@@ -593,7 +581,7 @@ export const adminHandlers = {
         );
       }
 
-      return normalizeAdminRoleRecord(updatedRole);
+      return decodeAdminRoleRecord(updatedRole);
     }),
   'admin.tenant.importStripeTaxRates': ({ ids }, _options) =>
     Effect.gen(function* () {
@@ -765,7 +753,7 @@ export const adminHandlers = {
         emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
         maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
-        receiptSettings: resolveTenantReceiptSettings({
+        receiptSettings: resolveReceiptCountrySettings({
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
@@ -799,7 +787,7 @@ export const adminHandlers = {
         emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
         maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
-        receiptSettings: resolveTenantReceiptSettings({
+        receiptSettings: resolveReceiptCountrySettings({
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),

@@ -49,6 +49,20 @@ describe('finance receipt values', () => {
   it.each([
     ['zero total', { totalAmount: 0 }, 'totalAmountOutOfRange'],
     ['fractional total', { totalAmount: 100.5 }, 'totalAmountOutOfRange'],
+    ['fractional tax', { taxAmount: 0.5 }, 'taxAmountOutOfRange'],
+    [
+      'fractional deposit',
+      { depositAmount: 0.5, hasDeposit: true },
+      'depositAmountOutOfRange',
+    ],
+    [
+      'fractional alcohol',
+      { alcoholAmount: 0.5, hasAlcohol: true },
+      'alcoholAmountOutOfRange',
+    ],
+    ['negative tax', { taxAmount: -1 }, 'taxAmountOutOfRange'],
+    ['negative deposit', { depositAmount: -1 }, 'depositAmountOutOfRange'],
+    ['negative alcohol', { alcoholAmount: -1 }, 'alcoholAmountOutOfRange'],
     [
       'amount beyond PostgreSQL integer',
       { totalAmount: maximumFinanceReceiptMinorUnits + 1 },

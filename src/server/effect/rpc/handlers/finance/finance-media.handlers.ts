@@ -121,7 +121,6 @@ export const financeMediaHandlers = {
             sizeBytes: input.sizeBytes,
             status: 'pending',
             storageKey,
-            storageUrl: null,
             tenantId: tenant.id,
             uploadedAt: null,
             uploadedByUserId: user.id,
@@ -249,14 +248,57 @@ export const financeMediaHandlers = {
         );
       }
 
+      const claimedRows = yield* Database.use((database) =>
+        database
+          .update(financeReceiptUploads)
+          .set({ status: 'finalizing' })
+          .where(
+            and(
+              eq(financeReceiptUploads.id, upload.id),
+              eq(financeReceiptUploads.tenantId, tenant.id),
+              eq(financeReceiptUploads.eventId, upload.eventId),
+              eq(financeReceiptUploads.uploadedByUserId, user.id),
+              eq(financeReceiptUploads.storageKey, upload.storageKey),
+              eq(financeReceiptUploads.status, 'pending'),
+              gte(financeReceiptUploads.expiresAt, now),
+            ),
+          )
+          .returning({
+            eventId: financeReceiptUploads.eventId,
+            fileName: financeReceiptUploads.fileName,
+            id: financeReceiptUploads.id,
+            mimeType: financeReceiptUploads.mimeType,
+            sizeBytes: financeReceiptUploads.sizeBytes,
+            storageKey: financeReceiptUploads.storageKey,
+          }),
+      ).pipe(
+        mapStorageMutationError(
+          'receiptMedia.upload.claim',
+          'Failed to claim receipt upload for finalization',
+        ),
+      );
+      const claimed = claimedRows[0];
+      if (!claimed) {
+        const concurrent = yield* loadUpload;
+        if (concurrent?.status === 'ready') {
+          return finalizedUpload(concurrent);
+        }
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Receipt upload is already being finalized',
+            reason: 'receipt_upload_unavailable',
+          }),
+        );
+      }
+
       const inspected = yield* ReceiptMediaService.inspectUpload({
-        eventId: upload.eventId,
-        fileName: upload.fileName,
-        mimeType: upload.mimeType,
-        sizeBytes: upload.sizeBytes,
-        storageKey: upload.storageKey,
+        eventId: claimed.eventId,
+        fileName: claimed.fileName,
+        mimeType: claimed.mimeType,
+        sizeBytes: claimed.sizeBytes,
+        storageKey: claimed.storageKey,
         tenantId: tenant.id,
-        uploadId: upload.id,
+        uploadId: claimed.id,
         userId: user.id,
       }).pipe(
         Effect.tapErrorTag('ReceiptMediaBadRequestError', (error) =>
@@ -267,7 +309,7 @@ export const financeMediaHandlers = {
               .where(
                 and(
                   eq(financeReceiptUploads.id, upload.id),
-                  eq(financeReceiptUploads.status, 'pending'),
+                  eq(financeReceiptUploads.status, 'finalizing'),
                 ),
               ),
           ).pipe(
@@ -285,7 +327,6 @@ export const financeMediaHandlers = {
             rejectionReason: null,
             status: 'ready',
             storageKey: inspected.storageKey,
-            storageUrl: inspected.storageUrl,
             uploadedAt: now,
           })
           .where(
@@ -294,9 +335,8 @@ export const financeMediaHandlers = {
               eq(financeReceiptUploads.tenantId, tenant.id),
               eq(financeReceiptUploads.eventId, upload.eventId),
               eq(financeReceiptUploads.uploadedByUserId, user.id),
-              eq(financeReceiptUploads.storageKey, upload.storageKey),
-              eq(financeReceiptUploads.status, 'pending'),
-              gte(financeReceiptUploads.expiresAt, now),
+              eq(financeReceiptUploads.storageKey, claimed.storageKey),
+              eq(financeReceiptUploads.status, 'finalizing'),
             ),
           )
           .returning({
@@ -316,13 +356,7 @@ export const financeMediaHandlers = {
         return finalizedUpload(finalized);
       }
 
-      const concurrent = yield* loadUpload;
-      if (concurrent?.storageKey !== inspected.storageKey) {
-        yield* ReceiptMediaService.discardPromotedUpload(inspected.storageKey);
-      }
-      if (concurrent?.status === 'ready') {
-        return finalizedUpload(concurrent);
-      }
+      yield* ReceiptMediaService.discardPromotedUpload(inspected.storageKey);
       return yield* Effect.fail(
         new RpcBadRequestError({
           message: 'Receipt upload could not be finalized',

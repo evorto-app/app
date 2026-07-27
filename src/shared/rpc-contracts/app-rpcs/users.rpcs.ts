@@ -1,7 +1,12 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { IbanInput } from '@shared/iban';
 import { EmailAddressInput } from '@shared/notification-email';
-import { literalUnion, positiveNumber } from '@shared/schema-utilities';
+import {
+  literalUnion,
+  PageLimit,
+  PageOffset,
+  positiveNumber,
+} from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -40,8 +45,8 @@ export const UsersCanUseScanner = asRpcQuery(
 );
 
 export const UsersFindManyInput = Schema.Struct({
-  limit: Schema.optional(Schema.Number),
-  offset: Schema.optional(Schema.Number),
+  limit: Schema.optional(PageLimit),
+  offset: Schema.optional(PageOffset),
   search: Schema.optional(Schema.NonEmptyString),
 });
 

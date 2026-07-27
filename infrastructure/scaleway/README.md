@@ -8,9 +8,8 @@ workflow remains a no-op until the protected GitHub variable
 `PRODUCTION_ENABLED` is exactly `true`.
 
 The application remains the authorization boundary. The database has separate
-runtime and schema users, but no row-level security policies. The legacy Fly
-application and deployment configuration are retired. Legacy data migration is
-a later, best-effort project after functional completion.
+runtime and schema users, but no row-level security policies. The retired Fly
+deployment is not part of this fresh Scaleway environment.
 
 ## Ownership split
 

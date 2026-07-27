@@ -85,12 +85,24 @@ describe('platform tenant-admin RPC schemas', () => {
       );
       expect(limitError['_tag']).toBe('SchemaError');
 
+      const zeroLimitError = yield* Schema.decodeUnknownEffect(
+        PlatformTenantUsersListInput,
+      )({ limit: 0, offset: 0, targetTenantId: 'tenant-1' }).pipe(Effect.flip);
+      expect(zeroLimitError['_tag']).toBe('SchemaError');
+
       const offsetError = yield* Schema.decodeUnknownEffect(
         PlatformTenantUsersListInput,
       )({ limit: 100, offset: -1, targetTenantId: 'tenant-1' }).pipe(
         Effect.flip,
       );
       expect(offsetError['_tag']).toBe('SchemaError');
+
+      const fractionalOffsetError = yield* Schema.decodeUnknownEffect(
+        PlatformTenantUsersListInput,
+      )({ limit: 100, offset: 0.5, targetTenantId: 'tenant-1' }).pipe(
+        Effect.flip,
+      );
+      expect(fractionalOffsetError['_tag']).toBe('SchemaError');
     }),
   );
 

@@ -14,6 +14,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   buildSelectableReceiptCountries,
+  firstReceiptCountry,
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
 import {
@@ -101,7 +102,7 @@ export class ReceiptApprovalDetailComponent {
   private readonly formBuilder = inject(NonNullableFormBuilder);
   protected readonly form = createReceiptForm(
     this.formBuilder,
-    this.selectableCountries[0] ?? 'DE',
+    firstReceiptCountry(this.selectableCountries),
   );
   private readonly route = inject(ActivatedRoute);
   protected readonly receiptId = computed(

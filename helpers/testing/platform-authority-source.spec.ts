@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
+
+import { MAX_REGISTRATION_QUESTIONS } from '../../src/shared/registration-question-limits';
+import { PlatformEventsUpdateInput } from '../../src/shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -143,10 +147,33 @@ describe('platform authority source', () => {
 
     expect(contracts).toContain("Rpc.make('platform.registrations.approve'");
     expect(contracts).toContain("Rpc.make('platform.registrations.cancel'");
-    expect(contracts).toContain('Schema.isLessThanOrEqualTo(100)');
     expect(contracts).toContain('addOns: Schema.Array(');
     expect(contracts).toContain('questions: Schema.Array(');
     expect(contracts).toContain('registrationOptions: Schema.Array(');
+
+    const registrationQuestion = {
+      description: null,
+      registrationOptionId: 'option-1',
+      required: false,
+      sortOrder: 0,
+      title: 'Dietary requirements',
+    };
+    expect(
+      Schema.decodeUnknownSync(PlatformEventsUpdateInput.fields.questions)(
+        Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS },
+          () => registrationQuestion,
+        ),
+      ),
+    ).toHaveLength(MAX_REGISTRATION_QUESTIONS);
+    expect(() =>
+      Schema.decodeUnknownSync(PlatformEventsUpdateInput.fields.questions)(
+        Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS + 1 },
+          () => registrationQuestion,
+        ),
+      ),
+    ).toThrow();
 
     const createHandler = eventHandlers.slice(
       eventHandlers.indexOf("'platform.events.create'"),

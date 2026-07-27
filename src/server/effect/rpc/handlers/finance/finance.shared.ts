@@ -1,4 +1,5 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+export { isAllowedReceiptMimeType } from '@shared/finance/receipt-media';
 import {
   buildSelectableReceiptCountries,
   normalizeReceiptCountryCode,
@@ -26,13 +27,10 @@ import {
 } from '../../../../../shared/permissions/permissions';
 
 interface ReceiptCountryConfigTenant {
-  receiptSettings?:
-    | null
-    | undefined
-    | {
-        allowOther?: boolean | undefined;
-        receiptCountries?: readonly string[] | undefined;
-      };
+  receiptSettings: {
+    allowOther: boolean;
+    receiptCountries: readonly string[];
+  };
 }
 
 export const databaseEffect = <A>(
@@ -40,17 +38,11 @@ export const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
-export const isAllowedReceiptMimeType = (mimeType: string): boolean =>
-  mimeType === 'image/jpeg' ||
-  mimeType === 'image/png' ||
-  mimeType === 'image/webp' ||
-  mimeType === 'application/pdf';
-
 export const resolveTenantSelectableReceiptCountries = (
   tenant: ReceiptCountryConfigTenant,
 ): string[] =>
   buildSelectableReceiptCountries(
-    resolveReceiptCountrySettings(tenant.receiptSettings ?? undefined),
+    resolveReceiptCountrySettings(tenant.receiptSettings),
   );
 
 export const validateReceiptCountryForTenant = (
@@ -59,7 +51,7 @@ export const validateReceiptCountryForTenant = (
 ): null | string => {
   if (purchaseCountry === OTHER_RECEIPT_COUNTRY_CODE) {
     const receiptCountrySettings = resolveReceiptCountrySettings(
-      tenant.receiptSettings ?? undefined,
+      tenant.receiptSettings,
     );
     return receiptCountrySettings.allowOther
       ? OTHER_RECEIPT_COUNTRY_CODE
@@ -146,7 +138,6 @@ export const financeReceiptView = {
   attachmentFileName: financeReceipts.attachmentFileName,
   attachmentMimeType: financeReceiptUploads.mimeType,
   attachmentStorageKey: financeReceiptUploads.storageKey,
-  attachmentStorageUrl: financeReceiptUploads.storageUrl,
   attachmentUploadConsumedAt: financeReceiptUploads.consumedAt,
   attachmentUploadedAt: financeReceiptUploads.uploadedAt,
   attachmentUploadedByUserId: financeReceiptUploads.uploadedByUserId,
@@ -161,7 +152,6 @@ export const financeReceiptView = {
   hasAlcohol: financeReceipts.hasAlcohol,
   hasDeposit: financeReceipts.hasDeposit,
   id: financeReceipts.id,
-  previewImageUrl: financeReceipts.previewImageUrl,
   purchaseCountry: financeReceipts.purchaseCountry,
   receiptDate: financeReceipts.receiptDate,
   refundedAt: financeReceipts.refundedAt,

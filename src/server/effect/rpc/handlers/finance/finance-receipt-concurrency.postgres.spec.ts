@@ -216,7 +216,6 @@ describe('receipt review and reimbursement serialization', () => {
         uploadId: receiptUploadId,
         userId,
       }),
-      storageUrl: 'https://storage.example.test/receipt.png',
       tenantId,
       uploadedAt: receiptUploadedAt,
       uploadedByUserId: userId,
@@ -224,8 +223,6 @@ describe('receipt review and reimbursement serialization', () => {
     await database.insert(financeReceipts).values({
       alcoholAmount: 0,
       attachmentFileName: 'receipt.png',
-      attachmentMimeType: 'image/png',
-      attachmentSizeBytes: 7,
       attachmentUploadId: receiptUploadId,
       currency: 'CZK',
       depositAmount: 0,

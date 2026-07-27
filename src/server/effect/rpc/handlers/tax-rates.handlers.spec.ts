@@ -48,10 +48,7 @@ const createRequestContext = (
 
 const taxRateHandlerLayer = Layer.mergeAll(
   RpcAccess.Default,
-  Layer.succeed(
-    RpcRequestContext,
-    createRequestContext(['templates:view']),
-  ),
+  Layer.succeed(RpcRequestContext, createRequestContext(['templates:view'])),
 );
 
 layer(taxRateHandlerLayer)('taxRateHandlers permissions', (it) => {

@@ -6,10 +6,21 @@ import { Schema } from 'effect';
 const tenantInput = {
   cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR',
+  discountProviders: {
+    esnCard: {
+      config: {},
+      status: 'disabled',
+    },
+  },
   domain: 'tenant.example.com',
   id: 'tenant-1',
   maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
+  receiptSettings: {
+    allowOther: false,
+    receiptCountries: ['DE', 'CZ'],
+  },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto',
   timezone: 'Europe/Berlin',
@@ -34,11 +45,40 @@ describe('Tenant schema', () => {
 
     for (const field of [
       'cancellationDeadlineHoursBeforeStart',
+      'discountProviders',
       'maxActiveRegistrationsPerUser',
+      'receiptSettings',
+      'refundFeesOnCancellation',
       'transferDeadlineHoursBeforeStart',
     ] as const) {
       const { [field]: _missing, ...withoutField } = tenantInput;
       expect(() => Schema.decodeUnknownSync(Tenant)(withoutField)).toThrow();
+    }
+  });
+
+  it('rejects incomplete persisted discount and receipt settings', () => {
+    for (const invalidSettings of [
+      {
+        ...tenantInput,
+        discountProviders: null,
+      },
+      {
+        ...tenantInput,
+        discountProviders: { esnCard: { config: {} } },
+      },
+      {
+        ...tenantInput,
+        receiptSettings: null,
+      },
+      {
+        ...tenantInput,
+        receiptSettings: {
+          allowOther: false,
+          receiptCountries: ['de'],
+        },
+      },
+    ]) {
+      expect(() => Schema.decodeUnknownSync(Tenant)(invalidSettings)).toThrow();
     }
   });
 

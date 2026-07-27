@@ -355,6 +355,12 @@ export async function addRegistrations(
 
         // Add registration to batch
         registrations.push({
+          ...(status === 'CONFIRMED' && {
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
+            basePriceAtRegistration: option.price,
+            discountAmount: 0,
+          }),
           checkInTime,
           eventId: event.id,
           id: registrationId,

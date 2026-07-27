@@ -59,8 +59,6 @@ const seedPendingReceiptForApproval = async ({
   await database.insert(schema.financeReceipts).values({
     alcoholAmount: 150,
     attachmentFileName: receiptFileName,
-    attachmentMimeType: 'application/pdf',
-    attachmentSizeBytes: receiptUpload.sizeBytes,
     attachmentUploadId: receiptUpload.id,
     currency,
     depositAmount: 150,
@@ -416,8 +414,6 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
   await database.insert(schema.financeReceipts).values({
     alcoholAmount: 0,
     attachmentFileName: receiptFileName,
-    attachmentMimeType: 'application/pdf',
-    attachmentSizeBytes: 1024,
     attachmentUploadId: receiptUploadId,
     currency: tenant.currency,
     depositAmount: 0,

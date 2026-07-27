@@ -4,8 +4,8 @@ import {
 } from '@shared/registration-quantity-limits';
 import {
   MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
-  MAX_REGISTRATION_QUESTIONS,
   MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
@@ -275,11 +275,11 @@ describe('templates RPC graph schemas', () => {
           { length: MAX_REGISTRATION_QUESTIONS },
           (_, index) => ({
             ...question,
-            key: `question-${index}`,
-            title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
             description: 'd'.repeat(
               MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
             ),
+            key: `question-${index}`,
+            title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
           }),
         ),
       }),

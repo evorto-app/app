@@ -386,8 +386,6 @@ const seedAcquisitionFixture = async (
       recipientBasePrice: 1000,
       recipientCheckoutTransactionId: firstRecipientTransactionId,
       recipientConfirmedAt: firstTransferredAt,
-      recipientRegistrationId: registrationId,
-      recipientSpotCount: 2,
       recipientUserId: firstRecipientUserId,
       registrationOptionId: optionId,
       sourceRegistrationId: registrationId,
@@ -406,8 +404,6 @@ const seedAcquisitionFixture = async (
       recipientBasePrice: 1100,
       recipientCheckoutTransactionId: secondRecipientTransactionId,
       recipientConfirmedAt: secondTransferredAt,
-      recipientRegistrationId: registrationId,
-      recipientSpotCount: 2,
       recipientUserId: secondRecipientUserId,
       registrationOptionId: optionId,
       sourceRegistrationId: registrationId,
@@ -747,8 +743,6 @@ const seedPaidRepeatTransferCheckout = async (
     id: transferId,
     recipientBasePrice: 1200,
     recipientCheckoutTransactionId: recipientTransactionId,
-    recipientRegistrationId: fixture.registrationId,
-    recipientSpotCount: 2,
     recipientUserId,
     registrationOptionId: requireValue(
       await database

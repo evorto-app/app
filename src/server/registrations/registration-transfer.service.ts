@@ -1636,7 +1636,7 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
       .select({
         recipientCheckoutTransactionId:
           registrationTransfers.recipientCheckoutTransactionId,
-        recipientRegistrationId: registrationTransfers.recipientRegistrationId,
+        recipientRegistrationId: registrationTransfers.sourceRegistrationId,
         status: registrationTransfers.status,
         stripeAccountId: transactions.stripeAccountId,
         stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
@@ -1794,7 +1794,7 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
               recipientCheckoutTransactionId:
                 registrationTransfers.recipientCheckoutTransactionId,
               recipientRegistrationId:
-                registrationTransfers.recipientRegistrationId,
+                registrationTransfers.sourceRegistrationId,
               sourceRegistrationId: registrationTransfers.sourceRegistrationId,
               sourceUserId: registrationTransfers.sourceUserId,
               status: registrationTransfers.status,
@@ -1857,8 +1857,7 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
             !payment ||
             registration.status !== 'CONFIRMED' ||
             registration.userId !== locked.sourceUserId ||
-            locked.recipientRegistrationId !== locked.sourceRegistrationId ||
-            pendingIdentity.registrationId !== locked.recipientRegistrationId ||
+            pendingIdentity.registrationId !== locked.sourceRegistrationId ||
             pendingIdentity.transactionId !==
               locked.recipientCheckoutTransactionId
           ) {
@@ -1902,7 +1901,6 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
             .update(registrationTransfers)
             .set({
               cancelledAt: now,
-              reservedAdditionalSpots: 0,
               status: 'cancelled',
             })
             .where(
@@ -1971,7 +1969,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
         optionStripeTaxRateId: eventRegistrationOptions.stripeTaxRateId,
         recipientCheckoutTransactionId:
           registrationTransfers.recipientCheckoutTransactionId,
-        recipientRegistrationId: registrationTransfers.recipientRegistrationId,
+        recipientRegistrationId: registrationTransfers.sourceRegistrationId,
         recipientUserId: registrationTransfers.recipientUserId,
         sourceRegistrationId: registrationTransfers.sourceRegistrationId,
         sourceSpotCount: registrationTransfers.sourceSpotCount,
@@ -2936,14 +2934,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 recipientBasePrice: optionBasePrice,
                 recipientCheckoutTransactionId: paymentClaim.id,
                 recipientDiscountAmount: discountResolution.discountAmount,
-                recipientRegistrationId,
-                recipientSpotCount,
                 recipientStripeTaxRateId: lockedOption.optionStripeTaxRateId,
                 recipientTaxRateDisplayName: selectedTaxRate?.displayName,
                 recipientTaxRateInclusive: selectedTaxRate?.inclusive,
                 recipientTaxRatePercentage: selectedTaxRate?.percentage,
                 recipientUserId: user.id,
-                reservedAdditionalSpots: 0,
                 status: 'checkout_pending',
               })
               .where(
@@ -3231,7 +3226,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               appliedDiscountedPrice: discountResolution.appliedDiscountedPrice,
               appliedDiscountType: discountResolution.appliedDiscountType,
               basePriceAtRegistration: optionBasePrice,
-              discountAmount: discountResolution.discountAmount,
+              discountAmount: discountResolution.discountAmount ?? 0,
               stripeTaxRateId: lockedOption.optionStripeTaxRateId,
               taxRateDisplayName: selectedTaxRate?.displayName,
               taxRateInclusive: selectedTaxRate?.inclusive,
@@ -3379,14 +3374,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               recipientBasePrice: optionBasePrice,
               recipientConfirmedAt: completedAt,
               recipientDiscountAmount: discountResolution.discountAmount,
-              recipientRegistrationId,
-              recipientSpotCount,
               recipientStripeTaxRateId: lockedOption.optionStripeTaxRateId,
               recipientTaxRateDisplayName: selectedTaxRate?.displayName,
               recipientTaxRateInclusive: selectedTaxRate?.inclusive,
               recipientTaxRatePercentage: selectedTaxRate?.percentage,
               recipientUserId: user.id,
-              reservedAdditionalSpots: 0,
               status: nextStatus,
             })
             .where(
@@ -3564,8 +3556,7 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
         .select({
           appFee: transactions.appFee,
           currency: transactions.currency,
-          recipientRegistrationId:
-            registrationTransfers.recipientRegistrationId,
+          recipientRegistrationId: registrationTransfers.sourceRegistrationId,
           request: transactions.stripeCheckoutRequest,
           stripeAccountId: transactions.stripeAccountId,
           stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,

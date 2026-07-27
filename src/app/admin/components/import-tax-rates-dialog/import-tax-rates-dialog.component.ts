@@ -29,16 +29,6 @@ export interface ImportTaxRatesDialogData {
   readonly importedTaxRateIds: readonly string[];
 }
 
-export function taxRateImportActionDisabled(input: {
-  mutationPending: boolean;
-  ratesReady: boolean;
-  selectedCount: number;
-}) {
-  return (
-    input.mutationPending || !input.ratesReady || input.selectedCount === 0
-  );
-}
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -111,7 +101,10 @@ export class ImportTaxRatesDialogComponent {
 
 export function taxRateImportActionDisabled(input: {
   mutationPending: boolean;
+  ratesReady: boolean;
   selectedCount: number;
 }) {
-  return input.mutationPending || input.selectedCount === 0;
+  return (
+    input.mutationPending || !input.ratesReady || input.selectedCount === 0
+  );
 }

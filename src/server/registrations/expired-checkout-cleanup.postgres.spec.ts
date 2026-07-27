@@ -46,7 +46,6 @@ import {
 } from '../payments/registration-refund';
 import { StripeClient } from '../stripe-client';
 import {
-  cancelExpiredBoundRegistrationClaim,
   claimDueBoundRegistrationCheckoutCandidates,
   expiredUnboundRegistrationClaimPredicate,
   processDueBoundRegistrationCheckouts,
@@ -92,23 +91,6 @@ const runCleanup = (url: string, nowEpochSeconds: number) =>
       batchSize: 10,
       nowEpochSeconds,
     }).pipe(Effect.provide(makeDatabaseServiceLayer(url))),
-  );
-
-const runBoundCancellation = (
-  url: string,
-  candidate: {
-    readonly registrationId: string;
-    readonly stripeAccountId: string;
-    readonly stripeCheckoutSessionId: string;
-    readonly tenantId: string;
-    readonly transactionId: string;
-  },
-  nowEpochSeconds: number,
-) =>
-  Effect.runPromise(
-    cancelExpiredBoundRegistrationClaim(candidate, nowEpochSeconds).pipe(
-      Effect.provide(makeDatabaseServiceLayer(url)),
-    ),
   );
 
 const runDueClaim = (
@@ -573,69 +555,6 @@ describe('expired unbound checkout cleanup concurrency', () => {
       expect(state.claim).toEqual(
         expect.objectContaining({
           status: 'pending',
-          stripeCheckoutSessionId,
-        }),
-      );
-    } finally {
-      if (!registrationLock.released) {
-        await registrationLock.query('ROLLBACK').catch(() => null);
-      }
-      registrationLock.release();
-    }
-  }, 30_000);
-
-  it('releases one bound expired Checkout reservation exactly once across simultaneous reconcilers', async () => {
-    const expiresAt = 4_000_000_000;
-    const fixture = await seedFixture(database, expiresAt);
-    fixtures.push(fixture);
-    const stripeCheckoutSessionId = `cs_test_${fixture.transactionId}`;
-    await database
-      .update(transactions)
-      .set({
-        stripeCheckoutSessionId,
-        stripeCheckoutUrl: `https://checkout.stripe.test/${fixture.transactionId}`,
-      })
-      .where(eq(transactions.id, fixture.transactionId));
-    const registrationLock = await lockRegistration(
-      pool,
-      fixture.registrationId,
-    );
-    const candidate = {
-      registrationId: fixture.registrationId,
-      stripeAccountId: fixture.stripeAccountId,
-      stripeCheckoutSessionId,
-      tenantId: fixture.tenantId,
-      transactionId: fixture.transactionId,
-    };
-
-    try {
-      const firstReconciliation = runBoundCancellation(
-        databaseUrl,
-        candidate,
-        expiresAt,
-      );
-      const secondReconciliation = runBoundCancellation(
-        databaseUrl,
-        candidate,
-        expiresAt,
-      );
-      await waitForBlockedRegistrationLocks(pool, 2);
-      await registrationLock.query('COMMIT');
-
-      const outcomes = await Promise.all([
-        firstReconciliation,
-        secondReconciliation,
-      ]);
-      expect(outcomes.toSorted()).toEqual(['cancelled', 'skipped']);
-
-      const state = await readFixtureState(database, fixture);
-      expect(state.registration?.status).toBe('CANCELLED');
-      expect(state.option?.reservedSpots).toBe(0);
-      expect(state.addOn?.totalAvailableQuantity).toBe(5);
-      expect(state.claim).toEqual(
-        expect.objectContaining({
-          status: 'cancelled',
-          stripeAccountId: fixture.stripeAccountId,
           stripeCheckoutSessionId,
         }),
       );

@@ -30,6 +30,30 @@ const trustedContext = {
 } satisfies RpcRequestContextShape;
 
 describe('rpc-request-context.middleware', () => {
+  it.effect('defects when the trusted request context is absent', () =>
+    Effect.gen(function* () {
+      const middleware = yield* RpcRequestContextMiddleware;
+      const exit = yield* middleware(Effect.void, {
+        client: undefined,
+        headers: Headers.empty,
+        payload: undefined,
+        requestId: 1,
+        rpc: undefined,
+      } as never).pipe(Effect.exit);
+
+      expect(exit._tag).toBe('Failure');
+      if (exit._tag === 'Failure') {
+        const reason = exit.cause.reasons[0];
+        expect(reason?._tag).toBe('Die');
+        expect(
+          reason?._tag === 'Die' && reason.defect instanceof Error
+            ? reason.defect.message
+            : undefined,
+        ).toBe('RpcRequestContext missing at RPC boundary');
+      }
+    }).pipe(Effect.provide(rpcRequestContextMiddlewareLive)),
+  );
+
   it.effect(
     'uses the provided typed context and ignores hostile external context headers',
     () =>

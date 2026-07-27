@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { maximumFinanceReimbursementReceiptCount } from '../../finance/reimbursement';
 import {
   FinanceReceiptAttachmentInput,
   FinanceReceiptCreateRefundInput,
@@ -8,6 +9,9 @@ import {
   FinanceReceiptRefundGroupRecord,
   FinanceTransactionPageInput,
 } from './finance.rpcs';
+
+const makeReceiptIds = (count: number): string[] =>
+  Array.from({ length: count }, (_, index) => `receipt-${index + 1}`);
 
 describe('FinanceReceiptAttachmentInput', () => {
   it('accepts only a server-issued upload reference and display name', () => {
@@ -60,8 +64,14 @@ describe('FinanceReceiptFieldsInput', () => {
   it.each([
     { totalAmount: 0 },
     { totalAmount: 100.5 },
+    { taxAmount: 0.5 },
+    { depositAmount: 0.5, hasDeposit: true },
+    { alcoholAmount: 0.5, hasAlcohol: true },
     { depositAmount: 1, hasDeposit: false },
     { depositAmount: 0, hasDeposit: true },
+    { receiptDate: '09.07.2026' },
+    { receiptDate: '2026-7-09' },
+    { receiptDate: '2026-07-09 ' },
     { receiptDate: '2026-07-09T00:00:00.000Z' },
     { receiptDate: '2026-02-30' },
   ])('rejects invalid receipt fields %#', (override) => {
@@ -113,6 +123,38 @@ describe('FinanceReceiptCreateRefundInput', () => {
       Schema.decodeUnknownSync(FinanceReceiptCreateRefundInput)(input),
     ).toThrow();
   });
+
+  it.each([
+    {
+      payoutReference: 'DE89370400440532013000',
+      payoutType: 'iban',
+    },
+    {
+      payoutReference: 'participant@example.test',
+      payoutType: 'paypal',
+    },
+  ] as const)(
+    'accepts no more than 100 receipts for a $payoutType reimbursement',
+    ({ payoutReference, payoutType }) => {
+      const maximumBatch = {
+        payoutReference,
+        payoutType,
+        receiptIds: makeReceiptIds(maximumFinanceReimbursementReceiptCount),
+      };
+
+      expect(
+        Schema.decodeUnknownSync(FinanceReceiptCreateRefundInput)(maximumBatch),
+      ).toEqual(maximumBatch);
+      expect(() =>
+        Schema.decodeUnknownSync(FinanceReceiptCreateRefundInput)({
+          ...maximumBatch,
+          receiptIds: makeReceiptIds(
+            maximumFinanceReimbursementReceiptCount + 1,
+          ),
+        }),
+      ).toThrow();
+    },
+  );
 
   it('rejects non-canonical persisted payout destinations', () => {
     expect(() =>

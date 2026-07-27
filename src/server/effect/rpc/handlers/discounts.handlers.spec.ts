@@ -199,7 +199,6 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
       });
       expect(insertedValues).not.toHaveBeenCalled();
       expect(validate).toHaveBeenCalledWith({
-        config: {},
         identifier: 'ESN-123',
       });
       expect(updateSet).toHaveBeenCalledWith(
@@ -294,7 +293,6 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
           reason: 'provider-unavailable',
         });
         expect(validate).toHaveBeenCalledWith({
-          config: {},
           identifier: 'ESN-123',
         });
         expect(database.insert).not.toHaveBeenCalled();
@@ -389,7 +387,6 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
           }),
         );
         expect(validate).toHaveBeenCalledWith({
-          config: {},
           identifier: 'ESN-123',
         });
         expect(updateSet).toHaveBeenCalledWith(

@@ -22,6 +22,7 @@ import {
   eventDiscoveryWindow,
   eventListingAudienceEligibilityFilter,
   eventQueryHandlers,
+  eventReviewMetadata,
 } from './events-query.handlers';
 import { eventHandlers } from './events.handlers';
 
@@ -301,13 +302,43 @@ describe('event listing audience eligibility', () => {
   });
 });
 
+describe('event review metadata projection', () => {
+  const metadata = {
+    reviewer: { firstName: 'Review', lastName: 'Admin' },
+    statusComment: 'Internal review note',
+  };
+
+  it('removes review metadata for an ordinary or public approved-event caller', () => {
+    expect(
+      eventReviewMetadata({
+        canEdit: false,
+        canReview: false,
+        canSeeDrafts: false,
+        ...metadata,
+      }),
+    ).toEqual({
+      reviewer: null,
+      statusComment: null,
+    });
+  });
+
+  it.each([
+    { canEdit: true, canReview: false, canSeeDrafts: false },
+    { canEdit: false, canReview: true, canSeeDrafts: false },
+    { canEdit: false, canReview: false, canSeeDrafts: true },
+  ])('keeps review metadata for an authorized caller', (authority) => {
+    expect(eventReviewMetadata({ ...authority, ...metadata })).toEqual(
+      metadata,
+    );
+  });
+});
+
 describe('eventHandlers composition', () => {
   it('contains the full events rpc handler set', () => {
     expect(Object.keys(eventHandlers).toSorted()).toEqual([
       'events.approveRegistration',
       'events.canOrganize',
       'events.cancelEventRegistration',
-      'events.cancelPendingRegistration',
       'events.cancelRegistration',
       'events.cancelRegistrationAddon',
       'events.checkInRegistration',
@@ -315,7 +346,6 @@ describe('eventHandlers composition', () => {
       'events.eventList',
       'events.findGraphForEdit',
       'events.findOne',
-      'events.findOneForEdit',
       'events.findTransferTargets',
       'events.getOrganizeOverview',
       'events.getPendingReviews',
@@ -327,12 +357,12 @@ describe('eventHandlers composition', () => {
       'events.redeemRegistrationAddon',
       'events.registerForEvent',
       'events.registrationScanned',
+      'events.retryRegistrationCheckout',
       'events.reviewEvent',
       'events.submitForReview',
       'events.transferEventRegistration',
       'events.transferMyRegistration',
       'events.undoRegistrationAddonRedemption',
-      'events.update',
       'events.updateGraph',
       'events.updateListing',
     ]);

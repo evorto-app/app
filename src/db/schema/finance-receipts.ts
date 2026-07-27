@@ -28,7 +28,7 @@ export const financeReceiptStatus = pgEnum('finance_receipt_status', [
 
 export const financeReceiptUploadStatus = pgEnum(
   'finance_receipt_upload_status',
-  ['pending', 'ready', 'rejected', 'consumed'],
+  ['pending', 'finalizing', 'ready', 'rejected', 'consumed', 'cleaning'],
 );
 
 export const financeReceiptTotalAmountPositiveCheckName =
@@ -47,9 +47,7 @@ export const financeReceiptUploads = pgTable(
   {
     ...modelOfTenant,
     consumedAt: timestamp(),
-    eventId: varchar({ length: 20 })
-      .notNull()
-      .references(() => eventInstances.id),
+    eventId: varchar({ length: 20 }).notNull(),
     expiresAt: timestamp()
       .notNull()
       .default(sql`(now() + '00:05:00'::interval)`),
@@ -59,13 +57,17 @@ export const financeReceiptUploads = pgTable(
     sizeBytes: integer().notNull(),
     status: financeReceiptUploadStatus().notNull().default('pending'),
     storageKey: text().notNull().unique(),
-    storageUrl: text(),
     uploadedAt: timestamp(),
     uploadedByUserId: varchar({ length: 20 })
       .notNull()
       .references(() => users.id),
   },
   (table) => [
+    foreignKey({
+      columns: [table.eventId, table.tenantId],
+      foreignColumns: [eventInstances.id, eventInstances.tenantId],
+      name: 'finance_receipt_uploads_event_tenant_fk',
+    }),
     unique('finance_receipt_upload_scope_unique').on(
       table.id,
       table.tenantId,
@@ -81,30 +83,21 @@ export const financeReceipts = pgTable(
     ...modelOfTenant,
     alcoholAmount: integer().notNull(),
     attachmentFileName: text().notNull(),
-    attachmentMimeType: text().notNull(),
-    attachmentSizeBytes: integer().notNull(),
     attachmentUploadId: varchar({ length: 20 }).notNull(),
     currency: currencyEnum().notNull(),
     depositAmount: integer().notNull(),
-    eventId: varchar({ length: 20 })
-      .notNull()
-      .references(() => eventInstances.id),
+    eventId: varchar({ length: 20 }).notNull(),
     hasAlcohol: boolean().notNull(),
     hasDeposit: boolean().notNull(),
-    previewImageId: text(),
-    previewImageUrl: text(),
     purchaseCountry: text().notNull(),
     receiptDate: date().notNull(),
     refundedAt: timestamp(),
     refundedByUserId: varchar({ length: 20 }).references(() => users.id),
-    refundTransactionId: varchar({ length: 20 }).references(
-      () => transactions.id,
-    ),
+    refundTransactionId: varchar({ length: 20 }),
     rejectionReason: text(),
     reviewedAt: timestamp(),
     reviewedByUserId: varchar({ length: 20 }).references(() => users.id),
     status: financeReceiptStatus().notNull().default('submitted'),
-    stripeTaxRateId: varchar(),
     submittedByUserId: varchar({ length: 20 })
       .notNull()
       .references(() => users.id),
@@ -149,6 +142,16 @@ export const financeReceipts = pgTable(
         financeReceiptUploads.uploadedByUserId,
       ],
       name: 'finance_receipts_attachment_upload_scope_fk',
+    }),
+    foreignKey({
+      columns: [table.eventId, table.tenantId],
+      foreignColumns: [eventInstances.id, eventInstances.tenantId],
+      name: 'finance_receipts_event_tenant_fk',
+    }),
+    foreignKey({
+      columns: [table.refundTransactionId, table.tenantId],
+      foreignColumns: [transactions.id, transactions.tenantId],
+      name: 'finance_receipts_refund_transaction_tenant_fk',
     }),
   ],
 );

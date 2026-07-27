@@ -80,7 +80,17 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formValue,
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Only image and PDF files are supported.');
+    ).toBe('Receipts must be JPEG, PNG, WebP, or PDF files');
+
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: new File([], 'empty.pdf', { type: 'application/pdf' }),
+        formInvalid: false,
+        formValue,
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe('Receipt file must be between 1 byte and 20 MB');
   });
 
   it('rejects invalid form state and countries outside tenant settings', () => {

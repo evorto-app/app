@@ -86,8 +86,6 @@ test('Review and reimburse receipts @finance', async ({
       {
         alcoholAmount: 150,
         attachmentFileName: receiptFileName,
-        attachmentMimeType: 'application/pdf',
-        attachmentSizeBytes: receiptUpload.sizeBytes,
         attachmentUploadId: receiptUploadId,
         currency: tenant.currency,
         depositAmount: 150,
@@ -108,8 +106,6 @@ test('Review and reimburse receipts @finance', async ({
       {
         alcoholAmount: 0,
         attachmentFileName: missingEvidenceFileName,
-        attachmentMimeType: 'application/pdf',
-        attachmentSizeBytes: 1024,
         attachmentUploadId: missingEvidenceUploadId,
         currency: tenant.currency,
         depositAmount: 0,

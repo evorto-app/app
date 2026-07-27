@@ -5,7 +5,11 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
-import { requireSeedRoles } from './seed-requirements';
+import {
+  requireSeedFixture,
+  requireSeedRoles,
+  requireSeedStripeTaxRates,
+} from './seed-requirements';
 import { getCityTourTemplates } from './templates/city-tour-templates';
 import { getCityTripTemplates } from './templates/city-trip-templates';
 import { getExampleConfigTemplates } from './templates/example-config-templates';
@@ -69,9 +73,7 @@ export const addTemplates = async (
     where: { tenantId },
   });
   consola.info(`Found ${taxRates.length} imported Stripe tax rates`);
-  const vat19 = taxRates.find((r) => r.percentage === '19');
-  const vat7 = taxRates.find((r) => r.percentage === '7');
-  const defaultRate = vat19 ?? vat7 ?? taxRates[0];
+  const { vat7, vat19 } = requireSeedStripeTaxRates(taxRates);
   const hikingCategory = categories.find(
     (category) => category.title === 'Hikes',
   );
@@ -159,23 +161,22 @@ export const addTemplates = async (
     .returning();
   consola.success(`Inserted ${createdFreeTemplatesRaw.length} free templates`);
 
-  if (!createdFreeTemplatesRaw) {
-    throw new Error('Failed to create freeTemplates');
+  if (createdFreeTemplatesRaw.length !== freeTemplates.length) {
+    throw new Error(
+      `Expected ${freeTemplates.length} created free templates, received ${createdFreeTemplatesRaw.length}`,
+    );
   }
 
-  const createdFreeTemplates = createdFreeTemplatesRaw.map(
-    (template, index) => {
-      const freeTemplate = freeTemplates[index];
-      if (!freeTemplate) {
-        throw new Error('Free template seed metadata is missing');
-      }
-
-      return {
-        ...template,
-        seedKey: freeTemplate.seedKey,
-      };
-    },
+  const freeTemplateSeedKeyById = new Map(
+    freeTemplates.map((template) => [template.id, template.seedKey]),
   );
+  const createdFreeTemplates = createdFreeTemplatesRaw.map((template) => ({
+    ...template,
+    seedKey: requireSeedFixture(
+      freeTemplateSeedKeyById.get(template.id),
+      `seed key for free template ${template.id}`,
+    ),
+  }));
 
   const registrationOptionsToAdd: InferInsertModel<
     typeof schema.templateRegistrationOptions
@@ -235,23 +236,22 @@ export const addTemplates = async (
     .returning();
   consola.success(`Inserted ${createdPaidTemplatesRaw.length} paid templates`);
 
-  if (!createdPaidTemplatesRaw) {
-    throw new Error('Failed to create paidTemplates');
+  if (createdPaidTemplatesRaw.length !== paidTemplates.length) {
+    throw new Error(
+      `Expected ${paidTemplates.length} created paid templates, received ${createdPaidTemplatesRaw.length}`,
+    );
   }
 
-  const createdPaidTemplates = createdPaidTemplatesRaw.map(
-    (template, index) => {
-      const paidTemplate = paidTemplates[index];
-      if (!paidTemplate) {
-        throw new Error('Paid template seed metadata is missing');
-      }
-
-      return {
-        ...template,
-        seedKey: paidTemplate.seedKey,
-      };
-    },
+  const paidTemplateSeedKeyById = new Map(
+    paidTemplates.map((template) => [template.id, template.seedKey]),
   );
+  const createdPaidTemplates = createdPaidTemplatesRaw.map((template) => ({
+    ...template,
+    seedKey: requireSeedFixture(
+      paidTemplateSeedKeyById.get(template.id),
+      `seed key for paid template ${template.id}`,
+    ),
+  }));
 
   const paidOptionValues: InferInsertModel<
     typeof schema.templateRegistrationOptions
@@ -267,7 +267,7 @@ export const addTemplates = async (
         registrationMode: 'fcfs' as const,
         roleIds: defaultOrganizerRoles.map((role) => role.id),
         spots: 1,
-        stripeTaxRateId: (vat7 ?? defaultRate)?.stripeTaxRateId ?? null,
+        stripeTaxRateId: vat7.stripeTaxRateId,
         templateId: template.id,
         title: 'Organizer',
       },
@@ -281,7 +281,7 @@ export const addTemplates = async (
         registrationMode: 'fcfs' as const,
         roleIds: defaultUserRoles.map((role) => role.id),
         spots: 20,
-        stripeTaxRateId: (vat19 ?? defaultRate)?.stripeTaxRateId ?? null,
+        stripeTaxRateId: vat19.stripeTaxRateId,
         templateId: template.id,
         title: 'Participant',
       },
@@ -304,6 +304,7 @@ export const addTemplates = async (
       .filter((option) => option.organizingRegistration)
       .map((option) => [option.templateId, option]),
   );
+  const createdTemplates = [...createdFreeTemplates, ...createdPaidTemplates];
   const addonTemplateCandidates = [
     {
       description: 'Reusable reminder for a simple packed lunch add-on.',
@@ -319,69 +320,59 @@ export const addTemplates = async (
       isPaid: true,
       price: 100 * 5,
       seedKey: 'sports' as const,
-      stripeTaxRateId: defaultRate?.stripeTaxRateId ?? null,
+      stripeTaxRateId: vat19.stripeTaxRateId,
       title: 'Equipment rental',
       totalAvailableQuantity: 15,
     },
   ];
-  const addonValues = addonTemplateCandidates.flatMap((candidate) => {
-    const template = [...createdFreeTemplates, ...createdPaidTemplates].find(
-      (createdTemplate) => createdTemplate.seedKey === candidate.seedKey,
+  const addonValues = addonTemplateCandidates.map((candidate) => {
+    const template = requireSeedFixture(
+      createdTemplates.find(
+        (createdTemplate) => createdTemplate.seedKey === candidate.seedKey,
+      ),
+      `${candidate.title} template with seed key ${candidate.seedKey}`,
     );
-    if (!template) {
-      return [];
-    }
-
-    const registrationOption = registrationOptionByTemplateId.get(template.id);
-    if (!registrationOption) {
-      return [];
-    }
-
-    return [
-      {
-        allowMultiple: false,
-        allowPurchaseBeforeEvent: true,
-        allowPurchaseDuringEvent: false,
-        allowPurchaseDuringRegistration: true,
-        description: candidate.description,
-        id: getId(),
-        isPaid: candidate.isPaid,
-        maxQuantityPerUser: 1,
-        price: candidate.price,
-        stripeTaxRateId: candidate.stripeTaxRateId,
-        templateId: template.id,
-        title: candidate.title,
-        totalAvailableQuantity: candidate.totalAvailableQuantity,
-      } satisfies InferInsertModel<typeof schema.templateEventAddons>,
-    ];
-  });
-  const addonRegistrationOptionValues = addonValues.flatMap((addon) => {
-    const registrationOption = registrationOptionByTemplateId.get(
-      addon.templateId,
+    requireSeedFixture(
+      registrationOptionByTemplateId.get(template.id),
+      `participant registration option for ${candidate.title}`,
     );
-    const registrationOptionId = registrationOption?.id;
-    if (!registrationOptionId) {
-      return [];
-    }
 
-    return [
-      {
-        addonId: addon.id,
-        includedQuantity: 0,
-        optionalPurchaseQuantity: 1,
-        registrationOptionId,
-        templateId: addon.templateId,
-      } satisfies InferInsertModel<
-        typeof schema.addonToTemplateRegistrationOptions
-      >,
-    ];
+    return {
+      allowMultiple: false,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: candidate.description,
+      id: getId(),
+      isPaid: candidate.isPaid,
+      maxQuantityPerUser: 1,
+      price: candidate.price,
+      stripeTaxRateId: candidate.stripeTaxRateId,
+      templateId: template.id,
+      title: candidate.title,
+      totalAvailableQuantity: candidate.totalAvailableQuantity,
+    } satisfies InferInsertModel<typeof schema.templateEventAddons>;
   });
-  if (addonValues.length > 0) {
-    await database.insert(schema.templateEventAddons).values(addonValues);
-    await database
-      .insert(schema.addonToTemplateRegistrationOptions)
-      .values(addonRegistrationOptionValues);
-  }
+  const addonRegistrationOptionValues = addonValues.map((addon) => {
+    const registrationOptionId = requireSeedFixture(
+      registrationOptionByTemplateId.get(addon.templateId)?.id,
+      `participant registration option attachment for ${addon.title}`,
+    );
+
+    return {
+      addonId: addon.id,
+      includedQuantity: 0,
+      optionalPurchaseQuantity: 1,
+      registrationOptionId,
+      templateId: addon.templateId,
+    } satisfies InferInsertModel<
+      typeof schema.addonToTemplateRegistrationOptions
+    >;
+  });
+  await database.insert(schema.templateEventAddons).values(addonValues);
+  await database
+    .insert(schema.addonToTemplateRegistrationOptions)
+    .values(addonRegistrationOptionValues);
   consola.success(`Inserted ${addonValues.length} template add-ons`);
 
   const questionTemplateCandidates = [
@@ -400,51 +391,47 @@ export const addTemplates = async (
       title: 'Which organizer task would you prefer to help with?',
     },
   ];
-  const questionValues = questionTemplateCandidates.flatMap((candidate) => {
-    const template = [...createdFreeTemplates, ...createdPaidTemplates].find(
-      (createdTemplate) => createdTemplate.seedKey === candidate.seedKey,
+  const questionKindById = new Map<string, 'organizer' | 'participant'>();
+  const questionValues = questionTemplateCandidates.map((candidate) => {
+    const template = requireSeedFixture(
+      createdTemplates.find(
+        (createdTemplate) => createdTemplate.seedKey === candidate.seedKey,
+      ),
+      `${candidate.title} template with seed key ${candidate.seedKey}`,
     );
-    if (!template) {
-      return [];
-    }
 
     const registrationOption =
       candidate.registrationOptionKind === 'organizer'
         ? organizerRegistrationOptionByTemplateId.get(template.id)
         : registrationOptionByTemplateId.get(template.id);
-    const registrationOptionId = registrationOption?.id;
-    if (!registrationOptionId) {
-      return [];
-    }
+    const registrationOptionId = requireSeedFixture(
+      registrationOption?.id,
+      `${candidate.registrationOptionKind} registration option for ${candidate.title}`,
+    );
 
-    return [
-      {
-        description: candidate.description,
-        id: getId(),
-        registrationOptionId,
-        required: candidate.required,
-        sortOrder: 0,
-        templateId: template.id,
-        title: candidate.title,
-      } satisfies InferInsertModel<typeof schema.templateRegistrationQuestions>,
-    ];
+    const id = getId();
+    questionKindById.set(id, candidate.registrationOptionKind);
+
+    return {
+      description: candidate.description,
+      id,
+      registrationOptionId,
+      required: candidate.required,
+      sortOrder: 0,
+      templateId: template.id,
+      title: candidate.title,
+    } satisfies InferInsertModel<typeof schema.templateRegistrationQuestions>;
   });
-  if (questionValues.length > 0) {
-    await database
-      .insert(schema.templateRegistrationQuestions)
-      .values(questionValues);
-  }
+  await database
+    .insert(schema.templateRegistrationQuestions)
+    .values(questionValues);
   consola.success(`Inserted ${questionValues.length} template questions`);
 
   const addonByTemplateId = new Map<string, SeedTemplateAddon[]>();
   for (const addon of addonValues) {
     const attachedOptionIds = addonRegistrationOptionValues
       .filter((attachment) => attachment.addonId === addon.id)
-      .flatMap((attachment) =>
-        attachment.registrationOptionId
-          ? [attachment.registrationOptionId]
-          : [],
-      );
+      .map((attachment) => attachment.registrationOptionId);
     const existing = addonByTemplateId.get(addon.templateId) ?? [];
     existing.push({
       id: addon.id,
@@ -458,14 +445,12 @@ export const addTemplates = async (
   const questionByTemplateId = new Map<string, SeedTemplateQuestion[]>();
   for (const question of questionValues) {
     const existing = questionByTemplateId.get(question.templateId) ?? [];
-    const organizerRegistrationOption =
-      organizerRegistrationOptionByTemplateId.get(question.templateId);
     existing.push({
       id: question.id,
-      registrationOptionKind:
-        organizerRegistrationOption?.id === question.registrationOptionId
-          ? 'organizer'
-          : 'participant',
+      registrationOptionKind: requireSeedFixture(
+        questionKindById.get(question.id),
+        `registration option kind for question ${question.id}`,
+      ),
       registrationOptionId: question.registrationOptionId,
       required: question.required,
       title: question.title,

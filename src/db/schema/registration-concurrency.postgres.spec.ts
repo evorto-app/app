@@ -349,8 +349,6 @@ const createRegistrationRequestContext = ({
     logoUrl: undefined,
     maxActiveRegistrationsPerUser: 0,
     name: 'Concurrency test',
-    privacyPolicyText: undefined,
-    privacyPolicyUrl: undefined,
     receiptSettings: {
       allowOther: false,
       receiptCountries: ['DE'],

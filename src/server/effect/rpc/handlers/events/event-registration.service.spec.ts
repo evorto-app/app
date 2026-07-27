@@ -612,6 +612,7 @@ const createDirectCheckoutDatabase = ({
   let registration:
     | undefined
     | {
+        eventId: string;
         guestCount: number;
         id: string;
         registrationOptionId: string;
@@ -665,6 +666,7 @@ const createDirectCheckoutDatabase = ({
                     : 'registration',
                 );
                 registration = {
+                  eventId: 'event-1',
                   guestCount: Schema.decodeUnknownSync(Schema.Number)(
                     values['guestCount'],
                   ),
@@ -877,6 +879,12 @@ const createDirectCheckoutDatabase = ({
               }),
             }
           : {
+              leftJoin: () => ({
+                where: () =>
+                  Effect.succeed(
+                    table === transactions && claim ? [claim] : [],
+                  ),
+              }),
               where: () =>
                 Effect.succeed(table === transactions && claim ? [claim] : []),
             },
@@ -914,10 +922,29 @@ const runDirectCheckout = ({
       stripeAccountId,
     },
     user: {
+      communicationEmail: 'alice@example.com',
       email: 'alice@example.com',
       id: 'user-1',
       roleIds: ['role-1'],
     },
+  }).pipe(
+    Effect.provide(EventRegistrationService.Default),
+    Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+    Effect.provideService(StripeClient, stripe),
+    Effect.provide(configProviderLayer),
+  );
+
+const retryDirectCheckout = ({
+  database,
+  stripe,
+}: {
+  database: object;
+  stripe: Stripe;
+}) =>
+  EventRegistrationService.retryRegistrationCheckout({
+    registrationId: 'registration-direct',
+    tenantId: 'tenant-1',
+    userId: 'user-1',
   }).pipe(
     Effect.provide(EventRegistrationService.Default),
     Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
@@ -1942,6 +1969,7 @@ describe('EventRegistrationService', () => {
             stripeAccountId: 'acct_123',
           },
           user: {
+            communicationEmail: 'alice@example.com',
             email: 'alice@example.com',
             id: 'user-1',
             roleIds: ['role-1'],
@@ -2011,6 +2039,7 @@ describe('EventRegistrationService', () => {
             stripeAccountId: 'acct_123',
           },
           user: {
+            communicationEmail: 'alice@example.com',
             email: 'alice@example.com',
             id: 'user-1',
             roleIds: ['role-1'],
@@ -2084,6 +2113,7 @@ describe('EventRegistrationService', () => {
             stripeAccountId: 'acct_123',
           },
           user: {
+            communicationEmail: 'alice@example.com',
             email: 'alice@example.com',
             id: 'user-1',
             roleIds: ['role-1'],
@@ -2156,6 +2186,7 @@ describe('EventRegistrationService', () => {
             stripeAccountId: 'acct_123',
           },
           user: {
+            communicationEmail: 'alice@example.com',
             email: 'alice@example.com',
             id: 'user-1',
             roleIds: ['role-1'],
@@ -2952,11 +2983,6 @@ describe('EventRegistrationService', () => {
             name: 'Tenant',
           }),
         );
-        const findNotificationUser = vi.fn(() =>
-          Effect.succeed({
-            communicationEmail: ' preferred@example.com ',
-          }),
-        );
         const transaction = {
           insert: (table: unknown) => ({
             values: (values: Record<string, unknown>) => {
@@ -2990,9 +3016,6 @@ describe('EventRegistrationService', () => {
             },
             tenants: {
               findFirst: findEmailTenant,
-            },
-            users: {
-              findFirst: findNotificationUser,
             },
           },
           select: selectLockedTenantMembership,
@@ -3038,6 +3061,7 @@ describe('EventRegistrationService', () => {
             stripeAccountId: undefined,
           },
           user: {
+            communicationEmail: 'preferred@example.com',
             email: 'login@example.com',
             id: 'user-1',
             roleIds: ['role-1'],
@@ -3052,7 +3076,6 @@ describe('EventRegistrationService', () => {
         );
 
         expect(findEmailTenant).toHaveBeenCalledOnce();
-        expect(findNotificationUser).toHaveBeenCalledOnce();
         expect(emailInsertedWhileTransactionOpen).toBe(true);
         expect(operationOrder).toEqual(['registration', 'email']);
         expect(emailInsert).toEqual(
@@ -3704,7 +3727,19 @@ describe('EventRegistrationService', () => {
         expect(directDatabase.reservationUpdateCount()).toBe(1);
         expect(directDatabase.bindingUpdateCount()).toBe(0);
 
-        yield* runDirectCheckout({
+        const repeatedRegistrationError = yield* runDirectCheckout({
+          database: directDatabase.database,
+          stripe: checkoutStripeClient,
+        }).pipe(Effect.flip);
+
+        expect(repeatedRegistrationError).toBeInstanceOf(
+          EventRegistrationConflictError,
+        );
+        expect(createSession).toHaveBeenCalledTimes(1);
+        expect(directDatabase.claimInsertCount()).toBe(1);
+        expect(directDatabase.reservationUpdateCount()).toBe(1);
+
+        yield* retryDirectCheckout({
           database: directDatabase.database,
           stripe: checkoutStripeClient,
         });

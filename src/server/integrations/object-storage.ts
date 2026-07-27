@@ -127,20 +127,6 @@ const withStorageFailure = <A, E, R>(
     ),
   );
 
-const isObjectStorageNotFoundCause = (error: unknown): boolean => {
-  let current = error;
-  for (let depth = 0; depth < 4; depth += 1) {
-    if (!(current instanceof Error)) {
-      return false;
-    }
-    if (/not found|no such key|404/i.test(current.message)) {
-      return true;
-    }
-    current = current.cause;
-  }
-  return false;
-};
-
 const hmac = (key: Buffer | string, value: string) =>
   createHmac('sha256', key).update(value).digest();
 
@@ -263,21 +249,22 @@ export class ObjectStorage extends Context.Service<ObjectStorage>()(
             try: () => buildS3Client(config).file(key),
           }),
         );
-        const body = yield* Effect.tryPromise<ArrayBuffer, unknown>({
-          catch: (cause) => cause,
-          try: () => file.arrayBuffer(),
-        }).pipe(
-          Effect.catch(
-            (
-              error,
-            ): Effect.Effect<
-              never,
-              ObjectStorageNotFoundError | RpcInternalServerError
-            > =>
-              isObjectStorageNotFoundCause(error)
-                ? Effect.fail(new ObjectStorageNotFoundError())
-                : withStorageFailure('read', Effect.fail(error)),
-          ),
+        const objectExists = yield* withStorageFailure(
+          'existenceCheck',
+          Effect.tryPromise({
+            catch: (cause) => cause,
+            try: () => file.exists(),
+          }),
+        );
+        if (!objectExists) {
+          return yield* Effect.fail(new ObjectStorageNotFoundError());
+        }
+        const body = yield* withStorageFailure(
+          'read',
+          Effect.tryPromise({
+            catch: (cause) => cause,
+            try: () => file.arrayBuffer(),
+          }),
         );
         return new Uint8Array(body);
       });

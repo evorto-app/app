@@ -17,6 +17,7 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   buildSelectableReceiptCountries,
+  firstReceiptCountry,
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
 import {
@@ -464,7 +465,9 @@ export class EventOrganize {
     >(ReceiptSubmitDialogComponent, {
       data: {
         countries,
-        defaultCountry: receiptCountrySettings.receiptCountries[0] ?? 'DE',
+        defaultCountry: firstReceiptCountry(
+          receiptCountrySettings.receiptCountries,
+        ),
       },
       width: '640px',
     });

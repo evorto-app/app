@@ -35,6 +35,7 @@ import {
   eventRegistrations,
   tenantStripeTaxRates,
 } from '../../../../../db/schema';
+import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { loadEventGraphDetail } from './event-graph.loader';
 import {
@@ -75,6 +76,11 @@ export const organizeOverviewAccessAllowed = (input: {
 export const eventDiscoveryWindow = (from: Date) =>
   gt(eventInstances.end, from);
 
+export const eventListOrder = () => [
+  asc(eventInstances.start),
+  asc(eventInstances.id),
+];
+
 export const eventListingAudienceEligibilityFilter = (
   includeUnlisted: boolean,
 ) =>
@@ -92,6 +98,26 @@ export const eventListingAudienceEligibilityFilter = (
       ? [eq(eventInstances.listingAudience, 'unlisted')]
       : []),
   );
+
+export const eventReviewMetadata = <Reviewer>({
+  canEdit,
+  canReview,
+  canSeeDrafts,
+  reviewer,
+  statusComment,
+}: {
+  canEdit: boolean;
+  canReview: boolean;
+  canSeeDrafts: boolean;
+  reviewer: null | Reviewer;
+  statusComment: null | string;
+}): {
+  reviewer: null | Reviewer;
+  statusComment: null | string;
+} =>
+  canEdit || canReview || canSeeDrafts
+    ? { reviewer, statusComment }
+    : { reviewer: null, statusComment: null };
 
 const canOrganizeEvent = Effect.fn('Events.canOrganizeEvent')(function* ({
   eventId,
@@ -229,17 +255,6 @@ export const eventQueryHandlers = {
       const userPermissions = user?.permissions ?? [];
       const canInspectAllTenantEvents = canInspectTenantEvents(userPermissions);
 
-      if (user?.id !== input.userId) {
-        yield* Effect.logWarning(
-          'Supplied query parameter userId does not match authenticated user',
-        ).pipe(
-          Effect.annotateLogs({
-            actualUserId: user?.id ?? null,
-            suppliedUserId: input.userId,
-          }),
-        );
-      }
-
       const isOnlyApprovedStatus =
         input.status.length === 1 && input.status[0] === 'APPROVED';
       if (
@@ -351,7 +366,7 @@ export const eventQueryHandlers = {
           )
           .limit(input.limit)
           .offset(input.offset)
-          .orderBy(eventInstances.start),
+          .orderBy(...eventListOrder()),
       );
 
       const eventRecords = selectedEvents.map((event) => ({
@@ -513,6 +528,13 @@ export const eventQueryHandlers = {
             userId: user.id,
           })
         : false;
+      const reviewMetadata = eventReviewMetadata({
+        canEdit: canEditEvent_,
+        canReview: Boolean(canReviewEvents),
+        canSeeDrafts: Boolean(canSeeDrafts),
+        reviewer: event.reviewer,
+        statusComment: event.statusComment ?? null,
+      });
       if (
         event.status !== 'APPROVED' &&
         !canSeeDrafts &&
@@ -851,144 +873,10 @@ export const eventQueryHandlers = {
         ),
         registrationOptionsHiddenByEligibility:
           isRegistrationOptionsHiddenByEligibility,
-        reviewer: event.reviewer,
+        reviewer: reviewMetadata.reviewer,
         start: event.start.toISOString(),
         status: event.status,
-        statusComment: event.statusComment ?? null,
-        title: event.title,
-      };
-    }),
-  'events.findOneForEdit': ({ id }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
-      const { tenant } = yield* RpcAccess.current();
-      const user = yield* RpcAccess.requireUser();
-
-      const event = yield* databaseEffect((database) =>
-        database.query.eventInstances.findFirst({
-          columns: {
-            creatorId: true,
-            description: true,
-            end: true,
-            icon: true,
-            id: true,
-            listingAudience: true,
-            location: true,
-            start: true,
-            status: true,
-            title: true,
-          },
-          where: { id, tenantId: tenant.id },
-          with: {
-            registrationOptions: {
-              columns: {
-                cancellationDeadlineHoursBeforeStart: true,
-                closeRegistrationTime: true,
-                description: true,
-                id: true,
-                isPaid: true,
-                openRegistrationTime: true,
-                organizingRegistration: true,
-                price: true,
-                refundFeesOnCancellation: true,
-                registeredDescription: true,
-                registrationMode: true,
-                roleIds: true,
-                spots: true,
-                stripeTaxRateId: true,
-                title: true,
-                transferDeadlineHoursBeforeStart: true,
-              },
-            },
-          },
-        }),
-      );
-
-      if (!event) {
-        return yield* Effect.fail(
-          new EventNotFoundError({ id, message: 'Event not found' }),
-        );
-      }
-
-      const canEdit =
-        event.creatorId === user.id ||
-        includesPermission('events:editAll', user.permissions);
-      if (!canEdit) {
-        return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
-        );
-      }
-
-      if (event.status !== 'DRAFT') {
-        return yield* Effect.fail(
-          new EventConflictError({
-            message: 'Event cannot be edited in its current state',
-          }),
-        );
-      }
-
-      const registrationOptionIds = event.registrationOptions.map(
-        (option) => option.id,
-      );
-      const optionDiscounts =
-        registrationOptionIds.length === 0
-          ? []
-          : yield* databaseEffect((database) =>
-              database
-                .select({
-                  discountedPrice:
-                    eventRegistrationOptionDiscounts.discountedPrice,
-                  discountType: eventRegistrationOptionDiscounts.discountType,
-                  registrationOptionId:
-                    eventRegistrationOptionDiscounts.registrationOptionId,
-                })
-                .from(eventRegistrationOptionDiscounts)
-                .where(
-                  and(
-                    eq(
-                      eventRegistrationOptionDiscounts.discountType,
-                      'esnCard',
-                    ),
-                    inArray(
-                      eventRegistrationOptionDiscounts.registrationOptionId,
-                      [...registrationOptionIds],
-                    ),
-                  ),
-                ),
-            );
-      const esnCardDiscountedPriceByOptionId =
-        getEsnCardDiscountedPriceByOptionId(optionDiscounts);
-
-      return {
-        description: event.description,
-        end: event.end.toISOString(),
-        icon: event.icon,
-        id: event.id,
-        listingAudience: event.listingAudience,
-        location: event.location ?? null,
-        registrationOptions: event.registrationOptions.map((option) => ({
-          cancellationDeadlineHoursBeforeStart:
-            option.cancellationDeadlineHoursBeforeStart,
-          closeRegistrationTime: option.closeRegistrationTime.toISOString(),
-          description: option.description ?? null,
-          esnCardDiscountedPrice:
-            esnCardDiscountedPriceByOptionId.get(option.id) ?? undefined,
-          id: option.id,
-          isPaid: option.isPaid,
-          openRegistrationTime: option.openRegistrationTime.toISOString(),
-          organizingRegistration: option.organizingRegistration,
-          price: option.price,
-          refundFeesOnCancellation: option.refundFeesOnCancellation,
-          registeredDescription: option.registeredDescription ?? null,
-          registrationMode: option.registrationMode,
-          roleIds: [...option.roleIds],
-          spots: option.spots,
-          stripeTaxRateId: option.stripeTaxRateId ?? null,
-          title: option.title,
-          transferDeadlineHoursBeforeStart:
-            option.transferDeadlineHoursBeforeStart,
-        })),
-        start: event.start.toISOString(),
+        statusComment: reviewMetadata.statusComment,
         title: event.title,
       };
     }),
@@ -1066,14 +954,12 @@ export const eventQueryHandlers = {
               columns: {
                 id: true,
                 organizingRegistration: true,
-                price: true,
                 registrationMode: true,
                 title: true,
               },
             },
             transactions: {
               columns: {
-                amount: true,
                 status: true,
                 stripeCheckoutSessionId: true,
                 type: true,
@@ -1165,28 +1051,15 @@ export const eventQueryHandlers = {
                 registrationStatus: registration.status,
                 transactions: registration.transactions,
               });
-              const discountedPriceFromTransaction =
-                registration.transactions.find(
-                  (transaction) =>
-                    transaction.amount < registrationOption.price,
-                )?.amount;
-              const appliedDiscountedPrice =
-                registration.appliedDiscountedPrice ??
-                discountedPriceFromTransaction ??
-                null;
-              const appliedDiscountType =
-                registration.appliedDiscountType ??
-                (appliedDiscountedPrice === null ? null : ('esnCard' as const));
-              const basePriceAtRegistration =
-                registration.basePriceAtRegistration ??
-                (appliedDiscountedPrice === null
-                  ? null
-                  : registrationOption.price);
-              const discountAmount =
-                registration.discountAmount ??
-                (appliedDiscountedPrice === null
-                  ? null
-                  : registrationOption.price - appliedDiscountedPrice);
+              const priceSnapshot = readRegistrationPriceSnapshot({
+                appliedDiscountedPrice: registration.appliedDiscountedPrice,
+                appliedDiscountType: registration.appliedDiscountType,
+                basePriceAtRegistration: registration.basePriceAtRegistration,
+                discountAmount: registration.discountAmount,
+                paymentPending: approvalState.paymentPending,
+                registrationId: registration.id,
+                status: registration.status,
+              });
 
               return {
                 addonPurchases: registration.addonPurchases.flatMap(
@@ -1201,12 +1074,9 @@ export const eventQueryHandlers = {
                         ]
                       : [],
                 ),
-                appliedDiscountedPrice,
-                appliedDiscountType,
-                basePriceAtRegistration,
+                ...priceSnapshot,
                 checkedIn: registration.checkInTime !== null,
                 checkInTime: registration.checkInTime?.toISOString() ?? null,
-                discountAmount,
                 email: registration.user.email,
                 firstName: registration.user.firstName,
                 lastName: registration.user.lastName,

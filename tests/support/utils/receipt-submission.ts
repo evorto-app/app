@@ -185,9 +185,7 @@ export const completeReceiptSubmissionForm = async ({
   await dialog.getByLabel(`Tax amount (${currency})`).fill(taxAmount);
   await dialog.getByLabel('Purchase country').click();
   await page.getByRole('option', { name: countryOption }).click();
-  await dialog
-    .locator('input[type="file"][accept="image/*,application/pdf"]')
-    .setInputFiles(receiptFile);
+  await dialog.locator('input[type="file"]').setInputFiles(receiptFile);
   await expect(
     dialog.getByText(path.basename(receiptFile), { exact: true }),
   ).toBeVisible();

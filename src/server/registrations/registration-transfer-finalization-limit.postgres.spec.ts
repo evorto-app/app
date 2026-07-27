@@ -350,8 +350,6 @@ const seedTransferLimitFixture = async (
         id: transferId,
         recipientBasePrice: 1000,
         recipientCheckoutTransactionId: transactionId,
-        recipientRegistrationId: registrationId,
-        recipientSpotCount: 1,
         recipientUserId,
         registrationOptionId: optionId,
         sourceRegistrationId: registrationId,

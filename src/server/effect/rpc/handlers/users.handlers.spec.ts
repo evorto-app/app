@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
 import { DateTime } from 'luxon';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { rolesToTenantUsers, users } from '../../../../db/schema';
+import { type Permission } from '../../../../shared/permissions/permissions';
 import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import { RpcAccess } from './shared/rpc-access.service';
 import {
   normalizeUsersFindManySearch,
   resolveProfileRefundState,
@@ -33,6 +36,7 @@ const createTenant = () => ({
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
@@ -48,27 +52,52 @@ const createUser = () => ({
   id: 'user-1',
   lastName: 'Doe',
   paypalEmail: null,
-  permissions: [] as string[],
+  permissions: [] as Permission[],
   roleIds: [],
 });
 
-const createUserHandlerHeaders = ({
+const createUserHandlerContext = ({
+  authenticated = true,
   permissions = [],
   tenant = createTenant(),
   user = createUser(),
+  userAssigned = user !== null,
 }: {
-  permissions?: string[];
+  authenticated?: boolean;
+  permissions?: readonly Permission[];
   tenant?: ReturnType<typeof createTenant>;
-  user?: ReturnType<typeof createUser>;
-} = {}) => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(permissions),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-  [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson({
-    ...user,
-    permissions,
-  }),
+  user?: null | ReturnType<typeof createUser>;
+  userAssigned?: boolean;
+} = {}): RpcRequestContextShape => ({
+  authData: {},
+  authenticated,
+  permissions,
+  platformAuthority: null,
+  tenant,
+  user: user
+    ? {
+        ...user,
+        permissions: [...permissions],
+      }
+    : null,
+  userAssigned,
 });
+
+const provideUserHandlerContext =
+  (context = createUserHandlerContext()) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          RpcAccess.Default,
+          Layer.succeed(RpcRequestContext, context),
+        ),
+      ),
+    );
+
+const userHandlerOptions = {
+  headers: Headers.empty,
+} as never;
 
 const membershipLockSelect = (membershipId?: string) => () => ({
   from: () => ({
@@ -198,8 +227,8 @@ describe('userHandlers', () => {
           roleIds: ['role-1'],
           userId: 'user-2',
         },
-        { headers: createUserHandlerHeaders() } as never,
-      ).pipe(Effect.flip);
+        userHandlerOptions,
+      ).pipe(Effect.flip, provideUserHandlerContext());
 
       expect(error['_tag']).toBe('RpcForbiddenError');
     }),
@@ -225,13 +254,14 @@ describe('userHandlers', () => {
           roleIds: ['role-1'],
           userId: 'user-2',
         },
-        {
-          headers: createUserHandlerHeaders({
-            permissions: ['users:assignRoles'],
-          }),
-        } as never,
+        userHandlerOptions,
       ).pipe(
         Effect.flip,
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            permissions: ['users:assignRoles'],
+          }),
+        ),
         Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
       );
 
@@ -270,13 +300,14 @@ describe('userHandlers', () => {
           roleIds: ['role-1', 'role-missing'],
           userId: 'user-2',
         },
-        {
-          headers: createUserHandlerHeaders({
-            permissions: ['users:assignRoles'],
-          }),
-        } as never,
+        userHandlerOptions,
       ).pipe(
         Effect.flip,
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            permissions: ['users:assignRoles'],
+          }),
+        ),
         Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
       );
 
@@ -312,13 +343,14 @@ describe('userHandlers', () => {
             roleIds: [],
             userId: 'user-1',
           },
-          {
-            headers: createUserHandlerHeaders({
-              permissions: ['users:assignRoles'],
-            }),
-          } as never,
+          userHandlerOptions,
         ).pipe(
           Effect.flip,
+          provideUserHandlerContext(
+            createUserHandlerContext({
+              permissions: ['users:assignRoles'],
+            }),
+          ),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
         );
 
@@ -377,12 +409,13 @@ describe('userHandlers', () => {
             roleIds: ['role-1', 'role-2', 'role-1'],
             userId: 'user-1',
           },
-          {
-            headers: createUserHandlerHeaders({
+          userHandlerOptions,
+        ).pipe(
+          provideUserHandlerContext(
+            createUserHandlerContext({
               permissions: ['users:assignRoles'],
             }),
-          } as never,
-        ).pipe(
+          ),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
         );
 
@@ -404,9 +437,18 @@ describe('userHandlers', () => {
 
   it.effect('canUseScanner returns false for anonymous users', () =>
     Effect.gen(function* () {
-      const result = yield* userHandlers['users.canUseScanner'](undefined, {
-        headers: {},
-      } as never);
+      const result = yield* userHandlers['users.canUseScanner'](
+        undefined,
+        userHandlerOptions,
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            authenticated: false,
+            user: null,
+            userAssigned: false,
+          }),
+        ),
+      );
 
       expect(result).toBe(false);
     }),
@@ -416,11 +458,16 @@ describe('userHandlers', () => {
     'canUseScanner allows tenant-wide event organizers without a query',
     () =>
       Effect.gen(function* () {
-        const result = yield* userHandlers['users.canUseScanner'](undefined, {
-          headers: createUserHandlerHeaders({
-            permissions: ['events:organizeAll'],
-          }),
-        } as never);
+        const result = yield* userHandlers['users.canUseScanner'](
+          undefined,
+          userHandlerOptions,
+        ).pipe(
+          provideUserHandlerContext(
+            createUserHandlerContext({
+              permissions: ['events:organizeAll'],
+            }),
+          ),
+        );
 
         expect(result).toBe(true);
       }),
@@ -445,9 +492,11 @@ describe('userHandlers', () => {
           }),
         };
 
-        const result = yield* userHandlers['users.canUseScanner'](undefined, {
-          headers: createUserHandlerHeaders(),
-        } as never).pipe(
+        const result = yield* userHandlers['users.canUseScanner'](
+          undefined,
+          userHandlerOptions,
+        ).pipe(
+          provideUserHandlerContext(),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
         );
 
@@ -475,9 +524,11 @@ describe('userHandlers', () => {
           }),
         };
 
-        const result = yield* userHandlers['users.canUseScanner'](undefined, {
-          headers: createUserHandlerHeaders(),
-        } as never).pipe(
+        const result = yield* userHandlers['users.canUseScanner'](
+          undefined,
+          userHandlerOptions,
+        ).pipe(
+          provideUserHandlerContext(),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
         );
 
@@ -490,11 +541,6 @@ describe('userHandlers', () => {
     Effect.gen(function* () {
       const tenant = createTenant();
       const user = createUser();
-      const headers = {
-        [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-        [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-        [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-      };
       const findRegistrations = vi.fn(() =>
         Effect.succeed([
           {
@@ -684,10 +730,11 @@ describe('userHandlers', () => {
 
       const result = yield* userHandlers['users.events'](
         undefined as never,
-        {
-          headers,
-        } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
+        userHandlerOptions,
+      ).pipe(
+        provideUserHandlerContext(createUserHandlerContext({ tenant, user })),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+      );
 
       expect(findRegistrations).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -823,11 +870,6 @@ describe('userHandlers', () => {
       Effect.gen(function* () {
         const tenant = createTenant();
         const user = createUser();
-        const headers = {
-          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-          [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-          [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-        };
         const mockDatabase = {
           query: {
             eventRegistrations: {
@@ -856,10 +898,9 @@ describe('userHandlers', () => {
 
         const exit = yield* userHandlers['users.events'](
           undefined as never,
-          {
-            headers,
-          } as never,
+          userHandlerOptions,
         ).pipe(
+          provideUserHandlerContext(createUserHandlerContext({ tenant, user })),
           Effect.provide(Layer.succeed(Database, mockDatabase as never)),
           Effect.exit,
         );
@@ -882,13 +923,6 @@ describe('userHandlers', () => {
     () =>
       Effect.gen(function* () {
         const tenant = createTenant();
-        const headers = {
-          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-          [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-            'users:viewAll',
-          ]),
-          [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-        };
         const select = vi
           .fn()
           .mockImplementationOnce(() => ({
@@ -961,8 +995,16 @@ describe('userHandlers', () => {
             offset: 0,
             search: 'Alice',
           },
-          { headers } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
+          userHandlerOptions,
+        ).pipe(
+          provideUserHandlerContext(
+            createUserHandlerContext({
+              permissions: ['users:viewAll'],
+              tenant,
+            }),
+          ),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        );
 
         expect(result.usersCount).toBe(2);
         expect(result.users).toEqual([
@@ -997,10 +1039,6 @@ describe('userHandlers', () => {
   it.effect('updateProfile updates notification and payout fields', () =>
     Effect.gen(function* () {
       const user = createUser();
-      const headers = {
-        [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-        [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-      };
       const updateSet = vi.fn((_value: unknown) => ({
         where: vi.fn(() => Effect.void),
       }));
@@ -1018,8 +1056,11 @@ describe('userHandlers', () => {
           lastName: 'Updated',
           paypalEmail: 'paypal@example.com',
         },
-        { headers } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
+        userHandlerOptions,
+      ).pipe(
+        provideUserHandlerContext(createUserHandlerContext({ user })),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+      );
 
       expect(mockDatabase.update).toHaveBeenCalledWith(users);
       expect(updateSet).toHaveBeenCalledWith({
@@ -1036,10 +1077,6 @@ describe('userHandlers', () => {
     'updateProfile rejects non-canonical contact and payout details',
     () =>
       Effect.gen(function* () {
-        const headers = {
-          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-          [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(createUser()),
-        };
         const mockDatabase = {
           update: vi.fn(),
         };
@@ -1074,9 +1111,10 @@ describe('userHandlers', () => {
               lastName: 'Updated',
               paypalEmail: testCase.paypalEmail,
             },
-            { headers } as never,
+            userHandlerOptions,
           ).pipe(
             Effect.flip,
+            provideUserHandlerContext(),
             Effect.provide(Layer.succeed(Database, mockDatabase as never)),
           );
 
@@ -1087,32 +1125,51 @@ describe('userHandlers', () => {
       }),
   );
 
-  it.effect('userAssigned reflects the current tenant assignment header', () =>
+  it.effect('userAssigned reflects the trusted request context', () =>
     Effect.gen(function* () {
-      const assigned = yield* userHandlers['users.userAssigned'](undefined, {
-        headers: {
-          [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'true',
-        },
-      } as never);
+      const assigned = yield* userHandlers['users.userAssigned'](
+        undefined,
+        userHandlerOptions,
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({ userAssigned: true }),
+        ),
+      );
       expect(assigned).toBe(true);
 
-      const unassigned = yield* userHandlers['users.userAssigned'](undefined, {
-        headers: {
-          [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'false',
-        },
-      } as never);
+      const unassigned = yield* userHandlers['users.userAssigned'](
+        undefined,
+        userHandlerOptions,
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            user: null,
+            userAssigned: false,
+          }),
+        ),
+      );
       expect(unassigned).toBe(false);
     }),
   );
 
   it.effect(
-    'userAssigned fails closed when the assignment header is absent',
+    'userAssigned defects when the trusted request context is absent',
     () =>
       Effect.gen(function* () {
-        const assigned = yield* userHandlers['users.userAssigned'](undefined, {
-          headers: {},
-        } as never);
-        expect(assigned).toBe(false);
+        const exit = yield* userHandlers['users.userAssigned'](
+          undefined,
+          userHandlerOptions,
+        ).pipe(Effect.provide(RpcAccess.Default), Effect.exit);
+        expect(exit._tag).toBe('Failure');
+        if (exit._tag === 'Failure') {
+          const reason = exit.cause.reasons[0];
+          expect(reason?._tag).toBe('Die');
+          expect(
+            reason?._tag === 'Die' && reason.defect instanceof Error
+              ? reason.defect.message
+              : undefined,
+          ).toBe('RpcRequestContext missing');
+        }
       }),
   );
 });

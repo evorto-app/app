@@ -2,9 +2,34 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { User } from '../../../types/custom/user';
-import { UsersEventSummaryRecord, UsersUpdateProfileInput } from './users.rpcs';
+import {
+  UsersEventSummaryRecord,
+  UsersFindManyInput,
+  UsersUpdateProfileInput,
+} from './users.rpcs';
 
 describe('users RPC input schemas', () => {
+  it('accepts only bounded integer tenant-user pages', () => {
+    expect(
+      Schema.decodeUnknownSync(UsersFindManyInput)({
+        limit: 100,
+        offset: 0,
+      }),
+    ).toEqual({ limit: 100, offset: 0 });
+
+    for (const input of [
+      { limit: 0, offset: 0 },
+      { limit: 101, offset: 0 },
+      { limit: 10.5, offset: 0 },
+      { limit: 10, offset: -1 },
+      { limit: 10, offset: 0.5 },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(UsersFindManyInput)(input),
+      ).toThrow();
+    }
+  });
+
   it('canonicalizes valid profile contact and payout input', () => {
     expect(
       Schema.decodeUnknownSync(UsersUpdateProfileInput)({

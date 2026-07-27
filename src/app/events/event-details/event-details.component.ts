@@ -52,6 +52,7 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
 import { EventRegistrationOptionComponent } from '../event-registration-option/event-registration-option.component';
 import { EventReviewDialogComponent } from '../event-review-dialog/event-review-dialog.component';
+import { eventReviewActionErrorRequiresRefresh } from '../event-rpc-error';
 import { SubmitEventDialogComponent } from '../submit-event-dialog/submit-event-dialog.component';
 import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/update-visibility-dialog.component';
 
@@ -573,13 +574,7 @@ export class EventDetailsComponent {
       error,
       'Failed to update event review status',
     );
-    const normalizedMessage = message.toLowerCase();
-    if (
-      normalizedMessage.includes('status changed') ||
-      normalizedMessage.includes('refresh and try again') ||
-      normalizedMessage.includes('no longer pending review') ||
-      normalizedMessage.includes('conflict')
-    ) {
+    if (eventReviewActionErrorRequiresRefresh(error)) {
       this.notifications.showError(
         'Event status changed. Refreshed the latest state.',
       );

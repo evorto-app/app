@@ -86,6 +86,16 @@
             {{ receiptReimbursementMissingPayoutNotice }}
           </p>
         }
+        @if (group.receipts.length > maximumFinanceReimbursementReceiptCount) {
+          <p
+            role="status"
+            class="bg-surface-container mt-3 rounded-xl p-3 text-sm"
+          >
+            Record up to {{ maximumFinanceReimbursementReceiptCount }} receipts
+            at a time. Additional receipts remain available for the next
+            reimbursement.
+          </p>
+        }
 
         <div
           class="mt-3 overflow-x-auto rounded-xl border border-outline-variant"

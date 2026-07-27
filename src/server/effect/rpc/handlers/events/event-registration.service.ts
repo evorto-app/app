@@ -32,6 +32,7 @@ import {
   type RegistrationCheckoutLineItemSnapshot,
   type RegistrationCheckoutSnapshot,
   RegistrationCheckoutSnapshotSchema,
+  registrationTransfers,
   tenantStripeTaxRates,
   transactions,
   userDiscountCards,
@@ -979,6 +980,12 @@ interface RegistrationTaxRateSnapshot {
   readonly inclusive: boolean;
   readonly percentage: string;
   readonly stripeTaxRateId: string;
+}
+
+interface RetryRegistrationCheckoutArguments {
+  registrationId: string;
+  tenantId: string;
+  userId: string;
 }
 
 const registrationTaxConfigurationChanged = () =>
@@ -1936,7 +1943,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     appliedDiscountedPrice,
                     appliedDiscountType,
                     basePriceAtRegistration: basePrice,
-                    discountAmount,
+                    discountAmount: discountAmount ?? 0,
                     status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
                     ...(selectedTaxRateId && {
                       stripeTaxRateId: selectedTaxRateId,
@@ -2673,8 +2680,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           database.query.eventRegistrations.findFirst({
             columns: {
               id: true,
-              registrationOptionId: true,
-              status: true,
             },
             where: {
               eventId,
@@ -2685,38 +2690,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           }),
         );
         if (existingRegistration) {
-          if (
-            existingRegistration.status === 'PENDING' &&
-            existingRegistration.registrationOptionId === registrationOptionId
-          ) {
-            const existingClaims = yield* databaseEffect((database) =>
-              database
-                .select(registrationPaymentClaimSelection)
-                .from(transactions)
-                .where(
-                  and(
-                    eq(
-                      transactions.eventRegistrationId,
-                      existingRegistration.id,
-                    ),
-                    eq(transactions.method, 'stripe'),
-                    eq(transactions.status, 'pending'),
-                    eq(transactions.tenantId, tenant.id),
-                    eq(transactions.type, 'registration'),
-                  ),
-                ),
-            );
-            const existingClaim = existingClaims[0];
-            if (existingClaim) {
-              yield* resumeDirectRegistrationCheckout({
-                eventId,
-                paymentClaim: existingClaim,
-                registrationId: existingRegistration.id,
-                tenantId: tenant.id,
-              });
-              return;
-            }
-          }
           return yield* Effect.fail(
             new EventRegistrationConflictError({
               message: 'User is already registered for this event',
@@ -3259,13 +3232,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 const createdRegistrations = yield* tx
                   .insert(eventRegistrations)
                   .values({
-                    ...(!manualApproval &&
-                      mayRequireCheckout && {
-                        appliedDiscountedPrice,
-                        appliedDiscountType,
-                        basePriceAtRegistration: basePrice,
-                        discountAmount,
-                      }),
+                    ...(!manualApproval && {
+                      appliedDiscountedPrice,
+                      appliedDiscountType,
+                      basePriceAtRegistration: basePrice,
+                      discountAmount: discountAmount ?? 0,
+                    }),
                     eventId,
                     guestCount,
                     registrationOptionId: registrationOption.id,
@@ -3597,6 +3569,77 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         });
       });
 
+      const retryRegistrationCheckout = Effect.fn(
+        'EventRegistrationService.retryRegistrationCheckout',
+      )(function* ({
+        registrationId,
+        tenantId,
+        userId,
+      }: RetryRegistrationCheckoutArguments) {
+        const registration = yield* databaseEffect((database) =>
+          database.query.eventRegistrations.findFirst({
+            columns: {
+              eventId: true,
+              id: true,
+            },
+            where: {
+              id: registrationId,
+              status: 'PENDING',
+              tenantId,
+              userId,
+            },
+          }),
+        );
+        if (!registration) {
+          return yield* Effect.fail(
+            new EventRegistrationNotFoundError({
+              message: 'Pending registration not found',
+            }),
+          );
+        }
+
+        const paymentClaims = yield* databaseEffect((database) =>
+          database
+            .select(registrationPaymentClaimSelection)
+            .from(transactions)
+            .leftJoin(
+              registrationTransfers,
+              and(
+                eq(
+                  registrationTransfers.recipientCheckoutTransactionId,
+                  transactions.id,
+                ),
+                eq(registrationTransfers.tenantId, transactions.tenantId),
+              ),
+            )
+            .where(
+              and(
+                eq(transactions.eventRegistrationId, registration.id),
+                eq(transactions.method, 'stripe'),
+                eq(transactions.status, 'pending'),
+                eq(transactions.tenantId, tenantId),
+                eq(transactions.type, 'registration'),
+                isNull(transactions.stripeCheckoutCancellationRequestedAt),
+                isNull(registrationTransfers.id),
+              ),
+            ),
+        );
+        if (paymentClaims.length !== 1) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Registration is no longer awaiting payment setup',
+            }),
+          );
+        }
+
+        return yield* resumeDirectRegistrationCheckout({
+          eventId: registration.eventId,
+          paymentClaim: paymentClaims[0],
+          registrationId: registration.id,
+          tenantId,
+        });
+      });
+
       const joinWaitlist = Effect.fn('EventRegistrationService.joinWaitlist')(
         function* ({
           answers,
@@ -3924,6 +3967,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         approveManualRegistration,
         joinWaitlist,
         registerForEvent,
+        retryRegistrationCheckout,
       } as const;
     }),
   },
@@ -3945,4 +3989,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
   static readonly registerForEvent = (input: RegisterForEventArguments) =>
     EventRegistrationService.use((service) => service.registerForEvent(input));
+
+  static readonly retryRegistrationCheckout = (
+    input: RetryRegistrationCheckoutArguments,
+  ) =>
+    EventRegistrationService.use((service) =>
+      service.retryRegistrationCheckout(input),
+    );
 }

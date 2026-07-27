@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@effect/vitest';
-import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import {
   MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
-  MAX_REGISTRATION_QUESTIONS,
   MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
+import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
 import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
@@ -509,10 +509,7 @@ describe('platform event, template, and registration handlers', () => {
     expect(platformEventQuestionLimitError([question])).toBeNull();
     expect(
       platformEventQuestionLimitError(
-        Array.from(
-          { length: MAX_REGISTRATION_QUESTIONS + 1 },
-          () => question,
-        ),
+        Array.from({ length: MAX_REGISTRATION_QUESTIONS + 1 }, () => question),
       ),
     ).toMatchObject({ reason: 'eventQuestionLimitExceeded' });
     for (const invalidQuestion of [
@@ -528,9 +525,7 @@ describe('platform event, template, and registration handlers', () => {
         ),
       },
     ]) {
-      expect(
-        platformEventQuestionLimitError([invalidQuestion]),
-      ).toMatchObject({
+      expect(platformEventQuestionLimitError([invalidQuestion])).toMatchObject({
         reason: 'invalidEventQuestion',
       });
     }

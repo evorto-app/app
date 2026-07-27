@@ -83,6 +83,50 @@ describe('finance receipt schema', () => {
     );
   });
 
+  it('enforces tenant ownership and keeps only one copy of upload metadata', () => {
+    const receiptConfig = getTableConfig(financeReceipts);
+    const uploadConfig = getTableConfig(financeReceiptUploads);
+
+    expect(
+      receiptConfig.foreignKeys.map((foreignKey) => foreignKey.getName()),
+    ).toEqual(
+      expect.arrayContaining([
+        'finance_receipts_attachment_upload_scope_fk',
+        'finance_receipts_event_tenant_fk',
+        'finance_receipts_refund_transaction_tenant_fk',
+      ]),
+    );
+    expect(
+      uploadConfig.foreignKeys.map((foreignKey) => foreignKey.getName()),
+    ).toContain('finance_receipt_uploads_event_tenant_fk');
+
+    const receiptColumns = receiptConfig.columns.map((column) => column.name);
+    expect(receiptColumns).not.toEqual(
+      expect.arrayContaining([
+        'attachmentMimeType',
+        'attachmentSizeBytes',
+        'previewImageId',
+        'previewImageUrl',
+        'stripeTaxRateId',
+      ]),
+    );
+    expect(receiptColumns).toContain('attachmentFileName');
+    expect(uploadConfig.columns.map((column) => column.name)).not.toContain(
+      'storageUrl',
+    );
+    expect(
+      uploadConfig.columns.find((column) => column.name === 'status')
+        ?.enumValues,
+    ).toEqual([
+      'pending',
+      'finalizing',
+      'ready',
+      'rejected',
+      'consumed',
+      'cleaning',
+    ]);
+  });
+
   it('stores calendar dates and requires explicit receipt amount fields', () => {
     const receiptConfig = getTableConfig(financeReceipts);
     const receiptDate = receiptConfig.columns.find(

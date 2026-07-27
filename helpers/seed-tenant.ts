@@ -23,12 +23,9 @@ import { getSeedDate } from './seed-clock';
 import { requireSeedRoles } from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 
-const resolveStripeSeedAccountId = (
-  profile: SeedProfile,
-  explicitValue?: string,
-): string | undefined => {
+export const resolveStripeSeedAccountId = (explicitValue?: string): string => {
   if (explicitValue && explicitValue.trim().length > 0) {
-    return explicitValue;
+    return explicitValue.trim();
   }
 
   const fromEnvironment = process.env['STRIPE_TEST_ACCOUNT_ID']?.trim();
@@ -36,13 +33,9 @@ const resolveStripeSeedAccountId = (
     return fromEnvironment;
   }
 
-  if (profile === 'docs' || profile === 'test') {
-    throw new Error(
-      'Missing STRIPE_TEST_ACCOUNT_ID for deterministic paid seed scenarios',
-    );
-  }
-
-  return undefined;
+  throw new Error(
+    'Missing STRIPE_TEST_ACCOUNT_ID for deterministic paid seed scenarios',
+  );
 };
 
 export interface SeedTenantOptions {
@@ -175,18 +168,13 @@ export async function seedTenant(
   }
 
   const resolvedSeedDate = seedDate ?? getSeedDate();
-  const resolvedStripeAccountId = resolveStripeSeedAccountId(
-    profile,
-    stripeAccountId,
-  );
+  const resolvedStripeAccountId = resolveStripeSeedAccountId(stripeAccountId);
 
   const tenantInput: CreateSeedTenantInput = {
     currency,
     domain,
     name,
-    ...(resolvedStripeAccountId && {
-      stripeAccountId: resolvedStripeAccountId,
-    }),
+    stripeAccountId: resolvedStripeAccountId,
   };
 
   const tenant = await createTenant(database, tenantInput);

@@ -70,6 +70,7 @@ describe('handleTenantBrandAssetWebRequest', () => {
         file() {
           return {
             arrayBuffer: vi.fn(async () => new Uint8Array([1, 2, 3]).buffer),
+            exists: vi.fn(async () => true),
             presign: vi.fn(() => 'https://signed.example.com/object'),
             write: vi.fn(async () => 0),
           };
@@ -106,12 +107,13 @@ describe('handleTenantBrandAssetWebRequest', () => {
 
   it.effect('returns 404 for missing object storage assets', () =>
     Effect.gen(function* () {
+      const read = vi.fn(async () => new ArrayBuffer(0));
+
       class FakeS3Client {
         file() {
           return {
-            arrayBuffer: vi.fn(async () => {
-              throw new Error('No such key');
-            }),
+            arrayBuffer: read,
+            exists: vi.fn(async () => false),
             presign: vi.fn(() => 'https://signed.example.com/object'),
             write: vi.fn(async () => 0),
           };
@@ -127,6 +129,35 @@ describe('handleTenantBrandAssetWebRequest', () => {
       }).pipe(Effect.provide(objectStorageLayer));
 
       expect(response.status).toBe(404);
+      expect(read).not.toHaveBeenCalled();
+    }),
+  );
+
+  it.effect('does not infer missing storage assets from provider text', () =>
+    Effect.gen(function* () {
+      class FakeS3Client {
+        file() {
+          return {
+            arrayBuffer: vi.fn(async () => {
+              throw new Error('Upstream connection failed after a 404 retry');
+            }),
+            exists: vi.fn(async () => true),
+            presign: vi.fn(() => 'https://signed.example.com/object'),
+            write: vi.fn(async () => 0),
+          };
+        }
+      }
+
+      bunRuntime.S3Client = FakeS3Client;
+
+      const error = yield* handleTenantBrandAssetWebRequest({
+        fileName: 'logo.png',
+        kind: 'logo',
+        tenantId: 'tenant-1',
+      }).pipe(Effect.flip, Effect.provide(objectStorageLayer));
+
+      expect(error['_tag']).toBe('RpcInternalServerError');
+      expect(error.message).toBe('Failed to load tenant brand asset');
     }),
   );
 });

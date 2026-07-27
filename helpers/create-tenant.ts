@@ -11,6 +11,8 @@ import { getId } from './get-id';
 import { usersToAuthenticate } from './user-data';
 
 const length = 4;
+const seedPrivacyPolicyText =
+  'Development and test tenant privacy policy. Seeded data must not be used as production legal text.';
 
 export const createId = init({ length });
 
@@ -31,9 +33,6 @@ export const createTenant = async (
       ...tenantData,
       domain,
       id: getId(),
-      privacyPolicyText:
-        tenantData.privacyPolicyText ??
-        'Development and test tenant privacy policy. Seeded data must not be used as production legal text.',
     })
     .returning();
   consola.success(
@@ -63,8 +62,8 @@ export const createTenant = async (
   const policyVersions = await database
     .insert(schema.tenantPrivacyPolicyVersions)
     .values({
-      privacyPolicyText: tenant[0].privacyPolicyText,
-      privacyPolicyUrl: tenant[0].privacyPolicyUrl,
+      privacyPolicyText: seedPrivacyPolicyText,
+      privacyPolicyUrl: null,
       tenantId: tenant[0].id,
       version: 1,
     })

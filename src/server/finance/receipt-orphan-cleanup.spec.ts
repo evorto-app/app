@@ -8,7 +8,7 @@ import {
 const now = new Date('2026-07-16T12:00:00.000Z');
 
 describe('receipt orphan cleanup', () => {
-  it('waits through the safety grace before cleaning pending or rejected files', () => {
+  it('waits through the safety grace before cleaning unfinished files', () => {
     expect(
       isReceiptUploadOrphan({
         expiresAt: new Date('2026-07-16T11:50:01.000Z'),
@@ -17,6 +17,14 @@ describe('receipt orphan cleanup', () => {
         updatedAt: now,
       }),
     ).toBe(false);
+    expect(
+      isReceiptUploadOrphan({
+        expiresAt: new Date('2026-07-16T11:44:59.000Z'),
+        now,
+        status: 'finalizing',
+        updatedAt: now,
+      }),
+    ).toBe(true);
     expect(
       isReceiptUploadOrphan({
         expiresAt: new Date('2026-07-16T11:44:59.000Z'),
@@ -52,6 +60,25 @@ describe('receipt orphan cleanup', () => {
         updatedAt: new Date('2020-01-01T00:00:00.000Z'),
       }),
     ).toBe(false);
+  });
+
+  it('reclaims only stale interrupted cleanup claims', () => {
+    expect(
+      isReceiptUploadOrphan({
+        expiresAt: new Date('2020-01-01T00:00:00.000Z'),
+        now,
+        status: 'cleaning',
+        updatedAt: new Date('2026-07-16T11:50:01.000Z'),
+      }),
+    ).toBe(false);
+    expect(
+      isReceiptUploadOrphan({
+        expiresAt: new Date('2020-01-01T00:00:00.000Z'),
+        now,
+        status: 'cleaning',
+        updatedAt: new Date('2026-07-16T11:44:59.000Z'),
+      }),
+    ).toBe(true);
   });
 
   it('bounds every cleanup invocation', () => {

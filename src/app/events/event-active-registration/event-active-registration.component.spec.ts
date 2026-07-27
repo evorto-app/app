@@ -486,6 +486,10 @@ describe('active registration template source', () => {
     expect(template).toContain(
       'Your registration is not confirmed until payment succeeds.',
     );
+    expect(template).toContain('Try payment setup again');
+    expect(template).toContain(
+      '(click)="retryRegistrationCheckout(registration)"',
+    );
   });
 
   it('does not render a cancel action for transfer refund states', () => {
@@ -502,6 +506,7 @@ describe('active registration template source', () => {
 });
 
 const purchaseAddon = vi.fn();
+const retryRegistrationCheckout = vi.fn();
 const canOrganize = vi.fn();
 const cancelRegistration = vi.fn();
 const cancelTransfer = vi.fn();
@@ -527,6 +532,8 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
 
   beforeEach(async () => {
     purchaseAddon.mockReset();
+    retryRegistrationCheckout.mockReset();
+    retryRegistrationCheckout.mockResolvedValue(undefined);
     canOrganize.mockReset();
     canOrganize.mockResolvedValue(true);
     cancelRegistration.mockReset();
@@ -584,6 +591,10 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
               'registration-status',
               eventId,
             ],
+            retryRegistrationCheckout: () => ({
+              mutationFn: retryRegistrationCheckout,
+              mutationKey: ['retry-registration-checkout'],
+            }),
             scannerAccessQueryKey: () => ['scanner-access'],
             userEventsQueryKey: () => ['user-events'],
           },

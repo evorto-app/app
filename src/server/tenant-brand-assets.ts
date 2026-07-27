@@ -39,6 +39,48 @@ const mimeTypeByExtension = new Map(
   ]),
 );
 
+type BrandAssetFileType = 'gif' | 'ico' | 'jpeg' | 'png' | 'webp';
+
+const fileTypeByMimeType = new Map<string, BrandAssetFileType>([
+  ['image/gif', 'gif'],
+  ['image/jpeg', 'jpeg'],
+  ['image/png', 'png'],
+  ['image/vnd.microsoft.icon', 'ico'],
+  ['image/webp', 'webp'],
+  ['image/x-icon', 'ico'],
+]);
+
+const startsWithBytes = (
+  body: Uint8Array,
+  expected: readonly number[],
+): boolean => expected.every((byte, index) => body[index] === byte);
+
+export const detectTenantBrandAssetFileType = (
+  body: Uint8Array,
+): BrandAssetFileType | undefined => {
+  if (startsWithBytes(body, [0xff, 0xd8, 0xff])) return 'jpeg';
+  if (startsWithBytes(body, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+    return 'png';
+  }
+  if (
+    startsWithBytes(body, [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) ||
+    startsWithBytes(body, [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
+  ) {
+    return 'gif';
+  }
+  if (
+    startsWithBytes(body, [0x52, 0x49, 0x46, 0x46]) &&
+    body[8] === 0x57 &&
+    body[9] === 0x45 &&
+    body[10] === 0x42 &&
+    body[11] === 0x50
+  ) {
+    return 'webp';
+  }
+  if (startsWithBytes(body, [0x00, 0x00, 0x01, 0x00])) return 'ico';
+  return;
+};
+
 export const sanitizeTenantBrandAssetFileName = (fileName: string): string =>
   fileName
     .trim()
@@ -108,6 +150,18 @@ export const uploadTenantBrandAsset = (input: {
       return yield* Effect.fail(
         new RpcBadRequestError({
           message: 'Uploaded file size does not match payload metadata',
+        }),
+      );
+    }
+
+    const expectedFileType = fileTypeByMimeType.get(input.mimeType);
+    if (
+      !expectedFileType ||
+      detectTenantBrandAssetFileType(body) !== expectedFileType
+    ) {
+      return yield* Effect.fail(
+        new RpcBadRequestError({
+          message: 'Brand asset contents do not match the declared MIME type',
         }),
       );
     }

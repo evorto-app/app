@@ -1,5 +1,5 @@
 ---
-"evorto": patch
+default: patch
 ---
 
 Fail template graph reads loudly when a persisted registration option references

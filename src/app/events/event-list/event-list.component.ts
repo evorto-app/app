@@ -5,9 +5,6 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -15,19 +12,16 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faClock,
   faEllipsisVertical,
-  faFilter,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
   eventListingAudienceDescriptions,
   eventListingAudienceLabel,
 } from '@shared/event-listing-audience';
-import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
-import { EventFilterDialogComponent } from '../event-filter-dialog/event-filter-dialog.component';
 import { EventListService } from '../event-list.service';
 
 @Component({
@@ -41,10 +35,7 @@ import { EventListService } from '../event-list.service';
     RouterOutlet,
     RouterLinkActive,
     TenantDatePipe,
-    MatButtonToggleModule,
     MatTooltipModule,
-    MatDialogModule,
-    MatChipsModule,
     IfAnyPermissionDirective,
   ],
   selector: 'app-event-list',
@@ -54,28 +45,17 @@ import { EventListService } from '../event-list.service';
 export class EventListComponent {
   private readonly eventListService = inject(EventListService);
 
-  // Expose service properties for template access
-  protected readonly canSeeDrafts = this.eventListService.canSeeDrafts;
-  protected readonly canSeeUnlisted = this.eventListService.canSeeUnlisted;
+  protected readonly eventDays = this.eventListService.eventDays;
   protected readonly eventListingAudienceDescriptions =
     eventListingAudienceDescriptions;
   protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly faFilter = faFilter;
   protected readonly outletActive = signal(false);
-  protected readonly startFilter = this.eventListService.startFilter;
   private readonly config = inject(ConfigService);
-  private readonly dialog = inject(MatDialog);
 
   constructor() {
     this.config.updateTitle('Events');
-  }
-
-  protected async openFilterPanel() {
-    await firstValueFrom(
-      this.dialog.open(EventFilterDialogComponent).afterClosed(),
-    );
   }
 }

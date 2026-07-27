@@ -389,7 +389,7 @@ export const platformRegistrationActiveTransferPredicate = (input: {
         ]),
       ),
       and(
-        eq(registrationTransfers.recipientRegistrationId, input.registrationId),
+        eq(registrationTransfers.sourceRegistrationId, input.registrationId),
         eq(registrationTransfers.status, 'checkout_pending'),
       ),
     ),

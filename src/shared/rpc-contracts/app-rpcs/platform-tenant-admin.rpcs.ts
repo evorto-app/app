@@ -1,5 +1,9 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { nonNegativeNumber } from '@shared/schema-utilities';
+import {
+  nonNegativeNumber,
+  PageLimit,
+  PageOffset,
+} from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -15,13 +19,6 @@ import {
   RoleWriteInput,
   RoleWriteValidationError,
 } from './role-write.shared';
-
-const PlatformTenantUserPageLimit = nonNegativeNumber.check(
-  Schema.isInt(),
-  Schema.isLessThanOrEqualTo(100),
-);
-
-const PlatformTenantUserPageOffset = nonNegativeNumber.check(Schema.isInt());
 
 const PlatformTaxRateIds = Schema.Array(Schema.NonEmptyString).check(
   Schema.isMinLength(1),
@@ -88,8 +85,8 @@ export class PlatformStripeTaxRateRecord extends Schema.Class<PlatformStripeTaxR
 
 export const PlatformTenantUsersListInput = Schema.Struct({
   ...PlatformTenantTarget.fields,
-  limit: Schema.optional(PlatformTenantUserPageLimit),
-  offset: Schema.optional(PlatformTenantUserPageOffset),
+  limit: Schema.optional(PageLimit),
+  offset: Schema.optional(PageOffset),
   search: Schema.optional(Schema.NonEmptyString),
 });
 

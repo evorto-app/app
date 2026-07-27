@@ -107,6 +107,10 @@ export class EventActiveRegistrationOperations {
     return this.rpc.events.getRegistrationStatus.queryKey({ eventId });
   }
 
+  retryRegistrationCheckout() {
+    return this.rpc.events.retryRegistrationCheckout.mutationOptions();
+  }
+
   scannerAccessQueryKey() {
     return this.rpc.users.canUseScanner.queryKey();
   }
@@ -473,6 +477,9 @@ export class EventActiveRegistrationComponent {
     registrationHasPendingAddonPayment;
   protected readonly registrationTransferActionDisabled =
     registrationTransferActionDisabled;
+  protected readonly retryRegistrationCheckoutMutation = injectMutation(() =>
+    this.operations.retryRegistrationCheckout(),
+  );
 
   protected readonly transferActionCopy = registrationTransferActionCopy;
   protected readonly transferRegistrationMutation = injectMutation(() =>
@@ -588,6 +595,31 @@ export class EventActiveRegistrationComponent {
     this.cancelTransferMutation.mutate(
       { transferId },
       {
+        onSuccess: async () => {
+          await this.invalidateOwnerQueries(false);
+        },
+      },
+    );
+  }
+
+  retryRegistrationCheckout(
+    registration: EventsRegistrationStatusRecord,
+  ): void {
+    if (
+      !registration.paymentPending ||
+      registration.checkoutUrl ||
+      recipientTransferCheckoutPending(registration) ||
+      this.retryRegistrationCheckoutMutation.isPending()
+    ) {
+      return;
+    }
+
+    this.retryRegistrationCheckoutMutation.mutate(
+      { registrationId: registration.id },
+      {
+        onError: async () => {
+          await this.invalidateOwnerQueries(false);
+        },
         onSuccess: async () => {
           await this.invalidateOwnerQueries(false);
         },
@@ -726,6 +758,10 @@ export class EventActiveRegistrationComponent {
     } finally {
       this.activePurchaseKey.set(null);
     }
+  }
+
+  protected registrationCheckoutErrorMessage(error: unknown): string {
+    return getErrorMessage(error, 'Registration payment setup failed');
   }
 
   protected registrationCheckoutUrl(

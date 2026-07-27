@@ -1,5 +1,5 @@
 ---
-"evorto": patch
+default: patch
 ---
 
 Store receipt dates as PostgreSQL calendar dates and enforce positive bounded

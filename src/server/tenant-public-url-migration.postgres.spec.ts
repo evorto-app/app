@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
 import { eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
 import { createHash, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 
@@ -22,12 +23,13 @@ import {
   transactions,
   users,
 } from '../db/schema';
+import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../shared/rpc-contracts/app-rpcs';
 import { PlatformAdministratorAuthority } from '../types/custom/platform-authority';
 import { globalAdminHandlers } from './effect/rpc/handlers/global-admin.handlers';
-import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from './effect/rpc/rpc-context-headers';
+import { RpcAccess } from './effect/rpc/handlers/shared/rpc-access.service';
 import { lockTenantStripeAccount } from './payments/pending-stripe-obligations';
 
 const databaseUrl = process.env['DATABASE_URL'];
@@ -68,12 +70,49 @@ const platformAuthority = PlatformAdministratorAuthority.make({
   kind: 'platformAdministrator',
 });
 
-const platformHeaders = {
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([]),
-  [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]:
-    encodeRpcContextHeaderJson(platformAuthority),
-};
+const platformHandlerOptions = {
+  headers: Headers.empty,
+} as never;
+
+const createPlatformRequestContext = (tenant: {
+  readonly currency: GlobalAdminTenantWriteInput['currency'];
+  readonly domain: string;
+  readonly id: string;
+  readonly name: string;
+  readonly stripeAccountId: null | string;
+  readonly theme: GlobalAdminTenantWriteInput['theme'];
+  readonly timezone: GlobalAdminTenantWriteInput['timezone'];
+}): RpcRequestContextShape => ({
+  authData: {},
+  authenticated: true,
+  permissions: [],
+  platformAuthority,
+  tenant: {
+    cancellationDeadlineHoursBeforeStart: 0,
+    currency: tenant.currency,
+    discountProviders: {
+      esnCard: {
+        config: {},
+        status: 'disabled',
+      },
+    },
+    domain: tenant.domain,
+    id: tenant.id,
+    maxActiveRegistrationsPerUser: 0,
+    name: tenant.name,
+    receiptSettings: {
+      allowOther: false,
+      receiptCountries: ['NL'],
+    },
+    refundFeesOnCancellation: true,
+    stripeAccountId: tenant.stripeAccountId,
+    theme: tenant.theme,
+    timezone: tenant.timezone,
+    transferDeadlineHoursBeforeStart: 0,
+  },
+  user: null,
+  userAssigned: false,
+});
 
 const waitForBlockedTenantLock = async (pool: Pool) => {
   const deadline = Date.now() + 10_000;
@@ -119,7 +158,7 @@ const runUrlMigration = (
           timezone: tenant.timezone,
         },
       },
-      { headers: platformHeaders } as never,
+      platformHandlerOptions,
     ).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
@@ -128,6 +167,15 @@ const runUrlMigration = (
           updatedTenant,
         }),
       }),
+      Effect.provide(
+        Layer.mergeAll(
+          RpcAccess.Default,
+          Layer.succeed(
+            RpcRequestContext,
+            createPlatformRequestContext(tenant),
+          ),
+        ),
+      ),
       Effect.provide(serviceLayer),
     ),
   );

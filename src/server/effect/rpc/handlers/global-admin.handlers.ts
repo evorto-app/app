@@ -461,8 +461,6 @@ export const globalAdminHandlers = {
               .insert(tenants)
               .values({
                 ...tenantInput,
-                privacyPolicyText: initialPrivacyPolicy.privacyPolicyText,
-                privacyPolicyUrl: initialPrivacyPolicy.privacyPolicyUrl,
                 stripeAccountId: tenantInput.stripeAccountId ?? null,
               })
               .returning(globalAdminTenantReturningColumns);

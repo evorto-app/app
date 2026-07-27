@@ -1,4 +1,3 @@
-import { hasUsableRichTextImageSources } from '@shared/utils/rich-text-media';
 import sanitizeHtml from 'sanitize-html';
 
 const ALLOWED_TAGS = [
@@ -19,7 +18,6 @@ const ALLOWED_TAGS = [
   'h6',
   'hr',
   'i',
-  'img',
   'li',
   'ol',
   'p',
@@ -40,7 +38,6 @@ const ALLOWED_TAGS = [
 const ALLOWED_ATTRIBUTES: Record<string, string[]> = {
   a: ['href', 'rel', 'target', 'title'],
   col: ['style'],
-  img: ['alt', 'src', 'title'],
   table: ['style'],
   td: ['colspan', 'colwidth', 'rowspan'],
   th: ['colspan', 'colwidth', 'rowspan'],
@@ -59,7 +56,7 @@ const ALLOWED_STYLES = {
   },
 };
 
-const STRUCTURAL_MEDIA_NODE_PATTERN = /<(table|hr)\b/i;
+const STRUCTURAL_NODE_PATTERN = /<(table|hr)\b/i;
 
 export const sanitizeRichTextHtml = (content: string): string => {
   return sanitizeHtml(content, {
@@ -105,9 +102,5 @@ export const isMeaningfulRichTextHtml = (content: string): boolean => {
     return true;
   }
 
-  if (STRUCTURAL_MEDIA_NODE_PATTERN.test(content)) {
-    return true;
-  }
-
-  return hasUsableRichTextImageSources(content);
+  return STRUCTURAL_NODE_PATTERN.test(content);
 };

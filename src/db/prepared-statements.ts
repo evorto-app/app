@@ -6,6 +6,18 @@ const buildPreparedStatements = (database: DatabaseClient) => ({
   getTenantByDomain: database.query.tenants
     .findFirst({
       where: { domain: sql.placeholder('domain') },
+      with: {
+        privacyPolicyVersions: {
+          columns: {
+            privacyPolicyText: true,
+            privacyPolicyUrl: true,
+          },
+          limit: 1,
+          orderBy: {
+            version: 'desc',
+          },
+        },
+      },
     })
     .prepare('getTenantByDomain'),
   getUserByAuth0IdAndTenant: database.query.users

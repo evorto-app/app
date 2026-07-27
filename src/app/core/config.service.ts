@@ -11,7 +11,6 @@ import {
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
-import consola from 'consola/browser';
 
 import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
@@ -28,10 +27,6 @@ export class ConfigService {
     signal<null | PlatformAdministratorAuthority>(null);
   public readonly tenantSignal = signal<null | Tenant>(null);
 
-  public get missingContext() {
-    return this._missingContext;
-  }
-
   public get permissions(): Permission[] {
     return this.permissionsSignal();
   }
@@ -47,7 +42,6 @@ export class ConfigService {
   public get tenant(): Tenant {
     return this._tenant;
   }
-  private _missingContext = false;
 
   private _publicConfig: {
     googleMapsApiKey: null | string;
@@ -93,17 +87,16 @@ export class ConfigService {
   }
 
   public async initialize() {
-    if (this.requestContext === null && isPlatformServer(this.platformId)) {
-      this._missingContext = true;
-      consola.warn('Missing context on server. Skipping config loading.');
-      return;
-    }
+    if (isPlatformServer(this.platformId)) {
+      const requestContext = this.requestContext;
+      if (requestContext === null) {
+        throw new ServerRequestContextRequiredError();
+      }
 
-    if (this.requestContext !== null && isPlatformServer(this.platformId)) {
-      this.applyTenantConfig(this.requestContext.tenant);
-      this.permissionsSignal.set([...this.requestContext.permissions]);
+      this.applyTenantConfig(requestContext.tenant);
+      this.permissionsSignal.set([...requestContext.permissions]);
       this.platformAuthoritySignal.set(
-        this.requestContext.platformAuthority ?? null,
+        requestContext.platformAuthority ?? null,
       );
       this._publicConfig = await this.rpc.config.public.call();
       return;
@@ -153,5 +146,14 @@ export class ConfigService {
     if (!existingIcon) {
       this.renderer.appendChild(this.document.head, icon);
     }
+  }
+}
+
+export class ServerRequestContextRequiredError extends Error {
+  public constructor() {
+    super(
+      'ConfigService requires Angular REQUEST_CONTEXT during server-side initialization',
+    );
+    this.name = 'ServerRequestContextRequiredError';
   }
 }

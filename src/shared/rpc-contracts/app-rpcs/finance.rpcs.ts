@@ -4,6 +4,8 @@ import { CanonicalEmailAddress } from '@shared/notification-email';
 import {
   extendStruct,
   literalUnion,
+  PageLimit,
+  PageOffset,
   pickStruct,
   positiveNumber,
 } from '@shared/schema-utilities';
@@ -23,6 +25,7 @@ import {
   FinanceReceiptPositiveMinorUnitAmount,
   validateFinanceReceiptAmounts,
 } from '../../finance/receipt-values';
+import { maximumFinanceReimbursementReceiptCount } from '../../finance/reimbursement';
 import {
   FinanceResourceNotFoundError,
   FinanceRpcError,
@@ -186,12 +189,16 @@ export const FinanceReceiptCreateRefundInput = Schema.Union([
   Schema.Struct({
     payoutReference: CanonicalIban,
     payoutType: Schema.Literal('iban'),
-    receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString),
+    receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString).check(
+      Schema.isMaxLength(maximumFinanceReimbursementReceiptCount),
+    ),
   }),
   Schema.Struct({
     payoutReference: CanonicalEmailAddress,
     payoutType: Schema.Literal('paypal'),
-    receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString),
+    receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString).check(
+      Schema.isMaxLength(maximumFinanceReimbursementReceiptCount),
+    ),
   }),
 ]);
 
@@ -335,11 +342,8 @@ export type FinanceTransactionRecord = Schema.Schema.Type<
 >;
 
 export const FinanceTransactionPageInput = Schema.Struct({
-  limit: Schema.Int.check(
-    Schema.isGreaterThan(0),
-    Schema.isLessThanOrEqualTo(100),
-  ),
-  offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  limit: PageLimit,
+  offset: PageOffset,
 });
 
 export const FinanceTransactionsFindMany = asRpcQuery(

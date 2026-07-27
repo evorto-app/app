@@ -26,6 +26,7 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
+import { eventReviewActionErrorRequiresRefresh } from '../../events/event-rpc-error';
 
 export const eventReviewQueueActionDisabled = ({
   actionPending,
@@ -210,12 +211,7 @@ export class EventReviewsComponent {
       error,
       'Failed to update event review status',
     );
-    const normalizedMessage = message.toLowerCase();
-    if (
-      normalizedMessage.includes('status changed') ||
-      normalizedMessage.includes('refresh and try again') ||
-      normalizedMessage.includes('no longer pending review')
-    ) {
+    if (eventReviewActionErrorRequiresRefresh(error)) {
       this.notifications.showError(
         'Event status changed. Refreshed the latest state.',
       );

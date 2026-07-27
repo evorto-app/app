@@ -188,8 +188,6 @@ test('Manage one organization and review change history', async ({
     await transaction.insert(schema.financeReceipts).values({
       alcoholAmount: 0,
       attachmentFileName: receiptFileName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 2048,
       attachmentUploadId: createdReceiptUploadId,
       currency: tenant.currency,
       depositAmount: 0,

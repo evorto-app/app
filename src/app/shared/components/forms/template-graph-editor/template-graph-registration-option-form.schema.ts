@@ -6,7 +6,6 @@ import {
   schema,
   validate,
 } from '@angular/forms/signals';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import { TemplateGraphRegistrationOptionFormModel } from './template-graph-form.model';
 
@@ -22,22 +21,6 @@ export const templateGraphRegistrationOptionFormSchema =
             kind: 'required',
             message: 'Enter a registration option name.',
           },
-    );
-    validate(registration.description, ({ value }) =>
-      hasTemporaryRichTextImageSources(value())
-        ? {
-            kind: 'richTextPendingUpload',
-            message: 'Wait for image uploads to finish before saving.',
-          }
-        : undefined,
-    );
-    validate(registration.registeredDescription, ({ value }) =>
-      hasTemporaryRichTextImageSources(value())
-        ? {
-            kind: 'richTextPendingUpload',
-            message: 'Wait for image uploads to finish before saving.',
-          }
-        : undefined,
     );
     required(registration.closeRegistrationOffset, {
       message: 'Enter a closing offset.',

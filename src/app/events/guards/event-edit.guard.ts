@@ -4,6 +4,7 @@ import { QueryClient } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { PermissionsService } from '../../core/permissions.service';
+import { eventRouteErrorPath } from '../event-rpc-error';
 
 export const eventEditGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
@@ -32,7 +33,7 @@ export const eventEditGuard: CanActivateFn = async (route) => {
       });
     }
     return true;
-  } catch {
-    return router.createUrlTree(['/404']);
+  } catch (error) {
+    return router.createUrlTree([eventRouteErrorPath(error)]);
   }
 };

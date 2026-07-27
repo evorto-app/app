@@ -810,12 +810,12 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         currency: 'CZK',
         domain: 'section.example.org',
         name: 'Example Section',
-        privacyPolicyText: 'Section privacy policy',
-        privacyPolicyUrl: null,
         stripeAccountId: 'acct_123',
         theme: 'esn',
         timezone: 'Europe/Prague',
       });
+      expect(capturedInsert).not.toHaveProperty('privacyPolicyText');
+      expect(capturedInsert).not.toHaveProperty('privacyPolicyUrl');
       expect(capturedAudit).toMatchObject({
         action: 'tenant.create',
         actorEmail: 'platform@example.org',

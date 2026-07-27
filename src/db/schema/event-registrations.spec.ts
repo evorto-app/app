@@ -47,6 +47,16 @@ describe('event registration schema', () => {
     expect(eventRegistrationsSource).toContain('.notNull().default(0)');
   });
 
+  it('requires complete immutable pricing terms for confirmed registrations', () => {
+    const checks = getTableConfig(eventRegistrations).checks.map(
+      ({ name }) => name,
+    );
+
+    expect(checks).toContain('event_registrations_price_snapshot_complete');
+    expect(checks).toContain('event_registrations_price_snapshot_consistent');
+    expect(checks).toContain('event_registrations_confirmed_price_snapshot');
+  });
+
   it('enforces one non-cancelled registration per globally identified event and user', () => {
     const eventRegistrationsSource = readFileSync(
       new URL('event-registrations.ts', import.meta.url),

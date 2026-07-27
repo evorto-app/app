@@ -405,7 +405,7 @@ export const getRegistrationAddonFulfillment = Effect.fn(
                   ),
                   and(
                     eq(
-                      registrationTransfers.recipientRegistrationId,
+                      registrationTransfers.sourceRegistrationId,
                       input.registrationId,
                     ),
                     eq(registrationTransfers.status, 'checkout_pending'),

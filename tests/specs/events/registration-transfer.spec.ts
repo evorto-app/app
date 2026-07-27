@@ -221,7 +221,6 @@ test('transfers a free registration through a private claim code', async ({
         where: { sourceRegistrationId, tenantId: tenant.id },
       }),
     ).toMatchObject({
-      recipientRegistrationId: sourceRegistrationId,
       recipientUserId: recipient.id,
       status: 'completed',
     });
@@ -460,7 +459,6 @@ test('offers a paid registration privately while rejecting a source self-claim',
       where: { sourceRegistrationId, tenantId: tenant.id },
     });
     expect(transfer).toMatchObject({
-      recipientRegistrationId: null,
       status: 'open',
     });
     if (!transfer) {
@@ -541,11 +539,11 @@ test('offers a paid registration privately while rejecting a source self-claim',
     await expect
       .poll(() =>
         database.query.registrationTransfers.findFirst({
-          columns: { recipientRegistrationId: true, status: true },
+          columns: { status: true },
           where: { id: transfer.id, tenantId: tenant.id },
         }),
       )
-      .toEqual({ recipientRegistrationId: null, status: 'open' });
+      .toEqual({ status: 'open' });
 
     recipientPage = await openAuthenticatedTestPage({
       baseUrl: new URL(page.url()).origin,
@@ -1259,7 +1257,6 @@ test('completes a paid transfer and preserves its failed refund for operator req
         where: { id: scenario.transferId, tenantId: tenant.id },
       }),
     ).toMatchObject({
-      recipientRegistrationId: scenario.sourceRegistrationId,
       recipientUserId: recipient.id,
       status: 'refund_pending',
     });

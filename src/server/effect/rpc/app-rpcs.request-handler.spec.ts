@@ -9,12 +9,26 @@ const anonymousContext = Schema.decodeUnknownSync(RequestContext)({
   authentication: { isAuthenticated: false },
   permissions: [],
   tenant: {
+    cancellationDeadlineHoursBeforeStart: 120,
     currency: 'EUR',
+    discountProviders: {
+      esnCard: {
+        config: {},
+        status: 'disabled',
+      },
+    },
     domain: 'tenant.example.com',
     id: 'tenant-1',
+    maxActiveRegistrationsPerUser: 0,
     name: 'Tenant',
+    receiptSettings: {
+      allowOther: false,
+      receiptCountries: ['NL'],
+    },
+    refundFeesOnCancellation: true,
     theme: 'evorto',
     timezone: 'Europe/Berlin',
+    transferDeadlineHoursBeforeStart: 0,
   },
 });
 

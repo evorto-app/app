@@ -76,7 +76,6 @@ const registrationPreflightDatabase = (): DatabaseClient =>
                 {
                   amount: 2500,
                   currency: 'EUR',
-                  persistedPaymentIntentId: null,
                   transferId: null,
                 },
               ]),
@@ -106,8 +105,6 @@ describe('registration Checkout completion ownership', () => {
     expect(
       registrationCheckoutMetadataOwnsClaim({
         identity,
-        paymentIntentId: 'pi_persisted',
-        persistedPaymentIntentId: null,
         session,
         transferId: 'transfer-1',
       }),
@@ -115,8 +112,6 @@ describe('registration Checkout completion ownership', () => {
     expect(
       registrationCheckoutMetadataOwnsClaim({
         identity,
-        paymentIntentId: 'pi_persisted',
-        persistedPaymentIntentId: null,
         session,
         transferId: 'different-transfer',
       }),
@@ -124,8 +119,6 @@ describe('registration Checkout completion ownership', () => {
     expect(
       registrationCheckoutMetadataOwnsClaim({
         identity,
-        paymentIntentId: 'pi_persisted',
-        persistedPaymentIntentId: null,
         session: checkoutSession({
           metadata: {
             registrationId: 'replayed-registration',
@@ -138,22 +131,11 @@ describe('registration Checkout completion ownership', () => {
     ).toBe(false);
   });
 
-  it('allows missing metadata only through the exact persisted payment intent mapping', () => {
+  it('rejects missing ownership metadata even when the payment intent matches', () => {
     const session = checkoutSession({ metadata: {} });
     expect(
       registrationCheckoutMetadataOwnsClaim({
         identity,
-        paymentIntentId: 'pi_persisted',
-        persistedPaymentIntentId: 'pi_persisted',
-        session,
-        transferId: null,
-      }),
-    ).toBe(true);
-    expect(
-      registrationCheckoutMetadataOwnsClaim({
-        identity,
-        paymentIntentId: 'pi_replayed',
-        persistedPaymentIntentId: 'pi_persisted',
         session,
         transferId: null,
       }),
