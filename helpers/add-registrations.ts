@@ -19,8 +19,8 @@ import consola from 'consola';
 import { eq, InferInsertModel } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { relations } from '../src/db/relations';
-import * as schema from '../src/db/schema';
+import { relations } from '@db/relations';
+import * as schema from '@db/schema';
 import { type SupportedTenantCurrency } from '../src/types/custom/tenant';
 import { getId } from './get-id';
 import { getSeedDate } from './seed-clock';

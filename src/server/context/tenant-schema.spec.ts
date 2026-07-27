@@ -1,7 +1,8 @@
 import { describe, expect, it } from '@effect/vitest';
 import { maximumPostgresInteger } from '@shared/schema-utilities';
-import { Tenant } from '@types/custom/tenant';
 import { Schema } from 'effect';
+
+import { Tenant } from '../../types/custom/tenant';
 
 const tenantInput = {
   cancellationDeadlineHoursBeforeStart: 120,

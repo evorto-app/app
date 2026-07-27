@@ -171,7 +171,9 @@ package scripts instead of bare `dotenv` shell commands.
 - Indentation: 2 spaces.
 - Filenames: `kebab-case.ts`.
 - Symbols: `camelCase` and `PascalCase`.
-- Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
+- Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@helpers/*`.
+- Import `src/types/**` directly; TypeScript reserves the `@types/*` package
+  namespace and rejects that path form in production builds.
 - For Effect reference and usage patterns, consult the local Effect source at `/Users/hedde/code/effect` when behavior or recommended composition is unclear.
 
 ## Commit, PR, and Release Notes

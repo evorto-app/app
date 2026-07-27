@@ -1,5 +1,5 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { EventListingAudience } from '../src/shared/event-listing-audience';
+import type { EventListingAudience } from '@shared/event-listing-audience';
 import type { SupportedTenantCurrency } from '../src/types/custom/tenant';
 
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
@@ -8,8 +8,8 @@ import consola from 'consola';
 import type { SeedProfile, SeedScenarioEvents } from './add-events';
 import type { SeedTemplateKey } from './add-templates';
 
-import { relations } from '../src/db/relations';
-import * as schema from '../src/db/schema';
+import { relations } from '@db/relations';
+import * as schema from '@db/schema';
 import { addEvents } from './add-events';
 import { addFinanceReceipts } from './add-finance-receipts';
 import { addIcons } from './add-icons';

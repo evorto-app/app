@@ -20,7 +20,6 @@ import {
   HttpServerRequest,
   HttpServerResponse,
 } from 'effect/unstable/http';
-import { KeyValueStore } from 'effect/unstable/persistence';
 
 import { databaseLayer } from './db';
 import {
@@ -130,7 +129,6 @@ const angularApp = new AngularAppEngine({
 });
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
-const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 const rpcPath = '/rpc';
 const stripeWebhookPath = '/webhooks/stripe';
@@ -772,9 +770,6 @@ const opsRoutesLayer = Layer.mergeAll(
   responseMiddlewareLayer,
 );
 
-const keyValueStoreLayer = KeyValueStore.layerFileSystem(
-  keyValueStoreDirectory,
-).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
 const otelLayer = serverTelemetryLayer;
 
 let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
@@ -791,7 +786,6 @@ const getRequestHandler = () => {
     BunHttpServer.layerHttpServices,
     BunFileSystem.layer,
     Path.layer,
-    keyValueStoreLayer,
     ObjectStorage.Default,
     otelLayer,
     serverTracePolicyLayer,
@@ -1064,7 +1058,6 @@ const serveEffect = Effect.gen(function* () {
               commonRuntimeLayer,
               BunFileSystem.layer,
               Path.layer,
-              keyValueStoreLayer,
               ObjectStorage.Default,
               appRpcHttpAppLayer,
               stripeClientLayer,
