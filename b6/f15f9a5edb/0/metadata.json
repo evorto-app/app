@@ -1,0 +1,55 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b6f15f9a5edb",
+  "session_id": "019f9f44-d3cb-70b3-a93f-4038b4f1b4a2",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-27T18:02:11.230257Z",
+  "branch": "codex/full-application-simplification-review",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "APPLICATION_REVIEW_QUEUE.md",
+    "PRODUCT.md",
+    "src/server/effect/rpc/handlers/templates/template-graph.query.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "cf49964dd046",
+  "token_usage": {
+    "input_tokens": 10885863,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 592093952,
+    "output_tokens": 1023716,
+    "api_call_count": 4731
+  },
+  "session_metrics": {
+    "turn_count": 9
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-27T18:02:10.184758Z",
+    "agent_lines": 0,
+    "agent_removed": 126,
+    "human_added": 4937,
+    "human_modified": 158,
+    "human_removed": 0,
+    "total_committed": 5088,
+    "total_lines_changed": 7766,
+    "agent_percentage": 1.6224568632500644,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 151,
+      "agent_lines_removed": 126
+    }
+  ]
+}
