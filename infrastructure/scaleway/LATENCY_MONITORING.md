@@ -34,7 +34,6 @@ so the known defect does not create permanent noise.
 | ------------------------------------------ | ------------- | ----------------------- | ----------------------- |
 | Warm-candidate `/events` upstream p95      | <= 500 ms     | > 750 ms for 3 checks   | > 1,500 ms for 2 checks |
 | Warm-candidate `/events` external TTFB p95 | <= 750 ms     | > 1,000 ms for 3 checks | > 2,000 ms for 2 checks |
-| `config.bootstrap` trace p95               | <= 250 ms     | > 400 ms for 15 min     | > 800 ms for 5 min      |
 | `events.eventList` trace p95               | <= 350 ms     | > 500 ms for 15 min     | > 1,000 ms for 5 min    |
 | Request-context trace p95                  | <= 250 ms     | > 350 ms for 15 min     | > 750 ms for 5 min      |
 | Event-list-ready browser measure           | p75 <= 1.25 s | p75 > 1.5 s for 30 min  | p75 > 2.5 s for 15 min  |
@@ -43,6 +42,10 @@ so the known defect does not create permanent noise.
 Page immediately for availability failures, persistent critical latency, or a
 latency increase paired with elevated errors. Send warnings to the normal
 operational channel for investigation during working hours.
+
+`Rpc.config.bootstrap` remains planned and is not emitted by the application.
+Add it to the active trace objectives and dashboards only after the endpoint
+described in `LATENCY_IMPROVEMENT.md` is implemented.
 
 ## External warm-path synthetic
 
@@ -110,9 +113,11 @@ baseline when a deployment or non-scheduled reconciliation is checked:
 6. upload the JSON with the deployment evidence;
 7. include the summary in the append-only deployment manifest.
 
-The check currently runs in report-only mode. Count seven successful deployment
-baselines after the latency fix meets its budget, then change the deployment
-probe to `enforce-critical`. Preserve rollback behavior: a failed post-traffic
+The check currently runs in report-only mode and cannot trigger deployment
+rollback; the preceding revision/readiness smoke remains the authoritative
+deployment gate. Count seven successful deployment baselines after the latency
+fix meets its budget, then change the deployment probe to `enforce-critical`
+and remove its `continue-on-error`. At that point, a failed post-traffic
 performance check may restore the previous image, while schema changes remain
 forward-only.
 
@@ -136,10 +141,12 @@ Show p50, p95, and p99 duration plus request count for:
 - `Server.resolveHttpRequestContext`;
 - `Server.resolveTenantContext`;
 - `Server.resolveUserContext`;
-- `Rpc.config.bootstrap`;
 - `Rpc.events.eventList`;
 - `Db.events.eventList`;
 - `Angular.handle`.
+
+`Rpc.config.bootstrap` remains planned; add it to this view only after the
+bootstrap endpoint and span exist.
 
 Keep trace attributes bounded. Never group by raw user ID, tenant object,
 cookie, token, email address, full URL query, RPC payload, or SQL parameter.
@@ -167,15 +174,18 @@ Terraform already enables the regional Cockpit alert manager, all available
 preconfigured alerts, and the operational email contact. Test delivery after
 any contact or alert change.
 
-Add data-source-managed Grafana rules for the web container:
+In the Grafana interface, add data-source-managed alert rules using the
+Scaleway Metrics data source for the web container:
 
 - container status is `error` for 10 seconds;
 - CPU exceeds 90% for 10 minutes;
 - memory exceeds 90% for 10 minutes;
 - 5xx percentage exceeds the thresholds above.
 
-Use the `Scaleway Alerting` alert manager in `fr-par`; Cockpit does not support
-Grafana-managed alert rules. Follow Scaleway's
+Select the `Scaleway Alerting` alert manager in `fr-par` for notifications.
+Do not select Grafana-managed rules or the Grafana alert manager; Cockpit
+supports rules evaluated by the data source and notifications handled by
+Scaleway Alerting. Follow Scaleway's
 [container alert guide](https://www.scaleway.com/en/docs/serverless-containers/how-to/configure-alerts-containers)
 and
 [custom alert guide](https://www.scaleway.com/en/docs/cockpit/how-to/configure-alerts-for-scw-resources/).

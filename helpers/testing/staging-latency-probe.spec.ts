@@ -31,6 +31,7 @@ describe('staging latency observability', () => {
   it('records warm samples and enforces only critical latency on request', async () => {
     let eventRequestCount = 0;
     let eventUpstreamServiceMs = 200;
+    let transportFailureAtEventRequest: number | undefined;
     const server = createServer((request, response) => {
       if (request.url === '/version') {
         response.setHeader('Content-Type', 'application/json');
@@ -50,6 +51,10 @@ describe('staging latency observability', () => {
       }
       if (request.url === '/events') {
         eventRequestCount += 1;
+        if (eventRequestCount === transportFailureAtEventRequest) {
+          request.socket.destroy();
+          return;
+        }
         response.setHeader(
           'X-Envoy-Upstream-Service-Time',
           String(eventUpstreamServiceMs),
@@ -123,6 +128,62 @@ describe('staging latency observability', () => {
         '| Upstream service | 200 ms | 200 ms | 200 ms | within_budget |',
       );
 
+      transportFailureAtEventRequest = eventRequestCount + 2;
+      const transportReportPath = path.join(
+        temporaryDirectory,
+        'transport.json',
+      );
+      const transportSummaryPath = path.join(
+        temporaryDirectory,
+        'transport.md',
+      );
+      await expect(
+        executeFile('bash', [
+          probeScript,
+          '--origin',
+          origin,
+          '--output',
+          transportReportPath,
+          '--summary-output',
+          transportSummaryPath,
+          '--warm-samples',
+          '2',
+          '--mode',
+          'report-only',
+          '--vantage',
+          'test-runner',
+        ]),
+      ).rejects.toMatchObject({ code: 1 });
+      const transportReport: unknown = JSON.parse(
+        await readFile(transportReportPath, 'utf8'),
+      );
+      expect(transportReport).toEqual(
+        expect.objectContaining({
+          samples: expect.arrayContaining([
+            expect.objectContaining({
+              contentValid: false,
+              kind: 'warm_candidate',
+              sequence: 1,
+              statusCode: 0,
+            }),
+            expect.objectContaining({
+              contentValid: true,
+              kind: 'warm_candidate',
+              sequence: 2,
+              statusCode: 200,
+            }),
+          ]),
+          summary: expect.objectContaining({
+            contentFailures: 1,
+            overallStatus: 'critical',
+            warmCandidateCount: 2,
+          }),
+        }),
+      );
+      expect(await readFile(transportSummaryPath, 'utf8')).toContain(
+        '- Overall status: `critical`',
+      );
+
       eventUpstreamServiceMs = 1601;
       const criticalReportPath = path.join(temporaryDirectory, 'critical.json');
       await expect(
@@ -156,7 +217,7 @@ describe('staging latency observability', () => {
       await closeServer(server);
       await rm(temporaryDirectory, { force: true, recursive: true });
     }
-  });
+  }, 30_000);
 
   it('keeps the diagnosed server boundaries available as stable trace names', async () => {
     const sources = await Promise.all(
@@ -199,5 +260,18 @@ describe('staging latency observability', () => {
     expect(source).toContain(
       'for required_command in awk curl date dirname grep jq mkdir mktemp mv rm; do',
     );
+  });
+
+  it('marks planned trace signals as inactive in the monitoring runbook', async () => {
+    const runbook = await readFile(
+      path.join(
+        repositoryRoot,
+        'infrastructure/scaleway/LATENCY_MONITORING.md',
+      ),
+      'utf8',
+    );
+
+    expect(runbook).toContain('`Rpc.config.bootstrap` remains planned');
+    expect(runbook).not.toContain('| `config.bootstrap` trace p95');
   });
 });

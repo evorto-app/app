@@ -496,8 +496,13 @@ describe('Scaleway hosting source', () => {
     expect(monitor).toContain('--warm-samples 4');
     expect(monitor).toContain('--mode "${MODE}"');
     expect(monitor).toContain('retention-days: 7');
+    expect(monitor).toContain('cancel-in-progress: false');
     expect(deploymentProbe).toContain('--warm-samples 10');
     expect(deploymentProbe).toContain('--mode report-only');
+    expect(deploymentProbe).toContain('continue-on-error: true');
+    expect(deploymentProbe).toContain(
+      'if [ -s deployment/latency-summary.md ]; then',
+    );
     expect(staging).toContain('--argjson latency_summary');
     expect(staging).toContain('latency: $latency_summary');
     expect(staging).toContain('deployment/latency.json');

@@ -537,6 +537,7 @@ jobs:
           test "${generated_status}" = "404"
 
       - name: Capture report-only deployment latency baseline
+        continue-on-error: true
         if: >-
           github.event_name != 'schedule'
           || steps.ops.outputs.changed == 'true'
@@ -550,7 +551,9 @@ jobs:
             --warm-samples 10 \
             --mode report-only \
             --vantage github-actions/deployment
-          cat deployment/latency-summary.md >> "${GITHUB_STEP_SUMMARY}"
+          if [ -s deployment/latency-summary.md ]; then
+            cat deployment/latency-summary.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
       - name: Write append-only successful deployment manifest
         id: manifest

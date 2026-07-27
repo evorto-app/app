@@ -153,8 +153,12 @@ probe() {
   local headers_file="${working_directory}/${sample_name}.headers"
   local body_file="${working_directory}/${sample_name}.body"
   local curl_metrics
+  local curl_exit_status=0
+  local curl_failed='false'
 
-  if ! curl_metrics="$(
+  : >"${headers_file}"
+  : >"${body_file}"
+  curl_metrics="$(
     curl \
       --connect-timeout 5 \
       --dump-header "${headers_file}" \
@@ -166,9 +170,10 @@ probe() {
       --user-agent 'evorto-latency-monitor/1' \
       --write-out '%{json}' \
       "${origin}${path}"
-  )"; then
+  )" || curl_exit_status=$?
+  if ((curl_exit_status != 0)); then
     echo "Latency probe failed before receiving ${path}" >&2
-    return 1
+    curl_failed='true'
   fi
 
   if ! jq --exit-status '
@@ -183,13 +188,18 @@ probe() {
       and (.time_total | type == "number")
   ' <<<"${curl_metrics}" >/dev/null; then
     echo "curl did not return the expected timing JSON for ${path}" >&2
-    return 1
+    curl_failed='true'
+    curl_metrics='{"http_code":0,"http_version":"","num_redirects":0,"time_appconnect":0,"time_connect":0,"time_namelookup":0,"time_starttransfer":0,"time_total":0}'
+  elif [[ "${curl_failed}" == 'true' ]]; then
+    curl_metrics="$(jq --compact-output '.http_code = 0' <<<"${curl_metrics}")"
   fi
 
   local status_code
   status_code="$(jq --raw-output '.http_code' <<<"${curl_metrics}")"
   local content_valid='true'
-  if ((status_code < 200 || status_code >= 300)); then
+  if [[ "${curl_failed}" == 'true' ]]; then
+    content_valid='false'
+  elif ((status_code < 200 || status_code >= 300)); then
     content_valid='false'
   else
     case "${content_validator}" in
