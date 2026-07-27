@@ -12,6 +12,7 @@ import {
   eventRegistrationOptionCapacityCheckName,
   eventRegistrationOptionPriceCheckName,
   eventRegistrationOptions,
+  eventRegistrationOptionsEventIndexName,
   eventRegistrationOptionTimeOrderCheckName,
 } from './event-registration-options';
 import {
@@ -84,5 +85,16 @@ describe('event domain persistence', () => {
     ).toContain(
       '"event_registration_options"."openRegistrationTime" <= "event_registration_options"."closeRegistrationTime"',
     );
+  });
+
+  it('indexes event option discovery by event', () => {
+    const eventIndex = getTableConfig(eventRegistrationOptions).indexes.find(
+      (candidate) =>
+        candidate.config.name === eventRegistrationOptionsEventIndexName,
+    );
+
+    expect(eventIndex?.config.columns.map((column) => column.name)).toEqual([
+      'eventId',
+    ]);
   });
 });

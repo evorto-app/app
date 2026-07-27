@@ -107,7 +107,6 @@ const seedRegistrationOwner = async (
     description: `${input.name} fixture`,
     icon: { iconColor: 0, iconName: 'circle' },
     id: templateId,
-    listingAudience: 'both',
     tenantId,
     title: input.name,
   });
@@ -117,7 +116,6 @@ const seedRegistrationOwner = async (
     end: new Date(input.now + 8 * 24 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
-    listingAudience: 'both',
     reviewedAt: new Date(input.now),
     reviewedBy: userId,
     start: new Date(input.now + 7 * 24 * 60 * 60 * 1000),

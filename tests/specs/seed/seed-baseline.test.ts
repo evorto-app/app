@@ -135,10 +135,6 @@ test.describe('baseline seed invariants', () => {
       .soft(events.some((event) => event.status === 'APPROVED'))
       .toBeTruthy();
     expect.soft(events.some((event) => event.status === 'DRAFT')).toBeTruthy();
-    expect
-      .soft(events.some((event) => event.listingAudience === 'unlisted'))
-      .toBeTruthy();
-
     const eventById = new Map(events.map((event) => [event.id, event]));
     const optionById = new Map(
       events.flatMap((event) =>

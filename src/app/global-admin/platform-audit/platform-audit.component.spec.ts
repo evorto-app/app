@@ -66,6 +66,9 @@ describe('platformAuditActionLabel', () => {
     expect(platformAuditActionLabel('refundClaim.requeue')).toBe(
       'Registration refund requeued',
     );
+    expect(platformAuditActionLabel('event.updateAnnouncementDiscovery')).toBe(
+      'Event announcement discovery changed',
+    );
   });
 
   it('keeps raw errors out and exposes investigation identifiers', () => {

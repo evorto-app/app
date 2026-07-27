@@ -111,7 +111,6 @@ const seedFixture = async (
         description: 'Discount integrity fixture',
         icon: { iconColor: 0, iconName: 'circle' },
         id: templateId,
-        listingAudience: 'both',
         tenantId: fixture.tenantIds[tenantIndex],
         title: `Discount template ${index + 1}`,
       };
@@ -140,7 +139,6 @@ const seedFixture = async (
         end: new Date(now + 2 * 24 * 60 * 60 * 1000),
         icon: { iconColor: 0, iconName: 'circle' },
         id: eventId,
-        listingAudience: 'both',
         start: new Date(now + 24 * 60 * 60 * 1000),
         templateId: fixture.templateIds[index],
         tenantId: fixture.tenantIds[tenantIndex],

@@ -1,5 +1,4 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import { EventListingAudience } from '@shared/event-listing-audience';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import {
   type PlatformTemplatesCreateInput,
@@ -85,7 +84,6 @@ const PlatformTemplateAuditState = Schema.Struct({
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
-  listingAudience: EventListingAudience,
   locationName: Schema.NullOr(Schema.String),
   planningTips: Schema.NullOr(Schema.String),
   questions: Schema.Array(PlatformTemplateAuditQuestion),
@@ -133,7 +131,6 @@ export const platformTemplateAuditSnapshot = (
     categoryId: template.categoryId,
     description: template.description,
     id: template.id,
-    listingAudience: template.listingAudience,
     locationName: template.location?.name ?? null,
     planningTips: template.planningTips,
     questions: template.questions.map((question) => ({

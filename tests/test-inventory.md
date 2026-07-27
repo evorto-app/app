@@ -724,22 +724,31 @@ credential path.
     same Checkout link after reload, and settled entitlement readback. The
     dedicated
     `docs/events/registration-transfer.doc.ts` owns transfer guidance.
-  - `docs/events/unlisted-user.doc.ts` now changes one approved event to
-    unlisted in an isolated tenant, proves it is absent from the participant
-    list, opens its direct link while signed in, then preserves the tenant
-    routing cookie while proving the same detail page remains readable when
-    signed out with **Log in now**. Cleanup restores the exact original listing
-    audience.
+  - `specs/events/event-discovery-eligibility.test.ts` proves that signed-in
+    ordinary discovery follows any matching registration option regardless of
+    organizer/participant kind, anonymous discovery uses only roles marked as
+    defaults for new members, a tenant with no default-user roles exposes no
+    ordinary events anonymously, and unrestricted options remain available to
+    signed-in members. It also proves that anonymous visitors do not borrow
+    default roles for announcements and that empty announcement targeting stays
+    link-only.
   - `docs/events/event-discovery.doc.ts` is the first source in the published
-    **Find an event** guide. It uses two disposable approved/listed events to
+    **Find an event** guide. It uses disposable approved events to
     explain main navigation, tenant-timezone date groups, start times, and the
-    signed-in registration outline, and documents how participant, organizer,
-    both, and unlisted audiences interact with option eligibility. It opens
-    event details in the desktop
+    signed-in registration outline. A matching default-user option and an
+    organizer-only control prove option-derived signed-in discovery; the guide
+    then clears authentication while preserving tenant routing to prove
+    anonymous default-role discovery, the public event projection, and the
+    sign-in requirement. It opens event details in the desktop
     list/detail layout and the compact full-width layout with **Back to events**,
     then executes and screenshots the distinct **No events found** and RPC error
     states. Cleanup deletes its registration, options, and events and restores
     every isolated-tenant event time even after a failed journey.
+  - `docs/events/announcement-discovery.doc.ts` separately documents optionless
+    announcement role targeting. It proves selected-role visibility, empty
+    link-only behavior, direct-link access, and unchanged role assignments and
+    email outbox state. It explicitly states that anonymous visitors do not
+    borrow default new-member roles for announcements.
   - `specs/resilience/core-load-recovery.spec.ts` aborts one `events.create`
     request, proves the create-from-template form retains the title and renders
     an accessible retry state, scans that state with Axe, then retries through
@@ -787,7 +796,7 @@ credential path.
   documenting the transaction list, so the generated guide proves cancelled
   transactions stay omitted from that surface.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
-- Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
+- Event, registration, template, finance receipt, scanner, and discovery specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
 - Playwright skip/fixme inventory must remain empty. Credential-dependent
   projects fail their selected-run preflight when credentials are unavailable;
   they are not represented as skipped tests.

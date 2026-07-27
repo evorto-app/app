@@ -58,7 +58,6 @@ test('transfers a free registration through a private claim code', async ({
     templateId: template.id,
     tenantId: tenant.id,
     title: 'Private transfer scenario',
-    listingAudience: 'unlisted',
   });
   await database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,
@@ -354,7 +353,6 @@ test('offers a paid registration privately while rejecting a source self-claim',
     templateId: template.id,
     tenantId: tenant.id,
     title: 'Paid private transfer scenario',
-    listingAudience: 'unlisted',
   });
   await database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,

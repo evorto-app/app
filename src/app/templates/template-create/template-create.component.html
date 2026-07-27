@@ -48,26 +48,6 @@
           [generalForm]="templateForm"
           [iconUsage]="iconUsage"
         />
-        <mat-form-field appearance="outline">
-          <mat-label>Default event listing audience</mat-label>
-          <mat-select [formField]="templateForm.listingAudience">
-            @for (audience of eventListingAudiences; track audience) {
-              <mat-option [value]="audience">
-                {{ eventListingAudienceLabels[audience] }}
-              </mat-option>
-            }
-          </mat-select>
-          <mat-hint>
-            Applied to each event created from this template.
-          </mat-hint>
-        </mat-form-field>
-        <p class="text-on-surface-variant body-medium">
-          {{
-            eventListingAudienceDescriptions[
-              templateForm.listingAudience().value()
-            ]
-          }}
-        </p>
       </section>
 
       <section class="border-outline-variant bg-surface rounded-lg border p-4">

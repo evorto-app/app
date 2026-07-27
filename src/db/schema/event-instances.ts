@@ -16,7 +16,6 @@ import {
 
 import { EventLocationType } from '../../types/location';
 import { eventTemplates } from './event-templates';
-import { eventListingAudience } from './global-enums';
 import { modelOfTenant } from './model';
 import { users } from './users';
 
@@ -44,7 +43,6 @@ export const eventInstances = pgTable(
     description: text().notNull(),
     end: timestamp().notNull(),
     icon: jsonb('icon').$type<IconValue>().notNull(),
-    listingAudience: eventListingAudience().notNull(),
     location: jsonb('location').$type<EventLocationType>(),
     reviewedAt: timestamp(),
     reviewedBy: varchar({ length: 20 }).references(() => users.id),

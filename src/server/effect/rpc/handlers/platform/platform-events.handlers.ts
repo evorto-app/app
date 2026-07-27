@@ -1,5 +1,4 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import { EventListingAudience } from '@shared/event-listing-audience';
 import { type Permission } from '@shared/permissions/permissions';
 import {
   type PlatformAuditSnapshot,
@@ -21,8 +20,8 @@ import {
   PlatformEventRegistrationOptionRecord,
   type PlatformEventsCreateInput,
   type PlatformEventsReviewInput,
+  type PlatformEventsUpdateAnnouncementDiscoveryInput,
   type PlatformEventsUpdateInput,
-  type PlatformEventsUpdateListingInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import { and, asc, count, desc, eq, exists, inArray } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
@@ -231,7 +230,6 @@ const PlatformEventAuditState = Schema.Struct({
   iconColor: Schema.Number,
   iconName: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
-  listingAudience: EventListingAudience,
   locationName: Schema.NullOr(Schema.String),
   questions: Schema.Array(PlatformEventQuestionRecord),
   registrationCount: Schema.Number,
@@ -281,7 +279,6 @@ export const loadPlatformEventDetail = Effect.fn(
       end: eventInstances.end,
       icon: eventInstances.icon,
       id: eventInstances.id,
-      listingAudience: eventInstances.listingAudience,
       location: eventInstances.location,
       reviewedAt: eventInstances.reviewedAt,
       simpleModeEnabled: eventInstances.simpleModeEnabled,
@@ -507,7 +504,6 @@ export const loadPlatformEventDetail = Effect.fn(
     end: event.end.toISOString(),
     icon: event.icon,
     id: event.id,
-    listingAudience: event.listingAudience,
     location: event.location ?? null,
     questions: questions.map((question) => ({
       ...question,
@@ -546,7 +542,6 @@ export const platformEventAuditSnapshot = (
     iconColor: event.icon.iconColor,
     iconName: event.icon.iconName,
     id: event.id,
-    listingAudience: event.listingAudience,
     locationName: event.location?.name ?? null,
     questions: event.questions,
     registrationCount: event.registrationCount,
@@ -1379,7 +1374,6 @@ export const platformEventHandlers = {
                   ),
               ),
               id: eventInstances.id,
-              listingAudience: eventInstances.listingAudience,
               start: eventInstances.start,
               status: eventInstances.status,
               title: eventInstances.title,
@@ -1580,6 +1574,10 @@ export const platformEventHandlers = {
           const updatedEvents = yield* database
             .update(eventInstances)
             .set({
+              ...((before.registrationOptions.length > 0 ||
+                input.registrationOptions.length > 0) && {
+                announcementRoleIds: [],
+              }),
               description: sanitizedDescription,
               end,
               icon: input.icon,
@@ -1619,14 +1617,14 @@ export const platformEventHandlers = {
         }),
     );
   },
-  'platform.events.updateListing': (
-    input: PlatformEventsUpdateListingInput,
+  'platform.events.updateAnnouncementDiscovery': (
+    input: PlatformEventsUpdateAnnouncementDiscoveryInput,
     _options: unknown,
   ) =>
     runEventMutation(
       input,
-      'events:changeListing',
-      'event.updateListing',
+      'events:changeAnnouncementDiscovery',
+      'event.updateAnnouncementDiscovery',
       (database, before) =>
         Effect.gen(function* () {
           const announcementRoleIds = uniqueTenantRoleIds(
@@ -1649,10 +1647,7 @@ export const platformEventHandlers = {
               }),
             );
           }
-          if (
-            before.registrationOptions.length > 0 &&
-            announcementRoleIds.length > 0
-          ) {
+          if (before.registrationOptions.length > 0) {
             return yield* Effect.fail(
               new RpcBadRequestError({
                 message:
@@ -1666,7 +1661,6 @@ export const platformEventHandlers = {
             .update(eventInstances)
             .set({
               announcementRoleIds,
-              listingAudience: input.listingAudience,
             })
             .where(
               and(

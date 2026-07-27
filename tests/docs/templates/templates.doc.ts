@@ -213,17 +213,10 @@ There are a few general settings that are required for templates:
 - **Template category**: The category this template should belong to. Learn how to [manage categories](/docs/manage-template-categories) to group your templates.
 - **Template description**: Lastly, the description of the template. To open the full editor, click the field for the description.
 - **Organizer planning tips**: Optional private organizer notes, setup checklists, or recurring reminders that stay on the template detail page and are not shown on the public event page.
-- **Default event listing audience**: The discovery audience copied into each new event. It does not hide or expose the template itself in template management.
+
+Templates define reusable structure only. They do not configure discovery or copy an audience into events. After an event is published, ordinary discovery follows the registration options on that event instance. Optionless announcement targeting belongs to the individual event instead.
 `,
   });
-  const defaultEventListingAudience = page.getByRole('combobox', {
-    name: 'Default event listing audience',
-  });
-  await expect(defaultEventListingAudience).toContainText(
-    'Participants and organizers',
-  );
-  await defaultEventListingAudience.click();
-  await page.getByRole('option', { exact: true, name: 'Organizers' }).click();
   await takeScreenshot(
     testInfo,
     page.locator('app-template-create form div').first(),
@@ -463,7 +456,6 @@ You will be redirected to the detail page for that template.
       throw new Error('Expected template docs flow to persist the template');
     }
     createdTemplate = template;
-    expect(createdTemplate.listingAudience).toBe('organizer');
     expect(createdTemplate.planningTips).toBe(planningTips);
   }).toPass({
     intervals: [250, 500, 1_000],
@@ -558,7 +550,7 @@ You will be redirected to the detail page for that template.
   await testInfo.attach('markdown', {
     body: `
 ## Creating an event from a template
-Open the template detail page and click **Create event**. The event form starts with the template title, description, and registration options. When you save, Evorto copies the template's default listing audience, registration setup, questions, and add-ons into the new event. Later template changes do not alter events already created from it.
+Open the template detail page and click **Create event**. The event form starts with the template title, description, and registration options. When you save, Evorto copies the registration setup, questions, and add-ons into the new event. Later template changes do not alter events already created from it. The template does not decide discovery: after publication, the created event is discoverable from its own copied registration-option roles.
 
 Dates use the fixed **de-DE** format. Enter times in the organization's time zone; Evorto preserves that meaning even when an organizer's browser is set to another time zone.
 
@@ -628,7 +620,6 @@ If **Event could not be created** appears, your entries remain in the form. Read
   expect(createdEvent.end.toISOString()).toBe(
     tenantStart.plus({ hours: 4 }).toJSDate().toISOString(),
   );
-  expect(createdEvent.listingAudience).toBe(createdTemplate.listingAudience);
   const createdEventOptions =
     await database.query.eventRegistrationOptions.findMany({
       where: { eventId: createdEvent.id },

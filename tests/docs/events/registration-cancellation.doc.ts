@@ -139,7 +139,6 @@ test.describe('Participant registration cancellation', () => {
         templateId: template.id,
         tenantId: tenant.id,
         title: eventTitle,
-        listingAudience: 'both',
       });
       const [registrationOption] = await database
         .insert(schema.eventRegistrationOptions)
@@ -1825,7 +1824,6 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
         templateId: template.id,
         tenantId: tenant.id,
         title: eventTitle,
-        listingAudience: 'both',
       });
       const [registrationOption] = await database
         .insert(schema.eventRegistrationOptions)
@@ -2018,7 +2016,6 @@ test.describe('Organizer registration cancellation', () => {
         templateId: template.id,
         tenantId: tenant.id,
         title: eventTitle,
-        listingAudience: 'both',
       });
       const [registrationOption] = await database
         .insert(schema.eventRegistrationOptions)

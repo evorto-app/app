@@ -14,7 +14,6 @@ import {
 import { EventLocationType } from '../../types/location';
 import { createId } from '../create-id';
 import { eventTemplateCategories } from './event-template-categories';
-import { eventListingAudience } from './global-enums';
 import { tenants } from './tenants';
 
 export const eventTemplateCategoryTenantForeignKeyName =
@@ -34,7 +33,6 @@ export const eventTemplates = pgTable(
     id: varchar({ length: 20 })
       .$defaultFn(() => createId())
       .primaryKey(),
-    listingAudience: eventListingAudience().notNull(),
     location: jsonb('location').$type<EventLocationType>(),
     planningTips: text(),
     simpleModeEnabled: boolean().notNull().default(true),

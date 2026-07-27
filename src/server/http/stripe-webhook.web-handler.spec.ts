@@ -308,11 +308,50 @@ describe('validateCheckoutSessionBinding', () => {
     ).toMatchObject({ type: 'invalid-binding' });
   });
 
-  it('classifies a non-pending persisted transaction as a state race', () => {
+  it('allows only terminal successful registration replays through the authoritative finalizer', () => {
     expect(
       validateCheckoutSessionBinding({
         ...validBindingInput,
         persisted: { ...persistedBinding, status: 'successful' },
+        registrationStatus: 'CONFIRMED',
+      }),
+    ).toMatchObject({
+      transactionType: 'registration',
+      type: 'resolved',
+    });
+    expect(
+      validateCheckoutSessionBinding({
+        ...validBindingInput,
+        persisted: { ...persistedBinding, status: 'successful' },
+        registrationStatus: 'CANCELLED',
+      }),
+    ).toMatchObject({
+      transactionType: 'registration',
+      type: 'resolved',
+    });
+
+    for (const registrationStatus of [
+      undefined,
+      'PENDING',
+      'WAITLIST',
+    ] as const) {
+      expect(
+        validateCheckoutSessionBinding({
+          ...validBindingInput,
+          persisted: { ...persistedBinding, status: 'successful' },
+          registrationStatus,
+        }),
+      ).toEqual({ type: 'state-conflict' });
+    }
+
+    expect(
+      validateCheckoutSessionBinding({
+        ...validBindingInput,
+        persisted: {
+          ...persistedBinding,
+          status: 'successful',
+          type: 'addon',
+        },
       }),
     ).toEqual({ type: 'state-conflict' });
   });

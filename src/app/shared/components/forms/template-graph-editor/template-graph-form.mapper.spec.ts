@@ -1,6 +1,5 @@
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
-import { eventListingAudiences } from '@shared/event-listing-audience';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -65,7 +64,6 @@ const simpleTemplate = (): TemplateGraphRecord => ({
   description: 'Template description',
   icon: { iconColor: 0, iconName: 'calendar:fas' },
   id: 'template-1',
-  listingAudience: 'both',
   location: null,
   planningTips: null,
   questions: [
@@ -93,20 +91,6 @@ const simpleTemplate = (): TemplateGraphRecord => ({
 });
 
 describe('template graph edit classification', () => {
-  it.each(eventListingAudiences)(
-    'preserves the %s listing audience in the editable model',
-    (listingAudience) => {
-      const result = templateGraphRecordToFormModel({
-        ...simpleTemplate(),
-        listingAudience,
-      });
-
-      expect(result).toMatchObject({
-        model: { listingAudience },
-      });
-    },
-  );
-
   it('requires exactly one organizer and one non-organizer option for simple compatibility', () => {
     expect(classifyTemplateGraphRecord(simpleTemplate())).toEqual({
       kind: 'simpleCompatible',

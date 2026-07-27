@@ -1,6 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { EventCheckInTimingIssue } from '@shared/event-check-in';
-import { EventListingAudience } from '@shared/event-listing-audience';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -42,7 +41,7 @@ import {
   EventsReviewEventRpcError,
   EventsReviewRpcError,
   EventsSubmitForReviewRpcError,
-  EventsUpdateListingRpcError,
+  EventsUpdateAnnouncementDiscoveryRpcError,
   EventsUpdateRpcError,
 } from './events.errors';
 import { RegistrationTransferBundleRecord } from './registration-transfers.rpcs';
@@ -229,7 +228,6 @@ export const EventsCreate = asRpcMutation(
 );
 
 export const EventsEventListInput = Schema.Struct({
-  includeUnlisted: Schema.optional(Schema.Boolean),
   limit: PageLimit.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(100))),
   offset: PageOffset.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(0))),
   startAfter: CanonicalUtcTimestamp.pipe(
@@ -251,11 +249,9 @@ export const EventsEventListRecord = Schema.Struct({
   hasRegistrationOptions: Schema.Boolean,
   icon: iconSchema,
   id: Schema.NonEmptyString,
-  listingAudience: EventListingAudience,
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
-  userIsCreator: Schema.Boolean,
   userRegistered: Schema.Boolean,
 });
 
@@ -302,7 +298,6 @@ export const EventGraphRegistrationOptionRecord = Schema.Struct({
 
 export const EventsFindOneRegistrationOption = Schema.Struct({
   appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
-  checkedInSpots: Schema.Number,
   closeRegistrationTime: Schema.NonEmptyString,
   confirmedSpots: Schema.Number,
   description: Schema.NullOr(Schema.String),
@@ -324,12 +319,9 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
       title: Schema.NonEmptyString,
     }),
   ),
-  registeredDescription: Schema.NullOr(Schema.String),
   registrationMode: EventsRegistrationMode,
   reservedSpots: Schema.Number,
-  roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
-  stripeTaxRateId: Schema.NullOr(Schema.String),
   taxRateDisplayName: Schema.NullOr(Schema.String),
   taxRatePercentage: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
@@ -352,7 +344,6 @@ export const EventsFindOneAddon = Schema.Struct({
   maxQuantityPerUser: Schema.Number,
   price: Schema.Number,
   registrationOptions: Schema.Array(EventsFindOneAddonRegistrationOption),
-  stripeTaxRateId: Schema.NullOr(Schema.String),
   taxRateDisplayName: Schema.NullOr(Schema.String),
   taxRatePercentage: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
@@ -367,14 +358,13 @@ export const EventsFindOne = asRpcQuery(
     }),
     success: Schema.Struct({
       addOns: Schema.Array(EventsFindOneAddon),
-      announcementRoleIds: Schema.Array(Schema.NonEmptyString),
-      creatorId: Schema.NonEmptyString,
+      announcementRoleCount: nonNegativeNumber,
+      announcementRoleIds: Schema.NullOr(Schema.Array(Schema.NonEmptyString)),
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
       hasRegistrationOptions: Schema.Boolean,
       icon: iconSchema,
       id: Schema.NonEmptyString,
-      listingAudience: EventListingAudience,
       location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneRegistrationOption),
       registrationOptionsHiddenByEligibility: Schema.Boolean,
@@ -388,6 +378,7 @@ export const EventsFindOne = asRpcQuery(
       status: EventReviewStatus,
       statusComment: Schema.NullOr(Schema.String),
       title: Schema.NonEmptyString,
+      userIsCreator: Schema.Boolean,
     }),
   }),
 );
@@ -946,13 +937,12 @@ export const EventsSubmitForReview = asRpcMutation(
   }),
 );
 
-export const EventsUpdateListing = asRpcMutation(
-  Rpc.make('events.updateListing', {
-    error: EventsUpdateListingRpcError,
+export const EventsUpdateAnnouncementDiscovery = asRpcMutation(
+  Rpc.make('events.updateAnnouncementDiscovery', {
+    error: EventsUpdateAnnouncementDiscoveryRpcError,
     payload: Schema.Struct({
       announcementRoleIds: Schema.Array(Schema.NonEmptyString),
       eventId: Schema.NonEmptyString,
-      listingAudience: EventListingAudience,
     }),
     success: Schema.Void,
   }),
@@ -1133,7 +1123,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsReviewEvent,
   EventsSubmitForReview,
   EventsUpdateGraph,
-  EventsUpdateListing,
+  EventsUpdateAnnouncementDiscovery,
   EventsUndoRegistrationAddonRedemption,
   EventsCancelRegistrationAddon,
 ) {}

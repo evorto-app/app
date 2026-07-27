@@ -1,8 +1,6 @@
 import '@angular/compiler';
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { MatSelectHarness } from '@angular/material/select/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import {
   provideTanStackQuery,
@@ -11,7 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RoleSelectQueries } from '../../shared/components/controls/role-select/role-select.component';
-import { UpdateVisibilityDialogComponent } from './update-visibility-dialog.component';
+import { UpdateAnnouncementDiscoveryDialogComponent } from './update-announcement-discovery-dialog.component';
 
 const organizerRole = {
   defaultOrganizerRole: true,
@@ -28,14 +26,12 @@ const buttonByText = (
     (button) => button.textContent?.trim() === label,
   );
 
-describe('UpdateVisibilityDialogComponent', () => {
+describe('UpdateAnnouncementDiscoveryDialogComponent', () => {
   const close = vi.fn();
   const loadRoles = vi.fn(async () => [organizerRole]);
   let dialogData: {
     event: {
       announcementRoleIds: string[];
-      hasRegistrationOptions: boolean;
-      listingAudience: 'organizer';
       title: string;
     };
   };
@@ -47,8 +43,6 @@ describe('UpdateVisibilityDialogComponent', () => {
     dialogData = {
       event: {
         announcementRoleIds: [],
-        hasRegistrationOptions: true,
-        listingAudience: 'organizer',
         title: 'Welcome week',
       },
     };
@@ -62,7 +56,7 @@ describe('UpdateVisibilityDialogComponent', () => {
     });
 
     await TestBed.configureTestingModule({
-      imports: [UpdateVisibilityDialogComponent],
+      imports: [UpdateAnnouncementDiscoveryDialogComponent],
       providers: [
         provideNoopAnimations(),
         provideTanStackQuery(queryClient),
@@ -92,37 +86,28 @@ describe('UpdateVisibilityDialogComponent', () => {
     TestBed.resetTestingModule();
   });
 
-  it('shows every explicit audience and the semantics of the current selection', async () => {
-    const fixture = TestBed.createComponent(UpdateVisibilityDialogComponent);
+  it('shows announcement discovery semantics without an ordinary audience control', async () => {
+    const fixture = TestBed.createComponent(
+      UpdateAnnouncementDiscoveryDialogComponent,
+    );
     await fixture.whenStable();
-    const select =
-      await TestbedHarnessEnvironment.loader(fixture).getHarness(
-        MatSelectHarness,
-      );
-    await select.open();
-    const options = await select.getOptions();
     const text = (fixture.nativeElement as HTMLElement).textContent
       ?.replaceAll(/\s+/g, ' ')
       .trim();
 
-    expect(text).toContain('Update listing for Welcome week');
-    expect(await select.getValueText()).toBe('Organizers');
-    expect(
-      await Promise.all(options.map((option) => option.getText())),
-    ).toEqual([
-      'Participants',
-      'Organizers',
-      'Participants and organizers',
-      'Unlisted',
-    ]);
+    expect(text).toContain('Update announcement discovery for Welcome week');
     expect(text).toContain(
-      'Visible to people eligible for at least one organizer registration option.',
+      'Select the organization roles that should find this announcement',
     );
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('mat-select'),
+    ).toBeNull();
   });
 
   it('saves a successfully loaded empty role selection as link-only discovery', async () => {
-    dialogData.event.hasRegistrationOptions = false;
-    const fixture = TestBed.createComponent(UpdateVisibilityDialogComponent);
+    const fixture = TestBed.createComponent(
+      UpdateAnnouncementDiscoveryDialogComponent,
+    );
     const root = fixture.nativeElement as HTMLElement;
 
     await vi.waitFor(async () => {
@@ -142,7 +127,6 @@ describe('UpdateVisibilityDialogComponent', () => {
 
     expect(close).toHaveBeenCalledWith({
       announcementRoleIds: [],
-      listingAudience: 'organizer',
     });
   });
 
@@ -154,9 +138,10 @@ describe('UpdateVisibilityDialogComponent', () => {
       resolveRoles = resolve;
     });
     loadRoles.mockReturnValue(roles);
-    dialogData.event.hasRegistrationOptions = false;
     dialogData.event.announcementRoleIds = [organizerRole.id];
-    const fixture = TestBed.createComponent(UpdateVisibilityDialogComponent);
+    const fixture = TestBed.createComponent(
+      UpdateAnnouncementDiscoveryDialogComponent,
+    );
     const root = fixture.nativeElement as HTMLElement;
 
     await fixture.whenStable();
@@ -173,9 +158,10 @@ describe('UpdateVisibilityDialogComponent', () => {
   });
 
   it('requires deleted role selections to be removed before saving', async () => {
-    dialogData.event.hasRegistrationOptions = false;
     dialogData.event.announcementRoleIds = ['role-deleted'];
-    const fixture = TestBed.createComponent(UpdateVisibilityDialogComponent);
+    const fixture = TestBed.createComponent(
+      UpdateAnnouncementDiscoveryDialogComponent,
+    );
     const root = fixture.nativeElement as HTMLElement;
 
     await vi.waitFor(async () => {
@@ -201,14 +187,14 @@ describe('UpdateVisibilityDialogComponent', () => {
 
     expect(close).toHaveBeenCalledWith({
       announcementRoleIds: [],
-      listingAudience: 'organizer',
     });
   });
 
   it('keeps save disabled when the role catalog fails to load', async () => {
     loadRoles.mockRejectedValue(new Error('Role catalog unavailable'));
-    dialogData.event.hasRegistrationOptions = false;
-    const fixture = TestBed.createComponent(UpdateVisibilityDialogComponent);
+    const fixture = TestBed.createComponent(
+      UpdateAnnouncementDiscoveryDialogComponent,
+    );
     const root = fixture.nativeElement as HTMLElement;
 
     await vi.waitFor(async () => {

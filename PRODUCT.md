@@ -16,7 +16,9 @@ The relaunch target is a full production replacement, not a prototype. Core work
   - Example: the default event setup UI can show "participant signup settings" and "organizer signup settings" while creating separate registration options internally.
 - **Tenant-first**: associations/sections own their events, templates, roles, registrations, settings, branding, and configuration.
 - **Role-based eligibility**: access to registration options should be modeled through tenant roles and capabilities, not scattered special-case flags.
-- **Account-required registration**: anonymous users may browse eligible listed events, but registration requires an account.
+- **Account-required registration**: anonymous users may discover a published
+  event through its public projection when one of its registration options is
+  available to a default user role, but registration requires an account.
 - **Stripe is the payment source of truth**: local state may mirror payment details for app behavior, but payment lifecycle changes must respect Stripe state and webhooks.
 - **Paid event activity is Stripe-only**: event registrations and add-ons may
   charge money only through the tenant's connected Stripe account. Without
@@ -92,7 +94,9 @@ A tenant may model different organizer categories, such as main organizer and he
 
 ### Participants
 
-People who browse public/listed events, register, pay if required, attend events, transfer registrations where supported, and receive registration/check-in information.
+People who discover published events, register, pay if required, attend events,
+transfer registrations where supported, and receive registration/check-in
+information.
 
 ### Platform administrators
 
@@ -132,7 +136,7 @@ The core product lifecycle is:
 
 Other important workflows:
 
-- browse listed events
+- discover published events
 - manage templates
 - manage tenant roles and capabilities
 - manage tenant branding/legal settings
@@ -159,31 +163,38 @@ permission does not grant event-edit permission; a reviewer may edit an event
 only when they also have the relevant event-edit capability or are otherwise
 authorized as its editor.
 
-Publishing is the approval act. There is no separate "approved but not published" state for now.
+Publishing is the approval act. There is no separate "approved but not
+published" state for now.
 
-Listing is separate from publishing. A published event may be:
+Ordinary events with registration options do not have a separately configured
+participant, organizer, both, or unlisted audience. Their normal discovery is
+derived from the registration options on the published event:
 
-- listed for participants
-- listed for organizers
-- listed for both
-- unlisted for both, reachable only by direct link
+- a signed-in member discovers the event when they are currently eligible for
+  at least one registration option;
+- an anonymous visitor discovers the event when at least one registration
+  option is available to at least one role assigned by default to new users in
+  that tenant.
 
-Listing audiences are evaluated against the viewer's role-eligible registration
-options:
+Anonymous discovery exposes only the public event projection. Registration
+still requires sign-in. Discovery is never an authorization result: the server
+must re-evaluate registration eligibility and every other mutable write
+precondition when a registration is created or changed. An anonymous person who
+opens a published optionful event through a direct link receives the public
+projection and an explicit sign-in state even when no option qualifies for
+anonymous discovery; the application must not misreport that the event has no
+registration options. A signed-in person who follows the same link but is not
+eligible keeps the explicit ineligible outcome. Neither case may hide the event
+or fall back to another audience.
 
-- participant listing requires an eligible non-organizing option
-- organizer listing requires an eligible organizing option
-- both listing accepts either kind
-- unlisted events never appear in normal discovery
-
-Listing never makes an otherwise ineligible registration option available.
-Optionless announcement events use an explicit set of tenant roles for ordinary
-discovery. An announcement with no selected roles is link-only. Announcement
-roles affect discovery only: they do not grant event access or send
-notifications. Direct-link behavior is unchanged, and templates do not persist
-announcement roles.
-
-Anonymous users may see events when those events have registration options available to roles that every new user receives by default in that tenant. Anonymous visibility should not show events that a user would lose access to immediately after signing in.
+Optionless announcement-style events intentionally use a different discovery
+rule because they have no registration options from which to derive
+eligibility. Their normal discovery is controlled by an explicit selected set
+of tenant roles. An empty selection means link-only. The selected roles control
+visibility only: they do not grant roles or event access and do not send
+notifications. Direct-link behavior is unchanged. Registration-option-derived
+ordinary event discovery and role-targeted announcement discovery must remain
+separate rules; neither is a fallback for the other.
 
 ## Registration Model
 
@@ -423,7 +434,6 @@ Templates should include as much reusable information as practical, such as:
 - title
 - description
 - location
-- default event listing audience
 - participant signup defaults
 - organizer signup defaults
 - registration options
@@ -442,8 +452,12 @@ retroactively alter existing events. Some duplication between templates and
 event instances is acceptable if it keeps event instances stable and
 understandable.
 
-The template's listing audience is only the default copied into each new event.
-It does not control whether the template itself appears in template management.
+Templates define reusable event structure only. They do not define discovery
+visibility, persist a listing audience, or supply a default audience to a new
+event. Ordinary event discovery derives from the created event instance's
+registration options and current eligibility. Any selected roles for an
+optionless announcement belong to that event instance and are not template
+state.
 
 ## Roles, Capabilities, and Eligibility
 
@@ -463,7 +477,6 @@ The exact capability list may evolve with the product, but these areas are expec
 - create events
 - submit events for review
 - publish events
-- manage event listing/visibility
 - manage templates
 - manage roles
 - manage tenant settings

@@ -10,9 +10,11 @@ import {
   RpcRequestContext,
   type RpcRequestContextShape,
 } from '../../../../shared/rpc-contracts/app-rpcs';
+import { registrationEligibilityCompensationRefundOperationKey } from '../../../registrations/registration-eligibility';
 import { RpcAccess } from './shared/rpc-access.service';
 import {
   normalizeUsersFindManySearch,
+  resolveProfileCancellationReason,
   resolveProfileRefundState,
   tenantDayBounds,
   userHandlers,
@@ -108,6 +110,39 @@ const membershipLockSelect = (membershipId?: string) => () => ({
 });
 
 describe('userHandlers', () => {
+  it('maps only the dedicated eligibility compensation refund operation', () => {
+    expect(
+      resolveProfileCancellationReason([
+        {
+          refundOperationKey:
+            registrationEligibilityCompensationRefundOperationKey(
+              'transaction-1',
+            ),
+          sourceTransactionId: 'transaction-1',
+          type: 'refund',
+        },
+      ]),
+    ).toBe('eligibilityChangedAfterPayment');
+    expect(
+      resolveProfileCancellationReason([
+        {
+          refundOperationKey:
+            'registration-cancellation:registration-1:transaction-1',
+          sourceTransactionId: 'transaction-1',
+          type: 'refund',
+        },
+        {
+          refundOperationKey:
+            registrationEligibilityCompensationRefundOperationKey(
+              'transaction-1',
+            ),
+          sourceTransactionId: 'transaction-1',
+          type: 'registration',
+        },
+      ]),
+    ).toBeNull();
+  });
+
   it('uses tenant-local DST boundaries for scanner business days', () => {
     const { end, start } = tenantDayBounds(
       'Europe/Berlin',
@@ -631,7 +666,12 @@ describe('userHandlers', () => {
                 amount: -2500,
                 currency: 'EUR',
                 method: 'stripe',
+                refundOperationKey:
+                  registrationEligibilityCompensationRefundOperationKey(
+                    'registration-payment-1',
+                  ),
                 sourceTransaction: { type: 'registration' },
+                sourceTransactionId: 'registration-payment-1',
                 status: 'pending',
                 stripeCheckoutUrl: null,
                 stripeRefundAttempts: 2,
@@ -764,6 +804,7 @@ describe('userHandlers', () => {
       expect(result).toEqual([
         {
           addonPurchases: [],
+          cancellationReason: null,
           checkInTime: null,
           checkoutUrl: null,
           description: 'waitlist',
@@ -781,6 +822,7 @@ describe('userHandlers', () => {
         },
         {
           addonPurchases: [],
+          cancellationReason: null,
           checkInTime: null,
           checkoutUrl: null,
           description: 'cancelled payment',
@@ -798,6 +840,7 @@ describe('userHandlers', () => {
         },
         {
           addonPurchases: [],
+          cancellationReason: 'eligibilityChangedAfterPayment',
           checkInTime: null,
           checkoutUrl: null,
           description: 'cancelled with refund',
@@ -823,6 +866,7 @@ describe('userHandlers', () => {
         },
         {
           addonPurchases: [],
+          cancellationReason: null,
           checkInTime: '2026-02-01T10:30:00.000Z',
           checkoutUrl: null,
           description: 'earlier',
@@ -848,6 +892,7 @@ describe('userHandlers', () => {
               unitPrice: 500,
             },
           ],
+          cancellationReason: null,
           checkInTime: null,
           checkoutUrl: 'https://checkout.stripe.test/pay',
           description: 'later',

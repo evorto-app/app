@@ -44,7 +44,6 @@ const validGraph = (): TemplateGraphInput => ({
   categoryId: 'category-1',
   description: '<p>Complete template graph</p>',
   icon: { iconColor: 0, iconName: 'calendar:fas' },
-  listingAudience: 'both',
   location: null,
   planningTips: null,
   questions: [

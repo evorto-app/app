@@ -1285,6 +1285,19 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     status: 'PENDING',
     tenantId: tenant.id,
   });
+  const reservedOptions = await database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} + 1`,
+    })
+    .where(
+      eq(
+        schema.eventRegistrationOptions.id,
+        seeded.scenario.events.paidOpen.optionId,
+      ),
+    )
+    .returning({ id: schema.eventRegistrationOptions.id });
+  expect(reservedOptions).toHaveLength(1);
 
   await database.insert(schema.transactions).values({
     amount: 2500,
@@ -1314,7 +1327,7 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
 
   await database.insert(schema.stripeWebhookEvents).values({
     eventType: 'checkout.session.completed',
-    processedAt: new Date(Date.now() - 10 * 60 * 1000),
+    processedAt: sql`CURRENT_TIMESTAMP - INTERVAL '10 minutes'`,
     status: 'processing',
     stripeEventId,
     tenantId: tenant.id,
@@ -1369,7 +1382,7 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     method: 'POST',
   });
 
-  expect(delivery.status()).toBe(200);
+  expect(delivery.status(), await delivery.text()).toBe(200);
 
   await expect
     .poll(async () => {

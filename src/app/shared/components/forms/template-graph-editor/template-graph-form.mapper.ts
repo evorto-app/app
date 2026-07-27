@@ -179,7 +179,6 @@ export const templateGraphRecordToFormModel = (
       description: template.description,
       iconColor: template.icon.iconColor,
       iconName: template.icon.iconName,
-      listingAudience: template.listingAudience,
       location: templateGraphLocationValueToFormModel(template.location),
       planningTips: template.planningTips ?? '',
       questions: template.questions.map((question) => ({
@@ -319,7 +318,6 @@ export const templateGraphFormToPayload = (
     iconColor: model.iconColor,
     iconName: model.iconName.trim(),
   },
-  listingAudience: model.listingAudience,
   location: templateGraphLocationFormModelToValue(model.location),
   planningTips: optionalText(model.planningTips),
   questions: model.questions.map((question) => ({

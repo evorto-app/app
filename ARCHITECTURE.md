@@ -181,7 +181,7 @@ High-risk data areas:
 
 Auth0 is the current auth provider.
 
-The product does not require anonymous registration. Users need an account to register, but anonymous users may browse eligible listed events.
+The product does not require anonymous registration. Users need an account to register, but anonymous users may browse eligible published events through the public projection.
 
 Auth-related changes should preserve:
 
@@ -385,7 +385,7 @@ in `infrastructure/scaleway/README.md`.
 
 Agents should usually start in these areas when working on related changes:
 
-- event browsing and listing
+- event discovery
 - event creation/editing
 - template management
 - review and publishing workflow
@@ -469,20 +469,32 @@ diagnostic warnings, not persistence blockers, because optionless operational
 events are valid. Mode changes require explicit confirmation; advanced-to-simple
 conversion additionally requires exactly one option of each kind.
 
-### Event listing audience
+### Event discovery
 
-Current default: an event persists exactly one `listingAudience` value:
-`participant`, `organizer`, `both`, or `unlisted`. Templates persist the default
-audience copied into a new event; the field does not control template-list
-visibility. Participant and organizer discovery are derived from the viewer's
-role eligibility for non-organizing and organizing registration options,
-respectively. Unlisted events are omitted from normal discovery.
+Ordinary published events persist no separate discovery audience. For a
+signed-in member, normal discovery requires at least one registration option
+whose role restriction accepts the member; an empty option role list remains
+open to signed-in members. The organizing flag describes the registration
+option, not a second discovery axis.
 
-Optionless announcement events persist explicit tenant-role IDs for ordinary
-discovery. An empty role list makes the announcement link-only. These roles do
-not grant event access or trigger notifications, and direct-link behavior is
-unchanged. Templates do not own announcement roles. Do not infer announcement
-discovery from missing options or add a compatibility fallback.
+Anonymous discovery for an ordinary event uses an explicit existential check
+against roles marked as defaults for new members in that tenant. An unrestricted
+option is anonymously discoverable only when at least one such default role
+exists. Anonymous responses use the public event projection and require sign-in
+before registration. Discovery never authorizes a write: registration
+eligibility and all mutable preconditions are reread server-side. An anonymous
+direct-link visitor receives an explicit sign-in state when the published event
+has options but none may be projected anonymously; this is not rendered as an
+optionless event. After sign-in, a member without an eligible option receives
+the explicit ineligible result. Do not hide either outcome or substitute a
+fallback audience.
+
+Optionless announcement events intentionally use a separate rule because they
+have no options. Their persisted tenant-role IDs match only roles held by the
+current signed-in member. Anonymous visitors do not borrow default new-member
+roles for announcements, and an empty role list makes the announcement
+link-only. These roles do not grant access, assign roles, or trigger
+notifications. Templates own neither discovery state nor announcement roles.
 
 Add-ons are reusable event/template entities with explicit many-to-many option
 attachments. Each attachment must keep included entitlement quantity separate

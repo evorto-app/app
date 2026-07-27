@@ -230,9 +230,8 @@ describe('documentation publishing', () => {
         (guide) => guide.id === 'evorto:find-an-event',
       )?.sourceSlugs,
     ).toEqual([
-      'find-a-listed-event',
-      'user-understanding-unlisted-events',
-      'admin-manage-unlisted-events',
+      'find-an-eligible-event',
+      'manage-announcement-discovery',
       'recover-from-an-unknown-organization-link',
     ]);
     const fixtureRoot = fs.mkdtempSync(

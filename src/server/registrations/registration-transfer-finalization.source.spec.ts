@@ -182,7 +182,9 @@ describe('registration transfer transactional finalization source', () => {
       source.indexOf('export const finalizeRegistrationTransferCheckout'),
       source.indexOf('export const expireRegistrationTransferCheckout'),
     );
-    const membershipLock = finalization.indexOf('.from(usersToTenants)');
+    const eligibilityLock = finalization.indexOf(
+      'yield* lockCurrentRegistrationEligibility(tx, {',
+    );
     const activeLimit = finalization.indexOf(
       'maxActiveRegistrationsPerUser > 0',
     );
@@ -196,11 +198,8 @@ describe('registration transfer transactional finalization source', () => {
     );
     const ownershipUpdate = finalization.indexOf('.update(eventRegistrations)');
 
-    expect(membershipLock).toBeGreaterThan(-1);
-    expect(
-      finalization.indexOf(".for('update')", membershipLock),
-    ).toBeGreaterThan(membershipLock);
-    expect(activeLimit).toBeGreaterThan(membershipLock);
+    expect(eligibilityLock).toBeGreaterThan(-1);
+    expect(activeLimit).toBeGreaterThan(eligibilityLock);
     expect(activeRegistrationCount).toBeGreaterThan(activeLimit);
     expect(finalization.slice(activeRegistrationCount, compensation)).toMatch(
       /inArray\(\s*eventRegistrations\.status,\s*\[\s*'PENDING',\s*'CONFIRMED',?\s*\],?\s*\)/u,
@@ -209,29 +208,46 @@ describe('registration transfer transactional finalization source', () => {
     expect(ownershipUpdate).toBeGreaterThan(compensation);
   });
 
-  it('locks and rechecks recipient role eligibility before ownership changes', () => {
+  it('uses the canonical eligibility lock before rechecking recipient roles and ownership', () => {
     const source = readSiblingSource('./registration-transfer-finalization.ts');
     const finalization = source.slice(
       source.indexOf('export const finalizeRegistrationTransferCheckout'),
       source.indexOf('export const expireRegistrationTransferCheckout'),
     );
-    const assignmentLock = finalization.indexOf('.from(rolesToTenantUsers)');
-    const optionLock = finalization.indexOf('.from(eventRegistrationOptions)');
+    const eligibilityLock = finalization.indexOf(
+      'yield* lockCurrentRegistrationEligibility(tx, {',
+    );
     const eligibilityCheck = finalization.indexOf(
       'isUserEligibleForRegistrationOption({',
     );
+    const firstEventTableAccess = finalization.indexOf('.from(eventInstances)');
     const ownershipUpdate = finalization.indexOf('.update(eventRegistrations)');
 
-    expect(assignmentLock).toBeGreaterThan(-1);
-    expect(
-      finalization.indexOf(".for('update')", assignmentLock),
-    ).toBeGreaterThan(assignmentLock);
-    expect(optionLock).toBeGreaterThan(assignmentLock);
-    expect(finalization.indexOf(".for('update')", optionLock)).toBeGreaterThan(
-      optionLock,
-    );
-    expect(eligibilityCheck).toBeGreaterThan(optionLock);
+    expect(eligibilityLock).toBeGreaterThan(-1);
+    expect(firstEventTableAccess).toBeGreaterThan(eligibilityLock);
+    expect(finalization).not.toContain('.from(usersToTenants)');
+    expect(finalization).not.toContain('.from(rolesToTenantUsers)');
+    expect(eligibilityCheck).toBeGreaterThan(eligibilityLock);
     expect(ownershipUpdate).toBeGreaterThan(eligibilityCheck);
+  });
+
+  it('rechecks event approval from the canonical eligibility lock before ownership changes', () => {
+    const source = readSiblingSource('./registration-transfer-finalization.ts');
+    const finalization = source.slice(
+      source.indexOf('export const finalizeRegistrationTransferCheckout'),
+      source.indexOf('export const expireRegistrationTransferCheckout'),
+    );
+    const eligibilityLock = finalization.indexOf(
+      'yield* lockCurrentRegistrationEligibility(tx, {',
+    );
+    const approvalCheck = finalization.indexOf(
+      "lockedEligibility.eventStatus !== 'APPROVED'",
+    );
+    const ownershipUpdate = finalization.indexOf('.update(eventRegistrations)');
+
+    expect(eligibilityLock).toBeGreaterThan(-1);
+    expect(approvalCheck).toBeGreaterThan(eligibilityLock);
+    expect(ownershipUpdate).toBeGreaterThan(approvalCheck);
   });
 
   it('expires only the recipient payment attempt and keeps reconciliation cycle-free', () => {

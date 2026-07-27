@@ -36,7 +36,6 @@ import {
   tenantStripeTaxRates,
   transactions,
   userDiscountCards,
-  usersToTenants,
 } from '../../../../../db/schema';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
@@ -63,6 +62,10 @@ import {
 } from '../../../../registrations/registration-acquisition-write';
 import { registrationCheckoutInitialReconcileAt } from '../../../../registrations/registration-checkout-completion';
 import { registrationCheckoutHasTooManyLines } from '../../../../registrations/registration-checkout-lines';
+import {
+  isUserEligibleForRegistrationOption,
+  lockCurrentRegistrationEligibility,
+} from '../../../../registrations/registration-eligibility';
 import { StripeClient } from '../../../../stripe-client';
 import {
   tenantOutboundRootUrl,
@@ -195,16 +198,6 @@ const noDiscountResolution = (basePrice: number): DiscountResolution => ({
   discountAmount: null,
   effectivePrice: basePrice,
 });
-
-export const isUserEligibleForRegistrationOption = ({
-  optionRoleIds,
-  userRoleIds,
-}: {
-  optionRoleIds: readonly string[];
-  userRoleIds: readonly string[];
-}): boolean =>
-  optionRoleIds.length === 0 ||
-  optionRoleIds.some((roleId) => userRoleIds.includes(roleId));
 
 const resolveDiscount = ({
   basePrice,
@@ -373,11 +366,13 @@ const resumeDirectRegistrationCheckout = Effect.fn(
 )(function* ({
   eventId,
   paymentClaim,
+  recheckEligibilityBeforeCreating = false,
   registrationId,
   tenantId,
 }: {
   eventId: string;
   paymentClaim: RegistrationPaymentClaim;
+  recheckEligibilityBeforeCreating?: boolean;
   registrationId: string;
   tenantId: string;
 }) {
@@ -468,190 +463,231 @@ const resumeDirectRegistrationCheckout = Effect.fn(
 
   const releaseDirectCheckoutClaim = Effect.fn(
     'EventRegistrationService.resumeDirectRegistrationCheckout.releaseClaim',
-  )((expectedStripeCheckoutSessionId: null | string) =>
-    Database.use((database) =>
-      database
-        .transaction((tx) =>
-          Effect.gen(function* () {
-            const lockedRegistrations = yield* tx
-              .select({
-                guestCount: eventRegistrations.guestCount,
-                registrationOptionId: eventRegistrations.registrationOptionId,
-                status: eventRegistrations.status,
-              })
-              .from(eventRegistrations)
-              .where(
-                and(
-                  eq(eventRegistrations.id, registrationId),
-                  eq(eventRegistrations.tenantId, tenantId),
-                  eq(eventRegistrations.eventId, eventId),
-                ),
-              )
-              .for('update');
-            const lockedRegistration = lockedRegistrations[0];
-            const lockedClaims = yield* tx
-              .select({
-                method: transactions.method,
-                status: transactions.status,
-                stripeCheckoutCancellationRequestedAt:
-                  transactions.stripeCheckoutCancellationRequestedAt,
-                stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
-                type: transactions.type,
-              })
-              .from(transactions)
-              .where(
-                and(
-                  eq(transactions.id, paymentClaim.id),
-                  eq(transactions.tenantId, tenantId),
-                  eq(transactions.eventRegistrationId, registrationId),
-                ),
-              )
-              .for('update');
-            const lockedClaim = lockedClaims[0];
-            if (
-              lockedRegistration?.status === 'CANCELLED' &&
-              lockedClaim?.status === 'cancelled'
-            ) {
-              return;
-            }
-            if (
-              lockedRegistration?.status !== 'PENDING' ||
-              lockedClaim?.method !== 'stripe' ||
-              lockedClaim.status !== 'pending' ||
-              lockedClaim.stripeCheckoutCancellationRequestedAt !== null ||
-              (lockedClaim.stripeCheckoutSessionId !== null &&
-                lockedClaim.stripeCheckoutSessionId !==
-                  expectedStripeCheckoutSessionId) ||
-              lockedClaim.type !== 'registration'
-            ) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Failed to release direct checkout claim',
-                }),
-              );
-            }
-
-            const lockedAddonPurchases = yield* tx
-              .select({
-                addonId: eventRegistrationAddonPurchases.addonId,
-                quantity: eventRegistrationAddonPurchases.quantity,
-              })
-              .from(eventRegistrationAddonPurchases)
-              .where(
-                eq(
-                  eventRegistrationAddonPurchases.registrationId,
-                  registrationId,
-                ),
-              )
-              .for('update');
-            const orderedAddonPurchases =
-              orderRegistrationAddonPurchases(lockedAddonPurchases);
-
-            const cancelledClaims = yield* tx
-              .update(transactions)
-              .set({ status: 'cancelled' })
-              .where(
-                and(
-                  eq(transactions.id, paymentClaim.id),
-                  eq(transactions.tenantId, tenantId),
-                  eq(transactions.eventRegistrationId, registrationId),
-                  eq(transactions.method, 'stripe'),
-                  eq(transactions.status, 'pending'),
-                  eq(transactions.type, 'registration'),
-                  isNull(transactions.stripeCheckoutCancellationRequestedAt),
-                  expectedStripeCheckoutSessionId === null
-                    ? isNull(transactions.stripeCheckoutSessionId)
-                    : or(
-                        isNull(transactions.stripeCheckoutSessionId),
-                        eq(
-                          transactions.stripeCheckoutSessionId,
-                          expectedStripeCheckoutSessionId,
-                        ),
-                      ),
-                ),
-              )
-              .returning({ id: transactions.id });
-            const cancelledRegistrations = yield* tx
-              .update(eventRegistrations)
-              .set({ status: 'CANCELLED' })
-              .where(
-                and(
-                  eq(eventRegistrations.id, registrationId),
-                  eq(eventRegistrations.tenantId, tenantId),
-                  eq(eventRegistrations.status, 'PENDING'),
-                ),
-              )
-              .returning({ id: eventRegistrations.id });
-            if (
-              cancelledClaims.length !== 1 ||
-              cancelledRegistrations.length !== 1
-            ) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Failed to release direct checkout claim',
-                }),
-              );
-            }
-
-            const requestedSpotCount = registrationSpotCount(
-              lockedRegistration.guestCount,
-            );
-            const releasedOptions = yield* tx
-              .update(eventRegistrationOptions)
-              .set({
-                reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
-              })
-              .where(
-                and(
-                  eq(
-                    eventRegistrationOptions.id,
-                    lockedRegistration.registrationOptionId,
-                  ),
-                  eq(eventRegistrationOptions.eventId, eventId),
-                  sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
-                ),
-              )
-              .returning({ id: eventRegistrationOptions.id });
-            if (releasedOptions.length !== 1) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Failed to release registration capacity',
-                }),
-              );
-            }
-
-            for (const addOnPurchase of orderedAddonPurchases) {
-              const releasedAddOns = yield* tx
-                .update(eventAddons)
-                .set({
-                  totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+  )(
+    (
+      expectedStripeCheckoutSessionId: null | string,
+      releaseOnlyWhenIneligible = false,
+    ) =>
+      Database.use((database) =>
+        database
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const lockedRegistrations = yield* tx
+                .select({
+                  guestCount: eventRegistrations.guestCount,
+                  registrationOptionId: eventRegistrations.registrationOptionId,
+                  status: eventRegistrations.status,
+                  userId: eventRegistrations.userId,
                 })
+                .from(eventRegistrations)
                 .where(
                   and(
-                    eq(eventAddons.id, addOnPurchase.addonId),
-                    eq(eventAddons.eventId, eventId),
+                    eq(eventRegistrations.id, registrationId),
+                    eq(eventRegistrations.tenantId, tenantId),
+                    eq(eventRegistrations.eventId, eventId),
                   ),
                 )
-                .returning({ id: eventAddons.id });
-              if (releasedAddOns.length !== 1) {
+                .for('update');
+              const lockedRegistration = lockedRegistrations[0];
+              const lockedClaims = yield* tx
+                .select({
+                  method: transactions.method,
+                  status: transactions.status,
+                  stripeCheckoutCancellationRequestedAt:
+                    transactions.stripeCheckoutCancellationRequestedAt,
+                  stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
+                  type: transactions.type,
+                })
+                .from(transactions)
+                .where(
+                  and(
+                    eq(transactions.id, paymentClaim.id),
+                    eq(transactions.tenantId, tenantId),
+                    eq(transactions.eventRegistrationId, registrationId),
+                  ),
+                )
+                .for('update');
+              const lockedClaim = lockedClaims[0];
+              if (
+                lockedRegistration?.status === 'CANCELLED' &&
+                lockedClaim?.status === 'cancelled'
+              ) {
+                return 'alreadyUnavailable' as const;
+              }
+              if (
+                lockedRegistration?.status !== 'PENDING' ||
+                lockedClaim?.method !== 'stripe' ||
+                lockedClaim.status !== 'pending' ||
+                lockedClaim.stripeCheckoutCancellationRequestedAt !== null ||
+                (lockedClaim.stripeCheckoutSessionId !== null &&
+                  lockedClaim.stripeCheckoutSessionId !==
+                    expectedStripeCheckoutSessionId) ||
+                lockedClaim.type !== 'registration'
+              ) {
                 return yield* Effect.fail(
                   new EventRegistrationInternalError({
-                    message: 'Failed to release registration add-on stock',
+                    message: 'Failed to release direct checkout claim',
                   }),
                 );
               }
-            }
-          }),
-        )
-        .pipe(
-          Effect.catch((error) =>
-            error instanceof EventRegistrationInternalError
-              ? Effect.fail(error)
-              : Effect.die(error),
+
+              if (releaseOnlyWhenIneligible) {
+                const currentEligibility =
+                  yield* lockCurrentRegistrationEligibility(tx, {
+                    eventId,
+                    registrationOptionId:
+                      lockedRegistration.registrationOptionId,
+                    tenantId,
+                    userId: lockedRegistration.userId,
+                  });
+                if (
+                  currentEligibility._tag === 'Current' &&
+                  currentEligibility.eventStatus === 'APPROVED' &&
+                  isUserEligibleForRegistrationOption({
+                    optionRoleIds: currentEligibility.roleIds,
+                    userRoleIds: currentEligibility.userRoleIds,
+                  })
+                ) {
+                  return 'stillEligible' as const;
+                }
+              }
+
+              const lockedAddonPurchases = yield* tx
+                .select({
+                  addonId: eventRegistrationAddonPurchases.addonId,
+                  quantity: eventRegistrationAddonPurchases.quantity,
+                })
+                .from(eventRegistrationAddonPurchases)
+                .where(
+                  eq(
+                    eventRegistrationAddonPurchases.registrationId,
+                    registrationId,
+                  ),
+                )
+                .for('update');
+              const orderedAddonPurchases =
+                orderRegistrationAddonPurchases(lockedAddonPurchases);
+
+              const cancelledClaims = yield* tx
+                .update(transactions)
+                .set({ status: 'cancelled' })
+                .where(
+                  and(
+                    eq(transactions.id, paymentClaim.id),
+                    eq(transactions.tenantId, tenantId),
+                    eq(transactions.eventRegistrationId, registrationId),
+                    eq(transactions.method, 'stripe'),
+                    eq(transactions.status, 'pending'),
+                    eq(transactions.type, 'registration'),
+                    isNull(transactions.stripeCheckoutCancellationRequestedAt),
+                    expectedStripeCheckoutSessionId === null
+                      ? isNull(transactions.stripeCheckoutSessionId)
+                      : or(
+                          isNull(transactions.stripeCheckoutSessionId),
+                          eq(
+                            transactions.stripeCheckoutSessionId,
+                            expectedStripeCheckoutSessionId,
+                          ),
+                        ),
+                  ),
+                )
+                .returning({ id: transactions.id });
+              const cancelledRegistrations = yield* tx
+                .update(eventRegistrations)
+                .set({ status: 'CANCELLED' })
+                .where(
+                  and(
+                    eq(eventRegistrations.id, registrationId),
+                    eq(eventRegistrations.tenantId, tenantId),
+                    eq(eventRegistrations.status, 'PENDING'),
+                  ),
+                )
+                .returning({ id: eventRegistrations.id });
+              if (
+                cancelledClaims.length !== 1 ||
+                cancelledRegistrations.length !== 1
+              ) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message: 'Failed to release direct checkout claim',
+                  }),
+                );
+              }
+
+              const requestedSpotCount = registrationSpotCount(
+                lockedRegistration.guestCount,
+              );
+              const releasedOptions = yield* tx
+                .update(eventRegistrationOptions)
+                .set({
+                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
+                })
+                .where(
+                  and(
+                    eq(
+                      eventRegistrationOptions.id,
+                      lockedRegistration.registrationOptionId,
+                    ),
+                    eq(eventRegistrationOptions.eventId, eventId),
+                    sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
+                  ),
+                )
+                .returning({ id: eventRegistrationOptions.id });
+              if (releasedOptions.length !== 1) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message: 'Failed to release registration capacity',
+                  }),
+                );
+              }
+
+              for (const addOnPurchase of orderedAddonPurchases) {
+                const releasedAddOns = yield* tx
+                  .update(eventAddons)
+                  .set({
+                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                  })
+                  .where(
+                    and(
+                      eq(eventAddons.id, addOnPurchase.addonId),
+                      eq(eventAddons.eventId, eventId),
+                    ),
+                  )
+                  .returning({ id: eventAddons.id });
+                if (releasedAddOns.length !== 1) {
+                  return yield* Effect.fail(
+                    new EventRegistrationInternalError({
+                      message: 'Failed to release registration add-on stock',
+                    }),
+                  );
+                }
+              }
+              return 'released' as const;
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof EventRegistrationInternalError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
           ),
-        ),
-    ),
+      ),
   );
+
+  if (recheckEligibilityBeforeCreating) {
+    const eligibilityPrecheck = yield* releaseDirectCheckoutClaim(null, true);
+    if (eligibilityPrecheck !== 'stillEligible') {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message:
+            eligibilityPrecheck === 'released'
+              ? 'Registration eligibility changed before payment setup. The pending registration was cancelled and no payment was taken.'
+              : 'Registration is no longer awaiting payment setup',
+        }),
+      );
+    }
+  }
 
   const session = yield* createHostedCheckoutSession(
     buildRegistrationCheckoutParameters({
@@ -1831,6 +1867,50 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     new EventRegistrationConflictError({
                       message:
                         'Only pending manual approval registrations can be approved',
+                    }),
+                  );
+                }
+
+                const lockedEligibility =
+                  yield* lockCurrentRegistrationEligibility(tx, {
+                    eventId,
+                    registrationOptionId: registration.registrationOptionId,
+                    tenantId: tenant.id,
+                    userId: registration.userId,
+                  });
+                if (lockedEligibility._tag === 'NotMember') {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'The applicant is no longer a member of this tenant',
+                    }),
+                  );
+                }
+                if (lockedEligibility._tag === 'Unavailable') {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message: 'Registration option is no longer available',
+                    }),
+                  );
+                }
+                if (lockedEligibility.eventStatus !== 'APPROVED') {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message: 'Event is not open for registration approval',
+                    }),
+                  );
+                }
+                if (
+                  lockedEligibility.registrationMode !== 'application' ||
+                  !isUserEligibleForRegistrationOption({
+                    optionRoleIds: lockedEligibility.roleIds,
+                    userRoleIds: lockedEligibility.userRoleIds,
+                  })
+                ) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'The applicant is no longer eligible for this registration option',
                     }),
                   );
                 }
@@ -3234,20 +3314,67 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           database
             .transaction((tx) =>
               Effect.gen(function* () {
-                const lockedMemberships = yield* tx
-                  .select({ id: usersToTenants.id })
-                  .from(usersToTenants)
-                  .where(
-                    and(
-                      eq(usersToTenants.tenantId, tenant.id),
-                      eq(usersToTenants.userId, user.id),
-                    ),
-                  )
-                  .for('update');
-                if (lockedMemberships.length !== 1) {
+                const lockedEligibility =
+                  yield* lockCurrentRegistrationEligibility(tx, {
+                    eventId,
+                    registrationOptionId: registrationOption.id,
+                    tenantId: tenant.id,
+                    userId: user.id,
+                  });
+                if (lockedEligibility._tag === 'NotMember') {
                   return yield* Effect.fail(
                     new EventRegistrationNotFoundError({
                       message: 'Tenant membership not found',
+                    }),
+                  );
+                }
+                if (lockedEligibility._tag === 'Unavailable') {
+                  return yield* Effect.fail(
+                    new EventRegistrationNotFoundError({
+                      message: 'Registration option not found',
+                    }),
+                  );
+                }
+                if (lockedEligibility.eventStatus !== 'APPROVED') {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message: 'Event is not open for registration',
+                    }),
+                  );
+                }
+                if (
+                  now < lockedEligibility.openRegistrationTime ||
+                  now > lockedEligibility.closeRegistrationTime
+                ) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message: 'Registration is not open',
+                    }),
+                  );
+                }
+                if (
+                  !isUserEligibleForRegistrationOption({
+                    optionRoleIds: lockedEligibility.roleIds,
+                    userRoleIds: lockedEligibility.userRoleIds,
+                  })
+                ) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'User is not eligible for this registration option',
+                    }),
+                  );
+                }
+                if (
+                  lockedEligibility.registrationMode !==
+                    registrationOption.registrationMode ||
+                  lockedEligibility.organizingRegistration !==
+                    registrationOption.organizingRegistration
+                ) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'Registration option changed while registration was starting. Review the current option and retry.',
                     }),
                   );
                 }
@@ -3772,6 +3899,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         return yield* resumeDirectRegistrationCheckout({
           eventId: registration.eventId,
           paymentClaim: paymentClaims[0],
+          recheckEligibilityBeforeCreating: true,
           registrationId: registration.id,
           tenantId,
         });
@@ -3940,20 +4068,65 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             database
               .transaction((tx) =>
                 Effect.gen(function* () {
-                  const lockedMemberships = yield* tx
-                    .select({ id: usersToTenants.id })
-                    .from(usersToTenants)
-                    .where(
-                      and(
-                        eq(usersToTenants.tenantId, tenant.id),
-                        eq(usersToTenants.userId, user.id),
-                      ),
-                    )
-                    .for('update');
-                  if (lockedMemberships.length !== 1) {
+                  const lockedEligibility =
+                    yield* lockCurrentRegistrationEligibility(tx, {
+                      eventId,
+                      registrationOptionId: registrationOption.id,
+                      tenantId: tenant.id,
+                      userId: user.id,
+                    });
+                  if (lockedEligibility._tag === 'NotMember') {
                     return yield* Effect.fail(
                       new EventRegistrationNotFoundError({
                         message: 'Tenant membership not found',
+                      }),
+                    );
+                  }
+                  if (lockedEligibility._tag === 'Unavailable') {
+                    return yield* Effect.fail(
+                      new EventRegistrationNotFoundError({
+                        message: 'Registration option not found',
+                      }),
+                    );
+                  }
+                  if (lockedEligibility.eventStatus !== 'APPROVED') {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message: 'Event is not open for registration',
+                      }),
+                    );
+                  }
+                  if (
+                    now < lockedEligibility.openRegistrationTime ||
+                    now > lockedEligibility.closeRegistrationTime
+                  ) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message: 'Registration is not open',
+                      }),
+                    );
+                  }
+                  if (
+                    !isUserEligibleForRegistrationOption({
+                      optionRoleIds: lockedEligibility.roleIds,
+                      userRoleIds: lockedEligibility.userRoleIds,
+                    })
+                  ) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message:
+                          'User is not eligible for this registration option',
+                      }),
+                    );
+                  }
+                  if (
+                    lockedEligibility.organizingRegistration ||
+                    lockedEligibility.registrationMode !== 'fcfs'
+                  ) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message:
+                          'Registration option is no longer available for waitlisting',
                       }),
                     );
                   }

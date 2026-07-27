@@ -146,24 +146,31 @@ describe('roleHandlers lookup permissions', () => {
     }),
   );
 
-  it.effect('allows event listing managers to select announcement roles', () =>
-    Effect.gen(function* () {
-      const database = {
-        query: {
-          roles: {
-            findMany: () => Effect.succeed([]),
+  it.effect(
+    'allows announcement discovery managers to select announcement roles',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            roles: {
+              findMany: () => Effect.succeed([]),
+            },
           },
-        },
-      };
+        };
 
-      const result = yield* roleHandlers['roles.findMany']({}, {
-        headers: {},
-      } as never).pipe(
-        Effect.provide(createContextLayer(['events:changeListing'], database)),
-      );
+        const result = yield* roleHandlers['roles.findMany']({}, {
+          headers: {},
+        } as never).pipe(
+          Effect.provide(
+            createContextLayer(
+              ['events:changeAnnouncementDiscovery'],
+              database,
+            ),
+          ),
+        );
 
-      expect(result).toEqual([]);
-    }),
+        expect(result).toEqual([]);
+      }),
   );
 
   it.effect(

@@ -935,7 +935,7 @@ export class EventActiveRegistrationComponent {
         { throwOnError: true },
       ),
       this.queryClient.invalidateQueries(
-        { exact: true, queryKey: eventDetailsQueryKey },
+        { queryKey: eventDetailsQueryKey },
         { throwOnError: true },
       ),
       this.refreshOrganizerAccess(

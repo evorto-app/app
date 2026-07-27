@@ -19,21 +19,20 @@
           <fa-duotone-icon [icon]="faArrowLeft" />
         </a>
         <div class="grow"></div>
-        <button
-          title="menu"
-          *appIfAnyPermission="['events:changeListing']"
-          mat-icon-button
-          [matMenuTriggerFor]="menu"
-          [disabled]="!controlsInteractive() || !eventQuery.isSuccess()"
-          aria-label="Open event actions"
-        >
-          <fa-duotone-icon [icon]="faEllipsisVertical" />
-        </button>
-        <mat-menu #menu="matMenu">
-          <button mat-menu-item (click)="updateListingAudience()">
-            Update listing
+        @if (
+          eventQuery.isSuccess() && !eventQuery.data().hasRegistrationOptions
+        ) {
+          <button
+            title="Update announcement discovery"
+            *appIfAnyPermission="['events:changeAnnouncementDiscovery']"
+            mat-icon-button
+            [disabled]="!controlsInteractive()"
+            aria-label="Update announcement discovery"
+            (click)="updateAnnouncementDiscovery()"
+          >
+            <fa-duotone-icon [icon]="faUsers" />
           </button>
-        </mat-menu>
+        }
       </div>
       <h1 class="display-small">
         @if (eventQuery.isSuccess()) {
@@ -159,21 +158,18 @@
               {{
                 eventDiscoveryLabel({
                   announcementRoleCount:
-                    eventQuery.data().announcementRoleIds.length,
+                    eventQuery.data().announcementRoleCount,
                   hasRegistrationOptions:
                     eventQuery.data().hasRegistrationOptions,
-                  listingAudience: eventQuery.data().listingAudience,
                 })
               }}
             </span>
             —
             {{
               eventDiscoveryDescription({
-                announcementRoleCount:
-                  eventQuery.data().announcementRoleIds.length,
+                announcementRoleCount: eventQuery.data().announcementRoleCount,
                 hasRegistrationOptions:
                   eventQuery.data().hasRegistrationOptions,
-                listingAudience: eventQuery.data().listingAudience,
               })
             }}
           </div>
@@ -541,6 +537,23 @@
                       account is not eligible for the available registration
                       options.
                     </p>
+                  </div>
+                }
+                @case ("requiresSignIn") {
+                  <div class="bg-surface text-on-surface rounded-2xl p-4">
+                    <h3 class="title-small">Sign in to check registration</h3>
+                    <p class="body-medium text-on-surface-variant mt-2">
+                      Registration options for this event are not shown in the
+                      anonymous preview. Sign in to check whether your account
+                      is eligible.
+                    </p>
+                    <a
+                      class="mt-3"
+                      href="/forward-login?redirectUrl=/events/{{ eventId() }}"
+                      mat-flat-button
+                    >
+                      Log in now
+                    </a>
                   </div>
                 }
                 @case ("none") {

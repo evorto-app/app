@@ -60,11 +60,13 @@ const linkOnlyAnnouncementId = createId();
 const raceAnnouncementId = createId();
 const optionfulMatchingId = createId();
 const optionfulUnrestrictedId = createId();
-const optionfulUnlistedId = createId();
+const optionfulDefaultRoleId = createId();
+const draftRestrictedId = createId();
 const otherTenantAnnouncementId = createId();
 const optionfulMatchingOptionId = createId();
 const optionfulUnrestrictedOptionId = createId();
-const optionfulUnlistedOptionId = createId();
+const optionfulDefaultRoleOptionId = createId();
+const draftRestrictedOptionId = createId();
 const membershipIds = [createId(), createId()] as const;
 const eventIds = [
   defaultAnnouncementId,
@@ -73,7 +75,8 @@ const eventIds = [
   raceAnnouncementId,
   optionfulMatchingId,
   optionfulUnrestrictedId,
-  optionfulUnlistedId,
+  optionfulDefaultRoleId,
+  draftRestrictedId,
   otherTenantAnnouncementId,
 ] as const;
 const userIds = [
@@ -168,16 +171,15 @@ const handlerLayer = Layer.mergeAll(
 
 const runEventList = (
   context: RpcRequestContextShape,
-  includeUnlisted = false,
+  status: readonly ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW')[] = ['APPROVED'],
 ) =>
   Effect.runPromise(
     eventQueryHandlers['events.eventList'](
       {
-        includeUnlisted,
         limit: 100,
         offset: 0,
         startAfter: '2099-01-01T00:00:00.000Z',
-        status: ['APPROVED'],
+        status: [...status],
       },
       handlerOptions,
     ).pipe(
@@ -199,16 +201,15 @@ const runFindOne = (context: RpcRequestContextShape, id: string) =>
     ),
   );
 
-const runPlatformListingUpdate = (
+const runPlatformAnnouncementDiscoveryUpdate = (
   eventId: string,
   announcementRoleIds: readonly string[],
 ) =>
   Effect.runPromise(
-    platformEventHandlers['platform.events.updateListing'](
+    platformEventHandlers['platform.events.updateAnnouncementDiscovery'](
       {
         announcementRoleIds: [...announcementRoleIds],
         eventId,
-        listingAudience: 'both',
         reason: 'Verify announcement discovery role integrity',
         targetTenantId: tenantId,
       },
@@ -401,7 +402,6 @@ describe('optionless announcement discovery', () => {
         description: 'Announcement discovery fixture',
         icon: { iconColor: 0, iconName: 'circle' },
         id: templateId,
-        listingAudience: 'both',
         tenantId,
         title: 'Announcement discovery',
       },
@@ -410,7 +410,6 @@ describe('optionless announcement discovery', () => {
         description: 'Other tenant announcement fixture',
         icon: { iconColor: 0, iconName: 'circle' },
         id: otherTemplateId,
-        listingAudience: 'both',
         tenantId: otherTenantId,
         title: 'Other announcement discovery',
       },
@@ -426,7 +425,6 @@ describe('optionless announcement discovery', () => {
         end,
         icon: { iconColor: 0, iconName: 'circle' },
         id: defaultAnnouncementId,
-        listingAudience: 'both',
         reviewedAt: new Date('2099-12-01T00:00:00.000Z'),
         reviewedBy: creatorId,
         start,
@@ -442,7 +440,6 @@ describe('optionless announcement discovery', () => {
         end,
         icon: { iconColor: 0, iconName: 'circle' },
         id: matchingAnnouncementId,
-        listingAudience: 'both',
         reviewedAt: new Date('2099-12-01T00:00:00.000Z'),
         reviewedBy: creatorId,
         start,
@@ -458,7 +455,6 @@ describe('optionless announcement discovery', () => {
         end,
         icon: { iconColor: 0, iconName: 'circle' },
         id: linkOnlyAnnouncementId,
-        listingAudience: 'both',
         reviewedAt: new Date('2099-12-01T00:00:00.000Z'),
         reviewedBy: creatorId,
         start,
@@ -474,7 +470,6 @@ describe('optionless announcement discovery', () => {
         end,
         icon: { iconColor: 0, iconName: 'circle' },
         id: raceAnnouncementId,
-        listingAudience: 'both',
         reviewedAt: new Date('2099-12-01T00:00:00.000Z'),
         reviewedBy: creatorId,
         start,
@@ -489,7 +484,6 @@ describe('optionless announcement discovery', () => {
         end,
         icon: { iconColor: 0, iconName: 'circle' },
         id: optionfulMatchingId,
-        listingAudience: 'participant',
         reviewedAt: new Date('2099-12-01T00:00:00.000Z'),
         reviewedBy: creatorId,
         start,
@@ -504,7 +498,6 @@ describe('optionless announcement discovery', () => {
         end,
         icon: { iconColor: 0, iconName: 'circle' },
         id: optionfulUnrestrictedId,
-        listingAudience: 'participant',
         reviewedAt: new Date('2099-12-01T00:00:00.000Z'),
         reviewedBy: creatorId,
         start,
@@ -515,18 +508,29 @@ describe('optionless announcement discovery', () => {
       },
       {
         creatorId,
-        description: 'Unlisted optionful event',
+        description: 'Default-role optionful event',
         end,
         icon: { iconColor: 0, iconName: 'circle' },
-        id: optionfulUnlistedId,
-        listingAudience: 'unlisted',
+        id: optionfulDefaultRoleId,
         reviewedAt: new Date('2099-12-01T00:00:00.000Z'),
         reviewedBy: creatorId,
         start,
         status: 'APPROVED',
         templateId,
         tenantId,
-        title: 'Unlisted optionful event',
+        title: 'Default-role optionful event',
+      },
+      {
+        creatorId,
+        description: 'Restricted draft event',
+        end,
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: draftRestrictedId,
+        start,
+        status: 'DRAFT',
+        templateId,
+        tenantId,
+        title: 'Restricted draft event',
       },
     ];
     await database.insert(eventInstances).values([
@@ -538,7 +542,6 @@ describe('optionless announcement discovery', () => {
         end,
         icon: { iconColor: 0, iconName: 'circle' },
         id: otherTenantAnnouncementId,
-        listingAudience: 'both',
         reviewedAt: new Date('2099-12-01T00:00:00.000Z'),
         reviewedBy: otherCreatorId,
         start,
@@ -577,8 +580,21 @@ describe('optionless announcement discovery', () => {
       },
       {
         closeRegistrationTime: new Date('2100-01-01T23:00:00.000Z'),
-        eventId: optionfulUnlistedId,
-        id: optionfulUnlistedOptionId,
+        eventId: optionfulDefaultRoleId,
+        id: optionfulDefaultRoleOptionId,
+        isPaid: false,
+        openRegistrationTime: new Date('2099-12-01T00:00:00.000Z'),
+        organizingRegistration: false,
+        price: 0,
+        registrationMode: 'fcfs',
+        roleIds: [defaultRoleId],
+        spots: 20,
+        title: 'Default-role participant',
+      },
+      {
+        closeRegistrationTime: new Date('2100-01-01T23:00:00.000Z'),
+        eventId: draftRestrictedId,
+        id: draftRestrictedOptionId,
         isPaid: false,
         openRegistrationTime: new Date('2099-12-01T00:00:00.000Z'),
         organizingRegistration: false,
@@ -586,7 +602,7 @@ describe('optionless announcement discovery', () => {
         registrationMode: 'fcfs',
         roleIds: [matchingRoleId],
         spots: 20,
-        title: 'Unlisted participant',
+        title: 'Restricted draft participant',
       },
     ]);
   });
@@ -603,7 +619,8 @@ describe('optionless announcement discovery', () => {
         inArray(eventRegistrationOptions.id, [
           optionfulMatchingOptionId,
           optionfulUnrestrictedOptionId,
-          optionfulUnlistedOptionId,
+          optionfulDefaultRoleOptionId,
+          draftRestrictedOptionId,
         ]),
       );
     await database
@@ -633,9 +650,9 @@ describe('optionless announcement discovery', () => {
     await pool.end();
   });
 
-  it('filters announcements by explicit roles while preserving optionful discovery and direct links', async () => {
+  it('keeps announcement targeting separate from option eligibility and preserves direct links', async () => {
     expect(listedEventIds(await runEventList(anonymousContext))).toEqual(
-      [defaultAnnouncementId, optionfulUnrestrictedId].toSorted(),
+      [optionfulDefaultRoleId, optionfulUnrestrictedId].toSorted(),
     );
 
     const matchingContext = authenticatedContext({
@@ -658,28 +675,98 @@ describe('optionless announcement discovery', () => {
       optionfulUnrestrictedId,
     ]);
 
-    const unlistedContext = authenticatedContext({
-      permissions: ['events:seeUnlisted'],
+    const rolelessContext = authenticatedContext({
+      roleIds: [],
+      userId: matchingUserId,
+    });
+    expect(listedEventIds(await runEventList(rolelessContext))).toEqual([
+      optionfulUnrestrictedId,
+    ]);
+
+    const ineligibleDirectLinkEvent = await runFindOne(
+      nonmatchingContext,
+      optionfulMatchingId,
+    );
+    expect(ineligibleDirectLinkEvent).toMatchObject({
+      hasRegistrationOptions: true,
+      id: optionfulMatchingId,
+      registrationOptions: [],
+      registrationOptionsHiddenByEligibility: true,
+    });
+
+    const anonymousOptionfulEvent = await runFindOne(
+      anonymousContext,
+      optionfulDefaultRoleId,
+    );
+    expect(anonymousOptionfulEvent).toMatchObject({
+      announcementRoleCount: 0,
+      announcementRoleIds: null,
+      reviewer: null,
+      statusComment: null,
+      userIsCreator: false,
+    });
+    expect(anonymousOptionfulEvent.registrationOptions).toHaveLength(1);
+    expect(anonymousOptionfulEvent.registrationOptions[0]).not.toHaveProperty(
+      'checkedInSpots',
+    );
+    expect(anonymousOptionfulEvent.registrationOptions[0]).not.toHaveProperty(
+      'registeredDescription',
+    );
+    expect(anonymousOptionfulEvent.registrationOptions[0]).not.toHaveProperty(
+      'roleIds',
+    );
+    expect(anonymousOptionfulEvent.registrationOptions[0]).not.toHaveProperty(
+      'stripeTaxRateId',
+    );
+
+    const anonymousAnnouncement = await runFindOne(
+      anonymousContext,
+      defaultAnnouncementId,
+    );
+    expect(anonymousAnnouncement).toMatchObject({
+      announcementRoleCount: 1,
+      announcementRoleIds: null,
+      reviewer: null,
+      statusComment: null,
+      userIsCreator: false,
+    });
+
+    const announcementEditorContext = authenticatedContext({
+      permissions: ['events:changeAnnouncementDiscovery'],
       roleIds: [matchingRoleId],
       userId: matchingUserId,
     });
-    expect(listedEventIds(await runEventList(unlistedContext, true))).toEqual(
-      [
-        matchingAnnouncementId,
-        optionfulMatchingId,
-        optionfulUnlistedId,
-        optionfulUnrestrictedId,
-      ].toSorted(),
+    const editableAnnouncement = await runFindOne(
+      announcementEditorContext,
+      matchingAnnouncementId,
     );
+    expect(editableAnnouncement).toMatchObject({
+      announcementRoleCount: 1,
+      announcementRoleIds: [matchingRoleId],
+      userIsCreator: false,
+    });
+
+    const creatorContext = authenticatedContext({
+      roleIds: [],
+      userId: creatorId,
+    });
+    expect(
+      await runFindOne(creatorContext, linkOnlyAnnouncementId),
+    ).toMatchObject({
+      announcementRoleIds: null,
+      userIsCreator: true,
+    });
 
     const directLinkEvent = await runFindOne(
       nonmatchingContext,
       linkOnlyAnnouncementId,
     );
     expect(directLinkEvent).toMatchObject({
-      announcementRoleIds: [],
+      announcementRoleCount: 0,
+      announcementRoleIds: null,
       hasRegistrationOptions: false,
       id: linkOnlyAnnouncementId,
+      userIsCreator: false,
     });
     await expect(
       runFindOne(nonmatchingContext, otherTenantAnnouncementId),
@@ -689,8 +776,39 @@ describe('optionless announcement discovery', () => {
     });
   });
 
+  it('bypasses eligibility only for non-approved rows after the explicit draft permission gate', async () => {
+    const draftViewerContext = authenticatedContext({
+      permissions: ['events:seeDrafts'],
+      roleIds: [nonmatchingRoleId],
+      userId: nonmatchingUserId,
+    });
+
+    expect(
+      listedEventIds(
+        await runEventList(draftViewerContext, ['APPROVED', 'DRAFT']),
+      ),
+    ).toEqual([draftRestrictedId, optionfulUnrestrictedId].toSorted());
+
+    const draft = await runFindOne(draftViewerContext, draftRestrictedId);
+    expect(draft).toMatchObject({
+      hasRegistrationOptions: true,
+      id: draftRestrictedId,
+      registrationOptionsHiddenByEligibility: false,
+    });
+    expect(draft.registrationOptions.map((option) => option.id)).toEqual([
+      draftRestrictedOptionId,
+    ]);
+    expect(draft.registrationOptions[0]).not.toHaveProperty('roleIds');
+
+    const approved = await runFindOne(draftViewerContext, optionfulMatchingId);
+    expect(approved).toMatchObject({
+      registrationOptions: [],
+      registrationOptionsHiddenByEligibility: true,
+    });
+  });
+
   it('serializes platform announcement updates with role deletion', async () => {
-    const foreignRoleUpdate = await runPlatformListingUpdate(
+    const foreignRoleUpdate = await runPlatformAnnouncementDiscoveryUpdate(
       raceAnnouncementId,
       [otherTenantRoleId],
     );
@@ -702,9 +820,9 @@ describe('optionless announcement discovery', () => {
       status: 'failure',
     });
 
-    const optionfulUpdate = await runPlatformListingUpdate(
+    const optionfulUpdate = await runPlatformAnnouncementDiscoveryUpdate(
       optionfulMatchingId,
-      [matchingRoleId],
+      [],
     );
     expect(optionfulUpdate).toMatchObject({
       error: {
@@ -716,13 +834,15 @@ describe('optionless announcement discovery', () => {
 
     const lockClient = await pool.connect();
     let lockReleased = false;
-    let updatePromise: ReturnType<typeof runPlatformListingUpdate> | undefined;
+    let updatePromise:
+      ReturnType<typeof runPlatformAnnouncementDiscoveryUpdate> | undefined;
     let deletePromise: ReturnType<typeof runRoleDeletion> | undefined;
     try {
       await lockTenantRoleGraph(lockClient, tenantId);
-      updatePromise = runPlatformListingUpdate(raceAnnouncementId, [
-        raceRoleId,
-      ]);
+      updatePromise = runPlatformAnnouncementDiscoveryUpdate(
+        raceAnnouncementId,
+        [raceRoleId],
+      );
       await waitForBlockedRoleGraphLocks(pool, 1);
       deletePromise = runRoleDeletion();
       await waitForBlockedRoleGraphLocks(pool, 2);
@@ -749,7 +869,7 @@ describe('optionless announcement discovery', () => {
           and(
             eq(platformAuditEntries.targetTenantId, tenantId),
             inArray(platformAuditEntries.action, [
-              'event.updateListing',
+              'event.updateAnnouncementDiscovery',
               'role.delete',
             ]),
           ),
@@ -765,7 +885,9 @@ describe('optionless announcement discovery', () => {
         });
         expect(storedEvent?.announcementRoleIds).toEqual([raceRoleId]);
         expect(storedRole).toEqual({ id: raceRoleId });
-        expect(auditEntries).toEqual([{ action: 'event.updateListing' }]);
+        expect(auditEntries).toEqual([
+          { action: 'event.updateAnnouncementDiscovery' },
+        ]);
       } else {
         expect(updateResult.error).toMatchObject({
           _tag: 'RpcBadRequestError',

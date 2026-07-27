@@ -22,7 +22,6 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatMenuModule } from '@angular/material/menu';
 import {
   type MatSelectChange,
   MatSelectModule,
@@ -31,11 +30,7 @@ import { RouterLink } from '@angular/router';
 import {
   eventDiscoveryDescription,
   eventDiscoveryLabel,
-  type EventListingAudience,
-  eventListingAudienceDescriptions,
-  eventListingAudienceLabel,
-  eventListingAudiences,
-} from '@shared/event-listing-audience';
+} from '@shared/event-discovery';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -449,8 +444,8 @@ export class PlatformEventDetailOperations {
     return this.rpc.platform.events.update.mutationOptions();
   }
 
-  updateListing() {
-    return this.rpc.platform.events.updateListing.mutationOptions();
+  updateAnnouncementDiscovery() {
+    return this.rpc.platform.events.updateAnnouncementDiscovery.mutationOptions();
   }
 }
 
@@ -464,7 +459,6 @@ export class PlatformEventDetailOperations {
     MatExpansionModule,
     MatFormFieldModule,
     MatInputModule,
-    MatMenuModule,
     MatSelectModule,
     PlatformTenantPageHeaderComponent,
     RouterLink,
@@ -484,11 +478,14 @@ export class PlatformEventDetailComponent {
     platformEventAddOnQuantityLimitIssue;
   protected readonly addOnStockIssue = platformEventAddOnStockIssue;
   protected readonly addOnTypeLimitIssue = platformEventAddonTypeLimitIssue;
+  private readonly operations = inject(PlatformEventDetailOperations);
+  protected readonly announcementDiscoveryMutation = injectMutation(() =>
+    this.operations.updateAnnouncementDiscovery(),
+  );
   protected readonly announcementRoleIds = signal<readonly string[]>([]);
   protected readonly currencyAmountErrors = signal<ReadonlyMap<string, string>>(
     new Map(),
   );
-  private readonly operations = inject(PlatformEventDetailOperations);
   protected readonly formOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
@@ -537,10 +534,6 @@ export class PlatformEventDetailComponent {
   protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
   protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   protected readonly eventEditorIsReadOnly = platformEventEditorIsReadOnly;
-  protected readonly eventListingAudienceDescriptions =
-    eventListingAudienceDescriptions;
-  protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
-  protected readonly eventListingAudiences = eventListingAudiences;
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findOne(this.tenantId(), this.eventId()),
   );
@@ -578,9 +571,6 @@ export class PlatformEventDetailComponent {
   protected readonly invalidRegistrationWindowFields = signal<
     ReadonlySet<string>
   >(new Set());
-  protected readonly listingMutation = injectMutation(() =>
-    this.operations.updateListing(),
-  );
   protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
   protected readonly maxRegistrationAddonQuantity =
     MAX_REGISTRATION_ADDON_QUANTITY;
@@ -767,10 +757,6 @@ export class PlatformEventDetailComponent {
     this.review(true);
   }
 
-  protected changeListing(listingAudience: EventListingAudience): void {
-    this.updateListing(listingAudience, []);
-  }
-
   protected displayDateTime(value: string): string {
     return this.formOptionsQuery.isSuccess()
       ? platformEventInstantToDisplayDateTime(
@@ -791,7 +777,7 @@ export class PlatformEventDetailComponent {
 
   protected mutationPending(): boolean {
     return (
-      this.listingMutation.isPending() ||
+      this.announcementDiscoveryMutation.isPending() ||
       this.reviewMutation.isPending() ||
       this.submitMutation.isPending() ||
       this.updateMutation.isPending()
@@ -930,12 +916,9 @@ export class PlatformEventDetailComponent {
     });
   }
 
-  protected saveAnnouncementListing(): void {
+  protected saveAnnouncementDiscovery(): void {
     if (!this.eventQuery.isSuccess()) return;
-    this.updateListing(
-      this.eventQuery.data().listingAudience,
-      this.announcementRoleIds(),
-    );
+    this.updateAnnouncementDiscovery(this.announcementRoleIds());
   }
 
   protected setActionReason(event: Event): void {
@@ -1378,29 +1361,27 @@ export class PlatformEventDetailComponent {
     }));
   }
 
-  private updateListing(
-    listingAudience: EventListingAudience,
+  private updateAnnouncementDiscovery(
     announcementRoleIds: readonly string[],
   ): void {
     const reason = this.actionReason().trim();
     if (!reason || this.mutationPending()) return;
     void (async () => {
       try {
-        await this.listingMutation.mutateAsync({
+        await this.announcementDiscoveryMutation.mutateAsync({
           announcementRoleIds: [...announcementRoleIds],
           eventId: this.eventId(),
-          listingAudience,
           reason,
           targetTenantId: this.tenantId(),
         });
         await this.refresh();
         this.actionReason.set('');
-        this.notifications.showSuccess('Event listing updated');
+        this.notifications.showSuccess('Announcement discovery updated');
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(
             error,
-            'The event listing could not be updated. Try again.',
+            'Announcement discovery could not be updated. Try again.',
           ),
         );
       }

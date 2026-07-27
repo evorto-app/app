@@ -181,23 +181,6 @@
             {{ modeBlockMessage() }}
           </p>
         }
-        <mat-form-field class="w-full">
-          <mat-label>Default event listing audience</mat-label>
-          <mat-select [formField]="templateForm.listingAudience">
-            @for (audience of eventListingAudiences; track audience) {
-              <mat-option [value]="audience">
-                {{ eventListingAudienceLabel(audience) }}
-              </mat-option>
-            }
-          </mat-select>
-          <mat-hint>
-            {{
-              eventListingAudienceDescriptions[
-                templateForm.listingAudience().value()
-              ]
-            }}
-          </mat-hint>
-        </mat-form-field>
       </div>
     </section>
 

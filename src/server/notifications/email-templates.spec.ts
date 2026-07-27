@@ -54,4 +54,27 @@ describe('RegistrationCancelledEmail', () => {
     );
     expect(platformAdministrator.text).not.toContain('An organizer cancelled');
   });
+
+  it('explains every eligibility change category after payment and the full queued refund', async () => {
+    const eligibilityChanged = await renderCancellation(
+      'eligibilityChangedAfterPayment',
+    );
+
+    for (const output of [eligibilityChanged.html, eligibilityChanged.text]) {
+      expect(output).toContain(
+        'the event or registration option was no longer available to you when payment completed',
+      );
+      expect(output).toContain('the event is no longer published');
+      expect(output).toContain('the option was removed');
+      expect(output).toContain('your organization membership or roles changed');
+      expect(output).toContain(
+        'The full amount you paid was queued for refund to your original payment method',
+      );
+      expect(output).toContain('Open your Profile to follow the refund status');
+      expect(output).toContain(
+        'current status and options or contact the organizer',
+      );
+      expect(output).not.toContain('An organizer cancelled');
+    }
+  });
 });

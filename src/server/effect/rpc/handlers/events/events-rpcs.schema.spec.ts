@@ -556,73 +556,91 @@ describe('events RPC registration option schema', () => {
     ).toThrow();
   });
 
-  it('carries inclusive tax-rate label details for paid event cards', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(EventsFindOneRegistrationOption)({
-        appliedDiscountType: null,
-        checkedInSpots: 0,
-        closeRegistrationTime: '2026-09-20T12:00:00.000Z',
-        confirmedSpots: 0,
-        description: null,
-        discountApplied: false,
-        effectivePrice: 2500,
-        esnCardDiscountedPrice: null,
-        eventId: 'event-1',
-        id: 'option-1',
-        isPaid: true,
-        openRegistrationTime: '2026-09-10T12:00:00.000Z',
-        organizingRegistration: false,
-        price: 2500,
-        questions: [
-          {
-            description: 'Tell us about your experience.',
-            id: 'question-1',
-            required: true,
-            sortOrder: 0,
-            title: 'Experience',
-          },
-        ],
-        registeredDescription: null,
-        registrationMode: 'fcfs',
-        reservedSpots: 0,
-        roleIds: ['role-1'],
-        spots: 10,
-        stripeTaxRateId: 'txr_vat_19',
-        taxRateDisplayName: 'VAT',
-        taxRatePercentage: '19',
-        title: 'Participant',
-      }),
-    ).not.toThrow();
+  it('carries public tax labels without private option configuration', () => {
+    const option = Schema.decodeUnknownSync(EventsFindOneRegistrationOption)({
+      appliedDiscountType: null,
+      checkedInSpots: 0,
+      closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+      confirmedSpots: 0,
+      description: null,
+      discountApplied: false,
+      effectivePrice: 2500,
+      esnCardDiscountedPrice: null,
+      eventId: 'event-1',
+      id: 'option-1',
+      isPaid: true,
+      openRegistrationTime: '2026-09-10T12:00:00.000Z',
+      organizingRegistration: false,
+      price: 2500,
+      questions: [
+        {
+          description: 'Tell us about your experience.',
+          id: 'question-1',
+          required: true,
+          sortOrder: 0,
+          title: 'Experience',
+        },
+      ],
+      registeredDescription: null,
+      registrationMode: 'fcfs',
+      reservedSpots: 0,
+      roleIds: ['role-1'],
+      spots: 10,
+      stripeTaxRateId: 'txr_vat_19',
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+      title: 'Participant',
+    });
+
+    expect(option).toMatchObject({
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+    });
+    expect(option).not.toHaveProperty('checkedInSpots');
+    expect(option).not.toHaveProperty('registeredDescription');
+    expect(option).not.toHaveProperty('roleIds');
+    expect(option).not.toHaveProperty('stripeTaxRateId');
   });
 });
 
 describe('events RPC add-on schema', () => {
-  it('carries copied event add-ons with registration option attachments', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(EventsFindOneAddon)({
-        allowMultiple: true,
-        allowPurchaseBeforeEvent: true,
-        allowPurchaseDuringEvent: false,
-        allowPurchaseDuringRegistration: true,
-        description: 'Includes equipment rental.',
-        id: 'addon-1',
-        isPaid: true,
-        maxQuantityPerUser: 2,
-        price: 1500,
-        registrationOptions: [
-          {
-            includedQuantity: 1,
-            optionalPurchaseQuantity: 1,
-            registrationOptionId: 'option-1',
-          },
-        ],
-        stripeTaxRateId: 'txr_vat_19',
-        taxRateDisplayName: 'VAT',
-        taxRatePercentage: '19',
-        title: 'Equipment rental',
-        totalAvailableQuantity: 20,
-      }),
-    ).not.toThrow();
+  it('carries public add-on details without the Stripe provider identifier', () => {
+    const addOn = Schema.decodeUnknownSync(EventsFindOneAddon)({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: 'Includes equipment rental.',
+      id: 'addon-1',
+      isPaid: true,
+      maxQuantityPerUser: 2,
+      price: 1500,
+      registrationOptions: [
+        {
+          includedQuantity: 1,
+          optionalPurchaseQuantity: 1,
+          registrationOptionId: 'option-1',
+        },
+      ],
+      stripeTaxRateId: 'txr_vat_19',
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+      title: 'Equipment rental',
+      totalAvailableQuantity: 20,
+    });
+
+    expect(addOn).toMatchObject({
+      registrationOptions: [
+        {
+          includedQuantity: 1,
+          optionalPurchaseQuantity: 1,
+          registrationOptionId: 'option-1',
+        },
+      ],
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+    });
+    expect(addOn).not.toHaveProperty('stripeTaxRateId');
   });
 });
 

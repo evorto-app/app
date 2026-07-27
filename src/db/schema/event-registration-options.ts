@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  index,
   integer,
   pgTable,
   text,
@@ -22,6 +23,8 @@ export const eventRegistrationOptionPriceCheckName =
   'event_registration_options_price';
 export const eventRegistrationOptionTimeOrderCheckName =
   'event_registration_options_time_order';
+export const eventRegistrationOptionsEventIndexName =
+  'event_registration_options_event_idx';
 
 export const eventRegistrationOptions = pgTable(
   'event_registration_options',
@@ -88,6 +91,7 @@ export const eventRegistrationOptions = pgTable(
       'event_registration_options_transfer_deadline_hours_nonnegative',
       sql`${table.transferDeadlineHoursBeforeStart} IS NULL OR ${table.transferDeadlineHoursBeforeStart} >= 0`,
     ),
+    index(eventRegistrationOptionsEventIndexName).on(table.eventId),
     unique(registrationOptionEventIdentityUniqueConstraintName).on(
       table.id,
       table.eventId,

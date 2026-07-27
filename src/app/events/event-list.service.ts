@@ -53,17 +53,13 @@ export class EventListService {
 
   private readonly canSeeDrafts =
     this.permissions.hasPermission('events:seeDrafts');
-  private readonly canSeeUnlisted =
-    this.permissions.hasPermission('events:seeUnlisted');
   private readonly startAfter = new Date().toISOString();
 
   private readonly filterInput = computed(() => {
     const status = this.canSeeDrafts()
       ? (['APPROVED', 'DRAFT', 'PENDING_REVIEW'] as const)
       : (['APPROVED'] as const);
-    const includeUnlisted = this.canSeeUnlisted();
     return {
-      includeUnlisted,
       limit: EVENT_LIST_PAGE_SIZE,
       startAfter: this.startAfter,
       status,

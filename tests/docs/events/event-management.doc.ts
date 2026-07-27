@@ -90,8 +90,8 @@ Use an account that can create events and manage all events.
 
 # Event Management
 
-The event management feature allows you to create, edit, and manage events in the application. This includes setting up registration options, managing attendees, and controlling event visibility.
-The current management surface is intentionally focused: event details, registration options, review/listing actions, organizer participant overview, and event receipts.
+The event management feature allows you to create, edit, and manage events in the application. This includes setting up registration options, managing attendees, and reviewing how published events are discovered.
+The current management surface is intentionally focused: event details, registration options, review and publishing actions, organizer participant overview, and event receipts.
 
 ## Event List
 
@@ -118,7 +118,7 @@ The event list shows all events with their basic information:
 - Date and time
 - Location
 - Status (draft, pending review, or published)
-- Listing audience (participants, organizers, both, or unlisted)
+- Discovery derived from the published event's registration-option eligibility
 `,
   });
 
@@ -192,7 +192,7 @@ The event details page has several sections:
 
 - **Basic Information**: Title, description, date, location
 - **Registration**: Available registration options or your active registration
-- **Review and listing actions**: Status, submit/review actions, edit link, and listing controls when your account has access
+- **Review and publishing actions**: Status, submit/review actions, and the edit link when your account has access
 - **Organize this event**: A link to the organizer surface when you are allowed to organize the event
 
 Let's look at each section in detail.
@@ -383,7 +383,6 @@ Already selected roles are hidden from suggestions so the same eligibility role 
     templateId: sourceEvent.templateId,
     tenantId: target.tenantId,
     title: initialEditableTitle,
-    listingAudience: 'unlisted',
   });
 
   try {
@@ -626,9 +625,9 @@ Reload the event details page and check the new title and description. Open **Ed
 
   await testInfo.attach('markdown', {
     body: `
-## Event Status and Visibility
+## Event Status and Discovery
 
-You can control how your event appears in the app with event status and listing visibility.
+Event status controls whether an event is published. Ordinary published-event discovery is then derived from the event's current registration options.
 
 Event status values:
 
@@ -639,12 +638,9 @@ Event status values:
 When a reviewer requests changes, the event returns to **Draft** and the
 review feedback remains visible on its details page.
 
-Listing audience can be updated from the event actions menu:
+There is no separate audience control for an ordinary event. A signed-in member discovers it when at least one option accepts one of their roles. An anonymous visitor discovers it only when an option accepts a role that the organization assigns to new members by default; the public preview still requires sign-in before registration. Registration writes always recheck current eligibility. A signed-in member who follows a direct link without an eligible option sees the explicit **Registration unavailable** explanation.
 
-- **Participants** requires an eligible participant registration option.
-- **Organizers** requires an eligible organizer registration option.
-- **Participants and organizers** accepts either kind.
-- **Unlisted** stays out of ordinary event discovery and uses direct links.
+Optionless announcements intentionally use a separate control: **Update announcement discovery** selects signed-in organization roles, and an empty selection means link-only. Announcement targeting affects visibility only. It does not grant roles or access and does not send notifications. Anonymous visitors do not borrow default new-member roles for announcement discovery.
 
 For a full walkthrough of the review and approval lifecycle, see the dedicated Event Approval guide.
 `,

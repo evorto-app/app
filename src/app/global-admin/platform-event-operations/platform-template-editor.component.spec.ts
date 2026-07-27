@@ -483,7 +483,6 @@ const completeTemplate = (): TemplateGraphRecord => ({
   description: '<p>Template description</p>',
   icon: { iconColor: 4, iconName: 'campground:fas' },
   id: 'template-1',
-  listingAudience: 'organizer',
   location: {
     address: 'Main Street 1',
     coordinates: { lat: 52.1, lng: 4.3 },
@@ -654,7 +653,6 @@ describe('platform template editor graph mapping', () => {
       categoryId: payload.categoryId,
       description: payload.description,
       icon: payload.icon,
-      listingAudience: payload.listingAudience,
       planningTips: payload.planningTips,
       simpleModeEnabled: payload.simpleModeEnabled,
       title: payload.title,
@@ -662,35 +660,10 @@ describe('platform template editor graph mapping', () => {
       categoryId: 'category-1',
       description: '<p>Template description</p>',
       icon: { iconColor: 4, iconName: 'campground:fas' },
-      listingAudience: 'organizer',
       planningTips: 'Bring the banner',
       simpleModeEnabled: false,
       title: 'Weekend trip',
     });
-  });
-
-  it('offers every explicit event listing audience', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-template-editor.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-template-editor.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain('eventListingAudiences');
-    expect(template).toContain('[formField]="templateForm.listingAudience"');
-    expect(template).toContain(
-      '@for (audience of eventListingAudiences; track audience)',
-    );
-    expect(template).toContain('eventListingAudienceDescriptions');
   });
 
   it('fails only when a persisted graph reference is genuinely corrupt', () => {

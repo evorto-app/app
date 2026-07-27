@@ -150,7 +150,6 @@ describe('platform event administration RPC schemas', () => {
         end: update.end,
         icon: update.icon,
         id: update.eventId,
-        listingAudience: 'both' as const,
         location: update.location,
         questions: [],
         registrationCount: 0,
@@ -209,7 +208,6 @@ describe('platform event administration RPC schemas', () => {
         categoryId: 'category-1',
         description: '<p>Full template graph</p>',
         icon: { iconColor: 1, iconName: 'calendar:fas' },
-        listingAudience: 'unlisted' as const,
         location: null,
         planningTips: null,
         questions: [

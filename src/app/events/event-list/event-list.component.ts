@@ -16,7 +16,7 @@ import {
 import {
   eventDiscoveryDescription,
   eventDiscoveryLabel,
-} from '@shared/event-listing-audience';
+} from '@shared/event-discovery';
 
 import { ConfigService } from '../../core/config.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';

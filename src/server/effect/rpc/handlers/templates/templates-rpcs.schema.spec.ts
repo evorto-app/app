@@ -56,7 +56,6 @@ const validGraphInput = {
     iconColor: 0,
     iconName: 'calendar:fas',
   },
-  listingAudience: 'both',
   location: null,
   planningTips: 'Bring printed waiver forms.',
   questions: [

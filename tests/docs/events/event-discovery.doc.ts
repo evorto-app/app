@@ -38,10 +38,11 @@ const nearestDateHeading = async (card: Locator): Promise<string> =>
     return '';
   });
 
-test('Find a listed event', async ({
+test('Find an eligible event', async ({
   database,
   page,
   registerDatabaseCleanup,
+  roles,
   seedDate,
   seeded,
   tenant,
@@ -72,11 +73,24 @@ test('Find a listed event', async ({
   const registeredRegistrationId = getId();
   const otherEventId = getId();
   const otherOptionId = getId();
+  const ineligibleEventId = getId();
+  const ineligibleOptionId = getId();
   const registeredWindow = futureServerEventWindow({ startInDays: 2 });
   const otherWindow = futureServerEventWindow({ startInDays: 4 });
+  const ineligibleWindow = futureServerEventWindow({ startInDays: 6 });
   const suffix = seedDate.getTime();
   const registeredTitle = `Community breakfast ${suffix}`;
   const otherTitle = `City walk ${suffix}`;
+  const ineligibleTitle = `Organizer planning session ${suffix}`;
+  const defaultUserRole = roles.find((role) => role.defaultUserRole);
+  const organizerOnlyRole = roles.find(
+    (role) => role.defaultOrganizerRole && !role.defaultUserRole,
+  );
+  if (!defaultUserRole || !organizerOnlyRole) {
+    throw new Error(
+      'Expected default-user and organizer-only roles for event discovery docs',
+    );
+  }
 
   registerDatabaseCleanup(async (cleanupDatabase) => {
     await cleanupDatabase
@@ -88,12 +102,17 @@ test('Find a listed event', async ({
         inArray(schema.eventRegistrationOptions.id, [
           registeredOptionId,
           otherOptionId,
+          ineligibleOptionId,
         ]),
       );
     await cleanupDatabase
       .delete(schema.eventInstances)
       .where(
-        inArray(schema.eventInstances.id, [registeredEventId, otherEventId]),
+        inArray(schema.eventInstances.id, [
+          registeredEventId,
+          otherEventId,
+          ineligibleEventId,
+        ]),
       );
 
     for (const event of originalEventTimes) {
@@ -108,11 +127,10 @@ test('Find a listed event', async ({
     {
       creatorId: participant.id,
       description:
-        '<p>A relaxed listed event used to explain ordinary event discovery.</p>',
+        '<p>A relaxed eligible event used to explain ordinary event discovery.</p>',
       end: registeredWindow.end,
       icon: sourceEvent.icon,
       id: registeredEventId,
-      listingAudience: 'participant',
       reviewedAt: sourceEvent.reviewedAt,
       reviewedBy: sourceEvent.reviewedBy,
       start: registeredWindow.start,
@@ -124,11 +142,10 @@ test('Find a listed event', async ({
     {
       creatorId: participant.id,
       description:
-        '<p>A second listed event used to explain compact event navigation.</p>',
+        '<p>A second eligible event used to explain compact event navigation.</p>',
       end: otherWindow.end,
       icon: sourceEvent.icon,
       id: otherEventId,
-      listingAudience: 'participant',
       reviewedAt: sourceEvent.reviewedAt,
       reviewedBy: sourceEvent.reviewedBy,
       start: otherWindow.start,
@@ -136,6 +153,21 @@ test('Find a listed event', async ({
       templateId: sourceEvent.templateId,
       tenantId: tenant.id,
       title: otherTitle,
+    },
+    {
+      creatorId: participant.id,
+      description:
+        '<p>An event whose options are not available to this participant.</p>',
+      end: ineligibleWindow.end,
+      icon: sourceEvent.icon,
+      id: ineligibleEventId,
+      reviewedAt: sourceEvent.reviewedAt,
+      reviewedBy: sourceEvent.reviewedBy,
+      start: ineligibleWindow.start,
+      status: 'APPROVED',
+      templateId: sourceEvent.templateId,
+      tenantId: tenant.id,
+      title: ineligibleTitle,
     },
   ]);
   await database.insert(schema.eventRegistrationOptions).values([
@@ -148,7 +180,7 @@ test('Find a listed event', async ({
       organizingRegistration: false,
       price: 0,
       registrationMode: 'fcfs',
-      roleIds: [],
+      roleIds: [defaultUserRole.id],
       spots: 20,
       title: 'Participant registration',
       waitlistSpots: 1,
@@ -166,6 +198,19 @@ test('Find a listed event', async ({
       spots: 20,
       title: 'Participant registration',
     },
+    {
+      closeRegistrationTime: ineligibleWindow.closeRegistrationTime,
+      eventId: ineligibleEventId,
+      id: ineligibleOptionId,
+      isPaid: false,
+      openRegistrationTime: ineligibleWindow.openRegistrationTime,
+      organizingRegistration: true,
+      price: 0,
+      registrationMode: 'fcfs',
+      roleIds: [organizerOnlyRole.id],
+      spots: 10,
+      title: 'Organizer planning',
+    },
   ]);
   await database.insert(schema.eventRegistrations).values({
     eventId: registeredEventId,
@@ -178,12 +223,12 @@ test('Find a listed event', async ({
 
   await testInfo.attach('markdown', {
     body: `
-# Find a listed event
+# Find an eligible event
 
-This guide explains the ordinary event list for a participant. You only need to be on the correct organization's Evorto address. You can browse listed events while signed out when their registration roles allow it, but signing in also lets Evorto mark events connected to your account.
+This guide explains the ordinary event list for a participant. You only need to be on the correct organization's Evorto address. A published sign-up event appears for a signed-in member when at least one of its registration options accepts one of that member's roles. The option can be for participants, organizers, or another tenant-defined purpose; there is no separate event audience.
 
 {% callout type="note" title="Before you start" %}
-Check the organization name and address before choosing an event. Each organization has its own list. Draft, past, role-ineligible, audience-ineligible, and unlisted events may be absent. Participant audiences require an eligible participant option, organizer audiences require an eligible organizer option, and combined audiences accept either. An optionless announcement appears only for its explicitly selected tenant roles; selecting a role affects discovery only and does not grant access or send a notification. An unlisted event or announcement with no discovery roles is opened from its complete direct link instead of being found here.
+Check the organization name and address before choosing an event. Each organization has its own list. Draft, past, and role-ineligible events are absent from ordinary discovery. A direct link still opens a published event for a signed-in member whose roles do not match, and its registration area explains the ineligibility instead of hiding the defect. Optionless announcements intentionally use a different rule: only signed-in members with one of the announcement's selected roles discover it, and an empty selection means link-only. Announcement targeting does not grant roles, event access, or send notifications.
 {% /callout %}
 
 ## Open Events
@@ -210,6 +255,7 @@ Check the organization name and address before choosing an event. Each organizat
   let otherCard = eventCard(page, otherEventId);
   await expect(registeredCard).toBeVisible({ timeout: 20_000 });
   await expect(otherCard).toBeVisible({ timeout: 20_000 });
+  await expect(eventCard(page, ineligibleEventId)).toHaveCount(0);
   await expect(registeredCard).toHaveClass(/ring-success/u);
   await expect(otherCard).not.toHaveClass(/ring-success/u);
   const registeredDay = await nearestDateHeading(registeredCard);
@@ -221,7 +267,7 @@ Check the organization name and address before choosing an event. Each organizat
     testInfo,
     [registeredCard, otherCard],
     page,
-    'Listed events grouped by date, including an account registration marker',
+    'Eligible events grouped by date, including an account registration marker',
   );
 
   await testInfo.attach('markdown', {
@@ -301,7 +347,7 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     body: `
 ## If the list is empty
 
-**No events found** is a successful empty result, not a loading failure. It means Evorto found no upcoming sign-up event whose listing audience and registration-option roles match this account, and no upcoming optionless announcement whose explicit discovery roles match it, for this organization. Check that you used the intended organization's Evorto address. The event may also be in the past, unlisted, still a draft, intended only for participants or organizers, restricted to another role, or an announcement with no discovery roles. Ask an organizer for the complete direct link when they intentionally made an event link-only.
+**No events found** is a successful empty result, not a loading failure. It means Evorto found no upcoming published sign-up event with a registration option matching this account, and no upcoming optionless announcement explicitly targeted to one of this account's roles, for this organization. Check that you used the intended organization's Evorto address. The event may also be in the past, still a draft, restricted to another role, or an announcement with no discovery roles. Ask an organizer for the complete direct link when they intentionally made an announcement link-only.
 `,
   });
   await takeScreenshot(
@@ -325,6 +371,10 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     .update(schema.eventInstances)
     .set({ end: otherWindow.end, start: otherWindow.start })
     .where(eq(schema.eventInstances.id, otherEventId));
+  await database
+    .update(schema.eventInstances)
+    .set({ end: ineligibleWindow.end, start: ineligibleWindow.start })
+    .where(eq(schema.eventInstances.id, ineligibleEventId));
 
   await page.goto('/profile', { waitUntil: 'networkidle' });
   await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
@@ -379,4 +429,69 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     timeout: 20_000,
   });
   await expect(errorState).toHaveCount(0);
+
+  const tenantCookie = (await page.context().cookies()).find(
+    (cookie) => cookie.name === 'evorto-tenant',
+  );
+  if (!tenantCookie) {
+    throw new Error('Expected the isolated tenant routing cookie');
+  }
+  await page.context().clearCookies();
+  await page.context().addCookies([tenantCookie]);
+  await page.goto('/events');
+  await expect(eventCard(page, registeredEventId)).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(eventCard(page, otherEventId)).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(eventCard(page, ineligibleEventId)).toHaveCount(0);
+
+  await testInfo.attach('markdown', {
+    body: `
+## Browse before signing in
+
+An anonymous visitor sees a published sign-up event in the event list only when at least one option is available to a role that this organization assigns to new members by default. This is a preview, not access: the page exposes only public event information and asks the visitor to sign in before registration. A complete direct link to another published sign-up event still opens its public projection, but restricted option details remain hidden and Evorto explicitly asks the visitor to sign in instead of claiming that the event has no registration options. Default new-member roles are not borrowed for announcements; announcement discovery requires the current signed-in account to hold an explicitly selected role.
+`,
+  });
+  await page.goto(`/events/${ineligibleEventId}`);
+  await expect(
+    page.getByRole('heading', {
+      exact: true,
+      level: 1,
+      name: ineligibleTitle,
+    }),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.getByRole('heading', {
+      exact: true,
+      level: 3,
+      name: 'Sign in to check registration',
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('No registration options', { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator('app-event-registration-option')).toHaveCount(0);
+
+  await page.goto('/events');
+  await eventCard(page, registeredEventId).click();
+  await waitForRegistrationPage(page);
+  const loginAction = page.getByRole('link', {
+    exact: true,
+    name: 'Log in now',
+  });
+  await expect(loginAction).toBeVisible();
+  await expect(
+    page.getByRole('link', { exact: true, name: 'Edit Event' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('link', { exact: true, name: 'Organize this event' }),
+  ).toHaveCount(0);
+  await takeScreenshot(
+    testInfo,
+    page.locator('section').filter({ hasText: 'Registration' }),
+    page,
+    'Public event preview requires sign-in before registration',
+  );
 });

@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { documentationConsumerGuideCatalog } from './documentation-publication-contract';
+
 // Source guard: generated documentation is product-facing, so these checks keep
 // the docs tied to implemented flows instead of stale aspirational copy.
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -1586,75 +1588,22 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('ticket QR code by email');
   });
 
-  it('keeps participant unlisted-event guidance page-backed', () => {
-    const source = readSource('tests/docs/events/unlisted-user.doc.ts');
-
-    expect(source).toContain(".set({ listingAudience: 'unlisted' })");
-    expect(source).toContain("page.getByRole('link', { name: target.title })");
-    expect(source).toContain('toHaveCount(0)');
-    expect(source).toContain('await page.goto(`/events/${target.id}`);');
-    expect(source).toContain('waitForRegistrationPage(page)');
-    expect(source).toContain(
-      'Being unlisted does not bypass role, registration-window, capacity, or sign-in requirements.',
+  it('publishes both event-discovery models in the relevant guides', () => {
+    const findAnEventGuide = documentationConsumerGuideCatalog.find(
+      ({ id }) => id === 'evorto:find-an-event',
     );
-    expect(source).toContain('Unlisted event opened from its direct link');
-    expect(source).toContain('page.context().clearCookies()');
-    expect(source).toContain('page.context().addCookies([tenantCookie])');
-    expect(source).toContain("name: 'Log in now'");
-    expect(source).toContain(
-      'Anyone with the exact link can open the approved event details.',
-    );
-    expect(source).toContain(
-      '.set({ listingAudience: target.listingAudience })',
-    );
-  });
-
-  it('keeps ordinary listed-event discovery beginner-readable and page-backed', () => {
-    const source = readSource('tests/docs/events/event-discovery.doc.ts');
-    const publicationSource = readSource(
-      'helpers/testing/documentation-publication-contract.ts',
+    const reviewAndPublishGuide = documentationConsumerGuideCatalog.find(
+      ({ id }) => id === 'evorto:review-and-publish-an-event',
     );
 
-    expect(source).toContain("test('Find a listed event'");
-    expect(source).toContain('# Find a listed event');
-    expect(source).toContain('Before you start');
-    expect(source).toContain(
-      "getByRole('link', { exact: true, name: 'Events' })",
+    expect(findAnEventGuide?.sourceSlugs).toEqual(
+      expect.arrayContaining([
+        'find-an-eligible-event',
+        'manage-announcement-discovery',
+      ]),
     );
-    expect(source).toContain('nearestDateHeading');
-    expect(source).toContain('toHaveClass(/ring-success/u)');
-    expect(source).toContain('registeredDay).not.toBe(otherDay)');
-    expect(source).toContain('Desktop event list and selected event details');
-    expect(source).toContain('height: 844, width: 390');
-    expect(source).toContain("name: 'Back to events'");
-    expect(source).toContain('Successful empty event list');
-    expect(source).toContain("includes('events.eventList')");
-    expect(source).toContain(
-      'Event list request failure shown separately from an empty result',
-    );
-    expect(source).toContain('registerDatabaseCleanup');
-    expect(source).toContain('.delete(schema.eventRegistrations)');
-    expect(source).toContain('.delete(schema.eventRegistrationOptions)');
-    expect(source).toContain('.delete(schema.eventInstances)');
-    expect(source).toContain('for (const event of originalEventTimes)');
-    expect(source).not.toContain('test.skip');
-    expect(source).not.toContain('test.fixme');
-
-    const findAnEventStart = publicationSource.indexOf(
-      "id: 'evorto:find-an-event'",
-    );
-    const registerForEventStart = publicationSource.indexOf(
-      "id: 'evorto:register-for-an-event'",
-      findAnEventStart,
-    );
-    const findAnEventCatalog = publicationSource.slice(
-      findAnEventStart,
-      registerForEventStart,
-    );
-    expect(findAnEventStart).toBeGreaterThanOrEqual(0);
-    expect(registerForEventStart).toBeGreaterThan(findAnEventStart);
-    expect(findAnEventCatalog.indexOf("'find-a-listed-event'")).toBeLessThan(
-      findAnEventCatalog.indexOf("'user-understanding-unlisted-events'"),
+    expect(reviewAndPublishGuide?.sourceSlugs).toContain(
+      'manage-announcement-discovery',
     );
   });
 

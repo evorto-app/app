@@ -13,13 +13,17 @@ import {
 const requiredDockerEnvironment = Object.fromEntries(
   requiredByTarget.docker.map(({ name }) => [
     name,
-    `${name.toLowerCase()}-value`,
+    name === 'SECRET'
+      ? '0123456789abcdef0123456789abcdef'
+      : `${name.toLowerCase()}-value`,
   ]),
 );
 const requiredPlaywrightEnvironment = Object.fromEntries(
   requiredByTarget.playwright.map(({ name }) => [
     name,
-    `${name.toLowerCase()}-value`,
+    name === 'SECRET'
+      ? '0123456789abcdef0123456789abcdef'
+      : `${name.toLowerCase()}-value`,
   ]),
 );
 
@@ -602,6 +606,7 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'CLIENT_SECRET: Auth0 application secret',
             'FONT_AWESOME_TOKEN: Font Awesome package registry access for premium and brand icons',
+            'SECRET: Application session secret must contain at least 32 UTF-8 bytes',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
             'STRIPE_TEST_ACCOUNT_ID: Stripe connected account id for seeded paid flows',
           ]),
@@ -612,7 +617,6 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'CLIENT_ID: Auth0 application id',
             'ISSUER_BASE_URL: Auth0 issuer URL',
-            'SECRET: Application session secret',
           ]),
           label: 'Available docker runtime variables',
           severity: 'ok',

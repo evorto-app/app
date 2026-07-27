@@ -448,8 +448,13 @@ describe('email delivery', () => {
           ...baseInput,
           cancelledBy: 'platformAdministrator',
         });
+        yield* enqueueRegistrationCancelledEmail(database, {
+          ...baseInput,
+          cancelledBy: 'eligibilityChangedAfterPayment',
+        });
 
         expect(insertedValues.map((value) => value.idempotencyKey)).toEqual([
+          'registration-cancelled/tenant-1/registration-1',
           'registration-cancelled/tenant-1/registration-1',
           'registration-cancelled/tenant-1/registration-1',
           'registration-cancelled/tenant-1/registration-1',
@@ -465,6 +470,21 @@ describe('email delivery', () => {
         );
         expect(String(insertedValues[2]?.text)).not.toContain(
           'An organizer cancelled',
+        );
+        expect(String(insertedValues[3]?.text)).toContain(
+          'the event or registration option was no longer available to you when payment completed',
+        );
+        expect(String(insertedValues[3]?.text)).toContain(
+          'the event is no longer published',
+        );
+        expect(String(insertedValues[3]?.text)).toContain(
+          'the option was removed',
+        );
+        expect(String(insertedValues[3]?.text)).toContain(
+          'your organization membership or roles changed',
+        );
+        expect(String(insertedValues[3]?.text)).toContain(
+          'The full amount you paid was queued for refund to your original payment method',
         );
       }),
   );

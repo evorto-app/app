@@ -34,6 +34,7 @@ describe('profile event labels', () => {
   it('keeps profile event actions focused on implemented paths', () => {
     expect(
       profileEventActionNote({
+        cancellationReason: null,
         checkInTime: null,
         checkoutUrl: null,
         organizingRegistration: false,
@@ -45,6 +46,7 @@ describe('profile event labels', () => {
     );
     expect(
       profileEventActionNote({
+        cancellationReason: null,
         checkInTime: null,
         checkoutUrl: null,
         organizingRegistration: false,
@@ -56,6 +58,7 @@ describe('profile event labels', () => {
     );
     expect(
       profileEventActionNote({
+        cancellationReason: null,
         checkInTime: null,
         checkoutUrl: null,
         organizingRegistration: false,
@@ -69,6 +72,7 @@ describe('profile event labels', () => {
 
   it('explains that a checked-in registration can transfer with its history', () => {
     const actionNote = profileEventActionNote({
+      cancellationReason: null,
       checkInTime: '2026-02-01T10:30:00.000Z',
       checkoutUrl: null,
       organizingRegistration: false,
@@ -87,6 +91,7 @@ describe('profile event labels', () => {
   it('points pending checkout registrations at the implemented profile action', () => {
     expect(
       profileEventActionNote({
+        cancellationReason: null,
         checkInTime: null,
         checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
         organizingRegistration: false,
@@ -98,6 +103,7 @@ describe('profile event labels', () => {
     );
     expect(
       profileEventActionNote({
+        cancellationReason: null,
         checkInTime: null,
         checkoutUrl: null,
         organizingRegistration: false,
@@ -118,6 +124,7 @@ describe('profile event labels', () => {
     expect(profileEventPassLabel(organizerRegistration)).toBe('Pass');
     expect(
       profileEventActionNote({
+        cancellationReason: null,
         checkInTime: null,
         checkoutUrl: null,
         organizingRegistration: true,
@@ -129,6 +136,7 @@ describe('profile event labels', () => {
     );
     expect(
       profileEventActionNote({
+        cancellationReason: null,
         checkInTime: null,
         checkoutUrl: null,
         organizingRegistration: true,
@@ -283,6 +291,7 @@ describe('profile event labels', () => {
       updatedAt: '2026-03-01T10:05:00.000Z',
     };
     const cancelledEvent = {
+      cancellationReason: null,
       checkInTime: null,
       checkoutUrl: null,
       organizingRegistration: false,
@@ -326,5 +335,42 @@ describe('profile event labels', () => {
       'at least one refund needs organizer follow-up',
     );
     expect(mixedFollowUp).toContain('Contact the organizer for an update.');
+  });
+
+  it('explains every eligibility cancellation category after payment without hiding refund progress', () => {
+    const actionNote = profileEventActionNote({
+      cancellationReason: 'eligibilityChangedAfterPayment',
+      checkInTime: null,
+      checkoutUrl: null,
+      organizingRegistration: false,
+      paymentState: 'recorded',
+      refunds: [
+        {
+          amount: 2500,
+          currency: 'EUR',
+          source: 'registration',
+          state: 'pending',
+          updatedAt: '2026-03-01T10:05:00.000Z',
+        },
+      ],
+      status: 'CANCELLED',
+    });
+
+    expect(actionNote).toContain(
+      'the event or registration option was no longer available to you when payment completed',
+    );
+    expect(actionNote).toContain('the event is no longer published');
+    expect(actionNote).toContain('the option was removed');
+    expect(actionNote).toContain(
+      'your organization membership or roles changed',
+    );
+    expect(actionNote).toContain(
+      'The full amount you paid was queued for refund to your original payment method',
+    );
+    expect(actionNote).toContain('Money has not necessarily been returned yet');
+    expect(actionNote).toContain('Do not retry this payment');
+    expect(actionNote).toContain(
+      "After the refund, review the event's current status and options or contact the organizer",
+    );
   });
 });

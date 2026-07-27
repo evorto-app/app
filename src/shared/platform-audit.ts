@@ -8,7 +8,7 @@ export const platformTenantAuditActions = [
   'event.review',
   'event.submitForReview',
   'event.update',
-  'event.updateListing',
+  'event.updateAnnouncementDiscovery',
   'receipt.reimburse',
   'receipt.review',
   'refundClaim.requeue',

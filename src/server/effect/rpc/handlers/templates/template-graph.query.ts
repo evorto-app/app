@@ -61,7 +61,6 @@ export const loadTemplateGraphDetail = Effect.fn(
       description: eventTemplates.description,
       icon: eventTemplates.icon,
       id: eventTemplates.id,
-      listingAudience: eventTemplates.listingAudience,
       location: eventTemplates.location,
       planningTips: eventTemplates.planningTips,
       simpleModeEnabled: eventTemplates.simpleModeEnabled,
@@ -286,7 +285,6 @@ export const loadTemplateGraphDetail = Effect.fn(
     description: template.description,
     icon: template.icon,
     id: template.id,
-    listingAudience: template.listingAudience,
     location: template.location ?? null,
     planningTips: template.planningTips?.trim() || null,
     questions: questions.map((question) => ({

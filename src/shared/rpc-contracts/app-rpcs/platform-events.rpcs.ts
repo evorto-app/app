@@ -1,6 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { EventCheckInTimingIssue } from '@shared/event-check-in';
-import { EventListingAudience } from '@shared/event-listing-audience';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -50,7 +49,6 @@ export const PlatformEventListRecord = Schema.Struct({
   end: Schema.NonEmptyString,
   hasRegistrationOptions: Schema.Boolean,
   id: Schema.NonEmptyString,
-  listingAudience: EventListingAudience,
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
@@ -135,7 +133,6 @@ export const PlatformEventDetailRecord = Schema.Struct({
   end: Schema.NonEmptyString,
   icon: iconSchema,
   id: Schema.NonEmptyString,
-  listingAudience: EventListingAudience,
   location: Schema.NullOr(EventLocation),
   questions: Schema.Array(PlatformEventQuestionRecord),
   registrationCount: nonNegativeInteger,
@@ -303,20 +300,19 @@ export const PlatformEventsReview = asRpcMutation(
   }),
 );
 
-export const PlatformEventsUpdateListingInput = Schema.Struct({
+export const PlatformEventsUpdateAnnouncementDiscoveryInput = Schema.Struct({
   ...PlatformEventMutationTarget.fields,
   announcementRoleIds: Schema.Array(Schema.NonEmptyString),
-  listingAudience: EventListingAudience,
 });
 
-export type PlatformEventsUpdateListingInput = Schema.Schema.Type<
-  typeof PlatformEventsUpdateListingInput
+export type PlatformEventsUpdateAnnouncementDiscoveryInput = Schema.Schema.Type<
+  typeof PlatformEventsUpdateAnnouncementDiscoveryInput
 >;
 
-export const PlatformEventsUpdateListing = asRpcMutation(
-  Rpc.make('platform.events.updateListing', {
+export const PlatformEventsUpdateAnnouncementDiscovery = asRpcMutation(
+  Rpc.make('platform.events.updateAnnouncementDiscovery', {
     error: PlatformOperationRpcError,
-    payload: PlatformEventsUpdateListingInput,
+    payload: PlatformEventsUpdateAnnouncementDiscoveryInput,
     success: PlatformEventDetailRecord,
   }),
 );
@@ -531,7 +527,7 @@ export class PlatformEventsRpcs extends RpcGroup.make(
   PlatformEventsReview,
   PlatformEventsSubmitForReview,
   PlatformEventsUpdate,
-  PlatformEventsUpdateListing,
+  PlatformEventsUpdateAnnouncementDiscovery,
   PlatformRegistrationsApprove,
   PlatformRegistrationsCancel,
   PlatformRegistrationsCheckIn,

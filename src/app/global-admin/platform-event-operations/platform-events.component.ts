@@ -10,7 +10,7 @@ import { RouterLink } from '@angular/router';
 import {
   eventDiscoveryDescription,
   eventDiscoveryLabel,
-} from '@shared/event-listing-audience';
+} from '@shared/event-discovery';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';

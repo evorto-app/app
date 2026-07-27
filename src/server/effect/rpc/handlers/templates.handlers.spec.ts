@@ -72,7 +72,6 @@ const graphInput = {
     iconColor: 0,
     iconName: 'calendar:fas',
   },
-  listingAudience: 'both',
   location: null,
   planningTips: null,
   questions: [],

@@ -24,11 +24,9 @@ const listedEvents = [
         hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-1',
-        listingAudience: 'both' as const,
         start: '2029-12-31T22:00:00.000Z',
         status: 'APPROVED' as const,
         title: 'Recovery workshop',
-        userIsCreator: false,
         userRegistered: false,
       },
     ],
@@ -120,7 +118,7 @@ describe('EventListComponent load recovery', () => {
       listedEvents[0]?.events[0]?.start < new Date('2030-01-01').toISOString(),
     ).toBe(true);
     expect(normalizeText(fixture)).toContain('Recovery workshop');
-    expect(normalizeText(fixture)).toContain('Participants and organizers');
+    expect(normalizeText(fixture)).toContain('Eligibility based');
     expect(
       fixture.nativeElement.querySelector('[aria-label="Filter events"]'),
     ).toBeNull();
@@ -150,11 +148,9 @@ describe('event list paging', () => {
     hasRegistrationOptions: true,
     icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
     id,
-    listingAudience: 'both' as const,
     start,
     status: 'APPROVED' as const,
     title: id,
-    userIsCreator: false,
     userRegistered: false,
   });
 

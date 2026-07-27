@@ -45,7 +45,7 @@ describe('computeEventOrganizeStats', () => {
 });
 
 describe('invalidateEventOrganizeStateQueries', () => {
-  it('invalidates every exact self-facing cache after an organizer action', async () => {
+  it('invalidates the principal-scoped event projection and every exact self-facing cache after an organizer action', async () => {
     const queryClient = new QueryClient();
     const queryKeys = {
       eventDetails: ['events', 'findOne', 'event-1'],
@@ -57,8 +57,16 @@ describe('invalidateEventOrganizeStateQueries', () => {
     } as const;
     const exactQueryKeys = Object.values(queryKeys);
     const nestedOverviewKey = [...queryKeys.organizerOverview, 'nested'];
+    const principalScopedEventDetailsKey = [
+      ...queryKeys.eventDetails,
+      { principalKey: 'user:user-1' },
+    ];
 
-    for (const queryKey of [...exactQueryKeys, nestedOverviewKey]) {
+    for (const queryKey of [
+      ...exactQueryKeys,
+      nestedOverviewKey,
+      principalScopedEventDetailsKey,
+    ]) {
       queryClient.setQueryData(queryKey, 'stale');
     }
 
@@ -70,6 +78,9 @@ describe('invalidateEventOrganizeStateQueries', () => {
     expect(queryClient.getQueryState(nestedOverviewKey)?.isInvalidated).toBe(
       false,
     );
+    expect(
+      queryClient.getQueryState(principalScopedEventDetailsKey)?.isInvalidated,
+    ).toBe(true);
   });
 
   it('maps the helper to the complete organizer self-action RPC cache set', () => {

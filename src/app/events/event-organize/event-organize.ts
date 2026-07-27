@@ -78,21 +78,24 @@ interface EventOrganizeStateQueryKeys {
   userEvents: readonly unknown[];
 }
 
-interface ExactQueryInvalidator {
+interface QueryInvalidator {
   invalidateQueries(
-    filters: { exact: true; queryKey: readonly unknown[] },
+    filters: { exact?: boolean; queryKey: readonly unknown[] },
     options: { throwOnError: true },
   ): Promise<unknown>;
 }
 
 export const invalidateEventOrganizeStateQueries = async (
-  queryClient: ExactQueryInvalidator,
+  queryClient: QueryInvalidator,
   queryKeys: EventOrganizeStateQueryKeys,
 ): Promise<void> => {
-  await Promise.all(
-    [
+  await Promise.all([
+    queryClient.invalidateQueries(
+      { queryKey: queryKeys.eventDetails },
+      { throwOnError: true },
+    ),
+    ...[
       queryKeys.organizerOverview,
-      queryKeys.eventDetails,
       queryKeys.registrationStatus,
       queryKeys.organizerAccess,
       queryKeys.scannerAccess,
@@ -103,7 +106,7 @@ export const invalidateEventOrganizeStateQueries = async (
         { throwOnError: true },
       ),
     ),
-  );
+  ]);
 };
 
 export const groupEventOrganizeRegistrationOptions = <

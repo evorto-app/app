@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import { Pool, type PoolClient } from 'pg';
+import Stripe from 'stripe';
 
 import { Database, databaseLayer } from '../../db';
 import { createId } from '../../db/create-id';
@@ -27,6 +28,8 @@ import {
   users,
   usersToTenants,
 } from '../../db/schema';
+import { EventRegistrationService } from '../effect/rpc/handlers/events/event-registration.service';
+import { StripeClient } from '../stripe-client';
 import { finalizeRegistrationTransferCheckout } from './registration-transfer-finalization';
 
 const databaseUrl = process.env['DATABASE_URL'];
@@ -61,11 +64,20 @@ const makeLayer = (url: string) => {
   const config = ConfigProvider.layer(
     ConfigProvider.fromEnv({
       env: {
+        BASE_URL: 'https://transfer-limit.example',
+        CLIENT_ID: 'client-id',
+        CLIENT_SECRET: 'client-secret',
         DATABASE_URL: url,
+        ISSUER_BASE_URL: 'https://issuer.example',
+        SECRET: 'transfer-lock-order-test-secret-32-bytes',
       },
     }),
   );
-  return Layer.mergeAll(config, databaseLayer.pipe(Layer.provide(config)));
+  return Layer.mergeAll(
+    config,
+    databaseLayer.pipe(Layer.provide(config)),
+    Layer.succeed(StripeClient, new Stripe('sk_test_transfer_lock_order')),
+  );
 };
 
 type TestLayer = ReturnType<typeof makeLayer>;
@@ -98,6 +110,39 @@ const waitForBlockedRecipientLocks = (pool: Pool, minimumCount: number) =>
     return Number(blocked.rows[0]?.count ?? 0) >= minimumCount;
   }, `Timed out waiting for ${minimumCount} blocked recipient locks`);
 
+const waitForBlockedEligibilityLocks = (pool: Pool, minimumCount: number) =>
+  waitFor(async () => {
+    const blocked = await pool.query<{ count: string }>(
+      `
+        SELECT count(*)::text AS count
+        FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND wait_event_type = 'Lock'
+          AND (
+            query ILIKE '%event_instances%'
+            OR query ILIKE '%users_to_tenants%'
+          )
+      `,
+    );
+    return Number(blocked.rows[0]?.count ?? 0) >= minimumCount;
+  }, `Timed out waiting for ${minimumCount} blocked eligibility locks`);
+
+const waitForBlockedEventLock = (pool: Pool) =>
+  waitFor(async () => {
+    const blocked = await pool.query<{ count: string }>(
+      `
+        SELECT count(*)::text AS count
+        FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND wait_event_type = 'Lock'
+          AND query ILIKE '%event_instances%'
+      `,
+    );
+    return Number(blocked.rows[0]?.count ?? 0) >= 1;
+  }, 'Timed out waiting for the transfer event lock');
+
 const lockRecipientMembership = async (
   pool: Pool,
   fixture: TransferLimitFixture,
@@ -108,6 +153,22 @@ const lockRecipientMembership = async (
     await client.query(
       'SELECT id FROM users_to_tenants WHERE id = $1 FOR UPDATE',
       [fixture.membershipId],
+    );
+    return client;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    client.release();
+    throw error;
+  }
+};
+
+const lockTransferEvent = async (pool: Pool, candidate: TransferCandidate) => {
+  const client = await pool.connect();
+  await client.query('BEGIN');
+  try {
+    await client.query(
+      'SELECT id FROM event_instances WHERE id = $1 FOR UPDATE',
+      [candidate.eventId],
     );
     return client;
   } catch (error) {
@@ -208,7 +269,6 @@ const seedTransferLimitFixture = async (
     description: 'Concurrent paid transfer finalization',
     icon: { iconColor: 0, iconName: 'circle' },
     id: templateId,
-    listingAudience: 'both',
     tenantId,
     title: 'Transfer limit',
   });
@@ -220,7 +280,6 @@ const seedTransferLimitFixture = async (
       end: new Date(now + (9 + index) * 24 * 60 * 60 * 1000),
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
-      listingAudience: 'both',
       reviewedAt: new Date(now - 2 * 60 * 60 * 1000),
       reviewedBy: sourceUserId,
       start: new Date(now + (7 + index) * 24 * 60 * 60 * 1000),
@@ -450,6 +509,40 @@ const finalizeCandidate = (
     ).pipe(Effect.provide(layer)),
   );
 
+const registerRecipientForCandidate = (
+  layer: TestLayer,
+  fixture: TransferLimitFixture,
+  candidate: TransferCandidate,
+) =>
+  Effect.runPromise(
+    EventRegistrationService.registerForEvent({
+      addOns: [],
+      eventId: candidate.eventId,
+      guestCount: 0,
+      registrationOptionId: candidate.optionId,
+      tenant: {
+        currency: 'EUR',
+        domain: `${fixture.tenantId}.transfer-limit.example`,
+        id: fixture.tenantId,
+        maxActiveRegistrationsPerUser: 1,
+        stripeAccountId: 'acct_transfer_limit',
+      },
+      user: {
+        communicationEmail: 'recipient@example.com',
+        email: 'recipient@example.com',
+        id: fixture.recipientUserId,
+        roleIds: [fixture.eligibleRoleId],
+      },
+    }).pipe(
+      Effect.match({
+        onFailure: (error) => ({ error, status: 'failure' as const }),
+        onSuccess: () => ({ status: 'success' as const }),
+      }),
+      Effect.provide(EventRegistrationService.Default),
+      Effect.provide(layer),
+    ),
+  );
+
 describe('registration transfer finalization tenant limit', () => {
   let database: TestDatabase;
   const fixtures: TransferLimitFixture[] = [];
@@ -576,6 +669,135 @@ describe('registration transfer finalization tenant limit', () => {
     }
   }, 30_000);
 
+  it('shares the canonical eligibility lock order with direct registration', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const candidate = fixture.candidates[0];
+    if (!candidate) throw new Error('Expected a transfer candidate');
+
+    await database
+      .update(eventRegistrationOptions)
+      .set({ isPaid: false, price: 0 })
+      .where(eq(eventRegistrationOptions.id, candidate.optionId));
+    const optionBefore =
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: {
+          confirmedSpots: true,
+          reservedSpots: true,
+        },
+        where: { id: candidate.optionId },
+      });
+    expect(optionBefore).toBeTruthy();
+
+    const eventLock = await lockTransferEvent(pool, candidate);
+    let eventLockCommitted = false;
+    try {
+      const transferFinalization = finalizeCandidate(
+        layer,
+        fixture.tenantId,
+        candidate,
+      );
+      await waitForBlockedEventLock(pool);
+
+      const directRegistration = registerRecipientForCandidate(
+        layer,
+        fixture,
+        candidate,
+      );
+      await waitForBlockedEligibilityLocks(pool, 2);
+      await eventLock.query('COMMIT');
+      eventLockCommitted = true;
+
+      const [transferOutcome, directOutcome] = await Promise.all([
+        transferFinalization,
+        directRegistration,
+      ]);
+      expect(transferOutcome).toBe('finalized');
+      expect(directOutcome).toMatchObject({
+        error: {
+          _tag: 'EventRegistrationConflictError',
+          message: 'User is already registered for this event',
+        },
+        status: 'failure',
+      });
+
+      const [recipientRegistrations, transfer, optionAfter, acquisitions] =
+        await Promise.all([
+          database.query.eventRegistrations.findMany({
+            columns: {
+              id: true,
+              status: true,
+              userId: true,
+            },
+            where: {
+              eventId: candidate.eventId,
+              status: { NOT: 'CANCELLED' },
+              tenantId: fixture.tenantId,
+              userId: fixture.recipientUserId,
+            },
+          }),
+          database.query.registrationTransfers.findFirst({
+            columns: { status: true },
+            where: { id: candidate.transferId, tenantId: fixture.tenantId },
+          }),
+          database.query.eventRegistrationOptions.findFirst({
+            columns: {
+              confirmedSpots: true,
+              reservedSpots: true,
+            },
+            where: { id: candidate.optionId },
+          }),
+          database.query.registrationAcquisitions.findMany({
+            columns: {
+              kind: true,
+              ownerUserId: true,
+            },
+            where: {
+              registrationId: candidate.registrationId,
+              tenantId: fixture.tenantId,
+            },
+          }),
+        ]);
+      expect(recipientRegistrations).toEqual([
+        {
+          id: candidate.registrationId,
+          status: 'CONFIRMED',
+          userId: fixture.recipientUserId,
+        },
+      ]);
+      expect(transfer?.status).toBe('completed');
+      expect(optionAfter).toEqual(optionBefore);
+      expect(acquisitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'claim_transfer',
+            ownerUserId: fixture.recipientUserId,
+          }),
+        ]),
+      );
+
+      const compensationClaims = await database
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.sourceTransactionId, candidate.transactionId),
+            eq(transactions.tenantId, fixture.tenantId),
+            eq(transactions.type, 'refund'),
+          ),
+        );
+      expect(compensationClaims).toEqual([]);
+    } finally {
+      try {
+        if (!eventLock.released && !eventLockCommitted) {
+          await eventLock.query('ROLLBACK');
+        }
+      } finally {
+        if (!eventLock.released) eventLock.release();
+      }
+    }
+  }, 30_000);
+
   it('compensates when the recipient loses a required role during Checkout', async () => {
     const fixture = await seedTransferLimitFixture(database);
     fixtures.push(fixture);
@@ -633,5 +855,35 @@ describe('registration transfer finalization tenant limit', () => {
         ),
       );
     expect(compensationClaims).toEqual([{ amount: -1000 }]);
+  });
+
+  it('compensates when the event stops being approved during Checkout', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const candidate = fixture.candidates[0];
+    if (!candidate) throw new Error('Expected a transfer candidate');
+
+    await database
+      .update(eventInstances)
+      .set({
+        reviewedAt: null,
+        reviewedBy: null,
+        status: 'DRAFT',
+        statusComment: null,
+      })
+      .where(eq(eventInstances.id, candidate.eventId));
+
+    const outcome = await finalizeCandidate(layer, fixture.tenantId, candidate);
+    expect(outcome).toBe('compensationQueued');
+
+    const registration = await database.query.eventRegistrations.findFirst({
+      where: { id: candidate.registrationId },
+    });
+    expect(registration?.userId).toBe(candidate.sourceUserId);
+    const transfer = await database.query.registrationTransfers.findFirst({
+      where: { id: candidate.transferId },
+    });
+    expect(transfer?.status).toBe('compensation_pending');
+    expect(transfer?.compensationRefundTransactionId).not.toBeNull();
   });
 });

@@ -7,7 +7,6 @@ import {
 } from '../../../helpers/seed-tenant';
 import { usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
-import type { EventListingAudience } from '../../../src/shared/event-listing-audience';
 import {
   applyPermissionDiff,
   PermissionDiff,
@@ -38,7 +37,6 @@ interface BaseFixtures {
       title: string;
       waitlistSpots: number;
     }[];
-    listingAudience: EventListingAudience;
     start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     title: string;

@@ -2603,6 +2603,25 @@ describe('event registration trusted URLs', () => {
           },
           select: () => ({
             from: (table: unknown) => ({
+              innerJoin: () => ({
+                where: () => ({
+                  for: () =>
+                    Effect.succeed([
+                      {
+                        closeRegistrationTime: new Date(
+                          '2099-01-02T00:00:00.000Z',
+                        ),
+                        eventStatus: 'APPROVED',
+                        openRegistrationTime: new Date(
+                          '2000-01-01T00:00:00.000Z',
+                        ),
+                        organizingRegistration: false,
+                        registrationMode: 'fcfs',
+                        roleIds: [],
+                      },
+                    ]),
+                }),
+              }),
               where: () => ({
                 for: () =>
                   table === tenants

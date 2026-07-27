@@ -41,7 +41,7 @@ describe('quality source', () => {
     const source = readSource('QUALITY.md');
     const queue = readSection(source, 'Manual Review Queue', 'Done Criteria');
 
-    expect(queue).toContain('Anonymous event discovery');
+    expect(queue).toContain('Event discovery');
     expect(queue).toContain('Participant registration and profile');
     expect(queue).toContain('Organizer authoring and check-in');
     expect(queue).toContain('Tenant administration and finance');

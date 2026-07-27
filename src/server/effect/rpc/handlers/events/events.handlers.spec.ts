@@ -20,8 +20,9 @@ import {
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   eventDiscoveryWindow,
-  eventListingAudienceEligibilityFilter,
   eventQueryHandlers,
+  eventRegistrationOptionRoleEligibilityFilter,
+  eventRegistrationOptionsBypassEligibility,
   eventReviewMetadata,
 } from './events-query.handlers';
 import { eventHandlers } from './events.handlers';
@@ -175,13 +176,12 @@ describe('event discount tenant isolation', () => {
           eventInstances: {
             findFirst: () =>
               Effect.succeed({
-                announcementRoleIds: [],
+                announcementRoleIds: ['role-internal'],
                 creatorId: 'organizer-1',
                 description: 'Tenant-scoped event',
                 end: new Date('2099-01-02T00:00:00.000Z'),
                 icon: 'calendar',
                 id: 'event-1',
-                listingAudience: 'both' as const,
                 location: null,
                 registrationOptions: [
                   {
@@ -241,6 +241,39 @@ describe('event discount tenant isolation', () => {
         effectivePrice: 2000,
         esnCardDiscountedPrice: null,
       });
+      expect(event).toMatchObject({
+        announcementRoleCount: 1,
+        announcementRoleIds: null,
+        userIsCreator: false,
+      });
+      expect(event.registrationOptions[0]).not.toHaveProperty('checkedInSpots');
+      expect(event.registrationOptions[0]).not.toHaveProperty(
+        'registeredDescription',
+      );
+      expect(event.registrationOptions[0]).not.toHaveProperty('roleIds');
+      expect(event.registrationOptions[0]).not.toHaveProperty(
+        'stripeTaxRateId',
+      );
+      const announcementEditorEvent = yield* eventQueryHandlers[
+        'events.findOne'
+      ]({ id: 'event-1' }, emptyHandlerOptions).pipe(
+        Effect.provide(
+          createContextLayer({
+            database,
+            tenantOverride: {
+              ...tenant,
+              discountProviders: {
+                esnCard: { config: {}, status: 'enabled' },
+              },
+            },
+            user: createUser(['events:changeAnnouncementDiscovery']),
+          }),
+        ),
+      );
+      expect(announcementEditorEvent).toMatchObject({
+        announcementRoleCount: 1,
+        announcementRoleIds: ['role-internal'],
+      });
       expect(findCards).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
@@ -265,41 +298,75 @@ describe('event discovery window', () => {
   });
 });
 
-describe('event listing audience eligibility', () => {
-  it('matches participant, organizer, and both options explicitly', () => {
-    const condition = eventListingAudienceEligibilityFilter(false);
-    if (!condition) throw new Error('Expected listing audience condition');
+describe('event registration-option discovery eligibility', () => {
+  it('matches unrestricted options and any current viewer role', () => {
+    const condition = eventRegistrationOptionRoleEligibilityFilter({
+      allowUnrestricted: true,
+      roleIds: ['role-1', 'role-2'],
+    });
     const query = new PgDialect().sqlToQuery(condition);
 
-    expect(query.sql).toContain('"event_instances"."listingAudience" = $1');
     expect(query.sql).toContain(
-      '"event_registration_options"."organizingRegistration" = $3',
+      'cardinality("event_registration_options"."roleIds") = 0',
     );
-    expect(query.sql).toContain(
-      '"event_registration_options"."organizingRegistration" = $5',
-    );
-    expect(query.params).toEqual([
-      'both',
-      'participant',
-      false,
-      'organizer',
-      true,
-    ]);
+    expect(query.sql).toContain('"event_registration_options"."roleIds" && $1');
+    expect(query.params).toEqual([['role-1', 'role-2']]);
   });
 
-  it('adds unlisted only for explicitly authorized discovery', () => {
-    const condition = eventListingAudienceEligibilityFilter(true);
-    if (!condition) throw new Error('Expected listing audience condition');
+  it('fails closed when an anonymous tenant has no default roles', () => {
+    const condition = eventRegistrationOptionRoleEligibilityFilter({
+      allowUnrestricted: false,
+      roleIds: [],
+    });
     const query = new PgDialect().sqlToQuery(condition);
 
-    expect(query.params).toEqual([
-      'both',
-      'participant',
-      false,
-      'organizer',
-      true,
-      'unlisted',
-    ]);
+    expect(query.sql).toBe('false');
+    expect(query.params).toEqual([]);
+  });
+
+  it('keeps unrestricted options visible to a signed-in roleless member', () => {
+    const condition = eventRegistrationOptionRoleEligibilityFilter({
+      allowUnrestricted: true,
+      roleIds: [],
+    });
+    const query = new PgDialect().sqlToQuery(condition);
+
+    expect(query.sql).toBe(
+      'cardinality("event_registration_options"."roleIds") = 0',
+    );
+    expect(query.params).toEqual([]);
+  });
+});
+
+describe('event registration-option detail authorization', () => {
+  it('bypasses discovery eligibility only for authorized non-approved event inspection', () => {
+    expect(
+      eventRegistrationOptionsBypassEligibility({
+        canEdit: false,
+        canInspectAllTenantEvents: false,
+        canReview: false,
+        canSeeDrafts: true,
+        status: 'DRAFT',
+      }),
+    ).toBe(true);
+    expect(
+      eventRegistrationOptionsBypassEligibility({
+        canEdit: false,
+        canInspectAllTenantEvents: false,
+        canReview: false,
+        canSeeDrafts: true,
+        status: 'APPROVED',
+      }),
+    ).toBe(false);
+    expect(
+      eventRegistrationOptionsBypassEligibility({
+        canEdit: false,
+        canInspectAllTenantEvents: false,
+        canReview: false,
+        canSeeDrafts: false,
+        status: 'PENDING_REVIEW',
+      }),
+    ).toBe(false);
   });
 });
 
@@ -363,8 +430,8 @@ describe('eventHandlers composition', () => {
       'events.submitForReview',
       'events.transferEventRegistration',
       'events.undoRegistrationAddonRedemption',
+      'events.updateAnnouncementDiscovery',
       'events.updateGraph',
-      'events.updateListing',
     ]);
   });
 });

@@ -98,8 +98,8 @@ export const platformAuditActionLabel = (
     case 'event.update': {
       return 'Event updated';
     }
-    case 'event.updateListing': {
-      return 'Event listing changed';
+    case 'event.updateAnnouncementDiscovery': {
+      return 'Event announcement discovery changed';
     }
     case 'receipt.reimburse': {
       return 'Receipt reimbursement recorded';

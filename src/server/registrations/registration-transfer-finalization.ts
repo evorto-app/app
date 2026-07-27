@@ -4,7 +4,6 @@ import {
   eventInstances,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
-  eventRegistrationOptions,
   eventRegistrationQuestionAnswers,
   eventRegistrations,
   registrationAcquisitionPayments,
@@ -16,11 +15,9 @@ import {
   registrationTransferRefundPlanAcquisitionLinks,
   registrationTransferRefundPlanItems,
   registrationTransfers,
-  rolesToTenantUsers,
   tenants,
   transactions,
   users,
-  usersToTenants,
 } from '@db/schema';
 import { registrationTransferAddonAllocationKey } from '@shared/registration-transfer';
 import {
@@ -35,7 +32,6 @@ import {
 } from 'drizzle-orm';
 import { Effect } from 'effect';
 
-import { isUserEligibleForRegistrationOption } from '../effect/rpc/handlers/events/event-registration.service';
 import { enqueueRegistrationTransferredEmail } from '../notifications/email-delivery';
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import {
@@ -43,6 +39,10 @@ import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
 } from './registration-acquisition-write';
+import {
+  isUserEligibleForRegistrationOption,
+  lockCurrentRegistrationEligibility,
+} from './registration-eligibility';
 import { resolveRegistrationTransferPriorRefunds } from './registration-transfer-prior-refunds';
 import { refundPlansExactlyCoverCurrentAcquisitionPayments } from './registration-transfer-refund-plan-coverage';
 
@@ -472,52 +472,29 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     );
   }
 
-  const recipientMemberships = yield* tx
-    .select({ id: usersToTenants.id })
-    .from(usersToTenants)
-    .where(
-      and(
-        eq(usersToTenants.tenantId, input.tenantId),
-        eq(usersToTenants.userId, recipientUserId),
-      ),
-    )
-    .for('update');
-  const recipientMembership = recipientMemberships[0];
-  if (recipientMemberships.length !== 1 || !recipientMembership) {
+  const lockedEligibility = yield* lockCurrentRegistrationEligibility(tx, {
+    eventId: transfer.eventId,
+    registrationOptionId: transfer.registrationOptionId,
+    tenantId: input.tenantId,
+    userId: recipientUserId,
+  });
+  if (lockedEligibility._tag === 'NotMember') {
     return yield* compensate(
       'Recipient eligibility changed after payment; a full recipient refund was queued.',
     );
   }
-
-  const recipientRoleAssignments = yield* tx
-    .select({ roleId: rolesToTenantUsers.roleId })
-    .from(rolesToTenantUsers)
-    .where(
-      and(
-        eq(rolesToTenantUsers.tenantId, input.tenantId),
-        eq(rolesToTenantUsers.userTenantId, recipientMembership.id),
-      ),
-    )
-    .for('update');
-  const registrationOptions = yield* tx
-    .select({ roleIds: eventRegistrationOptions.roleIds })
-    .from(eventRegistrationOptions)
-    .where(
-      and(
-        eq(eventRegistrationOptions.id, transfer.registrationOptionId),
-        eq(eventRegistrationOptions.eventId, transfer.eventId),
-      ),
-    )
-    .for('update');
-  const registrationOption = registrationOptions[0];
   if (
-    registrationOptions.length !== 1 ||
-    !registrationOption ||
+    lockedEligibility._tag === 'Unavailable' ||
+    lockedEligibility.eventStatus !== 'APPROVED'
+  ) {
+    return yield* compensate(
+      'Event availability changed after recipient payment; a full recipient refund was queued.',
+    );
+  }
+  if (
     !isUserEligibleForRegistrationOption({
-      optionRoleIds: registrationOption.roleIds,
-      userRoleIds: recipientRoleAssignments.map(
-        (assignment) => assignment.roleId,
-      ),
+      optionRoleIds: lockedEligibility.roleIds,
+      userRoleIds: lockedEligibility.userRoleIds,
     })
   ) {
     return yield* compensate(

@@ -2,17 +2,26 @@ import type Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '@db/index';
 import {
+  eventAddons,
+  eventInstances,
   eventRegistrationAddonPurchaseLots,
+  eventRegistrationAddonPurchases,
   eventRegistrationOptions,
   eventRegistrations,
   registrationTransfers,
   transactions,
+  users,
 } from '@db/schema';
 import { registrationSpotCount } from '@shared/registration-spots';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, sql } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
-import { enqueueRegistrationConfirmedEmail } from '../notifications/email-delivery';
+import {
+  enqueueRegistrationCancelledEmail,
+  enqueueRegistrationConfirmedEmail,
+  enqueueWaitlistSpotAvailableEmail,
+} from '../notifications/email-delivery';
+import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import { StripeClient } from '../stripe-client';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
 import {
@@ -21,6 +30,11 @@ import {
   resolveStripeAcquisitionPaymentSettlement,
   settleAcquisitionComponentTerms,
 } from './registration-acquisition-write';
+import {
+  isUserEligibleForRegistrationOption,
+  lockCurrentRegistrationEligibility,
+  registrationEligibilityCompensationRefundOperationKey,
+} from './registration-eligibility';
 import { finalizeRegistrationTransferCheckout } from './registration-transfer-finalization';
 
 const initialCheckoutReconcileDelayMs = 5000;
@@ -803,6 +817,45 @@ export const completePaidRegistrationCheckout = Effect.fn(
           );
         }
 
+        const eligibilityCompensationOperationKey =
+          registrationEligibilityCompensationRefundOperationKey(
+            input.transactionId,
+          );
+        if (
+          lockedTransaction.status === 'successful' &&
+          lockedRegistration.status === 'CANCELLED'
+        ) {
+          const compensationClaims = yield* tx
+            .select({
+              amount: transactions.amount,
+              applicationFeeRefunded: transactions.stripeRefundApplicationFee,
+              id: transactions.id,
+              targetUserId: transactions.targetUserId,
+            })
+            .from(transactions)
+            .where(
+              and(
+                eq(
+                  transactions.refundOperationKey,
+                  eligibilityCompensationOperationKey,
+                ),
+                eq(transactions.sourceTransactionId, input.transactionId),
+                eq(transactions.tenantId, input.tenantId),
+                eq(transactions.type, 'refund'),
+              ),
+            )
+            .limit(1);
+          const compensationClaim = compensationClaims[0];
+          if (
+            compensationClaim &&
+            compensationClaim.amount === -lockedTransaction.amount &&
+            compensationClaim.applicationFeeRefunded === true &&
+            compensationClaim.targetUserId === targetUserId
+          ) {
+            return 'alreadyFinalized' as const;
+          }
+        }
+
         if (
           lockedTransaction.status === 'successful' &&
           lockedRegistration.status === 'CONFIRMED'
@@ -826,6 +879,203 @@ export const completePaidRegistrationCheckout = Effect.fn(
             input,
             'Paid Registration Checkout registration is no longer pending',
           );
+        }
+
+        const currentEligibility = yield* lockCurrentRegistrationEligibility(
+          tx,
+          {
+            eventId: lockedRegistration.eventId,
+            registrationOptionId: lockedRegistration.registrationOptionId,
+            tenantId: input.tenantId,
+            userId: lockedRegistration.userId,
+          },
+        );
+        const isCurrentlyEligible =
+          currentEligibility._tag === 'Current' &&
+          currentEligibility.eventStatus === 'APPROVED' &&
+          isUserEligibleForRegistrationOption({
+            optionRoleIds: currentEligibility.roleIds,
+            userRoleIds: currentEligibility.userRoleIds,
+          });
+        if (!isCurrentlyEligible) {
+          const compensationEvents = yield* tx
+            .select({ status: eventInstances.status })
+            .from(eventInstances)
+            .where(
+              and(
+                eq(eventInstances.id, lockedRegistration.eventId),
+                eq(eventInstances.tenantId, input.tenantId),
+              ),
+            )
+            .for('update');
+          const eventStillPublished =
+            compensationEvents[0]?.status === 'APPROVED';
+          const cancelledRegistrations = yield* tx
+            .update(eventRegistrations)
+            .set({ status: 'CANCELLED' })
+            .where(
+              and(
+                eq(eventRegistrations.id, input.registrationId),
+                eq(eventRegistrations.status, 'PENDING'),
+                eq(eventRegistrations.tenantId, input.tenantId),
+              ),
+            )
+            .returning({ id: eventRegistrations.id });
+          if (cancelledRegistrations.length !== 1) {
+            return yield* failStateConflict(
+              input,
+              'Ineligible paid registration could not be cancelled',
+            );
+          }
+
+          const reservedSpotCount = registrationSpotCount(
+            lockedRegistration.guestCount,
+          );
+          const releasedOptions = yield* tx
+            .update(eventRegistrationOptions)
+            .set({
+              reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${reservedSpotCount}`,
+            })
+            .where(
+              and(
+                eq(
+                  eventRegistrationOptions.id,
+                  lockedRegistration.registrationOptionId,
+                ),
+                eq(
+                  eventRegistrationOptions.eventId,
+                  lockedRegistration.eventId,
+                ),
+                gte(eventRegistrationOptions.reservedSpots, reservedSpotCount),
+              ),
+            )
+            .returning({ id: eventRegistrationOptions.id });
+          if (releasedOptions.length !== 1) {
+            return yield* failStateConflict(
+              input,
+              'Ineligible paid registration capacity could not be released',
+            );
+          }
+
+          const addOnPurchases = yield* tx
+            .select({
+              addonId: eventRegistrationAddonPurchases.addonId,
+              quantity: eventRegistrationAddonPurchases.quantity,
+            })
+            .from(eventRegistrationAddonPurchases)
+            .where(
+              and(
+                eq(
+                  eventRegistrationAddonPurchases.registrationId,
+                  input.registrationId,
+                ),
+                eq(eventRegistrationAddonPurchases.tenantId, input.tenantId),
+              ),
+            )
+            .orderBy(asc(eventRegistrationAddonPurchases.addonId))
+            .for('update');
+          for (const addOnPurchase of addOnPurchases) {
+            const releasedAddOns = yield* tx
+              .update(eventAddons)
+              .set({
+                totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+              })
+              .where(
+                and(
+                  eq(eventAddons.id, addOnPurchase.addonId),
+                  eq(eventAddons.eventId, lockedRegistration.eventId),
+                ),
+              )
+              .returning({ id: eventAddons.id });
+            if (releasedAddOns.length !== 1) {
+              return yield* failStateConflict(
+                input,
+                'Ineligible paid registration add-on inventory could not be released',
+              );
+            }
+          }
+
+          yield* createRegistrationRefundClaim(tx, {
+            amount: lockedTransaction.amount,
+            applicationFeeRefunded: true,
+            currency: lockedTransaction.currency,
+            eventId: lockedRegistration.eventId,
+            eventRegistrationId: input.registrationId,
+            operationKey: eligibilityCompensationOperationKey,
+            sourceTransactionId: input.transactionId,
+            stripeAccountId: input.stripeAccountId,
+            targetUserId,
+            tenantId: input.tenantId,
+          }).pipe(
+            Effect.mapError(
+              (cause) =>
+                new RegistrationCheckoutCompletionError({
+                  cause,
+                  kind: 'stateConflict',
+                  message:
+                    'Ineligible paid registration refund could not be queued',
+                  registrationId: input.registrationId,
+                  transactionId: input.transactionId,
+                }),
+            ),
+          );
+          if (
+            preflight.notificationContext.eventId !==
+              lockedRegistration.eventId ||
+            preflight.notificationContext.registrationOptionId !==
+              lockedRegistration.registrationOptionId
+          ) {
+            return yield* failStateConflict(
+              input,
+              'Cancelled registration notification context is stale',
+            );
+          }
+          if (!notificationEventUrl) {
+            return yield* failCompletion(
+              input,
+              'Cancelled registration notification URL is missing',
+            );
+          }
+          yield* enqueueRegistrationCancelledEmail(tx, {
+            cancelledBy: 'eligibilityChangedAfterPayment',
+            eventTitle: preflight.notificationContext.event.title,
+            eventUrl: notificationEventUrl,
+            registrationId: input.registrationId,
+            tenant: preflight.tenant,
+            to: preflight.notificationContext.user.communicationEmail,
+          });
+          if (eventStillPublished) {
+            const waitlistRecipients = yield* tx
+              .select({
+                registrationId: eventRegistrations.id,
+                to: users.communicationEmail,
+              })
+              .from(eventRegistrations)
+              .innerJoin(users, eq(users.id, eventRegistrations.userId))
+              .where(
+                and(
+                  eq(eventRegistrations.eventId, lockedRegistration.eventId),
+                  eq(
+                    eventRegistrations.registrationOptionId,
+                    lockedRegistration.registrationOptionId,
+                  ),
+                  eq(eventRegistrations.status, 'WAITLIST'),
+                  eq(eventRegistrations.tenantId, input.tenantId),
+                ),
+              )
+              .orderBy(asc(eventRegistrations.id));
+            for (const waitlistRecipient of waitlistRecipients) {
+              yield* enqueueWaitlistSpotAvailableEmail(tx, {
+                availabilityKey: `eligibility-compensation-${input.registrationId}`,
+                eventTitle: preflight.notificationContext.event.title,
+                eventUrl: notificationEventUrl,
+                tenant: preflight.tenant,
+                to: waitlistRecipient.to,
+                waitlistRegistrationId: waitlistRecipient.registrationId,
+              });
+            }
+          }
+          return 'compensationQueued' as const;
         }
 
         const updatedRegistrations = yield* tx
@@ -853,11 +1103,11 @@ export const completePaidRegistrationCheckout = Effect.fn(
         const registeredSpotCount = registrationSpotCount(
           updatedRegistration.guestCount,
         );
-        yield* tx
+        const confirmedOptions = yield* tx
           .update(eventRegistrationOptions)
           .set({
             confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
-            reservedSpots: sql`GREATEST(${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
+            reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
           })
           .where(
             and(
@@ -866,8 +1116,16 @@ export const completePaidRegistrationCheckout = Effect.fn(
                 updatedRegistration.registrationOptionId,
               ),
               eq(eventRegistrationOptions.eventId, updatedRegistration.eventId),
+              gte(eventRegistrationOptions.reservedSpots, registeredSpotCount),
             ),
+          )
+          .returning({ id: eventRegistrationOptions.id });
+        if (confirmedOptions.length !== 1) {
+          return yield* failStateConflict(
+            input,
+            'Paid registration reserved capacity could not be confirmed',
           );
+        }
 
         yield* establishPaidInitialRegistrationAcquisition(tx, {
           ...input,

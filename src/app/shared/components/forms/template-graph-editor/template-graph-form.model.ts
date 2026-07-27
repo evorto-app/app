@@ -1,4 +1,3 @@
-import type { EventListingAudience } from '@shared/event-listing-audience';
 import type { RegistrationMode } from '@shared/registration-modes';
 
 export interface TemplateGraphAddonFormModel {
@@ -28,7 +27,6 @@ export interface TemplateGraphFormModel {
   description: string;
   iconColor: number;
   iconName: string;
-  listingAudience: EventListingAudience;
   location: TemplateGraphLocationFormModel;
   planningTips: string;
   questions: TemplateGraphQuestionFormModel[];
@@ -136,7 +134,6 @@ export const createTemplateGraphFormModel = (): TemplateGraphFormModel => ({
   description: '',
   iconColor: 0,
   iconName: 'calendar:fas',
-  listingAudience: 'both',
   location: createTemplateGraphLocationFormModel(),
   planningTips: '',
   questions: [],

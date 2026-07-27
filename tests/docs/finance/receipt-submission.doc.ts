@@ -36,7 +36,9 @@ test('Submit an event receipt @finance', async ({
   const eventId = seeded.scenario.events.freeOpen.eventId;
   const event = seeded.events.find((candidate) => candidate.id === eventId);
   if (!event) {
-    throw new Error('Expected seeded listed event for receipt documentation');
+    throw new Error(
+      'Expected seeded discoverable event for receipt documentation',
+    );
   }
 
   const submitter = usersToAuthenticate.find((user) => user.roles === 'admin');

@@ -95,7 +95,9 @@ test('submit receipt through Events and organizer navigation', async ({
     .where(eq(schema.eventInstances.id, eventId))
     .limit(1);
   if (!event) {
-    throw new Error('Expected seeded listed event for receipt submission flow');
+    throw new Error(
+      'Expected seeded discoverable event for receipt submission flow',
+    );
   }
   let submittedReceiptId: string | undefined;
   let submittedUploadId: string | undefined;

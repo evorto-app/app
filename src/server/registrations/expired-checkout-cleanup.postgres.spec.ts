@@ -222,7 +222,6 @@ const seedFixture = async (
     description: 'Cleanup fixture template',
     icon: { iconColor: 0, iconName: 'circle' },
     id: templateId,
-    listingAudience: 'both',
     tenantId,
     title: 'Cleanup fixture',
   });
@@ -232,7 +231,6 @@ const seedFixture = async (
     end: new Date(now + 8 * 24 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
-    listingAudience: 'both',
     reviewedAt: new Date(now),
     reviewedBy: userId,
     start: new Date(now + 7 * 24 * 60 * 60 * 1000),

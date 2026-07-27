@@ -42,7 +42,6 @@ const graphRecord: TemplateGraphRecord = {
   description: '<p>Template description</p>',
   icon: { iconColor: 0, iconName: 'calendar:fas' },
   id: 'template-1',
-  listingAudience: 'unlisted',
   location: null,
   planningTips: null,
   questions: [
@@ -182,7 +181,6 @@ describe('platform template full-graph handler', () => {
             ],
           }),
         ],
-        listingAudience: 'unlisted',
         simpleModeEnabled: false,
       }),
     );

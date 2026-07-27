@@ -27,7 +27,10 @@ export interface ReceiptReviewedEmailProps {
 }
 
 export type RegistrationCancellationActor =
-  'organizer' | 'participant' | 'platformAdministrator';
+  | 'eligibilityChangedAfterPayment'
+  | 'organizer'
+  | 'participant'
+  | 'platformAdministrator';
 
 export interface RegistrationCancelledEmailProps {
   readonly cancelledBy: RegistrationCancellationActor;
@@ -314,21 +317,42 @@ export const RegistrationCancelledEmail = ({
   eventUrl,
   tenantName,
 }: RegistrationCancelledEmailProps): ReactElement => {
-  const cancellationCopy =
-    cancelledBy === 'participant'
-      ? {
+  const cancellationCopy = (() => {
+    switch (cancelledBy) {
+      case 'eligibilityChangedAfterPayment': {
+        return {
+          body: `Your registration for ${eventTitle} was cancelled because the event or registration option was no longer available to you when payment completed. This can happen if the event is no longer published, the option was removed, or your organization membership or roles changed.`,
+          nextStep:
+            "The full amount you paid was queued for refund to your original payment method. Open your Profile to follow the refund status. Do not retry this payment. After the refund, review the event's current status and options or contact the organizer.",
+          preview: `Your registration for ${eventTitle} was cancelled after your eligibility changed. A full refund was queued.`,
+        };
+      }
+      case 'organizer': {
+        return {
+          body: `An organizer cancelled your registration for ${eventTitle}.`,
+          nextStep:
+            'Open the event to review its current registration options and status.',
+          preview: `An organizer cancelled your registration for ${eventTitle}.`,
+        };
+      }
+      case 'participant': {
+        return {
           body: `You cancelled your registration for ${eventTitle}.`,
+          nextStep:
+            'Open the event to review its current registration options and status.',
           preview: `Your registration for ${eventTitle} was cancelled.`,
-        }
-      : cancelledBy === 'platformAdministrator'
-        ? {
-            body: `A platform administrator cancelled your registration for ${eventTitle}.`,
-            preview: `A platform administrator cancelled your registration for ${eventTitle}.`,
-          }
-        : {
-            body: `An organizer cancelled your registration for ${eventTitle}.`,
-            preview: `An organizer cancelled your registration for ${eventTitle}.`,
-          };
+        };
+      }
+      case 'platformAdministrator': {
+        return {
+          body: `A platform administrator cancelled your registration for ${eventTitle}.`,
+          nextStep:
+            'Open the event to review its current registration options and status.',
+          preview: `A platform administrator cancelled your registration for ${eventTitle}.`,
+        };
+      }
+    }
+  })();
 
   return TransactionalEmailLayout({
     action: {
@@ -337,10 +361,7 @@ export const RegistrationCancelledEmail = ({
     },
     body: [
       paragraph('cancelled', cancellationCopy.body),
-      paragraph(
-        'next-step',
-        'Open the event to review its current registration options and status.',
-      ),
+      paragraph('next-step', cancellationCopy.nextStep),
     ],
     preview: cancellationCopy.preview,
     tenantName,

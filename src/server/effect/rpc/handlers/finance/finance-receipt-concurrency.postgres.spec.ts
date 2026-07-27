@@ -180,7 +180,6 @@ describe('receipt review and reimbursement serialization', () => {
       description: 'Receipt lock template',
       icon: { iconColor: 0, iconName: 'circle' },
       id: templateId,
-      listingAudience: 'both',
       tenantId,
       title: 'Receipt lock template',
     });
@@ -190,7 +189,6 @@ describe('receipt review and reimbursement serialization', () => {
       end: new Date('2026-08-01T12:00:00.000Z'),
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
-      listingAudience: 'both',
       reviewedAt: new Date('2026-07-30T00:00:00.000Z'),
       reviewedBy: userId,
       start: new Date('2026-08-01T10:00:00.000Z'),

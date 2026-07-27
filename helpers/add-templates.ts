@@ -152,12 +152,7 @@ export const addTemplates = async (
 
   const createdFreeTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(
-      freeTemplates.map(({ seedKey: _seedKey, ...template }) => ({
-        ...template,
-        listingAudience: 'both' as const,
-      })),
-    )
+    .values(freeTemplates.map(({ seedKey: _seedKey, ...template }) => template))
     .returning();
   consola.success(`Inserted ${createdFreeTemplatesRaw.length} free templates`);
 
@@ -227,12 +222,7 @@ export const addTemplates = async (
     }));
   const createdPaidTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(
-      paidTemplates.map(({ seedKey: _seedKey, ...template }) => ({
-        ...template,
-        listingAudience: 'both' as const,
-      })),
-    )
+    .values(paidTemplates.map(({ seedKey: _seedKey, ...template }) => template))
     .returning();
   consola.success(`Inserted ${createdPaidTemplatesRaw.length} paid templates`);
 

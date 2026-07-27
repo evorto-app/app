@@ -43,11 +43,6 @@ import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faTrashCan } from '@fortawesome/duotone-regular-svg-icons';
 import {
-  eventListingAudienceDescriptions,
-  eventListingAudienceLabel,
-  eventListingAudiences,
-} from '@shared/event-listing-audience';
-import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
 } from '@shared/registration-quantity-limits';
@@ -288,10 +283,6 @@ export class PlatformTemplateEditorComponent {
     () =>
       this.optionsQuery.isSuccess() && this.optionsQuery.data().esnCardEnabled,
   );
-  protected readonly eventListingAudienceDescriptions =
-    eventListingAudienceDescriptions;
-  protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
-  protected readonly eventListingAudiences = eventListingAudiences;
   protected readonly faPlus = faPlus;
   protected readonly faTrashCan = faTrashCan;
   protected readonly templateModel = signal(createPlatformTemplateFormModel());

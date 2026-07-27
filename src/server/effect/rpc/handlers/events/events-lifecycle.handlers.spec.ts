@@ -90,14 +90,14 @@ const esnEnabledRequestContextLayer = Layer.mergeAll(
   }),
 );
 
-const listingRequestContextLayer = Layer.mergeAll(
+const announcementDiscoveryRequestContextLayer = Layer.mergeAll(
   RpcAccess.Default,
   Layer.succeed(RpcRequestContext, {
     ...requestContext,
-    permissions: ['events:changeListing'],
+    permissions: ['events:changeAnnouncementDiscovery'],
     user: {
       ...user,
-      permissions: ['events:changeListing'],
+      permissions: ['events:changeAnnouncementDiscovery'],
     },
   } satisfies RpcRequestContextShape),
 );
@@ -182,10 +182,7 @@ const withTransaction = <DatabaseMock extends object>(
           })),
         };
       }
-      if (
-        selection.listingAudience !== undefined &&
-        selection.simpleModeEnabled !== undefined
-      ) {
+      if (selection.simpleModeEnabled !== undefined) {
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => ({
@@ -193,7 +190,6 @@ const withTransaction = <DatabaseMock extends object>(
                 for: vi.fn(() =>
                   Effect.succeed([
                     {
-                      listingAudience: 'both',
                       simpleModeEnabled:
                         Reflect.get(database, 'templateSimpleModeEnabled') ===
                         true,
@@ -232,7 +228,7 @@ const withTransaction = <DatabaseMock extends object>(
   };
 };
 
-const createListingDatabase = ({
+const createAnnouncementDiscoveryDatabase = ({
   eventExists = true,
   registrationOptionExists = false,
   roleIds = ['role-a'],
@@ -286,7 +282,7 @@ const createListingDatabase = ({
           })),
         };
       }
-      throw new Error('Unexpected listing select');
+      throw new Error('Unexpected announcement discovery select');
     }),
     update: vi.fn(() => updateQuery),
   };
@@ -553,11 +549,7 @@ describe('eventLifecycleHandlers', () => {
               findMany: vi.fn(() => Effect.succeed([])),
             },
             eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  listingAudience: 'both',
-                }),
-              ),
+              findFirst: vi.fn(() => Effect.succeed({})),
             },
             templateEventAddons: {
               findMany: vi.fn(() => Effect.succeed([])),
@@ -638,7 +630,6 @@ describe('eventLifecycleHandlers', () => {
         expect(result).toEqual({ id: 'event-1' });
         expect(insertedEventValues).toHaveBeenCalledWith(
           expect.objectContaining({
-            listingAudience: 'both',
             simpleModeEnabled: true,
           }),
         );
@@ -680,11 +671,7 @@ describe('eventLifecycleHandlers', () => {
               findMany: vi.fn(() => Effect.succeed([])),
             },
             eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  listingAudience: 'both',
-                }),
-              ),
+              findFirst: vi.fn(() => Effect.succeed({})),
             },
             templateEventAddons: {
               findMany: vi.fn(() => Effect.succeed([])),
@@ -765,11 +752,7 @@ describe('eventLifecycleHandlers', () => {
               findMany: vi.fn(() => Effect.succeed([])),
             },
             eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  listingAudience: 'both',
-                }),
-              ),
+              findFirst: vi.fn(() => Effect.succeed({})),
             },
             templateEventAddons: {
               findMany: vi.fn(() => Effect.succeed([])),
@@ -971,11 +954,7 @@ describe('eventLifecycleHandlers', () => {
               ),
             },
             eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  listingAudience: 'both',
-                }),
-              ),
+              findFirst: vi.fn(() => Effect.succeed({})),
             },
             templateEventAddons: {
               findMany: vi.fn(() =>
@@ -1244,11 +1223,7 @@ describe('eventLifecycleHandlers', () => {
               findMany: vi.fn(() => Effect.succeed([])),
             },
             eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  listingAudience: 'both',
-                }),
-              ),
+              findFirst: vi.fn(() => Effect.succeed({})),
             },
             templateEventAddons: {
               findMany: vi.fn(() => Effect.succeed([])),
@@ -1332,21 +1307,22 @@ describe('eventLifecycleHandlers', () => {
       }),
   );
 
-  it.effect('events.updateListing reports a missing event', () =>
+  it.effect('events.updateAnnouncementDiscovery reports a missing event', () =>
     Effect.gen(function* () {
-      const { database, updateQuery } = createListingDatabase({
+      const { database, updateQuery } = createAnnouncementDiscoveryDatabase({
         eventExists: false,
       });
       const layer = Layer.mergeAll(
-        listingRequestContextLayer,
+        announcementDiscoveryRequestContextLayer,
         Layer.succeed(Database, database as never),
       );
 
-      const error = yield* eventLifecycleHandlers['events.updateListing'](
+      const error = yield* eventLifecycleHandlers[
+        'events.updateAnnouncementDiscovery'
+      ](
         {
           announcementRoleIds: [],
           eventId: 'missing-event',
-          listingAudience: 'organizer',
         },
         { headers: {} } as never,
       ).pipe(Effect.flip, Effect.provide(layer));
@@ -1360,22 +1336,22 @@ describe('eventLifecycleHandlers', () => {
   );
 
   it.effect(
-    'events.updateListing canonicalizes tenant roles after locking the event',
+    'events.updateAnnouncementDiscovery canonicalizes tenant roles after locking the event',
     () =>
       Effect.gen(function* () {
-        const { database, lockOrder, updateQuery } = createListingDatabase({
-          roleIds: ['role-a', 'role-b'],
-        });
+        const { database, lockOrder, updateQuery } =
+          createAnnouncementDiscoveryDatabase({
+            roleIds: ['role-a', 'role-b'],
+          });
         const layer = Layer.mergeAll(
-          listingRequestContextLayer,
+          announcementDiscoveryRequestContextLayer,
           Layer.succeed(Database, database as never),
         );
 
-        yield* eventLifecycleHandlers['events.updateListing'](
+        yield* eventLifecycleHandlers['events.updateAnnouncementDiscovery'](
           {
             announcementRoleIds: ['role-b', 'role-a', 'role-b'],
             eventId: 'event-1',
-            listingAudience: 'unlisted',
           },
           { headers: {} } as never,
         ).pipe(Effect.provide(layer));
@@ -1383,30 +1359,30 @@ describe('eventLifecycleHandlers', () => {
         expect(lockOrder).toEqual(['event', 'role-graph']);
         expect(updateQuery.set).toHaveBeenCalledWith({
           announcementRoleIds: ['role-a', 'role-b'],
-          listingAudience: 'unlisted',
         });
       }),
   );
 
   it.effect(
-    'events.updateListing rejects foreign roles and roles on sign-up events',
+    'events.updateAnnouncementDiscovery rejects foreign roles and every update on sign-up events',
     () =>
       Effect.gen(function* () {
-        const invalidRoleDatabase = createListingDatabase({ roleIds: [] });
+        const invalidRoleDatabase = createAnnouncementDiscoveryDatabase({
+          roleIds: [],
+        });
         const invalidRoleError = yield* eventLifecycleHandlers[
-          'events.updateListing'
+          'events.updateAnnouncementDiscovery'
         ](
           {
             announcementRoleIds: ['foreign-role'],
             eventId: 'event-1',
-            listingAudience: 'both',
           },
           { headers: {} } as never,
         ).pipe(
           Effect.flip,
           Effect.provide(
             Layer.mergeAll(
-              listingRequestContextLayer,
+              announcementDiscoveryRequestContextLayer,
               Layer.succeed(Database, invalidRoleDatabase.database as never),
             ),
           ),
@@ -1417,23 +1393,22 @@ describe('eventLifecycleHandlers', () => {
         });
         expect(invalidRoleDatabase.updateQuery.set).not.toHaveBeenCalled();
 
-        const optionfulDatabase = createListingDatabase({
+        const optionfulDatabase = createAnnouncementDiscoveryDatabase({
           registrationOptionExists: true,
         });
         const optionfulError = yield* eventLifecycleHandlers[
-          'events.updateListing'
+          'events.updateAnnouncementDiscovery'
         ](
           {
-            announcementRoleIds: ['role-a'],
+            announcementRoleIds: [],
             eventId: 'event-1',
-            listingAudience: 'both',
           },
           { headers: {} } as never,
         ).pipe(
           Effect.flip,
           Effect.provide(
             Layer.mergeAll(
-              listingRequestContextLayer,
+              announcementDiscoveryRequestContextLayer,
               Layer.succeed(Database, optionfulDatabase.database as never),
             ),
           ),

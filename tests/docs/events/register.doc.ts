@@ -328,7 +328,7 @@ test.describe('Register for events', () => {
     await expect(eventLink).toBeVisible({ timeout: 20_000 });
     await testInfo.attach('markdown', {
       body: `
-  A confirmed participant can return to a listed event and buy optional add-ons from the existing ticket. The organizer controls whether each add-on is sold before the event, during the event, or in both windows.`,
+  A confirmed participant can return to a discoverable event and buy optional add-ons from the existing ticket. The organizer controls whether each add-on is sold before the event, during the event, or in both windows.`,
     });
     await takeScreenshot(
       testInfo,

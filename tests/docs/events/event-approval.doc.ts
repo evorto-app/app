@@ -178,7 +178,6 @@ test('Event approval workflow', async ({
     templateId: template.id,
     tenantId: tenant.id,
     title: eventTitle,
-    listingAudience: 'both',
   });
 
   await database.insert(schema.roles).values({
@@ -254,7 +253,7 @@ This guide demonstrates submitting an event, returning it to draft with feedback
     body: `
 ## 1. Submit a draft for review
 
-After **Save Event** succeeds, Evorto opens the newly created event's details page. Submit the draft from that page. If you navigated away and cannot see the draft under **Events**, reopen its exact link; listing drafts requires the separate **View draft events** access.
+After **Save Event** succeeds, Evorto opens the newly created event's details page. Submit the draft from that page. If you navigated away and cannot see the draft under **Events**, reopen its exact link; seeing drafts in the event list requires the separate **View draft events** access.
 The screenshot below highlights the draft status and exact action before the status transition.
 `,
   });

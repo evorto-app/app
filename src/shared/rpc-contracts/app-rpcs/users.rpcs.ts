@@ -150,6 +150,9 @@ export const UsersEventSummaryRecord = Schema.Struct({
       unitPrice: nonNegativeNumber.check(Schema.isInt()),
     }),
   ),
+  cancellationReason: Schema.NullOr(
+    Schema.Literal('eligibilityChangedAfterPayment'),
+  ),
   checkInTime: Schema.NullOr(Schema.String),
   checkoutUrl: Schema.NullOr(Schema.String),
   description: Schema.NullOr(Schema.String),

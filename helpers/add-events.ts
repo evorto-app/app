@@ -302,7 +302,6 @@ const createEvents = (
       const eventClock = computeEventClock(template.id, index);
       let eventStart: Date;
       let status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
-      let listingAudience: SeedEventInsert['listingAudience'];
       let creatorId: string;
 
       switch (index) {
@@ -317,7 +316,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'APPROVED';
-          listingAudience = 'both';
           creatorId = organizerUser;
 
           break;
@@ -333,7 +331,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'APPROVED';
-          listingAudience = 'both';
           creatorId = organizerUser;
 
           break;
@@ -349,7 +346,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'DRAFT';
-          listingAudience = 'unlisted';
           creatorId = organizerUser;
 
           break;
@@ -365,7 +361,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'PENDING_REVIEW';
-          listingAudience = 'both';
           creatorId = adminUser;
         }
       }
@@ -377,7 +372,6 @@ const createEvents = (
         end: DateTime.fromJSDate(eventStart).plus({ hours: 6 }).toJSDate(),
         icon: template.icon,
         id: eventId,
-        listingAudience,
         reviewedAt: status === 'APPROVED' ? seedNow.toJSDate() : null,
         reviewedBy: status === 'APPROVED' ? adminUser : null,
         start: eventStart,

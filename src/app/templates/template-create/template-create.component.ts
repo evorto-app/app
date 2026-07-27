@@ -8,18 +8,11 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { form, FormField, submit } from '@angular/forms/signals';
+import { form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  eventListingAudienceDescriptions,
-  eventListingAudienceLabels,
-  eventListingAudiences,
-} from '@shared/event-listing-audience';
 import { TemplateCreateIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -45,10 +38,7 @@ const logger = consola.withTag('app/templates/create');
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
-    FormField,
     MatButtonModule,
-    MatFormFieldModule,
-    MatSelectModule,
     RouterLink,
     TemplateGeneralFormComponent,
     TemplateGraphEditorComponent,
@@ -146,10 +136,6 @@ export class TemplateCreateComponent {
   protected readonly esnEnabled = computed(
     () => this.discountProviderState() === 'esnEnabled',
   );
-  protected readonly eventListingAudienceDescriptions =
-    eventListingAudienceDescriptions;
-  protected readonly eventListingAudienceLabels = eventListingAudienceLabels;
-  protected readonly eventListingAudiences = eventListingAudiences;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly iconUsage = TemplateCreateIconUsage.make({});
   protected readonly taxRateState = computed(() =>

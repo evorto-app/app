@@ -126,6 +126,7 @@ describe('users RPC input schemas', () => {
             unitPrice: 500,
           },
         ],
+        cancellationReason: null,
         checkInTime: null,
         checkoutUrl: null,
         description: null,
@@ -148,6 +149,7 @@ describe('users RPC input schemas', () => {
     expect(() =>
       Schema.decodeUnknownSync(UsersEventSummaryRecord)({
         addonPurchases: [],
+        cancellationReason: 'eligibilityChangedAfterPayment',
         checkInTime: null,
         checkoutUrl: null,
         description: null,

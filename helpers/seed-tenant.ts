@@ -1,5 +1,4 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { EventListingAudience } from '@shared/event-listing-audience';
 import type { SupportedTenantCurrency } from '../src/types/custom/tenant';
 
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
@@ -70,7 +69,6 @@ export interface SeedTenantResult {
       title: string;
       waitlistSpots: number;
     }[];
-    listingAudience: EventListingAudience;
     start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     tenantId: string;
@@ -279,7 +277,6 @@ export async function seedTenant(
   return {
     events: refreshedEvents.map((event) => ({
       id: event.id,
-      listingAudience: event.listingAudience,
       registrationOptions: event.registrationOptions
         .toSorted(
           (a, b) =>

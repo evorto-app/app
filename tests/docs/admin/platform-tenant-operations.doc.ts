@@ -365,7 +365,7 @@ Every change in this guide requires an operational reason. Evorto saves the doma
     body: `
 ## Edit a draft event
 
-Choose **Manage events**, find the draft, and select **Review event**. The editor shows the event owner, status, schedule, and complete registration setup. Only a draft can be saved from this form. Change the title, enter a precise **Update reason**, and select **Save draft details**. Status and listing actions use their own reason field and are not performed by this walkthrough.
+Choose **Manage events**, find the draft, and select **Review event**. The editor shows the event owner, status, schedule, and complete registration setup. Only a draft can be saved from this form. Change the title, enter a precise **Update reason**, and select **Save draft details**. Status and optionless-announcement discovery actions use their own reason field and are not performed by this walkthrough.
 `,
   });
   const eventEditor = page.locator('app-platform-event-detail');

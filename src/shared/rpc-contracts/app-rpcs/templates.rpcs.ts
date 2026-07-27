@@ -1,5 +1,4 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { EventListingAudience } from '@shared/event-listing-audience';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -193,7 +192,6 @@ export const TemplateGraphInput = Schema.Struct({
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   icon: iconSchema,
-  listingAudience: EventListingAudience,
   location: Schema.NullOr(EventLocation),
   planningTips: Schema.NullOr(Schema.String),
   questions: Schema.mutable(Schema.Array(TemplateGraphQuestionInput)).check(
@@ -210,7 +208,6 @@ export type TemplateGraphInput = Schema.Schema.Type<typeof TemplateGraphInput>;
 
 export const TemplateGraphRecord = Schema.Struct({
   ...TemplateFindOneRecord.fields,
-  listingAudience: EventListingAudience,
   simpleModeEnabled: Schema.Boolean,
 });
 

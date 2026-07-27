@@ -1,4 +1,3 @@
-import type { EventListingAudience } from '@shared/event-listing-audience';
 import type {
   TemplateGraphInput,
   TemplateGraphRecord,
@@ -26,7 +25,6 @@ export type OrdinaryTemplateGraphFormLoadResult =
 
 export interface OrdinaryTemplateGraphFormModel extends TemplateGeneralFormModel {
   addOns: TemplateGraphAddonFormModel[];
-  listingAudience: EventListingAudience;
   questions: TemplateGraphQuestionFormModel[];
   registrationOptions: TemplateGraphRegistrationOptionFormModel[];
   simpleModeEnabled: boolean;
@@ -47,7 +45,6 @@ export const createOrdinaryTemplateGraphFormModel = (
   return {
     ...general,
     addOns: graph.addOns,
-    listingAudience: graph.listingAudience,
     questions: graph.questions,
     registrationOptions: graph.registrationOptions,
     simpleModeEnabled: true,
@@ -67,7 +64,6 @@ export const ordinaryTemplateGraphRecordToFormModel = (
       categoryId: template.categoryId,
       description: template.description,
       icon: template.icon,
-      listingAudience: template.listingAudience,
       location: template.location,
       planningTips: template.planningTips ?? '',
       questions: graphResult.model.questions,
@@ -89,7 +85,6 @@ export const ordinaryTemplateGraphFormToPayload = (
       description: model.description,
       iconColor: model.icon.iconColor,
       iconName: model.icon.iconName,
-      listingAudience: model.listingAudience,
       location: templateGraphLocationValueToFormModel(model.location),
       planningTips: model.planningTips,
       questions: model.questions,

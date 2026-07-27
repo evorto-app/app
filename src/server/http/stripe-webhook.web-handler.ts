@@ -483,7 +483,11 @@ export const validateCheckoutSessionBinding = ({
   ) {
     return { type: 'already-finalized-expiry' };
   }
-  if (persisted.status !== 'pending') {
+  const isTerminalSuccessfulRegistration =
+    persisted.type === 'registration' &&
+    persisted.status === 'successful' &&
+    (registrationStatus === 'CONFIRMED' || registrationStatus === 'CANCELLED');
+  if (persisted.status !== 'pending' && !isTerminalSuccessfulRegistration) {
     return { type: 'state-conflict' };
   }
 
@@ -527,10 +531,11 @@ const resolveCheckoutSession = (
         return { type: 'unresolved' } as const;
       }
 
-      const finalizedRegistration =
-        options.allowFinalizedExpiry &&
-        persisted.status === 'cancelled' &&
-        persisted.eventRegistrationId
+      const persistedRegistration =
+        persisted.eventRegistrationId &&
+        ((options.allowFinalizedExpiry && persisted.status === 'cancelled') ||
+          (persisted.type === 'registration' &&
+            persisted.status === 'successful'))
           ? yield* database.query.eventRegistrations.findFirst({
               columns: { status: true },
               where: {
@@ -550,7 +555,7 @@ const resolveCheckoutSession = (
         metadata: eventSession.metadata,
         paymentIntentId,
         persisted,
-        registrationStatus: finalizedRegistration?.status,
+        registrationStatus: persistedRegistration?.status,
         requirePaymentIntent: options.requirePaymentIntent,
         sessionId: eventSession.id,
         stripeAccountId: tenant?.stripeAccountId,

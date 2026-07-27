@@ -38,6 +38,7 @@ describe('registrationOptionsState', () => {
   it('shows available registration options when at least one option is visible', () => {
     expect(
       registrationOptionsState({
+        hasRegistrationOptions: true,
         registrationOptions: [{}],
         registrationOptionsHiddenByEligibility: false,
       }),
@@ -47,15 +48,27 @@ describe('registrationOptionsState', () => {
   it('shows an explicit ineligible state when every option is hidden by role eligibility', () => {
     expect(
       registrationOptionsState({
+        hasRegistrationOptions: true,
         registrationOptions: [],
         registrationOptionsHiddenByEligibility: true,
       }),
     ).toBe('hiddenByEligibility');
   });
 
+  it('requires sign-in when an optionful anonymous projection contains no options', () => {
+    expect(
+      registrationOptionsState({
+        hasRegistrationOptions: true,
+        registrationOptions: [],
+        registrationOptionsHiddenByEligibility: false,
+      }),
+    ).toBe('requiresSignIn');
+  });
+
   it('keeps optionless events distinct from role-ineligible events', () => {
     expect(
       registrationOptionsState({
+        hasRegistrationOptions: false,
         registrationOptions: [],
         registrationOptionsHiddenByEligibility: false,
       }),
@@ -374,7 +387,7 @@ const findRegistrationStatus = vi.fn();
 const findSelf = vi.fn();
 const openDialog = vi.fn();
 const showError = vi.fn();
-const updateListing = vi.fn(async () => true);
+const updateAnnouncementDiscovery = vi.fn(async () => true);
 const tenantConfig = {
   discountProviders: {
     esnCard: {
@@ -386,14 +399,13 @@ const tenantConfig = {
 
 const eventDetails = {
   addOns: [],
-  announcementRoleIds: [],
-  creatorId: 'user-2',
+  announcementRoleCount: 0,
+  announcementRoleIds: null,
   description: '<p>Bring a notebook.</p>',
   end: '2030-01-02T12:00:00.000Z',
   hasRegistrationOptions: false,
   icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
   id: 'event-1',
-  listingAudience: 'both' as const,
   location: null,
   registrationOptions: [],
   registrationOptionsHiddenByEligibility: false,
@@ -402,6 +414,10 @@ const eventDetails = {
   status: 'APPROVED' as const,
   statusComment: null,
   title: 'Recovery workshop',
+  userIsCreator: false,
+};
+type EventDetailsFixture = Omit<typeof eventDetails, 'status'> & {
+  status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
 };
 
 const normalizeText = (fixture: ComponentFixture<EventDetailsComponent>) =>
@@ -438,7 +454,7 @@ describe('EventDetailsComponent load recovery', () => {
     findSelf.mockResolvedValue({ id: 'user-1' });
     openDialog.mockReset();
     showError.mockReset();
-    updateListing.mockReset().mockResolvedValue(true);
+    updateAnnouncementDiscovery.mockReset().mockResolvedValue(true);
     tenantConfig.discountProviders.esnCard.status = 'enabled';
     queryClient = new QueryClient({
       defaultOptions: {
@@ -473,9 +489,9 @@ describe('EventDetailsComponent load recovery', () => {
             }),
             eventListFilter: () => ({ queryKey: ['events'] }),
             eventQueryKey: (id: string) => ['event', id],
-            findEvent: (id: string) => ({
+            findEvent: (id: string, principalKey: string) => ({
               queryFn: findEvent,
-              queryKey: ['event', id],
+              queryKey: ['event', id, principalKey],
             }),
             myCards: () => ({
               queryFn: findMyCards,
@@ -500,9 +516,9 @@ describe('EventDetailsComponent load recovery', () => {
               mutationFn: async () => true,
               mutationKey: ['submit-event-for-review'],
             }),
-            updateListing: () => ({
-              mutationFn: updateListing,
-              mutationKey: ['update-event-listing'],
+            updateAnnouncementDiscovery: () => ({
+              mutationFn: updateAnnouncementDiscovery,
+              mutationKey: ['update-announcement-discovery'],
             }),
           },
         },
@@ -542,8 +558,11 @@ describe('EventDetailsComponent load recovery', () => {
     return fixture;
   };
 
-  it('surfaces a listing update failure instead of silently keeping stale discovery settings', async () => {
-    findEvent.mockResolvedValue(eventDetails);
+  it('surfaces an announcement discovery update failure instead of silently keeping stale roles', async () => {
+    findEvent.mockResolvedValue({
+      ...eventDetails,
+      announcementRoleIds: [],
+    });
     findRegistrationStatus.mockResolvedValue({
       isRegistered: false,
       outgoingTransfers: [],
@@ -553,10 +572,11 @@ describe('EventDetailsComponent load recovery', () => {
       afterClosed: () =>
         of({
           announcementRoleIds: ['role-organizer'],
-          listingAudience: 'organizer',
         }),
     });
-    updateListing.mockRejectedValue(new Error('Listing update rejected'));
+    updateAnnouncementDiscovery.mockRejectedValue(
+      new Error('Announcement discovery update rejected'),
+    );
     const fixture = render();
 
     await vi.waitFor(async () => {
@@ -567,19 +587,46 @@ describe('EventDetailsComponent load recovery', () => {
       ).toBeNull();
     });
 
-    await fixture.componentInstance.updateListingAudience();
+    await fixture.componentInstance.updateAnnouncementDiscovery();
 
     await vi.waitFor(() => {
-      expect(showError).toHaveBeenCalledWith('Listing update rejected');
+      expect(showError).toHaveBeenCalledWith(
+        'Announcement discovery update rejected',
+      );
     });
-    expect(updateListing).toHaveBeenCalledWith(
+    expect(updateAnnouncementDiscovery).toHaveBeenCalledWith(
       {
         announcementRoleIds: ['role-organizer'],
         eventId: 'event-1',
-        listingAudience: 'organizer',
       },
       expect.any(Object),
     );
+  });
+
+  it('surfaces missing announcement role details instead of treating them as link-only', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    const fixture = render();
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+      expect(
+        (fixture.nativeElement as HTMLElement).getAttribute('aria-busy'),
+      ).toBeNull();
+    });
+
+    await fixture.componentInstance.updateAnnouncementDiscovery();
+
+    expect(showError).toHaveBeenCalledWith(
+      'Announcement roles are unavailable. Refresh the event and try again.',
+    );
+    expect(openDialog).not.toHaveBeenCalled();
+    expect(updateAnnouncementDiscovery).not.toHaveBeenCalled();
   });
 
   it('retries a failed event load and recovers the event details', async () => {
@@ -727,6 +774,40 @@ describe('EventDetailsComponent load recovery', () => {
     );
   });
 
+  it('asks an anonymous direct-link visitor to sign in when restricted options are omitted', async () => {
+    findEvent.mockResolvedValue({
+      ...eventDetails,
+      hasRegistrationOptions: true,
+      registrationOptions: [],
+      registrationOptionsHiddenByEligibility: false,
+    });
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findSelf.mockResolvedValue(null);
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Sign in to check whether your account is eligible.',
+      );
+    });
+
+    const root = fixture.nativeElement as HTMLElement;
+    const loginLink = root.querySelector<HTMLAnchorElement>(
+      'a[href="/forward-login?redirectUrl=/events/event-1"]',
+    );
+    expect(loginLink?.textContent?.trim()).toBe('Log in now');
+    expect(normalizeText(fixture)).not.toContain('No registration options');
+    expect(
+      fixture.nativeElement.querySelector('app-event-registration-option'),
+    ).toBeNull();
+  });
+
   it('surfaces an unavailable identity check and retries it explicitly', async () => {
     findEvent.mockResolvedValue(eventDetails);
     findRegistrationStatus.mockResolvedValue({
@@ -770,8 +851,8 @@ describe('EventDetailsComponent load recovery', () => {
   it('removes cached creator controls when a fresh identity check fails', async () => {
     findEvent.mockResolvedValue({
       ...eventDetails,
-      creatorId: 'user-1',
       status: 'DRAFT',
+      userIsCreator: true,
     });
     findRegistrationStatus.mockResolvedValue({
       isRegistered: false,
@@ -822,8 +903,8 @@ describe('EventDetailsComponent load recovery', () => {
     });
     findEvent.mockResolvedValue({
       ...eventDetails,
-      creatorId: 'user-1',
       status: 'DRAFT',
+      userIsCreator: true,
     });
     findRegistrationStatus.mockResolvedValue({
       isRegistered: false,
@@ -878,6 +959,68 @@ describe('EventDetailsComponent load recovery', () => {
 
     resolveIdentityRefresh?.({ id: 'user-1' });
     await refetch;
+  });
+
+  it('does not reuse a creator projection after the resolved identity changes', async () => {
+    let resolveEventProjection:
+      ((event: EventDetailsFixture) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const eventProjectionRefresh = new Promise<EventDetailsFixture>(
+      (resolve) => {
+        resolveEventProjection = resolve;
+      },
+    );
+    findSelf
+      .mockResolvedValueOnce({ id: 'user-1' })
+      .mockResolvedValueOnce({ id: 'user-2' });
+    findEvent
+      .mockResolvedValueOnce({
+        ...eventDetails,
+        status: 'DRAFT',
+        userIsCreator: true,
+      })
+      .mockReturnValueOnce(eventProjectionRefresh);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Edit Event');
+      expect(findEvent).toHaveBeenCalledOnce();
+    });
+
+    const identityRefresh = queryClient.refetchQueries({
+      exact: true,
+      queryKey: ['maybe-self'],
+    });
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findSelf).toHaveBeenCalledTimes(2);
+      expect(findEvent).toHaveBeenCalledTimes(2);
+      expect(normalizeText(fixture)).not.toContain('Edit Event');
+      expect(normalizeText(fixture)).not.toContain('Submit for Review');
+    });
+
+    resolveEventProjection?.({
+      ...eventDetails,
+      status: 'DRAFT',
+      userIsCreator: false,
+    });
+    await identityRefresh;
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+      expect(normalizeText(fixture)).not.toContain('Edit Event');
+      expect(normalizeText(fixture)).not.toContain('Submit for Review');
+    });
   });
 
   it('does not load personal cards for an authenticated tenant with the provider disabled', async () => {
@@ -1069,6 +1212,17 @@ describe('EventDetailsComponent load recovery', () => {
 });
 
 describe('EventDetails template', () => {
+  it('offers announcement discovery directly only for optionless events', () => {
+    const template = readSource(
+      'src/app/events/event-details/event-details.component.html',
+    );
+
+    expect(template).toContain('!eventQuery.data().hasRegistrationOptions');
+    expect(template).toContain('aria-label="Update announcement discovery"');
+    expect(template).toContain('(click)="updateAnnouncementDiscovery()"');
+    expect(template).not.toContain('matMenuTriggerFor');
+  });
+
   it('uses the accepted return-to-draft review language', () => {
     const template = readSource(
       'src/app/events/event-details/event-details.component.html',

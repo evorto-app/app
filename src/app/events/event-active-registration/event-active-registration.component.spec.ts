@@ -10,6 +10,7 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { QueryObserver } from '@tanstack/query-core';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 import { of, Subject } from 'rxjs';
@@ -650,6 +651,44 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     });
   });
 
+  it('refetches the principal-scoped event projection after cancellation', async () => {
+    vi.mocked(queryClient.invalidateQueries).mockRestore();
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    const eventDetailsQueryKey = [
+      'event-details',
+      'event-1',
+      { principalKey: 'user:user-1' },
+    ] as const;
+    let capacity = 'full';
+    const findEvent = vi.fn(async () => capacity);
+    const observer = new QueryObserver(queryClient, {
+      queryFn: findEvent,
+      queryKey: eventDetailsQueryKey,
+    });
+    const unsubscribe = observer.subscribe(vi.fn());
+
+    try {
+      await vi.waitFor(() => {
+        expect(findEvent).toHaveBeenCalledOnce();
+        expect(queryClient.getQueryData(eventDetailsQueryKey)).toBe('full');
+      });
+      capacity = 'available';
+      const fixture = render(registrationStatus());
+
+      findButton(fixture, 'Cancel registration')?.click();
+
+      await vi.waitFor(() => {
+        expect(cancelRegistration).toHaveBeenCalledOnce();
+        expect(findEvent).toHaveBeenCalledTimes(2);
+        expect(queryClient.getQueryData(eventDetailsQueryKey)).toBe(
+          'available',
+        );
+      });
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it('keeps independently granted organizer authority after organizer/helper cancellation', async () => {
     dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
     canOrganize.mockResolvedValue(true);
@@ -783,7 +822,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       { throwOnError: true },
     );
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
-      { exact: true, queryKey: ['event-details', 'event-1'] },
+      { queryKey: ['event-details', 'event-1'] },
       { throwOnError: true },
     );
     expect(queryClient.resetQueries).toHaveBeenCalledWith(

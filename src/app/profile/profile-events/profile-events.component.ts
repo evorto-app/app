@@ -87,6 +87,7 @@ export const profileEventContinuePaymentUrl = (event: {
 };
 
 export const profileEventActionNote = (event: {
+  cancellationReason: UsersEventSummaryRecord['cancellationReason'];
   checkInTime?: null | string;
   checkoutUrl: null | string;
   organizingRegistration: boolean;
@@ -95,6 +96,10 @@ export const profileEventActionNote = (event: {
   status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): string => {
   if (event.status === 'CANCELLED') {
+    const eligibilityChangedCopy =
+      event.cancellationReason === 'eligibilityChangedAfterPayment'
+        ? 'Your registration was cancelled because the event or registration option was no longer available to you when payment completed. This can happen if the event is no longer published, the option was removed, or your organization membership or roles changed. The full amount you paid was queued for refund to your original payment method.'
+        : null;
     const refunds = event.refunds ?? [];
     const completedClaims = refunds.filter(
       ({ state }) => state === 'succeeded',
@@ -107,7 +112,9 @@ export const profileEventActionNote = (event: {
       refunds.length > 0 &&
       refunds.every(({ state }) => state === 'succeeded')
     ) {
-      return 'Your registration is cancelled and every recorded refund completed.';
+      return eligibilityChangedCopy
+        ? `${eligibilityChangedCopy} Every recorded refund has completed.`
+        : 'Your registration is cancelled and every recorded refund completed.';
     }
 
     const guidance: string[] = [];
@@ -127,10 +134,17 @@ export const profileEventActionNote = (event: {
       const organizerFollowUp = needsOrganizerFollowUp
         ? ' Contact the organizer for an update.'
         : '';
-      return `Your registration remains cancelled, but ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp} Do not pay or register again to retry it.${progress}`;
+      const eligibilityRetryGuidance =
+        " Do not retry this payment. After the refund, review the event's current status and options or contact the organizer.";
+      const refundProgress = `Refund status: ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp}${eligibilityRetryGuidance}${progress}`;
+      return eligibilityChangedCopy
+        ? `${eligibilityChangedCopy} ${refundProgress}`
+        : `Your registration remains cancelled, but ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp} Do not pay or register again to retry it.${progress}`;
     }
 
-    return 'Your registration is cancelled. No refund is recorded for this registration.';
+    return eligibilityChangedCopy
+      ? `${eligibilityChangedCopy} No refund is currently recorded for this registration; contact the organizer for an update.`
+      : 'Your registration is cancelled. No refund is recorded for this registration.';
   }
 
   if (profileEventContinuePaymentUrl(event)) {

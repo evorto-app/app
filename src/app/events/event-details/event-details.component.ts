@@ -17,21 +17,16 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '@app/shared/components/icon/icon.component';
 import { Shape } from '@app/shared/components/shape/shape';
 import { MaterialThemeDirective } from '@app/shared/directives/material-theme.directive';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft, faUsers } from '@fortawesome/duotone-regular-svg-icons';
 import {
   eventDiscoveryDescription,
   eventDiscoveryLabel,
-  type EventListingAudience,
-} from '@shared/event-listing-audience';
+} from '@shared/event-discovery';
 import {
   injectMutation,
   injectQuery,
@@ -54,21 +49,26 @@ import { EventRegistrationOptionComponent } from '../event-registration-option/e
 import { EventReviewDialogComponent } from '../event-review-dialog/event-review-dialog.component';
 import { eventReviewActionErrorRequiresRefresh } from '../event-rpc-error';
 import { SubmitEventDialogComponent } from '../submit-event-dialog/submit-event-dialog.component';
-import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/update-visibility-dialog.component';
+import {
+  UpdateAnnouncementDiscoveryDialogComponent,
+  type UpdateAnnouncementDiscoveryDialogResult,
+} from '../update-announcement-discovery-dialog/update-announcement-discovery-dialog.component';
 
 export type RegistrationOptionsState =
-  'hiddenByEligibility' | 'none' | 'visible';
+  'hiddenByEligibility' | 'none' | 'requiresSignIn' | 'visible';
 
 export const registrationOptionsState = (event: {
+  hasRegistrationOptions: boolean;
   registrationOptions: readonly unknown[];
   registrationOptionsHiddenByEligibility: boolean;
 }): RegistrationOptionsState => {
   if (event.registrationOptions.length > 0) {
     return 'visible';
   }
-  return event.registrationOptionsHiddenByEligibility
-    ? 'hiddenByEligibility'
-    : 'none';
+  if (event.registrationOptionsHiddenByEligibility) {
+    return 'hiddenByEligibility';
+  }
+  return event.hasRegistrationOptions ? 'requiresSignIn' : 'none';
 };
 
 export const outgoingRegistrationTransferCopy = (
@@ -251,8 +251,14 @@ export class EventDetailsOperations {
     return this.rpc.events.findOne.queryKey({ id });
   }
 
-  findEvent(id: string) {
-    return this.rpc.events.findOne.queryOptions({ id });
+  findEvent(id: string, principalKey: string) {
+    return {
+      queryFn: () => this.rpc.events.findOne.call({ id }),
+      queryKey: [
+        ...this.rpc.events.findOne.queryKey({ id }),
+        { principalKey },
+      ] as const,
+    };
   }
 
   myCards() {
@@ -279,8 +285,8 @@ export class EventDetailsOperations {
     return this.rpc.events.submitForReview.mutationOptions();
   }
 
-  updateListing() {
-    return this.rpc.events.updateListing.mutationOptions();
+  updateAnnouncementDiscovery() {
+    return this.rpc.events.updateAnnouncementDiscovery.mutationOptions();
   }
 }
 
@@ -293,7 +299,6 @@ export class EventDetailsOperations {
     CurrencyPipe,
     TenantDatePipe,
     MatButtonModule,
-    MatMenuModule,
     RouterLink,
     FontAwesomeModule,
     EventRegistrationOptionComponent,
@@ -327,17 +332,39 @@ export class EventDetailsOperations {
 export class EventDetailsComponent {
   public eventId = input.required<string>();
   private readonly operations = inject(EventDetailsOperations);
-  protected readonly eventQuery = injectQuery(() =>
-    this.operations.findEvent(this.eventId()),
-  );
   protected readonly selfQuery = injectQuery(() => this.operations.self());
+  private readonly eventProjectionPrincipalKey = computed(() => {
+    if (this.selfQuery.isPending()) {
+      return null;
+    }
+    if (this.selfQuery.isSuccess()) {
+      const self = this.selfQuery.data();
+      return self ? `user:${self.id}` : 'anonymous';
+    }
+    return 'identity-unavailable';
+  });
+  protected readonly eventQuery = injectQuery(() => {
+    const principalKey = this.eventProjectionPrincipalKey();
+    return {
+      ...this.operations.findEvent(
+        this.eventId(),
+        principalKey ?? 'identity-pending',
+      ),
+      enabled: principalKey !== null,
+    };
+  });
   private readonly isEventCreator = computed(() => {
-    if (!this.selfQuery.isSuccess() || this.selfQuery.isFetching()) {
+    if (
+      !this.selfQuery.isSuccess() ||
+      this.selfQuery.isFetching() ||
+      !this.eventQuery.isSuccess() ||
+      this.eventQuery.isFetching()
+    ) {
       return false;
     }
     const event = this.eventQuery.data();
     const self = this.selfQuery.data();
-    return !!event && !!self && event.creatorId === self.id;
+    return !!event && !!self && event.userIsCreator;
   });
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
@@ -418,7 +445,7 @@ export class EventDetailsComponent {
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faUsers = faUsers;
   protected readonly outgoingRegistrationTransferCopy =
     outgoingRegistrationTransferCopy;
   protected readonly registrationOptionGroups = computed(() =>
@@ -440,8 +467,8 @@ export class EventDetailsComponent {
   protected readonly submitForReviewMutation = injectMutation(() =>
     this.operations.submitForReview(),
   );
-  protected readonly updateListingMutation = injectMutation(() =>
-    this.operations.updateListing(),
+  protected readonly updateAnnouncementDiscoveryMutation = injectMutation(() =>
+    this.operations.updateAnnouncementDiscovery(),
   );
   private dialog = inject(MatDialog);
 
@@ -460,34 +487,36 @@ export class EventDetailsComponent {
       }
     });
   }
-  async updateListingAudience() {
+  async updateAnnouncementDiscovery() {
     if (!this.controlsInteractive() || !this.eventQuery.isSuccess()) return;
 
     const event = this.eventQuery.data();
+    if (event.announcementRoleIds === null) {
+      this.notifications.showError(
+        'Announcement roles are unavailable. Refresh the event and try again.',
+      );
+      return;
+    }
 
-    const listing:
-      | undefined
-      | {
-          announcementRoleIds: string[];
-          listingAudience: EventListingAudience;
-        } = await firstValueFrom(
-      this.dialog
-        .open(UpdateVisibilityDialogComponent, {
-          data: { event },
-        })
-        .afterClosed(),
-    );
-    if (listing !== undefined) {
-      this.updateListingMutation.mutate(
+    const announcementDiscovery:
+      undefined | UpdateAnnouncementDiscoveryDialogResult =
+      await firstValueFrom(
+        this.dialog
+          .open(UpdateAnnouncementDiscoveryDialogComponent, {
+            data: { event },
+          })
+          .afterClosed(),
+      );
+    if (announcementDiscovery !== undefined) {
+      this.updateAnnouncementDiscoveryMutation.mutate(
         {
-          announcementRoleIds: listing.announcementRoleIds,
+          announcementRoleIds: announcementDiscovery.announcementRoleIds,
           eventId: this.eventId(),
-          listingAudience: listing.listingAudience,
         },
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to update event listing'),
+              getErrorMessage(error, 'Failed to update announcement discovery'),
             );
           },
           onSuccess: async () => {
