@@ -3,13 +3,8 @@
   "checkpoint_id": "fca44f0fb7ad",
   "strategy": "manual-commit",
   "branch": "codex/full-application-simplification-review",
-  "checkpoints_count": 3,
-  "files_touched": [
-    "APPLICATION_REVIEW_QUEUE.md",
-    "src/app/admin/admin-overview/admin-overview.component.html",
-    "src/app/admin/admin-overview/admin-overview.component.ts",
-    "tests/README.md"
-  ],
+  "checkpoints_count": 1,
+  "files_touched": null,
   "sessions": [
     {
       "metadata": "/fc/a44f0fb7ad/0/metadata.json",
@@ -19,10 +14,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 7223937,
+    "input_tokens": 7283133,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 403091456,
-    "output_tokens": 733825,
-    "api_call_count": 3225
+    "cache_read_tokens": 406208256,
+    "output_tokens": 735553,
+    "api_call_count": 3242
   }
 }
