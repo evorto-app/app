@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "a382147aa1a4",
+  "strategy": "manual-commit",
+  "branch": "codex/full-application-simplification-review",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/fail-loud-template-role-integrity.md",
+    ".changeset/harden-tenant-brand-assets.md",
+    ".changeset/require-discount-provider-validation.md",
+    ".changeset/validate-tenant-brand-asset-bytes.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "helpers/add-registrations.ts",
+    "helpers/seed-requirements.spec.ts",
+    "helpers/seed-tenant.ts",
+    "infrastructure/scaleway/README.md",
+    "package.json",
+    "src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.ts",
+    "src/server/discounts/providers/index.ts",
+    "src/server/effect/rpc/handlers/admin.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/discounts.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/discounts.handlers.ts",
+    "src/server/http/tenant-brand-asset.web-handler.spec.ts",
+    "src/server/integrations/object-storage.ts",
+    "src/server/tenant-brand-assets.spec.ts",
+    "src/server/tenant-brand-assets.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a3/82147aa1a4/0/metadata.json",
+      "transcript": "/a3/82147aa1a4/0/full.jsonl",
+      "content_hash": "/a3/82147aa1a4/0/content_hash.txt",
+      "prompt": "/a3/82147aa1a4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2544712,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 148021248,
+    "output_tokens": 271063,
+    "api_call_count": 1234
+  }
+}
