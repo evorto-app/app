@@ -1,9 +1,0 @@
-Our deployment on https://staging.evorto.app/events seems to be super slow, every call to the server takes about 2s, what is up there?
-
----
-
-I'm not worried about the cold start, but rather the bad performance after
-
----
-
-Prepare both, instructions to improve this latency and instructions to monitor this latency in the future

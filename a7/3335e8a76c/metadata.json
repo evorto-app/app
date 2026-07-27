@@ -3,26 +3,24 @@
   "checkpoint_id": "a73335e8a76c",
   "strategy": "manual-commit",
   "branch": "codex/staging-latency-runbooks",
-  "checkpoints_count": 1,
+  "checkpoints_count": 0,
   "files_touched": [
-    "LATENCY_IMPROVEMENT.md",
-    "QUALITY.md",
-    "infrastructure/scaleway/LATENCY_MONITORING.md",
-    "infrastructure/scaleway/README.md"
+    "src/server/context/http-request-context.ts",
+    "src/server/context/request-context-resolver.ts"
   ],
   "sessions": [
     {
       "metadata": "/a7/3335e8a76c/0/metadata.json",
       "transcript": "/a7/3335e8a76c/0/full.jsonl",
       "content_hash": "/a7/3335e8a76c/0/content_hash.txt",
-      "prompt": "/a7/3335e8a76c/0/prompt.txt"
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 913991,
+    "input_tokens": 84214,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 27271936,
-    "output_tokens": 114096,
-    "api_call_count": 181
+    "cache_read_tokens": 2178304,
+    "output_tokens": 6804,
+    "api_call_count": 27
   }
 }
