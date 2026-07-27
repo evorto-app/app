@@ -1,11 +1,3 @@
-We can not run e2e tests atm, they are running somewhere else
-
----
-
-Babysit the pr with reviews from copilot and tell me once it is settled
-
----
-
 <heartbeat>
   <automation_id>babysit-evorto-pr-124</automation_id>
   <current_time_iso>2026-07-27T13:28:26.878Z</current_time_iso>
