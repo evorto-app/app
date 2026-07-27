@@ -140,7 +140,7 @@ export const resolveAuthenticationContext = (input: {
   isAuthenticated: input.isAuthenticated,
 });
 
-export const resolveTenantContext = (input: {
+const resolveTenantContextEffect = (input: {
   cookies: Record<string, unknown> | undefined;
   protocol: string;
   requestHost: readonly string[] | string | undefined;
@@ -175,20 +175,29 @@ export const resolveTenantContext = (input: {
       tenantRecord = yield* findTenantByDomain(tenantCookie);
     }
 
+    const tenant = tenantRecord
+      ? Schema.decodeUnknownSync(Tenant)(tenantRecord)
+      : undefined;
+    yield* Effect.annotateCurrentSpan({
+      'evorto.tenant_resolved': tenant !== undefined,
+    });
+
     return {
       cause,
-      tenant: tenantRecord
-        ? Schema.decodeUnknownSync(Tenant)(tenantRecord)
-        : undefined,
+      tenant,
     };
   });
+
+export const resolveTenantContext = Effect.fn('Server.resolveTenantContext')(
+  resolveTenantContextEffect,
+);
 
 const resolveCurrentTenantOnboarding = (input: {
   tenantId: string;
   userId: string;
 }) => databaseEffect((database) => hasCurrentTenantOnboarding(database, input));
 
-export const resolveUserContext = (
+const resolveUserContextEffect = (
   input: {
     isAuthenticated: boolean;
     oidcUser: unknown;
@@ -197,6 +206,10 @@ export const resolveUserContext = (
   resolveOnboardingComplete = resolveCurrentTenantOnboarding,
 ) =>
   Effect.gen(function* () {
+    yield* Effect.annotateCurrentSpan({
+      'evorto.authenticated': input.isAuthenticated,
+      'evorto.user_context_resolved': false,
+    });
     if (!input.isAuthenticated) {
       return;
     }
@@ -224,7 +237,14 @@ export const resolveUserContext = (
     const onboardingComplete = yield* resolveOnboardingComplete({
       tenantId: input.tenantId,
       userId: user.id,
-    });
+    }).pipe(
+      Effect.tap((complete) =>
+        Effect.annotateCurrentSpan({
+          'evorto.onboarding_complete': complete,
+        }),
+      ),
+      Effect.withSpan('Server.resolveUserOnboarding'),
+    );
     if (!onboardingComplete) {
       return;
     }
@@ -257,23 +277,29 @@ export const resolveUserContext = (
 
     const roleIds = assignedRoles.map((role) => role.id);
 
-    const attributeResponse = yield* databaseEffect((database) =>
-      Effect.map(
+    const attributeResponse = yield* Effect.gen(function* () {
+      const result = yield* databaseEffect((database) =>
         getPreparedStatements(
           database,
         ).getUserAttributesByTenantAndUser.execute({
           tenantId: input.tenantId,
           userId: user.id,
         }),
-        (result) => result[0],
-      ),
-    );
+      );
+      yield* Effect.annotateCurrentSpan({
+        'db.response.returned_rows': result.length,
+      });
+      return result[0];
+    }).pipe(Effect.withSpan('Server.resolveUserAttributes'));
 
     const attributes = [
       ...(attributeResponse?.organizesSome
         ? (['events:organizesSome'] as const)
         : []),
     ];
+    yield* Effect.annotateCurrentSpan({
+      'evorto.user_context_resolved': true,
+    });
 
     return {
       ...user,
@@ -283,6 +309,10 @@ export const resolveUserContext = (
       roleIds,
     };
   });
+
+export const resolveUserContext = Effect.fn('Server.resolveUserContext')(
+  resolveUserContextEffect,
+);
 
 export interface TenantContextResolution {
   cause: {

@@ -203,10 +203,15 @@ export const eventQueryHandlers = {
     }),
   'events.eventList': (input, _options) =>
     Effect.gen(function* () {
-      const { tenant } = yield* RpcAccess.current();
-      const { user } = yield* RpcAccess.current();
+      const { authenticated, tenant, user } = yield* RpcAccess.current();
       const userPermissions = user?.permissions ?? [];
       const canInspectAllTenantEvents = canInspectTenantEvents(userPermissions);
+      yield* Effect.annotateCurrentSpan({
+        'evorto.authenticated': authenticated,
+        'evorto.events.include_unlisted': input.includeUnlisted,
+        'evorto.events.limit': input.limit,
+        'evorto.events.offset': input.offset,
+      });
 
       if (user?.id !== input.userId) {
         yield* Effect.logWarning(
@@ -267,68 +272,79 @@ export const eventQueryHandlers = {
         rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
       const startAfter = new Date(input.startAfter);
 
-      const selectedEvents = yield* databaseEffect((database) =>
-        database
-          .select({
-            creatorId: eventInstances.creatorId,
-            icon: eventInstances.icon,
-            id: eventInstances.id,
-            start: eventInstances.start,
-            status: eventInstances.status,
-            title: eventInstances.title,
-            unlisted: eventInstances.unlisted,
-            userRegistered: exists(
-              database
-                .select()
-                .from(eventRegistrations)
-                .where(
-                  and(
-                    eq(eventRegistrations.eventId, eventInstances.id),
-                    eq(eventRegistrations.userId, user?.id ?? ''),
-                    not(eq(eventRegistrations.status, 'CANCELLED')),
+      const selectedEvents = yield* Effect.gen(function* () {
+        yield* Effect.annotateCurrentSpan({
+          'db.operation.name': 'events.eventList',
+          'evorto.events.limit': input.limit,
+          'evorto.events.offset': input.offset,
+        });
+        const events = yield* databaseEffect((database) =>
+          database
+            .select({
+              creatorId: eventInstances.creatorId,
+              icon: eventInstances.icon,
+              id: eventInstances.id,
+              start: eventInstances.start,
+              status: eventInstances.status,
+              title: eventInstances.title,
+              unlisted: eventInstances.unlisted,
+              userRegistered: exists(
+                database
+                  .select()
+                  .from(eventRegistrations)
+                  .where(
+                    and(
+                      eq(eventRegistrations.eventId, eventInstances.id),
+                      eq(eventRegistrations.userId, user?.id ?? ''),
+                      not(eq(eventRegistrations.status, 'CANCELLED')),
+                    ),
                   ),
-                ),
-            ),
-          })
-          .from(eventInstances)
-          .where(
-            and(
-              gt(eventInstances.start, startAfter),
-              eq(eventInstances.tenantId, tenant.id),
-              inArray(eventInstances.status, [...input.status]),
-              ...(input.includeUnlisted
-                ? []
-                : [eq(eventInstances.unlisted, false)]),
-              ...(canInspectAllTenantEvents
-                ? []
-                : [
-                    exists(
-                      database
-                        .select()
-                        .from(eventRegistrationOptions)
-                        .where(
-                          and(
-                            eq(
-                              eventRegistrationOptions.eventId,
-                              eventInstances.id,
-                            ),
-                            or(
-                              sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
-                              arrayOverlaps(
-                                eventRegistrationOptions.roleIds,
-                                roleFilters,
+              ),
+            })
+            .from(eventInstances)
+            .where(
+              and(
+                gt(eventInstances.start, startAfter),
+                eq(eventInstances.tenantId, tenant.id),
+                inArray(eventInstances.status, [...input.status]),
+                ...(input.includeUnlisted
+                  ? []
+                  : [eq(eventInstances.unlisted, false)]),
+                ...(canInspectAllTenantEvents
+                  ? []
+                  : [
+                      exists(
+                        database
+                          .select()
+                          .from(eventRegistrationOptions)
+                          .where(
+                            and(
+                              eq(
+                                eventRegistrationOptions.eventId,
+                                eventInstances.id,
+                              ),
+                              or(
+                                sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
+                                arrayOverlaps(
+                                  eventRegistrationOptions.roleIds,
+                                  roleFilters,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ),
-                  ]),
-            ),
-          )
-          .limit(input.limit)
-          .offset(input.offset)
-          .orderBy(eventInstances.start),
-      );
+                      ),
+                    ]),
+              ),
+            )
+            .limit(input.limit)
+            .offset(input.offset)
+            .orderBy(eventInstances.start),
+        );
+        yield* Effect.annotateCurrentSpan({
+          'db.response.returned_rows': events.length,
+        });
+        return events;
+      }).pipe(Effect.withSpan('Db.events.eventList'));
 
       const eventRecords = selectedEvents.map((event) => ({
         icon: event.icon,

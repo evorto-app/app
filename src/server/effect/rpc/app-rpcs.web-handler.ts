@@ -52,7 +52,7 @@ const appRpcRuntimeLayer = Layer.mergeAll(
 );
 
 export const appRpcHttpAppLayer = Layer.effect(AppRpcHttpApp)(
-  RpcServer.toHttpEffect(ServerAppRpcs).pipe(
+  RpcServer.toHttpEffect(ServerAppRpcs, { spanPrefix: 'Rpc' }).pipe(
     Effect.provide(appRpcRuntimeLayer),
   ),
 );
