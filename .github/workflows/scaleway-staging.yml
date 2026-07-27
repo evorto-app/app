@@ -536,6 +536,25 @@ jobs:
           generated_status="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' "${generated_endpoint}")"
           test "${generated_status}" = "404"
 
+      - name: Capture report-only deployment latency baseline
+        continue-on-error: true
+        if: >-
+          github.event_name != 'schedule'
+          || steps.ops.outputs.changed == 'true'
+          || steps.traffic.outputs.worker_changed == 'true'
+          || steps.traffic.outputs.web_changed == 'true'
+        run: |
+          ops/scaleway/probe-http-latency.sh \
+            --origin https://staging.evorto.app \
+            --output deployment/latency.json \
+            --summary-output deployment/latency-summary.md \
+            --warm-samples 10 \
+            --mode report-only \
+            --vantage github-actions/deployment
+          if [ -s deployment/latency-summary.md ]; then
+            cat deployment/latency-summary.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
       - name: Write append-only successful deployment manifest
         id: manifest
         env:
@@ -550,6 +569,10 @@ jobs:
         run: |
           timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           manifest_key="deployments/staging/${REVISION}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          latency_summary='null'
+          if [ -s deployment/latency.json ]; then
+            latency_summary="$(jq --compact-output '.summary' deployment/latency.json)"
+          fi
           jq --null-input \
             --arg digest "${DIGEST}" \
             --arg environment staging \
@@ -562,6 +585,7 @@ jobs:
             --arg workflow "${GITHUB_WORKFLOW}" \
             --arg workflow_run_id "${GITHUB_RUN_ID}" \
             --arg workflow_run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --argjson latency_summary "${latency_summary}" \
             '{
               status: "succeeded",
               environment: $environment,
@@ -574,6 +598,7 @@ jobs:
               workflow: $workflow,
               workflowRunId: $workflow_run_id,
               workflowRunAttempt: $workflow_run_attempt,
+              latency: $latency_summary,
               timestamp: $timestamp
             }' > deployment/manifest.json
 
@@ -597,7 +622,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: scaleway-staging-${{ needs.resolve-revision.outputs.revision }}
-          path: deployment/manifest.json
+          path: |
+            deployment/manifest.json
+            deployment/latency.json
+            deployment/latency-summary.md
           if-no-files-found: error
           retention-days: 90
 

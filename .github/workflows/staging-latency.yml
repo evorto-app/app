@@ -1,0 +1,60 @@
+name: Monitor staging latency
+
+on:
+  workflow_dispatch:
+    inputs:
+      enforce_critical:
+        description: Fail when a warm-path critical threshold is exceeded
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-latency-monitor
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe warm staging latency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout monitor
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Capture external latency samples
+        env:
+          MODE: ${{ inputs.enforce_critical && 'enforce-critical' || 'report-only' }}
+          VANTAGE: github-actions/${{ runner.os }}-${{ runner.arch }}
+        run: |
+          mkdir -p latency
+          ops/scaleway/probe-http-latency.sh \
+            --origin https://staging.evorto.app \
+            --output latency/staging.json \
+            --summary-output latency/summary.md \
+            --warm-samples 4 \
+            --mode "${MODE}" \
+            --vantage "${VANTAGE}"
+
+      - name: Publish latency summary
+        if: always()
+        run: |
+          if [ -s latency/summary.md ]; then
+            cat latency/summary.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload latency evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: staging-latency-${{ github.run_id }}-${{ github.run_attempt }}
+          path: latency/
+          if-no-files-found: warn
+          retention-days: 7

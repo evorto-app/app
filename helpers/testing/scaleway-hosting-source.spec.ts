@@ -483,6 +483,32 @@ describe('Scaleway hosting source', () => {
     expect(productionSmoke).toContain('https://alpha.evorto.app/events');
   });
 
+  it('records report-only warm latency independently and on deployments', () => {
+    const monitor = source('.github/workflows/staging-latency.yml');
+    const staging = source('.github/workflows/scaleway-staging.yml');
+    const deploymentProbe = between(
+      staging,
+      '- name: Capture report-only deployment latency baseline',
+      '- name: Write append-only successful deployment manifest',
+    );
+
+    expect(monitor).toContain('cron: "7,22,37,52 * * * *"');
+    expect(monitor).toContain('--warm-samples 4');
+    expect(monitor).toContain('--mode "${MODE}"');
+    expect(monitor).toContain('retention-days: 7');
+    expect(monitor).toContain('cancel-in-progress: false');
+    expect(deploymentProbe).toContain('--warm-samples 10');
+    expect(deploymentProbe).toContain('--mode report-only');
+    expect(deploymentProbe).toContain('continue-on-error: true');
+    expect(deploymentProbe).toContain(
+      'if [ -s deployment/latency-summary.md ]; then',
+    );
+    expect(staging).toContain('--argjson latency_summary');
+    expect(staging).toContain('latency: $latency_summary');
+    expect(staging).toContain('deployment/latency.json');
+    expect(staging).toContain('deployment/latency-summary.md');
+  });
+
   it('builds once, records immutable evidence, and promotes the exact OCI digest', () => {
     const staging = source('.github/workflows/scaleway-staging.yml');
     const production = source('.github/workflows/scaleway-production.yml');

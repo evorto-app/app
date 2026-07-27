@@ -273,30 +273,41 @@ const extractTenantBrandAsset = (
   };
 };
 
-const renderSsrWeb = (request: HttpServerRequest.HttpServerRequest) =>
-  Effect.gen(function* () {
-    const authSession = yield* loadAuthSession(request);
-    const requestContextOption = yield* resolveHttpRequestContext(
-      request,
-      authSession,
-    ).pipe(
-      Effect.map((context) => Option.fromNullishOr(context)),
-      Effect.catchTag('HttpRequestTenantNotFoundError', () =>
-        Effect.succeed(Option.none()),
-      ),
-    );
-    if (Option.isNone(requestContextOption)) {
-      return null;
-    }
-    const requestContext = requestContextOption.value;
-
-    const webRequest = yield* HttpServerRequest.toWeb(request);
-    const renderedResponse = yield* Effect.tryPromise(() =>
-      angularApp.handle(webRequest, requestContext),
-    );
-
-    return renderedResponse;
+const renderSsrWeb = Effect.fn('Server.renderSsr')(function* (
+  request: HttpServerRequest.HttpServerRequest,
+) {
+  yield* Effect.annotateCurrentSpan({ 'evorto.ssr': true });
+  const authSession = yield* loadAuthSession(request);
+  const requestContextOption = yield* resolveHttpRequestContext(
+    request,
+    authSession,
+  ).pipe(
+    Effect.map((context) => Option.fromNullishOr(context)),
+    Effect.catchTag('HttpRequestTenantNotFoundError', () =>
+      Effect.succeed(Option.none()),
+    ),
+  );
+  if (Option.isNone(requestContextOption)) {
+    return null;
+  }
+  const requestContext = requestContextOption.value;
+  yield* Effect.annotateCurrentSpan({
+    'evorto.authenticated': requestContext.authentication.isAuthenticated,
   });
+
+  const webRequest = yield* HttpServerRequest.toWeb(request);
+  const renderedResponse = yield* Effect.tryPromise(() =>
+    angularApp.handle(webRequest, requestContext),
+  ).pipe(
+    Effect.withSpan('Angular.handle', {
+      attributes: {
+        'evorto.authenticated': requestContext.authentication.isAuthenticated,
+      },
+    }),
+  );
+
+  return renderedResponse;
+});
 
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   renderSsrWeb(request).pipe(
