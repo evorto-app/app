@@ -177,10 +177,11 @@ options:
 - unlisted events never appear in normal discovery
 
 Listing never makes an otherwise ineligible registration option available.
-Optionless operational events remain outside normal discovery for ordinary
-viewers; platform tenant inspectors can still find them. A separate product
-decision is required before announcement-style events gain a first-class
-discovery classifier. Do not infer an audience for them from missing options.
+Optionless announcement events use an explicit set of tenant roles for ordinary
+discovery. An announcement with no selected roles is link-only. Announcement
+roles affect discovery only: they do not grant event access or send
+notifications. Direct-link behavior is unchanged, and templates do not persist
+announcement roles.
 
 Anonymous users may see events when those events have registration options available to roles that every new user receives by default in that tenant. Anonymous visibility should not show events that a user would lose access to immediately after signing in.
 
@@ -334,6 +335,12 @@ They do not behave like a reservation queue. Waitlist messages are informative
 only: receiving one never reserves capacity, creates a checkout hold, or
 guarantees a place.
 
+Waitlist entries do not consume the tenant's active-registration limit. Before
+a waitlisted user receives a real registration, the normal registration
+boundary must recheck the current limit and surface an unavailable outcome if
+the user is no longer eligible. Joining a waitlist never reserves limit
+capacity.
+
 Users should intentionally join a waitlist through a distinct action when an option is full. Do not silently add a user to a waitlist as a side effect of failed registration.
 
 ## Transfers and Resale
@@ -364,11 +371,14 @@ The intended workflow:
    and purchased-add-on payment after prior successful refunds.
 
 Previous participant-question answers are never part of the transfer bundle.
-An immediate organizer or participant reassignment is available only when the
-whole bundle is free, no source refund is required, and the registration option
-has no participant questions. When current questions exist, the recipient must
-use the private link/code claim so they can provide their own answers before
-ownership changes.
+Participant self-service has one path: the current owner creates a private
+offer, and the recipient claims it by link or code. A wholly free, questionless
+claim with no source refund completes immediately. Organizers retain a separate
+operational direct reassignment only when the whole bundle is free, no source
+refund is required, and the registration option has no participant questions.
+When current questions or any payment are involved, the current owner must
+create the private offer so the recipient can review the bundle, provide their
+own answers, and complete the Stripe-backed flow before ownership changes.
 
 The goal is to let users transfer spots without trusting each other directly.
 
@@ -413,6 +423,7 @@ Templates should include as much reusable information as practical, such as:
 - title
 - description
 - location
+- default event listing audience
 - participant signup defaults
 - organizer signup defaults
 - registration options
@@ -430,6 +441,9 @@ to change relevant details during event setup, and later template edits must not
 retroactively alter existing events. Some duplication between templates and
 event instances is acceptable if it keeps event instances stable and
 understandable.
+
+The template's listing audience is only the default copied into each new event.
+It does not control whether the template itself appears in template management.
 
 ## Roles, Capabilities, and Eligibility
 

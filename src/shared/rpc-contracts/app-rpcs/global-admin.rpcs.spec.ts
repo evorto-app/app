@@ -9,6 +9,7 @@ import {
   GlobalAdminPlatformAuditCursor,
   GlobalAdminTenantCreateInput,
   GlobalAdminTenantUpdateError,
+  GlobalAdminTenantUpdateInput,
   GlobalAdminTenantUrlMigrationBlockedError,
   GlobalAdminTenantWriteInput,
 } from './global-admin.rpcs';
@@ -119,6 +120,24 @@ describe('GlobalAdminTenantWriteInput', () => {
         tenant: tenantWriteInput,
       }),
     ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)({
+        expectedStripeAccountId: 'acct_123',
+        id: 'tenant-1',
+        reason: 'Requested by tenant support contact',
+        tenant: tenantWriteInput,
+      }),
+    ).not.toThrow();
+  });
+
+  it('requires the originally loaded Stripe account on tenant updates', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)({
+        id: 'tenant-1',
+        reason: 'Requested by tenant support contact',
+        tenant: tenantWriteInput,
+      }),
+    ).toThrow();
   });
 
   it('requires a primary domain on tenant writes', () => {

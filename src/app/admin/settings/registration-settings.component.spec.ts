@@ -6,18 +6,14 @@ import nodePath from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  createGeneralSettingsFormModel,
-  generalSettingsBrandAssetUploadDisabled,
-  generalSettingsFormSchema,
-  generalSettingsSaveDisabled,
   nonNegativeIntegerValidationError,
-  tenantTimezoneValidationError,
-} from './general-settings.component';
+  registrationSettingsFormSchema,
+} from './registration-settings.component';
 
 const template = readFileSync(
   nodePath.join(
     process.cwd(),
-    'src/app/admin/general-settings/general-settings.component.html',
+    'src/app/admin/settings/registration-settings.component.html',
   ),
   'utf8',
 );
@@ -26,79 +22,17 @@ beforeEach(() => {
   TestBed.configureTestingModule({});
 });
 
-describe('generalSettingsSaveDisabled', () => {
-  it('blocks tenant settings saves while invalid, submitting, or mutation-pending', () => {
-    expect(
-      generalSettingsSaveDisabled({
-        formInvalid: true,
-        formSubmitting: false,
-        mutationPending: false,
-      }),
-    ).toBe(true);
-    expect(
-      generalSettingsSaveDisabled({
-        formInvalid: false,
-        formSubmitting: true,
-        mutationPending: false,
-      }),
-    ).toBe(true);
-    expect(
-      generalSettingsSaveDisabled({
-        formInvalid: false,
-        formSubmitting: false,
-        mutationPending: true,
-      }),
-    ).toBe(true);
-    expect(
-      generalSettingsSaveDisabled({
-        formInvalid: false,
-        formSubmitting: false,
-        mutationPending: false,
-      }),
-    ).toBe(false);
-  });
-});
-
-describe('generalSettingsBrandAssetUploadDisabled', () => {
-  it('blocks brand asset uploads while any upload is active or mutation-pending', () => {
-    expect(
-      generalSettingsBrandAssetUploadDisabled({
-        mutationPending: false,
-        uploadingBrandAsset: 'logo',
-      }),
-    ).toBe(true);
-    expect(
-      generalSettingsBrandAssetUploadDisabled({
-        mutationPending: true,
-        uploadingBrandAsset: null,
-      }),
-    ).toBe(true);
-    expect(
-      generalSettingsBrandAssetUploadDisabled({
-        mutationPending: false,
-        uploadingBrandAsset: null,
-      }),
-    ).toBe(false);
-  });
-});
-
-describe('tenantTimezoneValidationError', () => {
-  it('accepts city or region timezones and rejects browser-local abbreviations', () => {
-    expect(tenantTimezoneValidationError('America/New_York')).toBeUndefined();
-    expect(tenantTimezoneValidationError('PST')).toEqual({
-      kind: 'ianaTimezone',
-      message: 'Enter a recognized city or region timezone.',
-    });
-  });
-});
-
-describe('tenant policy deadline validation', () => {
+describe('registration policy validation', () => {
   it('requires every numeric policy value before settings can be saved', () => {
-    const model = createGeneralSettingsFormModel();
+    const model = {
+      cancellationDeadlineHoursBeforeStart: 120,
+      maxActiveRegistrationsPerUser: 0,
+      transferDeadlineHoursBeforeStart: 0,
+    };
     Reflect.set(model, 'cancellationDeadlineHoursBeforeStart', null);
     Reflect.set(model, 'maxActiveRegistrationsPerUser', null);
     Reflect.set(model, 'transferDeadlineHoursBeforeStart', null);
-    const settings = form(signal(model), generalSettingsFormSchema, {
+    const settings = form(signal(model), registrationSettingsFormSchema, {
       injector: TestBed.inject(Injector),
     });
 
@@ -123,14 +57,8 @@ describe('tenant policy deadline validation', () => {
   });
 
   it.each([
-    {
-      expected: undefined,
-      value: 0,
-    },
-    {
-      expected: undefined,
-      value: 12,
-    },
+    { expected: undefined, value: 0 },
+    { expected: undefined, value: 12 },
     {
       expected: {
         kind: 'integer',
@@ -152,12 +80,11 @@ describe('tenant policy deadline validation', () => {
   it('rejects fractional and negative settings in the form schema', () => {
     const settings = form(
       signal({
-        ...createGeneralSettingsFormModel(),
         cancellationDeadlineHoursBeforeStart: -1,
         maxActiveRegistrationsPerUser: 1.5,
         transferDeadlineHoursBeforeStart: 2.5,
       }),
-      generalSettingsFormSchema,
+      registrationSettingsFormSchema,
       {
         injector: TestBed.inject(Injector),
       },
@@ -183,7 +110,7 @@ describe('tenant policy deadline validation', () => {
     ).toContain('Enter a whole number.');
   });
 
-  it('renders each numeric setting error at its field', () => {
+  it('renders each numeric setting error and the waitlist limit rule', () => {
     expect(template).toContain(
       'settingsForm.maxActiveRegistrationsPerUser().errors()',
     );
@@ -193,5 +120,6 @@ describe('tenant policy deadline validation', () => {
     expect(template).toMatch(
       /settingsForm\s*\.cancellationDeadlineHoursBeforeStart\(\)\s*\.errors\(\)/,
     );
+    expect(template).toMatch(/Waitlist entries do not consume\s+this/);
   });
 });

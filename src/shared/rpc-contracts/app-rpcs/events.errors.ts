@@ -186,6 +186,7 @@ export type EventsSubmitForReviewRpcError = Schema.Schema.Type<
 
 export const EventsUpdateListingRpcError = Schema.Union([
   EventNotFoundError,
+  RpcBadRequestError,
   ForbiddenOrUnauthorizedRpcError,
 ]);
 export type EventsUpdateListingRpcError = Schema.Schema.Type<

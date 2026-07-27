@@ -11,6 +11,7 @@ import { getErrorMessage } from '../../core/error-message';
 export interface GlobalAdminTenantFormModel {
   currency: GlobalAdminTenantWriteInput['currency'];
   domain: string;
+  expectedStripeAccountId: null | string;
   name: string;
   reason: string;
   stripeAccountId: string;
@@ -32,6 +33,7 @@ export const createGlobalAdminTenantFormModel =
   (): GlobalAdminTenantFormModel => ({
     currency: 'EUR',
     domain: '',
+    expectedStripeAccountId: null,
     name: '',
     reason: '',
     stripeAccountId: '',
@@ -44,6 +46,7 @@ export const globalAdminTenantFormModelFromRecord = (
 ): GlobalAdminTenantFormModel => ({
   currency: tenant.currency,
   domain: tenant.domain,
+  expectedStripeAccountId: tenant.stripeAccountId,
   name: tenant.name,
   reason: '',
   stripeAccountId: tenant.stripeAccountId ?? '',

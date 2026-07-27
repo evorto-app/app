@@ -653,6 +653,7 @@ describe('userHandlers', () => {
                 addOn: {
                   title: 'Workshop kit',
                 },
+                purchasedQuantity: 1,
                 quantity: 2,
                 unitPrice: 500,
               },
@@ -840,6 +841,8 @@ describe('userHandlers', () => {
         {
           addonPurchases: [
             {
+              currency: 'EUR',
+              purchasedQuantity: 1,
               quantity: 2,
               title: 'Workshop kit',
               unitPrice: 500,

@@ -18,7 +18,6 @@ import type { AppRpcHandlers } from './shared/handler-types';
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import { AdminRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
-import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
   stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
@@ -30,6 +29,7 @@ import {
   lockTenantStripeAccount,
   tenantHasPendingStripeObligations,
 } from '../../../payments/pending-stripe-obligations';
+import { validateStripePaymentAccount } from '../../../payments/stripe-payment-account-validation';
 import {
   applyStripeTaxRateAccountRotation,
   fetchStripeTaxRateAccountRotationTargetRates,
@@ -280,15 +280,21 @@ const tenantHasRuntimeDependentData = (
     return !!existingTransaction;
   });
 
-const tenantRuntimeSettingsLockedError = () =>
+const tenantTimezoneSettingsLockedError = () =>
   new RpcBadRequestError({
-    message: 'Tenant currency and timezone settings are locked',
-    reason:
-      'Currency and timezone cannot be changed after event or payment data exists.',
+    message: 'Tenant timezone setting is locked',
+    reason: 'Timezone cannot be changed after event or payment data exists.',
   });
 
 const tenantCurrencySettingsLockedError = () =>
   new RpcBadRequestError(tenantCurrencyChangeBlockedErrorDetails);
+
+const staleStripeAccountSettingsError = () =>
+  new RpcBadRequestError({
+    message: 'Stripe account changed while payment settings were open',
+    reason:
+      'Reload payment and provider settings before changing the connected account. No settings were changed.',
+  });
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -704,9 +710,134 @@ export const adminHandlers = {
         ...archivedRates.map((rate) => mapRate(rate)),
       ];
     }),
-  'admin.tenant.updateSettings': (input, _options) =>
+  'admin.tenant.updateAppearanceSettings': (input, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const brandAssets = yield* Effect.try({
+        catch: (error) =>
+          new RpcBadRequestError({
+            message: 'Invalid tenant brand assets',
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        try: () => normalizeTenantBrandAssets(input, tenant.id),
+      });
+
+      const updatedTenants = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set({
+            ...brandAssets,
+            seoDescription: input.seoDescription?.trim() || null,
+            seoTitle: input.seoTitle?.trim() || null,
+            theme: input.theme,
+          })
+          .where(eq(tenants.id, tenant.id))
+          .returning({ id: tenants.id }),
+      );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message: 'Tenant not found or stale',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updateLegalSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const legalLinks = yield* Effect.try({
+        catch: (error) =>
+          new RpcBadRequestError({
+            message: 'Invalid tenant legal links',
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        try: () => normalizeTenantLegalLinks(input),
+      });
+
+      const updatedTenants = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set(legalLinks)
+          .where(eq(tenants.id, tenant.id))
+          .returning({ id: tenants.id }),
+      );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message: 'Tenant not found or stale',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updateOrganizationSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const updatedTenants = yield* Database.use((database) =>
+        database
+          .transaction((transaction) =>
+            Effect.gen(function* () {
+              const lockedTenantRows = yield* transaction
+                .select({
+                  id: tenants.id,
+                  timezone: tenants.timezone,
+                })
+                .from(tenants)
+                .where(eq(tenants.id, tenant.id))
+                .for('update');
+              const lockedTenant = lockedTenantRows[0];
+              if (!lockedTenant) {
+                return [];
+              }
+
+              if (lockedTenant.timezone !== input.timezone) {
+                const hasDependentData = yield* tenantHasRuntimeDependentData(
+                  transaction,
+                  tenant.id,
+                );
+                if (hasDependentData) {
+                  return yield* Effect.fail(
+                    tenantTimezoneSettingsLockedError(),
+                  );
+                }
+              }
+
+              return yield* transaction
+                .update(tenants)
+                .set({
+                  defaultLocation: input.defaultLocation,
+                  emailSenderEmail: input.emailSenderEmail?.trim() || null,
+                  emailSenderName: input.emailSenderName?.trim() || null,
+                  timezone: input.timezone,
+                })
+                .where(eq(tenants.id, tenant.id))
+                .returning({ id: tenants.id });
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof RpcBadRequestError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
+      );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message: 'Tenant not found or stale',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updatePaymentProviderSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:managePayments');
       const { tenant } = yield* RpcAccess.current();
       const discountProviders: TenantDiscountProviders = {
         esnCard: {
@@ -725,94 +856,41 @@ export const adminHandlers = {
           status: input.esnCardEnabled ? 'enabled' : 'disabled',
         },
       };
-      const legalLinks = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Invalid tenant legal links',
-            reason: error instanceof Error ? error.message : String(error),
+      const stripeAccountId = input.stripeAccountId?.trim() || null;
+      const currentTenantRows = yield* databaseEffect((database) =>
+        database
+          .select({ stripeAccountId: tenants.stripeAccountId })
+          .from(tenants)
+          .where(eq(tenants.id, tenant.id))
+          .limit(1),
+      );
+      const currentTenant = currentTenantRows[0];
+      if (!currentTenant) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message: 'Tenant not found or stale',
           }),
-        try: () => normalizeTenantLegalLinks(input),
-      });
-      const brandAssets = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Invalid tenant brand assets',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
-        try: () => normalizeTenantBrandAssets(input, tenant.id),
-      });
-      const nextTenant = {
-        ...tenant,
-        ...brandAssets,
-        cancellationDeadlineHoursBeforeStart:
-          input.cancellationDeadlineHoursBeforeStart,
-        currency: input.currency,
-        defaultLocation: input.defaultLocation,
-        discountProviders,
-        emailSenderEmail: input.emailSenderEmail?.trim() || null,
-        emailSenderName: input.emailSenderName?.trim() || null,
-        ...legalLinks,
-        maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
-        receiptSettings: resolveReceiptCountrySettings({
-          allowOther: input.allowOther,
-          receiptCountries: input.receiptCountries,
-        }),
-        refundFeesOnCancellation: input.refundFeesOnCancellation,
-        seoDescription: input.seoDescription?.trim() || null,
-        seoTitle: input.seoTitle?.trim() || null,
-        stripeAccountId: input.stripeAccountId?.trim() || null,
-        theme: input.theme,
-        timezone: input.timezone,
-        transferDeadlineHoursBeforeStart:
-          input.transferDeadlineHoursBeforeStart,
-      };
-
-      const validatedTenant = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Updated tenant settings failed validation',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
-        try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
-      });
-
-      const tenantUpdate = {
-        ...brandAssets,
-        cancellationDeadlineHoursBeforeStart:
-          input.cancellationDeadlineHoursBeforeStart,
-        currency: input.currency,
-        defaultLocation: input.defaultLocation,
-        discountProviders,
-        emailSenderEmail: input.emailSenderEmail?.trim() || null,
-        emailSenderName: input.emailSenderName?.trim() || null,
-        ...legalLinks,
-        maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
-        receiptSettings: resolveReceiptCountrySettings({
-          allowOther: input.allowOther,
-          receiptCountries: input.receiptCountries,
-        }),
-        refundFeesOnCancellation: input.refundFeesOnCancellation,
-        seoDescription: input.seoDescription?.trim() || null,
-        seoTitle: input.seoTitle?.trim() || null,
-        stripeAccountId: input.stripeAccountId?.trim() || null,
-        theme: input.theme,
-        timezone: input.timezone,
-        transferDeadlineHoursBeforeStart:
-          input.transferDeadlineHoursBeforeStart,
-      };
+        );
+      }
+      if (currentTenant.stripeAccountId !== input.expectedStripeAccountId) {
+        return yield* staleStripeAccountSettingsError();
+      }
+      const targetStripeAccountWasValidated =
+        stripeAccountId !== null &&
+        input.expectedStripeAccountId !== stripeAccountId;
       let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
         [];
-      if (
-        tenant.stripeAccountId &&
-        tenantUpdate.stripeAccountId &&
-        tenant.stripeAccountId !== tenantUpdate.stripeAccountId
-      ) {
+      if (targetStripeAccountWasValidated) {
         const stripe = yield* StripeClient;
-        stripeTaxRateRotationTargets =
-          yield* fetchStripeTaxRateAccountRotationTargetRates(
-            stripe,
-            tenantUpdate.stripeAccountId,
-          );
+        yield* validateStripePaymentAccount(stripe, stripeAccountId);
+        if (currentTenant.stripeAccountId) {
+          stripeTaxRateRotationTargets =
+            yield* fetchStripeTaxRateAccountRotationTargetRates(
+              stripe,
+              stripeAccountId,
+            );
+        }
       }
       const updatedTenants = yield* Database.use((database) =>
         database
@@ -823,7 +901,6 @@ export const adminHandlers = {
                   currency: tenants.currency,
                   id: tenants.id,
                   stripeAccountId: tenants.stripeAccountId,
-                  timezone: tenants.timezone,
                 })
                 .from(tenants)
                 .where(eq(tenants.id, tenant.id))
@@ -833,11 +910,14 @@ export const adminHandlers = {
               if (!lockedTenant) {
                 return [];
               }
+              if (
+                lockedTenant.stripeAccountId !== input.expectedStripeAccountId
+              ) {
+                return yield* staleStripeAccountSettingsError();
+              }
 
               let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
-              if (
-                lockedTenant.stripeAccountId !== tenantUpdate.stripeAccountId
-              ) {
+              if (lockedTenant.stripeAccountId !== stripeAccountId) {
                 const hasPendingStripeObligations =
                   yield* tenantHasPendingStripeObligations(tx, tenant.id);
                 if (hasPendingStripeObligations) {
@@ -849,7 +929,7 @@ export const adminHandlers = {
                   });
                 }
 
-                if (tenantUpdate.stripeAccountId === null) {
+                if (stripeAccountId === null) {
                   const hasPaidEventConfiguration =
                     yield* tenantHasPaidEventConfiguration(tx, tenant.id);
                   if (hasPaidEventConfiguration) {
@@ -868,7 +948,7 @@ export const adminHandlers = {
                   rotationPlan = yield* planStripeTaxRateAccountRotation(tx, {
                     sourceStripeAccountId: lockedTenant.stripeAccountId,
                     targetRates: stripeTaxRateRotationTargets,
-                    targetStripeAccountId: tenantUpdate.stripeAccountId,
+                    targetStripeAccountId: stripeAccountId,
                     tenantId: tenant.id,
                   });
                 } else {
@@ -896,19 +976,18 @@ export const adminHandlers = {
                 }
               }
 
-              if (lockedTenant.timezone !== input.timezone) {
-                const hasDependentData = yield* tenantHasRuntimeDependentData(
-                  tx,
-                  tenant.id,
-                );
-                if (hasDependentData) {
-                  return yield* Effect.fail(tenantRuntimeSettingsLockedError());
-                }
-              }
-
               const updatedRows = yield* tx
                 .update(tenants)
-                .set(tenantUpdate)
+                .set({
+                  currency: input.currency,
+                  discountProviders,
+                  receiptSettings: resolveReceiptCountrySettings({
+                    allowOther: input.allowOther,
+                    receiptCountries: input.receiptCountries,
+                  }),
+                  refundFeesOnCancellation: input.refundFeesOnCancellation,
+                  stripeAccountId,
+                })
                 .where(eq(tenants.id, tenant.id))
                 .returning({
                   id: tenants.id,
@@ -929,8 +1008,7 @@ export const adminHandlers = {
             ),
           ),
       );
-      const updatedTenant = updatedTenants[0];
-      if (!updatedTenant) {
+      if (!updatedTenants[0]) {
         return yield* Effect.fail(
           new AdminTenantNotFoundError({
             id: tenant.id,
@@ -938,8 +1016,32 @@ export const adminHandlers = {
           }),
         );
       }
-
-      return validatedTenant;
+    }),
+  'admin.tenant.updateRegistrationSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const updatedTenants = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set({
+            cancellationDeadlineHoursBeforeStart:
+              input.cancellationDeadlineHoursBeforeStart,
+            maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
+            transferDeadlineHoursBeforeStart:
+              input.transferDeadlineHoursBeforeStart,
+          })
+          .where(eq(tenants.id, tenant.id))
+          .returning({ id: tenants.id }),
+      );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message: 'Tenant not found or stale',
+          }),
+        );
+      }
     }),
   'admin.tenant.uploadBrandAsset': (input, _options) =>
     Effect.gen(function* () {

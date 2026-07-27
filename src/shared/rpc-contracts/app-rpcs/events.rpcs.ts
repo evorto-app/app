@@ -1,7 +1,6 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { EventCheckInTimingIssue } from '@shared/event-check-in';
 import { EventListingAudience } from '@shared/event-listing-audience';
-import { notificationEmailPattern } from '@shared/notification-email';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -47,10 +46,6 @@ import {
   EventsUpdateRpcError,
 } from './events.errors';
 import { RegistrationTransferBundleRecord } from './registration-transfers.rpcs';
-
-const TransferTargetEmail = Schema.NonEmptyString.check(
-  Schema.isPattern(notificationEmailPattern),
-);
 
 const NullablePolicyHoursInput = Schema.NullOr(nonNegativeNumber);
 const NullableRefundFeesInput = Schema.NullOr(Schema.Boolean);
@@ -181,17 +176,6 @@ export const EventsTransferEventRegistration = asRpcMutation(
   }),
 );
 
-export const EventsTransferMyRegistration = asRpcMutation(
-  Rpc.make('events.transferMyRegistration', {
-    error: EventsCheckInRegistrationError,
-    payload: Schema.Struct({
-      registrationId: Schema.NonEmptyString,
-      targetEmail: TransferTargetEmail,
-    }),
-    success: Schema.Void,
-  }),
-);
-
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationMutationError,
@@ -263,6 +247,8 @@ export type EventsEventListInput = Schema.Schema.Type<
 >;
 
 export const EventsEventListRecord = Schema.Struct({
+  announcementRoleCount: nonNegativeNumber,
+  hasRegistrationOptions: Schema.Boolean,
   icon: iconSchema,
   id: Schema.NonEmptyString,
   listingAudience: EventListingAudience,
@@ -381,9 +367,11 @@ export const EventsFindOne = asRpcQuery(
     }),
     success: Schema.Struct({
       addOns: Schema.Array(EventsFindOneAddon),
+      announcementRoleIds: Schema.Array(Schema.NonEmptyString),
       creatorId: Schema.NonEmptyString,
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
+      hasRegistrationOptions: Schema.Boolean,
       icon: iconSchema,
       id: Schema.NonEmptyString,
       listingAudience: EventListingAudience,
@@ -962,6 +950,7 @@ export const EventsUpdateListing = asRpcMutation(
   Rpc.make('events.updateListing', {
     error: EventsUpdateListingRpcError,
     payload: Schema.Struct({
+      announcementRoleIds: Schema.Array(Schema.NonEmptyString),
       eventId: Schema.NonEmptyString,
       listingAudience: EventListingAudience,
     }),
@@ -1123,7 +1112,6 @@ export class EventsRpcs extends RpcGroup.make(
   EventsCancelRegistration,
   EventsCancelEventRegistration,
   EventsTransferEventRegistration,
-  EventsTransferMyRegistration,
   EventsCanOrganize,
   EventsCheckInRegistration,
   EventsCreate,

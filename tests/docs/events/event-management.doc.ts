@@ -316,8 +316,8 @@ Note: The event created from the template already has registration options confi
       name: `Remove ${selectedRole.name}`,
     }),
   ).toBeVisible({ timeout: 15_000 });
-  const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
-  const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
+  const roleInput = registrationOptionEditor.getByPlaceholder('Add role…');
+  const roleListbox = page.getByRole('listbox', { name: 'Selected roles' });
   const selectedRoleOption = roleListbox.getByRole('option', {
     exact: true,
     name: selectedRole.name,
@@ -682,7 +682,7 @@ Organizers check in attendees from the dedicated QR scanner. Attendees open thei
 
 Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows a future-event warning before that window opens. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
 Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments. Event registration and add-on payments are Stripe-only; without a connected Stripe account for the organization, registration options and add-ons must remain free.
-Organizers can transfer a participant registration directly to another eligible organization member only when the entire fixed bundle is free, requires no refund, and has no participant questions. When participant questions exist, the organizer creates a private transfer offer instead so the recipient can confirm current eligibility and provide their own current answers before ownership changes. Paid registrations also use the private transfer flow so the recipient can review the fixed bundle and pay the current base prices with only their own current discounts. Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged. Existing check-in or add-on redemption does not erase that history or let the recipient omit fulfilled items. The previous owner receives exact refunds for every original Stripe payment; the organizer overview intentionally does not directly reassign a paid ticket.
+Organizers can transfer a participant registration directly to another eligible organization member only when the entire fixed bundle is free, requires no refund, and has no participant questions. When participant questions exist, the current ticket owner creates a private transfer offer instead so the recipient can confirm current eligibility and provide their own current answers before ownership changes. Paid registrations also use the owner-created private transfer flow so the recipient can review the fixed bundle and pay the current base prices with only their own current discounts. Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged. Existing check-in or add-on redemption does not erase that history or let the recipient omit fulfilled items. The previous owner receives exact refunds for every original Stripe payment; the organizer overview intentionally does not directly reassign a paid ticket.
 
 It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning. Participant cancellation and private free or paid transfer are covered in the dedicated Registration Cancellation and Registration Transfer guides.
 `,

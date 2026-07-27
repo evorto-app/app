@@ -620,6 +620,13 @@ test('event creation snapshots an advanced template before later page-backed tem
       'Expected a seeded city-trip template and participant role',
     );
   }
+  const persistedTemplate = await database.query.eventTemplates.findFirst({
+    columns: { listingAudience: true },
+    where: { id: template.id },
+  });
+  if (!persistedTemplate) {
+    throw new Error('Expected the seeded template to be persisted');
+  }
   const sourceOptions =
     await database.query.templateRegistrationOptions.findMany({
       where: { templateId: template.id },
@@ -710,6 +717,7 @@ test('event creation snapshots an advanced template before later page-backed tem
   if (!createdEvent) {
     throw new Error('Expected the page flow to create an event');
   }
+  expect(createdEvent.listingAudience).toBe(persistedTemplate.listingAudience);
   const eventOptionsBeforeTemplateEdit =
     await database.query.eventRegistrationOptions.findMany({
       orderBy: { id: 'asc' },

@@ -349,7 +349,10 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       .getByRole('link', { exact: true, name: 'Profile' })
       .first()
       .click();
-    await page.getByRole('button', { exact: true, name: 'Events' }).click();
+    await page
+      .getByRole('navigation', { name: 'Profile sections' })
+      .getByRole('link', { exact: true, name: 'Events' })
+      .click();
     await expect(
       page.getByRole('heading', {
         exact: true,
@@ -476,7 +479,10 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       .getByRole('link', { exact: true, name: 'Profile' })
       .first()
       .click();
-    await page.getByRole('button', { exact: true, name: 'Events' }).click();
+    await page
+      .getByRole('navigation', { name: 'Profile sections' })
+      .getByRole('link', { exact: true, name: 'Events' })
+      .click();
     await expect(
       page.getByRole('heading', {
         exact: true,

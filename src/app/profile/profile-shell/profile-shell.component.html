@@ -1,0 +1,78 @@
+<div class="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr] lg:p-4">
+  <div class="{{ childPageActive() ? 'hidden' : 'grid' }} gap-4 lg:grid">
+    @if (childPageActive()) {
+      <p class="title-large">Profile</p>
+    } @else {
+      <h1 class="title-large" id="profile-overview-heading">Profile</h1>
+    }
+    <nav aria-label="Profile sections" class="grid gap-3">
+      <a
+        routerLink="/profile"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+        [routerLinkActiveOptions]="{ exact: true }"
+        ariaCurrentWhenActive="page"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+      >
+        <div class="flex items-center gap-3">
+          <fa-duotone-icon [icon]="faUser" />
+          <span class="title-medium">Overview</span>
+        </div>
+      </a>
+      <a
+        routerLink="events"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+        ariaCurrentWhenActive="page"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+      >
+        <div class="flex items-center gap-3">
+          <fa-duotone-icon [icon]="faCalendarDays" />
+          <span class="title-medium">Events</span>
+        </div>
+      </a>
+      @if (esnEnabled()) {
+        <a
+          routerLink="discounts"
+          routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+          ariaCurrentWhenActive="page"
+          class="bg-surface text-on-surface rounded-2xl p-4"
+        >
+          <div class="flex items-center gap-3">
+            <fa-duotone-icon [icon]="faTags" />
+            <span class="title-medium">Discounts</span>
+          </div>
+        </a>
+      }
+      <a
+        routerLink="receipts"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+        ariaCurrentWhenActive="page"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+      >
+        <div class="flex items-center gap-3">
+          <fa-duotone-icon [icon]="faReceipt" />
+          <span class="title-medium">Receipts</span>
+        </div>
+      </a>
+    </nav>
+  </div>
+
+  <main
+    #profileContent
+    [attr.aria-labelledby]="
+      childPageActive() ? 'profile-detail-heading' : 'profile-overview-heading'
+    "
+  >
+    @if (childPageActive()) {
+      <a
+        routerLink="/profile"
+        class="text-primary mb-4 inline-flex items-center underline lg:hidden"
+      >
+        Back to profile
+      </a>
+    }
+    <router-outlet
+      (activate)="onOutletActivate()"
+      (deactivate)="childPageActive.set(false)"
+    />
+  </main>
+</div>

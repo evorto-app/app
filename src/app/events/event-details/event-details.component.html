@@ -156,13 +156,25 @@
             class="bg-secondary-container text-on-secondary-container rounded px-3 py-2 body-small"
           >
             <span class="font-medium">
-              {{ eventListingAudienceLabel(eventQuery.data().listingAudience) }}
+              {{
+                eventDiscoveryLabel({
+                  announcementRoleCount:
+                    eventQuery.data().announcementRoleIds.length,
+                  hasRegistrationOptions:
+                    eventQuery.data().hasRegistrationOptions,
+                  listingAudience: eventQuery.data().listingAudience,
+                })
+              }}
             </span>
             —
             {{
-              eventListingAudienceDescriptions[
-                eventQuery.data().listingAudience
-              ]
+              eventDiscoveryDescription({
+                announcementRoleCount:
+                  eventQuery.data().announcementRoleIds.length,
+                hasRegistrationOptions:
+                  eventQuery.data().hasRegistrationOptions,
+                listingAudience: eventQuery.data().listingAudience,
+              })
             }}
           </div>
 

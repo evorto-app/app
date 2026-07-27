@@ -31,7 +31,7 @@ To change listing, an admin needs:
 
 # Managing Unlisted Events (Admin)
 
-Unlisted events are hidden from public lists. Admins choose one of four explicit audiences: participants, organizers, both, or unlisted. Admins with **See eligible unlisted events** can still find unlisted events when one of their registration options is eligible, while people can open an approved event from its direct link.
+Events with registration options use one of four explicit audiences: participants, organizers, both, or unlisted. Admins with **See eligible unlisted events** can still find an unlisted event when one of its registration options is eligible. Optionless announcements instead use selected tenant roles for discovery, and no selected roles makes an announcement link-only. These discovery choices do not grant access or send notifications. People can still open an approved event from its direct link.
 `,
   });
 

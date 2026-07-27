@@ -3,6 +3,7 @@ import { IbanInput } from '@shared/iban';
 import { EmailAddressInput } from '@shared/notification-email';
 import {
   literalUnion,
+  nonNegativeNumber,
   PageLimit,
   PageOffset,
   positiveNumber,
@@ -142,9 +143,11 @@ export const UsersUpdateProfile = asRpcMutation(
 export const UsersEventSummaryRecord = Schema.Struct({
   addonPurchases: Schema.Array(
     Schema.Struct({
-      quantity: Schema.Number,
+      currency: Tenant.fields.currency,
+      purchasedQuantity: nonNegativeNumber.check(Schema.isInt()),
+      quantity: nonNegativeNumber.check(Schema.isInt()),
       title: Schema.NonEmptyString,
-      unitPrice: Schema.Number,
+      unitPrice: nonNegativeNumber.check(Schema.isInt()),
     }),
   ),
   checkInTime: Schema.NullOr(Schema.String),

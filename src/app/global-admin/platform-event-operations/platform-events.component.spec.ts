@@ -25,7 +25,9 @@ class PlatformTenantPageHeaderStub {
 }
 
 const listedEvent: PlatformEventListRecord = {
+  announcementRoleCount: 0,
   end: '2030-01-02T02:00:00.000Z',
+  hasRegistrationOptions: true,
   id: 'event-1',
   listingAudience: 'both',
   start: '2030-01-02T00:00:00.000Z',
@@ -101,6 +103,6 @@ describe('PlatformEventsComponent', () => {
         fixture.detectChanges();
         return fixture.nativeElement.textContent;
       })
-      .toContain('Audience: Participants and organizers');
+      .toContain('Listing: Participants and organizers');
   });
 });

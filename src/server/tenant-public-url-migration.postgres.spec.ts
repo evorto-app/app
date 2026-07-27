@@ -254,6 +254,7 @@ const runUrlMigration = (
   Effect.runPromise(
     globalAdminHandlers['globalAdmin.tenants.update'](
       {
+        expectedStripeAccountId: tenant.stripeAccountId,
         id: tenant.id,
         reason: 'Exercise tenant public URL serialization',
         tenant: {

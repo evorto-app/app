@@ -28,9 +28,9 @@ import {
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  eventDiscoveryDescription,
+  eventDiscoveryLabel,
   type EventListingAudience,
-  eventListingAudienceDescriptions,
-  eventListingAudienceLabel,
 } from '@shared/event-listing-audience';
 import {
   injectMutation,
@@ -404,6 +404,9 @@ export class EventDetailsComponent {
   protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
   protected readonly eventAddonsForRegistrationOption =
     eventAddonsForRegistrationOption;
+  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
+
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -411,10 +414,6 @@ export class EventDetailsComponent {
     }
     return event.icon.iconColor;
   });
-  protected readonly eventListingAudienceDescriptions =
-    eventListingAudienceDescriptions;
-
-  protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
   protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
@@ -445,7 +444,9 @@ export class EventDetailsComponent {
     this.operations.updateListing(),
   );
   private dialog = inject(MatDialog);
+
   private notifications = inject(NotificationService);
+
   private queryClient = inject(QueryClient);
 
   constructor() {
@@ -459,27 +460,36 @@ export class EventDetailsComponent {
       }
     });
   }
-
   async updateListingAudience() {
     if (!this.controlsInteractive() || !this.eventQuery.isSuccess()) return;
 
     const event = this.eventQuery.data();
 
-    const listingAudience: EventListingAudience | undefined =
-      await firstValueFrom(
-        this.dialog
-          .open(UpdateVisibilityDialogComponent, {
-            data: { event },
-          })
-          .afterClosed(),
-      );
-    if (listingAudience !== undefined) {
+    const listing:
+      | undefined
+      | {
+          announcementRoleIds: string[];
+          listingAudience: EventListingAudience;
+        } = await firstValueFrom(
+      this.dialog
+        .open(UpdateVisibilityDialogComponent, {
+          data: { event },
+        })
+        .afterClosed(),
+    );
+    if (listing !== undefined) {
       this.updateListingMutation.mutate(
         {
+          announcementRoleIds: listing.announcementRoleIds,
           eventId: this.eventId(),
-          listingAudience,
+          listingAudience: listing.listingAudience,
         },
         {
+          onError: (error) => {
+            this.notifications.showError(
+              getErrorMessage(error, 'Failed to update event listing'),
+            );
+          },
           onSuccess: async () => {
             await this.refreshReviewState();
           },

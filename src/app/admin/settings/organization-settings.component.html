@@ -1,0 +1,111 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to administration"
+  >
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Organization settings</h1>
+</div>
+
+<form
+  class="bg-surface text-on-surface rounded-2xl p-4"
+  (submit)="save($event)"
+>
+  <fieldset
+    class="m-0 grid min-w-0 grid-cols-1 gap-6 border-0 p-0"
+    [disabled]="!settingsInteractionReady()"
+  >
+    <section>
+      <h2 class="title-small mb-2">Organization</h2>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Your organization name and public domain are managed by a platform
+        administrator. Contact support if either needs to change.
+      </p>
+      <dl class="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+        @for (row of tenantIdentityRows(); track row.label) {
+          <div>
+            <dt class="text-on-surface-variant text-xs uppercase">
+              {{ row.label }}
+            </dt>
+            <dd class="text-sm font-medium break-words">
+              {{ row.value }}
+            </dd>
+          </div>
+        }
+      </dl>
+    </section>
+
+    <section>
+      <h2 class="title-small mb-2">Email replies</h2>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Set the name and address that receive replies to organization emails.
+        The From address remains on the ESN.WORLD notification domain.
+      </p>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <mat-form-field>
+          <mat-label>Email reply-to name</mat-label>
+          <input
+            matInput
+            [formField]="settingsForm.emailSenderName"
+            placeholder="Example Section"
+          />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Email reply-to email</mat-label>
+          <input
+            matInput
+            type="email"
+            [formField]="settingsForm.emailSenderEmail"
+            placeholder="events@section.example.org"
+          />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="title-small mb-2">Location and business time</h2>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        The default location biases event location searches. The timezone
+        controls how event times are interpreted and displayed.
+      </p>
+      <div class="mb-4">
+        <app-location-selector-field
+          [formField]="settingsForm.defaultLocation"
+        />
+      </div>
+      <mat-form-field>
+        <mat-label>Timezone</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.timezone"
+          placeholder="Europe/Berlin"
+        />
+        <mat-hint>Use an IANA city or region timezone.</mat-hint>
+        @if (
+          settingsForm.timezone().touched() && settingsForm.timezone().invalid()
+        ) {
+          <mat-error>Enter a recognized city or region timezone.</mat-error>
+        }
+      </mat-form-field>
+    </section>
+
+    <button
+      mat-flat-button
+      type="submit"
+      class="w-fit"
+      [disabled]="
+        tenantSettingsSaveDisabled({
+          formInvalid: settingsForm().invalid(),
+          formSubmitting: settingsForm().submitting(),
+          interactionReady: settingsInteractionReady(),
+          mutationPending: updateMutation.isPending(),
+        })
+      "
+    >
+      Save organization settings
+    </button>
+  </fieldset>
+</form>

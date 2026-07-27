@@ -1,7 +1,15 @@
+import { Effect } from 'effect';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import type { DatabaseClient } from '../../db';
+
 import {
+  eventRegistrationQuestionAnswers,
+  registrationTransferAnswers,
+} from '../../db/schema';
+import {
+  ensureAnsweredEventQuestionsUnchanged,
   eventQuestionHistoryMutationIds,
   type EventQuestionHistoryShape,
   normalizeEventQuestionValues,
@@ -72,6 +80,43 @@ describe('answered event question history guard', () => {
         ],
       }),
     ).toEqual(['question-1']);
+  });
+
+  it('protects answers submitted for a pending registration transfer', async () => {
+    const selectedTables: unknown[] = [];
+    const database = {
+      select: () => ({
+        from: (table: unknown) => {
+          selectedTables.push(table);
+          return {
+            where: () => ({
+              limit: () =>
+                Effect.succeed(
+                  table === registrationTransferAnswers
+                    ? [{ id: 'transfer-answer-1' }]
+                    : [],
+                ),
+            }),
+          };
+        },
+      }),
+    } as Pick<DatabaseClient, 'select'>;
+
+    const error = await Effect.runPromise(
+      ensureAnsweredEventQuestionsUnchanged(database, {
+        before: [question],
+        submitted: [{ ...question, required: true }],
+      }).pipe(Effect.flip),
+    );
+
+    expect(error).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'eventQuestionInUse',
+    });
+    expect(selectedTables).toEqual([
+      eventRegistrationQuestionAnswers,
+      registrationTransferAnswers,
+    ]);
   });
 
   it('is the single answer-history policy for ordinary and platform event edits', () => {

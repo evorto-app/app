@@ -20,6 +20,8 @@ const listedEvents = [
     day: '2029-12-31T00:00:00.000Z',
     events: [
       {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-1',
         listingAudience: 'both' as const,
@@ -144,6 +146,8 @@ describe('EventListComponent load recovery', () => {
 
 describe('event list paging', () => {
   const event = (id: string, start: string) => ({
+    announcementRoleCount: 0,
+    hasRegistrationOptions: true,
     icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
     id,
     listingAudience: 'both' as const,

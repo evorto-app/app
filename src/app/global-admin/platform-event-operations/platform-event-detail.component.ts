@@ -29,6 +29,8 @@ import {
 } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import {
+  eventDiscoveryDescription,
+  eventDiscoveryLabel,
   type EventListingAudience,
   eventListingAudienceDescriptions,
   eventListingAudienceLabel,
@@ -482,6 +484,7 @@ export class PlatformEventDetailComponent {
     platformEventAddOnQuantityLimitIssue;
   protected readonly addOnStockIssue = platformEventAddOnStockIssue;
   protected readonly addOnTypeLimitIssue = platformEventAddonTypeLimitIssue;
+  protected readonly announcementRoleIds = signal<readonly string[]>([]);
   protected readonly currencyAmountErrors = signal<ReadonlyMap<string, string>>(
     new Map(),
   );
@@ -531,6 +534,8 @@ export class PlatformEventDetailComponent {
       message: 'Reason must be 500 characters or fewer.',
     });
   });
+  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   protected readonly eventEditorIsReadOnly = platformEventEditorIsReadOnly;
   protected readonly eventListingAudienceDescriptions =
     eventListingAudienceDescriptions;
@@ -650,6 +655,7 @@ export class PlatformEventDetailComponent {
       const timezone = formOptions.timezone;
       untracked(() => {
         this.actionReason.set('');
+        this.announcementRoleIds.set([...event.announcementRoleIds]);
         this.reviewFeedback.set('');
         this.editModel.set({
           description: event.description,
@@ -762,28 +768,7 @@ export class PlatformEventDetailComponent {
   }
 
   protected changeListing(listingAudience: EventListingAudience): void {
-    const reason = this.actionReason().trim();
-    if (!reason || this.mutationPending()) return;
-    void (async () => {
-      try {
-        await this.listingMutation.mutateAsync({
-          eventId: this.eventId(),
-          listingAudience,
-          reason,
-          targetTenantId: this.tenantId(),
-        });
-        await this.refresh();
-        this.actionReason.set('');
-        this.notifications.showSuccess('Event listing updated');
-      } catch (error) {
-        this.notifications.showError(
-          getErrorMessage(
-            error,
-            'The event listing could not be updated. Try again.',
-          ),
-        );
-      }
-    })();
+    this.updateListing(listingAudience, []);
   }
 
   protected displayDateTime(value: string): string {
@@ -945,6 +930,14 @@ export class PlatformEventDetailComponent {
     });
   }
 
+  protected saveAnnouncementListing(): void {
+    if (!this.eventQuery.isSuccess()) return;
+    this.updateListing(
+      this.eventQuery.data().listingAudience,
+      this.announcementRoleIds(),
+    );
+  }
+
   protected setActionReason(event: Event): void {
     if (event.target instanceof HTMLTextAreaElement) {
       this.actionReason.set(event.target.value);
@@ -1075,6 +1068,14 @@ export class PlatformEventDetailComponent {
       }
       return { ...addOn, title: value };
     });
+  }
+
+  protected setAnnouncementRole(roleId: string, enabled: boolean): void {
+    this.announcementRoleIds.update((roleIds) =>
+      enabled
+        ? [...new Set([...roleIds, roleId])]
+        : roleIds.filter((candidate) => candidate !== roleId),
+    );
   }
 
   protected setOptionBoolean(
@@ -1375,6 +1376,35 @@ export class PlatformEventDetailComponent {
         candidate === index ? update(addOn) : addOn,
       ),
     }));
+  }
+
+  private updateListing(
+    listingAudience: EventListingAudience,
+    announcementRoleIds: readonly string[],
+  ): void {
+    const reason = this.actionReason().trim();
+    if (!reason || this.mutationPending()) return;
+    void (async () => {
+      try {
+        await this.listingMutation.mutateAsync({
+          announcementRoleIds: [...announcementRoleIds],
+          eventId: this.eventId(),
+          listingAudience,
+          reason,
+          targetTenantId: this.tenantId(),
+        });
+        await this.refresh();
+        this.actionReason.set('');
+        this.notifications.showSuccess('Event listing updated');
+      } catch (error) {
+        this.notifications.showError(
+          getErrorMessage(
+            error,
+            'The event listing could not be updated. Try again.',
+          ),
+        );
+      }
+    })();
   }
 
   private updateQuestion(

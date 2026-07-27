@@ -415,6 +415,7 @@ export const userHandlers = {
           with: {
             addonPurchases: {
               columns: {
+                purchasedQuantity: true,
                 quantity: true,
                 unitPrice: true,
               },
@@ -488,6 +489,8 @@ export const userHandlers = {
             purchase.addOn
               ? [
                   {
+                    currency: tenant.currency,
+                    purchasedQuantity: purchase.purchasedQuantity,
                     quantity: purchase.quantity,
                     title: purchase.addOn.title,
                     unitPrice: purchase.unitPrice,

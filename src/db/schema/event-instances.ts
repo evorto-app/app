@@ -37,6 +37,7 @@ export const eventInstances = pgTable(
   'event_instances',
   {
     ...modelOfTenant,
+    announcementRoleIds: varchar({ length: 20 }).array().notNull().default([]),
     creatorId: varchar({ length: 20 })
       .notNull()
       .references(() => users.id),

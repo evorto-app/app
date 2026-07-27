@@ -112,7 +112,7 @@ describe('platform event registration-mode compatibility', () => {
     expect(template).toContain('!formOptionsReady()');
   });
 
-  it('uses the explicit listing audience for labels and updates', () => {
+  it('uses option audiences for sign-up events and explicit roles for announcements', () => {
     const source = readFileSync(
       nodePath.join(
         process.cwd(),
@@ -132,11 +132,18 @@ describe('platform event registration-mode compatibility', () => {
       'changeListing(listingAudience: EventListingAudience)',
     );
     expect(source).toContain('listingAudience,');
+    expect(source).toContain('announcementRoleIds');
+    expect(source).toContain('saveAnnouncementListing()');
     expect(template).toContain('listingAudience of eventListingAudiences');
-    expect(template).toContain(
-      'eventListingAudienceLabel(event.listingAudience)',
-    );
+    expect(template).toContain('eventDiscoveryLabel({');
     expect(template).toContain('(click)="changeListing(listingAudience)"');
+    expect(template).toContain('event.registrationOptions.length > 0');
+    expect(template).toContain(
+      '[checked]="announcementRoleIds().includes(role.id)"',
+    );
+    expect(template).toContain('not restrict direct links, grant access, or');
+    expect(template).toContain('send notifications');
+    expect(template).toContain('(click)="saveAnnouncementListing()"');
   });
 
   it('blocks invalid target-timezone registration windows instead of saving stale instants', () => {

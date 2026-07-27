@@ -64,12 +64,33 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   readonly disabled = input<boolean>(false);
   readonly hidden = input<boolean>(false);
   readonly readonly = input<boolean>(false);
-  readonly separatorKeysCodes: number[] = [ENTER, COMMA];
-  readonly touched = model<boolean>(false);
-  readonly value = model<string[]>([]);
-
   private readonly queries = inject(RoleSelectQueries);
   protected readonly rolesQuery = injectQuery(() => this.queries.catalog());
+  readonly value = model<string[]>([]);
+
+  protected readonly selectedRoles = computed<readonly SelectedRoleView[]>(
+    () => {
+      if (!this.rolesQuery.isSuccess()) return [];
+      const catalog = new Map(
+        this.rolesQuery.data().map((role) => [role.id, role]),
+      );
+      return this.value().map((roleId) => {
+        const role = catalog.get(roleId);
+        return role
+          ? { id: role.id, name: role.name, unavailable: false }
+          : { id: roleId, name: 'Unavailable role', unavailable: true };
+      });
+    },
+  );
+  protected readonly unavailableSelectedRoleCount = computed(
+    () => this.selectedRoles().filter((role) => role.unavailable).length,
+  );
+  readonly selectionValid = computed(
+    () =>
+      this.rolesQuery.isSuccess() && this.unavailableSelectedRoleCount() === 0,
+  );
+  readonly separatorKeysCodes: number[] = [ENTER, COMMA];
+  readonly touched = model<boolean>(false);
   protected readonly searchModel = signal({ query: '' });
   protected readonly searchForm = form(this.searchModel, (schema) => {
     debounce(schema, 300);
@@ -97,25 +118,8 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   );
   protected faCircleXmark = faCircleXmark;
   protected readonly searchInputHasValue = signal(false);
-  protected readonly selectedRoles = computed<readonly SelectedRoleView[]>(
-    () => {
-      if (!this.rolesQuery.isSuccess()) return [];
-      const catalog = new Map(
-        this.rolesQuery.data().map((role) => [role.id, role]),
-      );
-      return this.value().map((roleId) => {
-        const role = catalog.get(roleId);
-        return role
-          ? { id: role.id, name: role.name, unavailable: false }
-          : { id: roleId, name: 'Unavailable role', unavailable: true };
-      });
-    },
-  );
   protected readonly hasChipGridRole = computed(
     () => this.searchInputHasValue() || this.selectedRoles().length > 0,
-  );
-  protected readonly unavailableSelectedRoleCount = computed(
-    () => this.selectedRoles().filter((role) => role.unavailable).length,
   );
 
   add() {

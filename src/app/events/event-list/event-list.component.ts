@@ -14,8 +14,8 @@ import {
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
-  eventListingAudienceDescriptions,
-  eventListingAudienceLabel,
+  eventDiscoveryDescription,
+  eventDiscoveryLabel,
 } from '@shared/event-listing-audience';
 
 import { ConfigService } from '../../core/config.service';
@@ -46,9 +46,8 @@ export class EventListComponent {
   private readonly eventListService = inject(EventListService);
 
   protected readonly eventDays = this.eventListService.eventDays;
-  protected readonly eventListingAudienceDescriptions =
-    eventListingAudienceDescriptions;
-  protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
+  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;

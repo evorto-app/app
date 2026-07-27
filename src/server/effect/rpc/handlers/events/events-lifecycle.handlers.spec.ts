@@ -232,6 +232,79 @@ const withTransaction = <DatabaseMock extends object>(
   };
 };
 
+const createListingDatabase = ({
+  eventExists = true,
+  registrationOptionExists = false,
+  roleIds = ['role-a'],
+}: {
+  eventExists?: boolean;
+  registrationOptionExists?: boolean;
+  roleIds?: readonly string[];
+} = {}) => {
+  const lockOrder: string[] = [];
+  const returning = vi.fn(() => Effect.succeed([{ id: 'event-1' }]));
+  const updateQuery = {
+    returning,
+    set: vi.fn(() => updateQuery),
+    where: vi.fn(() => updateQuery),
+  };
+  const transaction = {
+    execute: vi.fn(() => {
+      lockOrder.push('role-graph');
+      return Effect.void;
+    }),
+    select: vi.fn((selection: Record<string, unknown>) => {
+      if (selection.id === eventInstances.id) {
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(() => {
+                lockOrder.push('event');
+                return Effect.succeed(eventExists ? [{ id: 'event-1' }] : []);
+              }),
+            })),
+          })),
+        };
+      }
+      if (selection.id === roles.id) {
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => Effect.succeed(roleIds.map((id) => ({ id })))),
+          })),
+        };
+      }
+      if (selection.id === eventRegistrationOptions.id) {
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn(() =>
+                Effect.succeed(
+                  registrationOptionExists ? [{ id: 'option-1' }] : [],
+                ),
+              ),
+            })),
+          })),
+        };
+      }
+      throw new Error('Unexpected listing select');
+    }),
+    update: vi.fn(() => updateQuery),
+  };
+
+  return {
+    database: {
+      ...transaction,
+      $client: {},
+      transaction: vi.fn(
+        (run: (tx: typeof transaction) => Effect.Effect<unknown>) =>
+          run(transaction),
+      ),
+    },
+    lockOrder,
+    updateQuery,
+  };
+};
+
 describe('eventLifecycleHandlers', () => {
   it('requires a complete one-to-one template option snapshot', () => {
     expect(
@@ -564,7 +637,10 @@ describe('eventLifecycleHandlers', () => {
 
         expect(result).toEqual({ id: 'event-1' });
         expect(insertedEventValues).toHaveBeenCalledWith(
-          expect.objectContaining({ simpleModeEnabled: true }),
+          expect.objectContaining({
+            listingAudience: 'both',
+            simpleModeEnabled: true,
+          }),
         );
         expect(insertedRegistrationOptionValues).toHaveBeenCalledWith(
           expect.arrayContaining([
@@ -1258,21 +1334,17 @@ describe('eventLifecycleHandlers', () => {
 
   it.effect('events.updateListing reports a missing event', () =>
     Effect.gen(function* () {
-      const returning = vi.fn(() => Effect.succeed([]));
-      const updateQuery = {
-        returning,
-        set: vi.fn(() => updateQuery),
-        where: vi.fn(() => updateQuery),
-      };
+      const { database, updateQuery } = createListingDatabase({
+        eventExists: false,
+      });
       const layer = Layer.mergeAll(
         listingRequestContextLayer,
-        Layer.succeed(Database, {
-          update: vi.fn(() => updateQuery),
-        } as never),
+        Layer.succeed(Database, database as never),
       );
 
       const error = yield* eventLifecycleHandlers['events.updateListing'](
         {
+          announcementRoleIds: [],
           eventId: 'missing-event',
           listingAudience: 'organizer',
         },
@@ -1283,10 +1355,94 @@ describe('eventLifecycleHandlers', () => {
         _tag: 'EventNotFoundError',
         id: 'missing-event',
       });
-      expect(updateQuery.set).toHaveBeenCalledWith({
-        listingAudience: 'organizer',
-      });
-      expect(returning).toHaveBeenCalledOnce();
+      expect(updateQuery.set).not.toHaveBeenCalled();
     }),
+  );
+
+  it.effect(
+    'events.updateListing canonicalizes tenant roles after locking the event',
+    () =>
+      Effect.gen(function* () {
+        const { database, lockOrder, updateQuery } = createListingDatabase({
+          roleIds: ['role-a', 'role-b'],
+        });
+        const layer = Layer.mergeAll(
+          listingRequestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        yield* eventLifecycleHandlers['events.updateListing'](
+          {
+            announcementRoleIds: ['role-b', 'role-a', 'role-b'],
+            eventId: 'event-1',
+            listingAudience: 'unlisted',
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(layer));
+
+        expect(lockOrder).toEqual(['event', 'role-graph']);
+        expect(updateQuery.set).toHaveBeenCalledWith({
+          announcementRoleIds: ['role-a', 'role-b'],
+          listingAudience: 'unlisted',
+        });
+      }),
+  );
+
+  it.effect(
+    'events.updateListing rejects foreign roles and roles on sign-up events',
+    () =>
+      Effect.gen(function* () {
+        const invalidRoleDatabase = createListingDatabase({ roleIds: [] });
+        const invalidRoleError = yield* eventLifecycleHandlers[
+          'events.updateListing'
+        ](
+          {
+            announcementRoleIds: ['foreign-role'],
+            eventId: 'event-1',
+            listingAudience: 'both',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              listingRequestContextLayer,
+              Layer.succeed(Database, invalidRoleDatabase.database as never),
+            ),
+          ),
+        );
+        expect(invalidRoleError).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'invalidAnnouncementRole',
+        });
+        expect(invalidRoleDatabase.updateQuery.set).not.toHaveBeenCalled();
+
+        const optionfulDatabase = createListingDatabase({
+          registrationOptionExists: true,
+        });
+        const optionfulError = yield* eventLifecycleHandlers[
+          'events.updateListing'
+        ](
+          {
+            announcementRoleIds: ['role-a'],
+            eventId: 'event-1',
+            listingAudience: 'both',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              listingRequestContextLayer,
+              Layer.succeed(Database, optionfulDatabase.database as never),
+            ),
+          ),
+        );
+        expect(optionfulError).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'announcementRolesRequireOptionlessEvent',
+        });
+        expect(optionfulDatabase.updateQuery.set).not.toHaveBeenCalled();
+      }),
   );
 });

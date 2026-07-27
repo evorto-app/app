@@ -23,6 +23,21 @@ describe('eventReviewStatus', () => {
     expect(modeColumn?.default).toBe(true);
   });
 
+  it('keeps optionless announcement discovery link-only by default', () => {
+    const columns = getTableConfig(eventInstances).columns;
+    const announcementRolesColumn = columns.find(
+      (column) => column.name === 'announcementRoleIds',
+    );
+
+    expect(announcementRolesColumn?.notNull).toBe(true);
+    expect(announcementRolesColumn?.default).toEqual([]);
+    expect(
+      getTableConfig(eventTemplates).columns.some(
+        (column) => column.name === 'announcementRoleIds',
+      ),
+    ).toBe(false);
+  });
+
   it('requires one explicit listing audience without a database fallback', () => {
     expect(eventListingAudience.enumValues).toEqual([
       'participant',

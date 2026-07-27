@@ -8,8 +8,8 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import {
-  eventListingAudienceDescriptions,
-  eventListingAudienceLabel,
+  eventDiscoveryDescription,
+  eventDiscoveryLabel,
 } from '@shared/event-listing-audience';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
@@ -47,9 +47,8 @@ export class PlatformEventsOperations {
 export class PlatformEventsComponent {
   readonly tenantId = input.required<string>();
 
-  protected readonly eventListingAudienceDescriptions =
-    eventListingAudienceDescriptions;
-  protected readonly eventListingAudienceLabel = eventListingAudienceLabel;
+  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   private readonly operations = inject(PlatformEventsOperations);
   protected readonly eventsQuery = injectQuery(() =>
     this.operations.list(this.tenantId()),

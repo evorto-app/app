@@ -24,9 +24,22 @@
         <app-event-status [status]="event.status" />
         <span
           class="label-small text-on-surface-variant"
-          [title]="eventListingAudienceDescriptions[event.listingAudience]"
+          [title]="
+            eventDiscoveryDescription({
+              announcementRoleCount: event.announcementRoleIds.length,
+              hasRegistrationOptions: event.registrationOptions.length > 0,
+              listingAudience: event.listingAudience,
+            })
+          "
         >
-          Audience: {{ eventListingAudienceLabel(event.listingAudience) }}
+          Listing:
+          {{
+            eventDiscoveryLabel({
+              announcementRoleCount: event.announcementRoleIds.length,
+              hasRegistrationOptions: event.registrationOptions.length > 0,
+              listingAudience: event.listingAudience,
+            })
+          }}
         </span>
       </div>
 
@@ -1223,35 +1236,80 @@
         </div>
       }
 
-      <button
-        class="mt-3 w-full"
-        mat-button
-        type="button"
-        [disabled]="mutationPending()"
-        [matMenuTriggerFor]="listingAudienceMenu"
-      >
-        Change listing audience
-      </button>
-      <mat-menu #listingAudienceMenu="matMenu">
-        @for (listingAudience of eventListingAudiences; track listingAudience) {
+      @if (event.registrationOptions.length > 0) {
+        <button
+          class="mt-3 w-full"
+          mat-button
+          type="button"
+          [disabled]="mutationPending()"
+          [matMenuTriggerFor]="listingAudienceMenu"
+        >
+          Change listing audience
+        </button>
+        <mat-menu #listingAudienceMenu="matMenu">
+          @for (
+            listingAudience of eventListingAudiences;
+            track listingAudience
+          ) {
+            <button
+              mat-menu-item
+              type="button"
+              [disabled]="
+                !actionReason().trim() ||
+                event.listingAudience === listingAudience ||
+                mutationPending()
+              "
+              [title]="eventListingAudienceDescriptions[listingAudience]"
+              (click)="changeListing(listingAudience)"
+            >
+              {{ eventListingAudienceLabel(listingAudience) }}
+            </button>
+          }
+        </mat-menu>
+        <p class="body-small text-on-surface-variant mt-1">
+          {{ eventListingAudienceDescriptions[event.listingAudience] }}
+        </p>
+      } @else {
+        <section class="border-outline-variant mt-3 grid gap-2 border-t pt-3">
+          <h3 class="title-small">Announcement discovery</h3>
+          <p class="body-small text-on-surface-variant">
+            Selected roles find this announcement in the event list. This does
+            not restrict direct links, grant access, or send notifications. With
+            no roles selected, the announcement is link-only.
+          </p>
+          @if (formOptionsQuery.isSuccess()) {
+            @for (role of formOptionsQuery.data().roles; track role.id) {
+              <mat-checkbox
+                [checked]="announcementRoleIds().includes(role.id)"
+                [disabled]="mutationPending()"
+                (change)="setAnnouncementRole(role.id, $event.checked)"
+              >
+                {{ role.name }}
+              </mat-checkbox>
+            }
+          } @else if (formOptionsQuery.isError()) {
+            <p class="body-small text-error" role="alert">
+              Organization roles could not be loaded.
+            </p>
+          } @else {
+            <p class="body-small text-on-surface-variant" role="status">
+              Loading organization roles...
+            </p>
+          }
           <button
-            mat-menu-item
+            mat-button
             type="button"
             [disabled]="
               !actionReason().trim() ||
-              event.listingAudience === listingAudience ||
+              !formOptionsQuery.isSuccess() ||
               mutationPending()
             "
-            [title]="eventListingAudienceDescriptions[listingAudience]"
-            (click)="changeListing(listingAudience)"
+            (click)="saveAnnouncementListing()"
           >
-            {{ eventListingAudienceLabel(listingAudience) }}
+            Save announcement discovery
           </button>
-        }
-      </mat-menu>
-      <p class="body-small text-on-surface-variant mt-1">
-        {{ eventListingAudienceDescriptions[event.listingAudience] }}
-      </p>
+        </section>
+      }
 
       <a
         class="mt-3 w-full"

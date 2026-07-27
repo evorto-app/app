@@ -15,9 +15,9 @@ test('selects and persists a live Google Maps place @needs-google-maps', async (
 }) => {
   await page.goto('/admin/settings');
 
-  const settings = page.locator('app-general-settings');
+  const settings = page.locator('app-organization-settings');
   await expect(
-    settings.getByRole('heading', { name: 'General settings' }),
+    settings.getByRole('heading', { name: 'Organization settings' }),
   ).toBeVisible();
   await expect(settings).not.toHaveAttribute('ngh', /.*/);
 
@@ -63,7 +63,9 @@ test('selects and persists a live Google Maps place @needs-google-maps', async (
   await expect(dialog).toBeHidden({ timeout: 30_000 });
   await expect(locationField).not.toContainText('No location selected');
 
-  await settings.getByRole('button', { name: 'Save' }).click();
+  await settings
+    .getByRole('button', { name: 'Save organization settings' })
+    .click();
   await expect(page.getByText('Organization settings updated')).toBeVisible();
 
   await expect

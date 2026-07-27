@@ -21,12 +21,12 @@ test('profile discounts show seeded ESN card state and block invalid saves', asy
     throw new Error('Expected regular profile user fixture');
   }
 
-  await page.goto('/profile#discounts');
+  await page.goto('/profile/discounts');
 
-  const profilePage = page.locator('app-user-profile');
+  const profilePage = page.locator('app-profile-discounts');
   await expect(profilePage).toBeVisible();
   await expect(
-    page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
+    page.getByRole('heading', { level: 1, name: 'Discount Cards' }),
   ).toBeVisible({ timeout: 15_000 });
 
   await expect(page.getByText('ESN card', { exact: true })).toBeVisible();

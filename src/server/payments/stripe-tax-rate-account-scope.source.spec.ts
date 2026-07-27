@@ -205,7 +205,7 @@ describe('Stripe tax-rate account scope source guards', () => {
   it('locks, plans, switches, and remaps both account-rotation paths atomically', () => {
     expectAtomicAccountRotation(
       readSource('../effect/rpc/handlers/admin.handlers.ts'),
-      "'admin.tenant.updateSettings':",
+      "'admin.tenant.updatePaymentProviderSettings':",
       '.transaction((tx) =>',
     );
     expectAtomicAccountRotation(

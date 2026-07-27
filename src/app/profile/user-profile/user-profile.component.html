@@ -1,488 +1,102 @@
-<div class="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr] lg:p-4">
-  <div class="grid gap-4">
-    @if (browsingOutsideHomeTenant()) {
-      <section
-        role="status"
-        class="bg-warning-container text-on-warning-container grid gap-3 rounded-xl p-4"
-      >
-        <div>
-          <h2 class="title-medium">You are browsing another organization</h2>
-          <p class="body-medium mt-1">
-            Your home organization is
-            {{ profileUser()?.homeTenantName ?? "another organization" }}.
-            Joining this organization did not change that preference.
-          </p>
-        </div>
-        <button
-          type="button"
-          mat-stroked-button
-          class="justify-self-start"
-          [disabled]="setHomeTenantMutation.isPending()"
-          (click)="setCurrentTenantAsHome()"
-        >
-          {{
-            setHomeTenantMutation.isPending()
-              ? "Changing..."
-              : "Make this my home organization"
-          }}
-        </button>
-      </section>
-    }
-    <section class="bg-surface-container-high text-on-surface rounded-2xl p-4">
-      @if (profileUser(); as user) {
-        <div class="space-y-2">
-          <p class="text-on-surface-variant text-xs uppercase tracking-wide">
-            Profile
-          </p>
-          <h1 class="title-large">{{ user.firstName }} {{ user.lastName }}</h1>
-          <p class="text-on-surface-variant text-sm">Login: {{ user.email }}</p>
-          <p class="text-on-surface-variant text-sm">
-            Notifications:
-            {{ user.communicationEmail }}
-          </p>
-          <button
-            type="button"
-            mat-stroked-button
-            (click)="openEditProfileDialog()"
-            [disabled]="
-              profileEditActionDisabled({
-                mutationPending: updateProfileMutation.isPending(),
-              })
-            "
-            id="edit-profile-btn"
-          >
-            <fa-duotone-icon [icon]="faPencil" class="mr-2" />
-            Edit profile
-          </button>
-        </div>
-      } @else if (userQuery.isLoading()) {
-        <p>Loading profile information...</p>
-      } @else {
-        <p class="text-error">
-          Failed to load profile information. Please try again later.
+<div class="grid gap-4">
+  @if (browsingOutsideHomeTenant()) {
+    <section
+      role="status"
+      class="bg-warning-container text-on-warning-container grid gap-3 rounded-xl p-4"
+    >
+      <div>
+        <h2 class="title-medium">You are browsing another organization</h2>
+        <p class="body-medium mt-1">
+          Your home organization is
+          {{ profileUser()?.homeTenantName ?? "another organization" }}. Joining
+          this organization did not change that preference.
         </p>
-      }
+      </div>
+      <button
+        type="button"
+        mat-stroked-button
+        class="justify-self-start"
+        [disabled]="setHomeTenantMutation.isPending()"
+        (click)="setCurrentTenantAsHome()"
+      >
+        {{
+          setHomeTenantMutation.isPending()
+            ? "Changing..."
+            : "Make this my home organization"
+        }}
+      </button>
+    </section>
+  }
+
+  @if (profileUser(); as user) {
+    <section class="bg-surface text-on-surface grid gap-4 rounded-2xl p-6">
+      <div>
+        <h2 class="title-large">Account details</h2>
+        <p class="title-medium mt-2">
+          {{ user.firstName }} {{ user.lastName }}
+        </p>
+      </div>
+      <dl class="grid gap-3 text-sm">
+        <div>
+          <dt class="text-on-surface-variant">Login email</dt>
+          <dd>{{ user.email }}</dd>
+        </div>
+        <div>
+          <dt class="text-on-surface-variant">Notification email</dt>
+          <dd>{{ user.communicationEmail }}</dd>
+        </div>
+        @if (user.homeTenantName) {
+          <div>
+            <dt class="text-on-surface-variant">Home organization</dt>
+            <dd>{{ user.homeTenantName }}</dd>
+          </div>
+        }
+        <div>
+          <dt class="text-on-surface-variant">Reimbursements</dt>
+          <dd>{{ profileReimbursementReadiness(user) }}</dd>
+        </div>
+      </dl>
+      <button
+        type="button"
+        mat-stroked-button
+        class="justify-self-start"
+        (click)="openEditProfileDialog()"
+        [disabled]="updateProfileMutation.isPending()"
+        id="edit-profile-btn"
+      >
+        <fa-duotone-icon [icon]="faPencil" class="mr-2" />
+        Edit profile
+      </button>
     </section>
 
-    <nav class="grid gap-3">
-      @for (section of sectionEntries(); track section.key) {
-        <button
-          type="button"
-          class="{{
-            sectionButtonClasses(section.key)
-          }} rounded-2xl p-4 text-left"
-          (click)="setSelectedSection(section.key)"
-        >
-          <div class="flex items-center gap-3">
-            <fa-duotone-icon [icon]="section.icon" />
-            <span class="title-medium">{{ section.label }}</span>
-          </div>
-        </button>
-      }
-    </nav>
-  </div>
+    <section class="bg-surface text-on-surface grid gap-3 rounded-2xl p-6">
+      <h2 class="title-medium">Registration transfers</h2>
+      <p class="text-on-surface-variant text-sm">
+        Enter a private transfer code to review the event, current questions,
+        current price, and complete registration bundle before accepting it.
+      </p>
+      <a
+        mat-flat-button
+        routerLink="/registration-transfers"
+        class="justify-self-start"
+      >
+        <fa-duotone-icon [icon]="faTicket" class="mr-2" />
+        Claim transfer
+      </a>
+    </section>
 
-  <section class="bg-surface text-on-surface rounded-2xl p-6">
-    @switch (selectedSection()) {
-      @case ("overview") {
-        <div class="space-y-3">
-          <h2 class="title-medium">Account Actions</h2>
-          <p class="text-on-surface-variant text-sm">
-            Manage your global profile details, notification email,
-            reimbursement details, private registration transfers, and session
-            actions.
-          </p>
-          <div class="flex flex-wrap gap-2">
-            <a
-              mat-flat-button
-              [routerLink]="profileTransferClaimPath"
-              class="flex items-center gap-2"
-            >
-              <fa-duotone-icon [icon]="faTicket" class="mr-2" />
-              Claim transfer
-            </a>
-            <a
-              href="/logout"
-              mat-stroked-button
-              class="flex items-center gap-2"
-            >
-              <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
-              Logout
-            </a>
-          </div>
-          <p class="body-small text-on-surface-variant">
-            Received a private code? Use Claim transfer to review the complete
-            registration bundle before accepting it.
-          </p>
-        </div>
-      }
-      @case ("events") {
-        <div class="space-y-4">
-          <div class="flex items-center gap-2">
-            <fa-duotone-icon [icon]="faCalendarDays" />
-            <h2 class="title-medium">Your Event Registrations</h2>
-          </div>
-          @if (userEventsQuery.isSuccess()) {
-            @if (userEventsQuery.data().length) {
-              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                @for (
-                  event of userEventsQuery.data();
-                  track event.registrationId
-                ) {
-                  <article
-                    class="bg-surface-container-high grid gap-1 rounded-xl p-4"
-                  >
-                    <div
-                      class="flex flex-wrap items-start justify-between gap-3"
-                    >
-                      <div>
-                        <h3 class="text-primary text-lg font-semibold">
-                          {{ event.title }}
-                        </h3>
-                        <p class="text-on-surface-variant text-sm">
-                          {{ event.start | date: "medium" }}
-                        </p>
-                      </div>
-                      <span
-                        class="rounded bg-surface px-2 py-1 text-xs uppercase"
-                      >
-                        {{ registrationStatusLabel(event.status) }}
-                      </span>
-                    </div>
-                    <dl class="grid gap-1 text-sm">
-                      <div>
-                        <dt class="text-on-surface-variant inline">Type:</dt>
-                        <dd class="inline">
-                          {{ profileEventAudienceLabel(event) }}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt class="text-on-surface-variant inline">Option:</dt>
-                        <dd class="inline">
-                          {{ event.registrationOptionTitle }}
-                        </dd>
-                      </div>
-                      @if (
-                        profileEventGuestLabel(event.guestCount);
-                        as guestLabel
-                      ) {
-                        <div>
-                          <dt class="text-on-surface-variant inline">
-                            Guests:
-                          </dt>
-                          <dd class="inline">{{ guestLabel }}</dd>
-                        </div>
-                      }
-                      @if (event.addonPurchases.length > 0) {
-                        <div>
-                          <dt class="text-on-surface-variant inline">
-                            Add-ons:
-                          </dt>
-                          <dd class="inline">
-                            @for (
-                              addOnPurchase of event.addonPurchases;
-                              track $index
-                            ) {
-                              <span>
-                                {{ addOnPurchase.quantity }} x
-                                {{ addOnPurchase.title }}
-                                @if (addOnPurchase.unitPrice > 0) {
-                                  ({{
-                                    (addOnPurchase.quantity *
-                                      addOnPurchase.unitPrice) /
-                                      100 | currency
-                                  }})
-                                }
-                                {{ $last ? "" : ", " }}
-                              </span>
-                            }
-                          </dd>
-                        </div>
-                      }
-                      <div>
-                        <dt class="text-on-surface-variant inline">Payment:</dt>
-                        <dd class="inline">
-                          {{ registrationPaymentLabel(event.paymentState) }}
-                        </dd>
-                      </div>
-                      @if (event.refunds.length > 0) {
-                        <div>
-                          <dt class="text-on-surface-variant">Refunds:</dt>
-                          <dd class="grid gap-1">
-                            @for (refund of event.refunds; track $index) {
-                              <span>
-                                {{
-                                  registrationRefundSourceLabel(refund.source)
-                                }}:
-                                {{ registrationRefundStateLabel(refund.state) }}
-                                ·
-                                {{
-                                  refund.amount / 100
-                                    | currency: refund.currency
-                                }}
-                              </span>
-                            }
-                          </dd>
-                        </div>
-                      }
-                      @if (profileEventNextStepLabel(event); as nextStep) {
-                        <div>
-                          <dt class="text-on-surface-variant inline">
-                            Next step:
-                          </dt>
-                          <dd class="inline">{{ nextStep }}</dd>
-                        </div>
-                      }
-                      @if (event.status === "CONFIRMED" && !event.checkInTime) {
-                        <div>
-                          <dt class="text-on-surface-variant inline">
-                            {{ profileEventPassLabel(event) }}:
-                          </dt>
-                          <dd class="inline">Available on the event page.</dd>
-                        </div>
-                      }
-                      @if (event.checkInTime) {
-                        <div>
-                          <dt class="text-on-surface-variant inline">
-                            Checked in:
-                          </dt>
-                          <dd class="inline">
-                            {{ event.checkInTime | date: "medium" }}
-                          </dd>
-                        </div>
-                      }
-                    </dl>
-                    <p class="text-on-surface-variant text-sm">
-                      {{ profileEventActionNote(event) }}
-                    </p>
-                    <div class="mt-2 flex flex-wrap gap-2">
-                      @if (
-                        profileEventContinuePaymentUrl(event);
-                        as continuePaymentUrl
-                      ) {
-                        <a
-                          mat-flat-button
-                          [href]="continuePaymentUrl"
-                          rel="noopener noreferrer"
-                        >
-                          Continue payment
-                        </a>
-                      }
-                      <a
-                        mat-stroked-button
-                        [routerLink]="['/events', event.eventId]"
-                      >
-                        {{ profileEventDetailActionLabel() }}
-                      </a>
-                    </div>
-                  </article>
-                }
-              </div>
-            } @else {
-              <p>You haven't registered for any events yet.</p>
-            }
-          } @else if (userEventsQuery.isLoading()) {
-            <p>Loading your events...</p>
-          } @else {
-            <p class="text-error">
-              Failed to load your events. Please try again later.
-            </p>
-          }
-        </div>
-      }
-      @case ("discounts") {
-        <div class="space-y-4">
-          @if (esnEnabled()) {
-            <div>
-              <h2 class="title-medium mb-2">Discount Cards</h2>
-              <p class="text-on-surface-variant mb-4 text-sm">
-                Add your ESN card to receive discounted prices on eligible
-                events.
-              </p>
-
-              @if (myCardsQuery.isSuccess()) {
-                @if (myCardsQuery.data().length > 0) {
-                  <div class="mb-4 rounded-xl bg-surface-container-high p-4">
-                    @for (card of myCardsQuery.data(); track card.id) {
-                      <div class="flex flex-col gap-1">
-                        <div class="flex items-center gap-2">
-                          <span class="font-medium">ESN card</span>
-                          <span class="text-xs text-on-surface-variant">{{
-                            card.identifier
-                          }}</span>
-                        </div>
-                        <div class="text-sm">
-                          Status: {{ esnCardStatusLabel(card.status) }}
-                          @if (card.validTo) {
-                            — valid until
-                            {{ card.validTo | date: "mediumDate" }}
-                          }
-                        </div>
-                        <div class="mt-3 flex flex-wrap gap-2">
-                          <button
-                            mat-stroked-button
-                            (click)="refreshEsnCard()"
-                            [disabled]="
-                              esnCardActionDisabled({
-                                deletePending: deleteCardMutation.isPending(),
-                                refreshPending: refreshCardMutation.isPending(),
-                                upsertPending: upsertCardMutation.isPending(),
-                              })
-                            "
-                          >
-                            {{
-                              esnCardActionLabel(
-                                "refresh",
-                                refreshCardMutation.isPending()
-                              )
-                            }}
-                          </button>
-                          <button
-                            mat-stroked-button
-                            color="warn"
-                            (click)="deleteEsnCard()"
-                            [disabled]="
-                              esnCardActionDisabled({
-                                deletePending: deleteCardMutation.isPending(),
-                                refreshPending: refreshCardMutation.isPending(),
-                                upsertPending: upsertCardMutation.isPending(),
-                              })
-                            "
-                          >
-                            {{
-                              esnCardActionLabel(
-                                "remove",
-                                deleteCardMutation.isPending()
-                              )
-                            }}
-                          </button>
-                        </div>
-                      </div>
-                    }
-                  </div>
-                } @else {
-                  <p class="mb-2 text-sm">No discount cards on file.</p>
-                }
-              } @else if (myCardsQuery.isPending()) {
-                <p>Loading your discount cards ...</p>
-              } @else {
-                <p class="text-error">Failed to load discount cards.</p>
-              }
-
-              <form
-                class="mt-4 max-w-md space-y-3"
-                (submit)="saveEsnCard($event)"
-              >
-                <mat-form-field class="w-full" appearance="outline">
-                  <mat-label>ESN card number</mat-label>
-                  <input
-                    matInput
-                    [formField]="esnCardForm.identifier"
-                    placeholder="8-16 letters or numbers"
-                  />
-                </mat-form-field>
-                @if (
-                  esnCardForm.identifier().touched() &&
-                  esnCardForm.identifier().invalid()
-                ) {
-                  <p class="text-error text-sm">
-                    Enter a valid ESN card number (8-16 letters or numbers).
-                  </p>
-                }
-                <div class="flex flex-wrap items-center gap-3">
-                  <button
-                    mat-raised-button
-                    color="primary"
-                    type="submit"
-                    [disabled]="
-                      esnCardSaveDisabled({
-                        formInvalid: esnCardForm().invalid(),
-                        formSubmitting: esnCardForm().submitting(),
-                        mutationPending: esnCardActionDisabled({
-                          deletePending: deleteCardMutation.isPending(),
-                          refreshPending: refreshCardMutation.isPending(),
-                          upsertPending: upsertCardMutation.isPending(),
-                        }),
-                      })
-                    "
-                  >
-                    {{
-                      esnCardActionLabel("save", upsertCardMutation.isPending())
-                    }}
-                  </button>
-                  @if (
-                    !hasVerifiedEsnCard() && buyEsnCardUrl();
-                    as buyEsnCardLink
-                  ) {
-                    <a
-                      class="text-sm underline"
-                      [href]="buyEsnCardLink"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >Get an ESN card</a
-                    >
-                  }
-                </div>
-                @if (esnCardErrorMessage(); as esnCardError) {
-                  <p class="text-error text-sm">
-                    {{ esnCardError }}
-                  </p>
-                }
-              </form>
-            </div>
-          } @else {
-            <p class="text-on-surface-variant text-sm">
-              Discount cards are not enabled for this organization.
-            </p>
-          }
-        </div>
-      }
-      @case ("receipts") {
-        <div class="space-y-4" id="receipts">
-          <h2 class="title-medium">Submitted receipts</h2>
-          @if (myReceiptsQuery.isPending()) {
-            <div class="bg-surface-container rounded-xl p-4">
-              Loading receipts...
-            </div>
-          } @else if (myReceiptsQuery.isError()) {
-            <div
-              class="bg-error-container text-on-error-container rounded-xl p-4"
-            >
-              Failed to load receipts.
-            </div>
-          } @else if ((myReceiptsQuery.data()?.length ?? 0) === 0) {
-            <div class="bg-surface-container rounded-xl p-4">
-              You have not submitted receipts yet.
-            </div>
-          } @else {
-            <div class="grid gap-3">
-              @for (receipt of myReceiptsQuery.data(); track receipt.id) {
-                <article class="bg-surface-container rounded-xl p-4">
-                  <div
-                    class="flex flex-wrap items-center justify-between gap-2"
-                  >
-                    <h3 class="font-medium">
-                      {{ receipt.attachmentFileName }}
-                    </h3>
-                    <span
-                      class="rounded bg-surface px-2 py-1 text-xs uppercase"
-                    >
-                      {{ receiptStatusLabel(receipt.status) }}
-                    </span>
-                  </div>
-                  <p class="text-on-surface-variant text-sm">
-                    {{ receipt.eventTitle }} ·
-                    {{ receipt.receiptDate | date: "mediumDate" }}
-                  </p>
-                  <p class="text-sm">
-                    {{ receipt.totalAmount | receiptAmount: receipt.currency }}
-                  </p>
-                </article>
-              }
-            </div>
-          }
-        </div>
-      }
-    }
-  </section>
+    <section class="bg-surface text-on-surface grid gap-3 rounded-2xl p-6">
+      <h2 class="title-medium">Session</h2>
+      <a href="/logout" mat-stroked-button class="justify-self-start">
+        <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
+        Logout
+      </a>
+    </section>
+  } @else if (userQuery.isLoading()) {
+    <p role="status">Loading profile information...</p>
+  } @else {
+    <p class="text-error" role="alert">
+      Failed to load profile information. Please try again later.
+    </p>
+  }
 </div>

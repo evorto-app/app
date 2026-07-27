@@ -36,6 +36,7 @@ import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obl
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
+  uniqueTenantRoleIds,
 } from '../../../../roles/tenant-role-graph';
 import {
   isMeaningfulRichTextHtml,
@@ -922,6 +923,10 @@ export const eventLifecycleHandlers = {
               const updated = yield* transaction
                 .update(eventInstances)
                 .set({
+                  ...((before.registrationOptions.length > 0 ||
+                    input.registrationOptions.length > 0) && {
+                    announcementRoleIds: [],
+                  }),
                   description: sanitizedDescription,
                   end,
                   icon: input.icon,
@@ -958,22 +963,101 @@ export const eventLifecycleHandlers = {
           .pipe(Effect.catchTag('SqlError', Effect.die)),
       );
     }),
-  'events.updateListing': ({ eventId, listingAudience }, _options) =>
+  'events.updateListing': (
+    { announcementRoleIds, eventId, listingAudience },
+    _options,
+  ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('events:changeListing');
       const { tenant } = yield* RpcAccess.current();
+      const normalizedAnnouncementRoleIds =
+        uniqueTenantRoleIds(announcementRoleIds);
 
-      const updatedEvents = yield* databaseEffect((database) =>
+      const updatedEvents = yield* Database.use((database) =>
         database
-          .update(eventInstances)
-          .set({ listingAudience })
-          .where(
-            and(
-              eq(eventInstances.tenantId, tenant.id),
-              eq(eventInstances.id, eventId),
-            ),
+          .transaction((transaction) =>
+            Effect.gen(function* () {
+              const lockedEvents = yield* transaction
+                .select({ id: eventInstances.id })
+                .from(eventInstances)
+                .where(
+                  and(
+                    eq(eventInstances.tenantId, tenant.id),
+                    eq(eventInstances.id, eventId),
+                  ),
+                )
+                .for('update')
+                .pipe(Effect.orDie);
+              if (lockedEvents.length === 0) {
+                return yield* Effect.fail(
+                  new EventNotFoundError({
+                    id: eventId,
+                    message: 'Event not found',
+                  }),
+                );
+              }
+
+              yield* lockTenantRoleGraph(transaction, tenant.id).pipe(
+                Effect.orDie,
+              );
+              const roleIdsExist = yield* tenantRoleIdsExist(
+                transaction,
+                tenant.id,
+                normalizedAnnouncementRoleIds,
+              ).pipe(Effect.orDie);
+              if (!roleIdsExist) {
+                return yield* Effect.fail(
+                  new RpcBadRequestError({
+                    message:
+                      'Announcement discovery contains a role from another organization',
+                    reason: 'invalidAnnouncementRole',
+                  }),
+                );
+              }
+
+              const registrationOptions = yield* transaction
+                .select({ id: eventRegistrationOptions.id })
+                .from(eventRegistrationOptions)
+                .where(eq(eventRegistrationOptions.eventId, eventId))
+                .limit(1)
+                .pipe(Effect.orDie);
+              if (
+                registrationOptions.length > 0 &&
+                normalizedAnnouncementRoleIds.length > 0
+              ) {
+                return yield* Effect.fail(
+                  new RpcBadRequestError({
+                    message:
+                      'Announcement discovery roles can only be set on events without registration options',
+                    reason: 'announcementRolesRequireOptionlessEvent',
+                  }),
+                );
+              }
+
+              return yield* transaction
+                .update(eventInstances)
+                .set({
+                  announcementRoleIds: normalizedAnnouncementRoleIds,
+                  listingAudience,
+                })
+                .where(
+                  and(
+                    eq(eventInstances.tenantId, tenant.id),
+                    eq(eventInstances.id, eventId),
+                  ),
+                )
+                .returning({ id: eventInstances.id })
+                .pipe(Effect.orDie);
+            }),
           )
-          .returning({ id: eventInstances.id }),
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof EventNotFoundError ||
+              error instanceof RpcBadRequestError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
       );
       if (!updatedEvents[0]) {
         return yield* Effect.fail(

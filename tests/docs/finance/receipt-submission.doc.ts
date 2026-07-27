@@ -360,8 +360,11 @@ Use **Profile** in the main navigation, then choose **Receipts**. This personal 
   });
 
   await page.getByRole('link', { name: 'Profile', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Receipts' })).toBeVisible();
-  await page.getByRole('button', { name: 'Receipts' }).click();
+  const receiptsLink = page
+    .getByRole('navigation', { name: 'Profile sections' })
+    .getByRole('link', { name: 'Receipts' });
+  await expect(receiptsLink).toBeVisible();
+  await receiptsLink.click();
   await expect(
     page.getByRole('heading', { name: 'Submitted receipts' }),
   ).toBeVisible();
@@ -439,7 +442,10 @@ Organization membership by itself is not organizer access. A regular member in t
   await sameTenantViewer.page
     .getByRole('link', { name: 'Profile', exact: true })
     .click();
-  await sameTenantViewer.page.getByRole('button', { name: 'Receipts' }).click();
+  await sameTenantViewer.page
+    .getByRole('navigation', { name: 'Profile sections' })
+    .getByRole('link', { name: 'Receipts' })
+    .click();
   await expect(
     sameTenantViewer.page.getByRole('heading', {
       name: 'Submitted receipts',

@@ -59,7 +59,7 @@ test('profile receipts show submitted receipt status and event context', async (
       totalAmount: 1875,
     });
 
-    await page.goto('/profile#receipts');
+    await page.goto('/profile/receipts');
     await expect(
       page.getByRole('heading', { name: 'Submitted receipts' }),
     ).toBeVisible();

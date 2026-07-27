@@ -1,0 +1,87 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to administration"
+  >
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Legal pages</h1>
+</div>
+
+<form
+  class="bg-surface text-on-surface rounded-2xl p-4"
+  (submit)="save($event)"
+>
+  <fieldset
+    class="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-0"
+    [disabled]="!settingsInteractionReady()"
+  >
+    <p class="text-on-surface-variant text-sm">
+      Use an external URL when another website owns a page, or add text for
+      Evorto to publish it. When both are present, the public footer uses the
+      external URL.
+    </p>
+
+    <mat-form-field>
+      <mat-label>Imprint / legal notice URL</mat-label>
+      <input
+        matInput
+        [formField]="settingsForm.legalNoticeUrl"
+        placeholder="https://section.example.org/imprint"
+      />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Hosted imprint / legal notice text</mat-label>
+      <textarea
+        matInput
+        rows="5"
+        [formField]="settingsForm.legalNoticeText"
+        placeholder="Legal notice text shown at /legal/imprint"
+      ></textarea>
+    </mat-form-field>
+
+    <div class="bg-surface-container-low rounded-lg p-3">
+      <p class="text-on-surface-variant text-sm">
+        The privacy policy and onboarding questions are managed together in
+        <a class="underline" routerLink="/admin/onboarding">Member onboarding</a
+        >. Publishing a new privacy policy asks every member to accept it.
+      </p>
+    </div>
+
+    <mat-form-field>
+      <mat-label>Terms URL</mat-label>
+      <input
+        matInput
+        [formField]="settingsForm.termsUrl"
+        placeholder="https://section.example.org/terms"
+      />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Hosted terms text</mat-label>
+      <textarea
+        matInput
+        rows="5"
+        [formField]="settingsForm.termsText"
+        placeholder="Terms shown at /legal/terms"
+      ></textarea>
+    </mat-form-field>
+
+    <button
+      mat-flat-button
+      type="submit"
+      class="w-fit"
+      [disabled]="
+        tenantSettingsSaveDisabled({
+          formInvalid: settingsForm().invalid(),
+          formSubmitting: settingsForm().submitting(),
+          interactionReady: settingsInteractionReady(),
+          mutationPending: updateMutation.isPending(),
+        })
+      "
+    >
+      Save legal pages
+    </button>
+  </fieldset>
+</form>

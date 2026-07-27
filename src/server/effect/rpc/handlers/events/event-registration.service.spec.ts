@@ -25,6 +25,7 @@ import {
   MAX_REGISTRATION_ANSWER_LENGTH,
   MAX_REGISTRATION_QUESTIONS,
 } from '../../../../../shared/registration-question-limits';
+import { maximumPersistedPaymentAmount } from '../../../../payments/payment-amount';
 import { StripeClient } from '../../../../stripe-client';
 import {
   type ApproveManualRegistrationArguments,
@@ -34,6 +35,7 @@ import {
   isUserEligibleForRegistrationOption,
   lockCurrentRegistrationTaxConfiguration,
   orderRegistrationAddonPurchases,
+  registrationCheckoutPriceBreakdown,
   validateRegistrationAddons,
   validateRegistrationQuestionAnswers,
 } from './event-registration.service';
@@ -2214,6 +2216,120 @@ describe('EventRegistrationService', () => {
 });
 
 describe('EventRegistrationService', () => {
+  describe('registrationCheckoutPriceBreakdown', () => {
+    it.effect(
+      'accepts the persisted registration amount boundary and rejects the next cent',
+      () =>
+        Effect.gen(function* () {
+          const atLimit = yield* registrationCheckoutPriceBreakdown({
+            addOns: [],
+            effectivePrice: maximumPersistedPaymentAmount,
+            guestCount: 0,
+            guestUnitPrice: 0,
+          });
+          expect(atLimit.registrationBaseAmount).toBe(
+            maximumPersistedPaymentAmount,
+          );
+          expect(atLimit.totalPrice).toBe(maximumPersistedPaymentAmount);
+
+          const error = yield* registrationCheckoutPriceBreakdown({
+            addOns: [],
+            effectivePrice: 1,
+            guestCount: 1,
+            guestUnitPrice: maximumPersistedPaymentAmount,
+          }).pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(error.message).toBe(
+            'Registration price exceeds supported payment limits',
+          );
+        }),
+    );
+
+    it.effect(
+      'accepts the persisted add-on lot boundary and rejects an overflowing lot',
+      () =>
+        Effect.gen(function* () {
+          const atLimit = yield* registrationCheckoutPriceBreakdown({
+            addOns: [
+              {
+                key: 'addon-1',
+                quantity: 1,
+                unitPrice: maximumPersistedPaymentAmount,
+              },
+            ],
+            effectivePrice: 0,
+            guestCount: 0,
+            guestUnitPrice: 0,
+          });
+          expect(atLimit.addOnBaseAmounts.get('addon-1')).toBe(
+            maximumPersistedPaymentAmount,
+          );
+          expect(atLimit.selectedAddonTotalPrice).toBe(
+            maximumPersistedPaymentAmount,
+          );
+
+          const error = yield* registrationCheckoutPriceBreakdown({
+            addOns: [
+              {
+                key: 'addon-1',
+                quantity: 2,
+                unitPrice: maximumPersistedPaymentAmount,
+              },
+            ],
+            effectivePrice: 0,
+            guestCount: 0,
+            guestUnitPrice: 0,
+          }).pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(error.message).toBe(
+            'Add-on price exceeds supported payment limits',
+          );
+        }),
+    );
+
+    it.effect(
+      'rejects overflowing add-on and complete checkout aggregates',
+      () =>
+        Effect.gen(function* () {
+          const addOnAggregateError = yield* registrationCheckoutPriceBreakdown(
+            {
+              addOns: [
+                {
+                  key: 'addon-1',
+                  quantity: 1,
+                  unitPrice: maximumPersistedPaymentAmount,
+                },
+                { key: 'addon-2', quantity: 1, unitPrice: 1 },
+              ],
+              effectivePrice: 0,
+              guestCount: 0,
+              guestUnitPrice: 0,
+            },
+          ).pipe(Effect.flip);
+          expect(addOnAggregateError).toBeInstanceOf(
+            EventRegistrationConflictError,
+          );
+          expect(addOnAggregateError.message).toBe(
+            'Selected add-on total exceeds supported payment limits',
+          );
+
+          const checkoutAggregateError =
+            yield* registrationCheckoutPriceBreakdown({
+              addOns: [{ key: 'addon-1', quantity: 1, unitPrice: 1 }],
+              effectivePrice: maximumPersistedPaymentAmount,
+              guestCount: 0,
+              guestUnitPrice: 0,
+            }).pipe(Effect.flip);
+          expect(checkoutAggregateError).toBeInstanceOf(
+            EventRegistrationConflictError,
+          );
+          expect(checkoutAggregateError.message).toBe(
+            'Registration checkout total exceeds supported payment limits',
+          );
+        }),
+    );
+  });
+
   describe('isUserEligibleForRegistrationOption', () => {
     it('treats an empty role list as open to all users', () => {
       expect(
@@ -4513,28 +4629,47 @@ describe('EventRegistrationService', () => {
   );
 
   it.effect(
-    'locks tenant membership and enforces the active limit before joining a waitlist',
+    'locks tenant membership without checking the active limit before joining a waitlist',
     () =>
       Effect.gen(function* () {
-        const insertWaitlistRegistration = vi.fn();
-        const updateWaitlistCounter = vi.fn();
+        const insertWaitlistRegistration = vi.fn(() => ({
+          values: vi.fn(() => ({
+            returning: vi.fn(() =>
+              Effect.succeed([
+                {
+                  id: 'waitlist-1',
+                },
+              ]),
+            ),
+          })),
+        }));
+        const updateWaitlistCounter = vi.fn(() => ({
+          set: vi.fn(() => ({
+            where: vi.fn(() => ({
+              returning: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    id: 'option-1',
+                  },
+                ]),
+              ),
+            })),
+          })),
+        }));
         const lockMembership = vi.fn(() =>
           Effect.succeed([{ id: 'membership-1' }]),
         );
         const selectRegistrationState = vi.fn(() => ({
-          from: (table: unknown) =>
-            table === usersToTenants
-              ? {
-                  where: () => ({ for: lockMembership }),
-                }
-              : {
-                  innerJoin: () => ({
-                    where: () => ({
-                      limit: () =>
-                        Effect.succeed([{ id: 'active-registration-1' }]),
-                    }),
-                  }),
-                },
+          from: (table: unknown) => {
+            if (table !== usersToTenants) {
+              throw new Error(
+                'Joining a waitlist must not query active registrations',
+              );
+            }
+            return {
+              where: () => ({ for: lockMembership }),
+            };
+          },
         }));
         const transaction = {
           insert: insertWaitlistRegistration,
@@ -4566,16 +4701,16 @@ describe('EventRegistrationService', () => {
           ) => callback(transaction),
         };
 
-        const error = yield* EventRegistrationService.joinWaitlist({
+        const tenantAtLimit = {
+          id: 'tenant-1',
+          maxActiveRegistrationsPerUser: 1,
+        };
+        yield* EventRegistrationService.joinWaitlist({
           eventId: 'event-1',
           registrationOptionId: 'option-1',
-          tenant: {
-            id: 'tenant-1',
-            maxActiveRegistrationsPerUser: 1,
-          },
+          tenant: tenantAtLimit,
           user: { id: 'user-1', roleIds: [] },
         }).pipe(
-          Effect.flip,
           Effect.provide(EventRegistrationService.Default),
           Effect.provide(
             Layer.succeed(Database, mockDatabase as DatabaseClient),
@@ -4583,11 +4718,10 @@ describe('EventRegistrationService', () => {
           Effect.provide(configProviderLayer),
         );
 
-        expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('Active registration limit reached');
         expect(lockMembership).toHaveBeenCalledOnce();
-        expect(updateWaitlistCounter).not.toHaveBeenCalled();
-        expect(insertWaitlistRegistration).not.toHaveBeenCalled();
+        expect(selectRegistrationState).toHaveBeenCalledOnce();
+        expect(updateWaitlistCounter).toHaveBeenCalledOnce();
+        expect(insertWaitlistRegistration).toHaveBeenCalledOnce();
       }),
   );
 

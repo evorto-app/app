@@ -119,6 +119,8 @@ describe('users RPC input schemas', () => {
       Schema.decodeUnknownSync(UsersEventSummaryRecord)({
         addonPurchases: [
           {
+            currency: 'EUR',
+            purchasedQuantity: 2,
             quantity: 2,
             title: 'Workshop kit',
             unitPrice: 500,

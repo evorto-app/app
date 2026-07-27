@@ -9,7 +9,7 @@ import {
   esnCardSaveDisabled,
   esnCardStatusLabel,
   esnCardSubmitPayloadFromIdentifier,
-} from '../../../src/app/profile/user-profile/user-profile.esn-card';
+} from '../../../src/app/profile/profile-discounts/profile-discounts.esn-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { fillProtectedValue } from '../../support/utils/fill-protected-value';
@@ -94,20 +94,20 @@ test('Manage ESN discount card @finance', async ({
     throw new Error('Expected regular profile user fixture');
   }
 
-  await page.goto('/profile#discounts');
+  await page.goto('/profile/discounts');
 
-  const profilePage = page.locator('app-user-profile');
+  const profilePage = page.locator('app-profile-discounts');
   await expect(profilePage).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
 # ESN Discount Card
 
-Open your profile's **Discounts** section directly when you want to review or update discount cards. Add your ESN card to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
+Open your profile's **Discounts** page directly when you want to review or update discount cards. Add your ESN card to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
 `,
   });
 
   await expect(
-    page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
+    page.getByRole('heading', { level: 1, name: 'Discount Cards' }),
   ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('ESN card', { exact: true })).toBeVisible();
   await expect(page.getByText(seededEsnCardIdentifier)).toBeVisible();
@@ -133,7 +133,7 @@ Open your profile's **Discounts** section directly when you want to review or up
   );
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
+    page.getByRole('heading', { level: 1, name: 'Discount Cards' }),
     page,
     'Discount cards section',
   );
@@ -253,7 +253,7 @@ test.describe('Live ESNcard verification', () => {
 
 {% callout type="note" title="Before you start" %}
 - Sign in as an ordinary member of the organization whose discounts you want to use. No administrator access is required; members manage only their own card from their own profile.
-- The current organization must have enabled ESNcard discounts. Organizations that do not use the program do not show the **Discounts** profile section.
+- The current organization must have enabled ESNcard discounts. Organizations that do not use the program do not show the **Discounts** profile page.
 - Have your current ESNcard number ready.
 {% /callout %}
 
@@ -266,12 +266,14 @@ Starting from the normal application navigation, select **Profile**, then choose
       await clickHydratedAction(
         page.getByRole('link', { name: 'Profile', exact: true }),
       );
-      await expect(page.locator('app-user-profile')).toBeVisible();
+      await expect(page.locator('app-profile-shell')).toBeVisible();
       await clickHydratedAction(
-        page.getByRole('button', { name: 'Discounts' }),
+        page
+          .getByRole('navigation', { name: 'Profile sections' })
+          .getByRole('link', { name: 'Discounts' }),
       );
       await expect(
-        page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
+        page.getByRole('heading', { level: 1, name: 'Discount Cards' }),
       ).toBeVisible({ timeout: 15_000 });
       await expect(page.getByText('No discount cards on file.')).toBeVisible();
 

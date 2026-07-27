@@ -98,9 +98,11 @@ describe('RoleSelectComponent', () => {
     expect(chipGrid?.getAttribute('aria-label')).toBe('Selected roles');
 
     const roleInput: HTMLInputElement = fixture.nativeElement.querySelector(
-      'input[placeholder="Add Role..."]',
+      'input[placeholder="Add role…"]',
     );
     expect(roleInput.tabIndex).toBe(0);
+    expect(roleInput.autocomplete).toBe('off');
+    expect(fixture.componentInstance.selectionValid()).toBe(true);
 
     roleInput.focus();
     expect(document.activeElement).toBe(roleInput);
@@ -124,10 +126,10 @@ describe('RoleSelectComponent', () => {
 
     const loader = TestbedHarnessEnvironment.loader(fixture);
     const formField = await loader.getHarness(MatFormFieldHarness);
-    expect(await formField.getLabel()).toBe('Selected Roles');
+    expect(await formField.getLabel()).toBe('Selected roles');
 
     const roleInput: HTMLInputElement = fixture.nativeElement.querySelector(
-      'input[placeholder="Add Role..."]',
+      'input[placeholder="Add role…"]',
     );
     roleInput.value = 'orga';
     roleInput.dispatchEvent(new Event('input'));
@@ -166,7 +168,7 @@ describe('RoleSelectComponent', () => {
           'button[aria-label="Remove Organizer"]',
         );
       const roleInput: HTMLInputElement = fixture.nativeElement.querySelector(
-        'input[placeholder="Add Role..."]',
+        'input[placeholder="Add role…"]',
       );
 
       expect(chipGrid.getAttribute('aria-disabled')).toBe('true');
@@ -218,6 +220,7 @@ describe('RoleSelectComponent', () => {
       expect(fixture.nativeElement.textContent).toContain(
         '1 selected role no longer exists',
       );
+      expect(fixture.componentInstance.selectionValid()).toBe(false);
     });
 
     const removeButton = (
@@ -230,6 +233,7 @@ describe('RoleSelectComponent', () => {
     await fixture.whenStable();
 
     expect(fixture.componentInstance.value()).toEqual([]);
+    expect(fixture.componentInstance.selectionValid()).toBe(true);
   });
 
   it('keeps an unavailable catalog distinct from an empty catalog and retries', async () => {
@@ -246,7 +250,7 @@ describe('RoleSelectComponent', () => {
       );
       expect(
         (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
-          'input[placeholder="Add Role..."]',
+          'input[placeholder="Add role…"]',
         )?.disabled,
       ).toBe(true);
     });

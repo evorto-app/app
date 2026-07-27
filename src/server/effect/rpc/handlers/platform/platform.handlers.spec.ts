@@ -43,6 +43,7 @@ import { platformHandlers } from './platform.handlers';
 
 const eventRecord = {
   addOns: [],
+  announcementRoleIds: [],
   creator: {
     email: 'owner@example.org',
     firstName: 'Event',

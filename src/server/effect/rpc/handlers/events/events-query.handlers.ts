@@ -306,7 +306,14 @@ export const eventQueryHandlers = {
       const selectedEvents = yield* databaseEffect((database) =>
         database
           .select({
+            announcementRoleIds: eventInstances.announcementRoleIds,
             creatorId: eventInstances.creatorId,
+            hasRegistrationOptions: exists(
+              database
+                .select()
+                .from(eventRegistrationOptions)
+                .where(eq(eventRegistrationOptions.eventId, eventInstances.id)),
+            ),
             icon: eventInstances.icon,
             id: eventInstances.id,
             listingAudience: eventInstances.listingAudience,
@@ -332,34 +339,52 @@ export const eventQueryHandlers = {
               eventDiscoveryWindow(startAfter),
               eq(eventInstances.tenantId, tenant.id),
               inArray(eventInstances.status, [...input.status]),
-              ...(input.includeUnlisted
-                ? []
-                : [not(eq(eventInstances.listingAudience, 'unlisted'))]),
               ...(canInspectAllTenantEvents
                 ? []
                 : [
-                    exists(
-                      database
-                        .select()
-                        .from(eventRegistrationOptions)
-                        .where(
-                          and(
-                            eq(
-                              eventRegistrationOptions.eventId,
-                              eventInstances.id,
-                            ),
-                            or(
-                              sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
-                              arrayOverlaps(
-                                eventRegistrationOptions.roleIds,
-                                roleFilters,
+                    or(
+                      exists(
+                        database
+                          .select()
+                          .from(eventRegistrationOptions)
+                          .where(
+                            and(
+                              eq(
+                                eventRegistrationOptions.eventId,
+                                eventInstances.id,
+                              ),
+                              or(
+                                sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
+                                arrayOverlaps(
+                                  eventRegistrationOptions.roleIds,
+                                  roleFilters,
+                                ),
+                              ),
+                              eventListingAudienceEligibilityFilter(
+                                input.includeUnlisted === true,
                               ),
                             ),
-                            eventListingAudienceEligibilityFilter(
-                              input.includeUnlisted === true,
-                            ),
+                          ),
+                      ),
+                      and(
+                        not(
+                          exists(
+                            database
+                              .select()
+                              .from(eventRegistrationOptions)
+                              .where(
+                                eq(
+                                  eventRegistrationOptions.eventId,
+                                  eventInstances.id,
+                                ),
+                              ),
                           ),
                         ),
+                        arrayOverlaps(
+                          eventInstances.announcementRoleIds,
+                          roleFilters,
+                        ),
+                      ),
                     ),
                   ]),
             ),
@@ -370,6 +395,8 @@ export const eventQueryHandlers = {
       );
 
       const eventRecords = selectedEvents.map((event) => ({
+        announcementRoleCount: event.announcementRoleIds.length,
+        hasRegistrationOptions: Boolean(event.hasRegistrationOptions),
         icon: event.icon,
         id: event.id,
         listingAudience: event.listingAudience,
@@ -453,10 +480,13 @@ export const eventQueryHandlers = {
                 Effect.map((roleRecords) => roleRecords.map((role) => role.id)),
               ),
           )));
+      const roleFilters =
+        rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
 
       const event = yield* databaseEffect((database) =>
         database.query.eventInstances.findFirst({
           columns: {
+            announcementRoleIds: true,
             creatorId: true,
             description: true,
             end: true,
@@ -497,7 +527,7 @@ export const eventQueryHandlers = {
                     RAW: (table) =>
                       sql`cardinality(${table.roleIds}) = 0 or ${arrayOverlaps(
                         table.roleIds,
-                        [...rolesToFilterBy],
+                        roleFilters,
                       )}`,
                   },
             },
@@ -801,9 +831,11 @@ export const eventQueryHandlers = {
 
       return {
         addOns: [...addOnsById.values()],
+        announcementRoleIds: [...event.announcementRoleIds],
         creatorId: event.creatorId,
         description: event.description,
         end: event.end.toISOString(),
+        hasRegistrationOptions: hasAnyRegistrationOption,
         icon: event.icon,
         id: event.id,
         listingAudience: event.listingAudience,

@@ -30,8 +30,7 @@ test('profile event cards show implemented registration actions', async ({
       userId: regularUser.id,
     });
 
-    await page.goto('/profile');
-    await page.getByRole('button', { name: 'Events' }).click();
+    await page.goto('/profile/events');
     await expect(
       page.getByRole('heading', { name: 'Your Event Registrations' }),
     ).toBeVisible();

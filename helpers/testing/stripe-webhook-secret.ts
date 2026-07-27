@@ -52,8 +52,9 @@ const defaultDockerRuntime: StripeWebhookSecretDockerRuntime = {
       const { stdout } = await execFileAsync('docker', [
         'exec',
         containerId,
-        'cat',
-        '/run/stripe-webhook/signing-secret',
+        '/usr/local/bin/bun',
+        '-e',
+        'process.stdout.write((await Bun.file("/run/stripe-webhook/signing-secret").text()).trim())',
       ]);
       return normalizedSecret(stdout);
     } catch {

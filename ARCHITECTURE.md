@@ -255,13 +255,15 @@ payment independently. Only a wholly free bundle with no refund obligation may
 complete database-only.
 
 Participant-question answers are recipient-owned data, not bundle state. The
-server permits immediate direct reassignment only when the free/no-refund
-bundle's registration option has no participant questions. Otherwise it routes
-the transfer through the private recipient claim, which validates current
-questions and atomically replaces any source answers with the recipient's own.
-An answered event question is immutable historical context: both ordinary and
-platform event mutation paths use the same answer guard before changing or
-removing its copy, requiredness, order, or registration-option assignment.
+participant path always uses the private recipient claim, which validates
+current questions and atomically replaces any source answers with the
+recipient's own. The separate organizer-only direct reassignment is permitted
+only when the bundle is free, no source refund is due, and the registration
+option has no participant questions. An answered event question is immutable
+historical context: both ordinary and platform event mutation paths use the same
+answer guard before changing or removing its copy, requiredness, order, or
+registration-option assignment. Answers submitted for a pending transfer claim
+are protected by the same guard while Stripe completion remains asynchronous.
 
 Transfer ownership and refund provenance use an application-append-only
 acquisition ledger. Production server code inserts ownership epochs,
@@ -476,9 +478,11 @@ visibility. Participant and organizer discovery are derived from the viewer's
 role eligibility for non-organizing and organizing registration options,
 respectively. Unlisted events are omitted from normal discovery.
 
-Optionless operational events remain visible only to platform tenant inspectors
-until the product defines an explicit announcement/discovery classifier. Do not
-add a missing-option fallback or infer an audience from event content.
+Optionless announcement events persist explicit tenant-role IDs for ordinary
+discovery. An empty role list makes the announcement link-only. These roles do
+not grant event access or trigger notifications, and direct-link behavior is
+unchanged. Templates do not own announcement roles. Do not infer announcement
+discovery from missing options or add a compatibility fallback.
 
 Add-ons are reusable event/template entities with explicit many-to-many option
 attachments. Each attachment must keep included entitlement quantity separate

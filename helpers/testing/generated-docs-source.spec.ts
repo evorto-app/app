@@ -439,74 +439,58 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('A supported non-Stripe source');
   });
 
-  it('keeps organization general-settings docs aligned with implemented branding and legal routes', () => {
+  it('keeps focused organization settings docs aligned with routes, permissions, and ownership', () => {
     const source = readSource('tests/docs/admin/general-settings.doc.ts');
 
-    expect(source).not.toContain(
-      'domain onboarding, brand asset upload, legal text page',
+    expect(source).toContain('settings are divided into five focused pages');
+    expect(source).toContain('**Organization settings**');
+    expect(source).toContain('**Registration policies**');
+    expect(source).toContain('**Appearance**');
+    expect(source).toContain('**Legal pages**');
+    expect(source).toContain('**Payments and providers**');
+    expect(source).toContain(
+      'The separate **Manage payments and providers** permission is required',
     );
     expect(source).toContain(
-      'A read-only **Organization** summary with its name and public domain.',
+      'Each page has its own Save action and sends a full payload only for that section.',
     );
+    expect(source).toContain(
+      'Waitlist entries do not consume the active-registration limit',
+    );
+    expect(source).toContain("page.locator('app-organization-settings')");
+    expect(source).toContain("page.locator('app-registration-settings')");
+    expect(source).toContain("page.locator('app-appearance-settings')");
+    expect(source).toContain("page.locator('app-legal-settings')");
+    expect(source).toContain("page.locator('app-payment-provider-settings')");
+    expect(source).toContain("name: 'Save organization settings'");
+    expect(source).toContain("name: 'Save registration policies'");
+    expect(source).toContain("name: 'Save appearance settings'");
+    expect(source).toContain("name: 'Save legal pages'");
+    expect(source).toContain("name: 'Save payment and provider settings'");
     expect(source).not.toContain('canonicalRootUrl');
     expect(source).not.toContain('Canonical root URL');
-    expect(source).toContain(
-      'A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field for the city or region used for event times.',
-    );
     expect(source).not.toContain('**Formatting locale**');
-    expect(source).not.toContain(
-      "generalSettings.getByRole('combobox', { name: 'Locale' })",
-    );
-    expect(source).toContain(
-      "generalSettings.getByText('Organization name', { exact: true })",
-    );
-    expect(source).toContain(
-      "generalSettings.getByText('Public domain', { exact: true })",
-    );
-    expect(source).toContain(
-      "generalSettings.getByRole('textbox', { name: 'Timezone' })",
-    );
-    expect(source).toContain(
-      '**SEO title** and **SEO description** for public-page previews.',
-    );
-    expect(source).not.toContain('A **Deferred settings** summary');
-    expect(source).toContain(
-      '**Operations settings** for email reply-to name/email, Stripe account id, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior.',
-    );
     expect(source).toContain('documentedEmailSenderName');
     expect(source).toContain('documentedEmailSenderEmail');
     expect(source).toContain('documentedStripeAccountId');
     expect(source).toContain('documentedRegistrationLimit');
     expect(source).toContain('documentedTransferDeadlineHours');
     expect(source).toContain('documentedCancellationDeadlineHours');
-    expect(source).toContain('documentedRefundFeesOnCancellation');
-    expect(source).toContain("page.getByPlaceholder('Example Section')");
-    expect(source).toContain("page.getByPlaceholder('acct_...')");
-    expect(source).toContain('await page.reload()');
-    expect(source).toContain('Expected generated general-settings docs tenant');
+    expect(source).toContain('documentedBuyEsnCardUrl');
+    expect(source).toContain('Expected generated focused-settings docs tenant');
     expect(source).toContain("from '../../support/fixtures/parallel-test'");
     expect(source).not.toContain('} finally {');
     expect(source).not.toContain('.update(schema.tenants)');
-    expect(source).toContain(
-      'The walkthrough below updates these values and the uploaded brand assets while preserving the connected Stripe account. It saves the form, reloads the page, and confirms that the same values remain.',
-    );
     expect(source).toContain("getByLabel('Upload organization logo file')");
     expect(source).toContain("getByLabel('Upload organization favicon file')");
     expect(source).toContain('documentedLogoUrl');
     expect(source).toContain('documentedFaviconUrl');
-    expect(source).toContain(
-      'Use uploaded assets that belong to this organization.',
-    );
     expect(source).toContain('Transfer deadline before event (hours)');
     expect(source).toContain('Cancellation deadline before event (hours)');
     expect(source).toContain('Refund fees on cancellation');
     expect(source).toContain(
-      'When both fields are saved, the public footer gives the external URL precedence and does not show the hosted text.',
+      'Changing or disconnecting Stripe remains blocked while payment obligations or incompatible paid configuration exist.',
     );
-    expect(source).toContain(
-      'The privacy policy is managed with required questions on **Member onboarding**, so a policy cannot be changed without the member-acceptance warning.',
-    );
-    expect(source).not.toContain('Do not fill both alternatives');
     expect(source).toContain(
       "test('Publish hosted legal pages and verify the signed-out footer @admin'",
     );
@@ -517,22 +501,13 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("name: 'Privacy policy'");
     expect(source).toContain('privacyPolicyUrl: null');
     expect(source).toContain(
-      '**Allowed receipt countries** and **Allow other** for receipt submission.',
+      'When both are present, the public footer uses the external URL.',
     );
     expect(source).toContain(
-      '**ESN Card discounts** and optional **Buy ESNcard URL** when the organization uses ESNcard validation.',
+      'Tax rates remain on the separate **Tax Rates** page.',
     );
-    expect(source).toContain(
-      'Tax rates are managed on the separate **Tax Rates** page.',
-    );
-    expect(source).toContain(
-      'Currency and timezone can be changed before the organization has event or payment data; after that, Evorto prevents the change.',
-    );
-    expect(source).not.toContain(
-      'When one of those accepted changes is saved, Evorto reloads the app',
-    );
-    expect(source).not.toContain('Tax rates are configured here');
-    expect(source).not.toContain('Stripe account management gaps');
+    expect(source).not.toContain('app-general-settings');
+    expect(source).not.toContain("name: 'General settings'");
   });
 
   it('keeps unknown-domain recovery public, non-mutating, and beginner-readable', () => {
@@ -1892,7 +1867,7 @@ describe('generated docs source current behavior', () => {
       'only when the entire fixed bundle is free, requires no refund, and has no participant questions',
     );
     expect(source).toContain(
-      'When participant questions exist, the organizer creates a private transfer offer instead',
+      'When participant questions exist, the current ticket owner creates a private transfer offer instead',
     );
     expect(source).not.toContain('pending manual refund record');
     expect(source).not.toContain(
@@ -1917,7 +1892,7 @@ describe('generated docs source current behavior', () => {
       'Expected seeded event-management docs draft event "${draftEvent.title}" to have an unselected role for autocomplete',
     );
     expect(source).toContain(
-      "registrationOptionEditor.getByPlaceholder('Add Role...')",
+      "registrationOptionEditor.getByPlaceholder('Add role…')",
     );
     expect(source).toContain('Event edit role picker duplicate prevention');
     expect(source).toContain('## Edit an existing draft event');
@@ -2060,14 +2035,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'leaves the saved ESNcard unchanged so you can try again later.',
     );
-    expect(source).toContain("page.goto('/profile#discounts')");
+    expect(source).toContain("page.goto('/profile/discounts')");
     expect(source).toContain(
       'const clickHydratedAction = async (action: Locator)',
     );
     expect(source).toContain("not.toHaveAttribute('jsaction', /click/, {");
     expect(source.match(/await clickHydratedAction\(/g)).toHaveLength(8);
     expect(source).toContain(
-      "page.getByRole('heading', { level: 2, name: 'Discount Cards' })",
+      "page.getByRole('heading', { level: 1, name: 'Discount Cards' })",
     );
     expect(source).toContain('unchangedSeededEsnCard');
     expect(source).toContain(

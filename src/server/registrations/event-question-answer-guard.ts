@@ -4,7 +4,10 @@ import { Effect } from 'effect';
 
 import type { DatabaseClient } from '../../db';
 
-import { eventRegistrationQuestionAnswers } from '../../db/schema';
+import {
+  eventRegistrationQuestionAnswers,
+  registrationTransferAnswers,
+} from '../../db/schema';
 
 export interface EventQuestionHistoryShape {
   readonly description: null | string;
@@ -65,15 +68,23 @@ export const ensureAnsweredEventQuestionsUnchanged = Effect.fn(
   const mutationIds = eventQuestionHistoryMutationIds(input);
   if (mutationIds.length === 0) return;
 
-  const answers = yield* database
-    .select({ id: eventRegistrationQuestionAnswers.id })
-    .from(eventRegistrationQuestionAnswers)
-    .where(
-      inArray(eventRegistrationQuestionAnswers.questionId, [...mutationIds]),
-    )
-    .limit(1)
-    .pipe(Effect.orDie);
-  if (answers.length > 0) {
+  const [registrationAnswers, transferAnswers] = yield* Effect.all([
+    database
+      .select({ id: eventRegistrationQuestionAnswers.id })
+      .from(eventRegistrationQuestionAnswers)
+      .where(
+        inArray(eventRegistrationQuestionAnswers.questionId, [...mutationIds]),
+      )
+      .limit(1)
+      .pipe(Effect.orDie),
+    database
+      .select({ id: registrationTransferAnswers.id })
+      .from(registrationTransferAnswers)
+      .where(inArray(registrationTransferAnswers.questionId, [...mutationIds]))
+      .limit(1)
+      .pipe(Effect.orDie),
+  ]);
+  if (registrationAnswers.length > 0 || transferAnswers.length > 0) {
     return yield* Effect.fail(
       new RpcBadRequestError({
         message:

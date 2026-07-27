@@ -146,6 +146,26 @@ describe('roleHandlers lookup permissions', () => {
     }),
   );
 
+  it.effect('allows event listing managers to select announcement roles', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          roles: {
+            findMany: () => Effect.succeed([]),
+          },
+        },
+      };
+
+      const result = yield* roleHandlers['roles.findMany']({}, {
+        headers: {},
+      } as never).pipe(
+        Effect.provide(createContextLayer(['events:changeListing'], database)),
+      );
+
+      expect(result).toEqual([]);
+    }),
+  );
+
   it.effect(
     'findMany rejects users without event or template authoring access',
     () =>

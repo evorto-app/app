@@ -25,7 +25,23 @@ const iconControlLabels = [
   },
   {
     labels: ['Back to administration'],
-    path: 'src/app/admin/general-settings/general-settings.component.html',
+    path: 'src/app/admin/settings/appearance-settings.component.html',
+  },
+  {
+    labels: ['Back to administration'],
+    path: 'src/app/admin/settings/legal-settings.component.html',
+  },
+  {
+    labels: ['Back to administration'],
+    path: 'src/app/admin/settings/organization-settings.component.html',
+  },
+  {
+    labels: ['Back to administration'],
+    path: 'src/app/admin/settings/payment-provider-settings.component.html',
+  },
+  {
+    labels: ['Back to administration'],
+    path: 'src/app/admin/settings/registration-settings.component.html',
   },
   {
     labels: ['Back to organizations'],

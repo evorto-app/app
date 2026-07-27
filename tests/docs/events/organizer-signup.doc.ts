@@ -219,7 +219,10 @@ The card identifies the registration **Type** as **Organizer/helper**, labels th
       .getByRole('link', { exact: true, name: 'Profile' })
       .first()
       .click();
-    await page.getByRole('button', { exact: true, name: 'Events' }).click();
+    await page
+      .getByRole('navigation', { name: 'Profile sections' })
+      .getByRole('link', { exact: true, name: 'Events' })
+      .click();
     const profileEvent = page.locator('article').filter({
       has: page.getByRole('heading', {
         exact: true,

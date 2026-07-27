@@ -15,6 +15,7 @@ describe('global admin tenant form model', () => {
     expect(createGlobalAdminTenantFormModel()).toEqual({
       currency: 'EUR',
       domain: '',
+      expectedStripeAccountId: null,
       name: '',
       reason: '',
       stripeAccountId: '',
@@ -38,6 +39,7 @@ describe('global admin tenant form model', () => {
     ).toEqual({
       currency: 'AUD',
       domain: 'tenant.example.com',
+      expectedStripeAccountId: 'acct_123',
       name: 'Tenant',
       reason: '',
       stripeAccountId: 'acct_123',
@@ -137,6 +139,7 @@ describe('global admin tenant form model', () => {
       globalAdminTenantPayloadFromForm({
         currency: 'CZK',
         domain: ' section.example.org ',
+        expectedStripeAccountId: null,
         name: ' Section ',
         reason: ' Production support request ',
         stripeAccountId: ' ',
@@ -170,6 +173,7 @@ describe('global admin tenant form model', () => {
       globalAdminTenantPayloadFromForm({
         currency: 'EUR',
         domain: 'section.example.org/path',
+        expectedStripeAccountId: null,
         name: 'Section',
         reason: 'Create a production tenant',
         stripeAccountId: '',
@@ -184,6 +188,7 @@ describe('global admin tenant form model', () => {
       globalAdminTenantPayloadFromForm({
         currency: 'EUR',
         domain: 'section.example.org@attacker.invalid',
+        expectedStripeAccountId: null,
         name: 'Section',
         reason: 'Create a production tenant',
         stripeAccountId: '',

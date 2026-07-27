@@ -7,6 +7,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
+import { readFileSync } from 'node:fs';
 
 import type { ActiveRegistrationTransferStatus } from '../../../../../shared/registration-transfer';
 
@@ -5129,7 +5130,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'Create a private transfer offer so the recipient can answer the current questions',
+          'Ask the current owner to create a private transfer offer so the recipient can answer the current questions',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5157,35 +5158,6 @@ describe('event registration transfer handlers', () => {
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain('active transfer');
         expect(updateSets).toEqual([]);
-      }),
-  );
-
-  it.effect(
-    'allows participants to transfer their own confirmed unpaid registration by target email',
-    () =>
-      Effect.gen(function* () {
-        const { database, updateSets } = createTransferDatabase({
-          organizerRegistrations: [],
-        });
-
-        yield* eventRegistrationHandlers['events.transferMyRegistration'](
-          {
-            registrationId: 'registration-1',
-            targetEmail: ' TARGET@EXAMPLE.COM ',
-          },
-          emptyHandlerOptions,
-        ).pipe(
-          Effect.provide(
-            createContextLayer({
-              database,
-              user: createUser({ id: 'attendee-1' }),
-            }),
-          ),
-        );
-
-        expect(updateSets).toEqual([
-          expect.objectContaining({ userId: 'target-user-1' }),
-        ]);
       }),
   );
 
@@ -5291,70 +5263,6 @@ describe('event registration transfer handlers', () => {
     }),
   );
 
-  it.effect(
-    'rejects participant transfer when the target email is not an existing user',
-    () =>
-      Effect.gen(function* () {
-        const { database, updateSets } = createTransferDatabase({
-          targetUser: null,
-        });
-
-        const error = yield* eventRegistrationHandlers[
-          'events.transferMyRegistration'
-        ](
-          {
-            registrationId: 'registration-1',
-            targetEmail: 'missing@example.com',
-          },
-          emptyHandlerOptions,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            createContextLayer({
-              database,
-              user: createUser({ id: 'attendee-1' }),
-            }),
-          ),
-        );
-
-        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(error.message).toBe('Target user not found');
-        expect(updateSets).toEqual([]);
-      }),
-  );
-
-  it.effect(
-    'does not reveal existing users outside the tenant during participant transfer',
-    () =>
-      Effect.gen(function* () {
-        const { database, updateSets } = createTransferDatabase({
-          targetTenantUser: null,
-        });
-
-        const error = yield* eventRegistrationHandlers[
-          'events.transferMyRegistration'
-        ](
-          {
-            registrationId: 'registration-1',
-            targetEmail: 'target@example.com',
-          },
-          emptyHandlerOptions,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            createContextLayer({
-              database,
-              user: createUser({ id: 'attendee-1' }),
-            }),
-          ),
-        );
-
-        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(error.message).toBe('Target user not found');
-        expect(updateSets).toEqual([]);
-      }),
-  );
-
   it.effect('rejects transfer without organizer access', () =>
     Effect.gen(function* () {
       const { database, updateSets } = createTransferDatabase({
@@ -5411,7 +5319,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'This registration bundle cannot be reassigned directly. Create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.',
+          'This registration bundle cannot be reassigned directly. Ask the current owner to create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5450,7 +5358,9 @@ describe('event registration transfer handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toContain('Create a private transfer offer');
+        expect(error.message).toContain(
+          'Ask the current owner to create a private transfer offer',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5522,7 +5432,9 @@ describe('event registration transfer handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toContain('Create a private transfer offer');
+        expect(error.message).toContain(
+          'Ask the current owner to create a private transfer offer',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5984,7 +5896,7 @@ describe('event registration transfer handlers', () => {
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'An earlier source refund is unresolved. Resolve it before creating a private transfer offer.',
+        'An earlier source refund is unresolved. Resolve it before asking the current owner to create a private transfer offer.',
       );
       expect(updateSets).toEqual([]);
     }),
@@ -6004,7 +5916,9 @@ describe('event registration transfer handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toContain('Create a private transfer offer');
+        expect(error.message).toContain(
+          'Ask the current owner to create a private transfer offer',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -6044,6 +5958,21 @@ describe('event registration transfer handlers', () => {
         expect(updateSets).toEqual([]);
       }),
   );
+
+  it('counts only pending and confirmed registrations toward the organizer direct-transfer limit', () => {
+    const source = readFileSync(
+      new URL('events-registration.handlers.ts', import.meta.url),
+      'utf8',
+    );
+    const directTransfer = source.slice(
+      source.indexOf('const transferEventRegistration'),
+      source.indexOf('export const eventRegistrationHandlers'),
+    );
+
+    expect(directTransfer).toMatch(
+      /inArray\(\s*eventRegistrations\.status,\s*\[\s*'PENDING',\s*'CONFIRMED',?\s*\],?\s*\)/u,
+    );
+  });
 });
 
 describe('event registration scan handlers', () => {

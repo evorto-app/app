@@ -469,6 +469,47 @@ describe('registration transfer finalization tenant limit', () => {
     await pool.end();
   });
 
+  it('ignores waitlists when rechecking the recipient limit after payment', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const transferCandidate = fixture.candidates[0];
+    const waitlistCandidate = fixture.candidates[1];
+    if (!transferCandidate || !waitlistCandidate) {
+      throw new Error('Expected two transfer candidates');
+    }
+
+    await database.insert(eventRegistrations).values({
+      eventId: waitlistCandidate.eventId,
+      registrationOptionId: waitlistCandidate.optionId,
+      status: 'WAITLIST',
+      tenantId: fixture.tenantId,
+      userId: fixture.recipientUserId,
+    });
+    await database
+      .update(eventRegistrationOptions)
+      .set({ waitlistSpots: 1 })
+      .where(eq(eventRegistrationOptions.id, waitlistCandidate.optionId));
+
+    const outcome = await finalizeCandidate(
+      layer,
+      fixture.tenantId,
+      transferCandidate,
+    );
+
+    expect(outcome).toBe('finalized');
+    const recipientRegistrations =
+      await database.query.eventRegistrations.findMany({
+        columns: { status: true },
+        where: {
+          tenantId: fixture.tenantId,
+          userId: fixture.recipientUserId,
+        },
+      });
+    expect(
+      recipientRegistrations.map(({ status }) => status).toSorted(),
+    ).toEqual(['CONFIRMED', 'WAITLIST']);
+  });
+
   it('allows only one concurrent paid transfer across future events at a limit of one', async () => {
     const fixture = await seedTransferLimitFixture(database);
     fixtures.push(fixture);

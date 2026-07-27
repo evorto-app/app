@@ -9,6 +9,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
+import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '../../core/config.service';
@@ -371,6 +372,9 @@ const findCanOrganize = vi.fn();
 const findMyCards = vi.fn();
 const findRegistrationStatus = vi.fn();
 const findSelf = vi.fn();
+const openDialog = vi.fn();
+const showError = vi.fn();
+const updateListing = vi.fn(async () => true);
 const tenantConfig = {
   discountProviders: {
     esnCard: {
@@ -382,9 +386,11 @@ const tenantConfig = {
 
 const eventDetails = {
   addOns: [],
+  announcementRoleIds: [],
   creatorId: 'user-2',
   description: '<p>Bring a notebook.</p>',
   end: '2030-01-02T12:00:00.000Z',
+  hasRegistrationOptions: false,
   icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
   id: 'event-1',
   listingAudience: 'both' as const,
@@ -430,6 +436,9 @@ describe('EventDetailsComponent load recovery', () => {
     findRegistrationStatus.mockReset();
     findSelf.mockReset();
     findSelf.mockResolvedValue({ id: 'user-1' });
+    openDialog.mockReset();
+    showError.mockReset();
+    updateListing.mockReset().mockResolvedValue(true);
     tenantConfig.discountProviders.esnCard.status = 'enabled';
     queryClient = new QueryClient({
       defaultOptions: {
@@ -492,19 +501,19 @@ describe('EventDetailsComponent load recovery', () => {
               mutationKey: ['submit-event-for-review'],
             }),
             updateListing: () => ({
-              mutationFn: async () => true,
+              mutationFn: updateListing,
               mutationKey: ['update-event-listing'],
             }),
           },
         },
         {
           provide: MatDialog,
-          useValue: { open: vi.fn() },
+          useValue: { open: openDialog },
         },
         {
           provide: NotificationService,
           useValue: {
-            showError: vi.fn(),
+            showError,
             showEventReviewed: vi.fn(),
             showEventSubmitted: vi.fn(),
           },
@@ -532,6 +541,46 @@ describe('EventDetailsComponent load recovery', () => {
     fixture.detectChanges();
     return fixture;
   };
+
+  it('surfaces a listing update failure instead of silently keeping stale discovery settings', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    openDialog.mockReturnValue({
+      afterClosed: () =>
+        of({
+          announcementRoleIds: ['role-organizer'],
+          listingAudience: 'organizer',
+        }),
+    });
+    updateListing.mockRejectedValue(new Error('Listing update rejected'));
+    const fixture = render();
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+      expect(
+        (fixture.nativeElement as HTMLElement).getAttribute('aria-busy'),
+      ).toBeNull();
+    });
+
+    await fixture.componentInstance.updateListingAudience();
+
+    await vi.waitFor(() => {
+      expect(showError).toHaveBeenCalledWith('Listing update rejected');
+    });
+    expect(updateListing).toHaveBeenCalledWith(
+      {
+        announcementRoleIds: ['role-organizer'],
+        eventId: 'event-1',
+        listingAudience: 'organizer',
+      },
+      expect.any(Object),
+    );
+  });
 
   it('retries a failed event load and recovers the event details', async () => {
     findEvent

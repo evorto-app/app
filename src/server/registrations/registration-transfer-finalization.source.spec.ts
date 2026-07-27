@@ -202,6 +202,9 @@ describe('registration transfer transactional finalization source', () => {
     ).toBeGreaterThan(membershipLock);
     expect(activeLimit).toBeGreaterThan(membershipLock);
     expect(activeRegistrationCount).toBeGreaterThan(activeLimit);
+    expect(finalization.slice(activeRegistrationCount, compensation)).toMatch(
+      /inArray\(\s*eventRegistrations\.status,\s*\[\s*'PENDING',\s*'CONFIRMED',?\s*\],?\s*\)/u,
+    );
     expect(compensation).toBeGreaterThan(activeRegistrationCount);
     expect(ownershipUpdate).toBeGreaterThan(compensation);
   });
@@ -395,6 +398,9 @@ describe('registration transfer claim lock source', () => {
     expect(lockedClaim).toContain('tenantStripeTaxRates.stripeTaxRateId');
     expect(lockedClaim).toContain(
       'const totalPrice = yield* registrationTransferTotalPrice({',
+    );
+    expect(lockedClaim).toMatch(
+      /inArray\(\s*eventRegistrations\.status,\s*\[\s*'PENDING',\s*'CONFIRMED',?\s*\],?\s*\)/u,
     );
     expect(lockedClaim).toContain(".for('update')");
   });

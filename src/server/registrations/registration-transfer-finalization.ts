@@ -549,7 +549,7 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
         and(
           eq(eventRegistrations.tenantId, input.tenantId),
           eq(eventRegistrations.userId, recipientUserId),
-          not(eq(eventRegistrations.status, 'CANCELLED')),
+          inArray(eventRegistrations.status, ['PENDING', 'CONFIRMED']),
           sql`${eventInstances.start} > ${eligibilityCheckedAt}`,
         ),
       )

@@ -50,10 +50,22 @@
             <app-event-status [status]="event.status" />
             <span
               class="label-small text-on-surface-variant"
-              [title]="eventListingAudienceDescriptions[event.listingAudience]"
+              [title]="
+                eventDiscoveryDescription({
+                  announcementRoleCount: event.announcementRoleCount,
+                  hasRegistrationOptions: event.hasRegistrationOptions,
+                  listingAudience: event.listingAudience,
+                })
+              "
             >
-              Audience:
-              {{ eventListingAudienceLabel(event.listingAudience) }}
+              Listing:
+              {{
+                eventDiscoveryLabel({
+                  announcementRoleCount: event.announcementRoleCount,
+                  hasRegistrationOptions: event.hasRegistrationOptions,
+                  listingAudience: event.listingAudience,
+                })
+              }}
             </span>
           </div>
           <p class="body-small text-on-surface-variant mt-1">

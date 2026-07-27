@@ -50,6 +50,7 @@ import {
   tenantHasStripeTaxRateConfiguration,
 } from '../../../payments/paid-event-configuration';
 import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
+import { validateStripePaymentAccount } from '../../../payments/stripe-payment-account-validation';
 import {
   applyStripeTaxRateAccountRotation,
   fetchStripeTaxRateAccountRotationTargetRates,
@@ -232,6 +233,13 @@ const normalizeTenantWritePayload = (input: GlobalAdminTenantWriteInput) =>
         reason: error instanceof Error ? error.message : String(error),
       }),
     try: () => normalizeTenantWriteInput(input),
+  });
+
+const staleStripeAccountSettingsError = () =>
+  new RpcBadRequestError({
+    message: 'Stripe account changed while tenant settings were open',
+    reason:
+      'Reload the tenant before changing its connected Stripe account. No settings were changed.',
   });
 
 const globalAdminTenantColumns = {
@@ -453,6 +461,13 @@ export const globalAdminHandlers = {
           }),
         );
       }
+      if (tenantInput.stripeAccountId) {
+        const stripe = yield* StripeClient;
+        yield* validateStripePaymentAccount(
+          stripe,
+          tenantInput.stripeAccountId,
+        );
+      }
 
       return yield* databaseEffect((database) =>
         database.transaction((transaction) =>
@@ -569,20 +584,25 @@ export const globalAdminHandlers = {
           new RpcBadRequestError({ message: 'Tenant not found' }),
         );
       }
+      if (targetTenant.stripeAccountId !== input.expectedStripeAccountId) {
+        return yield* staleStripeAccountSettingsError();
+      }
       const nextStripeAccountId = tenantInput.stripeAccountId ?? null;
+      const targetStripeAccountWasValidated =
+        nextStripeAccountId !== null &&
+        input.expectedStripeAccountId !== nextStripeAccountId;
       let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
         [];
-      if (
-        targetTenant.stripeAccountId &&
-        nextStripeAccountId &&
-        targetTenant.stripeAccountId !== nextStripeAccountId
-      ) {
+      if (targetStripeAccountWasValidated) {
         const stripe = yield* StripeClient;
-        stripeTaxRateRotationTargets =
-          yield* fetchStripeTaxRateAccountRotationTargetRates(
-            stripe,
-            nextStripeAccountId,
-          );
+        yield* validateStripePaymentAccount(stripe, nextStripeAccountId);
+        if (targetTenant.stripeAccountId) {
+          stripeTaxRateRotationTargets =
+            yield* fetchStripeTaxRateAccountRotationTargetRates(
+              stripe,
+              nextStripeAccountId,
+            );
+        }
       }
 
       return yield* databaseEffectWithTenantUpdateError((database) =>
@@ -598,6 +618,11 @@ export const globalAdminHandlers = {
               return yield* Effect.die(
                 new Error('Tenant disappeared during platform update'),
               );
+            }
+            if (
+              beforeTenant.stripeAccountId !== input.expectedStripeAccountId
+            ) {
+              return yield* staleStripeAccountSettingsError();
             }
 
             const tenantPublicUrlChanged =

@@ -72,7 +72,7 @@ export const permissionMatrix: PermissionMatrixCase[] = [
       roleName: 'Admin',
     },
     allowedRoute: '/admin/settings',
-    capability: 'admin general settings access',
+    capability: 'admin organization settings access',
     deniedDiff: {
       add: [],
       remove: ['admin:changeSettings'],
@@ -80,6 +80,23 @@ export const permissionMatrix: PermissionMatrixCase[] = [
     },
     deniedRoute: '/admin/settings',
     requiredPermissions: ['admin:changeSettings'],
+    storageState: adminStateFile,
+  },
+  {
+    allowedDiff: {
+      add: ['admin:managePayments'],
+      remove: [],
+      roleName: 'Admin',
+    },
+    allowedRoute: '/admin/settings/payments',
+    capability: 'admin payments and providers access',
+    deniedDiff: {
+      add: [],
+      remove: ['admin:managePayments'],
+      roleName: 'Admin',
+    },
+    deniedRoute: '/admin/settings/payments',
+    requiredPermissions: ['admin:managePayments'],
     storageState: adminStateFile,
   },
   {

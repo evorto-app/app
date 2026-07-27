@@ -97,6 +97,24 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
     });
   }
 
+  const eventAnnouncements = yield* database
+    .select({ id: eventInstances.id })
+    .from(eventInstances)
+    .where(
+      and(
+        eq(eventInstances.tenantId, tenantId),
+        arrayContains(eventInstances.announcementRoleIds, [roleId]),
+      ),
+    )
+    .limit(1);
+  if (eventAnnouncements.length > 0) {
+    return yield* new RpcBadRequestError({
+      message:
+        'Role cannot be deleted while an event announcement uses it for discovery',
+      reason: 'roleInUseByEventAnnouncement',
+    });
+  }
+
   const eventOptions = yield* database
     .select({ id: eventRegistrationOptions.id })
     .from(eventRegistrationOptions)

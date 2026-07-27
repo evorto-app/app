@@ -84,6 +84,7 @@ export type GlobalAdminTenantCreateInput = Schema.Schema.Type<
 >;
 
 export const GlobalAdminTenantUpdateInput = Schema.Struct({
+  expectedStripeAccountId: Schema.NullOr(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   ...GlobalAdminTenantMutationInput.fields,
 });

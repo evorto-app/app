@@ -73,9 +73,12 @@ replace it with aspirational documentation.
   the recipient's current discounts, with one exact refund per original Stripe
   source. The recipient payment is recalculated independently from those source
   refunds, and source-user discounts do not transfer. Only a wholly free bundle
-  with no refund may complete database-only. Immediate direct reassignment is
-  also limited to options without participant questions; otherwise the private
-  recipient claim must collect and replace the recipient-owned answers.
+  with no refund may complete database-only. Participant self-service always
+  uses the private offer-and-claim path; there is no participant direct
+  reassignment RPC. The separate organizer direct reassignment is limited to
+  free, no-refund options without participant questions. Otherwise the current
+  owner creates the private offer and the recipient claim collects and replaces
+  the recipient-owned answers.
 - `docs/events/registration-transfer.doc.ts` generates the participant-facing
   walkthrough for creating and claiming a private transfer offer by link or manual code. Its paid
   journey captures the pending Checkout, confirmed/refund-processing,

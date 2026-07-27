@@ -388,8 +388,9 @@ credential path.
     add/refresh/remove lifecycles. The same file also includes a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable
-    retry copy. The page-backed discounts doc asserts direct `#discounts`
-    routing, the seeded verified ESNcard identifier/status, database readback,
+    retry copy. The page-backed discounts doc asserts direct
+    `/profile/discounts` routing, the seeded verified ESNcard
+    identifier/status, database readback,
     refresh/remove action visibility, the invalid-card-number save guard, and
     that invalid input leaves the seeded row unchanged. The profile discounts
     spec functionally covers the same seeded direct-link discount-card journey
@@ -400,11 +401,10 @@ credential path.
     rejection before inserting or updating the stored card, and scoped removal.
     Local app coverage also proves that save, refresh, and remove actions share
     an in-flight guard so profile discount-card writes do not overlap. App
-    coverage also proves the
-    `#discounts` profile fragment waits for tenant ESNcard provider availability
-    before selecting the section. Generated-doc source coverage keeps the
-    discounts guide tied to the local ESNcard helper functions and provider
-    outage retry semantics.
+    coverage also proves the routed discounts page waits for tenant ESNcard
+    provider availability before loading card data. Generated-doc source
+    coverage keeps the discounts guide tied to the local ESNcard helper
+    functions and provider outage retry semantics.
   - Tenant onboarding, account-creation retry, and cross-tenant join behavior.
     Server and schema coverage proves policy/question normalization, verified
     identity, profile and answer validation, exact completion rules, immutable
@@ -597,36 +597,22 @@ credential path.
     account labels. Tenant form coverage also proves create/edit payload
     shaping, mutation-pending submit disabling, and the visible relaunch
     tenant-scope notice before page-backed runtime is available.
-  - Keep tenant settings docs and payload tests aligned when new editable
-    tenant settings move out of the deferred-settings summary. Current local
-    coverage proves the general-settings page can persist editable
-    URLs/SEO/legal-text/receipt-country/ESNcard fields with database readback,
-    the form trims optional editable values before sending the RPC payload,
-    includes supported currency/timezone selections in the update
-    payload, and normalizes blank optional values before the RPC call. Server
-    admin-handler coverage also pins that currency changes are rejected once
-    template, event, receipt, or transaction data exists and that timezone
-    changes are rejected once tenant event or transaction data exists. The
-    global-admin handler applies the same fail-closed currency rule to audited
-    platform edits instead of silently reinterpreting stored minor units. Tenant
-    schema, admin-handler, and
-    route coverage pin supported relaunch currency/timezone values,
-    hosted legal text fields, public legal page routes, and tenant logo/favicon
-    upload storage paths.
-    General-settings identity coverage also pins read-only tenant name, primary
-    domain, and Stripe account support lookup labels.
-    General-settings component coverage also pins that invalid, submitting, and
-    mutation-pending saves stay disabled so slow settings writes cannot
-    double-submit, and that brand-asset uploads stay disabled while any upload
-    is active or mutation-pending.
-  - Tenant operations settings now have page-backed persistence and generated
-    documentation coverage for reply-to name/email, connected Stripe account
-    id, and the tenant-wide active-registration limit. Both journeys use a
-    unique seeded tenant, assert the stored tenant row, reload the page for UI
-    readback, and restore the original settings in cleanup. The generated guide
-    explains the fixed notification From address, the external Stripe-account
-    verification responsibility, the meaning of a zero registration limit,
-    tenant boundaries, and save recovery behavior.
+  - Tenant settings are covered as five focused sibling pages in the familiar
+    two-column admin layout: organization, registration policies, appearance,
+    legal pages, and payments/providers. Each page sends a full payload for its
+    own section; there is no optional patch bag or compatibility forwarding RPC.
+    Route and permission coverage keeps payments/providers behind
+    `admin:managePayments`, while the other four pages use
+    `admin:changeSettings`.
+  - Page-backed persistence and generated documentation cover reply-to
+    identity, default location/timezone, active-registration limits and
+    deadlines, brand uploads and SEO, hosted legal pages, Stripe/currency,
+    receipt countries, refund behavior, and ESNcard configuration. The guide
+    states that waitlist entries do not consume the active-registration limit.
+    Server coverage preserves fail-closed currency/timezone constraints and all
+    pending-payment, paid-configuration, and Stripe tax-rate rotation blockers.
+    Focused component coverage pins validation, trimming, save disabling, and
+    brand-upload concurrency behavior.
   - Global Email Outbox coverage now seeds uniquely identified queued,
     active-sending, explicitly failed, delivery-unknown, and sent rows on a
     disposable tenant and deletes those rows in cleanup. Functional and

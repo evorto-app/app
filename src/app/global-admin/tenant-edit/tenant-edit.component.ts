@@ -130,6 +130,7 @@ export class TenantEditComponent {
       this.updateTenantMutation.mutate(
         {
           ...payload,
+          expectedStripeAccountId: this.tenantModel().expectedStripeAccountId,
           id: this.tenantId(),
         },
         {

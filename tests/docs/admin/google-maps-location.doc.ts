@@ -26,7 +26,7 @@ Sign in as an organization administrator with access to change organization sett
 
 The organization default location biases later event and template searches toward its usual area. Choose a Google Maps suggestion to save its name, address, and position.
 
-Start from the normal application navigation: select **Admin Tools**, then **General settings**.
+Start from the normal application navigation: select **Admin Tools**, then **Organization settings**.
 `,
   });
 
@@ -34,10 +34,10 @@ Start from the normal application navigation: select **Admin Tools**, then **Gen
   await expect(
     page.getByRole('heading', { level: 1, name: 'Admin settings' }),
   ).toBeVisible();
-  await page.getByRole('link', { name: 'General settings' }).click();
+  await page.getByRole('link', { name: 'Organization settings' }).click();
   await expect(page).toHaveURL(/\/admin\/settings$/u);
 
-  const settings = page.locator('app-general-settings');
+  const settings = page.locator('app-organization-settings');
   await expect(settings).not.toHaveAttribute('ngh', /.*/);
   const locationField = settings.locator('app-location-selector-field');
   await expect(locationField).toContainText('No location selected');
@@ -105,11 +105,13 @@ For example, search for **Brandenburg Gate Berlin Germany**.
     body: `
 ## Save and verify the location
 
-The selected name appearing under **Default Location** is only the pending form value. Select **Save** and wait for **Organization settings updated** before leaving the page. Reloading must retain the same Google place.
+The selected name appearing under **Default Location** is only the pending form value. Select **Save organization settings** and wait for **Organization settings updated** before leaving the page. Reloading must retain the same Google place.
 `,
   });
 
-  await settings.getByRole('button', { name: 'Save' }).click();
+  await settings
+    .getByRole('button', { name: 'Save organization settings' })
+    .click();
   await expect(page.getByText('Organization settings updated')).toBeVisible();
 
   await expect

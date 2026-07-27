@@ -12,7 +12,12 @@ import { Schema } from 'effect';
 // Define the permission groups as const
 const ADMIN_GROUP = {
   key: 'admin',
-  permissions: ['manageRoles', 'changeSettings', 'tax'] as const,
+  permissions: [
+    'manageRoles',
+    'changeSettings',
+    'managePayments',
+    'tax',
+  ] as const,
 } as const;
 
 const EVENTS_GROUP = {
@@ -120,8 +125,13 @@ type UsersPermissions =
 const PERMISSION_METADATA = {
   'admin:changeSettings': {
     description:
-      'Update organization-wide settings such as theme, receipt countries, and discount card configuration.',
+      'Update organization settings such as registration policies, appearance, legal pages, and business time.',
     label: 'Change organization settings',
+  },
+  'admin:managePayments': {
+    description:
+      'Manage the connected Stripe account, currency, receipt and refund settings, and discount-card providers.',
+    label: 'Manage payments and providers',
   },
   'admin:manageRoles': {
     description:
@@ -140,7 +150,7 @@ const PERMISSION_METADATA = {
   },
   'events:changeListing': {
     description:
-      'Change which eligible registration audience can discover events or keep them unlisted for direct-link access.',
+      'Change option-based event audiences and the tenant roles that can discover optionless announcements; direct-link access remains separate.',
     label: 'Change event listing',
   },
   'events:create': {

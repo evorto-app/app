@@ -68,7 +68,25 @@ const globalAdminHandlerLayer = Layer.mergeAll(
 const provideDatabase = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
 
+const readyStripeAccountResponse = (stripeAccountId: string) => ({
+  charges_enabled: true,
+  details_submitted: true,
+  id: stripeAccountId,
+  object: 'account',
+  payouts_enabled: true,
+});
+
 class RotationStripeHttpClient extends Stripe.HttpClient {
+  readonly requestedAccountIds: string[] = [];
+
+  constructor(
+    private readonly accountResponse: (
+      stripeAccountId: string,
+    ) => unknown = readyStripeAccountResponse,
+  ) {
+    super();
+  }
+
   override getClientName(): string {
     return 'evorto-global-admin-rotation-test';
   }
@@ -79,15 +97,41 @@ class RotationStripeHttpClient extends Stripe.HttpClient {
     >
   ): Promise<RotationStripeResponse> {
     const [host, , path, method] = arguments_;
-    if (
-      host !== 'api.stripe.com' ||
-      method !== 'GET' ||
-      (path !== '/v1/tax_rates' && !path.startsWith('/v1/tax_rates?'))
-    ) {
+    if (host !== 'api.stripe.com' || method !== 'GET') {
       return Promise.reject(
         new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
       );
     }
+
+    const accountMatch = /^\/v1\/accounts\/([^/?]+)$/u.exec(path);
+    if (accountMatch?.[1]) {
+      const stripeAccountId = decodeURIComponent(accountMatch[1]);
+      this.requestedAccountIds.push(stripeAccountId);
+      const accountResponse = this.accountResponse(stripeAccountId);
+      if (accountResponse instanceof Stripe.errors.StripeInvalidRequestError) {
+        return Promise.resolve(
+          new RotationStripeResponse(
+            {
+              error: {
+                message: accountResponse.message,
+                type: 'invalid_request_error',
+              },
+            },
+            404,
+          ),
+        );
+      }
+      return accountResponse instanceof Error
+        ? Promise.reject(accountResponse)
+        : Promise.resolve(new RotationStripeResponse(accountResponse));
+    }
+
+    if (path !== '/v1/tax_rates' && !path.startsWith('/v1/tax_rates?')) {
+      return Promise.reject(
+        new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
+      );
+    }
+
     return Promise.resolve(
       new RotationStripeResponse({
         data: [],
@@ -100,8 +144,11 @@ class RotationStripeHttpClient extends Stripe.HttpClient {
 }
 
 class RotationStripeResponse extends Stripe.HttpClientResponse {
-  constructor(private readonly body: unknown) {
-    super(200, { 'request-id': 'req_rotation_tax_rates' });
+  constructor(
+    private readonly body: unknown,
+    statusCode = 200,
+  ) {
+    super(statusCode, { 'request-id': 'req_rotation_tax_rates' });
   }
 
   override getRawResponse(): unknown {
@@ -113,27 +160,34 @@ class RotationStripeResponse extends Stripe.HttpClientResponse {
   }
 }
 
-const provideStripeRotation = (database: object) =>
+const provideStripeRotation = (
+  database: object,
+  httpClient = new RotationStripeHttpClient(),
+) =>
   Layer.mergeAll(
     provideDatabase(database),
     Layer.succeed(
       StripeClient,
       new Stripe('sk_test_global_admin_rotation', {
-        httpClient: new RotationStripeHttpClient(),
+        httpClient,
         maxNetworkRetries: 0,
       }),
     ),
   );
 
 const createStripeAccountChangeDatabase = ({
+  currentStripeAccountId = 'acct_current',
   hasPaidEventConfiguration = false,
   hasPendingStripeObligations = false,
   hasStripeTaxRateConfiguration = false,
+  lockedStripeAccountId = currentStripeAccountId,
   nextStripeAccountId,
 }: {
+  readonly currentStripeAccountId?: null | string;
   readonly hasPaidEventConfiguration?: boolean;
   readonly hasPendingStripeObligations?: boolean;
   readonly hasStripeTaxRateConfiguration?: boolean;
+  readonly lockedStripeAccountId?: null | string;
   readonly nextStripeAccountId: null | string;
 }) => {
   const operations: string[] = [];
@@ -145,9 +199,13 @@ const createStripeAccountChangeDatabase = ({
     domain: 'tenant.example.com',
     id: 'tenant-1',
     name: 'Tenant',
-    stripeAccountId: 'acct_current',
+    stripeAccountId: currentStripeAccountId,
     theme: 'evorto',
     timezone: 'Europe/Berlin',
+  };
+  const lockedTenant = {
+    ...beforeTenant,
+    stripeAccountId: lockedStripeAccountId,
   };
   const updateQuery = {
     returning: () => {
@@ -185,7 +243,7 @@ const createStripeAccountChangeDatabase = ({
         const lockQuery = {
           for: () => {
             operations.push('tenant-lock');
-            return Effect.succeed([beforeTenant]);
+            return Effect.succeed([lockedTenant]);
           },
           from: () => lockQuery,
           where: () => lockQuery,
@@ -261,7 +319,11 @@ const createStripeAccountChangeDatabase = ({
   };
 };
 
-const createStripeAccountUpdateInput = (stripeAccountId?: string) => ({
+const createStripeAccountUpdateInput = (
+  stripeAccountId?: string,
+  expectedStripeAccountId: null | string = 'acct_current',
+) => ({
+  expectedStripeAccountId,
   id: 'tenant-1',
   reason: 'Change the connected Stripe account',
   tenant: {
@@ -786,6 +848,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         transaction: (operation: (transaction: object) => unknown) =>
           operation(database),
       };
+      const stripeHttpClient = new RotationStripeHttpClient();
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.create'](
         {
@@ -804,8 +867,9 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
           },
         },
         { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(Effect.provide(provideDatabase(database)));
+      ).pipe(Effect.provide(provideStripeRotation(database, stripeHttpClient)));
 
+      expect(stripeHttpClient.requestedAccountIds).toEqual(['acct_123']);
       expect(capturedInsert).toMatchObject({
         currency: 'CZK',
         domain: 'section.example.org',
@@ -856,6 +920,62 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         stripeAccountId: 'acct_123',
         stripeConnected: true,
       });
+    }),
+  );
+
+  it.effect('rejects a foreign Stripe account before creating a tenant', () =>
+    Effect.gen(function* () {
+      let transactionStarted = false;
+      const stripeHttpClient = new RotationStripeHttpClient(
+        () =>
+          new Stripe.errors.StripeInvalidRequestError({
+            headers: {},
+            message: 'No such connected account',
+            requestId: 'req_foreign_account',
+            statusCode: 404,
+            type: 'invalid_request_error',
+          }),
+      );
+      const database = {
+        query: {
+          tenants: {
+            findFirst: () => Effect.succeed(),
+          },
+        },
+        transaction: () => {
+          transactionStarted = true;
+          throw new Error('database transaction should not run');
+        },
+      };
+
+      const error = yield* globalAdminHandlers['globalAdmin.tenants.create'](
+        {
+          initialPrivacyPolicy: {
+            privacyPolicyText: 'Tenant privacy policy',
+            privacyPolicyUrl: '',
+          },
+          reason: 'Provision requested by tenant board',
+          tenant: {
+            currency: 'EUR',
+            domain: 'tenant.example.com',
+            name: 'Tenant',
+            stripeAccountId: 'acct_foreign',
+            theme: 'evorto',
+            timezone: 'Europe/Berlin',
+          },
+        },
+        { headers: createHeaders([]) } as never,
+      ).pipe(
+        Effect.provide(provideStripeRotation(database, stripeHttpClient)),
+        Effect.flip,
+      );
+
+      expect(error).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message: 'Stripe account could not be verified',
+      });
+      expect(stripeHttpClient.requestedAccountIds).toEqual(['acct_foreign']);
+      expect(transactionStarted).toBe(false);
     }),
   );
 
@@ -992,7 +1112,11 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         }),
         query: {
           tenants: {
-            findFirst: () => Effect.succeed({ id: 'tenant-1' }),
+            findFirst: () =>
+              Effect.succeed({
+                id: 'tenant-1',
+                stripeAccountId: 'acct_previous',
+              }),
           },
         },
         select: () =>
@@ -1004,6 +1128,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
         {
+          expectedStripeAccountId: 'acct_previous',
           id: 'tenant-1',
           reason: ' Tenant requested a support correction ',
           tenant: {
@@ -1085,7 +1210,11 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         insert,
         query: {
           tenants: {
-            findFirst: () => Effect.succeed({ id: 'tenant-1' }),
+            findFirst: () =>
+              Effect.succeed({
+                id: 'tenant-1',
+                stripeAccountId: 'acct_current',
+              }),
           },
         },
         select: () => (selectCount++ === 0 ? beforeSelect : obligationsSelect),
@@ -1096,6 +1225,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
       const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
         {
+          expectedStripeAccountId: 'acct_current',
           id: 'tenant-1',
           reason: 'Migrate the connected Stripe account',
           tenant: {
@@ -1108,7 +1238,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
           },
         },
         { headers: createHeaders([]) } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+      ).pipe(Effect.provide(provideStripeRotation(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe(
@@ -1117,6 +1247,116 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
       expect(update).not.toHaveBeenCalled();
       expect(insert).not.toHaveBeenCalled();
     }),
+  );
+
+  it.effect(
+    'validates an initial Stripe connection before updating a tenant',
+    () =>
+      Effect.gen(function* () {
+        const fixture = createStripeAccountChangeDatabase({
+          currentStripeAccountId: null,
+          nextStripeAccountId: 'acct_initial',
+        });
+        const stripeHttpClient = new RotationStripeHttpClient();
+
+        const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          createStripeAccountUpdateInput('acct_initial', null),
+          { headers: createHeaders([]) } as never,
+        ).pipe(
+          Effect.provide(
+            provideStripeRotation(fixture.database, stripeHttpClient),
+          ),
+        );
+
+        expect(stripeHttpClient.requestedAccountIds).toEqual(['acct_initial']);
+        expect(fixture.capturedUpdate()?.['stripeAccountId']).toBe(
+          'acct_initial',
+        );
+        expect(tenant.stripeAccountId).toBe('acct_initial');
+      }),
+  );
+
+  it.effect('rejects a foreign Stripe account before updating a tenant', () =>
+    Effect.gen(function* () {
+      const fixture = createStripeAccountChangeDatabase({
+        currentStripeAccountId: null,
+        nextStripeAccountId: 'acct_foreign',
+      });
+      const stripeHttpClient = new RotationStripeHttpClient(
+        () =>
+          new Stripe.errors.StripeInvalidRequestError({
+            headers: {},
+            message: 'No such connected account',
+            requestId: 'req_foreign_account_update',
+            statusCode: 404,
+            type: 'invalid_request_error',
+          }),
+      );
+
+      const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+        createStripeAccountUpdateInput('acct_foreign', null),
+        { headers: createHeaders([]) } as never,
+      ).pipe(
+        Effect.provide(
+          provideStripeRotation(fixture.database, stripeHttpClient),
+        ),
+        Effect.flip,
+      );
+
+      expect(error).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message: 'Stripe account could not be verified',
+      });
+      expect(stripeHttpClient.requestedAccountIds).toEqual(['acct_foreign']);
+      expect(fixture.operations).toEqual([]);
+    }),
+  );
+
+  it.effect(
+    'rejects a stale loaded account before validating a new rotation target',
+    () =>
+      Effect.gen(function* () {
+        const fixture = createStripeAccountChangeDatabase({
+          currentStripeAccountId: 'acct_current',
+          nextStripeAccountId: 'acct_next',
+        });
+
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          createStripeAccountUpdateInput('acct_next', 'acct_stale'),
+          { headers: createHeaders([]) } as never,
+        ).pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          message: 'Stripe account changed while tenant settings were open',
+        });
+        expect(fixture.operations).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    'rejects a Stripe disconnect when the account changed after the tenant was loaded',
+    () =>
+      Effect.gen(function* () {
+        const fixture = createStripeAccountChangeDatabase({
+          currentStripeAccountId: 'acct_stale',
+          lockedStripeAccountId: 'acct_current',
+          nextStripeAccountId: null,
+        });
+
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          createStripeAccountUpdateInput(undefined, 'acct_stale'),
+          {
+            headers: createHeaders([]),
+          } as never,
+        ).pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          message: 'Stripe account changed while tenant settings were open',
+        });
+        expect(fixture.operations).toEqual(['tenant-lock']);
+      }),
   );
 
   it.effect(
@@ -1281,7 +1521,11 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
             insert,
             query: {
               tenants: {
-                findFirst: () => Effect.succeed({ id: 'tenant-1' }),
+                findFirst: () =>
+                  Effect.succeed({
+                    id: 'tenant-1',
+                    stripeAccountId: 'acct_current',
+                  }),
               },
             },
             select,
@@ -1294,6 +1538,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
             'globalAdmin.tenants.update'
           ](
             {
+              expectedStripeAccountId: 'acct_current',
               id: 'tenant-1',
               reason: 'Move the tenant to its verified replacement domain',
               tenant: {
@@ -1337,7 +1582,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
           domain: 'tenant.example.com',
           id: 'tenant-1',
           name: 'Tenant',
-          stripeAccountId: null,
+          stripeAccountId: 'acct_current',
           theme: 'evorto',
           timezone: 'Europe/Berlin',
         };
@@ -1373,7 +1618,11 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
               },
             },
             tenants: {
-              findFirst: () => Effect.succeed({ id: 'tenant-1' }),
+              findFirst: () =>
+                Effect.succeed({
+                  id: 'tenant-1',
+                  stripeAccountId: 'acct_current',
+                }),
             },
             transactions: {
               findFirst: () => {
@@ -1391,12 +1640,14 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedStripeAccountId: 'acct_current',
             id: 'tenant-1',
             reason: 'Switch the tenant to Australian dollars',
             tenant: {
               currency: 'AUD',
               domain: 'tenant.example.com',
               name: 'Tenant',
+              stripeAccountId: 'acct_current',
               theme: 'evorto',
               timezone: 'Europe/Berlin',
             },
@@ -1443,7 +1694,11 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
           insert: () => ({ values: () => Effect.void }),
           query: {
             tenants: {
-              findFirst: () => Effect.succeed({ id: 'tenant-1' }),
+              findFirst: () =>
+                Effect.succeed({
+                  id: 'tenant-1',
+                  stripeAccountId: 'acct_current',
+                }),
             },
           },
           select,
@@ -1454,6 +1709,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
         const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedStripeAccountId: 'acct_current',
             id: 'tenant-1',
             reason: 'Correct the tenant display name',
             tenant: {
@@ -1490,6 +1746,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedStripeAccountId: null,
             id: 'tenant-1',
             reason: 'Tenant requested a domain correction',
             tenant: {

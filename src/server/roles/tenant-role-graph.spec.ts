@@ -27,6 +27,7 @@ describe('tenant role graph concurrency boundary', () => {
     expect(source).toContain('pg_advisory_xact_lock');
     expect(source).toContain('evorto:tenant-role-graph:');
     expect(source).toContain('rolesToTenantUsers.roleId');
+    expect(source).toContain('eventInstances.announcementRoleIds');
     expect(source).toContain('eventRegistrationOptions.roleIds');
     expect(source).toContain('templateRegistrationOptions.roleIds');
   });

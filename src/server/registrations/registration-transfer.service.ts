@@ -2829,7 +2829,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 and(
                   eq(eventRegistrations.tenantId, tenant.id),
                   eq(eventRegistrations.userId, user.id),
-                  not(eq(eventRegistrations.status, 'CANCELLED')),
+                  inArray(eventRegistrations.status, ['PENDING', 'CONFIRMED']),
                   sql`${eventInstances.start} > ${now}`,
                 ),
               )

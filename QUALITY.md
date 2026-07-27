@@ -208,8 +208,11 @@ the Browser control transport is healthy. It complements, but does not replace,
 the durable Playwright and generated-documentation coverage.
 
 1. **Anonymous event discovery:** verify participant, organizer, and both
-   audiences against default-role option eligibility, then open an unlisted
-   event from its direct link.
+   audiences against default-role option eligibility. Verify that an optionless
+   announcement appears only for its selected tenant roles, that selecting a
+   role neither grants access nor sends a notification, and that an
+   announcement with no roles remains reachable only by direct link. Also open
+   an optionful unlisted event from its direct link.
 2. **Participant registration and profile:** inspect free, paid, waitlist,
    cancellation, ticket, and receipt states.
 3. **Organizer authoring and check-in:** create or edit a template/event,

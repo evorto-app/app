@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { tenantIdentityRows } from './general-settings.identity';
+import { tenantIdentityRows } from './organization-settings.identity';
 
 describe('tenantIdentityRows', () => {
   it('summarizes the read-only organization identity', () => {

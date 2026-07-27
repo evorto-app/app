@@ -91,6 +91,23 @@ describe('PERMISSION_GROUPS', () => {
     );
   });
 
+  it('keeps payment-provider administration separate from general settings', () => {
+    const adminGroup = PERMISSION_GROUPS.find((group) => group.key === 'admin');
+
+    expect(adminGroup?.permissions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'admin:changeSettings',
+          label: 'Change organization settings',
+        }),
+        expect.objectContaining({
+          key: 'admin:managePayments',
+          label: 'Manage payments and providers',
+        }),
+      ]),
+    );
+  });
+
   it('describes Members Hub access in product language', () => {
     const membersHubGroup = PERMISSION_GROUPS.find(
       (group) => group.key === 'internal',

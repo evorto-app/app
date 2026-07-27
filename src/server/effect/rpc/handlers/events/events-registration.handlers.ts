@@ -243,9 +243,9 @@ const normalizeTransferTargetSearch = (search: string | undefined) =>
   search?.trim().toLowerCase() ?? '';
 
 const privateRegistrationTransferRequiredMessage =
-  'This registration bundle cannot be reassigned directly. Create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.';
+  'This registration bundle cannot be reassigned directly. Ask the current owner to create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.';
 const recipientQuestionTransferRequiredMessage =
-  "This registration has participant questions, so it cannot be reassigned directly. Create a private transfer offer so the recipient can answer the current questions without inheriting the previous participant's answers.";
+  "This registration has participant questions, so it cannot be reassigned directly. Ask the current owner to create a private transfer offer so the recipient can answer the current questions without inheriting the previous participant's answers.";
 
 const directTransferPreviewStatePart = (value: object): string =>
   JSON.stringify(value) ?? 'null';
@@ -2227,8 +2227,7 @@ type EventRegistrationTransferMode =
       readonly eventId: string;
       readonly previewVersion: string;
     }
-  | { readonly _tag: 'OrganizerPreview'; readonly eventId: string }
-  | { readonly _tag: 'ParticipantCommit' };
+  | { readonly _tag: 'OrganizerPreview'; readonly eventId: string };
 
 const transferEventRegistration = Effect.fn('transferEventRegistration')(
   function* ({
@@ -2240,9 +2239,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     registrationId: string;
     targetUserId: string;
   }) {
-    const requireOrganizerAccess = mode._tag !== 'ParticipantCommit';
-    const eventId =
-      mode._tag === 'ParticipantCommit' ? undefined : mode.eventId;
+    const eventId = mode.eventId;
     yield* RpcAccess.ensureAuthenticated();
     const { tenant } = yield* RpcAccess.current();
     const user = yield* RpcAccess.requireUser();
@@ -2259,11 +2256,10 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
           userId: true,
         },
         where: {
-          ...(eventId && { eventId }),
+          eventId,
           id: registrationId,
           status: { NOT: 'CANCELLED' },
           tenantId: tenant.id,
-          ...(!requireOrganizerAccess && { userId: user.id }),
         },
         with: {
           event: {
@@ -2292,13 +2288,11 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
       );
     }
 
-    if (requireOrganizerAccess) {
-      yield* ensureCanScanEventRegistration({
-        eventId: registration.eventId,
-        tenantId: tenant.id,
-        user,
-      });
-    }
+    yield* ensureCanScanEventRegistration({
+      eventId: registration.eventId,
+      tenantId: tenant.id,
+      user,
+    });
 
     const activeTransfer = yield* databaseEffect((database) =>
       findRegistrationTransfer(database, {
@@ -2481,8 +2475,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
             const lockedRegistration = lockedRegistrations[0];
             if (
               !lockedRegistration ||
-              lockedRegistration.status !== 'CONFIRMED' ||
-              (!requireOrganizerAccess && lockedRegistration.userId !== user.id)
+              lockedRegistration.status !== 'CONFIRMED'
             ) {
               return { _tag: 'RegistrationUnavailable' } as const;
             }
@@ -2783,7 +2776,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'An earlier source refund is unresolved. Resolve it before creating a private transfer offer.',
+                    'An earlier source refund is unresolved. Resolve it before asking the current owner to create a private transfer offer.',
                 }),
               );
             }
@@ -2791,7 +2784,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Source refund ownership is inconsistent. Create a private transfer only after the payment history is reconciled.',
+                    'Source refund ownership is inconsistent. Reconcile the payment history before asking the current owner to create a private transfer offer.',
                 }),
               );
             }
@@ -3198,7 +3191,10 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                     eq(eventRegistrations.tenantId, tenant.id),
                     eq(eventRegistrations.userId, targetUserId),
                     not(eq(eventRegistrations.id, registration.id)),
-                    not(eq(eventRegistrations.status, 'CANCELLED')),
+                    inArray(eventRegistrations.status, [
+                      'PENDING',
+                      'CONFIRMED',
+                    ]),
                     sql`${eventInstances.start} > ${lockedNow}`,
                   ),
                 )
@@ -3432,9 +3428,6 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                         ),
                       ),
                   ),
-                  ...(requireOrganizerAccess
-                    ? []
-                    : [eq(eventRegistrations.userId, user.id)]),
                 ),
               )
               .returning({
@@ -4786,7 +4779,6 @@ export const eventRegistrationHandlers = {
         registrationOptionId,
         tenant: {
           id: tenant.id,
-          maxActiveRegistrationsPerUser: tenant.maxActiveRegistrationsPerUser,
         },
         user: {
           id: user.id,
@@ -5039,56 +5031,6 @@ export const eventRegistrationHandlers = {
       registrationId,
       targetUserId,
     }).pipe(Effect.asVoid),
-  'events.transferMyRegistration': (
-    { registrationId, targetEmail },
-    _options,
-  ) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
-      const normalizedTargetEmail = targetEmail.trim().toLowerCase();
-
-      if (!normalizedTargetEmail) {
-        return yield* Effect.fail(
-          new EventRegistrationNotFoundError({
-            message: 'Target user not found',
-          }),
-        );
-      }
-
-      const targetUsers = yield* databaseEffect((database) =>
-        database
-          .select({ id: users.id })
-          .from(users)
-          .where(sql`lower(${users.email}) = ${normalizedTargetEmail}`)
-          .limit(1),
-      );
-      const targetUser = targetUsers[0];
-
-      if (!targetUser) {
-        return yield* Effect.fail(
-          new EventRegistrationNotFoundError({
-            message: 'Target user not found',
-          }),
-        );
-      }
-
-      return yield* transferEventRegistration({
-        mode: { _tag: 'ParticipantCommit' },
-        registrationId,
-        targetUserId: targetUser.id,
-      }).pipe(
-        Effect.asVoid,
-        Effect.catchTag('EventRegistrationNotFoundError', (error) =>
-          error.message === 'Target tenant user not found'
-            ? Effect.fail(
-                new EventRegistrationNotFoundError({
-                  message: 'Target user not found',
-                }),
-              )
-            : Effect.fail(error),
-        ),
-      );
-    }),
   'events.undoRegistrationAddonRedemption': (
     { operationKey, redemptionEventId, registrationAddonId, registrationId },
     _options,

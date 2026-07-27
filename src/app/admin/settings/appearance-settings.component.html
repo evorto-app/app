@@ -1,0 +1,134 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to administration"
+  >
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Appearance</h1>
+</div>
+
+<form
+  class="bg-surface text-on-surface rounded-2xl p-4"
+  (submit)="save($event)"
+>
+  <fieldset
+    class="m-0 grid min-w-0 grid-cols-1 gap-6 border-0 p-0"
+    [disabled]="!settingsInteractionReady()"
+  >
+    <section class="grid grid-cols-1">
+      <h2 class="title-small mb-2">Theme</h2>
+      <mat-form-field>
+        <mat-label>Site theme</mat-label>
+        <mat-select [formField]="settingsForm.theme">
+          <mat-option value="evorto">Default theme</mat-option>
+          <mat-option value="classic">Classic Evorto theme</mat-option>
+          <mat-option value="esn">ESN theme</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </section>
+
+    <section class="grid grid-cols-1">
+      <h2 class="title-small mb-2">Brand assets</h2>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Upload organization assets or enter externally hosted HTTP(S) URLs. The
+        favicon updates the browser tab icon.
+      </p>
+      <mat-form-field>
+        <mat-label>Logo URL</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.logoUrl"
+          placeholder="https://section.example.org/logo.svg"
+        />
+      </mat-form-field>
+      <input
+        #logoAssetInput
+        type="file"
+        class="hidden"
+        aria-label="Upload organization logo file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        (change)="uploadBrandAsset('logo', $event)"
+      />
+      <button
+        mat-stroked-button
+        type="button"
+        class="mb-4 w-fit"
+        [disabled]="brandAssetUploadDisabled()"
+        (click)="logoAssetInput.click()"
+      >
+        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+        {{
+          uploadingBrandAsset() === "logo" ? "Uploading logo" : "Upload logo"
+        }}
+      </button>
+
+      <mat-form-field>
+        <mat-label>Favicon URL</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.faviconUrl"
+          placeholder="https://section.example.org/favicon.ico"
+        />
+      </mat-form-field>
+      <input
+        #faviconAssetInput
+        type="file"
+        class="hidden"
+        aria-label="Upload organization favicon file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"
+        (change)="uploadBrandAsset('favicon', $event)"
+      />
+      <button
+        mat-stroked-button
+        type="button"
+        class="w-fit"
+        [disabled]="brandAssetUploadDisabled()"
+        (click)="faviconAssetInput.click()"
+      >
+        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+        {{
+          uploadingBrandAsset() === "favicon"
+            ? "Uploading favicon"
+            : "Upload favicon"
+        }}
+      </button>
+    </section>
+
+    <section class="grid grid-cols-1">
+      <h2 class="title-small mb-2">Search preview</h2>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Set the default title and description for your organization’s public
+        pages.
+      </p>
+      <mat-form-field>
+        <mat-label>SEO title</mat-label>
+        <input
+          matInput
+          [formField]="settingsForm.seoTitle"
+          placeholder="Organization name or public site title"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>SEO description</mat-label>
+        <textarea
+          matInput
+          rows="3"
+          [formField]="settingsForm.seoDescription"
+          placeholder="Short description for search results and previews"
+        ></textarea>
+      </mat-form-field>
+    </section>
+
+    <button
+      mat-flat-button
+      type="submit"
+      class="w-fit"
+      [disabled]="settingsSaveDisabled()"
+    >
+      Save appearance settings
+    </button>
+  </fieldset>
+</form>

@@ -175,6 +175,7 @@ describe('event discount tenant isolation', () => {
           eventInstances: {
             findFirst: () =>
               Effect.succeed({
+                announcementRoleIds: [],
                 creatorId: 'organizer-1',
                 description: 'Tenant-scoped event',
                 end: new Date('2099-01-02T00:00:00.000Z'),
@@ -361,7 +362,6 @@ describe('eventHandlers composition', () => {
       'events.reviewEvent',
       'events.submitForReview',
       'events.transferEventRegistration',
-      'events.transferMyRegistration',
       'events.undoRegistrationAddonRedemption',
       'events.updateGraph',
       'events.updateListing',

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { permissionGuard } from '../core/guards/permission.guard';
 import { ADMIN_ROUTES } from './admin.routes';
+import { tenantSettingsUnsavedChangesGuard } from './settings/settings-form';
 
 describe('ADMIN_ROUTES', () => {
   const shellRoute = ADMIN_ROUTES.find((route) => route.path === '');
@@ -12,6 +13,7 @@ describe('ADMIN_ROUTES', () => {
       anyPermissions: [
         'admin:manageRoles',
         'admin:changeSettings',
+        'admin:managePayments',
         'admin:tax',
         'users:viewAll',
         'events:review',
@@ -26,6 +28,16 @@ describe('ADMIN_ROUTES', () => {
     { path: 'roles/:roleId/edit', permissions: ['admin:manageRoles'] },
     { path: 'onboarding', permissions: ['admin:changeSettings'] },
     { path: 'settings', permissions: ['admin:changeSettings'] },
+    {
+      path: 'settings/appearance',
+      permissions: ['admin:changeSettings'],
+    },
+    { path: 'settings/legal', permissions: ['admin:changeSettings'] },
+    { path: 'settings/payments', permissions: ['admin:managePayments'] },
+    {
+      path: 'settings/registration',
+      permissions: ['admin:changeSettings'],
+    },
     { path: 'tax-rates', permissions: ['admin:tax'] },
     { path: 'users', permissions: ['users:viewAll'] },
     { path: 'event-reviews', permissions: ['events:review'] },
@@ -40,4 +52,23 @@ describe('ADMIN_ROUTES', () => {
       expect(childRoute?.data).toEqual({ permissions });
     },
   );
+
+  it('protects every focused settings page from discarding dirty edits', () => {
+    const settingsPaths = [
+      'settings',
+      'settings/appearance',
+      'settings/legal',
+      'settings/payments',
+      'settings/registration',
+    ];
+
+    for (const path of settingsPaths) {
+      const childRoute = shellRoute?.children?.find(
+        (route) => route.path === path,
+      );
+      expect(childRoute?.canDeactivate).toEqual([
+        tenantSettingsUnsavedChangesGuard,
+      ]);
+    }
+  });
 });

@@ -1,6 +1,6 @@
 @if (!hidden()) {
   <mat-form-field class="w-full">
-    <mat-label>Selected Roles</mat-label>
+    <mat-label>Selected roles</mat-label>
     <mat-chip-grid
       #chipGrid
       [attr.aria-label]="hasChipGridRole() ? 'Selected roles' : null"
@@ -25,7 +25,8 @@
     </mat-chip-grid>
     <input
       name="currentRoles"
-      placeholder="Add Role..."
+      autocomplete="off"
+      placeholder="Add role…"
       #roleInput
       [formField]="searchForm.query"
       [matChipInputFor]="chipGrid"
@@ -65,7 +66,7 @@
           [disabled]="rolesQuery.isFetching()"
           (click)="rolesQuery.refetch()"
         >
-          {{ rolesQuery.isFetching() ? "Retrying..." : "Try again" }}
+          {{ rolesQuery.isFetching() ? "Retrying…" : "Try again" }}
         </button>
       </div>
     </div>

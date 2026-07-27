@@ -83,7 +83,7 @@ export const documentationConsumerGuideCatalog = [
     id: 'evorto:manage-your-tenant',
     slug: 'manage-your-tenant',
     sourceSlugs: [
-      'manage-organization-general-settings',
+      'manage-focused-organization-settings',
       'publish-hosted-legal-pages-and-verify-the-signed-out-footer',
       'choose-an-organization-default-location-with-google-maps',
       'manage-finances',

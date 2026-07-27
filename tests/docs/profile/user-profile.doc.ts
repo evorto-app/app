@@ -125,7 +125,7 @@ From here you can open the edit dialog to update your profile details.
 
 ## Claiming a private registration transfer
 
-If another participant sends you a transfer code, select **Claim transfer** under **Account Actions**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The claim page URL is generic and does not contain the private code.
+If another participant sends you a transfer code, select **Claim transfer** under **Registration transfers**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The claim page URL is generic and does not contain the private code.
 `,
     });
 
@@ -194,9 +194,11 @@ The notification email is user-managed and may differ from the sign-in email. Op
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(editDialog).toHaveCount(0);
     await expect(
-      page.getByText(`Notifications: ${documentedNotificationEmail}`),
+      page.getByText(documentedNotificationEmail, { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(`Login: ${originalUser.email}`)).toBeVisible();
+    await expect(
+      page.getByText(originalUser.email, { exact: true }),
+    ).toBeVisible();
     const updatedProfileUser = await database.query.users.findFirst({
       where: { id: profileUser.id },
     });
@@ -219,17 +221,21 @@ The notification email is user-managed and may differ from the sign-in email. Op
       body: `
 ## Summary
 
-The user profile now uses a two-column layout:
+The user profile uses focused routed pages inside a two-column layout:
 
-- Left side: section navigation cards
-- Right side: selected section content
-- The **Events** section links each registration to its event details and shows its status, selected option, guest quantity, purchased add-ons, payment state, and check-in time when available
+- Left side: profile-page navigation
+- Right side: the current profile page
+- The **Overview** page shows account contact details and whether reimbursement details are configured without displaying full bank details
+- The **Events** page links each registration to its event details and shows its status, selected option, guest quantity, purchased add-ons, payment state, and check-in time when available
 - From an event card, you can continue a pending payment or open the event to view the ticket, cancellation, transfer, or waitlist details; the card also explains that cancellation stops after check-in and that a transfer preserves attendee and guest check-in history
-- Other sections include **Overview**, **Discounts**, and **Receipts**
+- Other pages include **Discounts** and **Receipts**
 `,
     });
 
-    await page.getByRole('button', { name: 'Events' }).click();
+    await page
+      .getByRole('navigation', { name: 'Profile sections' })
+      .getByRole('link', { name: 'Events' })
+      .click();
     await expect(
       page.getByRole('heading', { name: 'Your Event Registrations' }),
     ).toBeVisible();
@@ -443,12 +449,15 @@ The user profile now uses a two-column layout:
     );
     await takeScreenshot(
       testInfo,
-      page.locator('app-user-profile'),
+      page.locator('app-profile-events'),
       page,
-      'Profile events tab',
+      'Profile events page',
     );
 
-    await page.getByRole('button', { name: 'Receipts' }).click();
+    await page
+      .getByRole('navigation', { name: 'Profile sections' })
+      .getByRole('link', { name: 'Receipts' })
+      .click();
     await expect(
       page.getByRole('heading', { name: 'Submitted receipts' }),
     ).toBeVisible();
@@ -480,9 +489,9 @@ The user profile now uses a two-column layout:
     );
     await takeScreenshot(
       testInfo,
-      page.locator('app-user-profile'),
+      page.locator('app-profile-receipts'),
       page,
-      'Profile receipts tab',
+      'Profile receipts page',
     );
   } finally {
     await database

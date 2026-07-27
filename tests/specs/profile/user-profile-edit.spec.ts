@@ -107,9 +107,11 @@ test('profile edit persists notification email and reimbursement details', async
 
     await expect(editDialog).toHaveCount(0);
     await expect(
-      page.getByText(`Notifications: ${notificationEmail}`),
+      page.getByText(notificationEmail, { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(`Login: ${originalUser.email}`)).toBeVisible();
+    await expect(
+      page.getByText(originalUser.email, { exact: true }),
+    ).toBeVisible();
 
     const updatedUser = await database.query.users.findFirst({
       where: { id: regularUser.id },

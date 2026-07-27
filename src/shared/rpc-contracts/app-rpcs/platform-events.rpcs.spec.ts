@@ -139,6 +139,7 @@ describe('platform event administration RPC schemas', () => {
 
       const detail = {
         addOns: [],
+        announcementRoleIds: [],
         creator: {
           email: 'owner@example.org',
           firstName: 'Event',

@@ -46,7 +46,9 @@ const registrationQuestionTitle = Schema.NonEmptyString.check(
 );
 
 export const PlatformEventListRecord = Schema.Struct({
+  announcementRoleCount: nonNegativeInteger,
   end: Schema.NonEmptyString,
+  hasRegistrationOptions: Schema.Boolean,
   id: Schema.NonEmptyString,
   listingAudience: EventListingAudience,
   start: Schema.NonEmptyString,
@@ -122,6 +124,7 @@ export const PlatformEventQuestionRecord = Schema.Struct({
 
 export const PlatformEventDetailRecord = Schema.Struct({
   addOns: Schema.Array(PlatformEventAddonRecord),
+  announcementRoleIds: Schema.Array(Schema.NonEmptyString),
   creator: Schema.Struct({
     email: Schema.String,
     firstName: Schema.String,
@@ -302,6 +305,7 @@ export const PlatformEventsReview = asRpcMutation(
 
 export const PlatformEventsUpdateListingInput = Schema.Struct({
   ...PlatformEventMutationTarget.fields,
+  announcementRoleIds: Schema.Array(Schema.NonEmptyString),
   listingAudience: EventListingAudience,
 });
 

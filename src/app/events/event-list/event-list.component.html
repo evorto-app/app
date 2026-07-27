@@ -116,10 +116,20 @@
                     <span
                       class="label-medium bg-secondary-container text-on-secondary-container rounded-full px-2 py-1"
                       [matTooltip]="
-                        eventListingAudienceDescriptions[event.listingAudience]
+                        eventDiscoveryDescription({
+                          announcementRoleCount: event.announcementRoleCount,
+                          hasRegistrationOptions: event.hasRegistrationOptions,
+                          listingAudience: event.listingAudience,
+                        })
                       "
                     >
-                      {{ eventListingAudienceLabel(event.listingAudience) }}
+                      {{
+                        eventDiscoveryLabel({
+                          announcementRoleCount: event.announcementRoleCount,
+                          hasRegistrationOptions: event.hasRegistrationOptions,
+                          listingAudience: event.listingAudience,
+                        })
+                      }}
                     </span>
                   </div>
                 </div>

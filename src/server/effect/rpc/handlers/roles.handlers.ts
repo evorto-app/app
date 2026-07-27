@@ -17,6 +17,7 @@ import { RpcAccess } from './shared/rpc-access.service';
 const ROLE_LOOKUP_PERMISSIONS = [
   'admin:manageRoles',
   'events:create',
+  'events:changeListing',
   'events:editAll',
   'events:organizeAll',
   'templates:create',

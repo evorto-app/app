@@ -90,10 +90,10 @@ test('verifies active and expired ESN cards through the live provider @needs-liv
         ),
       );
 
-    await page.goto('/profile#discounts');
+    await page.goto('/profile/discounts');
 
     await expect(
-      page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
+      page.getByRole('heading', { level: 1, name: 'Discount Cards' }),
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('No discount cards on file.')).toBeVisible();
 

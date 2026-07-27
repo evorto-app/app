@@ -132,7 +132,7 @@ test('event authoring controls expose accessible names and keyboard interaction'
   const initialRoleCount = registrationOption.roleIds.length;
   await expect(roleChips).toHaveCount(initialRoleCount);
   const roleInput = roleSelect.getByRole('combobox', {
-    name: 'Selected Roles',
+    name: 'Selected roles',
   });
   await expect(roleInput).not.toHaveAttribute('jsaction', /keydown/);
   await expect(roleInput).not.toHaveClass(/mat-input-server/);
@@ -147,7 +147,7 @@ test('event authoring controls expose accessible names and keyboard interaction'
     await expect(emptyChipGrid).not.toHaveAttribute('role');
     await expect(emptyChipGrid).not.toHaveAttribute('aria-label');
   }).toPass({ timeout: 15_000 });
-  await expect(roleInput).toHaveAccessibleName('Selected Roles');
+  await expect(roleInput).toHaveAccessibleName('Selected roles');
   await roleInput.fill('accessibility-state-check');
   await expect(emptyChipGrid).toHaveAttribute('role', 'grid');
   await expect(emptyChipGrid).toHaveAttribute('aria-label', 'Selected roles');
@@ -341,9 +341,9 @@ test('event edit form hides selected roles in autocomplete', async ({
     }),
   ).toBeVisible({ timeout: 15_000 });
 
-  const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
+  const roleInput = registrationOptionEditor.getByPlaceholder('Add role…');
   await expect(roleInput).toBeEditable({ timeout: 15_000 });
-  const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
+  const roleListbox = page.getByRole('listbox', { name: 'Selected roles' });
   const selectedRoleOption = roleListbox.getByRole('option', {
     exact: true,
     name: selectedRole.name,

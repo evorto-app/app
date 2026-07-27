@@ -62,10 +62,12 @@ const openEventFromNormalNavigation = async (
 };
 
 const openProfileEventCard = async (page: Page, eventTitle: string) => {
-  const eventsSection = page.getByRole('button', {
-    exact: true,
-    name: 'Events',
-  });
+  const eventsSection = page
+    .getByRole('navigation', { name: 'Profile sections' })
+    .getByRole('link', {
+      exact: true,
+      name: 'Events',
+    });
   await expect(eventsSection).toBeVisible();
   await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
   await eventsSection.click();

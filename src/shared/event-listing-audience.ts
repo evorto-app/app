@@ -37,3 +37,35 @@ export const eventListingAudienceDescriptions: Record<
 export const eventListingAudienceLabel = (
   audience: EventListingAudience,
 ): string => eventListingAudienceLabels[audience];
+
+export const eventDiscoveryLabel = ({
+  announcementRoleCount,
+  hasRegistrationOptions,
+  listingAudience,
+}: {
+  announcementRoleCount: number;
+  hasRegistrationOptions: boolean;
+  listingAudience: EventListingAudience;
+}): string =>
+  hasRegistrationOptions
+    ? eventListingAudienceLabel(listingAudience)
+    : announcementRoleCount > 0
+      ? 'Announcement'
+      : 'Link only';
+
+export const eventDiscoveryDescription = ({
+  announcementRoleCount,
+  hasRegistrationOptions,
+  listingAudience,
+}: {
+  announcementRoleCount: number;
+  hasRegistrationOptions: boolean;
+  listingAudience: EventListingAudience;
+}): string => {
+  if (hasRegistrationOptions) {
+    return eventListingAudienceDescriptions[listingAudience];
+  }
+  return announcementRoleCount > 0
+    ? 'Shown in event discovery to people with at least one selected role. This does not grant access or send notifications.'
+    : 'Hidden from event discovery; use a direct link.';
+};

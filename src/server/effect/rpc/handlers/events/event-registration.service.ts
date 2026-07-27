@@ -52,6 +52,10 @@ import {
   enqueueManualApprovalEmail,
   enqueueRegistrationConfirmedEmail,
 } from '../../../../notifications/email-delivery';
+import {
+  isPersistableNonNegativeInteger,
+  maximumPersistedPaymentAmount,
+} from '../../../../payments/payment-amount';
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
 import {
   establishRegistrationAcquisition,
@@ -924,8 +928,7 @@ interface JoinWaitlistArguments {
   answers?: readonly RegistrationQuestionAnswerInput[] | undefined;
   eventId: string;
   registrationOptionId: string;
-  tenant: Partial<Pick<Tenant, 'maxActiveRegistrationsPerUser'>> &
-    Pick<Tenant, 'id'>;
+  tenant: Pick<Tenant, 'id'>;
   user: Pick<User, 'id' | 'roleIds'>;
 }
 
@@ -968,6 +971,102 @@ interface RegistrationAddonRecord {
   title: string;
   totalAvailableQuantity: number;
 }
+
+interface RegistrationCheckoutAddonAmountInput {
+  readonly key: string;
+  readonly quantity: number;
+  readonly unitPrice: number;
+}
+
+const maximumPersistedPaymentAmountBigInt = BigInt(
+  maximumPersistedPaymentAmount,
+);
+
+export const registrationCheckoutPriceBreakdown = Effect.fn(
+  'EventRegistration.registrationCheckoutPriceBreakdown',
+)(function* ({
+  addOns,
+  effectivePrice,
+  guestCount,
+  guestUnitPrice,
+}: {
+  readonly addOns: readonly RegistrationCheckoutAddonAmountInput[];
+  readonly effectivePrice: number;
+  readonly guestCount: number;
+  readonly guestUnitPrice: number;
+}) {
+  if (
+    !isPersistableNonNegativeInteger(effectivePrice) ||
+    !isPersistableNonNegativeInteger(guestCount) ||
+    !isPersistableNonNegativeInteger(guestUnitPrice)
+  ) {
+    return yield* Effect.fail(
+      new EventRegistrationConflictError({
+        message: 'Registration checkout contains an invalid amount',
+      }),
+    );
+  }
+
+  const registrationBaseAmount =
+    BigInt(effectivePrice) + BigInt(guestCount) * BigInt(guestUnitPrice);
+  if (registrationBaseAmount > maximumPersistedPaymentAmountBigInt) {
+    return yield* Effect.fail(
+      new EventRegistrationConflictError({
+        message: 'Registration price exceeds supported payment limits',
+      }),
+    );
+  }
+
+  let selectedAddonTotalPrice = 0n;
+  const addOnBaseAmounts = new Map<string, number>();
+  for (const addOn of addOns) {
+    if (
+      addOnBaseAmounts.has(addOn.key) ||
+      !isPersistableNonNegativeInteger(addOn.quantity) ||
+      !isPersistableNonNegativeInteger(addOn.unitPrice)
+    ) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Registration checkout contains an invalid add-on amount',
+        }),
+      );
+    }
+
+    const baseAmount = BigInt(addOn.quantity) * BigInt(addOn.unitPrice);
+    if (baseAmount > maximumPersistedPaymentAmountBigInt) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Add-on price exceeds supported payment limits',
+        }),
+      );
+    }
+    selectedAddonTotalPrice += baseAmount;
+    if (selectedAddonTotalPrice > maximumPersistedPaymentAmountBigInt) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Selected add-on total exceeds supported payment limits',
+        }),
+      );
+    }
+    addOnBaseAmounts.set(addOn.key, Number(baseAmount));
+  }
+
+  const totalPrice = registrationBaseAmount + selectedAddonTotalPrice;
+  if (totalPrice > maximumPersistedPaymentAmountBigInt) {
+    return yield* Effect.fail(
+      new EventRegistrationConflictError({
+        message: 'Registration checkout total exceeds supported payment limits',
+      }),
+    );
+  }
+
+  return {
+    addOnBaseAmounts,
+    registrationBaseAmount: Number(registrationBaseAmount),
+    selectedAddonTotalPrice: Number(selectedAddonTotalPrice),
+    totalPrice: Number(totalPrice),
+  };
+});
 
 interface RegistrationTaxConfigurationAddonExpectation {
   readonly addOnId: string;
@@ -1481,11 +1580,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const registeredSpotCount = registrationSpotCount(
           registration.guestCount,
         );
-        const selectedAddonTotalPrice = orderedAddonPurchases.reduce(
-          (total, purchase) =>
-            total + purchase.unitPrice * purchase.purchasedQuantity,
-          0,
-        );
         const selectedTaxRateId =
           registrationOption.stripeTaxRateId ?? undefined;
         const tenantStripeAccountId = tenant.stripeAccountId;
@@ -1595,10 +1689,18 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           discountAmount,
           effectivePrice,
         } = discountResolution;
-        const effectiveTotalPrice =
-          effectivePrice +
-          basePrice * registration.guestCount +
-          selectedAddonTotalPrice;
+        const checkoutPriceBreakdown =
+          yield* registrationCheckoutPriceBreakdown({
+            addOns: orderedAddonPurchases.map((purchase) => ({
+              key: purchase.id,
+              quantity: purchase.purchasedQuantity,
+              unitPrice: purchase.unitPrice,
+            })),
+            effectivePrice,
+            guestCount: registration.guestCount,
+            guestUnitPrice: basePrice,
+          });
+        const effectiveTotalPrice = checkoutPriceBreakdown.totalPrice;
         const requiresCheckout = effectiveTotalPrice > 0;
         const appFee = Math.round(effectiveTotalPrice * 0.035);
         const eventUrl = yield* tenantOutboundUrl(
@@ -1623,7 +1725,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             unitAmount: effectivePrice,
           });
         }
-        if (registration.guestCount > 0) {
+        if (registration.guestCount > 0 && basePrice > 0) {
           if (
             effectivePrice === registrationOption.price &&
             checkoutLineItems.length === 1
@@ -1637,12 +1739,16 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               name: `Guest registration fee for ${registration.event.title}`,
               quantity: registration.guestCount,
               ...(selectedTaxRateId && { taxRateId: selectedTaxRateId }),
-              unitAmount: registrationOption.price,
+              unitAmount: basePrice,
             });
           }
         }
         for (const addOnPurchase of registration.addonPurchases) {
-          if (addOnPurchase.unitPrice <= 0 || !addOnPurchase.addOn) {
+          if (
+            addOnPurchase.unitPrice <= 0 ||
+            addOnPurchase.purchasedQuantity <= 0 ||
+            !addOnPurchase.addOn
+          ) {
             continue;
           }
           checkoutLineItems.push({
@@ -2014,7 +2120,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                       {
                         allocationKey: `registration-initial:${registration.id}`,
                         baseAmount:
-                          effectivePrice + basePrice * registration.guestCount,
+                          checkoutPriceBreakdown.registrationBaseAmount,
                         id: `registration:${registration.id}`,
                         kind: 'registration',
                         quantity: registeredSpotCount,
@@ -2890,22 +2996,16 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
-        const addOnPurchasePlans = selectedAddOns.map((addOn) => ({
-          addOn,
-          purchaseId: createId(),
-          ...(addOn.selectedQuantity > 0 && { purchaseLotId: createId() }),
-        }));
         const addOnTaxExpectations = selectedAddOns.map((addOn) => ({
           addOnId: addOn.addOnId,
           requiresTaxRate: addOn.price > 0 && addOn.selectedQuantity > 0,
           stripeTaxRateId: addOn.stripeTaxRateId,
         }));
-        const selectedAddonTotalPrice = selectedAddOns.reduce(
-          (total, addOn) => total + addOn.price * addOn.selectedQuantity,
-          0,
-        );
         const mayRequireCheckout =
-          registrationOption.isPaid || selectedAddonTotalPrice > 0;
+          registrationOption.isPaid ||
+          selectedAddOns.some(
+            (addOn) => addOn.price > 0 && addOn.selectedQuantity > 0,
+          );
 
         // Phase 2: create registration row. Manual approval applications stay
         // pending without consuming spots until an organizer approves them.
@@ -3004,10 +3104,43 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           discountAmount,
           effectivePrice,
         } = discountResolution;
-        const effectiveTotalPrice =
-          effectivePrice +
-          registrationOption.price * guestCount +
-          selectedAddonTotalPrice;
+        const checkoutPriceBreakdown =
+          yield* registrationCheckoutPriceBreakdown({
+            addOns: selectedAddOns.map((addOn) => ({
+              key: addOn.addOnId,
+              quantity: addOn.selectedQuantity,
+              unitPrice: addOn.price,
+            })),
+            effectivePrice,
+            guestCount,
+            guestUnitPrice: basePrice,
+          });
+        const effectiveTotalPrice = checkoutPriceBreakdown.totalPrice;
+        const addOnPurchasePlans = yield* Effect.all(
+          selectedAddOns.map((addOn) =>
+            Effect.gen(function* () {
+              const baseAmount = checkoutPriceBreakdown.addOnBaseAmounts.get(
+                addOn.addOnId,
+              );
+              if (baseAmount === undefined) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'Registration add-on price breakdown is incomplete',
+                  }),
+                );
+              }
+              return {
+                addOn,
+                baseAmount,
+                purchaseId: createId(),
+                ...(addOn.selectedQuantity > 0 && {
+                  purchaseLotId: createId(),
+                }),
+              };
+            }),
+          ),
+        );
         const requiresCheckout =
           !manualApproval && mayRequireCheckout && effectiveTotalPrice > 0;
 
@@ -3041,7 +3174,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               unitAmount: effectivePrice,
             });
           }
-          if (guestCount > 0) {
+          if (guestCount > 0 && basePrice > 0) {
             if (
               effectivePrice === registrationOption.price &&
               checkoutLineItems.length === 1
@@ -3055,12 +3188,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 name: `Guest registration fee for ${registrationOption.event.title}`,
                 quantity: guestCount,
                 ...(selectedTaxRateId && { taxRateId: selectedTaxRateId }),
-                unitAmount: registrationOption.price,
+                unitAmount: basePrice,
               });
             }
           }
           for (const { addOn, purchaseLotId } of addOnPurchasePlans) {
-            if (addOn.price <= 0) {
+            if (addOn.price <= 0 || addOn.selectedQuantity <= 0) {
               continue;
             }
             checkoutLineItems.push({
@@ -3190,7 +3323,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                       and(
                         eq(eventRegistrations.tenantId, tenant.id),
                         eq(eventRegistrations.userId, user.id),
-                        sql`${eventRegistrations.status} <> 'CANCELLED'`,
+                        inArray(eventRegistrations.status, [
+                          'PENDING',
+                          'CONFIRMED',
+                        ]),
                         sql`${eventInstances.start} > ${now}`,
                       ),
                     )
@@ -3266,6 +3402,38 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 }
 
+                let paymentClaim: RegistrationPaymentClaim | undefined;
+                if (directCheckout) {
+                  const insertedClaims = yield* tx
+                    .insert(transactions)
+                    .values({
+                      amount: effectiveTotalPrice,
+                      appFee: directCheckout.appFee,
+                      comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
+                      currency: tenant.currency,
+                      eventId: registrationOption.eventId,
+                      eventRegistrationId: userRegistration.id,
+                      executiveUserId: user.id,
+                      id: directCheckout.transactionId,
+                      method: 'stripe',
+                      status: 'pending',
+                      stripeAccountId: lockedStripeAccount,
+                      stripeCheckoutRequest: directCheckout.request,
+                      targetUserId: user.id,
+                      tenantId: tenant.id,
+                      type: 'registration',
+                    })
+                    .returning(registrationPaymentClaimSelection);
+                  paymentClaim = insertedClaims[0];
+                  if (!paymentClaim) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message: 'Failed to create registration payment claim',
+                      }),
+                    );
+                  }
+                }
+
                 if (answerInserts.length > 0) {
                   yield* tx.insert(eventRegistrationQuestionAnswers).values(
                     answerInserts.map((answer) => ({
@@ -3281,6 +3449,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
                 for (const {
                   addOn,
+                  baseAmount,
                   purchaseId,
                   purchaseLotId,
                 } of addOnPurchasePlans) {
@@ -3342,7 +3511,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                           stripeFeeAmount: 0,
                           taxAmount: 0,
                         }),
-                        baseAmount: addOn.price * addOn.selectedQuantity,
+                        baseAmount,
                         currency: tenant.currency,
                         eventId,
                         id: purchaseLotId,
@@ -3369,7 +3538,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     terms: [
                       {
                         allocationKey: `registration-initial:${userRegistration.id}`,
-                        baseAmount: effectivePrice + basePrice * guestCount,
+                        baseAmount:
+                          checkoutPriceBreakdown.registrationBaseAmount,
                         id: `registration:${userRegistration.id}`,
                         kind: 'registration',
                         quantity: requestedSpotCount,
@@ -3381,13 +3551,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                           lockedSelectedTaxRate?.percentage ?? null,
                       },
                       ...addOnPurchasePlans.flatMap(
-                        ({ addOn, purchaseId, purchaseLotId }) =>
+                        ({ addOn, baseAmount, purchaseId, purchaseLotId }) =>
                           purchaseLotId
                             ? [
                                 {
                                   allocationKey: `addon-lot:${purchaseLotId}`,
-                                  baseAmount:
-                                    addOn.price * addOn.selectedQuantity,
+                                  baseAmount,
                                   id: `addon-lot:${purchaseLotId}`,
                                   kind: 'addon_lot' as const,
                                   purchaseId,
@@ -3476,38 +3645,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     ticketUrl: directConfirmationTicketUrl,
                     to: user.communicationEmail,
                   });
-                }
-
-                let paymentClaim: RegistrationPaymentClaim | undefined;
-                if (directCheckout) {
-                  const insertedClaims = yield* tx
-                    .insert(transactions)
-                    .values({
-                      amount: effectiveTotalPrice,
-                      appFee: directCheckout.appFee,
-                      comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
-                      currency: tenant.currency,
-                      eventId: registrationOption.eventId,
-                      eventRegistrationId: userRegistration.id,
-                      executiveUserId: user.id,
-                      id: directCheckout.transactionId,
-                      method: 'stripe',
-                      status: 'pending',
-                      stripeAccountId: lockedStripeAccount,
-                      stripeCheckoutRequest: directCheckout.request,
-                      targetUserId: user.id,
-                      tenantId: tenant.id,
-                      type: 'registration',
-                    })
-                    .returning(registrationPaymentClaimSelection);
-                  paymentClaim = insertedClaims[0];
-                  if (!paymentClaim) {
-                    return yield* Effect.fail(
-                      new EventRegistrationInternalError({
-                        message: 'Failed to create registration payment claim',
-                      }),
-                    );
-                  }
                 }
 
                 return {
@@ -3821,11 +3958,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     );
                   }
 
-                  const activeRegistrationLimit = Math.max(
-                    0,
-                    Math.trunc(tenant.maxActiveRegistrationsPerUser ?? 0),
-                  );
-
                   const activeRegistrations =
                     yield* tx.query.eventRegistrations.findMany({
                       columns: {
@@ -3840,31 +3972,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     });
                   if (activeRegistrations.length > 0) {
                     return { _tag: 'AlreadyRegistered' } as const;
-                  }
-
-                  if (activeRegistrationLimit > 0) {
-                    const activeFutureRegistrations = yield* tx
-                      .select({ id: eventRegistrations.id })
-                      .from(eventRegistrations)
-                      .innerJoin(
-                        eventInstances,
-                        eq(eventInstances.id, eventRegistrations.eventId),
-                      )
-                      .where(
-                        and(
-                          eq(eventRegistrations.tenantId, tenant.id),
-                          eq(eventRegistrations.userId, user.id),
-                          sql`${eventRegistrations.status} <> 'CANCELLED'`,
-                          sql`${eventInstances.start} > ${now}`,
-                        ),
-                      )
-                      .limit(activeRegistrationLimit);
-                    if (
-                      activeFutureRegistrations.length >=
-                      activeRegistrationLimit
-                    ) {
-                      return { _tag: 'TenantLimitReached' } as const;
-                    }
                   }
 
                   const updatedOptions = yield* tx
@@ -3950,13 +4057,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message: 'Registration option still has available spots',
-              }),
-            );
-          }
-          if (waitlistResult._tag === 'TenantLimitReached') {
-            return yield* Effect.fail(
-              new EventRegistrationConflictError({
-                message: 'Active registration limit reached',
               }),
             );
           }

@@ -24,7 +24,7 @@ import {
   type PlatformEventsUpdateInput,
   type PlatformEventsUpdateListingInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, inArray } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -55,6 +55,7 @@ import {
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
+  uniqueTenantRoleIds,
 } from '../../../../roles/tenant-role-graph';
 import {
   isMeaningfulRichTextHtml,
@@ -223,6 +224,7 @@ export const platformEventAddonMappingRemovalError = (
 
 const PlatformEventAuditState = Schema.Struct({
   addOns: Schema.Array(PlatformEventAddonRecord),
+  announcementRoleIds: Schema.Array(Schema.NonEmptyString),
   creatorId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   end: Schema.NonEmptyString,
@@ -270,6 +272,7 @@ export const loadPlatformEventDetail = Effect.fn(
 ) {
   const eventRows = yield* database
     .select({
+      announcementRoleIds: eventInstances.announcementRoleIds,
       creatorEmail: users.email,
       creatorFirstName: users.firstName,
       creatorId: users.id,
@@ -493,6 +496,7 @@ export const loadPlatformEventDetail = Effect.fn(
       registrationOptions: addOnOptionsById.get(addOn.id) ?? [],
       stripeTaxRateId: addOn.stripeTaxRateId ?? null,
     })),
+    announcementRoleIds: [...event.announcementRoleIds],
     creator: {
       email: event.creatorEmail,
       firstName: event.creatorFirstName,
@@ -535,6 +539,7 @@ export const platformEventAuditSnapshot = (
   resourceType: 'event',
   state: Schema.decodeUnknownSync(PlatformEventAuditState)({
     addOns: event.addOns,
+    announcementRoleIds: event.announcementRoleIds,
     creatorId: event.creator.id,
     description: event.description,
     end: event.end,
@@ -1363,7 +1368,16 @@ export const platformEventHandlers = {
         databaseEffect((database) =>
           database
             .select({
+              announcementRoleIds: eventInstances.announcementRoleIds,
               end: eventInstances.end,
+              hasRegistrationOptions: exists(
+                database
+                  .select()
+                  .from(eventRegistrationOptions)
+                  .where(
+                    eq(eventRegistrationOptions.eventId, eventInstances.id),
+                  ),
+              ),
               id: eventInstances.id,
               listingAudience: eventInstances.listingAudience,
               start: eventInstances.start,
@@ -1375,11 +1389,19 @@ export const platformEventHandlers = {
             .orderBy(desc(eventInstances.start))
             .pipe(
               Effect.map((events) =>
-                events.map((event) => ({
-                  ...event,
-                  end: event.end.toISOString(),
-                  start: event.start.toISOString(),
-                })),
+                events.map(
+                  ({
+                    announcementRoleIds,
+                    hasRegistrationOptions,
+                    ...event
+                  }) => ({
+                    ...event,
+                    announcementRoleCount: announcementRoleIds.length,
+                    end: event.end.toISOString(),
+                    hasRegistrationOptions: Boolean(hasRegistrationOptions),
+                    start: event.start.toISOString(),
+                  }),
+                ),
               ),
             ),
         ),
@@ -1605,24 +1627,58 @@ export const platformEventHandlers = {
       input,
       'events:changeListing',
       'event.updateListing',
-      (database) =>
-        database
-          .update(eventInstances)
-          .set({ listingAudience: input.listingAudience })
-          .where(
-            and(
-              eq(eventInstances.id, input.eventId),
-              eq(eventInstances.tenantId, input.targetTenantId),
-            ),
-          )
-          .returning({ id: eventInstances.id })
-          .pipe(
+      (database, before) =>
+        Effect.gen(function* () {
+          const announcementRoleIds = uniqueTenantRoleIds(
+            input.announcementRoleIds,
+          );
+          yield* lockTenantRoleGraph(database, input.targetTenantId).pipe(
             Effect.orDie,
-            Effect.flatMap((updatedEvents) =>
-              updatedEvents.length > 0
-                ? Effect.void
-                : Effect.fail(eventNotFound(input.eventId)),
-            ),
-          ),
+          );
+          const roleIdsExist = yield* tenantRoleIdsExist(
+            database,
+            input.targetTenantId,
+            announcementRoleIds,
+          ).pipe(Effect.orDie);
+          if (!roleIdsExist) {
+            return yield* Effect.fail(
+              new RpcBadRequestError({
+                message:
+                  'Announcement discovery contains a role from another organization',
+                reason: 'invalidAnnouncementRole',
+              }),
+            );
+          }
+          if (
+            before.registrationOptions.length > 0 &&
+            announcementRoleIds.length > 0
+          ) {
+            return yield* Effect.fail(
+              new RpcBadRequestError({
+                message:
+                  'Announcement discovery roles can only be set on events without registration options',
+                reason: 'announcementRolesRequireOptionlessEvent',
+              }),
+            );
+          }
+
+          const updatedEvents = yield* database
+            .update(eventInstances)
+            .set({
+              announcementRoleIds,
+              listingAudience: input.listingAudience,
+            })
+            .where(
+              and(
+                eq(eventInstances.id, input.eventId),
+                eq(eventInstances.tenantId, input.targetTenantId),
+              ),
+            )
+            .returning({ id: eventInstances.id })
+            .pipe(Effect.orDie);
+          if (updatedEvents.length === 0) {
+            return yield* Effect.fail(eventNotFound(input.eventId));
+          }
+        }),
     ),
 };
