@@ -187,5 +187,17 @@ describe('staging latency observability', () => {
       expect(source, spanName).toContain(`'${spanName}'`);
     }
     expect(source).toContain("{ spanPrefix: 'Rpc' }");
+    expect(source).toContain("'evorto.events.initial_page'");
+    expect(source).toContain("'evorto.events.page_size_bucket'");
+    expect(source).not.toContain("'evorto.events.limit'");
+    expect(source).not.toContain("'evorto.events.offset'");
+  });
+
+  it('checks every external command used by the latency probe', async () => {
+    const source = await readFile(probeScript, 'utf8');
+
+    expect(source).toContain(
+      'for required_command in awk curl date dirname grep jq mkdir mktemp mv rm; do',
+    );
   });
 });

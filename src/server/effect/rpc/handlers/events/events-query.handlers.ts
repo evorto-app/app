@@ -156,6 +156,23 @@ export const organizerRegistrationApprovalState = ({
 const canInspectTenantEvents = (permissions: readonly Permission[]): boolean =>
   includesPermission('globalAdmin:manageTenants', permissions);
 
+const eventListPageSizeBucket = (limit: number): string => {
+  if (limit === 0) return 'zero';
+  if (limit <= 10) return '1-10';
+  if (limit <= 25) return '11-25';
+  if (limit <= 50) return '26-50';
+  if (limit <= 100) return '51-100';
+  return 'over-100';
+};
+
+const eventListPaginationAttributes = (input: {
+  limit: number;
+  offset: number;
+}) => ({
+  'evorto.events.initial_page': input.offset === 0,
+  'evorto.events.page_size_bucket': eventListPageSizeBucket(input.limit),
+});
+
 export const groupEventsByTenantDay = <EventRecord extends { start: string }>(
   events: readonly EventRecord[],
   timezone: string,
@@ -209,8 +226,7 @@ export const eventQueryHandlers = {
       yield* Effect.annotateCurrentSpan({
         'evorto.authenticated': authenticated,
         'evorto.events.include_unlisted': input.includeUnlisted,
-        'evorto.events.limit': input.limit,
-        'evorto.events.offset': input.offset,
+        ...eventListPaginationAttributes(input),
       });
 
       if (user?.id !== input.userId) {
@@ -275,8 +291,7 @@ export const eventQueryHandlers = {
       const selectedEvents = yield* Effect.gen(function* () {
         yield* Effect.annotateCurrentSpan({
           'db.operation.name': 'events.eventList',
-          'evorto.events.limit': input.limit,
-          'evorto.events.offset': input.offset,
+          ...eventListPaginationAttributes(input),
         });
         const events = yield* databaseEffect((database) =>
           database

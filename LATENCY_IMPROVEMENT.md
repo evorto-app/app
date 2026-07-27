@@ -78,7 +78,7 @@ Annotate spans only with bounded, non-sensitive values:
 - authenticated versus anonymous;
 - SSR-internal versus external request;
 - database query name;
-- result count and pagination limit.
+- result count, bounded page-size bucket, and initial-page state.
 
 Do not record cookies, tokens, email addresses, Auth0 IDs, user IDs, complete
 tenant objects, RPC payloads, or SQL parameter values. Keep SQL statement

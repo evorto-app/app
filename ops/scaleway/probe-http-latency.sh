@@ -102,7 +102,7 @@ fi
 
 origin="${origin%/}"
 
-for required_command in awk curl date grep jq mktemp mkdir mv; do
+for required_command in awk curl date dirname grep jq mkdir mktemp mv rm; do
   if ! command -v "${required_command}" >/dev/null; then
     echo "Missing required command: ${required_command}" >&2
     exit 69
