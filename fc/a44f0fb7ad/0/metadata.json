@@ -3,7 +3,7 @@
   "checkpoint_id": "fca44f0fb7ad",
   "session_id": "019f9f44-d3cb-70b3-a93f-4038b4f1b4a2",
   "strategy": "manual-commit",
-  "created_at": "2026-07-27T13:23:16.561075Z",
+  "created_at": "2026-07-27T13:43:07.217172Z",
   "branch": "codex/full-application-simplification-review",
   "checkpoints_count": 1,
   "files_touched": [],
@@ -11,22 +11,13 @@
   "model": "gpt-5.6-sol",
   "turn_id": "bc0bd8ce5196",
   "token_usage": {
-    "input_tokens": 7625427,
+    "input_tokens": 7983657,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 423630336,
-    "output_tokens": 759579,
-    "api_call_count": 3362
+    "cache_read_tokens": 435653888,
+    "output_tokens": 786769,
+    "api_call_count": 3481
   },
   "session_metrics": {
     "turn_count": 5
-  },
-  "prompt_attributions": [
-    {
-      "checkpoint_number": 2,
-      "user_lines_added": 0,
-      "user_lines_removed": 0,
-      "agent_lines_added": 0,
-      "agent_lines_removed": 0
-    }
-  ]
+  }
 }
