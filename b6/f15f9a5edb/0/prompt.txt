@@ -68,3 +68,7 @@ Update `PRODUCT.md` and `APPLICATION_REVIEW_QUEUE.md` to replace the current lis
 - Update the review queue so the template-audience item is no longer described as resolved under the old model. Record this as a new settled product direction requiring a focused implementation and verification batch.
 - Update the queue’s announcement decision to align with the separate role-targeting model above.
 - Keep the documentation explicit that role-targeted announcement visibility and registration-option-derived event visibility are intentionally different rules.
+
+---
+
+implement needed changes from the recent doc update
