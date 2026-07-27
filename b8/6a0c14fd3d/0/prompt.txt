@@ -1,17 +1,1 @@
-Our docs page do not seem to accurately update /Users/hedde/code/evorto-pages as all the images there are from the old version. Please make sure to get the latest main and make sure the docs are properly generated and set up there
-
----
-
-For the docs page, we want to target the update branch
-
----
-
-These should be avialabe on the the main checkout
-
----
-
-Please check /Users/hedde/.codex/worktrees/f489/evorto then
-
----
-
-Okay, check /Users/hedde/.codex/worktrees/b7e9/evorto
+There are tests in parallel, do not run e2e tests atm
