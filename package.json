@@ -91,7 +91,7 @@
     "@tiptap/extension-table": "^3.29.0",
     "@tiptap/extension-text-style": "^3.29.0",
     "@tiptap/pm": "^3.29.0",
-    "@tiptap/starter-kit": "^3.29.0",
+    "@tiptap/starter-kit": "^3.29.1",
     "consola": "^3.4.2",
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "4.0.0-beta.101",
