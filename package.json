@@ -67,7 +67,7 @@
     "@angular/router": "^22.0.8",
     "@angular/ssr": "^22.0.8",
     "@auth0/auth0-server-js": "^1.10.0",
-    "@effect/opentelemetry": "4.0.0-beta.101",
+    "@effect/opentelemetry": "4.0.0-beta.102",
     "@effect/platform-bun": "4.0.0-beta.101",
     "@effect/sql-pg": "4.0.0-beta.101",
     "@fortawesome/angular-fontawesome": "5.1.0",
