@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "dc26a9cb1eff",
+  "strategy": "manual-commit",
+  "branch": "codex/remove-dead-runtime-dependencies",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".changeset/remove-unused-runtime-dependencies.md",
+    "angular.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/dc/26a9cb1eff/0/metadata.json",
+      "transcript": "/dc/26a9cb1eff/0/full.jsonl",
+      "content_hash": "/dc/26a9cb1eff/0/content_hash.txt",
+      "prompt": "/dc/26a9cb1eff/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 25453461,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1408148736,
+    "output_tokens": 2267685,
+    "api_call_count": 11087
+  }
+}
