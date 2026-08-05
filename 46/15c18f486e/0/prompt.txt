@@ -1,0 +1,94 @@
+Please open a pr for this
+
+---
+
+Please check if we can update bun, they improved some of the angular support recently
+
+---
+
+Please link the relevant bun commits
+
+---
+
+Also send them to me here
+
+---
+
+Please add a new theme (also make it the new default)
+The previous two themes should be kept
+This is the desired config
+
+  --primary-color="#4956C8" \
+  --secondary-color="#62677A" \
+  --tertiary-color="#FFB26B" \
+  --neutral-color="#F7F4ED" \
+  --neutral-variant-color="#72778A" \
+  --error-color="#B3261E" \
+
+---
+
+What work and decisions remain now?
+
+---
+
+<codex_delegation>
+  <source_thread_id>019fa330-fb1e-7ea1-b0e5-482856b99bf3</source_thread_id>
+  <input>Please update the existing APPLICATION_REVIEW_QUEUE.md in your worktree to record the following decisions from the user, without implementing application code: (1) waitlist entries do not consume tenant active-registration limit; check only on conversion into a real registration. (2) One private offer-and-claim transfer flow; free/questionless claims complete immediately, payment-involving transfers remain asynchronous through Stripe; future cleanup should remove obsolete direct-reassignment promise/endpoint. (3) Template listing audience is already settled: default discovery copied to new events, templates have no visibility; no decision remains. (4) Optionless announcements get explicit selected tenant roles for normal discovery; no roles means link-only; it does not grant access/send notifications. (5) General settings become independently saved focused sections/pages inside familiar two-column settings layout; provider/payment its own restricted page; exact names later. (6) Profile retains small shared shell but substantial areas get pages; redesign sparse overview into meaningful landing page. (7) New registration plus add-ons is one Stripe checkout session; transfers same review/checkout pattern but fixed bundle with recipient eligibility/questions/current discounts rechecked; do not build generic backend checkout framework just to unify distinct post-payment recovery rules. Use apply_patch, inspect the diff, and send a concise report to this coordinator when finished, blocked, or needing a decision; say whether work is continuing.</input>
+</codex_delegation>
+
+---
+
+Can you implement the new decisions and then tell me what still needs my review?
+
+---
+
+THere was some interference with docker and the tests, double check your setup and try again if something failed
+
+---
+
+Also check up on the pr
+
+---
+
+Please continue
+
+---
+
+::codex-realtime-inline{}
+
+Update `PRODUCT.md` and `APPLICATION_REVIEW_QUEUE.md` to replace the current listing-audience model with this product direction. Do not implement application code in this task.
+
+- Remove the concept of a separately configured participant/organizer/both “listing audience” from ordinary events and templates.
+- Templates define event structure only. They do not define discovery visibility or a default audience.
+- A signed-in member discovers a published event when they are currently eligible for at least one of its registration options.
+- An anonymous visitor discovers a published event when at least one registration option is available to one of the product’s default user roles. Anonymous views expose only the public event projection and still require sign-in before registration.
+- Registration eligibility remains enforced server-side at every write; discovery never grants access.
+- Preserve the existing explicit outcome for a person who follows a direct link but is not eligible. Do not convert ineligibility into a hidden fallback.
+- Optionless announcement-style events remain a separate model: their normal discovery is controlled by an explicit selected-tenant-roles list. An empty list means link-only. This field controls visibility only; it does not grant roles or send notifications.
+- Update the review queue so the template-audience item is no longer described as resolved under the old model. Record this as a new settled product direction requiring a focused implementation and verification batch.
+- Update the queue’s announcement decision to align with the separate role-targeting model above.
+- Keep the documentation explicit that role-targeted announcement visibility and registration-option-derived event visibility are intentionally different rules.
+
+---
+
+implement needed changes from the recent doc update
+
+---
+
+Explain to me announcements again
+
+---
+
+Make sure to keep technical wording out of the entire application and automatically generated docs, the users should not be concerned with that
+
+---
+
+Feel free to reset docker as hard as you have to, ideally find out why it keeps getting stuck and solve that more permanently
+
+---
+
+I agree with the decision about the stripe accounts. As for the esncard and google maps. We had this issue TEN TIMES now, I hope you can find the needed info in the main checkout or an old chat, this is not acceptable
+
+---
+
+It's fine if we do not enforce the stripe account limitation
