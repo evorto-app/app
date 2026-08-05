@@ -3,36 +3,21 @@
   "checkpoint_id": "dc26a9cb1eff",
   "session_id": "019f9f44-d3cb-70b3-a93f-4038b4f1b4a2",
   "strategy": "manual-commit",
-  "created_at": "2026-08-05T17:23:31.266755Z",
+  "created_at": "2026-08-05T19:04:38.024998Z",
   "branch": "codex/remove-dead-runtime-dependencies",
   "checkpoints_count": 1,
-  "files_touched": [
-    ".changeset/remove-unused-runtime-dependencies.md",
-    "angular.json"
-  ],
+  "files_touched": [],
   "agent": "Codex",
   "model": "gpt-5.6-sol",
   "turn_id": "5633c038bf37",
   "token_usage": {
-    "input_tokens": 25453461,
+    "input_tokens": 26435145,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1408148736,
-    "output_tokens": 2267685,
-    "api_call_count": 11087
+    "cache_read_tokens": 1502937344,
+    "output_tokens": 2367880,
+    "api_call_count": 11784
   },
   "session_metrics": {
     "turn_count": 15
-  },
-  "initial_attribution": {
-    "calculated_at": "2026-08-05T17:23:28.511129Z",
-    "agent_lines": 0,
-    "agent_removed": 0,
-    "human_added": 11,
-    "human_modified": 1,
-    "human_removed": 0,
-    "total_committed": 11,
-    "total_lines_changed": 427,
-    "agent_percentage": 0,
-    "metric_version": 2
   }
 }
