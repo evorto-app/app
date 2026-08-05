@@ -3,7 +3,7 @@
   "checkpoint_id": "aff4a24d50c9",
   "session_id": "019f9f44-d3cb-70b3-a93f-4038b4f1b4a2",
   "strategy": "manual-commit",
-  "created_at": "2026-08-05T17:21:50.016323Z",
+  "created_at": "2026-08-05T19:02:07.735626Z",
   "branch": "codex/remove-prior-compliance-artifacts",
   "checkpoints_count": 1,
   "files_touched": [],
@@ -11,22 +11,13 @@
   "model": "gpt-5.6-sol",
   "turn_id": "5633c038bf37",
   "token_usage": {
-    "input_tokens": 25418614,
+    "input_tokens": 26413981,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1405812224,
-    "output_tokens": 2264907,
-    "api_call_count": 11070
+    "cache_read_tokens": 1501547264,
+    "output_tokens": 2365267,
+    "api_call_count": 11774
   },
   "session_metrics": {
     "turn_count": 15
-  },
-  "prompt_attributions": [
-    {
-      "checkpoint_number": 2,
-      "user_lines_added": 0,
-      "user_lines_removed": 0,
-      "agent_lines_added": 0,
-      "agent_lines_removed": 0
-    }
-  ]
+  }
 }
