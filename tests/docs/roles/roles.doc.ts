@@ -376,12 +376,21 @@ On the role details page, select **Edit role**. This example changes the descrip
     await expect(page.getByText('View Members Hub')).toBeVisible();
 
     await page.reload();
-    await expect(page.getByRole('heading', { name: roleName })).toBeVisible();
-    await expect(page.getByText(updatedRoleDescription)).toBeVisible();
-    await expect(page.getByText('View Members Hub')).toBeVisible();
+    await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
+    const savedRoleDetails = page.locator('app-role-details');
+    await expect(
+      savedRoleDetails.getByText('Loading role…', { exact: true }),
+    ).toBeHidden();
+    await expect(
+      savedRoleDetails.getByRole('heading', { name: roleName }),
+    ).toBeVisible();
+    await expect(
+      savedRoleDetails.getByText(updatedRoleDescription),
+    ).toBeVisible();
+    await expect(savedRoleDetails.getByText('View Members Hub')).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-role-details'),
+      savedRoleDetails,
       page,
       'Saved Members Hub settings on the role',
     );

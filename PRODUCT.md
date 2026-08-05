@@ -522,6 +522,10 @@ Checkout, customer, payment-intent, expiry, and refund calls must execute for
 that connected account. Evorto adds its application fee but does not own or
 silently replace the tenant's other payment configuration.
 
+One payment account may intentionally serve more than one organization. This
+does not join those organizations or share their members, events, settings, or
+records. Every action remains scoped to the organization in which it started.
+
 Application and generated-documentation surfaces expose payment readiness only,
 never the connected-account identifier or provider setup mechanics. The first
 account attachment is a private, explicitly confirmed operations action. It is

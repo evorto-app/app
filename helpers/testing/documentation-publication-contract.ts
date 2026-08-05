@@ -89,7 +89,7 @@ export const documentationConsumerGuideCatalog = [
     sourceSlugs: [
       'manage-organization-settings',
       'publish-legal-pages',
-      'choose-an-organization-default-location-with-google-maps',
+      'choose-an-organization-default-location',
       'manage-finances',
       'review-and-reimburse-receipts',
       'submit-an-event-receipt',

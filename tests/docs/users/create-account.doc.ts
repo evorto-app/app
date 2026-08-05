@@ -151,6 +151,14 @@ Open the app page and select **Sign in**.`,
       await page.getByRole('link', { name: 'Sign in' }).first().waitFor({
         state: 'visible',
       });
+      await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
+      const eventList = page.locator('app-event-list nav');
+      await expect(
+        eventList
+          .locator('a[href^="/events/"]')
+          .or(eventList.getByText('No events found', { exact: true }))
+          .first(),
+      ).toBeVisible({ timeout: 20_000 });
       await takeScreenshot(
         testInfo,
         page.getByRole('link', { name: 'Sign in' }),
@@ -164,14 +172,19 @@ After selecting **Sign in**, use the account you want to join to this organizati
 
 If that account's email address is not verified yet, Evorto asks you to verify it before showing the organization setup form.`,
       });
-      await page.getByLabel('Email address').waitFor({ state: 'visible' });
+      const signInEmail = page.getByLabel('Email address');
+      await expect(signInEmail).toBeVisible();
+      await expect(signInEmail).toBeEditable();
+      await signInEmail.fill('person@example.org');
+      await expect(signInEmail).toHaveValue('person@example.org');
       await takeScreenshot(
         testInfo,
-        page.getByLabel('Email address'),
+        signInEmail,
         page,
         'Enter the email address for the account',
+        { cropTo: signInEmail },
       );
-      await page.getByLabel('Email address').fill(newUser.email);
+      await signInEmail.fill(newUser.email);
       await fillProtectedValue(
         page.getByRole('textbox', { name: 'Password' }),
         'E2E_TRANSIENT_AUTH0_USER_PASSWORD',

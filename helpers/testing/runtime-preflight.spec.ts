@@ -406,7 +406,7 @@ describe('evaluateRuntimePreflight', () => {
       '--project=docs-live-esncard',
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      "--grep '@needs-live-esncard'",
+      '--grep "@needs-live-esncard"',
     );
     expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
       'runtime-preflight.ts esncard-release',

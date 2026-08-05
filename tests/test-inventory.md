@@ -443,7 +443,7 @@ credential path.
     notification email format validation, matching the create-account/profile
     edit form validators.
     The integration-tagged create-account doc also asserts the editable email
-    field is labeled "Notification email" when Auth0 Management credentials are
+    field is labeled "Email for updates" when Auth0 Management credentials are
     available.
     Root route-manifest coverage keeps `/create-account` reachable to
     authenticated users without a tenant assignment while protected feature

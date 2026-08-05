@@ -31,6 +31,9 @@ test.describe('Admin Tax Rates Import', () => {
       exact: true,
     });
     await expect(importButton).toBeEnabled({ timeout: 15_000 });
+    await expect(importButton).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
     await importButton.click();
     const importDialog = page.getByRole('dialog');
     await expect(importDialog).toBeVisible({ timeout: 15_000 });

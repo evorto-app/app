@@ -269,35 +269,41 @@ test.describe('Check your ESNcard', () => {
       ).toBeVisible({ timeout: 20_000 });
       return card;
     };
+    const expectCardCheckedAgain = async (previousCheckTime: number) => {
+      await expect
+        .poll(
+          async () => {
+            const currentCheckTime = (
+              await readCurrentCard()
+            )?.lastCheckedAt?.getTime();
+            return currentCheckTime ?? previousCheckTime;
+          },
+          { timeout: 20_000 },
+        )
+        .not.toBe(previousCheckTime);
+    };
 
     const restoreSeededCard = async () => {
       const validFrom = new Date();
       const validTo = new Date(validFrom.getTime() + 1000 * 60 * 60 * 24 * 180);
       await database
-        .insert(schema.userDiscountCards)
-        .values({
-          identifier: seededEsnCardIdentifier,
-          status: 'verified',
-          tenantId: tenant.id,
-          type: 'esnCard',
-          userId: regularUser.id,
-          validFrom,
-          validTo,
-        })
-        .onConflictDoUpdate({
-          set: {
-            identifier: seededEsnCardIdentifier,
-            status: 'verified',
-            tenantId: tenant.id,
-            validFrom,
-            validTo,
-          },
-          target: [
-            schema.userDiscountCards.userId,
-            schema.userDiscountCards.tenantId,
-            schema.userDiscountCards.type,
-          ],
-        });
+        .delete(schema.userDiscountCards)
+        .where(
+          and(
+            eq(schema.userDiscountCards.userId, regularUser.id),
+            eq(schema.userDiscountCards.tenantId, tenant.id),
+            eq(schema.userDiscountCards.type, 'esnCard'),
+          ),
+        );
+      await database.insert(schema.userDiscountCards).values({
+        identifier: seededEsnCardIdentifier,
+        status: 'verified',
+        tenantId: tenant.id,
+        type: 'esnCard',
+        userId: regularUser.id,
+        validFrom,
+        validTo,
+      });
     };
 
     try {
@@ -361,7 +367,10 @@ From the main navigation, select **Profile**, then choose **Discounts**. Before 
       expect(savedCard?.type).toBe('esnCard');
       expect(savedCard?.userId).toBe(regularUser.id);
       expect(savedCard?.identifier === liveEsnCardIdentifier).toBe(true);
-      expect(savedCard?.lastCheckedAt).toBeInstanceOf(Date);
+      const savedCheckTime = savedCard?.lastCheckedAt?.getTime();
+      if (savedCheckTime === undefined) {
+        throw new Error('Expected saved ESNcard check time');
+      }
 
       await testInfo.attach('markdown', {
         body: `
@@ -376,6 +385,7 @@ Select **Check again** to check the card again. If Evorto cannot complete the ch
       await clickHydratedAction(
         page.getByRole('button', { name: 'Check again' }),
       );
+      await expectCardCheckedAgain(savedCheckTime);
       const refreshedCard = await expectCurrentCardStatus('verified');
       expect(refreshedCard?.status).toBe('verified');
       expect(refreshedCard?.tenantId).toBe(tenant.id);
@@ -423,11 +433,15 @@ An expired card remains visible as **Expired** and no longer grants discounts. E
       expect(savedExpiredCard?.identifier === expiredEsnCardIdentifier).toBe(
         true,
       );
-      expect(savedExpiredCard?.lastCheckedAt).toBeInstanceOf(Date);
+      const savedExpiredCheckTime = savedExpiredCard?.lastCheckedAt?.getTime();
+      if (savedExpiredCheckTime === undefined) {
+        throw new Error('Expected saved expired ESNcard check time');
+      }
 
       await clickHydratedAction(
         page.getByRole('button', { name: 'Check again' }),
       );
+      await expectCardCheckedAgain(savedExpiredCheckTime);
       const refreshedExpiredCard = await expectCurrentCardStatus('expired');
       expect(refreshedExpiredCard?.status).toBe('expired');
       expect(refreshedExpiredCard?.tenantId).toBe(tenant.id);

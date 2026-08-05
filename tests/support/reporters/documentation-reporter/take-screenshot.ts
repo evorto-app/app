@@ -39,6 +39,7 @@ export async function takeScreenshot(
   locators: Locator | Locator[],
   page: Page,
   caption: string,
+  options: Readonly<{ cropTo?: Locator }> = {},
 ) {
   const normalizedCaption = caption.trim();
   if (!normalizedCaption) {
@@ -67,7 +68,9 @@ export async function takeScreenshot(
   }
 
   await testInfo.attach('image', {
-    body: await captureDocumentationScreenshot(page),
+    body: options.cropTo
+      ? await options.cropTo.screenshot({ animations: 'disabled' })
+      : await captureDocumentationScreenshot(page),
     contentType: 'image/png',
   });
   await testInfo.attach('image-caption', {

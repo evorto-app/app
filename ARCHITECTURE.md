@@ -242,6 +242,11 @@ audit entry records only readiness before and after. Rotation and disconnect
 are intentionally unsupported; do not add remapping, fallback, or compatibility
 paths that pretend either operation succeeded.
 
+The same connected payment account may be attached deliberately to more than
+one organization. That choice changes neither tenant isolation nor payment
+ownership checks: each operation still starts from one tenant and uses that
+tenant's configured account without inferring access to any other tenant.
+
 Event registrations and add-ons have no non-Stripe paid path. Without a
 connected Stripe account, persisted and editable registration options and
 add-ons must be free. Manual finance transactions used by other workflows do

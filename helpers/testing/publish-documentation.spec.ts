@@ -779,13 +779,15 @@ describe('documentation publishing', () => {
     }
     const publishScript = packageJson.scripts['test:e2e:docs:publish'];
     expect(publishScript).toBe(
-      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/publish-documentation.ts',
+      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/run-with-primary-provider-credentials.ts -- bun helpers/testing/publish-documentation.ts',
     );
     expect(publishScript).not.toContain('/Users/');
     expect(publishScript).not.toContain('apps/documentation');
     for (const sourceFile of [
       'helpers/testing/documentation-publication-contract.ts',
+      'helpers/testing/primary-provider-credentials.ts',
       'helpers/testing/publish-documentation.ts',
+      'helpers/testing/run-with-primary-provider-credentials.ts',
     ]) {
       const sourceStat = fs.lstatSync(path.join(process.cwd(), sourceFile));
       expect(sourceStat.isFile()).toBe(true);

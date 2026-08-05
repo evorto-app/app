@@ -188,6 +188,14 @@ bun run test:e2e -- --headed --workers 1
 bun run lint
 ```
 
+In a linked worktree, the integration, live ESNcard, release-certification, and
+documentation-publication commands fill only missing Google Maps and ESNcard
+test values from the primary checkout's `.env`. Values already set for the
+current command win, and database, Auth0, Stripe, ports, and all other settings
+remain worktree-local. If neither location supplies a required value, the
+normal preflight still stops with its name; no test is skipped and no substitute
+value is invented.
+
 ## PostgreSQL Integration Suite
 
 `bun run test:integration:postgres` owns every `*.postgres.spec.ts` test. It
@@ -324,7 +332,9 @@ file.
   intentionally excluded; run their canonical non-UI commands instead.
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is the Auth0 Management and required Google Maps portion of the
-  provider gate and requires their approved local credentials.
+  provider gate and requires their approved local credentials. A linked
+  worktree can reuse a missing Google Maps test value from the primary checkout
+  without importing the primary checkout's database or other settings.
 - `bun run test:e2e:live-esncard` runs only the live esncard.org active-card
   add/refresh/remove and expired-card status paths. It selects both the
   `local-chrome-live-esncard` functional project and the `docs-live-esncard`
@@ -334,7 +344,10 @@ file.
   `@needs-live-esncard`. It runs the fail-closed live-provider runtime preflight
   first; a missing `E2E_LIVE_ESN_CARD_IDENTIFIER` or
   `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` is an error, not a skipped test. This
-  focused command does not run the provider-error unit check;
+  check uses missing approved local identifiers from the primary checkout when
+  the command runs in a linked worktree. It never prints them or copies any
+  unrelated setting. The focused command does not run the provider-error unit
+  check;
   use `bun run test:e2e:live-esncard:release` for the ESNcard provider portion.
   Complete local provider certification requires both
   `bun run test:e2e:integration` and
@@ -382,7 +395,9 @@ file.
   and `tools/docs/sync-generated-docs.mjs`; the command does not assume a
   developer-specific checkout. Publishing requires
   the complete Auth0 Management, Google Maps, active ESNcard, and permanently
-  expired ESNcard credential set. It generates `docs-baseline`,
+  expired ESNcard credential set. Linked worktrees reuse only missing provider
+  test values from the primary checkout and keep their own runtime and database
+  configuration. It generates `docs-baseline`,
   `docs-integration`, and `docs-live-esncard` together into ignored staging,
   maps every guide into the consumer's fixed 13-guide lifecycle catalog, and
   emits `docs-tests.bundle/v1alpha1` plus the hashed output manifest. Any new,

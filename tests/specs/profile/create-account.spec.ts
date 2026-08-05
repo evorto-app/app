@@ -85,7 +85,7 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       createAccountForm.getByRole('textbox', { name: 'Last name' }),
     ).toHaveValue(newUser.lastName);
     await expect(
-      createAccountForm.getByRole('textbox', { name: 'Notification email' }),
+      createAccountForm.getByRole('textbox', { name: 'Email for updates' }),
     ).toHaveValue(newUser.email);
 
     await createAccountForm
@@ -95,8 +95,15 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     await expect(
       page.getByRole('heading', {
         level: 1,
-        name: `${newUser.firstName} ${newUser.lastName}`,
+        name: 'Profile',
       }),
+    ).toBeVisible();
+    await expect(
+      page
+        .locator('app-user-profile')
+        .getByText(`${newUser.firstName} ${newUser.lastName}`, {
+          exact: true,
+        }),
     ).toBeVisible();
 
     const createdUser = await database.query.users.findFirst({
