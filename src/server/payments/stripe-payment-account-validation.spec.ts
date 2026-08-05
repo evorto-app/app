@@ -29,6 +29,7 @@ it.effect(
         stripeClient(() =>
           Promise.reject(
             new Stripe.errors.StripeInvalidRequestError({
+              code: 'resource_missing',
               headers: {},
               message: 'No such connected account',
               requestId: 'req_missing_account',
@@ -42,9 +43,33 @@ it.effect(
 
       expect(error).toMatchObject({
         _tag: 'RpcBadRequestError',
-        message: 'Stripe account could not be verified',
+        message: 'The payment account could not be verified.',
+        reason:
+          'Check that the payment account is connected to Evorto, then try again. No settings were changed.',
       });
     }),
+);
+
+it.effect('keeps other invalid Stripe requests in the defect channel', () =>
+  Effect.gen(function* () {
+    const providerFailure = new Stripe.errors.StripeInvalidRequestError({
+      code: 'parameter_unknown',
+      headers: {},
+      message: 'Unexpected parameter',
+      requestId: 'req_invalid_contract',
+      statusCode: 400,
+      type: 'invalid_request_error',
+    });
+    const exit = yield* validateStripePaymentAccount(
+      stripeClient(() => Promise.reject(providerFailure)),
+      'acct_target',
+    ).pipe(Effect.exit);
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      expect(Cause.squash(exit.cause)).toBe(providerFailure);
+    }
+  }),
 );
 
 it.effect('keeps generic provider failures in the defect channel', () =>

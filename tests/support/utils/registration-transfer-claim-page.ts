@@ -10,6 +10,6 @@ export const openRegistrationTransferClaim = async (
   await expect(codeForm).not.toHaveAttribute('jsaction', /submit/, {
     timeout: 20_000,
   });
-  await page.getByLabel('Claim code').fill(claimCode);
+  await page.getByLabel('Transfer code').fill(claimCode);
   await reviewTransfer.click();
 };

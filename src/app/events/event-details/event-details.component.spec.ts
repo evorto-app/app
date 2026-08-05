@@ -17,6 +17,7 @@ import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
 import {
+  announcementDiscoveryErrorMessage,
   eventAddonPurchaseTiming,
   eventAddonsForRegistrationOption,
   eventCanEdit,
@@ -26,10 +27,44 @@ import {
   eventRegistrationOptionGroups,
   eventRegistrationOptionTitle,
   eventReviewActionDisabled,
+  eventReviewErrorMessage,
   eventSubmitForReviewActionDisabled,
   outgoingRegistrationTransferCopy,
   registrationOptionsState,
 } from './event-details.component';
+
+describe('event details error messages', () => {
+  it('shows corrections people can act on', () => {
+    expect(
+      announcementDiscoveryErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message:
+          'Choose at least one available role, or leave this announcement link-only.',
+      }),
+    ).toBe(
+      'Choose at least one available role, or leave this announcement link-only.',
+    );
+    expect(
+      eventReviewErrorMessage({
+        _tag: 'EventConflictError',
+        message: 'This event changed while you were working.',
+      }),
+    ).toBe('This event changed while you were working.');
+  });
+
+  it('keeps internal and access failures behind plain copy', () => {
+    const internalError = {
+      _tag: 'RpcInternalServerError',
+      message: 'database failed',
+    };
+    expect(announcementDiscoveryErrorMessage(internalError)).toBe(
+      'Who can find this announcement could not be saved. Try again.',
+    );
+    expect(eventReviewErrorMessage(internalError)).toBe(
+      'The event review could not be saved. Try again.',
+    );
+  });
+});
 
 const readSource = (sourcePath: string): string =>
   readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
@@ -85,7 +120,7 @@ describe('outgoingRegistrationTransferCopy', () => {
       tone: 'success',
     },
     {
-      expectedNextStep: 'Contact an organizer',
+      expectedNextStep: 'Contact an organizer for an update.',
       expectedTitle: 'Transfer refund needs attention',
       refundStatus: 'needsAttention' as const,
       tone: 'error',
@@ -97,8 +132,8 @@ describe('outgoingRegistrationTransferCopy', () => {
       tone: 'success',
     },
     {
-      expectedNextStep: 'No action is needed.',
-      expectedTitle: 'Transfer refund is processing',
+      expectedNextStep: 'No action is needed while the refund is in progress.',
+      expectedTitle: 'Transfer refund is in progress',
       refundStatus: 'processing' as const,
       tone: 'info',
     },
@@ -109,9 +144,7 @@ describe('outgoingRegistrationTransferCopy', () => {
 
       expect(copy.title).toBe(expectedTitle);
       expect(copy.nextStep).toContain(expectedNextStep);
-      expect(copy.summary).toContain(
-        'This transfer moved the ticket to its recipient',
-      );
+      expect(copy.summary).toContain('The new attendee now has the ticket');
       expect(copy.tone).toBe(tone);
     },
   );
@@ -121,19 +154,18 @@ describe('outgoingRegistrationTransferCopy', () => {
       refundStatus: 'notRequired',
     });
 
-    expect(copy.summary).toContain('No refund was due for this transfer');
+    expect(copy.summary).toContain('No refund was due to you');
     expect(copy.summary).not.toContain('free transfer');
     expect(copy.summary).not.toContain('source refund');
   });
 
   it.each([
     {
-      expectedSummary: 'one or more refunds due to you are being processed',
+      expectedSummary: 'one or more refunds due to you are in progress',
       refundStatus: 'processing' as const,
     },
     {
-      expectedSummary:
-        'one or more refunds due to you may not have reached you',
+      expectedSummary: 'one or more refunds due to you may not have arrived',
       refundStatus: 'needsAttention' as const,
     },
   ])(
@@ -292,7 +324,7 @@ describe('eventAddonPurchaseTiming', () => {
         allowPurchaseDuringEvent: true,
         allowPurchaseDuringRegistration: true,
       }),
-    ).toBe('During registration, Before event, During event');
+    ).toBe('During sign-up, Before event, During event');
   });
 
   it('marks add-ons without purchase windows as unavailable', () => {
@@ -331,7 +363,7 @@ describe('eventRegistrationOptionTitle', () => {
         },
         'option-1',
       ),
-    ).toBe('Broken registration option configuration');
+    ).toBe('Sign-up choice unavailable');
   });
 });
 
@@ -387,6 +419,7 @@ const findRegistrationStatus = vi.fn();
 const findSelf = vi.fn();
 const openDialog = vi.fn();
 const showError = vi.fn();
+const showSuccess = vi.fn();
 const updateAnnouncementDiscovery = vi.fn(async () => true);
 const tenantConfig = {
   discountProviders: {
@@ -428,7 +461,7 @@ const normalizeText = (fixture: ComponentFixture<EventDetailsComponent>) =>
   template: `
     @for (registration of registrations(); track registration.id) {
       <p>{{ registration.registrationOptionTitle }}</p>
-      <button type="button">Transfer registration</button>
+      <button type="button">Transfer ticket</button>
     }
   `,
 })
@@ -454,6 +487,7 @@ describe('EventDetailsComponent load recovery', () => {
     findSelf.mockResolvedValue({ id: 'user-1' });
     openDialog.mockReset();
     showError.mockReset();
+    showSuccess.mockReset();
     updateAnnouncementDiscovery.mockReset().mockResolvedValue(true);
     tenantConfig.discountProviders.esnCard.status = 'enabled';
     queryClient = new QueryClient({
@@ -532,6 +566,7 @@ describe('EventDetailsComponent load recovery', () => {
             showError,
             showEventReviewed: vi.fn(),
             showEventSubmitted: vi.fn(),
+            showSuccess,
           },
         },
         {
@@ -557,6 +592,45 @@ describe('EventDetailsComponent load recovery', () => {
     fixture.detectChanges();
     return fixture;
   };
+
+  it('confirms that announcement discovery was saved', async () => {
+    findEvent.mockResolvedValue({
+      ...eventDetails,
+      announcementRoleIds: [],
+    });
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    openDialog.mockReturnValue({
+      afterClosed: () =>
+        of({
+          announcementRoleIds: ['role-organizer'],
+        }),
+    });
+    const fixture = render();
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+    });
+
+    await fixture.componentInstance.updateAnnouncementDiscovery();
+
+    await vi.waitFor(() => {
+      expect(showSuccess).toHaveBeenCalledWith(
+        'Who can find the announcement was updated',
+      );
+    });
+    expect(updateAnnouncementDiscovery).toHaveBeenCalledWith(
+      {
+        announcementRoleIds: ['role-organizer'],
+        eventId: 'event-1',
+      },
+      expect.any(Object),
+    );
+  });
 
   it('surfaces an announcement discovery update failure instead of silently keeping stale roles', async () => {
     findEvent.mockResolvedValue({
@@ -591,7 +665,7 @@ describe('EventDetailsComponent load recovery', () => {
 
     await vi.waitFor(() => {
       expect(showError).toHaveBeenCalledWith(
-        'Announcement discovery update rejected',
+        'Who can find this announcement could not be saved. Try again.',
       );
     });
     expect(updateAnnouncementDiscovery).toHaveBeenCalledWith(
@@ -623,7 +697,7 @@ describe('EventDetailsComponent load recovery', () => {
     await fixture.componentInstance.updateAnnouncementDiscovery();
 
     expect(showError).toHaveBeenCalledWith(
-      'Announcement roles are unavailable. Refresh the event and try again.',
+      'The current visibility settings for this announcement are missing. Who can find it was not changed. Contact Evorto support and include the event name.',
     );
     expect(openDialog).not.toHaveBeenCalled();
     expect(updateAnnouncementDiscovery).not.toHaveBeenCalled();
@@ -648,7 +722,7 @@ describe('EventDetailsComponent load recovery', () => {
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      'The event details are temporarily unavailable.',
+      'No event details or sign-up actions are shown. Select Try again.',
     );
 
     const retryButton: HTMLButtonElement | null =
@@ -683,15 +757,11 @@ describe('EventDetailsComponent load recovery', () => {
       const text = normalizeText(fixture);
       expect(text).toContain('Recovery workshop');
       expect(text).toContain('Bring a notebook.');
-      expect(text).toContain(
-        'Registration actions are temporarily unavailable',
-      );
+      expect(text).toContain('Sign-up details could not be loaded');
     });
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
-    expect(alert?.textContent).toContain(
-      'You can still review the event details.',
-    );
+    expect(alert?.textContent).toContain('You can still review the event.');
 
     const retryButton: HTMLButtonElement | null =
       alert?.querySelector('button') ?? null;
@@ -701,10 +771,8 @@ describe('EventDetailsComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       const text = normalizeText(fixture);
-      expect(text).toContain('No registration options');
-      expect(text).not.toContain(
-        'Registration actions are temporarily unavailable',
-      );
+      expect(text).toContain('Information only');
+      expect(text).not.toContain('Sign-up details could not be loaded');
     });
     expect(findEvent).toHaveBeenCalledOnce();
     expect(findRegistrationStatus).toHaveBeenCalledTimes(2);
@@ -770,7 +838,7 @@ describe('EventDetailsComponent load recovery', () => {
       'Organizer access could not be checked.',
     );
     expect(normalizeText(fixture)).not.toContain(
-      'Discount-card eligibility could not be checked.',
+      'Your discount card could not be checked.',
     );
   });
 
@@ -793,7 +861,7 @@ describe('EventDetailsComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Sign in to check whether your account is eligible.',
+        'Sign in to see which sign-up choices are available to you.',
       );
     });
 
@@ -801,8 +869,8 @@ describe('EventDetailsComponent load recovery', () => {
     const loginLink = root.querySelector<HTMLAnchorElement>(
       'a[href="/forward-login?redirectUrl=/events/event-1"]',
     );
-    expect(loginLink?.textContent?.trim()).toBe('Log in now');
-    expect(normalizeText(fixture)).not.toContain('No registration options');
+    expect(loginLink?.textContent?.trim()).toBe('Sign in now');
+    expect(normalizeText(fixture)).not.toContain('Information only');
     expect(
       fixture.nativeElement.querySelector('app-event-registration-option'),
     ).toBeNull();
@@ -824,7 +892,7 @@ describe('EventDetailsComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Your account state could not be checked.',
+        'Your account could not be checked.',
       );
     });
     expect(findCanOrganize).not.toHaveBeenCalled();
@@ -833,7 +901,7 @@ describe('EventDetailsComponent load recovery', () => {
     const alert = [
       ...fixture.nativeElement.querySelectorAll('[role="alert"]'),
     ].find((element: HTMLElement) =>
-      element.textContent?.includes('account state'),
+      element.textContent?.includes('Your account could not be checked'),
     ) as HTMLElement | undefined;
     alert?.querySelector<HTMLButtonElement>('button')?.click();
 
@@ -841,7 +909,7 @@ describe('EventDetailsComponent load recovery', () => {
       fixture.detectChanges();
       expect(findSelf).toHaveBeenCalledTimes(2);
       expect(normalizeText(fixture)).not.toContain(
-        'Your account state could not be checked.',
+        'Your account could not be checked.',
       );
     });
     expect(findCanOrganize).toHaveBeenCalledOnce();
@@ -871,7 +939,7 @@ describe('EventDetailsComponent load recovery', () => {
         fixture.nativeElement.querySelector('app-event-status'),
       ).not.toBeNull();
       expect(normalizeText(fixture)).toContain('Edit Event');
-      expect(normalizeText(fixture)).toContain('Submit for Review');
+      expect(normalizeText(fixture)).toContain('Submit for review');
     });
 
     await queryClient.refetchQueries({
@@ -882,13 +950,13 @@ describe('EventDetailsComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Your account state could not be checked.',
+        'Your account could not be checked.',
       );
       expect(
         fixture.nativeElement.querySelector('app-event-status'),
       ).toBeNull();
       expect(normalizeText(fixture)).not.toContain('Edit Event');
-      expect(normalizeText(fixture)).not.toContain('Submit for Review');
+      expect(normalizeText(fixture)).not.toContain('Submit for review');
     });
     expect(findSelf).toHaveBeenCalledTimes(2);
   });
@@ -925,7 +993,7 @@ describe('EventDetailsComponent load recovery', () => {
         fixture.nativeElement.querySelector('app-event-status'),
       ).not.toBeNull();
       expect(normalizeText(fixture)).toContain('Edit Event');
-      expect(normalizeText(fixture)).toContain('Submit for Review');
+      expect(normalizeText(fixture)).toContain('Submit for review');
     });
 
     const refetch = queryClient.refetchQueries({
@@ -940,7 +1008,7 @@ describe('EventDetailsComponent load recovery', () => {
         fixture.nativeElement.querySelector('app-event-status'),
       ).toBeNull();
       expect(normalizeText(fixture)).not.toContain('Edit Event');
-      expect(normalizeText(fixture)).not.toContain('Submit for Review');
+      expect(normalizeText(fixture)).not.toContain('Submit for review');
       expect(
         queryClient
           .getQueryCache()
@@ -1005,7 +1073,7 @@ describe('EventDetailsComponent load recovery', () => {
       expect(findSelf).toHaveBeenCalledTimes(2);
       expect(findEvent).toHaveBeenCalledTimes(2);
       expect(normalizeText(fixture)).not.toContain('Edit Event');
-      expect(normalizeText(fixture)).not.toContain('Submit for Review');
+      expect(normalizeText(fixture)).not.toContain('Submit for review');
     });
 
     resolveEventProjection?.({
@@ -1019,7 +1087,7 @@ describe('EventDetailsComponent load recovery', () => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain('Recovery workshop');
       expect(normalizeText(fixture)).not.toContain('Edit Event');
-      expect(normalizeText(fixture)).not.toContain('Submit for Review');
+      expect(normalizeText(fixture)).not.toContain('Submit for review');
     });
   });
 
@@ -1065,13 +1133,13 @@ describe('EventDetailsComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Discount-card eligibility could not be checked.',
+        'Your discount card could not be checked.',
       );
     });
     const alert = [
       ...fixture.nativeElement.querySelectorAll('[role="alert"]'),
     ].find((element: HTMLElement) =>
-      element.textContent?.includes('Discount-card eligibility'),
+      element.textContent?.includes('Your discount card could not be checked'),
     ) as HTMLElement | undefined;
     alert?.querySelector<HTMLButtonElement>('button')?.click();
 
@@ -1079,7 +1147,7 @@ describe('EventDetailsComponent load recovery', () => {
       fixture.detectChanges();
       expect(findMyCards).toHaveBeenCalledTimes(2);
       expect(normalizeText(fixture)).not.toContain(
-        'Discount-card eligibility could not be checked.',
+        'Your discount card could not be checked.',
       );
     });
   });
@@ -1087,15 +1155,14 @@ describe('EventDetailsComponent load recovery', () => {
   it.each([
     {
       expectedCopy: 'Contact an organizer for an update.',
-      expectedSummary:
-        'one or more refunds due to you may not have reached you',
+      expectedSummary: 'one or more refunds due to you may not have arrived',
       refundStatus: 'needsAttention' as const,
       role: 'alert',
       title: 'Transfer refund needs attention',
     },
     {
       expectedCopy: 'No action is needed.',
-      expectedSummary: 'all refunds due to you completed',
+      expectedSummary: 'all refunds due to you are complete',
       refundStatus: 'completed' as const,
       role: 'status',
       title: 'Transfer refund completed',
@@ -1195,13 +1262,13 @@ describe('EventDetailsComponent load recovery', () => {
     const pageText = normalizeText(fixture);
 
     expect(history?.textContent).toContain(
-      'This transfer moved the ticket to its recipient',
+      'The new attendee now has the ticket',
     );
     expect(activeRegistration).not.toBeNull();
     expect(activeRegistration?.textContent).toContain(
       'Returned participant ticket',
     );
-    expect(activeRegistration?.textContent).toContain('Transfer registration');
+    expect(activeRegistration?.textContent).toContain('Transfer ticket');
     expect(pageText).toContain('These are transfers you previously sent');
     expect(pageText).toContain(
       'its current ticket and actions appear separately below',
@@ -1218,7 +1285,9 @@ describe('EventDetails template', () => {
     );
 
     expect(template).toContain('!eventQuery.data().hasRegistrationOptions');
-    expect(template).toContain('aria-label="Update announcement discovery"');
+    expect(template).toContain(
+      'aria-label="Choose who can find this announcement"',
+    );
     expect(template).toContain('(click)="updateAnnouncementDiscovery()"');
     expect(template).not.toContain('matMenuTriggerFor');
   });
@@ -1239,7 +1308,7 @@ describe('EventDetails template', () => {
 
     expect(template).toContain('aria-label="Organizer/helper opportunities"');
     expect(template).toContain('Organizer/helper opportunities');
-    expect(template).toContain('aria-label="Participant registration options"');
-    expect(template).toContain('Participant registration options');
+    expect(template).toContain('aria-label="Sign-up choices for attendees"');
+    expect(template).toContain('Sign-up choices for attendees');
   });
 });

@@ -20,7 +20,10 @@ import {
   resolveDocumentationPublishPlaywrightArguments,
   runDocumentationConsumerSync,
 } from './publish-documentation';
-import { slugifyFolderNameFromTitle } from '../../tests/support/reporters/documentation-reporter/shared';
+import {
+  buildDocumentationPage,
+  slugifyFolderNameFromTitle,
+} from '../../tests/support/reporters/documentation-reporter/shared';
 
 const writeFixture = (filePath: string, contents: Buffer | string): void => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -73,8 +76,17 @@ const advanceConsumerRemote = (
   const updaterRoot = path.join(fixtureRoot, 'upstream-update');
   runFixtureGit(fixtureRoot, ['clone', remoteRoot, updaterRoot]);
   writeFixture(
-    path.join(updaterRoot, 'apps', 'documentation-page', 'package.json'),
-    '{"private":true}',
+    path.join(
+      updaterRoot,
+      'apps',
+      'marketing',
+      'src',
+      'content',
+      'generated-docs',
+      'fixture',
+      'page.md',
+    ),
+    '# Upstream documentation update',
   );
   runFixtureGit(updaterRoot, ['add', '.']);
   runFixtureGit(updaterRoot, [
@@ -213,25 +225,48 @@ describe('documentation publishing', () => {
     expect(documentationConsumerGuideSlugs).toEqual([
       'complete-your-profile',
       'find-an-event',
-      'register-for-an-event',
-      'manage-your-registration',
+      'sign-up-for-an-event',
+      'manage-your-ticket',
       'create-an-event',
       'submit-an-event-for-approval',
       'run-an-event',
       'first-steps',
-      'manage-your-tenant',
+      'manage-your-organization',
       'create-an-event-template',
-      'manage-section-users',
-      'configure-user-data',
+      'manage-organization-members',
+      'member-information',
       'review-and-publish-an-event',
     ]);
+    expect(documentationConsumerGuideCatalog).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'evorto:sign-up-for-an-event',
+          slug: 'sign-up-for-an-event',
+          title: 'Sign up for an event',
+        }),
+        expect.objectContaining({
+          id: 'evorto:manage-your-ticket',
+          slug: 'manage-your-ticket',
+          title: 'Manage your ticket',
+        }),
+      ]),
+    );
+    expect(
+      documentationConsumerGuideCatalog.some((guide) => 'linkAliases' in guide),
+    ).toBe(false);
+    expect(documentationConsumerGuideCatalog.map(({ id }) => id)).not.toEqual(
+      expect.arrayContaining([
+        'evorto:register-for-an-event',
+        'evorto:manage-your-registration',
+      ]),
+    );
     expect(
       documentationConsumerGuideCatalog.find(
         (guide) => guide.id === 'evorto:find-an-event',
       )?.sourceSlugs,
     ).toEqual([
-      'find-an-eligible-event',
-      'manage-announcement-discovery',
+      'find-an-event-you-can-join',
+      'choose-who-can-find-an-announcement',
       'recover-from-an-unknown-organization-link',
     ]);
     const fixtureRoot = fs.mkdtempSync(
@@ -317,11 +352,11 @@ describe('documentation publishing', () => {
     for (const fixture of [
       {
         file: 'tests/docs/admin/platform-tenant-operations.doc.ts',
-        guideId: 'evorto:manage-your-tenant',
+        guideId: 'evorto:manage-your-organization',
       },
       {
         file: 'tests/docs/roles/roles.doc.ts',
-        guideId: 'evorto:manage-section-users',
+        guideId: 'evorto:manage-organization-members',
       },
     ]) {
       const sourceSlug = slugifyFolderNameFromTitle(
@@ -340,24 +375,20 @@ describe('documentation publishing', () => {
     );
     const raw = createRawDocumentation(fixtureRoot);
     writeFixture(
-      path.join(
-        raw.docs,
-        'transfer-a-registration-with-a-private-offer',
-        'page.md',
-      ),
+      path.join(raw.docs, 'transfer-your-ticket-privately', 'page.md'),
       [
         '---',
-        'title: "Transfer a registration with a private offer"',
+        'title: "Transfer your ticket privately"',
         '---',
         '',
-        '# Transfer a registration',
+        '## Transfer a ticket',
         '',
-        '## What paid transfers add',
+        '### What paid transfers add',
         '',
-        'Continue with [Complete a paid registration transfer](/docs/complete-a-paid-transfer-and-retry-a-failed-refund).',
-        'Start with [Transfer a registration with a private offer](/docs/transfer-a-registration-with-a-private-offer).',
+        'Continue with [Finish a paid ticket transfer](/docs/finish-a-paid-transfer-and-resolve-a-refund-problem).',
+        'Start with [Transfer your ticket privately](/docs/transfer-your-ticket-privately).',
         'Learn how to [manage categories](/docs/manage-template-categories).',
-        'Review [Participant registration cancellation](/docs/participant-registration-cancellation).',
+        'Review [Cancel a ticket](/docs/cancel-a-ticket).',
         'Learn more at [about permissions](/docs/about-permissions).',
         '',
         '```md',
@@ -375,21 +406,133 @@ describe('documentation publishing', () => {
         rawImagesRoot: raw.images,
       });
       const page = fs.readFileSync(
-        path.join(outputRoot, 'content', 'manage-your-registration', 'page.md'),
+        path.join(outputRoot, 'content', 'manage-your-ticket', 'page.md'),
         'utf8',
       );
 
-      expect(page).toContain('## Transfer a registration with a private offer');
-      expect(page).toContain('### Transfer a registration');
+      expect(page).toContain('## Transfer your ticket privately');
+      expect(page).toContain('### Transfer a ticket');
       expect(page).toContain('#### What paid transfers add');
-      expect(page).toContain('](/docs/manage-your-registration)');
+      expect(page).toContain('](/docs/manage-your-ticket)');
       expect(page).toContain('](/docs/create-an-event-template)');
-      expect(page).toContain('](/docs/manage-your-tenant)');
+      expect(page).toContain('](/docs/manage-your-organization)');
       expect(page).not.toMatch(
-        /\/docs\/(?:complete-a-paid-transfer|transfer-a-registration|manage-template-categories|participant-registration-cancellation|about-permissions)/u,
+        /\/docs\/(?:finish-a-paid-transfer-and-resolve-a-refund-problem|transfer-your-ticket-privately|manage-template-categories|cancel-a-ticket|about-permissions)/u,
       );
       expect(page).toContain(
         '```md\n# Example source heading\n[Example source link](/docs/example-only)\n```',
+      );
+    } finally {
+      fs.rmSync(fixtureRoot, { force: true, recursive: true });
+    }
+  });
+
+  it('publishes reporter headings once and preserves authored hierarchy', () => {
+    const fixtureRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'evorto-docs-reporter-headings-'),
+    );
+    const raw = createRawDocumentation(fixtureRoot);
+    writeFixture(
+      path.join(raw.docs, 'transfer-your-ticket-privately', 'page.md'),
+      buildDocumentationPage('Transfer your ticket privately', [
+        {
+          content: [
+            'Start by choosing the person who should receive the ticket.',
+            '',
+            '## What paid transfers add',
+            '',
+            'Payment must finish before the ticket moves.',
+            '',
+            '### When a refund needs attention',
+            '',
+            'Ask an organizer for help.',
+          ],
+          line: 1,
+          title: 'Transfer your ticket privately',
+        },
+      ]),
+    );
+    const outputRoot = path.join(fixtureRoot, 'consumer');
+
+    try {
+      buildDocumentationConsumerBundle({
+        outputRoot,
+        rawDocsRoot: raw.docs,
+        rawImagesRoot: raw.images,
+      });
+      const page = fs.readFileSync(
+        path.join(outputRoot, 'content', 'manage-your-ticket', 'page.md'),
+        'utf8',
+      );
+      const headings = page.match(/^#{1,6} .+$/gmu) ?? [];
+
+      expect(
+        headings.filter((heading) =>
+          heading.endsWith(' Transfer your ticket privately'),
+        ),
+      ).toEqual(['## Transfer your ticket privately']);
+      expect(headings).toContain('### What paid transfers add');
+      expect(headings).toContain('#### When a refund needs attention');
+    } finally {
+      fs.rmSync(fixtureRoot, { force: true, recursive: true });
+    }
+  });
+
+  it('rejects non-ATX level-one headings from generated sources', () => {
+    for (const authoredHeading of [
+      'Unexpected Setext title\n===',
+      '<h1>Unexpected HTML title</h1>',
+    ]) {
+      const fixtureRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'evorto-docs-level-one-heading-'),
+      );
+      const raw = createRawDocumentation(fixtureRoot);
+      const sourceSlug = documentationConsumerGuideCatalog[0].sourceSlugs[0];
+      if (!sourceSlug) throw new Error('Expected a documentation source slug');
+      writeFixture(
+        path.join(raw.docs, sourceSlug, 'page.md'),
+        `---\ntitle: "Complete your profile"\n---\n\n${authoredHeading}`,
+      );
+
+      try {
+        expect(() =>
+          buildDocumentationConsumerBundle({
+            outputRoot: path.join(fixtureRoot, 'consumer'),
+            rawDocsRoot: raw.docs,
+            rawImagesRoot: raw.images,
+          }),
+        ).toThrow('contains another level-one heading');
+      } finally {
+        fs.rmSync(fixtureRoot, { force: true, recursive: true });
+      }
+    }
+  });
+
+  it('rejects implementation wording after dynamic guide text has been rendered', () => {
+    const fixtureRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'evorto-docs-rendered-language-'),
+    );
+    const raw = createRawDocumentation(fixtureRoot);
+    writeFixture(
+      path.join(raw.docs, 'transfer-your-ticket-privately', 'page.md'),
+      [
+        '---',
+        'title: "Transfer your ticket privately"',
+        '---',
+        '',
+        'Ask an organizer to update the database record.',
+      ].join('\n'),
+    );
+
+    try {
+      expect(() =>
+        buildDocumentationConsumerBundle({
+          outputRoot: path.join(fixtureRoot, 'consumer'),
+          rawDocsRoot: raw.docs,
+          rawImagesRoot: raw.images,
+        }),
+      ).toThrow(
+        'Generated guide manage-your-ticket contains implementation wording: database',
       );
     } finally {
       fs.rmSync(fixtureRoot, { force: true, recursive: true });
@@ -403,14 +546,14 @@ describe('documentation publishing', () => {
     const raw = createRawDocumentation(fixtureRoot);
     const sourcePage = path.join(
       raw.docs,
-      'transfer-a-registration-with-a-private-offer',
+      'transfer-your-ticket-privately',
       'page.md',
     );
 
     try {
       writeFixture(
         sourcePage,
-        '---\ntitle: Unknown guide\n---\n\n[Unknown](/docs/not-in-the-publication-catalog).',
+        '---\ntitle: Old guide link\n---\n\n[Old guide](/docs/manage-your-registration).',
       );
       expect(() =>
         buildDocumentationConsumerBundle({
@@ -418,13 +561,11 @@ describe('documentation publishing', () => {
           rawDocsRoot: raw.docs,
           rawImagesRoot: raw.images,
         }),
-      ).toThrow(
-        'references an unknown guide: /docs/not-in-the-publication-catalog',
-      );
+      ).toThrow('references an unknown guide: /docs/manage-your-registration');
 
       writeFixture(
         sourcePage,
-        '---\ntitle: Ambiguous guide\n---\n\n[Approval](/docs/event-approval-workflow).',
+        '---\ntitle: Ambiguous guide\n---\n\n[Announcement](/docs/choose-who-can-find-an-announcement).',
       );
       expect(() =>
         buildDocumentationConsumerBundle({
@@ -433,7 +574,7 @@ describe('documentation publishing', () => {
           rawImagesRoot: raw.images,
         }),
       ).toThrow(
-        'references an ambiguous source guide: /docs/event-approval-workflow',
+        'references an ambiguous source guide: /docs/choose-who-can-find-an-announcement',
       );
     } finally {
       fs.rmSync(fixtureRoot, { force: true, recursive: true });
@@ -500,12 +641,30 @@ describe('documentation publishing', () => {
       path.join(fixtureRoot, 'tools', 'docs', 'sync-generated-docs.mjs'),
       '// fixture sync tool',
     );
-    fs.mkdirSync(path.join(fixtureRoot, 'apps', 'documentation-page'), {
-      recursive: true,
-    });
     writeFixture(
-      path.join(fixtureRoot, 'apps', 'documentation-page', 'package.json'),
-      '{}',
+      path.join(
+        fixtureRoot,
+        'apps',
+        'marketing',
+        'src',
+        'content',
+        'generated-docs',
+        'fixture',
+        'page.md',
+      ),
+      '# Existing generated documentation',
+    );
+    writeFixture(
+      path.join(
+        fixtureRoot,
+        'apps',
+        'marketing',
+        'public',
+        'docs',
+        'fixture',
+        'image.png',
+      ),
+      'fixture image',
     );
     initializeConsumerRepository(fixtureRoot);
     try {
@@ -558,8 +717,29 @@ describe('documentation publishing', () => {
       `import fs from 'node:fs';\nfs.writeFileSync(${JSON.stringify(syncMarker)}, 'ran');\n`,
     );
     writeFixture(
-      path.join(fixtureRoot, 'apps', 'documentation-page', 'package.json'),
-      '{}',
+      path.join(
+        fixtureRoot,
+        'apps',
+        'marketing',
+        'src',
+        'content',
+        'generated-docs',
+        'fixture',
+        'page.md',
+      ),
+      '# Existing generated documentation',
+    );
+    writeFixture(
+      path.join(
+        fixtureRoot,
+        'apps',
+        'marketing',
+        'public',
+        'docs',
+        'fixture',
+        'image.png',
+      ),
+      'fixture image',
     );
     const remoteRoot = initializeConsumerRepository(fixtureRoot);
 

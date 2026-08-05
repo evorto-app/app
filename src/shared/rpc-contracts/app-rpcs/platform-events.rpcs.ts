@@ -18,7 +18,11 @@ import { Tenant, TenantTimezone } from '../../../types/custom/tenant';
 import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
 import { EventCheckInUnavailableError } from './events.errors';
-import { EventReviewStatus, EventsRegistrationStatus } from './events.rpcs';
+import {
+  EventReviewStatus,
+  EventsCancellableRegistrationStatus,
+  EventsRegistrationStatus,
+} from './events.rpcs';
 import { IconRecord } from './icons.rpcs';
 import {
   PlatformOperationRpcError,
@@ -504,6 +508,8 @@ export const PlatformRegistrationsApprove = asRpcMutation(
 
 export const PlatformRegistrationsCancelInput = Schema.Struct({
   ...PlatformTenantMutationContext.fields,
+  expectedPaymentPending: Schema.Boolean,
+  expectedStatus: EventsCancellableRegistrationStatus,
   registrationId: Schema.NonEmptyString,
 });
 

@@ -19,15 +19,29 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../../core/error-message';
+import { taxRateRegionLabel } from '../../../core/geography-labels';
 
 export const stripeTaxRatesDashboardLink = {
   href: 'https://dashboard.stripe.com/tax-rates',
-  label: 'Open Stripe tax rates',
+  label: 'Open tax rate settings',
 };
 
 export interface ImportTaxRatesDialogData {
   readonly importedTaxRateIds: readonly string[];
 }
+
+export const taxRateCatalogErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'Tax rates could not be loaded. Try again.', [
+    'RpcBadRequestError',
+  ]);
+
+export const taxRateImportErrorMessage = (error: unknown): string =>
+  getErrorMessage(
+    error,
+    'The tax rates could not be added. Nothing changed. Try again.',
+    ['RpcBadRequestError'],
+  );
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,15 +56,15 @@ export interface ImportTaxRatesDialogData {
 })
 export class ImportTaxRatesDialogComponent {
   private readonly rpc = AppRpc.injectClient();
+  protected readonly importMutation = injectMutation(() =>
+    this.rpc.admin.tenant.importStripeTaxRates.mutationOptions(),
+  );
   protected readonly ratesQuery = injectQuery(() =>
     this.rpc.admin.tenant.listStripeTaxRates.queryOptions(),
   );
 
   protected readonly selected = signal<string[]>([]);
 
-  private readonly importMutation = injectMutation(() =>
-    this.rpc.admin.tenant.importStripeTaxRates.mutationOptions(),
-  );
   protected readonly canImport = computed(
     () =>
       !taxRateImportActionDisabled({
@@ -59,15 +73,17 @@ export class ImportTaxRatesDialogComponent {
         selectedCount: this.selected().length,
       }),
   );
-
   protected readonly dashboardLink = stripeTaxRatesDashboardLink;
   private readonly data = inject<ImportTaxRatesDialogData>(MAT_DIALOG_DATA);
-
   protected readonly importedIds = new Set(this.data.importedTaxRateIds);
 
+  protected readonly taxRateRegionLabel = taxRateRegionLabel;
   private readonly dialogRef = inject(
     MatDialogRef<ImportTaxRatesDialogComponent>,
   );
+
+  protected readonly importErrorMessage = () =>
+    taxRateImportErrorMessage(this.importMutation.error());
 
   protected importSelected() {
     const ids = this.selected();
@@ -88,6 +104,9 @@ export class ImportTaxRatesDialogComponent {
       },
     );
   }
+
+  protected readonly loadErrorMessage = () =>
+    taxRateCatalogErrorMessage(this.ratesQuery.error());
 
   protected toggle(id: string, checked: boolean) {
     const current = this.selected();

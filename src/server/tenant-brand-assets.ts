@@ -101,9 +101,7 @@ export const tenantBrandAssetStorageKey = (input: {
 }) => {
   const tenantId = input.tenantId.trim();
   if (!tenantId) {
-    throw new RpcBadRequestError({
-      message: 'Tenant id is required for brand asset storage',
-    });
+    throw new Error('Tenant id is required for brand asset storage');
   }
   return `tenant-assets/${tenantId}/${input.kind}/${input.fileName}`;
 };
@@ -127,10 +125,7 @@ export const uploadTenantBrandAsset = (input: {
     if (!brandAssetMimeTypes[input.kind].has(input.mimeType)) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message:
-            input.kind === 'favicon'
-              ? 'Favicons must be PNG, JPEG, WebP, GIF, or ICO files'
-              : 'Logos must be PNG, JPEG, WebP, or GIF files',
+          message: 'This image type cannot be used. Choose another image.',
         }),
       );
     }
@@ -140,7 +135,8 @@ export const uploadTenantBrandAsset = (input: {
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Brand asset file must be between 1 byte and 5 MB',
+          message:
+            'This image is empty or larger than 5 MB. Choose another image.',
         }),
       );
     }
@@ -149,7 +145,7 @@ export const uploadTenantBrandAsset = (input: {
     if (body.byteLength !== input.fileSizeBytes) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Uploaded file size does not match payload metadata',
+          message: 'This image could not be verified. Choose the file again.',
         }),
       );
     }
@@ -161,7 +157,8 @@ export const uploadTenantBrandAsset = (input: {
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Brand asset contents do not match the declared MIME type',
+          message:
+            'This file could not be used as an image. Choose another image.',
         }),
       );
     }
@@ -170,7 +167,7 @@ export const uploadTenantBrandAsset = (input: {
     if (!extension) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Unsupported brand asset MIME type',
+          message: 'This image type cannot be used. Choose another image.',
         }),
       );
     }
@@ -193,7 +190,7 @@ export const uploadTenantBrandAsset = (input: {
       Effect.mapError(
         () =>
           new RpcInternalServerError({
-            message: 'Failed to upload tenant brand asset',
+            message: 'The organization image could not be saved. Try again.',
           }),
       ),
     );

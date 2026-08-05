@@ -8,15 +8,15 @@ export interface TaxRateInfo {
 }
 
 /**
- * Formats an inclusive tax label based on tax rate information
+ * Formats a plain-language label for tax included in a displayed price.
  *
  * Examples:
- * - "Incl. 19% VAT"
+ * - "19% VAT included in the shown price"
  * - "Tax free" (for 0%)
  * - "Tax details unavailable" when a paid price has no validated tax metadata
  *
  * @param taxRate Tax rate information or null/undefined if unavailable
- * @returns Formatted inclusive tax label string
+ * @returns Formatted tax label string
  */
 export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
   // Missing metadata is invalid for a paid price. Surface it rather than
@@ -25,7 +25,7 @@ export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
     return 'Tax details unavailable';
   }
 
-  // Handle zero percent case - show "Tax free" instead of "Incl. 0%"
+  // A zero-percent rate is clearer as "Tax free".
   if (
     taxRate.percentage === '0' ||
     taxRate.percentage === '0.0' ||
@@ -36,17 +36,17 @@ export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
 
   // Try to build specific label with percentage and name
   if (taxRate.percentage && taxRate.displayName) {
-    return `Incl. ${taxRate.percentage}% ${taxRate.displayName}`;
+    return `${taxRate.percentage}% ${taxRate.displayName} included in the shown price`;
   }
 
   // If only percentage available
   if (taxRate.percentage) {
-    return `Incl. ${taxRate.percentage}%`;
+    return `${taxRate.percentage}% tax included in the shown price`;
   }
 
   // If only name available (rare case)
   if (taxRate.displayName) {
-    return `Incl. ${taxRate.displayName}`;
+    return `${taxRate.displayName} included in the shown price`;
   }
 
   return 'Tax details unavailable';

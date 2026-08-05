@@ -56,31 +56,33 @@ import {
 
 const invalidEventDatesError = () =>
   new RpcBadRequestError({
-    message: 'Invalid start/end date',
+    message: 'Choose an event end time after its start time.',
     reason: 'invalidDates',
   });
 
 const invalidEventDescriptionError = () =>
   new RpcBadRequestError({
-    message: 'Event description must contain meaningful content',
+    message: 'Add an event description.',
     reason: 'invalidDescription',
   });
 
 const invalidRegistrationOptionTimesError = () =>
   new RpcBadRequestError({
-    message: 'Registration option has invalid open/close times',
+    message: 'Review when each sign-up choice opens and closes.',
     reason: 'invalidRegistrationOptionTimes',
   });
 
 const invalidSourceTemplateRegistrationOptionError = () =>
   new RpcBadRequestError({
-    message: 'Registration option does not belong to the selected template',
+    message:
+      'This template changed while this page was open. Return to the template and start again.',
     reason: 'templateRegistrationOptionMismatch',
   });
 
 const invalidTemplateError = () =>
   new RpcBadRequestError({
-    message: 'Template does not exist for this tenant',
+    message:
+      'This template is no longer available. Return to the template list.',
     reason: 'templateNotFound',
   });
 
@@ -113,31 +115,31 @@ const validateRegistrationOptionDateRange = (option: {
 
 const invalidRegistrationOptionTaxRateError = () =>
   new RpcBadRequestError({
-    message: 'Registration option has an invalid tax rate',
+    message: 'Choose an available tax rate for each paid sign-up choice.',
     reason: 'invalidRegistrationOptionTaxRate',
   });
 
 const invalidCopiedTemplateAddonTaxRateError = () =>
   new RpcBadRequestError({
-    message: 'Template add-on has an invalid tax rate',
+    message: 'Choose an available tax rate for each paid add-on.',
     reason: 'invalidTemplateAddonTaxRate',
   });
 
 const invalidEsnCardDiscountPriceError = () =>
   new RpcBadRequestError({
-    message: 'ESN card discount cannot exceed the registration price',
+    message: 'An ESNcard price cannot exceed the regular price.',
     reason: 'esnDiscountExceedsPrice',
   });
 
 const unavailableEsnCardDiscountError = () =>
   new RpcBadRequestError({
-    message: 'ESN card discounts are not enabled for this tenant',
+    message: 'ESNcard discounts are not available for this organization.',
     reason: 'esnDiscountUnavailable',
   });
 
 const invalidRegistrationOptionSpotsError = () =>
   new RpcBadRequestError({
-    message: 'Registration option spots must not be negative',
+    message: 'The number of places cannot be negative.',
     reason: 'negativeSpots',
   });
 
@@ -329,9 +331,9 @@ export const createEventGraph = (input: EventCreateInput) =>
       attribution.value.targetTenantId !== tenant.id
     ) {
       return yield* Effect.fail(
-        new RpcBadRequestError({
-          message: 'Event creator attribution tenant mismatch',
-          reason: 'creatorTenantMismatch',
+        new RpcInternalServerError({
+          message:
+            'The event could not be created because its organization did not match. Nothing was saved. Return to the organization and try again.',
         }),
       );
     }
@@ -386,7 +388,8 @@ export const createEventGraph = (input: EventCreateInput) =>
     if (!registrationRolesExist) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Registration option role not found for this tenant',
+          message:
+            'One selected role is no longer available. Return to the template and start again.',
           reason: 'registrationRoleNotFound',
         }),
       );
@@ -441,7 +444,7 @@ export const createEventGraph = (input: EventCreateInput) =>
       return yield* Effect.fail(
         new RpcBadRequestError({
           message:
-            'Simple event configuration requires exactly one organizer option and one participant option',
+            'Simple setup needs exactly one organizer choice and one attendee choice.',
           reason: 'invalidSimpleEventConfiguration',
         }),
       );
@@ -653,7 +656,10 @@ export const createEventGraph = (input: EventCreateInput) =>
     const event = events[0];
     if (!event) {
       return yield* Effect.fail(
-        new RpcInternalServerError({ message: 'Internal server error' }),
+        new RpcInternalServerError({
+          message:
+            'The event could not be created. Nothing was saved. Try again.',
+        }),
       );
     }
 
@@ -723,7 +729,10 @@ export const createEventGraph = (input: EventCreateInput) =>
         const insertedAddon = insertedAddons[0];
         if (!insertedAddon) {
           return yield* Effect.fail(
-            new RpcInternalServerError({ message: 'Internal server error' }),
+            new RpcInternalServerError({
+              message:
+                'The event add-ons could not be saved. The event was not created. Try again.',
+            }),
           );
         }
 
@@ -860,7 +869,7 @@ export const eventLifecycleHandlers = {
                 return yield* Effect.fail(
                   new RpcBadRequestError({
                     message:
-                      'Announcement discovery contains a role from another organization',
+                      'One selected role is no longer available. Review the selected roles and try again.',
                     reason: 'invalidAnnouncementRole',
                   }),
                 );
@@ -876,7 +885,7 @@ export const eventLifecycleHandlers = {
                 return yield* Effect.fail(
                   new RpcBadRequestError({
                     message:
-                      'Announcement discovery roles can only be set on events without registration options',
+                      'Roles can only control who sees announcements without sign-up choices.',
                     reason: 'announcementRolesRequireOptionlessEvent',
                   }),
                 );
@@ -925,7 +934,7 @@ export const eventLifecycleHandlers = {
       if (!title) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Event title is required',
+            message: 'Enter an event title.',
             reason: 'eventTitleRequired',
           }),
         );
@@ -957,13 +966,16 @@ export const eventLifecycleHandlers = {
         })
       ) {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message: 'You do not have permission to edit this event.',
+          }),
         );
       }
       if (event.status !== 'DRAFT') {
         return yield* Effect.fail(
           new EventConflictError({
-            message: 'Event cannot be updated in its current state',
+            message:
+              'This event is no longer a draft. Nothing was saved. Reopen the event and review its current status.',
           }),
         );
       }
@@ -999,7 +1011,8 @@ export const eventLifecycleHandlers = {
               if (lockedEvents.length === 0) {
                 return yield* Effect.fail(
                   new EventConflictError({
-                    message: 'Event update preconditions changed',
+                    message:
+                      'This event changed while you were editing it. Nothing was saved. Reopen the event and review the current details before making your changes again.',
                   }),
                 );
               }
@@ -1043,7 +1056,10 @@ export const eventLifecycleHandlers = {
               const updatedEvent = updated[0];
               if (!updatedEvent) {
                 return yield* Effect.fail(
-                  new EventConflictError({ message: 'Event update conflict' }),
+                  new EventConflictError({
+                    message:
+                      'This event changed while you were editing it. Nothing was saved. Reopen the event and review the current details before making your changes again.',
+                  }),
                 );
               }
               yield* updateEventGraph({

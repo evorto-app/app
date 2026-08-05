@@ -112,12 +112,12 @@ jobs:
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
         run: |
-          ops_endpoint="$(jq --raw-output .containers.ops.endpoint reset-evidence/platform.json)"
           reset_response="$(
             ops/scaleway/invoke-private-container.sh \
-              "${ops_endpoint}" \
+              reset-evidence/platform.json \
+              ops \
               /internal/ops/seed-staging \
-              '{"confirmation":"reset-and-seed-staging"}'
+              <<<'{"confirmation":"reset-and-seed-staging"}'
           )"
           jq --exit-status '.reset == true and .seeded == true' <<<"${reset_response}" >/dev/null
 

@@ -452,7 +452,9 @@ describe('eventLifecycleHandlers', () => {
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'stripeRequiredForPaidEventConfiguration',
+          message:
+            'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
+          reason: 'paymentSetupRequired',
         });
       }),
   );

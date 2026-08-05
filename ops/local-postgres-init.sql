@@ -1,1 +1,0 @@
-CREATE DATABASE evorto_postgres_integration;

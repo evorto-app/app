@@ -879,6 +879,37 @@ describe('Scaleway hosting source', () => {
     );
   });
 
+  it('documents the private one-time paid sign-up enablement safely', () => {
+    const runbook = source('infrastructure/scaleway/README.md');
+    const setupSection = between(
+      runbook,
+      '### Enable paid sign-ups for an organization',
+      'The production workflow is dispatch-only',
+    );
+
+    expect(setupSection).toContain('read -r -s -p');
+    expect(setupSection).toContain('/internal/worker/payment-setup');
+    expect(setupSection).toContain('confirmation: "attach-payment-account"');
+    expect(setupSection).toContain(
+      'expectedOrganizationDomain: $expectedOrganizationDomain',
+    );
+    expect(setupSection).toContain('SCW_DEFAULT_PROJECT_ID');
+    expect(setupSection).toContain('"${platform_output}"');
+    expect(setupSection).toMatch(/"\$\{platform_output\}"\s+\\\s+worker/u);
+    expect(setupSection).toContain('printf \'%s\' "${payment_account_id}" |');
+    expect(setupSection).toContain('jq --raw-input --slurp');
+    expect(setupSection).toContain('must not contain the payment account ID.');
+    expect(setupSection).toContain('do not retry automatically');
+    expect(setupSection).toContain(
+      'replacement and removal are intentionally unsupported.',
+    );
+    expect(setupSection).not.toContain('Private worker endpoint:');
+    expect(setupSection).not.toContain('${worker_endpoint}');
+    expect(setupSection).not.toContain('--arg accountId');
+    expect(setupSection).not.toContain('request_body');
+    expect(setupSection).not.toContain('echo "${payment_account_id}"');
+  });
+
   it('gates ordinary CI and destructive staging reset separately', () => {
     const quality = source('.github/workflows/pr-quality.yml');
     const reset = source('.github/workflows/scaleway-staging-reset.yml');

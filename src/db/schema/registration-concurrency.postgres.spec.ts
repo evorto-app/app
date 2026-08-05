@@ -1227,7 +1227,7 @@ describe('database registration concurrency invariants', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'User is already registered for this event',
+            message: 'This person is already signed up for this event.',
           }),
         }),
       ]);
@@ -1295,7 +1295,7 @@ describe('database registration concurrency invariants', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'Only confirmed registrations can be checked in',
+            message: 'This ticket is not ready for check-in.',
           }),
           status: 'failure',
         }),
@@ -1365,7 +1365,7 @@ describe('database registration concurrency invariants', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'Guest check-in count exceeds remaining guests',
+            message: 'Enter no more than 0 additional guests.',
           }),
         }),
       ]);
@@ -1579,7 +1579,7 @@ describe('paid manual approval concurrency', () => {
     );
     expect(claim.stripeCheckoutRequest.lineItems).toEqual([
       {
-        name: 'Registration fee for Concurrency fixture',
+        name: 'Ticket for Concurrency fixture',
         quantity: 1,
         taxRateId: fixture.taxRateId,
         unitAmount: 1000,
@@ -1700,7 +1700,7 @@ describe('paid manual approval concurrency', () => {
         error: expect.objectContaining({
           _tag: 'EventRegistrationInternalError',
           message:
-            'Payment setup is still pending. Retry approval or cancel the registration.',
+            'Payment could not be started. No payment was taken. Reopen the sign-up request and try again, or cancel it.',
         }),
         status: 'failure',
       }),
@@ -1782,7 +1782,7 @@ describe('paid manual approval concurrency', () => {
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
             message:
-              'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+              'The sign-up or payment changed after you confirmed. Nothing was cancelled or refunded, and no places were released. Reopen the sign-up and review its current details before trying again.',
           }),
           status: 'failure',
         }),
@@ -1887,7 +1887,7 @@ describe('direct paid registration concurrency', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'User is already registered for this event',
+            message: 'This person is already signed up for this event.',
           }),
           status: 'failure',
         }),
@@ -1952,7 +1952,7 @@ describe('direct paid registration concurrency', () => {
         error: expect.objectContaining({
           _tag: 'EventRegistrationInternalError',
           message:
-            'Payment setup is still pending. Retry registration or cancel it.',
+            'Payment could not be started. No payment was taken. Reopen the ticket and try again, or cancel it.',
         }),
         status: 'failure',
       }),
@@ -2050,7 +2050,7 @@ describe('direct paid registration concurrency', () => {
     );
     expect(claim.stripeCheckoutRequest.lineItems).toEqual([
       {
-        name: 'Registration fee for Concurrency fixture',
+        name: 'Ticket for Concurrency fixture',
         quantity: 1,
         taxRateId: fixture.taxRateId,
         unitAmount: 1000,
@@ -2148,7 +2148,7 @@ describe('direct paid registration concurrency', () => {
     );
     expect(claim.stripeCheckoutRequest.lineItems).toEqual([
       {
-        name: 'Registration fee for Concurrency fixture',
+        name: 'Ticket for Concurrency fixture',
         quantity: 1,
         taxRateId: fixture.taxRateId,
         unitAmount: 1000,
@@ -2192,7 +2192,7 @@ describe('direct paid registration concurrency', () => {
     ).toHaveLength(2);
     expect(
       checkoutForm.get('line_items[0][price_data][product_data][name]'),
-    ).toBe('Registration fee for Concurrency fixture');
+    ).toBe('Ticket for Concurrency fixture');
     expect(checkoutForm.get('line_items[0][price_data][unit_amount]')).toBe(
       '1000',
     );
@@ -2612,7 +2612,7 @@ describe('direct paid registration concurrency', () => {
           idempotencyKey: `registration-cancelled/${fixture.tenantId}/${registration.id}`,
           kind: 'registrationCancelled',
           text: expect.stringContaining(
-            'The full amount you paid was queued for refund to your original payment method',
+            'A refund to your original payment method is in progress.',
           ),
           toEmail: `${fixture.userId.replace('user-', '')}@example.com`,
         }),
@@ -2620,7 +2620,7 @@ describe('direct paid registration concurrency', () => {
           idempotencyKey: `waitlist-spot-available/${fixture.tenantId}/${waitlistRegistration.registrationId}/eligibility-compensation-${registration.id}`,
           kind: 'waitlistSpotAvailable',
           text: expect.stringContaining(
-            'A spot may now be available for Concurrency fixture',
+            'A place may now be available for Concurrency fixture',
           ),
           toEmail: waitlistRegistration.communicationEmail,
         }),
@@ -2759,7 +2759,9 @@ describe('direct paid registration concurrency', () => {
       expect.objectContaining({
         idempotencyKey: `registration-cancelled/${fixture.tenantId}/${registration.id}`,
         kind: 'registrationCancelled',
-        text: expect.stringContaining('the event is no longer published'),
+        text: expect.stringContaining(
+          'the event or your access to it changed after you paid',
+        ),
       }),
     ]);
     expect(emails.some(({ kind }) => kind === 'waitlistSpotAvailable')).toBe(

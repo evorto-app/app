@@ -124,42 +124,41 @@ type UsersPermissions =
 const PERMISSION_METADATA = {
   'admin:changeSettings': {
     description:
-      'Update organization settings such as registration policies, appearance, legal pages, and business time.',
+      'Change organization details, sign-up rules, appearance, legal pages, and time zone.',
     label: 'Change organization settings',
   },
   'admin:managePayments': {
     description:
-      'Manage the connected Stripe account, currency, receipt and refund settings, and discount-card providers.',
-    label: 'Manage payments and providers',
+      'View whether paid sign-ups are ready, and manage currency, accepted receipt countries, cancellation refund fees, and ESNcard discounts.',
+    label: 'Manage payments',
   },
   'admin:manageRoles': {
     description:
-      'Create, update, and delete organization roles and the permissions granted by those roles.',
+      'Create, change, and delete organization roles, and choose what each role can do.',
     label: 'Manage roles',
   },
   'admin:tax': {
     description:
-      'Manage organization tax rates used for paid registration options and Stripe tax-rate imports.',
+      'Manage the tax rates used for paid sign-up choices and add available tax rates to Evorto.',
     label: 'Manage tax rates',
   },
   'events:cancelRegistrations': {
     description:
-      'Cancel attendee registrations or unredeemed event add-ons and choose whether eligible add-on purchases should be refunded.',
-    label: 'Cancel registrations and add-ons',
+      'Cancel attendee tickets or unused event add-ons, with an optional refund when one is available.',
+    label: 'Cancel tickets and add-ons',
   },
   'events:changeAnnouncementDiscovery': {
     description:
-      'Change the tenant roles that can discover optionless announcements; direct-link access remains separate, and selected roles grant no access or notifications.',
-    label: 'Change announcement discovery',
+      'Choose which organization roles can find announcements without sign-up choices. People with a direct link can still open them, and this choice does not give members new permissions or send them a message.',
+    label: 'Change who can find announcements',
   },
   'events:create': {
-    description:
-      'Create events from scratch or from templates for the current organization.',
+    description: 'Create events from templates for the current organization.',
     label: 'Create events',
   },
   'events:editAll': {
     description:
-      'Edit organization events even when the current user is not the event creator or organizer.',
+      'Edit organization events even when you did not create or organize them.',
     label: 'Edit all events',
   },
   'events:organizeAll': {
@@ -169,17 +168,17 @@ const PERMISSION_METADATA = {
   },
   'events:review': {
     description:
-      'Review submitted events and approve or reject them for publication.',
+      'Review submitted events and publish them or return them with feedback.',
     label: 'Review events',
   },
   'events:seeDrafts': {
     description:
-      'See draft and pending-review events that are hidden from normal public event lists.',
+      'See drafts and events waiting for review that are hidden from normal event lists.',
     label: 'See draft events',
   },
   'events:viewPublic': {
     description:
-      'View approved public event details and event lists for the current organization.',
+      'Open published event details and Events. The list still shows only sign-up events with a choice available to one of your roles and announcements selected for one of your roles.',
     label: 'View public events',
   },
   'finance:approveReceipts': {
@@ -188,24 +187,21 @@ const PERMISSION_METADATA = {
     label: 'Approve receipts',
   },
   'finance:createTransactions': {
-    description:
-      'Create manual finance transactions for organization bookkeeping.',
-    label: 'Create transactions',
+    description: 'Record money received or spent outside Evorto payments.',
+    label: 'Record money received or spent',
   },
   'finance:manageReceipts': {
-    description:
-      'Manage event receipts broadly, including receipt submission support for organization events.',
+    description: 'View and submit receipts for any organization event.',
     label: 'Manage receipts',
   },
   'finance:refundReceipts': {
-    description:
-      'Record manual reimbursement transactions for approved receipts.',
+    description: 'Record when an approved receipt has been reimbursed.',
     label: 'Record receipt reimbursements',
   },
   'finance:viewTransactions': {
     description:
-      'View organization finance transactions, amounts, payment methods, fees, and comments.',
-    label: 'View transactions',
+      'View money received and spent, including amounts, payment methods, fees, and comments.',
+    label: 'View money received and spent',
   },
   'internal:viewInternalPages': {
     description:
@@ -214,7 +210,7 @@ const PERMISSION_METADATA = {
   },
   'templates:create': {
     description:
-      'Create reusable event templates and their organizer/participant registration defaults.',
+      'Create reusable event templates with default sign-up choices.',
     label: 'Create templates',
   },
   'templates:delete': {
@@ -239,13 +235,13 @@ const PERMISSION_METADATA = {
   },
   'users:assignRoles': {
     description:
-      'Assign any existing organization role to any organization member, including yourself. Treat this as full organization-administrator authority because assigned roles can grant every organization permission.',
-    label: 'Assign all user roles (organization admin)',
+      'Assign any organization role to any member, including yourself. This gives full organization-administrator access because roles can allow every organization action.',
+    label: 'Assign all member roles (organization admin)',
   },
   'users:viewAll': {
     description:
       'View the organization member list, including profile names, email addresses, and role names.',
-    label: 'View all users',
+    label: 'View all members',
   },
 } satisfies Record<
   Exclude<TenantRolePermission, `${string}:*`>,
@@ -297,7 +293,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     icon: faUser,
     key: USERS_GROUP.key,
-    label: 'Users',
+    label: 'Members',
     permissions: USERS_GROUP.permissions.map((perm) =>
       permissionMeta(`${USERS_GROUP.key}:${perm}` as TenantRolePermission),
     ),

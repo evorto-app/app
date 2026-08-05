@@ -358,9 +358,7 @@ export const platformTemplateHandlers = {
                 .for('update')
                 .pipe(Effect.orDie);
               if (lockedTemplates.length === 0) {
-                return yield* Effect.fail(
-                  templateGraphNotFoundError(templateId),
-                );
+                return yield* Effect.fail(templateGraphNotFoundError());
               }
               const before = yield* loadTemplateGraphDetail(
                 transaction,

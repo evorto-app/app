@@ -18,6 +18,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -36,6 +37,7 @@ import { isIanaTimezone } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { tenantTimezoneOptions } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 import { tenantIdentityRows as buildTenantIdentityRows } from './organization-settings.identity';
@@ -59,7 +61,7 @@ export const tenantTimezoneValidationError = (timezone: string) =>
     ? undefined
     : {
         kind: 'ianaTimezone',
-        message: 'Enter a recognized city or region timezone.',
+        message: 'Enter a recognized city or region time zone.',
       };
 
 export const organizationSettingsFormSchema = schema<OrganizationSettingsModel>(
@@ -79,6 +81,7 @@ export const organizationSettingsFormSchema = schema<OrganizationSettingsModel>(
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     RouterLink,
   ],
   selector: 'app-organization-settings',
@@ -106,6 +109,7 @@ export class OrganizationSettingsComponent {
     buildTenantIdentityRows(this.currentTenant()),
   );
   protected readonly tenantSettingsSaveDisabled = tenantSettingsSaveDisabled;
+  protected readonly timezoneOptions = tenantTimezoneOptions;
   private readonly rpc = AppRpc.injectClient();
   protected readonly updateMutation = injectMutation(() =>
     this.rpc.admin.tenant.updateOrganizationSettings.mutationOptions(),
@@ -152,17 +156,17 @@ export class OrganizationSettingsComponent {
           queryKey: this.rpc.pathKey(['config', 'tenant']),
         });
         this.settingsForm().reset();
-        this.notifications.showSuccess(
-          reloadRequired
-            ? 'Organization settings updated. Reloading to apply the timezone.'
-            : 'Organization settings updated',
-        );
+        this.notifications.showSuccess('Organization settings updated');
         if (reloadRequired) {
           this.document.defaultView?.location.reload();
         }
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update organization settings'),
+          getErrorMessage(
+            error,
+            'The organization settings could not be saved. Try again.',
+            ['RpcBadRequestError', 'AdminTenantNotFoundError'],
+          ),
         );
       }
     });

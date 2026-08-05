@@ -138,7 +138,7 @@ export const platformTemplateModeTransitionIssue = (
 ): null | string => {
   if (targetMode === 'advanced') return null;
   if (!isSimpleCompatibleRegistrationOptions(currentOptions)) {
-    return 'Simple configuration requires exactly one organizing and one non-organizing option. Reclassify or remove options first; nothing was deleted.';
+    return 'Simple setup requires exactly one organizer choice and one attendee choice. Change or remove choices first; nothing was deleted.';
   }
   return persistedAdvancedToSimpleModeIssue(persistedTemplate, currentOptions);
 };
@@ -307,7 +307,7 @@ export class PlatformTemplateEditorComponent {
   protected readonly stripeDisconnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === false,
+      this.targetTenantQuery.data()?.paymentsConfigured === false,
   );
   protected readonly paidGraphBlocked = computed(
     () =>
@@ -336,7 +336,7 @@ export class PlatformTemplateEditorComponent {
   protected readonly stripeConnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === true,
+      this.targetTenantQuery.data()?.paymentsConfigured === true,
   );
   protected readonly targetTenantCurrency = computed(() =>
     this.targetTenantQuery.isSuccess()
@@ -359,8 +359,8 @@ export class PlatformTemplateEditorComponent {
     required(template.description, {
       message: 'Enter a template description.',
     });
-    required(template.iconName, { message: 'Enter an icon name.' });
-    required(template.iconColor, { message: 'Enter an icon color index.' });
+    required(template.iconName, { message: 'Choose an icon.' });
+    required(template.iconColor, { message: 'Choose the icon again.' });
     required(template.location.name, {
       message: 'Enter a location name.',
       when: ({ valueOf }) => valueOf(template.location.type) !== 'none',
@@ -380,11 +380,11 @@ export class PlatformTemplateEditorComponent {
       },
     });
     required(template.location.placeId, {
-      message: 'Enter a Google place ID.',
+      message: 'Choose a location from Google Maps.',
       when: ({ valueOf }) => valueOf(template.location.type) === 'google',
     });
     required(template.location.meetingUrl, {
-      message: 'Enter a meeting URL.',
+      message: 'Enter an online meeting link.',
       when: ({ valueOf }) => valueOf(template.location.type) === 'online',
     });
 
@@ -415,7 +415,7 @@ export class PlatformTemplateEditorComponent {
       value().length > MAX_REGISTRATION_QUESTIONS
         ? {
             kind: 'maxLength',
-            message: `Templates support at most ${MAX_REGISTRATION_QUESTIONS} registration questions.`,
+            message: `Templates support at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
           }
         : undefined,
     );
@@ -429,11 +429,11 @@ export class PlatformTemplateEditorComponent {
         : {
             kind: 'simpleModeShape',
             message:
-              'Simple configuration requires exactly one organizing and one non-organizing option.',
+              'Simple setup requires exactly one organizer choice and one attendee choice.',
           },
     );
 
-    required(template.reason, { message: 'Enter an operational reason.' });
+    required(template.reason, { message: 'Enter a reason for this change.' });
     maxLength(template.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
@@ -596,7 +596,7 @@ export class PlatformTemplateEditorComponent {
       ...model,
       registrationOptions: [
         ...model.registrationOptions,
-        emptyRegistration('Registration option', 20, false),
+        emptyRegistration('Sign-up choice', 20, false),
       ],
     }));
   }
@@ -815,6 +815,7 @@ export class PlatformTemplateEditorComponent {
           getErrorMessage(
             error,
             'The template could not be saved. Review the details and try again.',
+            ['RpcBadRequestError'],
           ),
         );
       }

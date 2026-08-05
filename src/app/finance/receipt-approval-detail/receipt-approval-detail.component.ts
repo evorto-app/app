@@ -40,14 +40,14 @@ export const receiptReviewSuccessMessage = (
   status: 'approved' | 'rejected',
 ): string =>
   status === 'approved'
-    ? 'Receipt approved and the submitter notification was queued.'
-    : 'Receipt rejected and the submitter notification was queued.';
+    ? 'Receipt approved. Evorto will now try to email the submitter.'
+    : 'Receipt rejected. Evorto will now try to email the submitter.';
 
 export const receiptReviewNotificationNotice =
-  'Approving or rejecting this receipt queues an email to the submitter after saving.';
+  'Saving this decision asks Evorto to email the submitter. Delivery may take time or fail.';
 
 export const receiptEvidenceUnavailableNotice =
-  'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.';
+  'The uploaded receipt file is unavailable. You cannot approve the receipt until the file can be checked, but you can still reject it.';
 
 export const receiptReviewActionDisabled = ({
   formInvalid,
@@ -287,9 +287,7 @@ export class ReceiptApprovalDetailComponent {
     }
 
     if (!isFinanceReceiptCalendarDate(value.receiptDate)) {
-      this.notifications.showError(
-        'Enter a valid receipt date in YYYY-MM-DD format',
-      );
+      this.notifications.showError('Enter a valid receipt date');
       return;
     }
 
@@ -341,7 +339,17 @@ export class ReceiptApprovalDetailComponent {
       }
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to review receipt'),
+        getErrorMessage(
+          error,
+          'The receipt review could not be saved. Try again.',
+          [
+            'RpcBadRequestError',
+            'FinanceReceiptNotFoundError',
+            'FinanceResourceNotFoundError',
+            'ReceiptMediaBadRequestError',
+            'ReceiptMediaServiceUnavailableError',
+          ],
+        ),
       );
     }
   }

@@ -157,7 +157,9 @@ describe('handleTenantBrandAssetWebRequest', () => {
       }).pipe(Effect.flip, Effect.provide(objectStorageLayer));
 
       expect(error['_tag']).toBe('RpcInternalServerError');
-      expect(error.message).toBe('Failed to load tenant brand asset');
+      expect(error.message).toBe(
+        'The organization image could not be loaded. Try again.',
+      );
     }),
   );
 });

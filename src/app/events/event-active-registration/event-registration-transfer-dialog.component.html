@@ -1,15 +1,17 @@
-<h1 mat-dialog-title>Transfer code created</h1>
+<h1 mat-dialog-title>Private transfer ready</h1>
 <mat-dialog-content class="grid gap-5">
   <p class="body-medium text-on-surface-variant">
-    Send the code to one person you trust. The first eligible organization
-    member to use it can claim the registration, so keep it private.
+    Send the code to the person who should receive your ticket. Only someone who
+    can receive the ticket can use it. The code works once, so keep it private.
   </p>
 
   <div class="grid gap-2">
     <mat-form-field class="w-full">
-      <mat-label>Claim code</mat-label>
+      <mat-label>Transfer code</mat-label>
       <input matInput readonly [value]="data.claimCode" />
-      <mat-hint>The recipient enters this code on the claim page.</mat-hint>
+      <mat-hint
+        >The new attendee enters this code on the transfer page.</mat-hint
+      >
     </mat-form-field>
     <button
       mat-stroked-button
@@ -21,39 +23,38 @@
   </div>
 
   <div class="grid gap-2">
-    <mat-form-field class="w-full">
-      <mat-label>Claim page</mat-label>
-      <input matInput readonly [value]="data.claimPageUrl" />
-      <mat-hint
-        >This generic page link does not contain the private code.</mat-hint
-      >
-    </mat-form-field>
+    <p class="body-medium text-on-surface-variant">
+      You can also send the new attendee a link to the page where they enter the
+      code.
+    </p>
     <button
       mat-stroked-button
       type="button"
       (click)="copy(data.claimPageUrl, 'page')"
     >
-      {{ copied() === "page" ? "Page link copied" : "Copy claim page link" }}
+      {{ copied() === "page" ? "Page link copied" : "Copy transfer page link" }}
     </button>
   </div>
 
   <p class="body-small text-on-surface-variant">
-    This offer expires {{ data.expiresAt | date: "medium" }}. Your registration
-    stays active until the recipient is confirmed. For a paid transfer, their
-    payment must complete before your cancellation and refund are queued.
+    The private transfer expires {{ data.expiresAt | date: "medium" }}. The
+    ticket stays with you until the new attendee's transfer is complete. If
+    payment is required, the transfer completes only after payment and any
+    refund starts afterwards.
   </p>
 
   @if (copyError()) {
     <p class="body-small text-error" role="alert">
-      Copying was blocked by the browser. Select the value above and copy it
-      manually.
+      Evorto could not copy this automatically. Copy the transfer code above
+      instead, then ask the new attendee to open Profile and select Use transfer
+      code.
     </p>
   }
   <p class="sr-only" role="status" aria-live="polite">
     @if (copied() === "code") {
-      Claim code copied to clipboard.
+      Transfer code copied to clipboard.
     } @else if (copied() === "page") {
-      Claim page link copied to clipboard.
+      Transfer page link copied to clipboard.
     }
   </p>
 </mat-dialog-content>

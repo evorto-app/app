@@ -102,11 +102,13 @@ const runQrRequest = ({
 const createDatabase = ({
   organizerRegistrations = [],
   registration = confirmedRegistration,
+  tenantRecord = { domain: tenant.domain },
 }: {
   organizerRegistrations?: readonly {
     registrationOption?: { organizingRegistration: boolean };
   }[];
   registration?: null | typeof confirmedRegistration;
+  tenantRecord?: null | { domain: string };
 } = {}) => ({
   query: {
     eventRegistrations: {
@@ -114,10 +116,7 @@ const createDatabase = ({
       findMany: () => Effect.succeed(organizerRegistrations),
     },
     tenants: {
-      findFirst: () =>
-        Effect.succeed({
-          domain: tenant.domain,
-        }),
+      findFirst: () => Effect.succeed(tenantRecord),
     },
   },
 });
@@ -138,7 +137,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
 
       expect(response.status).toBe(401);
       expect(yield* Effect.promise(() => response.text())).toBe(
-        'Authentication required',
+        'Sign in to open this ticket.',
       );
     }),
   );
@@ -232,9 +231,22 @@ describe('handleQrRegistrationCodeWebRequest', () => {
 
         expect(response.status).toBe(404);
         expect(yield* Effect.promise(() => response.text())).toBe(
-          'Registration not found',
+          'Ticket not found.',
         );
       }),
+  );
+
+  it.effect('gives a clear next step when the ticket cannot be opened', () =>
+    Effect.gen(function* () {
+      const response = yield* runQrRequest({
+        database: createDatabase({ tenantRecord: null }),
+      });
+
+      expect(response.status).toBe(404);
+      expect(yield* Effect.promise(() => response.text())).toBe(
+        'This ticket is unavailable. Ask the event organizer for help.',
+      );
+    }),
   );
 
   it.effect('does not generate QR images for pending registrations', () =>

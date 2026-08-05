@@ -1,10 +1,40 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
+import type {
+  FullConfig,
+  FullResult,
+  Suite,
+  TestCase,
+  TestResult,
+} from '@playwright/test/reporter';
 
 import DocumentationReporter from '../../support/reporters/documentation-reporter';
 import { captureDocumentationScreenshot } from '../../support/reporters/documentation-reporter/take-screenshot';
 import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
+
+type ReporterTestCaseInput = Pick<TestCase, 'title'> &
+  Partial<Pick<TestCase, 'id' | 'location' | 'parent' | 'titlePath'>>;
+
+const createReporterTestCase = (input: ReporterTestCaseInput): TestCase =>
+  input as TestCase;
+
+const createReporterTestResult = (
+  attachments: TestResult['attachments'],
+): TestResult => ({ attachments }) as TestResult;
+
+const createReporterSuite = (tests: TestCase[] = []): Suite =>
+  ({ allTests: () => tests }) as Suite;
+
+const beginReporter = (
+  reporter: DocumentationReporter,
+  tests: TestCase[] = [],
+): void => {
+  reporter.onBegin({} as FullConfig, createReporterSuite(tests));
+};
+
+const endReporter = (reporter: DocumentationReporter) =>
+  reporter.onEnd({ status: 'passed' } as FullResult);
 
 test('documentation screenshots wait for active view transitions', async ({
   page,
@@ -72,6 +102,16 @@ test('documentation screenshots wait for active view transitions', async ({
   ).toBe(true);
 });
 
+test('documentation screenshots reject visible loading copy', async ({
+  page,
+}) => {
+  await page.setContent('<main>Loading roles…</main>');
+
+  await expect(captureDocumentationScreenshot(page)).rejects.toThrow(
+    'Documentation screenshot still contains loading copy: Loading roles…',
+  );
+});
+
 test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');
   const imgsRoot = testInfo.outputPath('docs-img');
@@ -79,40 +119,37 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
   process.env.DOCS_IMG_OUT_DIR = imgsRoot;
 
   const reporter = new DocumentationReporter();
-  // minimal begin
-  // @ts-expect-error minimal stubs for types
-  reporter.onBegin({}, {});
+  beginReporter(reporter);
 
   // create a fake test with attachments
   const title =
     'Sample Journey @finance @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-01)';
   const slug = 'sample-journey';
   const png = Buffer.from([137, 80, 78, 71]); // not a valid PNG, but enough for file write
-  const result = {
-    attachments: [
-      {
-        name: 'markdown',
-        contentType: 'text/markdown',
-        body: Buffer.from('Hello world'),
-      },
-      { name: 'image', contentType: 'image/png', body: png },
-      {
-        name: 'image-caption',
-        contentType: 'text/plain',
-        body: Buffer.from('An image'),
-      },
-    ],
-  } as any;
+  const result = createReporterTestResult([
+    {
+      name: 'markdown',
+      contentType: 'text/markdown',
+      body: Buffer.from('Hello world'),
+    },
+    { name: 'image', contentType: 'image/png', body: png },
+    {
+      name: 'image-caption',
+      contentType: 'text/plain',
+      body: Buffer.from('An image'),
+    },
+  ]);
 
-  const testCase = { title } as any;
+  const testCase = createReporterTestCase({ title });
   reporter.onTestEnd(testCase, result);
-  // @ts-expect-error minimal stubs for types
-  reporter.onEnd({});
+  endReporter(reporter);
 
   const mdPath = path.join(docsRoot, slug, 'page.md');
   expect(fs.existsSync(mdPath)).toBeTruthy();
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md).toContain('title: Sample Journey');
+  expect(md).toContain('\n---\n\n# Sample Journey\n\nHello world');
+  expect(md.match(/^# .+$/gm)).toEqual(['# Sample Journey']);
   expect(md).not.toContain('@track(');
   expect(md).not.toContain('@req(');
   // image written into images root under slug folder
@@ -156,8 +193,7 @@ test('documentation reporter clears docs/image roots on begin', async ({}, testI
   fs.writeFileSync(staleImagePath, 'stale image');
 
   const reporter = new DocumentationReporter();
-  // @ts-expect-error stubs
-  reporter.onBegin({}, {});
+  beginReporter(reporter);
 
   expect(fs.existsSync(staleDocPath)).toBe(false);
   expect(fs.existsSync(staleImagePath)).toBe(false);
@@ -174,19 +210,17 @@ test('documentation reporter fails when a selected docs group produces no conten
     process.cwd(),
     'tests/docs/events/incomplete.doc.ts',
   );
-  const incompleteTest = {
+  const incompleteTest = createReporterTestCase({
     id: 'incomplete-doc-test',
     location: { file: fakeFilePath, line: 10 },
     parent: undefined,
     title: 'Incomplete documentation journey',
     titlePath: () => ['', 'docs', fakeFilePath, 'Incomplete journey'],
-  } as any;
+  });
 
   const reporter = new DocumentationReporter();
-  // @ts-expect-error minimal stubs for reporter types
-  reporter.onBegin({}, { allTests: () => [incompleteTest] });
-  // @ts-expect-error minimal stubs for reporter types
-  expect(reporter.onEnd({})).toEqual({ status: 'failed' });
+  beginReporter(reporter, [incompleteTest]);
+  expect(endReporter(reporter)).toEqual({ status: 'failed' });
   expect(
     fs.existsSync(
       path.join(docsRoot, 'incomplete-documentation-journey', 'page.md'),
@@ -208,10 +242,8 @@ test('documentation reporter leaves docs/image roots untouched in list-only mode
   fs.writeFileSync(staleImagePath, 'stale image');
 
   const reporter = new DocumentationReporter({ listOnly: true });
-  // @ts-expect-error stubs
-  reporter.onBegin({}, {});
-  // @ts-expect-error minimal stubs for types
-  reporter.onEnd({});
+  beginReporter(reporter);
+  endReporter(reporter);
 
   expect(fs.readFileSync(staleDocPath, 'utf-8')).toBe('stale doc');
   expect(fs.readFileSync(staleImagePath, 'utf-8')).toBe('stale image');
@@ -224,33 +256,56 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
   process.env.DOCS_IMG_OUT_DIR = imgsRoot;
 
   const reporter = new DocumentationReporter();
-  // @ts-expect-error stubs
-  reporter.onBegin({}, {});
+  beginReporter(reporter);
 
   const title = 'Permissions Journey';
   const slug = title.toLowerCase().replaceAll(' ', '-');
-  const mdBlock = `---\nPermissions:\n - admin:manage\n - events:view\n---\nBody text`;
-  const result = {
-    attachments: [
-      {
-        name: 'markdown',
-        contentType: 'text/markdown',
-        body: Buffer.from(mdBlock),
-      },
-    ],
-  } as any;
+  const mdBlock = `---\nPermissions:\n - admin:manageRoles\n - events:viewPublic\n---\nBody text`;
+  const result = createReporterTestResult([
+    {
+      name: 'markdown',
+      contentType: 'text/markdown',
+      body: Buffer.from(mdBlock),
+    },
+  ]);
 
-  reporter.onTestEnd({ title } as any, result);
-  // @ts-expect-error minimal stubs for types
-  reporter.onEnd({});
+  reporter.onTestEnd(createReporterTestCase({ title }), result);
+  endReporter(reporter);
 
   const mdPath = path.join(docsRoot, slug, 'page.md');
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md.startsWith('---\ntitle:')).toBeTruthy();
-  expect(md).toContain('User permissions');
-  expect(md).toContain('- admin:manage');
-  expect(md).toContain('- events:view');
+  expect(md).toContain('Who can do this');
+  expect(md).toContain('- Manage roles');
+  expect(md).toContain('- View public events');
+  expect(md).not.toContain('admin:manageRoles');
+  expect(md).not.toContain('events:viewPublic');
   expect(md).toContain('Body text');
+});
+
+test('documentation reporter rejects an authored page title', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-authored-title');
+  const imgsRoot = testInfo.outputPath('docs-authored-title-images');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  beginReporter(reporter);
+
+  expect(() =>
+    reporter.onTestEnd(
+      createReporterTestCase({ title: 'Reporter-owned title' }),
+      createReporterTestResult([
+        {
+          name: 'markdown',
+          contentType: 'text/markdown',
+          body: Buffer.from('# Authored title\n\nBody text'),
+        },
+      ]),
+    ),
+  ).toThrow(
+    'Generated documentation owns the page title; documentation source must not add another level-one heading.',
+  );
 });
 
 test('documentation reporter emits one markdown file per describe block', async ({}, testInfo) => {
@@ -260,32 +315,27 @@ test('documentation reporter emits one markdown file per describe block', async 
   process.env.DOCS_IMG_OUT_DIR = imgsRoot;
 
   const reporter = new DocumentationReporter();
-  // @ts-expect-error stubs
-  reporter.onBegin({}, {});
+  beginReporter(reporter);
 
   const fakeFilePath =
     '/Users/hedde/code/evorto/tests/docs/events/register.doc.ts';
-  const resultA = {
-    attachments: [
-      {
-        name: 'markdown',
-        contentType: 'text/markdown',
-        body: Buffer.from('First section content'),
-      },
-    ],
-  } as any;
-  const resultB = {
-    attachments: [
-      {
-        name: 'markdown',
-        contentType: 'text/markdown',
-        body: Buffer.from('Second section content'),
-      },
-    ],
-  } as any;
+  const resultA = createReporterTestResult([
+    {
+      name: 'markdown',
+      contentType: 'text/markdown',
+      body: Buffer.from('First section content'),
+    },
+  ]);
+  const resultB = createReporterTestResult([
+    {
+      name: 'markdown',
+      contentType: 'text/markdown',
+      body: Buffer.from('Second section content'),
+    },
+  ]);
 
   reporter.onTestEnd(
-    {
+    createReporterTestCase({
       location: { file: fakeFilePath, line: 10 },
       titlePath: () => [
         '',
@@ -296,11 +346,11 @@ test('documentation reporter emits one markdown file per describe block', async 
       ],
       title:
         'Register for a free event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-01)',
-    } as any,
+    }),
     resultA,
   );
   reporter.onTestEnd(
-    {
+    createReporterTestCase({
       location: { file: fakeFilePath, line: 20 },
       titlePath: () => [
         '',
@@ -311,16 +361,16 @@ test('documentation reporter emits one markdown file per describe block', async 
       ],
       title:
         'Register for a paid event @track(playwright-specs-track-linking_20260126) @doc(REGISTER-DOC-02)',
-    } as any,
+    }),
     resultB,
   );
-  // @ts-expect-error stubs
-  reporter.onEnd({});
+  endReporter(reporter);
 
   const mdPath = path.join(docsRoot, 'registration-docs', 'page.md');
   expect(fs.existsSync(mdPath)).toBe(true);
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md).toContain('title: Registration docs');
+  expect(md.match(/^# .+$/gm)).toEqual(['# Registration docs']);
   expect(md).toContain('## Register for a free event');
   expect(md).toContain('## Register for a paid event');
   expect(md).toContain('First section content');
@@ -340,15 +390,14 @@ test('two tests in one describe block share one markdown file', async ({}, testI
   process.env.DOCS_IMG_OUT_DIR = imgsRoot;
 
   const reporter = new DocumentationReporter();
-  // @ts-expect-error stubs
-  reporter.onBegin({}, {});
+  beginReporter(reporter);
 
   const fakeFilePath =
     '/Users/hedde/code/evorto/tests/docs/events/checkout.doc.ts';
   const checkoutDescribe = 'Checkout flow docs';
 
   reporter.onTestEnd(
-    {
+    createReporterTestCase({
       location: { file: fakeFilePath, line: 10 },
       titlePath: () => [
         '',
@@ -359,20 +408,18 @@ test('two tests in one describe block share one markdown file', async ({}, testI
       ],
       title:
         'Open checkout @track(playwright-specs-track-linking_20260126) @doc(CHECKOUT-DOC-01)',
-    } as any,
-    {
-      attachments: [
-        {
-          name: 'markdown',
-          contentType: 'text/markdown',
-          body: Buffer.from('Open checkout section'),
-        },
-      ],
-    } as any,
+    }),
+    createReporterTestResult([
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from('Open checkout section'),
+      },
+    ]),
   );
 
   reporter.onTestEnd(
-    {
+    createReporterTestCase({
       location: { file: fakeFilePath, line: 20 },
       titlePath: () => [
         '',
@@ -383,24 +430,22 @@ test('two tests in one describe block share one markdown file', async ({}, testI
       ],
       title:
         'Confirm checkout payment @track(playwright-specs-track-linking_20260126) @doc(CHECKOUT-DOC-02)',
-    } as any,
-    {
-      attachments: [
-        {
-          name: 'markdown',
-          contentType: 'text/markdown',
-          body: Buffer.from('Confirm checkout section'),
-        },
-      ],
-    } as any,
+    }),
+    createReporterTestResult([
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from('Confirm checkout section'),
+      },
+    ]),
   );
-  // @ts-expect-error stubs
-  reporter.onEnd({});
+  endReporter(reporter);
 
   const mdPath = path.join(docsRoot, 'checkout-flow-docs', 'page.md');
   expect(fs.existsSync(mdPath)).toBe(true);
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md).toContain('title: Checkout flow docs');
+  expect(md.match(/^# .+$/gm)).toEqual(['# Checkout flow docs']);
   expect(md).toContain('## Open checkout');
   expect(md).toContain('## Confirm checkout payment');
   expect(md).toContain('Open checkout section');

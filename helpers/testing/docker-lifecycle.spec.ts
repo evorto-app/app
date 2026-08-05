@@ -44,11 +44,18 @@ const createFakeDocker = ({
   const logPath = path.join(directory, 'docker.log');
   const upDescendantPidPath = `${logPath}.up-descendant-pid`;
   const executablePath = path.join(directory, 'docker');
+  const upSignalTrap =
+    upBehavior === 'exit'
+      ? ''
+      : `
+if [[ "$*" == 'compose up --no-build --abort-on-container-failure' ]]; then
+  trap 'printf "compose up terminated\\n" >> "$DOCKER_LOG"; exit 143' TERM INT HUP
+fi
+`;
   const waitBlock =
     upBehavior === 'wait-with-descendant'
       ? `
 if [[ "$*" == 'compose up --no-build --abort-on-container-failure' ]]; then
-  trap 'printf "compose up terminated\\n" >> "$DOCKER_LOG"; exit 143' TERM INT HUP
   bash -c 'trap "" HUP INT TERM; while true; do sleep 0.05; done' &
   printf '%s' "$!" > "$DOCKER_LOG.up-descendant-pid"
   wait "$!"
@@ -57,7 +64,6 @@ fi
       : upBehavior === 'wait'
         ? `
 if [[ "$*" == 'compose up --no-build --abort-on-container-failure' ]]; then
-  trap 'printf "compose up terminated\\n" >> "$DOCKER_LOG"; exit 143' TERM INT HUP
   while true; do sleep 0.05; done
 fi
 `
@@ -66,7 +72,7 @@ fi
   fs.writeFileSync(
     executablePath,
     String.raw`#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$DOCKER_LOG"
+${upSignalTrap}printf '%s\n' "$*" >> "$DOCKER_LOG"
 if [[ "$1" == 'compose' && "$2" == 'ps' && "$3" == '--all' && "$4" == '-q' ]]; then
   service="$5"
   if [[ "$service" != "$FAKE_MISSING_SERVICE" ]]; then

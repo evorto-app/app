@@ -41,7 +41,7 @@ interface ReceiptReimbursementPayoutDetails {
 }
 
 export const receiptReimbursementManualNotice =
-  'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.';
+  'This only records that you paid the reimbursement. Evorto does not transfer the money.';
 
 export const receiptReimbursementMissingPayoutNotice =
   'This person has no payout details. Ask them to add an IBAN or PayPal address to their profile before recording a reimbursement.';
@@ -404,14 +404,24 @@ export class ReceiptRefundListComponent {
           },
         },
       );
-      this.notifications.showSuccess('Reimbursement transaction recorded');
+      this.notifications.showSuccess('Reimbursement recorded');
       this.selectionByRecipient.update((current) => ({
         ...current,
         [groupKey]: {},
       }));
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to record reimbursement'),
+        getErrorMessage(
+          error,
+          'The reimbursement could not be recorded. Try again.',
+          [
+            'RpcBadRequestError',
+            'FinanceReceiptNotFoundError',
+            'FinanceResourceNotFoundError',
+            'ReceiptMediaBadRequestError',
+            'ReceiptMediaServiceUnavailableError',
+          ],
+        ),
       );
     }
   }

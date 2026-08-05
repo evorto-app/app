@@ -145,13 +145,13 @@ export const registrationAddonRefundStatusLabel = (
       return 'No refund requested';
     }
     case 'notRequired': {
-      return 'No monetary refund required';
+      return 'No refund needed';
     }
     case 'partiallyRefunded': {
       return 'Partially refunded';
     }
     case 'pending': {
-      return 'Refund processing';
+      return 'Refund in progress';
     }
     case 'refunded': {
       return 'Refunded';
@@ -164,31 +164,31 @@ export const registrationAddonCancellationSuccessMessage = (
 ): string => {
   switch (status) {
     case 'actionRequired': {
-      return 'Cancellation recorded, but the refund needs a platform administrator to review it. Do not cancel or charge again.';
+      return 'The items were cancelled, but the refund needs attention. Do not cancel them or charge again. Ask an administrator to review this ticket.';
     }
     case 'cancelledWithoutRefund': {
-      return 'Cancellation recorded without a refund, as requested.';
+      return 'The items were cancelled without a refund, as requested.';
     }
     case 'failed': {
-      return 'Cancellation recorded, but the refund needs platform administrator attention. Do not cancel or charge again.';
+      return 'The items were cancelled, but the refund needs attention. Do not cancel them or charge again. Ask an administrator to review this ticket.';
     }
     case 'notApplicable': {
-      return 'Cancellation recorded. No refund applies to this add-on.';
+      return 'The items were cancelled. No refund applies to this add-on.';
     }
     case 'notRequested': {
-      return 'Cancellation recorded. No refund was requested.';
+      return 'The items were cancelled. No refund was requested.';
     }
     case 'notRequired': {
-      return 'Cancellation recorded. No monetary refund was required.';
+      return 'The items were cancelled. No refund was needed.';
     }
     case 'partiallyRefunded': {
-      return 'Cancellation recorded. Part of the refund completed; the remaining refund is still tracked.';
+      return 'The items were cancelled. Part of the refund is complete; the rest is still in progress.';
     }
     case 'pending': {
-      return 'Cancellation recorded. Refund processing started.';
+      return 'The items were cancelled. The refund has started.';
     }
     case 'refunded': {
-      return 'Cancellation recorded. The refund completed.';
+      return 'The items were cancelled and refunded.';
     }
   }
 };
@@ -204,7 +204,7 @@ export const scanCheckInTimingIssueCopy = (
   switch (issue) {
     case 'ended': {
       return {
-        body: 'The event ended more than two hours ago, so check-in is closed. No check-in was recorded.',
+        body: 'The event ended more than two hours ago, so check-in is closed. The attendee was not checked in.',
         title: 'Check-in closed',
       };
     }
@@ -226,8 +226,8 @@ export const scanRegistrationStatusIssueCopy = (
   switch (status) {
     case 'CANCELLED': {
       return {
-        body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, ask an organizer to review the existing registration.',
-        title: 'Registration cancelled',
+        body: 'This sign-up has ended and cannot be checked in. Do not ask the attendee to pay or sign up again. If the cancellation or refund looks wrong, review the existing sign-up instead of creating a replacement.',
+        title: 'Sign-up ended',
       };
     }
     case 'CONFIRMED': {
@@ -235,14 +235,14 @@ export const scanRegistrationStatusIssueCopy = (
     }
     case 'PENDING': {
       return {
-        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
-        title: 'Registration pending',
+        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start another sign-up or payment from the scanner.',
+        title: 'Sign-up pending',
       };
     }
     case 'WAITLIST': {
       return {
-        body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Ask an organizer to review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
-        title: 'Registration on waitlist',
+        body: 'This attendee does not have a confirmed place yet and cannot be checked in. Ask an organizer to review the waitlist and available places. Do not take payment or start another sign-up from the scanner.',
+        title: 'On waitlist',
       };
     }
   }
@@ -256,13 +256,13 @@ export const registrationAddonCancellationBlockedMessage = (
       return '';
     }
     case 'noQuantity': {
-      return 'No unredeemed units remain to cancel.';
+      return 'No unused items remain to cancel.';
     }
     case 'permission': {
-      return 'Cancelling units requires Cancel registrations and add-ons access.';
+      return 'You cannot cancel these items. Ask someone who manages tickets and add-ons for this event.';
     }
     case 'registrationStatus': {
-      return 'Add-on units can only be cancelled for a confirmed registration.';
+      return 'Add-on items can be cancelled only while the ticket is confirmed.';
     }
   }
 };
@@ -279,7 +279,7 @@ export const registrationAddonQuantitySummary = ({
     purchasedQuantity > 0 ? `${purchasedQuantity} purchased` : '',
   ].filter((quantity) => quantity.length > 0);
 
-  return quantities.length > 0 ? quantities.join(' · ') : 'No units';
+  return quantities.length > 0 ? quantities.join(' · ') : 'No items';
 };
 
 export const scanCheckInButtonLabel = ({
@@ -303,7 +303,7 @@ export const scanCheckInButtonLabel = ({
 };
 
 export const scanSpotCountLabel = (spotCount: number): string =>
-  spotCount === 1 ? '1 spot now' : `${spotCount} spots now`;
+  spotCount === 1 ? '1 place now' : `${spotCount} places now`;
 
 export const scanCheckInActionDisabled = ({
   allowCheckin,
@@ -333,6 +333,16 @@ export const scanGuestCheckInCountFromInput = ({
     ),
   );
 };
+
+export const scannerRegistrationErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string =>
+  getErrorMessage(error, fallback, [
+    'EventCheckInUnavailableError',
+    'EventRegistrationConflictError',
+    'EventRegistrationNotFoundError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -529,8 +539,8 @@ export class HandleRegistrationComponent {
       });
   }
 
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+  protected errorMessage(error: unknown, fallback: string): string {
+    return scannerRegistrationErrorMessage(error, fallback);
   }
 
   protected redeemAddon(addOn: EventsRegistrationAddonFulfillmentRecord): void {

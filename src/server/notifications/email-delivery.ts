@@ -11,6 +11,7 @@ import {
 import { asc, sql } from 'drizzle-orm';
 import { Cause, Duration, Effect, Schema } from 'effect';
 
+import type { RegistrationCancellationKind } from '../../shared/registration-cancellation';
 import type { RegistrationCancellationActor } from './email-templates';
 
 import {
@@ -28,6 +29,7 @@ import {
 import {
   ManualApprovalEmail,
   ReceiptReviewedEmail,
+  registrationCancellationEmailTitle,
   RegistrationCancelledEmail,
   RegistrationConfirmedEmail,
   RegistrationTransferredEmail,
@@ -47,6 +49,7 @@ export interface EnqueueManualApprovalEmailInput {
 export interface EnqueueReceiptReviewedEmailInput {
   eventTitle: string;
   receiptId: string;
+  receiptUrl: string;
   rejectionReason: null | string;
   status: 'approved' | 'rejected';
   tenant: TenantEmailContext;
@@ -54,9 +57,11 @@ export interface EnqueueReceiptReviewedEmailInput {
 }
 
 export interface EnqueueRegistrationCancelledEmailInput {
+  cancellationKind: RegistrationCancellationKind;
   cancelledBy: RegistrationCancellationActor;
   eventTitle: string;
   eventUrl: string;
+  refundOutcome: 'notStarted' | 'pending';
   registrationId: string;
   tenant: TenantEmailContext;
   to: string;
@@ -75,6 +80,7 @@ export interface EnqueueRegistrationTransferredEmailInput {
   eventUrl: string;
   recipientRole: 'newOwner' | 'previousOwner';
   recipientUserId: string;
+  refundOutcome: 'notStarted' | 'pending';
   registrationId: string;
   tenant: TenantEmailContext;
   to: string;
@@ -119,6 +125,13 @@ interface TenantEmailSender {
   name: string;
 }
 
+const failedDeliveryMessage =
+  'This email could not be sent. Check the recipient address and email settings.';
+const suppressedDeliveryMessage =
+  'This email was not sent because this address cannot receive organization emails.';
+const unknownDeliveryMessage =
+  'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.';
+
 class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRenderError>()(
   'EmailTemplateRenderError',
   {
@@ -154,10 +167,9 @@ const formatManualApprovalPaymentDeadline = Effect.fn(
     minute: '2-digit',
     month: '2-digit',
     timeZone: tenant.timezone,
-    timeZoneName: 'short',
     year: 'numeric',
   }).format(paymentDeadline);
-  return `${formattedDeadline} (${tenant.timezone})`;
+  return `${formattedDeadline} (local time for ${tenant.name})`;
 });
 
 const tenantReplyTo = (
@@ -249,6 +261,7 @@ export const enqueueReceiptReviewedEmail = (
       input.status === 'approved' ? 'Receipt approved' : 'Receipt rejected',
     template: ReceiptReviewedEmail({
       eventTitle: input.eventTitle,
+      receiptUrl: input.receiptUrl,
       rejectionReason: input.rejectionReason,
       status: input.status,
       tenantName: input.tenant.name,
@@ -273,8 +286,8 @@ export const enqueueManualApprovalEmail = (
       idempotencyKey: `manual-approval/${input.tenant.id}/${input.registrationId}/${input.approvalKey}`,
       kind: 'manualApproval',
       subject: input.paymentDeadline
-        ? 'Registration approved: payment required'
-        : 'Registration approved',
+        ? 'Sign-up approved: payment required'
+        : 'Sign-up approved',
       template: ManualApprovalEmail({
         eventTitle: input.eventTitle,
         eventUrl: input.eventUrl,
@@ -293,7 +306,7 @@ export const enqueueRegistrationConfirmedEmail = (
   enqueueTenantEmail(database, {
     idempotencyKey: `registration-confirmed/${input.tenant.id}/${input.registrationId}`,
     kind: 'registrationConfirmed',
-    subject: `Registration confirmed: ${input.eventTitle}`,
+    subject: `Ticket confirmed: ${input.eventTitle}`,
     template: RegistrationConfirmedEmail({
       eventTitle: input.eventTitle,
       tenantName: input.tenant.name,
@@ -310,7 +323,7 @@ export const enqueueWaitlistSpotAvailableEmail = (
   enqueueTenantEmail(database, {
     idempotencyKey: `waitlist-spot-available/${input.tenant.id}/${input.waitlistRegistrationId}/${input.availabilityKey}`,
     kind: 'waitlistSpotAvailable',
-    subject: `A spot may be available: ${input.eventTitle}`,
+    subject: `A place may be available: ${input.eventTitle}`,
     template: WaitlistSpotAvailableEmail({
       eventTitle: input.eventTitle,
       eventUrl: input.eventUrl,
@@ -327,11 +340,13 @@ export const enqueueRegistrationCancelledEmail = (
   enqueueTenantEmail(database, {
     idempotencyKey: `registration-cancelled/${input.tenant.id}/${input.registrationId}`,
     kind: 'registrationCancelled',
-    subject: `Registration cancelled: ${input.eventTitle}`,
+    subject: `${registrationCancellationEmailTitle(input.cancellationKind)}: ${input.eventTitle}`,
     template: RegistrationCancelledEmail({
+      cancellationKind: input.cancellationKind,
       cancelledBy: input.cancelledBy,
       eventTitle: input.eventTitle,
       eventUrl: input.eventUrl,
+      refundOutcome: input.refundOutcome,
       tenantName: input.tenant.name,
     }),
     tenant: input.tenant,
@@ -347,12 +362,13 @@ export const enqueueRegistrationTransferredEmail = (
     kind: 'registrationTransferred',
     subject:
       input.recipientRole === 'newOwner'
-        ? `Registration transferred to you: ${input.eventTitle}`
-        : `Registration transferred: ${input.eventTitle}`,
+        ? `Ticket transferred to you: ${input.eventTitle}`
+        : `Ticket transferred: ${input.eventTitle}`,
     template: RegistrationTransferredEmail({
       eventTitle: input.eventTitle,
       eventUrl: input.eventUrl,
       recipientRole: input.recipientRole,
+      refundOutcome: input.refundOutcome,
       tenantName: input.tenant.name,
     }),
     tenant: input.tenant,
@@ -412,7 +428,7 @@ const markOutboxRowFailed = Effect.fn('markOutboxRowFailed')(function* (
       .set({
         claimLeaseExpiresAt: null,
         claimLeaseId: null,
-        lastError: failure.message,
+        lastError: failedDeliveryMessage,
         provider: failure.provider,
         status: 'failed',
       })
@@ -437,7 +453,7 @@ const markOutboxRowDeliveryUnknown = Effect.fn('markOutboxRowDeliveryUnknown')(
           claimLeaseExpiresAt: null,
           claimLeaseId: null,
           deliveryUnknownAt: new Date(),
-          lastError: failure.message,
+          lastError: unknownDeliveryMessage,
           provider: failure.provider,
           status: 'deliveryUnknown',
         })
@@ -458,8 +474,7 @@ const markAbandonedOutboxRowsDeliveryUnknown = Effect.fn(
         claimLeaseExpiresAt: null,
         claimLeaseId: null,
         deliveryUnknownAt: new Date(),
-        lastError:
-          'The claim lease was missing or expired before a terminal provider outcome was recorded; automatic resend is disabled to prevent duplicate email',
+        lastError: unknownDeliveryMessage,
         status: 'deliveryUnknown',
       })
       .where(emailOutboxAbandonedSendingPredicate())
@@ -470,7 +485,6 @@ const markAbandonedOutboxRowsDeliveryUnknown = Effect.fn(
 const markOutboxRowSuppressed = Effect.fn('markOutboxRowSuppressed')(function* (
   claim: EmailOutboxClaim,
   provider: 'fake' | 'mailpit' | 'tem',
-  reason: string,
 ) {
   const updatedRows = yield* Database.use((database) =>
     database
@@ -478,7 +492,7 @@ const markOutboxRowSuppressed = Effect.fn('markOutboxRowSuppressed')(function* (
       .set({
         claimLeaseExpiresAt: null,
         claimLeaseId: null,
-        lastError: reason,
+        lastError: suppressedDeliveryMessage,
         provider,
         status: 'suppressed',
         suppressedAt: new Date(),
@@ -553,15 +567,32 @@ export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
 
       const settled = yield* Effect.gen(function* () {
         if (attempt._tag === 'Failure') {
+          yield* Effect.logWarning(
+            attempt.error._tag === 'EmailDeliveryUnknownError'
+              ? 'Email delivery outcome could not be confirmed'
+              : 'Email delivery was rejected',
+          ).pipe(
+            Effect.annotateLogs({
+              diagnostic: attempt.error.message,
+              outboxRowId: claimedRow.row.id,
+              provider: attempt.error.provider,
+            }),
+          );
           return attempt.error._tag === 'EmailDeliveryUnknownError'
             ? yield* markOutboxRowDeliveryUnknown(claimedRow, attempt.error)
             : yield* markOutboxRowFailed(claimedRow, attempt.error);
         }
         if (attempt.delivery._tag === 'Suppressed') {
+          yield* Effect.logInfo('Email delivery was withheld').pipe(
+            Effect.annotateLogs({
+              diagnostic: attempt.delivery.reason,
+              outboxRowId: claimedRow.row.id,
+              provider: attempt.delivery.provider,
+            }),
+          );
           return yield* markOutboxRowSuppressed(
             claimedRow,
             attempt.delivery.provider,
-            attempt.delivery.reason,
           );
         }
         return yield* markOutboxRowSent(

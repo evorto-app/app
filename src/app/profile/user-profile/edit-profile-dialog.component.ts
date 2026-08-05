@@ -90,7 +90,7 @@ export class EditProfileDialogComponent {
         ? undefined
         : {
             kind: 'email',
-            message: 'Enter a valid notification email address.',
+            message: 'Enter a valid email address for updates.',
           },
     );
     required(schemaPath.firstName);

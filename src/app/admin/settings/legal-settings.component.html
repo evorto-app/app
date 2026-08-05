@@ -19,13 +19,12 @@
     [disabled]="!settingsInteractionReady()"
   >
     <p class="text-on-surface-variant text-sm">
-      Use an external URL when another website owns a page, or add text for
-      Evorto to publish it. When both are present, the public footer uses the
-      external URL.
+      Link to a page on another website, or add text for Evorto to publish. When
+      both are present, your public pages link to the other website.
     </p>
 
     <mat-form-field>
-      <mat-label>Imprint / legal notice URL</mat-label>
+      <mat-label>Imprint / legal notice web address</mat-label>
       <input
         matInput
         [formField]="settingsForm.legalNoticeUrl"
@@ -33,25 +32,25 @@
       />
     </mat-form-field>
     <mat-form-field>
-      <mat-label>Hosted imprint / legal notice text</mat-label>
+      <mat-label>Imprint / legal notice text published by Evorto</mat-label>
       <textarea
         matInput
         rows="5"
         [formField]="settingsForm.legalNoticeText"
-        placeholder="Legal notice text shown at /legal/imprint"
+        placeholder="Legal notice shown on your Evorto site"
       ></textarea>
     </mat-form-field>
 
     <div class="bg-surface-container-low rounded-lg p-3">
       <p class="text-on-surface-variant text-sm">
-        The privacy policy and onboarding questions are managed together in
-        <a class="underline" routerLink="/admin/onboarding">Member onboarding</a
+        The privacy policy and questions for new members are managed together in
+        <a class="underline" routerLink="/admin/onboarding">New member setup</a
         >. Publishing a new privacy policy asks every member to accept it.
       </p>
     </div>
 
     <mat-form-field>
-      <mat-label>Terms URL</mat-label>
+      <mat-label>Terms web address</mat-label>
       <input
         matInput
         [formField]="settingsForm.termsUrl"
@@ -59,12 +58,12 @@
       />
     </mat-form-field>
     <mat-form-field>
-      <mat-label>Hosted terms text</mat-label>
+      <mat-label>Terms text published by Evorto</mat-label>
       <textarea
         matInput
         rows="5"
         [formField]="settingsForm.termsText"
-        placeholder="Terms shown at /legal/terms"
+        placeholder="Terms shown on your Evorto site"
       ></textarea>
     </mat-form-field>
 

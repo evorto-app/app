@@ -27,7 +27,7 @@ import { MatInputModule } from '@angular/material/input';
   ],
   selector: 'app-event-review-dialog',
   template: `
-    <h2 mat-dialog-title>Return Event to Draft</h2>
+    <h2 mat-dialog-title>Return event to draft</h2>
     <form (submit)="onSubmit($event)">
       <mat-dialog-content>
         <p class="text-on-surface-variant mb-4">
@@ -57,7 +57,7 @@ import { MatInputModule } from '@angular/material/input';
           type="submit"
           [disabled]="reviewForm().invalid() || reviewForm().submitting()"
         >
-          Return to Draft
+          Return to draft
         </button>
       </mat-dialog-actions>
     </form>

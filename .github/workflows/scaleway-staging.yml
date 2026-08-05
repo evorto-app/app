@@ -408,12 +408,12 @@ jobs:
             exit 0
           fi
 
-          ops_endpoint="$(jq --raw-output .containers.ops.endpoint deployment/platform.json)"
           explain_response="$(
             ops/scaleway/invoke-private-container.sh \
-              "${ops_endpoint}" \
+              deployment/platform.json \
+              ops \
               /internal/ops/schema-explain \
-              '{}'
+              <<<'{}'
           )"
           jq --exit-status \
             --arg schema_hash "${SCHEMA_HASH}" \
@@ -423,9 +423,10 @@ jobs:
 
           apply_response="$(
             ops/scaleway/invoke-private-container.sh \
-              "${ops_endpoint}" \
+              deployment/platform.json \
+              ops \
               /internal/ops/schema-apply \
-              "$(jq --null-input --compact-output --arg plan_digest "${plan_digest}" '{ planDigest: $plan_digest }')"
+              <<<"$(jq --null-input --compact-output --arg plan_digest "${plan_digest}" '{ planDigest: $plan_digest }')"
           )"
           jq --exit-status \
             --arg plan_digest "${plan_digest}" \
@@ -434,9 +435,10 @@ jobs:
 
           initialization_response="$(
             ops/scaleway/invoke-private-container.sh \
-              "${ops_endpoint}" \
+              deployment/platform.json \
+              ops \
               /internal/ops/seed-staging \
-              '{"mode":"initialize-empty"}'
+              <<<'{"mode":"initialize-empty"}'
           )"
           jq --exit-status \
             '.initialized == true' \

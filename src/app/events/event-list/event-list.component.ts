@@ -1,3 +1,5 @@
+import type { EventsEventListRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -24,6 +26,28 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventListService } from '../event-list.service';
 
+export const eventListSignUpStateLabel = (
+  state: EventsEventListRecord['userSignUpState'],
+): null | string => {
+  switch (state) {
+    case 'approvalPending': {
+      return 'Waiting for approval';
+    }
+    case 'confirmed': {
+      return 'Place confirmed';
+    }
+    case null: {
+      return null;
+    }
+    case 'paymentRequired': {
+      return 'Finish payment';
+    }
+    case 'waitlisted': {
+      return 'On waitlist';
+    }
+  }
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -48,6 +72,7 @@ export class EventListComponent {
   protected readonly eventDays = this.eventListService.eventDays;
   protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
   protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
+  protected readonly eventListSignUpStateLabel = eventListSignUpStateLabel;
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly faClock = faClock;
   protected readonly faEllipsisVertical = faEllipsisVertical;

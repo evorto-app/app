@@ -56,7 +56,7 @@ describe('platform tenant-admin RPC schemas', () => {
         _tag: 'RoleWriteValidationError',
         field: 'permissions',
         message:
-          'Platform authority cannot be granted through an organization role',
+          'Permissions reserved for Evorto administrators cannot be added to an organization role.',
       });
       expect(validation._tag).toBe('RoleWriteValidationError');
 

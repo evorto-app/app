@@ -11,6 +11,7 @@ import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
+import { registrationCancellationKind } from '@shared/registration-cancellation';
 import { registrationSpotCount } from '@shared/registration-spots';
 import {
   type ActiveRegistrationTransferStatus,
@@ -166,12 +167,26 @@ const mapRegistrationInternalError =
       Effect.mapError(() => new EventRegistrationInternalError({ message })),
     );
 
+const mapRegistrationConflictError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, EventRegistrationConflictError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logWarning(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => new EventRegistrationConflictError({ message })),
+    );
+
 const mapRegistrationScanInternalError = (error: unknown) =>
   isRegistrationScanRpcError(error)
     ? Effect.fail(error)
     : failRegistrationInternalError(
         'eventRegistration.scan',
-        'Internal server error',
+        'The ticket could not be loaded. Try again.',
         error,
       );
 
@@ -202,7 +217,7 @@ export const mapRegistrationMutationInternalError = (error: unknown) => {
     ? Effect.fail(error)
     : failRegistrationInternalError(
         'eventRegistration.mutation',
-        'Internal server error',
+        'The ticket could not be updated. Try again.',
         error,
       );
 };
@@ -210,7 +225,7 @@ export const mapRegistrationMutationInternalError = (error: unknown) => {
 const registrationHandlerNow = serverClockConfig.pipe(
   mapRegistrationInternalError(
     'eventRegistration.handlerClock.config',
-    'Invalid server clock configuration',
+    'The event time could not be checked. No sign-up was changed. Open the event again and review its current details before continuing.',
   ),
   Effect.flatMap(({ E2E_NOW_ISO }) =>
     Effect.try({
@@ -219,7 +234,7 @@ const registrationHandlerNow = serverClockConfig.pipe(
     }).pipe(
       mapRegistrationInternalError(
         'eventRegistration.handlerClock',
-        'Invalid E2E_NOW_ISO server clock value',
+        'The event time could not be checked. No sign-up was changed. Open the event again and review its current details before continuing.',
       ),
     ),
   ),
@@ -229,7 +244,7 @@ const registrationNotificationEventUrl = (tenant: Tenant, eventId: string) =>
   tenantOutboundUrl(tenant, `/events/${encodeURIComponent(eventId)}`).pipe(
     mapRegistrationInternalError(
       'eventRegistration.notification.eventUrl',
-      'Tenant event URL is invalid for registration notifications',
+      'The event link could not be prepared. Contact an organizer.',
     ),
   );
 
@@ -242,10 +257,13 @@ const checkInUnavailableError = (reason: EventCheckInTimingIssue) =>
 const normalizeTransferTargetSearch = (search: string | undefined) =>
   search?.trim().toLowerCase() ?? '';
 
+const guestCheckInLimitMessage = (remainingGuestCount: number) =>
+  `Enter no more than ${remainingGuestCount} additional ${remainingGuestCount === 1 ? 'guest' : 'guests'}.`;
+
 const privateRegistrationTransferRequiredMessage =
-  'This registration bundle cannot be reassigned directly. Ask the current owner to create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.';
+  'This ticket includes a payment that needs to be reviewed before it can be transferred. Ask the attendee to create a transfer code so the new attendee can review the price and any refund.';
 const recipientQuestionTransferRequiredMessage =
-  "This registration has participant questions, so it cannot be reassigned directly. Ask the current owner to create a private transfer offer so the recipient can answer the current questions without inheriting the previous participant's answers.";
+  'This ticket includes sign-up questions. Ask the attendee to create a transfer code so the new attendee can answer them.';
 
 const directTransferPreviewStatePart = (value: object): string =>
   JSON.stringify(value) ?? 'null';
@@ -378,6 +396,11 @@ export const registrationAddonPurchaseAvailability = (input: {
   };
 };
 
+export const registrationAddonCheckoutExpired = (
+  expiresAt: Date | null | undefined,
+  now: Date,
+): boolean => expiresAt !== null && expiresAt !== undefined && expiresAt <= now;
+
 export type RegistrationTransferBlockedReason =
   | 'activeTransfer'
   | 'addonPaymentPending'
@@ -502,7 +525,7 @@ export const registrationCancellationStripeRefundTerms = ({
 const activeRegistrationTransferConflict = () =>
   new EventRegistrationConflictError({
     message:
-      'This registration has an active transfer. Complete or resolve the transfer before changing the registration.',
+      'This ticket has an active transfer. Complete or cancel that transfer before changing the ticket.',
   });
 
 export const mapRegistrationTransferGuardError = Effect.fn(
@@ -517,8 +540,15 @@ export const mapRegistrationAcquisitionGuardError = Effect.fn(
   'mapRegistrationAcquisitionGuardError',
 )((error: unknown, conflictMessage: string) =>
   error instanceof RegistrationAcquisitionWriteError
-    ? Effect.fail(
-        new EventRegistrationConflictError({ message: conflictMessage }),
+    ? Effect.logWarning('Registration payment ownership check failed').pipe(
+        Effect.annotateLogs(
+          safeServerErrorSummary('eventRegistration.acquisitionGuard', error),
+        ),
+        Effect.andThen(
+          Effect.fail(
+            new EventRegistrationConflictError({ message: conflictMessage }),
+          ),
+        ),
       )
     : Effect.die(error),
 );
@@ -526,8 +556,27 @@ export const mapRegistrationAcquisitionGuardError = Effect.fn(
 const registrationCancellationStateChangedConflict = () =>
   new EventRegistrationConflictError({
     message:
-      'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+      'The sign-up or payment changed after you confirmed. Nothing was cancelled or refunded, and no places were released. Reopen the sign-up and review its current details before trying again.',
   });
+
+const registrationCancellationReason = (
+  cancelledBy: RegistrationCancellationActor,
+): string => {
+  switch (cancelledBy) {
+    case 'eligibilityChangedAfterPayment': {
+      return 'Sign-up ended because the attendee no longer qualified after payment';
+    }
+    case 'organizer': {
+      return 'Sign-up ended by organizer';
+    }
+    case 'participant': {
+      return 'Sign-up ended by attendee';
+    }
+    case 'platformAdministrator': {
+      return 'Sign-up ended by Evorto administrator';
+    }
+  }
+};
 
 const registrationCancellationStateChanged = ({
   expectedPaymentPending,
@@ -611,7 +660,7 @@ const ensureCanScanEventRegistration = ({
 
     return yield* Effect.fail(
       new RpcForbiddenError({
-        message: 'Missing required event check-in access',
+        message: 'You do not have permission to check in this ticket.',
         permission: 'events:organizeAll',
       }),
     );
@@ -635,7 +684,8 @@ const ensureRegistrationAddonFulfillmentAccess = Effect.fn(
   );
   if (!registration) {
     return yield* new EventRegistrationNotFoundError({
-      message: 'Registration not found',
+      message:
+        'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
     });
   }
   yield* ensureCanScanEventRegistration({
@@ -801,7 +851,8 @@ export const cancelRegistrationForTenant = Effect.fn(
   if (!registration) {
     return yield* Effect.fail(
       new EventRegistrationNotFoundError({
-        message: 'Registration not found',
+        message:
+          'This sign-up is no longer available. No change was made. Reopen the event and review its current sign-ups.',
       }),
     );
   }
@@ -843,7 +894,8 @@ export const cancelRegistrationForTenant = Effect.fn(
     }
     return yield* Effect.fail(
       new EventRegistrationConflictError({
-        message: 'Registration cancellation state changed unexpectedly',
+        message:
+          'The sign-up changed while cancellation was being processed. Nothing was cancelled or refunded, and no places were released. Reopen it and review its current details before trying again.',
       }),
     );
   }
@@ -866,24 +918,23 @@ export const cancelRegistrationForTenant = Effect.fn(
   ) {
     return yield* Effect.fail(
       new EventRegistrationConflictError({
-        message:
-          'Only pending, confirmed, or waitlisted registrations can be cancelled',
+        message: 'This sign-up can no longer be cancelled.',
       }),
     );
   }
 
   if (!registration.event) {
-    return yield* Effect.fail(
-      new EventRegistrationInternalError({
-        message: 'Registration event relation missing',
-      }),
+    return yield* failRegistrationInternalError(
+      'eventRegistration.cancel.eventMissing',
+      'The event details are unavailable, so the ticket was not cancelled. Contact an Evorto administrator.',
+      new Error(`Registration ${registration.id} has no event relation`),
     );
   }
 
   if (registration.checkInTime) {
     return yield* Effect.fail(
       new EventRegistrationConflictError({
-        message: 'Checked-in registrations cannot be cancelled',
+        message: 'A checked-in ticket cannot be cancelled.',
       }),
     );
   }
@@ -891,7 +942,7 @@ export const cancelRegistrationForTenant = Effect.fn(
   if (!expiredCheckout && registration.event.start <= now) {
     return yield* Effect.fail(
       new EventRegistrationConflictError({
-        message: 'Registration can no longer be cancelled',
+        message: 'This sign-up can no longer be cancelled.',
       }),
     );
   }
@@ -910,7 +961,7 @@ export const cancelRegistrationForTenant = Effect.fn(
     return yield* Effect.fail(
       new EventRegistrationConflictError({
         message:
-          'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.',
+          'The cancellation deadline has passed, so nothing was changed.',
       }),
     );
   }
@@ -949,7 +1000,7 @@ export const cancelRegistrationForTenant = Effect.fn(
     return yield* Effect.fail(
       new EventRegistrationConflictError({
         message:
-          'Payment setup is still being reconciled, so this request did not cancel the registration or release its reserved spots. Retry payment setup, then retry cancellation.',
+          'The payment is still being prepared. The ticket was not cancelled and no places were released. Wait a moment before trying again.',
       }),
     );
   }
@@ -958,10 +1009,10 @@ export const cancelRegistrationForTenant = Effect.fn(
     preflightPendingStripeTransaction?.stripeCheckoutSessionId &&
     !preflightPendingStripeTransaction.stripeAccountId
   ) {
-    return yield* Effect.fail(
-      new EventRegistrationInternalError({
-        message: 'Stripe account not found',
-      }),
+    return yield* failRegistrationInternalError(
+      'eventRegistration.cancel.preflightPaymentAccountMissing',
+      'Payment details are unavailable, so the ticket was not cancelled. Contact an Evorto administrator.',
+      new Error('Pending Stripe transaction has no account ID'),
     );
   }
 
@@ -997,14 +1048,15 @@ export const cancelRegistrationForTenant = Effect.fn(
           if (!lockedRegistration) {
             return yield* Effect.fail(
               new EventRegistrationNotFoundError({
-                message: 'Registration not found',
+                message:
+                  'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
               }),
             );
           }
           if (lockedRegistration.checkInTime) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'Checked-in registrations cannot be cancelled',
+                message: 'A checked-in ticket cannot be cancelled.',
               }),
             );
           }
@@ -1096,17 +1148,16 @@ export const cancelRegistrationForTenant = Effect.fn(
               )
               .for('update');
             if (pendingAddonOrders.length !== 1) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message:
-                    'Pending add-on payment ownership is inconsistent, so this request did not cancel the registration or release inventory.',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.pendingAddonOwnership',
+                'The payment details need Evorto administrator review. The ticket was not cancelled and no places were released.',
+                new Error('Pending add-on payment ownership is inconsistent'),
               );
             }
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message:
-                  'An add-on payment is still in progress. Finish or let that Checkout expire before cancelling the registration.',
+                  'Finish the pending add-on payment or wait for it to expire before cancelling the ticket.',
               }),
             );
           }
@@ -1128,7 +1179,7 @@ export const cancelRegistrationForTenant = Effect.fn(
                 return yield* Effect.fail(
                   new EventRegistrationConflictError({
                     message:
-                      'Registration cancellation state changed unexpectedly',
+                      'The ticket changed while cancellation was being processed. Nothing was cancelled or refunded, and no places were released. Reopen the ticket and review its current details before cancelling again.',
                   }),
                 );
               }
@@ -1146,8 +1197,7 @@ export const cancelRegistrationForTenant = Effect.fn(
           ) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message:
-                  'Only pending, confirmed, or waitlisted registrations can be cancelled',
+                message: 'This ticket can no longer be cancelled.',
               }),
             );
           }
@@ -1155,7 +1205,7 @@ export const cancelRegistrationForTenant = Effect.fn(
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message:
-                  'Registration payment state changed while cancellation was being processed',
+                  'The payment changed while cancellation was being processed. Nothing was cancelled or refunded, and no places were released. Reopen the ticket and review its current payment details before cancelling again.',
               }),
             );
           }
@@ -1173,22 +1223,22 @@ export const cancelRegistrationForTenant = Effect.fn(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Payment setup changed while cancellation was starting, so this request did not cancel the registration or release its reserved spots. Refresh, then retry cancellation.',
+                    'The payment changed while cancellation was starting. The ticket was not cancelled, no refund was started, and no places were released. Reopen the ticket and review its current payment details before cancelling again.',
                 }),
               );
             }
             if (!pendingStripeTransaction.stripeAccountId) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Stripe account not found',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.paymentAccountMissing',
+                'Payment details are unavailable, so the ticket was not cancelled. Contact an Evorto administrator.',
+                new Error('Pending Stripe transaction has no account ID'),
               );
             }
             if (!pendingStripeTransaction.stripeCheckoutSessionId) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Payment setup is still being reconciled, so this request did not cancel the registration or release its reserved spots. Retry payment setup, then retry cancellation.',
+                    'The payment is still being prepared. The ticket was not cancelled and no places were released. Wait a moment before trying again.',
                 }),
               );
             }
@@ -1204,7 +1254,7 @@ export const cancelRegistrationForTenant = Effect.fn(
                 return yield* Effect.fail(
                   new EventRegistrationConflictError({
                     message:
-                      'The pending Checkout changed while cancellation was starting, so this request did not cancel the registration or release its reserved spots. Refresh, then retry cancellation.',
+                      'The pending payment changed while cancellation was starting. The ticket was not cancelled, no refund was started, and no places were released. Reopen the ticket and review its current payment details before cancelling again.',
                   }),
                 );
               }
@@ -1241,7 +1291,8 @@ export const cancelRegistrationForTenant = Effect.fn(
                 if (markedTransactions.length !== 1) {
                   return yield* Effect.fail(
                     new EventRegistrationConflictError({
-                      message: 'Registration payment state changed',
+                      message:
+                        'The payment changed while cancellation was being processed. Nothing was cancelled or refunded, and no places were released. Reopen the ticket and review its current payment details before cancelling again.',
                     }),
                   );
                 }
@@ -1267,7 +1318,7 @@ export const cancelRegistrationForTenant = Effect.fn(
                   Effect.catch((error) =>
                     mapRegistrationAcquisitionGuardError(
                       error,
-                      'Registration acquisition ownership is inconsistent, so this request did not cancel the registration, create a refund, or release inventory.',
+                      'The payment details changed, so the ticket is still active, no places were released, and no refund was started. Open the ticket again and review it before cancelling.',
                     ),
                   ),
                 )
@@ -1291,7 +1342,7 @@ export const cancelRegistrationForTenant = Effect.fn(
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message:
-                  'Registration acquisition payment ownership is incomplete, so this request did not cancel the registration, create a refund, or release inventory.',
+                  'The payment details changed, so the ticket is still active, no places were released, and no refund was started. Open the ticket again and review it before cancelling.',
               }),
             );
           }
@@ -1341,10 +1392,18 @@ export const cancelRegistrationForTenant = Effect.fn(
                   .for('update');
           if (lockedRegistration.status === 'CONFIRMED') {
             if (!currentAcquisitionState) {
+              yield* Effect.logError(
+                'Registration payment ownership record is missing',
+              ).pipe(
+                Effect.annotateLogs({
+                  registrationId: lockedRegistration.id,
+                  tenantId: tenant.id,
+                }),
+              );
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Registration acquisition ownership is missing, so the registration was not cancelled, no refund was created, and no inventory or spots were released.',
+                    'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
                 }),
               );
             }
@@ -1446,10 +1505,18 @@ export const cancelRegistrationForTenant = Effect.fn(
               invalidComponentPayment ||
               stripePaymentSources.length !== successfulPaymentSources.length
             ) {
+              yield* Effect.logError(
+                'Registration cancellation payment ownership is inconsistent',
+              ).pipe(
+                Effect.annotateLogs({
+                  registrationId: lockedRegistration.id,
+                  tenantId: tenant.id,
+                }),
+              );
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Stripe payment ownership or acquisition settlement is inconsistent, so the registration was not cancelled, no refund was created, and no inventory or spots were released. Reconcile the payment and retry cancellation.',
+                    'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
                 }),
               );
             }
@@ -1466,10 +1533,10 @@ export const cancelRegistrationForTenant = Effect.fn(
             .for('update');
           const lockedTenant = lockedTenants[0];
           if (!lockedTenant) {
-            return yield* Effect.fail(
-              new EventRegistrationInternalError({
-                message: 'Registration tenant missing',
-              }),
+            return yield* failRegistrationInternalError(
+              'eventRegistration.cancel.organizationMissing',
+              'The ticket details are unavailable, so it was not cancelled. Contact an Evorto administrator.',
+              new Error(`Registration tenant ${tenant.id} is missing`),
             );
           }
 
@@ -1496,10 +1563,12 @@ export const cancelRegistrationForTenant = Effect.fn(
             .for('update');
           const lockedRegistrationOption = lockedRegistrationOptions[0];
           if (!lockedRegistrationOption) {
-            return yield* Effect.fail(
-              new EventRegistrationInternalError({
-                message: 'Registration option missing',
-              }),
+            return yield* failRegistrationInternalError(
+              'eventRegistration.cancel.optionMissing',
+              'The ticket details are unavailable, so it was not cancelled. Contact an Evorto administrator.',
+              new Error(
+                `Registration option ${lockedRegistration.registrationOptionId} is missing`,
+              ),
             );
           }
 
@@ -1519,7 +1588,7 @@ export const cancelRegistrationForTenant = Effect.fn(
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message:
-                  'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.',
+                  'The cancellation deadline has passed, so the ticket was not changed.',
               }),
             );
           }
@@ -1541,10 +1610,18 @@ export const cancelRegistrationForTenant = Effect.fn(
               }),
           );
           if (shouldRefundPaidSources && invalidStripeSource) {
+            yield* Effect.logError(
+              'Registration cancellation refund details are inconsistent',
+            ).pipe(
+              Effect.annotateLogs({
+                registrationId: lockedRegistration.id,
+                tenantId: tenant.id,
+              }),
+            );
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message:
-                  'Payment fees or historical Stripe source ownership changed for a registration or add-on source, so this request did not cancel the registration, create a refund, or release inventory. Reconcile the payment and retry cancellation.',
+                  'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
               }),
             );
           }
@@ -1558,7 +1635,7 @@ export const cancelRegistrationForTenant = Effect.fn(
                     subject: 'platform-registration-cancellation',
                   },
               eventId: lockedRegistration.eventId,
-              reason: `Registration cancelled by ${cancelledBy}`,
+              reason: registrationCancellationReason(cancelledBy),
               refundRequested: lockedRegistration.status === 'CONFIRMED',
               registrationId: lockedRegistration.id,
               tenantId: tenant.id,
@@ -1583,7 +1660,8 @@ export const cancelRegistrationForTenant = Effect.fn(
           if (cancelledRegistrations.length === 0) {
             return yield* Effect.fail(
               new EventRegistrationNotFoundError({
-                message: 'Registration not found',
+                message:
+                  'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
               }),
             );
           }
@@ -1637,10 +1715,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                 id: eventRegistrationOptions.id,
               });
             if (updatedOptions.length === 0) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Registration option missing',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.spotReleaseFailed',
+                'The ticket details need Evorto administrator review. Nothing was cancelled or refunded, and no places were released.',
+                new Error(
+                  `Registration option ${lockedRegistration.registrationOptionId} was not updated`,
+                ),
               );
             }
           }
@@ -1649,11 +1729,12 @@ export const cancelRegistrationForTenant = Effect.fn(
           let stripeRefundClaimId: null | string = null;
           if (shouldRefundPaidSources) {
             if (!currentAcquisitionState) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message:
-                    'Current registration acquisition disappeared before refund allocation.',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.paymentOwnershipDisappeared',
+                'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                new Error(
+                  'Current registration acquisition disappeared before refund allocation',
+                ),
               );
             }
             const cancellationEventIds = new Set(
@@ -1696,11 +1777,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                 ({ kind }) => kind === 'registration',
               );
             if (!registrationComponent) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message:
-                    'Registration acquisition component disappeared before cancellation.',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.registrationPaymentPartMissing',
+                'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                new Error(
+                  'Registration acquisition component disappeared before cancellation',
+                ),
               );
             }
             const componentByLotId = new Map(
@@ -1713,11 +1795,12 @@ export const cancelRegistrationForTenant = Effect.fn(
             const registrationAlreadyAllocated =
               priorQuantityByComponent.get(registrationComponent.id) ?? 0;
             if (registrationAlreadyAllocated !== 0) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message:
-                    'Registration refund entitlement is inconsistent with its acquisition component.',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.refundEntitlementMismatch',
+                'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                new Error(
+                  'Registration refund entitlement is inconsistent with its acquisition component',
+                ),
               );
             }
             type CancellationComponent =
@@ -1743,11 +1826,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                 !registrationAmounts ||
                 !registrationComponent.acquisitionPaymentId
               ) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message:
-                      'Paid registration component has no immutable refund entitlement.',
-                  }),
+                return yield* failRegistrationInternalError(
+                  'eventRegistration.cancel.registrationRefundMissing',
+                  'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                  new Error(
+                    'Paid registration component has no immutable refund entitlement',
+                  ),
                 );
               }
               componentAllocations.push({
@@ -1773,20 +1857,22 @@ export const cancelRegistrationForTenant = Effect.fn(
                 priorMonetaryQuantity >
                   cancellationAllocation.lot.cancelledQuantity
               ) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message:
-                      'Add-on cancellation no longer matches its immutable acquisition component.',
-                  }),
+                return yield* failRegistrationInternalError(
+                  'eventRegistration.cancel.addonPaymentMismatch',
+                  'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                  new Error(
+                    'Add-on cancellation no longer matches its immutable acquisition component',
+                  ),
                 );
               }
               if (component.grossAmount === 0) continue;
               if (!component.acquisitionPaymentId) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message:
-                      'Paid add-on acquisition component has no payment owner.',
-                  }),
+                return yield* failRegistrationInternalError(
+                  'eventRegistration.cancel.addonPaymentOwnerMissing',
+                  'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                  new Error(
+                    'Paid add-on acquisition component has no payment owner',
+                  ),
                 );
               }
               const amounts = allocateAcquisitionComponentQuantity({
@@ -1797,11 +1883,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                 quantity: cancellationAllocation.quantity,
               });
               if (!amounts) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message:
-                      'Add-on cancellation exceeds its immutable acquisition entitlement.',
-                  }),
+                return yield* failRegistrationInternalError(
+                  'eventRegistration.cancel.addonRefundExceeded',
+                  'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                  new Error(
+                    'Add-on cancellation exceeds its immutable acquisition entitlement',
+                  ),
                 );
               }
               componentAllocations.push({
@@ -1818,11 +1905,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                 ({ id }) => id === acquisitionPayment.transactionId,
               );
               if (!source?.stripeAccountId || source.stripeNetAmount === null) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message:
-                      'A paid acquisition source is missing its historical Stripe settlement, so cancellation did not continue.',
-                  }),
+                return yield* failRegistrationInternalError(
+                  'eventRegistration.cancel.paymentSettlementMissing',
+                  'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                  new Error(
+                    'Paid acquisition source is missing its historical Stripe settlement',
+                  ),
                 );
               }
               const paymentAllocations = componentAllocations.filter(
@@ -1870,11 +1958,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                   );
                 }
                 if (!refundClaim) {
-                  return yield* Effect.fail(
-                    new EventRegistrationInternalError({
-                      message:
-                        'Monetary acquisition allocation has no refund claim.',
-                    }),
+                  return yield* failRegistrationInternalError(
+                    'eventRegistration.cancel.refundClaimMissing',
+                    'The payment details need Evorto administrator review. The ticket was not cancelled, nothing was refunded, and no places were released.',
+                    new Error(
+                      'Monetary acquisition allocation has no refund claim',
+                    ),
                   );
                 }
                 yield* tx
@@ -1940,9 +2029,14 @@ export const cancelRegistrationForTenant = Effect.fn(
             registration.event.title
           ) {
             yield* enqueueRegistrationCancelledEmail(tx, {
+              cancellationKind: registrationCancellationKind({
+                paymentPending,
+                status: lockedRegistration.status,
+              }),
               cancelledBy,
               eventTitle: registration.event.title,
               eventUrl: notificationEventUrl,
+              refundOutcome: refundTransactionId ? 'pending' : 'notStarted',
               registrationId: lockedRegistration.id,
               tenant,
               to: cancellationRecipient,
@@ -1968,21 +2062,23 @@ export const cancelRegistrationForTenant = Effect.fn(
 
           if (pendingStripeTransaction) {
             if (!expiredCheckout) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message:
-                    'Pending payment cancellation was not confirmed by Stripe',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.pendingPaymentNotConfirmed',
+                'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
+                new Error(
+                  'Pending payment cancellation was not confirmed by Stripe',
+                ),
               );
             }
             const pendingStripeCheckoutSessionId =
               pendingStripeTransaction.stripeCheckoutSessionId;
             if (!pendingStripeCheckoutSessionId) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message:
-                    'Pending payment claim lost its confirmed Checkout binding',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.pendingPaymentBindingMissing',
+                'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
+                new Error(
+                  'Pending payment claim lost its confirmed Checkout binding',
+                ),
               );
             }
 
@@ -2012,10 +2108,10 @@ export const cancelRegistrationForTenant = Effect.fn(
               )
               .returning({ id: transactions.id });
             if (cancelledTransactions.length !== 1) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Failed to cancel pending payment claim',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.cancel.pendingPaymentClaimFailed',
+                'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
+                new Error('Failed to cancel pending payment claim'),
               );
             }
           }
@@ -2047,7 +2143,7 @@ export const cancelRegistrationForTenant = Effect.fn(
             ? Effect.fail(error)
             : failRegistrationInternalError(
                 'eventRegistration.cancel.persist',
-                'Internal server error',
+                'The sign-up could not be ended. Nothing was changed. Try again.',
                 error,
               ),
         ),
@@ -2084,7 +2180,7 @@ export const cancelRegistrationForTenant = Effect.fn(
       }).pipe(
         mapRegistrationInternalError(
           'eventRegistration.cancel.checkout.expire',
-          'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
+          'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
         ),
       ),
     );
@@ -2109,7 +2205,7 @@ export const cancelRegistrationForTenant = Effect.fn(
         }).pipe(
           mapRegistrationInternalError(
             'eventRegistration.cancel.checkout.retrieve',
-            'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
+            'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
           ),
           Effect.map(
             (session) =>
@@ -2120,11 +2216,10 @@ export const cancelRegistrationForTenant = Effect.fn(
       : expirationResult.success.id === stripeCheckoutSessionId &&
         expirationResult.success.status === 'expired';
     if (!confirmedExpired) {
-      return yield* Effect.fail(
-        new EventRegistrationInternalError({
-          message:
-            'Stripe did not confirm Checkout cancellation, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
-        }),
+      return yield* failRegistrationInternalError(
+        'eventRegistration.cancel.checkoutNotExpired',
+        'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
+        new Error('Stripe did not confirm Checkout cancellation'),
       );
     }
     return yield* cancelRegistrationForTenant({
@@ -2189,7 +2284,8 @@ const cancelRegistration = Effect.fn('cancelRegistration')(function* ({
     if (!eventId) {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
-          message: 'Registration event not found',
+          message:
+            'The event for this ticket is no longer available. No change was made. Return to the event list and open an available event.',
         }),
       );
     }
@@ -2201,7 +2297,7 @@ const cancelRegistration = Effect.fn('cancelRegistration')(function* ({
     if (!includesPermission('events:cancelRegistrations', user.permissions)) {
       return yield* Effect.fail(
         new RpcForbiddenError({
-          message: 'Missing required registration cancellation access',
+          message: 'You do not have permission to cancel this ticket.',
           permission: 'events:cancelRegistrations',
         }),
       );
@@ -2283,7 +2379,8 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     if (!registration) {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
-          message: 'Registration not found',
+          message:
+            'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
         }),
       );
     }
@@ -2308,23 +2405,23 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     if (registration.status !== 'CONFIRMED') {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Only confirmed registrations can be transferred',
+          message: 'This ticket is not ready to be transferred.',
         }),
       );
     }
 
     if (!registration.event) {
-      return yield* Effect.fail(
-        new EventRegistrationInternalError({
-          message: 'Registration event relation missing',
-        }),
+      return yield* failRegistrationInternalError(
+        'eventRegistration.transfer.eventMissing',
+        'The event details are unavailable, so the ticket was not transferred. Contact an Evorto administrator.',
+        new Error(`Registration ${registration.id} has no event relation`),
       );
     }
 
     if (registration.event.start <= now) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Registration can no longer be transferred',
+          message: 'This ticket can no longer be transferred.',
         }),
       );
     }
@@ -2332,7 +2429,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     if (registration.userId === targetUserId) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Registration is already assigned to this user',
+          message: 'The selected member already owns this ticket.',
         }),
       );
     }
@@ -2359,7 +2456,8 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     if (!targetTenantUser) {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
-          message: 'Target tenant user not found',
+          message:
+            'The selected member is no longer available in this organization. No transfer or payment was started. Review the ticket transfer and choose an available member.',
         }),
       );
     }
@@ -2381,7 +2479,8 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     if (!targetUser) {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
-          message: 'Target user not found',
+          message:
+            'The selected member is no longer available. No transfer or payment was started. Review the ticket transfer and choose an available member.',
         }),
       );
     }
@@ -2410,10 +2509,12 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
       }),
     );
     if (!registrationOption) {
-      return yield* Effect.fail(
-        new EventRegistrationInternalError({
-          message: 'Registration option missing',
-        }),
+      return yield* failRegistrationInternalError(
+        'eventRegistration.transfer.optionMissing',
+        'The ticket details are unavailable, so it was not transferred. Contact an Evorto administrator.',
+        new Error(
+          `Registration option ${registration.registrationOptionId} is missing`,
+        ),
       );
     }
 
@@ -2423,7 +2524,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     if (!targetEligible) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Target user is not eligible for this registration option',
+          message: 'The selected member cannot use this sign-up choice.',
         }),
       );
     }
@@ -2445,7 +2546,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     if (existingTargetRegistration) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Target user already has an active registration',
+          message: 'The selected member already has a ticket for this event.',
         }),
       );
     }
@@ -2488,7 +2589,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'The registration changed before it could be transferred. Review it again.',
+                    'The ticket changed before it could be transferred. Review it again.',
                 }),
               );
             }
@@ -2543,7 +2644,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 Effect.catch((error) =>
                   mapRegistrationAcquisitionGuardError(
                     error,
-                    'Registration acquisition ownership is inconsistent, so this registration was not transferred.',
+                    'The payment details changed, so the ticket was not transferred. Open it again and review the current details before trying the transfer again.',
                   ),
                 ),
               );
@@ -2623,17 +2724,18 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 pendingAddonTransactions.length !== 1 ||
                 lockedAddonOrders.length !== 1
               ) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message:
-                      'Pending add-on payment ownership changed before the registration transfer could start',
-                  }),
+                return yield* failRegistrationInternalError(
+                  'eventRegistration.transfer.pendingAddonOwnership',
+                  'The payment details changed before the transfer could start. The ticket was not transferred. Open it again and review the current details.',
+                  new Error(
+                    'Pending add-on payment ownership changed before transfer',
+                  ),
                 );
               }
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Finish or let the pending add-on Checkout expire before transferring this registration.',
+                    'Wait for the current add-on payment to finish or expire before transferring this ticket.',
                 }),
               );
             }
@@ -2728,10 +2830,18 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 );
               });
             if (invalidAcquisitionPayment) {
+              yield* Effect.logError(
+                'Registration transfer payment ownership is inconsistent',
+              ).pipe(
+                Effect.annotateLogs({
+                  registrationId: registration.id,
+                  tenantId: tenant.id,
+                }),
+              );
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Registration acquisition payment ownership is inconsistent, so this registration was not transferred.',
+                    'The payment history changed, so the ticket was not transferred. Reopen the transfer and review its current payment details before continuing.',
                 }),
               );
             }
@@ -2776,23 +2886,31 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'An earlier source refund is unresolved. Resolve it before asking the current owner to create a private transfer offer.',
+                    'An earlier refund is still being processed. Wait for it to finish before creating a transfer offer.',
                 }),
               );
             }
             if (priorRefundResolution._tag === 'InvalidProvenance') {
+              yield* Effect.logError(
+                'Registration transfer refund ownership is inconsistent',
+              ).pipe(
+                Effect.annotateLogs({
+                  registrationId: registration.id,
+                  tenantId: tenant.id,
+                }),
+              );
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Source refund ownership is inconsistent. Reconcile the payment history before asking the current owner to create a private transfer offer.',
+                    'The payment history needs Evorto administrator review before a transfer offer can be created.',
                 }),
               );
             }
             if (priorRefundResolution._tag === 'InvalidAmount') {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Source refund history has an invalid amount',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.transfer.refundAmountInvalid',
+                'The payment history needs Evorto administrator review before a transfer offer can be created.',
+                new Error('Source refund history has an invalid amount'),
               );
             }
             const refundedBySourceTransaction =
@@ -2840,10 +2958,10 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               .for('update');
             const lockedPricing = lockedPricingRows[0];
             if (!lockedPricing) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Registration transfer pricing is unavailable',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.transfer.pricingUnavailable',
+                'The price could not be checked, so the ticket was not transferred. Contact an Evorto administrator.',
+                new Error('Registration transfer pricing is unavailable'),
               );
             }
             const lockedRegistrationQuestions = yield* tx
@@ -2870,7 +2988,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
             if (lockedPricing.eventStatus !== 'APPROVED') {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
-                  message: 'Registration can no longer be transferred',
+                  message: 'This ticket can no longer be transferred.',
                 }),
               );
             }
@@ -2882,11 +3000,27 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               tenantHoursBeforeStart:
                 lockedPricing.tenantTransferDeadlineHoursBeforeStart,
             }).pipe(
-              Effect.mapError(
-                (error) =>
-                  new EventRegistrationConflictError({
-                    message: error.message,
-                  }),
+              Effect.catch((error) =>
+                Effect.logWarning(
+                  'Registration transfer deadline check failed',
+                ).pipe(
+                  Effect.annotateLogs(
+                    safeServerErrorSummary(
+                      'eventRegistration.directTransfer.deadline',
+                      error,
+                    ),
+                  ),
+                  Effect.andThen(
+                    Effect.fail(
+                      new EventRegistrationConflictError({
+                        message:
+                          error.reason === 'deadlinePassed'
+                            ? 'The transfer deadline has passed, so this ticket can no longer be transferred.'
+                            : 'The transfer deadline could not be checked. Contact an Evorto administrator.',
+                      }),
+                    ),
+                  ),
+                ),
               ),
             );
             const lockedTargetRoleIds = new Set(
@@ -2901,7 +3035,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Target user is not eligible for this registration option',
+                    'The selected member cannot use this sign-up choice.',
                 }),
               );
             }
@@ -3056,7 +3190,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Registration transfer tax terms changed before ownership could be reassigned.',
+                    'The tax details changed while the transfer was being reviewed. Review the transfer again.',
                 }),
               );
             }
@@ -3099,7 +3233,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Registration acquisition components no longer match the transferred bundle.',
+                    'The ticket or its add-ons changed while the transfer was being reviewed. Review the transfer again.',
                 }),
               );
             }
@@ -3159,11 +3293,9 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               guestCount: lockedRegistration.guestCount,
               guestUnitPrice: optionBasePrice,
             }).pipe(
-              Effect.mapError(
-                (error) =>
-                  new EventRegistrationConflictError({
-                    message: error.message,
-                  }),
+              mapRegistrationConflictError(
+                'eventRegistration.directTransfer.totalPrice',
+                'The transfer price could not be calculated. Review the ticket and try again.',
               ),
             );
             if (sourceRefundAmountDue > 0 || recipientBundlePrice > 0) {
@@ -3284,10 +3416,12 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
 
             if (mode._tag === 'OrganizerPreview') {
               if (!registration.user) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message: 'Registration owner relation missing',
-                  }),
+                return yield* failRegistrationInternalError(
+                  'eventRegistration.transfer.ownerMissing',
+                  'The current owner could not be found, so the ticket was not transferred. Contact an Evorto administrator.',
+                  new Error(
+                    `Registration ${registration.id} has no owner relation`,
+                  ),
                 );
               }
               return directTransferPreviewResult({
@@ -3337,7 +3471,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'The registration bundle changed after it was reviewed. Review the transfer again before confirming.',
+                    'The ticket or its add-ons changed after you reviewed the transfer. Review it again before confirming.',
                 }),
               );
             }
@@ -3384,11 +3518,12 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               terms: directAcquisitionTerms,
             });
             if (!settledDirectAcquisition) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message:
-                    'Recipient transfer acquisition terms could not be settled.',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.transfer.recipientTermsInvalid',
+                'The transfer could not be completed. Nothing was changed. Contact an Evorto administrator.',
+                new Error(
+                  'Recipient transfer acquisition terms could not be settled',
+                ),
               );
             }
 
@@ -3451,7 +3586,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
             }).pipe(
               mapRegistrationInternalError(
                 'eventRegistration.directTransfer.persistAcquisition',
-                'Recipient acquisition could not be established after ownership transfer.',
+                'The transfer could not be completed. Nothing was changed. Contact an Evorto administrator.',
               ),
             );
             if (registration.event.title && transferEventUrl) {
@@ -3461,6 +3596,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                   eventUrl: transferEventUrl,
                   recipientRole: 'previousOwner',
                   recipientUserId: registration.userId,
+                  refundOutcome: 'notStarted',
                   registrationId: registration.id,
                   tenant,
                   to: previousOwnerEmail,
@@ -3473,6 +3609,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                   eventUrl: transferEventUrl,
                   recipientRole: 'newOwner',
                   recipientUserId: targetUser.id,
+                  refundOutcome: 'notStarted',
                   registrationId: registration.id,
                   tenant,
                   to: newOwnerEmail,
@@ -3496,7 +3633,8 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
               if (isActiveRegistrationUniqueViolation(error)) {
                 return Effect.fail(
                   new EventRegistrationConflictError({
-                    message: 'Target user already has an active registration',
+                    message:
+                      'The selected member already has a ticket for this event.',
                   }),
                 );
               }
@@ -3519,28 +3657,30 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
     if (transferResult._tag === 'TargetMembershipMissing') {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
-          message: 'Target tenant user not found',
+          message:
+            'The selected member is no longer available in this organization. No transfer or payment was started. Review the ticket transfer and choose an available member.',
         }),
       );
     }
     if (transferResult._tag === 'AlreadyRegistered') {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Target user already has an active registration',
+          message: 'The selected member already has a ticket for this event.',
         }),
       );
     }
     if (transferResult._tag === 'TenantLimitReached') {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Active registration limit reached',
+          message: 'The selected member has reached the current sign-up limit.',
         }),
       );
     }
     if (transferResult._tag === 'RegistrationUnavailable') {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
-          message: 'Registration not found',
+          message:
+            'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
         }),
       );
     }
@@ -3619,7 +3759,7 @@ export const eventRegistrationHandlers = {
       });
       if (!includesPermission('events:cancelRegistrations', user.permissions)) {
         return yield* new RpcForbiddenError({
-          message: 'Missing required add-on cancellation access',
+          message: 'You do not have permission to cancel these add-ons.',
           permission: 'events:cancelRegistrations',
         });
       }
@@ -3645,7 +3785,7 @@ export const eventRegistrationHandlers = {
       if (!Number.isInteger(guestCheckInCount) || guestCheckInCount < 0) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Guest check-in count must be a non-negative integer',
+            message: 'Enter a whole number of guests, starting at zero.',
           }),
         );
       }
@@ -3672,7 +3812,8 @@ export const eventRegistrationHandlers = {
       if (!registration) {
         return yield* Effect.fail(
           new EventRegistrationNotFoundError({
-            message: 'Registration not found',
+            message:
+              'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
           }),
         );
       }
@@ -3686,7 +3827,7 @@ export const eventRegistrationHandlers = {
       if (registration.userId === user.id) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Users cannot check in their own registration',
+            message: 'Ask another organizer to check in this ticket.',
           }),
         );
       }
@@ -3705,7 +3846,7 @@ export const eventRegistrationHandlers = {
       if (registration.status !== 'CONFIRMED') {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Only confirmed registrations can be checked in',
+            message: 'This ticket is not ready for check-in.',
           }),
         );
       }
@@ -3717,7 +3858,7 @@ export const eventRegistrationHandlers = {
       if (guestCheckInCount > remainingGuestCount) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Guest check-in count exceeds remaining guests',
+            message: guestCheckInLimitMessage(remainingGuestCount),
           }),
         );
       }
@@ -3749,21 +3890,22 @@ export const eventRegistrationHandlers = {
             if (!lockedRegistration) {
               return yield* Effect.fail(
                 new EventRegistrationNotFoundError({
-                  message: 'Registration not found',
+                  message:
+                    'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
                 }),
               );
             }
             if (lockedRegistration.userId === user.id) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
-                  message: 'Users cannot check in their own registration',
+                  message: 'Ask another organizer to check in this ticket.',
                 }),
               );
             }
             if (lockedRegistration.status !== 'CONFIRMED') {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
-                  message: 'Only confirmed registrations can be checked in',
+                  message: 'This ticket is not ready for check-in.',
                 }),
               );
             }
@@ -3787,10 +3929,12 @@ export const eventRegistrationHandlers = {
               .for('share');
             const lockedEvent = lockedEvents[0];
             if (!lockedEvent) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Registration event not found during check-in',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.checkIn.eventMissing',
+                'The event details are unavailable, so no check-in was recorded. Contact an Evorto administrator.',
+                new Error(
+                  `Registration event ${lockedRegistration.eventId} was not found during check-in`,
+                ),
               );
             }
 
@@ -3800,10 +3944,10 @@ export const eventRegistrationHandlers = {
               lockedRegistration.checkedInGuestCount >
                 lockedRegistration.guestCount
             ) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Registration check-in guest counts are invalid',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.checkIn.guestCountsInvalid',
+                'The guest details need Evorto administrator review, so no check-in was recorded.',
+                new Error('Registration check-in guest counts are invalid'),
               );
             }
             const lockedRemainingGuestCount =
@@ -3812,7 +3956,7 @@ export const eventRegistrationHandlers = {
             if (guestCheckInCount > lockedRemainingGuestCount) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
-                  message: 'Guest check-in count exceeds remaining guests',
+                  message: guestCheckInLimitMessage(lockedRemainingGuestCount),
                 }),
               );
             }
@@ -3858,11 +4002,12 @@ export const eventRegistrationHandlers = {
 
             const updatedRegistration = updatedRegistrations[0];
             if (!updatedRegistration?.checkInTime) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message:
-                    'Locked registration check-in update did not persist',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.checkIn.registrationUpdateFailed',
+                'The check-in could not be saved. Nothing was changed. Try again.',
+                new Error(
+                  'Locked registration check-in update did not persist',
+                ),
               );
             }
 
@@ -3888,10 +4033,12 @@ export const eventRegistrationHandlers = {
               });
 
             if (updatedOptions.length === 0) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Registration option not found for check-in',
-                }),
+              return yield* failRegistrationInternalError(
+                'eventRegistration.checkIn.optionMissing',
+                'The sign-up choice is unavailable, so no check-in was recorded. Contact an Evorto administrator.',
+                new Error(
+                  `Registration option ${lockedRegistration.registrationOptionId} was not found during check-in`,
+                ),
               );
             }
 
@@ -3954,7 +4101,8 @@ export const eventRegistrationHandlers = {
       if (!registration) {
         return yield* Effect.fail(
           new EventRegistrationNotFoundError({
-            message: 'Registration not found',
+            message:
+              'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
           }),
         );
       }
@@ -3968,23 +4116,23 @@ export const eventRegistrationHandlers = {
       if (registration.status !== 'CONFIRMED') {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Only confirmed registrations can be transferred',
+            message: 'This ticket is not ready to be transferred.',
           }),
         );
       }
 
       if (!registration.event) {
-        return yield* Effect.fail(
-          new EventRegistrationInternalError({
-            message: 'Registration event relation missing',
-          }),
+        return yield* failRegistrationInternalError(
+          'eventRegistration.transferTargets.eventMissing',
+          'The event details are unavailable, so possible recipients could not be loaded. Contact an Evorto administrator.',
+          new Error(`Registration ${registration.id} has no event relation`),
         );
       }
 
       if (registration.event.start <= now) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Registration can no longer be transferred',
+            message: 'This ticket can no longer be transferred.',
           }),
         );
       }
@@ -4001,10 +4149,12 @@ export const eventRegistrationHandlers = {
         }),
       );
       if (!registrationOption) {
-        return yield* Effect.fail(
-          new EventRegistrationInternalError({
-            message: 'Registration option missing',
-          }),
+        return yield* failRegistrationInternalError(
+          'eventRegistration.transferTargets.optionMissing',
+          'The sign-up choice is unavailable, so possible recipients could not be loaded. Contact an Evorto administrator.',
+          new Error(
+            `Registration option ${registration.registrationOptionId} is missing`,
+          ),
         );
       }
 
@@ -4563,6 +4713,7 @@ export const eventRegistrationHandlers = {
         );
       }
       const now = yield* registrationHandlerNow.pipe(Effect.orDie);
+      const checkoutNow = new Date();
 
       const registrationSummaries = currentlyOwnedRegistrations.map(
         (registration) => {
@@ -4679,6 +4830,10 @@ export const eventRegistrationHandlers = {
                 nextPurchaseUnitTaxAmount:
                   nextPurchaseUnitAmounts?.taxAmount ?? null,
                 optionalPurchaseQuantity: addOnOption.optionalPurchaseQuantity,
+                pendingCheckoutExpired: registrationAddonCheckoutExpired(
+                  matchingPendingOrder?.expiresAt,
+                  checkoutNow,
+                ),
                 pendingCheckoutExpiresAt:
                   matchingPendingOrder?.expiresAt?.toISOString() ?? null,
                 pendingCheckoutUrl:
@@ -4797,10 +4952,10 @@ export const eventRegistrationHandlers = {
         targetUserId,
       });
       if (!preview) {
-        return yield* Effect.fail(
-          new EventRegistrationInternalError({
-            message: 'Registration transfer preview was not produced',
-          }),
+        return yield* failRegistrationInternalError(
+          'eventRegistration.transfer.previewMissing',
+          'The transfer could not be reviewed. Nothing was changed. Try again.',
+          new Error('Registration transfer preview was not produced'),
         );
       }
       return preview;
@@ -4941,7 +5096,8 @@ export const eventRegistrationHandlers = {
       ) {
         return yield* Effect.fail(
           new EventRegistrationNotFoundError({
-            message: 'Registration not found',
+            message:
+              'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
           }),
         );
       }

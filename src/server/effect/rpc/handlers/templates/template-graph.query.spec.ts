@@ -1,7 +1,10 @@
 import { describe, expect, it } from '@effect/vitest';
 import { readFileSync } from 'node:fs';
 
-import { getRequiredTemplateRole } from './template-graph.query';
+import {
+  getRequiredTemplateRole,
+  templateGraphNotFoundError,
+} from './template-graph.query';
 
 const readSource = (file: string) =>
   readFileSync(new URL(file, import.meta.url), 'utf8');
@@ -55,6 +58,27 @@ describe('tenant template graph query source guards', () => {
       }),
     ).toThrowError(
       'Persisted template template-1 registration option option-1 references missing tenant role role-missing',
+    );
+  });
+
+  it('does not expose template identifiers or storage scope when a template is missing', () => {
+    const error = templateGraphNotFoundError();
+
+    expect(templateGraphNotFoundError).toHaveLength(0);
+    expect(error.message).toBe(
+      'This template no longer exists in this organization. No changes were made. Return to Templates and choose an existing template.',
+    );
+    expect(error.message).not.toMatch(/\b(?:id|tenant|target)\b/iu);
+  });
+
+  it('keeps platform event validation messages in product language', () => {
+    const source = readSource('../platform/platform-events.handlers.ts');
+
+    expect(source).not.toContain('was not found for the target tenant');
+    expect(source).not.toContain('preconditions changed');
+    expect(source).not.toContain('registration-option identity set');
+    expect(source).toContain(
+      'The sign-up choices changed while this page was open.',
     );
   });
 });

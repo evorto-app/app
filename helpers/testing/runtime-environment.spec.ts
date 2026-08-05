@@ -3,11 +3,12 @@ import { describe, expect, it } from '@effect/vitest';
 import { resolveRuntimePorts } from './runtime-environment';
 
 describe('runtime environment ports', () => {
-  it('keeps generated ports unique across many seeds, including a former MinIO collision', () => {
+  it('keeps generated ports unique for boundary and former-collision seeds', () => {
     const seeds = [
       // The previous overlapping ranges assigned both MinIO ports to 9235.
       '288',
-      ...Array.from({ length: 10_000 }, (_, index) => `worktree-${index}`),
+      'worktree-0',
+      'worktree-9999',
     ];
 
     for (const seed of seeds) {

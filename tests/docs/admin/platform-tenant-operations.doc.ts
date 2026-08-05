@@ -43,19 +43,18 @@ test('Manage one organization and review change history', async ({
     );
   }
 
-  const suffix = seedDate.getTime().toString();
   const assignmentScenario = await seedUserRoleAssignmentScenario({
     database,
-    roleName: `Platform event assistant ${suffix}`,
+    roleName: 'Event support volunteer',
     tenant,
-    userEmail: `platform-operator-docs-${suffix}@evorto.test`,
+    userEmail: 'morgan.support@example.org',
   });
-  const eventReason = `Document target event update ${suffix}`;
-  const templateReason = `Document target template update ${suffix}`;
-  const roleAssignmentReason = `Document target role assignment ${suffix}`;
-  const roleRemovalReason = `Document target role removal ${suffix}`;
-  const receiptReason = `Document target receipt rejection ${suffix}`;
-  const registrationReason = `Document target registration check-in ${suffix}`;
+  const eventReason = 'Correct the event title';
+  const templateReason = 'Clarify the template title';
+  const roleAssignmentReason = 'Add event support responsibilities';
+  const roleRemovalReason = 'Remove the completed support assignment';
+  const receiptReason = 'The receipt file cannot be checked';
+  const registrationReason = 'Confirm arrival with one guest';
   const auditReasons = [
     eventReason,
     templateReason,
@@ -64,11 +63,11 @@ test('Manage one organization and review change history', async ({
     receiptReason,
     registrationReason,
   ];
-  const editedEventTitle = `${draftEvent.title} - platform review`;
-  const editedTemplateTitle = `${documentedTemplate.title} - platform review`;
+  const editedEventTitle = `${draftEvent.title} – evening edition`;
+  const editedTemplateTitle = `${documentedTemplate.title} – volunteer edition`;
   const registrationId = getId();
   const receiptId = getId();
-  const receiptFileName = `platform-receipt-${suffix}.pdf`;
+  const receiptFileName = 'travel-lunch.pdf';
   const rejectionReason =
     'The uploaded receipt cannot be verified, so it must be submitted again.';
   const receiptNotificationKey = `receipt-reviewed/${tenant.id}/${receiptId}/rejected`;
@@ -116,7 +115,6 @@ test('Manage one organization and review change history', async ({
     start: new Date(scannerNow.getTime() - 30 * 60 * 1000),
   };
 
-  let receiptUploadId: string | undefined;
   let temporaryRecordsInserted = false;
 
   const expectPersistedAudit = async (
@@ -137,6 +135,15 @@ test('Manage one organization and review change history', async ({
         }),
       );
   };
+
+  const receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+    eventId: checkInEvent.id,
+    fileName: receiptFileName,
+    mimeType: 'application/pdf',
+    sizeBytes: 2048,
+    tenantId: tenant.id,
+    uploadedByUserId: assignmentScenario.user.id,
+  });
 
   registerDatabaseCleanup(async (cleanupDatabase) => {
     await cleanupDatabase
@@ -212,18 +219,6 @@ test('Manage one organization and review change history', async ({
     await assignmentScenario.cleanup();
   });
 
-  const createdReceiptUploadId = await addConsumedFinanceReceiptUpload(
-    database,
-    {
-      eventId: checkInEvent.id,
-      fileName: receiptFileName,
-      mimeType: 'application/pdf',
-      sizeBytes: 2048,
-      tenantId: tenant.id,
-      uploadedByUserId: assignmentScenario.user.id,
-    },
-  );
-  receiptUploadId = createdReceiptUploadId;
   await database.transaction(async (transaction) => {
     const activatedEvents = await transaction
       .update(schema.eventInstances)
@@ -241,7 +236,7 @@ test('Manage one organization and review change history', async ({
     await transaction.insert(schema.financeReceipts).values({
       alcoholAmount: 0,
       attachmentFileName: receiptFileName,
-      attachmentUploadId: createdReceiptUploadId,
+      attachmentUploadId: receiptUploadId,
       currency: tenant.currency,
       depositAmount: 0,
       eventId: checkInEvent.id,
@@ -307,7 +302,7 @@ test('Manage one organization and review change history', async ({
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'Platform administration',
+      name: 'Evorto administration',
     }),
   ).toBeVisible();
   await page.getByRole('link', { exact: true, name: 'Organizations' }).click();
@@ -324,20 +319,19 @@ test('Manage one organization and review change history', async ({
     new RegExp(`/global-admin/tenants/${tenant.id}$`),
   );
   await expect(
-    page.getByRole('navigation', { name: 'Organization operations' }),
+    page.getByRole('navigation', { name: 'Organization management' }),
   ).toBeVisible();
 
   await testInfo.attach('markdown', {
     body: `
-{% callout type="note" title="Platform administrator requirements" %}
-Use this guide only when you are signed in as a platform administrator. An organization role does not grant this access.
+{% callout type="note" title="Who can do this" %}
+Use this guide only when you are signed in as an Evorto administrator. An organization role is not enough.
 {% /callout %}
 
-# Operate on one organization
 
-Platform administrators do not become organization members. Start at **Platform administration**, open **Organizations**, search by primary domain, and select **Review organization**. Confirm the organization name in the page header before every operation.
+Evorto administrators do not become organization members. Start at **Evorto administration**, open **Organizations**, search by website address, and select **Review organization**. Confirm the organization name in the page header before every action.
 
-Every change in this guide requires an operational reason. Evorto saves the domain change and a privacy-safe change-history entry together. The final section reads every reason back from the visible **Platform audit log**.
+Every change in this guide requires a reason. The change appears in **Evorto change history**, where it can be reviewed later.
 `,
   });
   await takeScreenshot(
@@ -365,7 +359,7 @@ Every change in this guide requires an operational reason. Evorto saves the doma
     body: `
 ## Edit a draft event
 
-Choose **Manage events**, find the draft, and select **Review event**. The editor shows the event owner, status, schedule, and complete registration setup. Only a draft can be saved from this form. Change the title, enter a precise **Update reason**, and select **Save draft details**. Status and optionless-announcement discovery actions use their own reason field and are not performed by this walkthrough.
+Choose **Manage events**, find the draft, and select **Review event**. The editor shows the event owner, current status, schedule, and complete sign-up setup. Only a draft can be saved from this form. Change the title, enter a clear **Reason for this change**, and select **Save draft details**. Whether the event is published, and who can find an announcement, are changed separately.
 `,
   });
   const eventEditor = page.locator('app-platform-event-detail');
@@ -373,12 +367,12 @@ Choose **Manage events**, find the draft, and select **Review event**. The edito
     .getByRole('textbox', { exact: true, name: 'Title' })
     .first()
     .fill(editedEventTitle);
-  await eventEditor.getByLabel('Update reason').fill(eventReason);
+  await eventEditor.getByLabel('Reason for this change').fill(eventReason);
   await takeScreenshot(
     testInfo,
     eventEditor,
     page,
-    'Edit a draft event with an operational reason',
+    'Edit a draft event with a reason for the change',
   );
   await eventEditor.getByRole('button', { name: 'Save draft details' }).click();
   await expect(page.getByText('Event updated')).toBeVisible();
@@ -420,24 +414,24 @@ Choose **Manage events**, find the draft, and select **Review event**. The edito
     body: `
 ## Edit an event template
 
-Return to the organization, choose **Manage templates**, find the reusable template, and select **Edit template**. Change the template title, add an **Operational reason**, and select **Save template**. This changes the template only; events already created from it stay unchanged.
+Return to the organization, choose **Manage templates**, find the reusable template, and select **Edit template**. Change the template title, add a **Reason for this change**, and select **Save template**. This changes the template only; events already created from it stay unchanged.
 `,
   });
-  const templateEditor = page.locator(
-    '[data-testid="platform-template-editor"]',
-  );
-  await templateEditor
+  const editor = page.locator('[data-testid="platform-template-editor"]');
+  await editor
     .getByRole('textbox', { exact: true, name: 'Title' })
     .first()
     .fill(editedTemplateTitle);
-  await templateEditor.getByLabel('Operational reason').fill(templateReason);
+  await editor.getByLabel('Reason for this change').fill(templateReason);
+  const saveTemplate = editor.getByRole('button', { name: 'Save template' });
+  await expect(saveTemplate).toBeEnabled();
   await takeScreenshot(
     testInfo,
-    templateEditor,
+    editor,
     page,
-    'Edit a template with an operational reason',
+    'Edit a template with a reason for the change',
   );
-  await templateEditor.getByRole('button', { name: 'Save template' }).click();
+  await saveTemplate.click();
   await expect(page.getByText('Template updated')).toBeVisible();
   await expect
     .poll(async () =>
@@ -450,13 +444,18 @@ Return to the organization, choose **Manage templates**, find the reusable templ
   await expectPersistedAudit(templateReason, 'template.update');
 
   await page.getByRole('link', { name: 'Back to organization' }).click();
-  await page.getByRole('link', { exact: true, name: 'Manage users' }).click();
+  await page.getByRole('link', { exact: true, name: 'Manage members' }).click();
   await expect(
     page.getByRole('heading', { level: 1, name: 'Organization members' }),
   ).toBeVisible();
-  const searchUsers = page.getByLabel('Search users');
-  await searchUsers.fill(assignmentScenario.user.email);
-  let userRow = page.getByRole('row').filter({
+  const membersPage = page.locator('app-platform-tenant-users');
+  await expect(membersPage).not.toHaveAttribute('ngh', /.*/);
+  const searchMembers = membersPage.getByRole('searchbox', {
+    exact: true,
+    name: 'Search members',
+  });
+  await searchMembers.fill(assignmentScenario.user.email);
+  let userRow = membersPage.getByRole('row').filter({
     has: page.getByText(assignmentScenario.user.email, { exact: true }),
   });
   await expect(userRow).toBeVisible();
@@ -465,7 +464,7 @@ Return to the organization, choose **Manage templates**, find the reusable templ
     body: `
 ## Assign and remove an organization role
 
-Return to the organization and choose **Manage users**. Search by the existing member's email, then select **Manage roles** on that row. Open **Assigned roles**, choose the role, enter an **Operational reason**, and select **Save roles**. The assignment affects only this organization.
+Return to the organization and choose **Manage members**. Search by the existing member's email, then select **Manage roles** on that row. Open **Assigned roles**, choose the role, enter a **Reason for this change**, and select **Save roles**. The assignment affects only this organization.
 `,
   });
   await userRow.getByRole('button', { name: 'Manage roles' }).click();
@@ -478,23 +477,23 @@ Return to the organization and choose **Manage users**. Search by the existing m
   await expect(assignmentOption).toHaveAttribute('aria-selected', 'false');
   await assignmentOption.click();
   await page.keyboard.press('Escape');
-  await page.getByLabel('Operational reason').fill(roleAssignmentReason);
+  await page.getByLabel('Reason for this change').fill(roleAssignmentReason);
   await takeScreenshot(
     testInfo,
     page.locator('app-platform-tenant-users form'),
     page,
-    'Assign an organization role with an operational reason',
+    'Assign an organization role with a reason for the change',
   );
   await page.getByRole('button', { name: 'Save roles' }).click();
-  await expect(page.getByText('User roles updated')).toBeVisible();
+  await expect(page.getByText('Member roles updated')).toBeVisible();
   await expect
     .poll(assignmentScenario.readAssignedRoleIds)
     .toEqual([assignmentScenario.role.id]);
   await expectPersistedAudit(roleAssignmentReason, 'user.assignRoles');
 
   await page.reload();
-  await page.getByLabel('Search users').fill(assignmentScenario.user.email);
-  userRow = page.getByRole('row').filter({
+  await searchMembers.fill(assignmentScenario.user.email);
+  userRow = membersPage.getByRole('row').filter({
     has: page.getByText(assignmentScenario.user.email, { exact: true }),
   });
   await expect(
@@ -503,7 +502,7 @@ Return to the organization and choose **Manage users**. Search by the existing m
 
   await testInfo.attach('markdown', {
     body: `
-To remove that role, select **Manage roles** again, deselect it in **Assigned roles**, enter a new operational reason, and save. Removing every role is allowed for this target member; it does not delete the member or the role definition.
+To remove that role, select **Manage roles** again, deselect it in **Assigned roles**, enter a new reason for the change, and save. Removing every role is allowed for this member; it does not delete the member or the role itself.
 `,
   });
   await userRow.getByRole('button', { name: 'Manage roles' }).click();
@@ -516,9 +515,9 @@ To remove that role, select **Manage roles** again, deselect it in **Assigned ro
   await expect(assignmentOption).toHaveAttribute('aria-selected', 'true');
   await assignmentOption.click();
   await page.keyboard.press('Escape');
-  await page.getByLabel('Operational reason').fill(roleRemovalReason);
+  await page.getByLabel('Reason for this change').fill(roleRemovalReason);
   await page.getByRole('button', { name: 'Save roles' }).click();
-  await expect(page.getByText('User roles updated')).toBeVisible();
+  await expect(page.getByText('Member roles updated')).toBeVisible();
   await expect.poll(assignmentScenario.readAssignedRoleIds).toEqual([]);
   await expectPersistedAudit(roleRemovalReason, 'user.assignRoles');
 
@@ -541,23 +540,26 @@ To remove that role, select **Manage roles** again, deselect it in **Assigned ro
     body: `
 ## Reject an unverifiable receipt
 
-Return to the organization, choose **Review finance**, and open **Receipt approval**. Select the submitted receipt. When its stored evidence is unavailable, approval stays disabled, but rejection remains available. Choose **Reject**, enter a participant-facing **Rejection reason**, then enter a separate **Platform operational reason** for the change history. Select **Save decision**.
+Return to the organization, choose **Review finance**, and open **Receipt approval**. Select the submitted receipt. When its uploaded file cannot be checked, approval stays disabled, but rejection remains available. Choose **Reject**, enter a clear **Rejection reason** for the member, then enter a separate reason for the change history. Select **Save decision**.
 
-This action records a decision and schedules a receipt-review notification; it does not reimburse the member or transfer money. Reimbursement, refund recovery, and Stripe tax-rate import are separate operations and are not performed by this walkthrough.
+This action records the decision and asks Evorto to email the member; delivery is separate and may take time or fail. It does not reimburse the member, transfer money, issue refunds, or add tax rates. Those are separate actions.
 `,
   });
   await expect(
-    page.getByText('Receipt evidence is unavailable.', { exact: false }),
+    page.getByText(
+      'The uploaded receipt file is unavailable. Approval is disabled until it can be checked. You can still reject this receipt.',
+      { exact: true },
+    ),
   ).toBeVisible();
   await page.getByRole('combobox', { name: 'Decision' }).click();
   await page.getByRole('option', { exact: true, name: 'Reject' }).click();
   await page.getByLabel('Rejection reason').fill(rejectionReason);
-  await page.getByLabel('Platform operational reason').fill(receiptReason);
+  await page.getByLabel('Reason for this decision').fill(receiptReason);
   await takeScreenshot(
     testInfo,
     platformFinance,
     page,
-    'Reject a receipt with participant and operator reasons',
+    'Reject a receipt with reasons for the member and change history',
   );
   const saveDecision = platformFinance.getByRole('button', {
     name: 'Save decision',
@@ -585,16 +587,14 @@ This action records a decision and schedules a receipt-review notification; it d
   await expectPersistedAudit(receiptReason, 'receipt.review');
 
   await page.getByRole('link', { name: 'Back to organization' }).click();
-  await page
-    .getByRole('link', { exact: true, name: 'Inspect registrations' })
-    .click();
-  const lookupInput = page.getByLabel('Ticket link or registration ID');
+  await page.getByRole('link', { exact: true, name: 'Ticket support' }).click();
+  const lookupInput = page.getByLabel('Ticket link or ticket number');
   await expect(lookupInput).toBeEnabled({ timeout: 20_000 });
   await lookupInput.fill(
     `http://localhost:4200/scan/registration/${registrationId}`,
   );
   const openRegistration = page.getByRole('button', {
-    name: 'Open registration',
+    name: 'Open ticket',
   });
   await expect(openRegistration).toBeEnabled({ timeout: 20_000 });
   await openRegistration.click();
@@ -607,7 +607,7 @@ This action records a decision and schedules a receipt-review notification; it d
       has: page.getByRole('heading', {
         exact: true,
         level: 3,
-        name: 'Help with this registration',
+        name: 'Help with this ticket',
       }),
     });
   await expect(registrationDetail).toBeVisible({ timeout: 20_000 });
@@ -619,9 +619,9 @@ This action records a decision and schedules a receipt-review notification; it d
     body: `
 ## Check in an attendee and guest
 
-Return to the organization and choose **Inspect registrations**. Paste either the registration ID or its attendee ticket link, then select **Open registration**. Evorto confirms that the registration belongs to this organization before showing it.
+Return to the organization and choose **Ticket support**. Paste the attendee's ticket link or ticket number, then select **Open ticket**. Evorto opens it only when it belongs to this organization.
 
-For a confirmed registration inside the check-in window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a registration.
+For a confirmed ticket inside the check-in window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. The updated totals include the attendee and the guests entered for this check-in. This action does not approve or cancel a ticket.
 `,
   });
   const guestCheckInCount = registrationDetail.getByLabel(
@@ -637,14 +637,14 @@ For a confirmed registration inside the check-in window, enter the number of gue
     testInfo,
     registrationDetail,
     page,
-    'Check in an attendee and guest with an operational reason',
+    'Check in an attendee and guest with a reason for the action',
   );
   const checkIn = registrationDetail.getByRole('button', {
     name: 'Check in',
   });
   await expect(checkIn).toBeEnabled({ timeout: 20_000 });
   await checkIn.click({ timeout: 20_000 });
-  await expect(page.getByText('Registration checked in')).toBeVisible();
+  await expect(page.getByText('Ticket checked in')).toBeVisible();
   await expect(
     registrationDetail.getByText('1 of 1 checked in', { exact: true }),
   ).toBeVisible();
@@ -677,7 +677,7 @@ For a confirmed registration inside the check-in window, enter the number of gue
   await expectPersistedAudit(registrationReason, 'registration.checkIn');
 
   await page.goto('/global-admin');
-  await page.getByRole('link', { name: 'Platform audit log' }).click();
+  await page.getByRole('link', { name: 'Evorto change history' }).click();
   await expect(page).toHaveURL(/\/global-admin\/audit$/u);
   const auditExpectations: ReadonlyArray<readonly [string, string]> = [
     [eventReason, 'Event updated'],
@@ -685,7 +685,7 @@ For a confirmed registration inside the check-in window, enter the number of gue
     [roleAssignmentReason, 'Organization member roles changed'],
     [roleRemovalReason, 'Organization member roles changed'],
     [receiptReason, 'Receipt reviewed'],
-    [registrationReason, 'Registration checked in'],
+    [registrationReason, 'Ticket checked in'],
   ];
   for (const [reason, actionLabel] of auditExpectations) {
     const auditEntry = page
@@ -700,37 +700,24 @@ For a confirmed registration inside the check-in window, enter the number of gue
   const eventAuditEntry = page
     .getByRole('article')
     .filter({ has: page.getByText(eventReason, { exact: true }) });
-  const persistedEventAudit =
-    await database.query.platformAuditEntries.findFirst({
-      where: {
-        action: 'event.update',
-        reason: eventReason,
-        targetTenantId: tenant.id,
-      },
-    });
-  if (!persistedEventAudit) {
-    throw new Error('Expected the documented event audit entry');
-  }
-  await expect(eventAuditEntry).toContainText(persistedEventAudit.actorId);
-  await expect(eventAuditEntry).toContainText(tenant.id);
-  await eventAuditEntry.getByText('Review before and after').click();
-  await expect(eventAuditEntry).toContainText(`event · ${draftEvent.id}`);
-  await expect(eventAuditEntry).toContainText(draftEvent.title);
-  await expect(eventAuditEntry).toContainText(editedEventTitle);
+  await expect(
+    eventAuditEntry.getByRole('heading', { level: 3, name: 'Changes' }),
+  ).toBeVisible();
+  await expect(eventAuditEntry).toContainText('Title');
 
   await testInfo.attach('markdown', {
     body: `
-## Verify the audit trail
+## Review the change history
 
-Return to **Platform administration** and select **Platform audit log**. Find each operation by its reason. Verify the action label, actor authority ID, organization ID, and resource ID, then open **Review before and after** to compare safe details such as role permission changes. Raw errors and provider payloads are excluded. The newest 50 entries load first; use **Load older** to continue through the append-only history. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
+Return to **Evorto administration** and select **Evorto change history**. Find each change by its reason. Each entry shows the action, who made it, the organization, the reason, the time, and a short **Changes** summary. The newest 50 entries load first; use **Load older** to continue through the history. The page includes the event and template edits, role changes, receipt rejection, and ticket check-in reviewed in this guide.
 
-Participant profiles and home pages, joining or leaving an organization, personal receipt submission, and self-service registration transfer remain participant-owned. A platform administrator does not act as an organization member for those flows.
+Members continue to manage their own profiles, home organization, receipt submissions, and ticket transfers. Evorto administration access does not let an administrator act as the member for those tasks.
 `,
   });
   await takeScreenshot(
     testInfo,
     page.locator('app-platform-audit'),
     page,
-    'Verify organization change-history entries',
+    'Review organization change history',
   );
 });

@@ -157,11 +157,10 @@ mapped to the application's `STRIPE_API_KEY` name only inside test steps.
 Production Stripe credentials remain separate and must be exposed only to the
 operational command that requires them.
 
-Stripe tax-rate metadata always belongs to a non-null connected account. The
-fresh target schema enforces that shape directly, while server writers share the
-tenant-row serialization lock with account rotation. Legacy tax rates must be
-provider-verified and written with their account ownership by the separate data
-transfer; there is no nullable-row rollout or production backfill command.
+Stripe tax-rate metadata always belongs to a configured payment account. The
+target schema enforces that shape directly, and server writers lock the tenant
+row before reading the account. Only the first account attachment is supported;
+changing or removing an attached account is unavailable.
 
 The final Playwright runs must exercise the exact checkout being pushed. Stop
 an unknown reused server and let the gate own a fresh stack, or start the exact

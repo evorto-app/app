@@ -152,7 +152,7 @@ const platformTransactionRow = (
 ): PlatformTransactionRow => ({
   amount: -1200,
   appFee: null,
-  comment: 'Registration refund',
+  comment: 'Ticket refund',
   createdAt: new Date('2026-07-10T10:00:00.000Z'),
   currency: 'EUR',
   eventRegistrationId: 'registration-1',
@@ -216,6 +216,8 @@ describe('platform tenant finance handlers', () => {
 
       expect(error).toMatchObject({
         _tag: 'RpcBadRequestError',
+        message:
+          'This refund cannot be tried again. The refund was not started again. Return to Refunds needing attention and review its current status.',
         reason: 'refundRequeueNotAllowed',
       });
     }),
@@ -312,12 +314,24 @@ describe('platform tenant finance handlers', () => {
       '.update(financeReceipts)',
       lockedEvidence,
     );
+    const receiptLink = source.indexOf(
+      'const receiptUrl = yield* tenantOutboundUrl(',
+      receiptUpdate,
+    );
+    const receiptPath = source.indexOf("'/profile/receipts'", receiptLink);
+    const notification = source.indexOf(
+      'enqueueReceiptReviewedEmail(transaction, {',
+      receiptPath,
+    );
 
     expect(approvalCheck).toBeGreaterThan(-1);
     expect(evidenceLoad).toBeGreaterThan(approvalCheck);
     expect(transactionStart).toBeGreaterThan(evidenceLoad);
     expect(lockedEvidence).toBeGreaterThan(transactionStart);
     expect(receiptUpdate).toBeGreaterThan(lockedEvidence);
+    expect(receiptLink).toBeGreaterThan(receiptUpdate);
+    expect(receiptPath).toBeGreaterThan(receiptLink);
+    expect(notification).toBeGreaterThan(receiptPath);
   });
 
   it.effect(
@@ -386,7 +400,8 @@ describe('platform tenant finance handlers', () => {
                 objectExists: () =>
                   Effect.fail(
                     new ReceiptMediaServiceUnavailableError({
-                      message: 'Receipt storage is unavailable',
+                      message:
+                        'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                     }),
                   ),
                 signedPreviewUrl,
@@ -396,7 +411,9 @@ describe('platform tenant finance handlers', () => {
         );
 
         expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
-        expect(error.message).toBe('Receipt storage is unavailable');
+        expect(error.message).toBe(
+          'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+        );
         expect(signedPreviewUrl).not.toHaveBeenCalled();
         expect(transaction).not.toHaveBeenCalled();
       }),
@@ -490,7 +507,8 @@ describe('platform tenant finance handlers', () => {
         const signedPreviewUrl = vi.fn(() =>
           Effect.fail(
             new ReceiptMediaServiceUnavailableError({
-              message: 'Receipt storage is unavailable',
+              message:
+                'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
             }),
           ),
         );
@@ -549,7 +567,9 @@ describe('platform tenant finance handlers', () => {
         );
 
         expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
-        expect(error.message).toBe('Receipt storage is unavailable');
+        expect(error.message).toBe(
+          'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+        );
         expect(signedPreviewUrl).toHaveBeenCalledOnce();
       }),
   );
@@ -622,6 +642,9 @@ describe('platform tenant finance handlers', () => {
     });
     expect(transaction.executiveUserId).toBeNull();
     expect(transaction.currency).toBe('CZK');
+    expect(transaction.comment).toBe(
+      'Receipt reimbursement recorded by an Evorto administrator via bank transfer for 1 receipt across 1 event',
+    );
     expect(transaction).not.toHaveProperty('payoutReference');
 
     expect(

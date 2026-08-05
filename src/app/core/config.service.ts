@@ -13,9 +13,12 @@ import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { Permission } from '../../shared/permissions/permissions';
+import {
+  ClientTenantConfig,
+  toClientTenantConfig,
+} from '../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Context } from '../../types/custom/context';
 import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
-import { Tenant } from '../../types/custom/tenant';
 import { AppRpc } from './effect-rpc-angular-client';
 
 @Injectable({
@@ -25,7 +28,7 @@ export class ConfigService {
   public readonly permissionsSignal = signal<Permission[]>([]);
   public readonly platformAuthoritySignal =
     signal<null | PlatformAdministratorAuthority>(null);
-  public readonly tenantSignal = signal<null | Tenant>(null);
+  public readonly tenantSignal = signal<ClientTenantConfig | null>(null);
 
   public get permissions(): Permission[] {
     return this.permissionsSignal();
@@ -39,7 +42,7 @@ export class ConfigService {
     return this._publicConfig;
   }
 
-  public get tenant(): Tenant {
+  public get tenant(): ClientTenantConfig {
     return this._tenant;
   }
 
@@ -48,7 +51,7 @@ export class ConfigService {
   } = {
     googleMapsApiKey: null,
   };
-  private _tenant!: Tenant;
+  private _tenant!: ClientTenantConfig;
 
   private readonly rpc = AppRpc.injectClient();
 
@@ -81,7 +84,7 @@ export class ConfigService {
         throw new ServerRequestContextRequiredError();
       }
 
-      this.applyTenantConfig(requestContext.tenant);
+      this.applyTenantConfig(toClientTenantConfig(requestContext.tenant));
       this.permissionsSignal.set([...requestContext.permissions]);
       this.platformAuthoritySignal.set(
         requestContext.platformAuthority ?? null,
@@ -112,7 +115,7 @@ export class ConfigService {
     this.title.setTitle(`${title} | ${this.tenant.name}`);
   }
 
-  private applyTenantConfig(tenant: Tenant): void {
+  private applyTenantConfig(tenant: ClientTenantConfig): void {
     const previousTheme = this.tenantSignal()?.theme;
     if (previousTheme && previousTheme !== tenant.theme) {
       this.renderer.removeClass(

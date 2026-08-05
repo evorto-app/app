@@ -9,7 +9,7 @@ test.use({
 });
 test.setTimeout(90_000);
 
-test('Choose an organization default location with Google Maps @needs-google-maps', async ({
+test('Choose an organization default location @needs-google-maps', async ({
   database,
   page,
   tenant,
@@ -19,14 +19,13 @@ test('Choose an organization default location with Google Maps @needs-google-map
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="Before you begin" %}
-Sign in as an organization administrator with access to change organization settings. Google Maps location search must be available.
+Sign in as an organization administrator with access to change organization settings. Location search must be available.
 {% /callout %}
 
-# Choose an organization default location with Google Maps
 
-The organization default location biases later event and template searches toward its usual area. Choose a Google Maps suggestion to save its name, address, and position.
+The default location helps later event and template searches start near the organization's usual area. Choose a location suggestion to save its name and address.
 
-Start from the normal application navigation: select **Admin Tools**, then **Organization settings**.
+From the main navigation, select **Admin Tools**, then **Organization settings**.
 `,
   });
 
@@ -51,8 +50,8 @@ Start from the normal application navigation: select **Admin Tools**, then **Org
 ## Search and review the location
 
 1. In **Location**, type a recognizable place name plus its city or country. More context reduces ambiguous results.
-2. Wait for the Google Places suggestions. An empty-result message means the search found no candidates; broaden or correct the wording. If Google Maps is temporarily unavailable, use **Retry location search**. If location search is not configured, contact the site administrator.
-3. Select the intended suggestion. Evorto then loads that place's details. If that second request fails, use **Retry location details** or choose another result. The dialog closes only after Evorto has a complete location with valid coordinates.
+2. Wait for the location suggestions. If there are no results, broaden or correct the search. If the search cannot be completed, use **Try location search again** once. If the same message remains, contact Evorto support.
+3. Select the intended suggestion. If Evorto cannot open it, use **Try this location again** or choose another result. The dialog closes only after the location is ready to use.
 
 For example, search for **Brandenburg Gate Berlin Germany**.
 `,
@@ -65,10 +64,10 @@ For example, search for **Brandenburg Gate Berlin Germany**.
   await expect(search).toHaveValue('Brandenburg Gate Berlin Germany');
   const firstSuggestion = page.getByRole('option').first();
   const configurationError = dialog.getByRole('alert').filter({
-    hasText: 'Location search is not configured',
+    hasText: 'Location search is unavailable',
   });
   const providerError = dialog.getByRole('alert').filter({
-    hasText: 'The location provider is unavailable',
+    hasText: "We couldn't search for locations",
   });
   const emptyResult = dialog.getByText('No locations found');
   await expect(
@@ -80,23 +79,15 @@ For example, search for **Brandenburg Gate Berlin Germany**.
   ).toBeVisible({ timeout: 30_000 });
   await expect(
     configurationError,
-    'Google Maps is not configured',
+    'Location search is unavailable',
   ).toBeHidden();
   await expect(
     providerError,
-    'Google Maps rejected the live search',
+    'Location search could not be completed',
   ).toBeHidden();
-  await expect(
-    emptyResult,
-    'Google Maps returned no live suggestions',
-  ).toBeHidden();
+  await expect(emptyResult, 'No location suggestions were found').toBeHidden();
   await expect(search).toHaveValue('Brandenburg Gate Berlin Germany');
-  await takeScreenshot(
-    testInfo,
-    dialog,
-    page,
-    'Live Google Maps location suggestions',
-  );
+  await takeScreenshot(testInfo, dialog, page, 'Location suggestions');
   await firstSuggestion.click();
   await expect(dialog).toBeHidden({ timeout: 30_000 });
   await expect(locationField).not.toContainText('No location selected');
@@ -105,7 +96,7 @@ For example, search for **Brandenburg Gate Berlin Germany**.
     body: `
 ## Save and verify the location
 
-The selected name appearing under **Default Location** is only the pending form value. Select **Save organization settings** and wait for **Organization settings updated** before leaving the page. Reloading must retain the same Google place.
+The location is not saved yet when its name first appears under **Default Location**. Select **Save organization settings** and wait for **Organization settings updated** before leaving the page. If you leave and return, the same location remains selected.
 `,
   });
 
@@ -136,7 +127,7 @@ The selected name appearing under **Default Location** is only the pending form 
   });
   const location = persistedTenant?.defaultLocation;
   if (!location) {
-    throw new Error('Expected the selected Google location to be persisted');
+    throw new Error('Expected the selected location to be persisted');
   }
   expect(Number.isFinite(location.coordinates.lat)).toBe(true);
   expect(Number.isFinite(location.coordinates.lng)).toBe(true);
@@ -154,9 +145,9 @@ The selected name appearing under **Default Location** is only the pending form 
     body: `
 ## Completion, correction, and safety
 
-The saved location is **${location.name}**. Event and template location searches may now use its coordinates as a search bias; it does not silently change existing event locations.
+The saved location is **${location.name}**. Event and template searches may now start near this area; existing event locations do not change.
 
-To correct the choice, select **Change location**, search again, select the intended result, and save. Select **Cancel** in the dialog to retain the current form value. If Google Maps cannot start, search, or load place details, do not treat an unverified result as complete. Retry once, then contact the site administrator if the problem continues.
+To correct the choice, select **Change location**, search again, select the intended result, and save. Select **Cancel** in the dialog to keep the current selection. If location search cannot start or open a result, do not treat an unchecked result as complete. Try once more, then contact Evorto support if the problem continues.
 `,
   });
 });

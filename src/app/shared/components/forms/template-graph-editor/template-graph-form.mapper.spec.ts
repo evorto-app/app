@@ -161,6 +161,27 @@ describe('template graph edit classification', () => {
       },
     ]);
   });
+
+  it('describes a broken registration setup without storage terminology', () => {
+    const source = simpleTemplate();
+    const [question] = source.questions;
+    if (!question) throw new Error('Expected the question fixture');
+
+    expect(
+      templateGraphRecordToFormModel({
+        ...source,
+        questions: [
+          {
+            ...question,
+            registrationOptionId: 'missing-option',
+          },
+        ],
+      }),
+    ).toEqual({
+      error:
+        'This template has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Select Back to template, then contact Evorto support and include the template name.',
+    });
+  });
 });
 
 describe('template graph location mapping', () => {

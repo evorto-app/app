@@ -3,7 +3,7 @@
     <div class="flex items-center gap-2">
       <fa-duotone-icon [icon]="faCalendarDays" />
       <h1 class="title-large" id="profile-detail-heading" tabindex="-1">
-        Your Event Registrations
+        Your events
       </h1>
     </div>
     @if (userEventsQuery.isSuccess()) {
@@ -28,11 +28,13 @@
               </div>
               <dl class="grid gap-1 text-sm">
                 <div>
-                  <dt class="text-on-surface-variant inline">Type:</dt>
+                  <dt class="text-on-surface-variant inline">Joining as:</dt>
                   <dd class="inline">{{ profileEventAudienceLabel(event) }}</dd>
                 </div>
                 <div>
-                  <dt class="text-on-surface-variant inline">Option:</dt>
+                  <dt class="text-on-surface-variant inline">
+                    Sign-up choice:
+                  </dt>
                   <dd class="inline">{{ event.registrationOptionTitle }}</dd>
                 </div>
                 @if (profileEventGuestLabel(event.guestCount); as guestLabel) {
@@ -135,14 +137,22 @@
           }
         </div>
       } @else {
-        <p>You haven't registered for any events yet.</p>
+        <p>You haven't signed up for any events yet.</p>
       }
     } @else if (userEventsQuery.isLoading()) {
-      <p role="status">Loading your events...</p>
+      <p role="status">Loading your events…</p>
     } @else {
-      <p class="text-error" role="alert">
-        Failed to load your events. Please try again later.
-      </p>
+      <div class="flex flex-col items-start gap-2">
+        <p class="text-error" role="alert">Your events could not be loaded.</p>
+        <button
+          mat-button
+          type="button"
+          [disabled]="userEventsQuery.isFetching()"
+          (click)="userEventsQuery.refetch()"
+        >
+          {{ userEventsQuery.isFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
     }
   </div>
 </section>

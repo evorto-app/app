@@ -18,11 +18,11 @@
     </mat-form-field>
 
     <mat-checkbox [formField]="form.defaultUserRole">
-      Every new user should get this role
+      Every new member should get this role
     </mat-checkbox>
 
     <mat-checkbox [formField]="form.defaultOrganizerRole">
-      An organizer registration should be available to this role by default
+      An organizer sign-up choice should be available to this role by default
     </mat-checkbox>
 
     <mat-checkbox [formField]="form.displayInHub">
@@ -73,10 +73,9 @@
         class="bg-error-container text-on-error-container rounded-lg p-4 lg:col-span-2"
         role="alert"
       >
-        <strong>Full organization-administrator authority.</strong>
-        Anyone with this capability can assign any existing organization role,
-        including to themselves, and gain every permission granted by those
-        roles.
+        <strong>Full control over this organization.</strong>
+        Anyone with this permission can assign any role, including to
+        themselves, and gain all access granted by that role.
       </div>
     }
   </div>

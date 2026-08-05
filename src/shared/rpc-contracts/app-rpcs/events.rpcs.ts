@@ -244,6 +244,17 @@ export type EventsEventListInput = Schema.Schema.Type<
   typeof EventsEventListInput
 >;
 
+export const EventsEventListUserSignUpState = literalUnion(
+  'approvalPending',
+  'confirmed',
+  'paymentRequired',
+  'waitlisted',
+);
+
+export type EventsEventListUserSignUpState = Schema.Schema.Type<
+  typeof EventsEventListUserSignUpState
+>;
+
 export const EventsEventListRecord = Schema.Struct({
   announcementRoleCount: nonNegativeNumber,
   hasRegistrationOptions: Schema.Boolean,
@@ -252,7 +263,7 @@ export const EventsEventListRecord = Schema.Struct({
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
-  userRegistered: Schema.Boolean,
+  userSignUpState: Schema.NullOr(EventsEventListUserSignUpState),
 });
 
 export type EventsEventListRecord = Schema.Schema.Type<
@@ -519,6 +530,7 @@ export const EventsRegistrationAddonRecord = Schema.Struct({
   nextPurchaseUnitPrice: NonNegativeInteger,
   nextPurchaseUnitTaxAmount: Schema.NullOr(NonNegativeInteger),
   optionalPurchaseQuantity: NonNegativeInteger,
+  pendingCheckoutExpired: Schema.Boolean,
   pendingCheckoutExpiresAt: Schema.NullOr(Schema.NonEmptyString),
   pendingCheckoutUrl: Schema.NullOr(Schema.NonEmptyString),
   pendingOperationKey: Schema.NullOr(RegistrationAddonOperationKey),

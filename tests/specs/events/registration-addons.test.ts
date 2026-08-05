@@ -162,7 +162,7 @@ test('registers with a free add-on and required registration question', async ({
 
     const participantRegistrationCard = page
       .locator('app-event-registration-option')
-      .filter({ hasText: 'Participant registration' })
+      .filter({ hasText: 'Attendee sign-up' })
       .first();
     await expect(
       participantRegistrationCard.getByText('Add-ons'),
@@ -174,12 +174,12 @@ test('registers with a free add-on and required registration question', async ({
       participantRegistrationCard.getByLabel(questionTitle),
     ).toBeVisible();
     await expect(
-      participantRegistrationCard.getByRole('button', { name: 'Register' }),
+      participantRegistrationCard.getByRole('button', { name: 'Sign up' }),
     ).toBeDisabled();
     const quantityInput = participantRegistrationCard.getByLabel('Quantity');
     const questionInput = participantRegistrationCard.getByLabel(questionTitle);
     const registerButton = participantRegistrationCard.getByRole('button', {
-      name: 'Register',
+      name: 'Sign up',
     });
     await expect(participantRegistrationCard).toHaveAttribute(
       'aria-busy',
@@ -197,7 +197,7 @@ test('registers with a free add-on and required registration question', async ({
     await waitForRegistrationStatus(page);
     const activeRegistration = page.locator('app-event-active-registration');
     await expect(
-      activeRegistration.getByText('You are registered', { exact: true }),
+      activeRegistration.getByText('Your place is confirmed', { exact: true }),
     ).toBeVisible();
     const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
     await expect(
@@ -567,7 +567,7 @@ test('keeps a paid add-on pending across reload and settles through the producti
     await expect(
       paidAddOnRow.getByRole('link', {
         exact: true,
-        name: 'Continue Stripe checkout',
+        name: 'Continue to payment',
       }),
     ).toHaveAttribute('href', pendingCheckout.checkoutUrl);
     await expect(
@@ -633,19 +633,19 @@ test('keeps a paid add-on pending across reload and settles through the producti
     const activeRegistration = page.locator('app-event-active-registration');
     await expect(
       activeRegistration.getByText(
-        'The event has started, so this registration can no longer be cancelled.',
+        'The event has started, so this ticket can no longer be cancelled.',
         { exact: true },
       ),
     ).toBeVisible();
     await expect(
       activeRegistration.getByRole('button', {
         exact: true,
-        name: 'Cancel registration',
+        name: 'Cancel ticket',
       }),
     ).toHaveCount(0);
     await expect(
       activeRegistration.getByText(
-        'Finish or let the pending add-on checkout expire before transferring this ticket.',
+        'Wait for the current add-on payment to finish or expire before transferring this ticket.',
         { exact: true },
       ),
     ).toBeVisible();
@@ -670,7 +670,7 @@ test('keeps a paid add-on pending across reload and settles through the producti
     await expect(
       paidAddOnRow.getByRole('link', {
         exact: true,
-        name: 'Continue Stripe checkout',
+        name: 'Continue to payment',
       }),
     ).toHaveCount(0);
     await expect(registrationAddOnCount(paidAddOnRow, 'Purchased')).toHaveText(

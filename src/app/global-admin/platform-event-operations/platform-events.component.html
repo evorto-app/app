@@ -17,12 +17,12 @@
     mat-stroked-button
     [routerLink]="['/global-admin/tenants', tenantId(), 'scanner']"
   >
-    Inspect registrations
+    Ticket support
   </a>
 </div>
 
 @if (eventsQuery.isPending()) {
-  <p class="body-medium" role="status">Loading events...</p>
+  <p class="body-medium" role="status">Loading events…</p>
 } @else if (eventsQuery.isError()) {
   <section
     class="bg-error-container text-on-error-container grid gap-3 p-4"
@@ -57,7 +57,7 @@
                 })
               "
             >
-              Discovery:
+              Who can find it:
               {{
                 eventDiscoveryLabel({
                   announcementRoleCount: event.announcementRoleCount,
@@ -70,11 +70,13 @@
             @if (targetTenantOptionsQuery.isSuccess()) {
               {{ displayDateTime(event.start) }} –
               {{ displayDateTime(event.end) }} ·
-              {{ targetTenantOptionsQuery.data().timezone }}
+              {{
+                tenantTimezoneLabel(targetTenantOptionsQuery.data().timezone)
+              }}
             } @else if (targetTenantOptionsQuery.isError()) {
               <span role="alert">Organization time zone unavailable.</span>
             } @else {
-              <span role="status">Loading organization time zone...</span>
+              <span role="status">Loading organization time zone…</span>
             }
           </p>
         </div>

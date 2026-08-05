@@ -50,6 +50,6 @@ export class TemplateListComponent {
   );
   protected readonly templateQueryErrorMessage = computed(() => {
     const error = this.templateQuery.error();
-    return getErrorMessage(error, 'Unknown error');
+    return getErrorMessage(error, 'Templates could not be loaded.');
   });
 }

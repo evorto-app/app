@@ -183,7 +183,7 @@ here.
   restores the touched registration rows and registration-option counters.
 - `specs/events/manual-approval.spec.ts` uses the seeded free and paid scenario
   handles with a deterministic application-mode override. It proves participant
-  application without capacity or payment, authorized organizer approval, free
+  application without capacity or payment, approval by an event organizer, free
   confirmation, one paid Checkout claim/session, Stripe-backed confirmation,
   participant refresh, sequential duplicate-action safety, interrupted payment
   setup retry, and pending-payment cancellation with capacity release. The
@@ -576,12 +576,12 @@ credential path.
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. The global-admin tenant Playwright spec now
     functionally covers tenant list filtering, no-match state, operational row
-    fields, connected Stripe-account support lookup, tenant detail review,
+    fields, payment-readiness status, tenant detail review,
     create/edit form relaunch-scope copy, disabled empty create submit, and
     a temporary tenant create with initial privacy-policy and database readback,
     required create/edit reasons, atomic application-audit readback, and cleanup,
     plus seeded edit save with database readback and fixture restoration. Generated
-    global-admin docs now read the seeded localhost tenant row before asserting
+    global-admin docs now read the seeded baseline organization row before asserting
     list/detail/search/edit fields, create a temporary tenant with database
     readback and cleanup, then save a tenant-name edit, read it back from the
     database, then reviews the discoverable platform audit log and cleans up the
@@ -593,24 +593,26 @@ credential path.
     tenant detail, tenant create, and tenant edit surfaces return, render, and
     persist operational tenant state for support review, and local app coverage
     proves the tenant list can be filtered by operational fields, including
-    connected Stripe account ids, with readable load-failure messages and
-    account labels. Tenant form coverage also proves create/edit payload
+    payment readiness, without exposing account identifiers. Tenant form
+    coverage also proves create/edit payload
     shaping, mutation-pending submit disabling, and the visible relaunch
     tenant-scope notice before page-backed runtime is available.
   - Tenant settings are covered as five focused sibling pages in the familiar
     two-column admin layout: organization, registration policies, appearance,
-    legal pages, and payments/providers. Each page sends a full payload for its
+    legal pages, and payments. Each page sends a full payload for its
     own section; there is no optional patch bag or compatibility forwarding RPC.
-    Route and permission coverage keeps payments/providers behind
+    Route and permission coverage keeps payments behind
     `admin:managePayments`, while the other four pages use
     `admin:changeSettings`.
   - Page-backed persistence and generated documentation cover reply-to
     identity, default location/timezone, active-registration limits and
-    deadlines, brand uploads and SEO, hosted legal pages, Stripe/currency,
+    deadlines, brand uploads and SEO, hosted legal pages, payment readiness and currency,
     receipt countries, refund behavior, and ESNcard configuration. The guide
     states that waitlist entries do not consume the active-registration limit.
-    Server coverage preserves fail-closed currency/timezone constraints and all
-    pending-payment, paid-configuration, and Stripe tax-rate rotation blockers.
+    Server coverage preserves fail-closed currency/timezone constraints. The
+    private first-attachment coverage pins explicit confirmation, validation,
+    locking, and every payment-history, pending-work, paid-configuration, and
+    tax-configuration guard without a rotation or disconnect path.
     Focused component coverage pins validation, trimming, save disabling, and
     brand-upload concurrency behavior.
   - Global Email Outbox coverage now seeds uniquely identified queued,

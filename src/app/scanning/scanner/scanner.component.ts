@@ -36,14 +36,14 @@ export const scannerCameraErrorMessage = (error: unknown): string => {
     case 'NotAllowedError':
     case 'PermissionDeniedError':
     case 'SecurityError': {
-      return 'Camera access was blocked. Allow camera access in your browser settings, then try again.';
+      return 'Camera access was blocked. Allow Evorto to use the camera in your device settings, then try again.';
     }
     case 'NotReadableError':
     case 'TrackStartError': {
       return 'The camera is already in use or could not be started. Close other camera apps, then try again.';
     }
     default: {
-      return 'The camera could not be started. Check camera permissions or scan the ticket with a phone camera.';
+      return 'The camera could not be started. Check camera access or scan the ticket with a phone camera.';
     }
   }
 };
@@ -52,7 +52,10 @@ export const scannerNonTicketMessage =
   'This QR code is not an Evorto ticket. Scan the QR code shown on the attendee ticket when you are ready.';
 
 export const scannerNavigationErrorMessage =
-  'The registration could not be opened. Try opening it again or scan a different ticket.';
+  'The ticket could not be opened. Try again or scan a different ticket.';
+
+export const scannerViewUnavailableMessage =
+  'The scanner did not start. No ticket was scanned. Open the ticket from the event page instead.';
 
 export const registrationIdFromScannedTicketUrl = (
   scannedLink: string,
@@ -242,9 +245,7 @@ export class ScannerComponent implements OnDestroy {
     if (!videoElement) {
       consola.error('videoElement not found');
       this.ticketFeedbackMessage.set('');
-      this.cameraErrorMessage.set(
-        'The scanner view could not be initialized. Refresh the page and try again.',
-      );
+      this.cameraErrorMessage.set(scannerViewUnavailableMessage);
       return;
     }
     try {

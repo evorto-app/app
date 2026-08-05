@@ -63,7 +63,7 @@ describe('MembersHubComponent', () => {
 
     expect(normalizeText(fixture)).toContain('Members Hub');
     expect(normalizeText(fixture)).toContain("Who's who");
-    expect(normalizeText(fixture)).toContain('Loading roles...');
+    expect(normalizeText(fixture)).toContain('Loading roles…');
   });
 
   it('renders hub roles, descriptions, member counts, and users', async () => {
@@ -115,7 +115,7 @@ describe('MembersHubComponent', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Error loading roles: Hub roles unavailable',
+        'We could not load the member list. Try again.',
       );
     });
   });

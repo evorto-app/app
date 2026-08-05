@@ -7,18 +7,18 @@ import { MatDialogModule } from '@angular/material/dialog';
   imports: [MatButtonModule, MatDialogModule],
   selector: 'app-submit-event-dialog',
   template: `
-    <h2 mat-dialog-title>Submit Event for Review</h2>
+    <h2 mat-dialog-title>Submit event for review</h2>
     <mat-dialog-content>
       <p>Are you sure you want to submit this event for review?</p>
       <p class="text-on-surface-variant mt-2">
-        Once submitted, the event will be locked for editing until it is either
+        You cannot edit the event while it is waiting for review. It can be
         published or returned to draft with feedback.
       </p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>Cancel</button>
       <button mat-flat-button [mat-dialog-close]="true">
-        Submit for Review
+        Submit for review
       </button>
     </mat-dialog-actions>
   `,

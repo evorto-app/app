@@ -49,6 +49,7 @@ import {
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { tenantTimezoneLabel } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import {
   majorCurrencyInputToMinorUnits,
@@ -111,7 +112,7 @@ export const platformEventPaidRegistrationPriceIssue = (
 ): null | string =>
   !isPaid || (Number.isInteger(price) && price >= 1)
     ? null
-    : 'Paid registrations must cost at least 0.01.';
+    : 'Paid sign-up choices must cost at least 0.01.';
 
 export const platformEventPaidAddOnPriceIssue = (
   isPaid: boolean,
@@ -128,14 +129,14 @@ export const platformEventPaidTaxRateIssue = (
 ): null | string => {
   if (!isPaid) return null;
   if (!stripeTaxRateId) {
-    return 'Select an inclusive tax rate for this paid item.';
+    return 'Select a tax rate that is included in the price.';
   }
   return availableTaxRateIds.has(stripeTaxRateId)
     ? null
-    : 'This tax rate is no longer available. Choose another inclusive tax rate.';
+    : 'This tax rate is no longer available. Choose another tax rate that is included in the price.';
 };
 
-type PlatformEventTitledItem = 'add-on' | 'question' | 'registration option';
+type PlatformEventTitledItem = 'add-on' | 'question' | 'sign-up choice';
 
 export const platformEventTitleIssue = (
   title: string,
@@ -159,7 +160,7 @@ export const platformEventQuestionCountIssue = (
   questions: readonly unknown[],
 ): null | string =>
   questions.length > MAX_REGISTRATION_QUESTIONS
-    ? `Events support at most ${MAX_REGISTRATION_QUESTIONS} registration questions.`
+    ? `Add no more than ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`
     : null;
 
 export const platformEventQuestionOptionIssue = (
@@ -168,7 +169,7 @@ export const platformEventQuestionOptionIssue = (
 ): null | string =>
   registrationOptionIds.has(registrationOptionId)
     ? null
-    : 'Select a registration option for this question.';
+    : 'Select a sign-up choice for this question.';
 
 export const platformEventSimpleModeIssue = (
   simpleModeEnabled: boolean,
@@ -178,7 +179,7 @@ export const platformEventSimpleModeIssue = (
   (options.length === 2 &&
     options.filter((option) => option.organizingRegistration).length === 1)
     ? null
-    : 'Simple events need one organizer registration and one participant registration.';
+    : 'Simple setup needs one organizer sign-up choice and one attendee sign-up choice.';
 
 export const platformEventAddOnAvailabilityIssue = (
   addOn: Pick<
@@ -215,7 +216,7 @@ export const platformEventAddonTypeLimitIssue = (
   addOns: readonly unknown[],
 ): null | string =>
   addOns.length > MAX_EVENT_ADDON_TYPES
-    ? `Events support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`
+    ? `Add no more than ${MAX_EVENT_ADDON_TYPES} different add-ons.`
     : null;
 
 export const platformEventAddOnMappingIssue = (
@@ -227,9 +228,9 @@ export const platformEventAddOnMappingIssue = (
   optionalPurchaseQuantity: number,
 ): null | string => {
   const total = includedQuantity + optionalPurchaseQuantity;
-  if (total === 0) return 'Include or offer at least one unit.';
+  if (total === 0) return 'Include or offer at least one item.';
   if (total > MAX_REGISTRATION_ADDON_QUANTITY) {
-    return `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per registration.`;
+    return `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`;
   }
   if (total > addOn.totalAvailableQuantity) {
     return 'Included and optional quantities cannot exceed available stock.';
@@ -250,12 +251,12 @@ export const platformEventDiscountedPriceIssue = (
     return 'Remove the ESNcard price because ESNcard discounts are disabled for this organization.';
   }
   if (!isPaid)
-    return 'ESNcard prices are only available for paid registrations.';
+    return 'ESNcard prices are only available for paid sign-up choices.';
   if (!Number.isInteger(discountedPrice) || discountedPrice < 0) {
     return 'Discounted price must be a whole number of zero or more.';
   }
   return discountedPrice > price
-    ? 'Discounted price cannot exceed the base price.'
+    ? 'Discounted price cannot exceed the regular price.'
     : null;
 };
 
@@ -273,7 +274,7 @@ export const platformEventGraphHasIssues = (
     platformEventAddonTypeLimitIssue(graph.addOns) !== null ||
     graph.registrationOptions.some(
       (option) =>
-        platformEventTitleIssue(option.title, 'registration option') !== null ||
+        platformEventTitleIssue(option.title, 'sign-up choice') !== null ||
         platformEventPaidRegistrationPriceIssue(option.isPaid, option.price) !==
           null ||
         platformEventPaidTaxRateIssue(
@@ -525,7 +526,7 @@ export class PlatformEventDetailComponent {
     validate(event.reason, ({ value }) =>
       value().trim()
         ? undefined
-        : { kind: 'required', message: 'Enter an operational reason.' },
+        : { kind: 'required', message: 'Enter a reason for this change.' },
     );
     maxLength(event.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
@@ -587,7 +588,7 @@ export class PlatformEventDetailComponent {
   protected readonly stripeDisconnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === false,
+      this.targetTenantQuery.data()?.paymentsConfigured === false,
   );
   protected readonly paidGraphBlocked = computed(
     () =>
@@ -613,7 +614,7 @@ export class PlatformEventDetailComponent {
   protected readonly stripeConnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === true,
+      this.targetTenantQuery.data()?.paymentsConfigured === true,
   );
   protected readonly submitMutation = injectMutation(() =>
     this.operations.submitForReview(),
@@ -623,6 +624,7 @@ export class PlatformEventDetailComponent {
       ? (this.targetTenantQuery.data()?.currency ?? '')
       : '',
   );
+  protected readonly tenantTimezoneLabel = tenantTimezoneLabel;
   protected readonly titleIssue = platformEventTitleIssue;
   protected readonly updateMutation = injectMutation(() =>
     this.operations.update(),
@@ -883,7 +885,7 @@ export class PlatformEventDetailComponent {
       const start = platformEventLocalDateTimeToInstant(value.start, timezone);
       if (!end || !start) {
         this.notifications.showError(
-          "Enter valid event times in the organization's time zone, including daylight-saving transitions.",
+          "Choose start and end times that exist in the organization's time zone. If the clocks change on that date, choose a different time.",
         );
         return;
       }
@@ -910,6 +912,7 @@ export class PlatformEventDetailComponent {
           getErrorMessage(
             error,
             'The event could not be updated. Review the details and try again.',
+            ['RpcBadRequestError'],
           ),
         );
       }
@@ -1273,6 +1276,7 @@ export class PlatformEventDetailComponent {
           getErrorMessage(
             error,
             'The event could not be submitted for review. Try again.',
+            ['RpcBadRequestError'],
           ),
         );
       }
@@ -1343,6 +1347,7 @@ export class PlatformEventDetailComponent {
           getErrorMessage(
             error,
             'The event review could not be saved. Try again.',
+            ['RpcBadRequestError'],
           ),
         );
       }
@@ -1376,12 +1381,15 @@ export class PlatformEventDetailComponent {
         });
         await this.refresh();
         this.actionReason.set('');
-        this.notifications.showSuccess('Announcement discovery updated');
+        this.notifications.showSuccess(
+          'Who can find the announcement was updated',
+        );
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(
             error,
-            'Announcement discovery could not be updated. Try again.',
+            'Who can find the announcement could not be saved. Try again.',
+            ['RpcBadRequestError'],
           ),
         );
       }

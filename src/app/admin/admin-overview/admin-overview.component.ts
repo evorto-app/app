@@ -69,7 +69,7 @@ export class AdminOverviewComponent {
   );
 
   constructor() {
-    // Auto-refresh pending reviews count every minute
+    // Recheck the pending review count every minute.
     interval(60_000)
       .pipe(takeUntilDestroyed())
       .subscribe(() => {

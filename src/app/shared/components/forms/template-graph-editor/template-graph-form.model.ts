@@ -139,12 +139,12 @@ export const createTemplateGraphFormModel = (): TemplateGraphFormModel => ({
   questions: [],
   registrationOptions: [
     createTemplateGraphRegistrationOptionFormModel(
-      'Organizer registration',
+      'Organizer sign-up',
       1,
       true,
     ),
     createTemplateGraphRegistrationOptionFormModel(
-      'Participant registration',
+      'Attendee sign-up',
       20,
       false,
     ),

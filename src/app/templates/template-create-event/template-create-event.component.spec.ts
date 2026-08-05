@@ -5,9 +5,11 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Tenant } from '../../../types/custom/tenant';
+import type { ClientTenantConfig } from '../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 
 import { ConfigService } from '../../core/config.service';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
@@ -20,6 +22,19 @@ import {
 } from './template-create-event.component';
 
 describe('templateCreateEventSubmitDisabled', () => {
+  it('uses payment readiness without reading the payment account identifier', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/templates/template-create-event/template-create-event.component.ts',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('paymentsConfigured');
+    expect(source).not.toContain('stripeAccountId');
+  });
+
   it('blocks template event creation while invalid, submitting, or awaiting the mutation', () => {
     expect(
       templateCreateEventSubmitDisabled({
@@ -102,28 +117,35 @@ describe('templateAddOnCopyNotice', () => {
     expect(templateAddOnCopyNotice(0)).toBeNull();
   });
 
-  it('keeps the create-event add-on boundary explicit', () => {
+  it('explains that template add-ons will be available on the event', () => {
     expect(templateAddOnCopyNotice(1)).toContain(
-      'This template has 1 reusable add-on.',
+      'This template includes 1 add-on.',
     );
     expect(templateAddOnCopyNotice(2)).toContain(
-      'Event creation copies them to event registration cards',
+      'They will be available when people sign up for the new event.',
     );
-    expect(templateAddOnCopyNotice(2)).toContain('registration-time purchase');
   });
 });
 
 describe('templateCreateEventErrorMessage', () => {
-  it('preserves actionable failures and falls back for unknown errors', () => {
+  it('shows form corrections without exposing internal failures', () => {
+    expect(
+      templateCreateEventErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Choose an event end time after its start time.',
+      }),
+    ).toBe('Choose an event end time after its start time.');
     expect(
       templateCreateEventErrorMessage(
         new Error(
           'Registration option does not belong to the selected template',
         ),
       ),
-    ).toBe('Registration option does not belong to the selected template');
+    ).toBe(
+      'The event could not be created. Check the event details and try again.',
+    );
     expect(templateCreateEventErrorMessage({})).toBe(
-      'The event could not be created. Review the form and try again.',
+      'The event could not be created. Check the event details and try again.',
     );
   });
 });
@@ -171,7 +193,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenantSignal: signal<null | Tenant>(null),
+            tenantSignal: signal<ClientTenantConfig | null>(null),
           } satisfies Pick<ConfigService, 'tenantSignal'>,
         },
         {
@@ -227,7 +249,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      'The event form cannot be prepared until the selected template is available.',
+      'You cannot create this event until the selected template is available.',
     );
     expect(normalizeText(fixture)).toContain('Create event');
 
@@ -300,7 +322,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
     const alert = root.querySelector<HTMLElement>('[role="alert"]');
     expect(alert?.textContent).toContain('Event could not be created');
     expect(alert?.textContent).toContain(
-      'Registration option does not belong to the selected template',
+      'The event could not be created. Check the event details and try again.',
     );
     expect(alert?.textContent).toContain('Your entries are still here.');
     expect(titleInput.value).toBe('Retained workshop');

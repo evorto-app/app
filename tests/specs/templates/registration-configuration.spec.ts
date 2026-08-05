@@ -66,7 +66,7 @@ const templateOptionEditorByTitle = async (
   return optionEditorByTitle(
     page,
     'app-template-registration-option-editor',
-    'Registration option name',
+    'Sign-up choice name',
     title,
     'template',
   );
@@ -79,7 +79,7 @@ const eventOptionEditorByTitle = async (
   return optionEditorByTitle(
     page,
     'app-event-registration-option-editor',
-    'Option name',
+    'Sign-up choice name',
     title,
     'event',
   );
@@ -101,24 +101,18 @@ const confirmTemplateMode = async (
   page: Page,
   mode: 'advanced' | 'simple',
 ): Promise<void> => {
-  await page
-    .getByRole('button', {
-      name: `Use ${mode} configuration`,
-    })
+  const modeButton = page.getByRole('main').getByRole('button', {
+    name: `Use ${mode} setup`,
+  });
+  await modeButton.click();
+  const confirmationDialog = page.getByRole('dialog', {
+    name: `Switch to ${mode} setup?`,
+  });
+  await expect(confirmationDialog).toBeVisible();
+  await confirmationDialog
+    .getByRole('button', { name: `Use ${mode} setup`, exact: true })
     .click();
-  await expect(
-    page.getByRole('heading', {
-      name: `Switch to ${mode} configuration?`,
-    }),
-  ).toBeVisible();
-  await page
-    .getByRole('button', { name: `Switch to ${mode}`, exact: true })
-    .click();
-  await expect(
-    page.getByRole('button', {
-      name: `Use ${mode} configuration`,
-    }),
-  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(modeButton).toHaveAttribute('aria-pressed', 'true');
 };
 
 const confirmEventMode = async (
@@ -130,11 +124,11 @@ const confirmEventMode = async (
   await modeButton.click();
   await expect(
     page.getByRole('heading', {
-      name: 'Change registration configuration?',
+      name: 'Change sign-up setup?',
     }),
   ).toBeVisible({ timeout: 15_000 });
   await page
-    .getByRole('button', { name: `Use ${mode} mode`, exact: true })
+    .getByRole('button', { name: `Use ${mode} setup`, exact: true })
     .click();
   await expect(page.getByTestId(`event-mode-${mode}`)).toHaveAttribute(
     'aria-pressed',
@@ -183,20 +177,18 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   // The edit route renders its shell before the client-side template query
   // completes, so wait for the actual editor state rather than the route load.
   await expect(
-    page.getByRole('button', { name: 'Use simple configuration' }),
+    page.getByRole('button', { name: 'Use simple setup' }),
   ).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
 
-  await page
-    .getByRole('button', { name: 'Use advanced configuration' })
-    .click();
+  await page.getByRole('button', { name: 'Use advanced setup' }).click();
   await expect(
     page.getByRole('heading', {
-      name: 'Switch to advanced configuration?',
+      name: 'Switch to advanced setup?',
     }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Keep current mode' }).click();
+  await page.getByRole('button', { name: 'Keep current setup' }).click();
   await expect(
-    page.getByRole('button', { name: 'Use simple configuration' }),
+    page.getByRole('button', { name: 'Use simple setup' }),
   ).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('template-addons-section')).toHaveCount(0);
 
@@ -206,11 +198,11 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   const addedOptionTitle = `Volunteers ${getId().slice(0, 6)}`;
   const addedOptionEditor = await addEditor(
     page,
-    'Add registration option',
+    'Add sign-up choice',
     'app-template-registration-option-editor',
   );
   await addedOptionEditor
-    .getByLabel('Registration option name')
+    .getByLabel('Sign-up choice name')
     .fill(addedOptionTitle);
 
   const organizerEditor = await templateOptionEditorByTitle(
@@ -218,10 +210,12 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
     initialOrganizer.title,
   );
   await organizerEditor
-    .getByRole('checkbox', { name: 'Organizing option' })
+    .getByRole('checkbox', {
+      name: 'This choice is for organizers or helpers',
+    })
     .uncheck();
   await expect(page.getByTestId('template-graph-warning')).toContainText(
-    'No organizing option is configured.',
+    'No organizer sign-up choice has been added.',
   );
 
   const addOnTitle = `Template equipment ${getId().slice(0, 6)}`;
@@ -231,15 +225,15 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
     'app-template-addon-editor',
   );
   await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
-  await addOnEditor.getByLabel('Available quantity').fill('12');
-  await addOnEditor.getByLabel('Maximum per user').fill('3');
-  await addOnEditor.getByLabel('Included quantity').fill('2');
-  await addOnEditor.getByLabel('Optional purchase quantity').fill('1');
+  await addOnEditor.getByLabel('Items available').fill('12');
+  await addOnEditor.getByLabel('Maximum each person can get').fill('3');
+  await addOnEditor.getByLabel('Included items').fill('2');
+  await addOnEditor.getByLabel('Items people can buy').fill('1');
   await addOnEditor
-    .getByRole('button', { name: 'Add registration option', exact: true })
+    .getByRole('button', { name: 'Add sign-up choice', exact: true })
     .click();
-  await addOnEditor.getByLabel('Included quantity').nth(1).fill('0');
-  await addOnEditor.getByLabel('Optional purchase quantity').nth(1).fill('3');
+  await addOnEditor.getByLabel('Included items').nth(1).fill('0');
+  await addOnEditor.getByLabel('Items people can buy').nth(1).fill('3');
 
   const questionTitle = `Accessibility ${getId().slice(0, 6)}`;
   const questionEditor = await addEditor(
@@ -312,12 +306,12 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
     );
 
   await openTemplateEdit(page, template.id);
-  await page.getByRole('button', { name: 'Use simple configuration' }).click();
+  await page.getByRole('button', { name: 'Use simple setup' }).click();
   await expect(page.getByTestId('template-graph-mode-error')).toContainText(
-    'Simple configuration requires exactly one organizing and one non-organizing option.',
+    'Simple setup needs exactly one organizer choice and one attendee choice.',
   );
   await expect(
-    page.getByRole('heading', { name: 'Switch to simple configuration?' }),
+    page.getByRole('heading', { name: 'Switch to simple setup?' }),
   ).toHaveCount(0);
 
   const reloadedOrganizer = await templateOptionEditorByTitle(
@@ -325,14 +319,16 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
     initialOrganizer.title,
   );
   await reloadedOrganizer
-    .getByRole('checkbox', { name: 'Organizing option' })
+    .getByRole('checkbox', {
+      name: 'This choice is for organizers or helpers',
+    })
     .check();
   const reloadedAddedOption = await templateOptionEditorByTitle(
     page,
     addedOptionTitle,
   );
   await reloadedAddedOption
-    .getByRole('button', { name: 'Remove option' })
+    .getByRole('button', { name: 'Remove choice' })
     .click();
 
   await page.getByTestId('save-template-graph').click();
@@ -432,21 +428,23 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
   const addedOptionTitle = `Event helpers ${getId().slice(0, 6)}`;
   const addedOptionEditor = await addEditor(
     page,
-    'Add registration option',
+    'Add sign-up choice',
     'app-event-registration-option-editor',
   );
-  const addedOptionName = addedOptionEditor.getByLabel('Option name');
-  await expect(addedOptionName).toHaveValue('New registration option');
+  const addedOptionName = addedOptionEditor.getByLabel('Sign-up choice name');
+  await expect(addedOptionName).toHaveValue('New sign-up choice');
   await addedOptionName.fill(addedOptionTitle);
   const organizerEditor = await eventOptionEditorByTitle(
     page,
     initialOrganizer.title,
   );
   await organizerEditor
-    .getByRole('checkbox', { name: 'Organizing or helper option' })
+    .getByRole('checkbox', {
+      name: 'This choice is for organizers or helpers',
+    })
     .uncheck();
   await expect(page.getByTestId('event-graph-warning')).toContainText(
-    'No organizing registration option is configured.',
+    'No organizer sign-up choice has been added.',
   );
 
   const addOnTitle = `Event equipment ${getId().slice(0, 6)}`;
@@ -456,15 +454,15 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
     'app-event-addon-editor',
   );
   await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
-  await addOnEditor.getByLabel('Total stock').fill('12');
-  await addOnEditor.getByLabel('Maximum optional units per user').fill('3');
-  await addOnEditor.getByLabel('Included quantity').fill('2');
-  await addOnEditor.getByLabel('Optional quantity').fill('1');
+  await addOnEditor.getByLabel('Total available').fill('12');
+  await addOnEditor.getByLabel('Maximum each person can buy').fill('3');
+  await addOnEditor.getByLabel('Included items').fill('2');
+  await addOnEditor.getByLabel('Items people can buy').fill('1');
   await addOnEditor
-    .getByRole('button', { name: 'Add registration option', exact: true })
+    .getByRole('button', { name: 'Add sign-up choice', exact: true })
     .click();
-  await addOnEditor.getByLabel('Included quantity').nth(1).fill('0');
-  await addOnEditor.getByLabel('Optional quantity').nth(1).fill('3');
+  await addOnEditor.getByLabel('Included items').nth(1).fill('0');
+  await addOnEditor.getByLabel('Items people can buy').nth(1).fill('3');
 
   const saveEvent = page.getByTestId('save-event-graph');
   await expect(saveEvent).toBeEnabled();
@@ -522,12 +520,12 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
   await expect(simpleModeButton).toBeEnabled({ timeout: 15_000 });
   await simpleModeButton.click();
   await expect(page.getByRole('alert')).toContainText(
-    'Simple mode requires exactly one organizing and one non-organizing registration option.',
+    'Simple setup needs exactly one organizer choice and one attendee choice.',
     { timeout: 15_000 },
   );
   await expect(
     page.getByRole('heading', {
-      name: 'Change registration configuration?',
+      name: 'Change sign-up setup?',
     }),
   ).toHaveCount(0);
 
@@ -536,14 +534,16 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
     initialOrganizer.title,
   );
   await reloadedOrganizer
-    .getByRole('checkbox', { name: 'Organizing or helper option' })
+    .getByRole('checkbox', {
+      name: 'This choice is for organizers or helpers',
+    })
     .check();
   const reloadedAddedOption = await eventOptionEditorByTitle(
     page,
     addedOptionTitle,
   );
   await reloadedAddedOption
-    .getByRole('button', { name: 'Remove option' })
+    .getByRole('button', { name: 'Remove choice' })
     .click();
 
   await page.getByTestId('save-event-graph').click();
@@ -753,7 +753,7 @@ test('event creation snapshots an advanced template before later page-backed tem
     .filter({
       has: page
         .getByRole('combobox', {
-          name: 'Registration option',
+          name: 'Sign-up choice',
           exact: true,
         })
         .getByText(sourceTitleBeforeEdit, { exact: true }),
@@ -761,12 +761,12 @@ test('event creation snapshots an advanced template before later page-backed tem
   await expect(sourceMappingEditor).toHaveCount(1);
   await sourceMappingEditor
     .getByRole('spinbutton', {
-      name: 'Included quantity',
+      name: 'Included items',
       exact: true,
     })
     .fill('4');
   await sourceOptionEditor
-    .getByLabel('Registration option name')
+    .getByLabel('Sign-up choice name')
     .fill(changedSourceTitle);
   await page.getByTestId('save-template-graph').click();
   await expect(page).toHaveURL(`/templates/${template.id}`, {

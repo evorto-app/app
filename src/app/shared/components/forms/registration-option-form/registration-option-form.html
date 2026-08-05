@@ -4,7 +4,7 @@
 <section class="grid content-start gap-4">
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <mat-form-field class="w-full">
-      <mat-label>Registration mode</mat-label>
+      <mat-label>How places are assigned</mat-label>
       <mat-select [formField]="form.registrationMode">
         @for (mode of registrationModes(); track mode) {
           <mat-option [value]="mode">{{
@@ -15,7 +15,7 @@
     </mat-form-field>
 
     <mat-form-field class="w-full">
-      <mat-label>Spots</mat-label>
+      <mat-label>Number of places</mat-label>
       <input matInput type="number" [formField]="form.spots" />
     </mat-form-field>
   </div>
@@ -26,7 +26,7 @@
 </section>
 
 <section class="grid content-start gap-4">
-  <h4 class="title-medium">Registration Period</h4>
+  <h4 class="title-medium">When sign-up is open</h4>
 
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <mat-form-field class="w-full">
@@ -78,7 +78,9 @@
 </section>
 
 <section class="grid content-start gap-3">
-  <mat-checkbox [formField]="form.isPaid">Paid registration</mat-checkbox>
+  <mat-checkbox [formField]="form.isPaid">
+    Charge for this choice
+  </mat-checkbox>
 
   @if (!form.price().hidden()) {
     <div class="grid gap-4">
@@ -103,40 +105,47 @@
         <mat-label>Tax rate</mat-label>
         <mat-select [formField]="form.stripeTaxRateId">
           @if (taxRateState() === "loading") {
-            <mat-option disabled>Loading tax rates...</mat-option>
+            <mat-option disabled>Loading tax rates…</mat-option>
           } @else if (taxRateState() === "error") {
             <mat-option disabled>Tax rates are unavailable</mat-option>
           } @else if (taxRates(); as resolvedTaxRates) {
             @for (rate of resolvedTaxRates; track rate.id) {
               <mat-option [value]="rate.stripeTaxRateId">
-                {{ rate.displayName || rate.stripeTaxRateId }} —
-                {{ rate.percentage ?? "?" }}%
+                {{ rate.displayName || "Tax rate name unavailable" }} —
+                {{
+                  rate.percentage === null
+                    ? "Percentage unavailable"
+                    : rate.percentage + "%"
+                }}
               </mat-option>
             }
           } @else {
             <mat-option disabled>
-              Tax-rate state is inconsistent; reload the page
+              Tax rates could not be loaded. Paid prices cannot be saved until
+              they are available.
             </mat-option>
           }
         </mat-select>
-        <mat-hint>Inclusive tax; shown price is final</mat-hint>
+        <mat-hint>The shown price already includes this tax.</mat-hint>
       </mat-form-field>
     </div>
   }
 
   <mat-checkbox [formField]="form.organizingRegistration">
-    Organizing registration
+    For organizers and helpers
   </mat-checkbox>
 </section>
 
 <section class="flex flex-col gap-2">
-  <span class="text-on-surface-variant text-sm">Description</span>
+  <span class="text-on-surface-variant text-sm">
+    Details shown before sign-up
+  </span>
   <app-editor [control]="form.description" />
 </section>
 
 <section class="flex flex-col gap-2">
-  <span class="text-on-surface-variant text-sm"
-    >Description for registered users</span
-  >
+  <span class="text-on-surface-variant text-sm">
+    Details shown after sign-up
+  </span>
   <app-editor [control]="form.registeredDescription" />
 </section>

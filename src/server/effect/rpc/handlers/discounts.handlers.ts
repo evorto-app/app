@@ -46,9 +46,11 @@ const normalizeUserDiscountCardRecord = (
 
 const validateDiscountCard = ({
   adapter,
+  failureMessage,
   identifier,
 }: {
   adapter: ProviderAdapter;
+  failureMessage: string;
   identifier: string;
 }): Effect.Effect<
   ValidationResult,
@@ -68,8 +70,7 @@ const validateDiscountCard = ({
         if (error instanceof ProviderValidationUnavailableError) {
           return Effect.fail(
             new RpcBadRequestError({
-              message:
-                'Could not validate ESN card right now. Try again later.',
+              message: failureMessage,
               reason: `provider-${error.reason}`,
             }),
           );
@@ -84,7 +85,7 @@ const validateDiscountCard = ({
           Effect.andThen(
             Effect.fail(
               new RpcInternalServerError({
-                message: 'Discount card validation failed unexpectedly',
+                message: failureMessage,
               }),
             ),
           ),
@@ -179,7 +180,10 @@ export const discountHandlers = {
       const provider = providers[input.type];
       if (provider.status !== 'enabled') {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message:
+              'ESNcard discounts are not available for this organization.',
+          }),
         );
       }
 
@@ -201,13 +205,18 @@ export const discountHandlers = {
       );
       if (!card) {
         return yield* Effect.fail(
-          new DiscountCardNotFoundError({ message: 'Discount card not found' }),
+          new DiscountCardNotFoundError({
+            message:
+              'This ESNcard is no longer saved. No card was changed. Add it again if you still use it.',
+          }),
         );
       }
 
       const adapter = Adapters[input.type];
       const result = yield* validateDiscountCard({
         adapter,
+        failureMessage:
+          'We could not check this ESNcard, so it was not changed. Select Check again to try once more.',
         identifier: card.identifier,
       });
       const updatedCards = yield* databaseEffect((database) =>
@@ -262,7 +271,10 @@ export const discountHandlers = {
       const provider = providers[input.type];
       if (provider.status !== 'enabled') {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message:
+              'ESNcard discounts are not available for this organization.',
+          }),
         );
       }
 
@@ -281,7 +293,8 @@ export const discountHandlers = {
       if (existingIdentifier && existingIdentifier.userId !== user.id) {
         return yield* Effect.fail(
           new DiscountCardConflictError({
-            message: 'Discount card identifier already exists',
+            message:
+              'This ESNcard is already linked to another account in this organization.',
           }),
         );
       }
@@ -306,6 +319,8 @@ export const discountHandlers = {
       const adapter = Adapters[input.type];
       const validationResult = yield* validateDiscountCard({
         adapter,
+        failureMessage:
+          'We could not check this ESNcard, so it was not saved or changed. Select Save ESNcard to try once more.',
         identifier: input.identifier,
       });
       const validatedCardFields = {

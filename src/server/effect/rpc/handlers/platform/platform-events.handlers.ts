@@ -100,7 +100,7 @@ export const platformEventGraphCompatibilityError = ({
 }): null | RpcBadRequestError => {
   if (input.addOns.length > MAX_EVENT_ADDON_TYPES) {
     return new RpcBadRequestError({
-      message: `Events support at most ${MAX_EVENT_ADDON_TYPES} add-on types`,
+      message: `Add no more than ${MAX_EVENT_ADDON_TYPES} different add-ons.`,
       reason: 'eventAddonTypeLimitExceeded',
     });
   }
@@ -111,7 +111,7 @@ export const platformEventGraphCompatibilityError = ({
   ) {
     return new RpcBadRequestError({
       message:
-        'Simple event configuration requires exactly one organizing and one non-organizing registration option',
+        'Simple setup needs exactly one organizer choice and one attendee choice.',
       reason: 'simpleEventGraphRequiresTwoOptions',
     });
   }
@@ -122,14 +122,14 @@ export const platformEventGraphCompatibilityError = ({
     )
   ) {
     return new RpcBadRequestError({
-      message: 'Paid event registration options require a positive price',
+      message: 'Enter a price greater than zero for each paid sign-up choice.',
       reason: 'paidEventRegistrationOptionRequiresPositivePrice',
     });
   }
 
   if (input.addOns.some((addOn) => addOn.isPaid && addOn.price <= 0)) {
     return new RpcBadRequestError({
-      message: 'Paid event add-ons require a positive price',
+      message: 'Enter a price greater than zero for each paid add-on.',
       reason: 'paidEventAddonRequiresPositivePrice',
     });
   }
@@ -152,7 +152,8 @@ export const platformEventGraphCompatibilityError = ({
     )
   ) {
     return new RpcBadRequestError({
-      message: 'Event add-on configuration is invalid',
+      message:
+        "Review each add-on's name, availability, quantities, and sign-up choices.",
       reason: 'invalidEventAddon',
     });
   }
@@ -165,7 +166,7 @@ export const platformEventQuestionLimitError = (
 ): null | RpcBadRequestError => {
   if (questions.length > MAX_REGISTRATION_QUESTIONS) {
     return new RpcBadRequestError({
-      message: `Events support at most ${MAX_REGISTRATION_QUESTIONS} registration questions`,
+      message: `Add no more than ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
       reason: 'eventQuestionLimitExceeded',
     });
   }
@@ -177,7 +178,7 @@ export const platformEventQuestionLimitError = (
         MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
   )
     ? new RpcBadRequestError({
-        message: 'Event registration question text is invalid',
+        message: "Review each question's title and description.",
         reason: 'invalidEventQuestion',
       })
     : null;
@@ -255,9 +256,10 @@ const databaseEffect = <A, R>(
     ),
   );
 
-const eventNotFound = (eventId: string) =>
+const eventNotFound = () =>
   new RpcBadRequestError({
-    message: `Event ${eventId} was not found for the target tenant`,
+    message:
+      'This event is no longer available in this organization. No change was made. Return to the event list and open an event that is still available.',
     reason: 'eventNotFound',
   });
 
@@ -299,7 +301,10 @@ export const loadPlatformEventDetail = Effect.fn(
     .pipe(Effect.orDie);
   const event = eventRows[0];
   if (!event) {
-    return yield* Effect.fail(eventNotFound(eventId));
+    yield* Effect.logWarning('Platform event not found').pipe(
+      Effect.annotateLogs({ eventId, targetTenantId }),
+    );
+    return yield* Effect.fail(eventNotFound());
   }
 
   const registrationOptions = yield* database
@@ -577,7 +582,8 @@ export const validatePlatformEventCreateReferences = ({
   if (!creatorMembershipFound) {
     return Effect.fail(
       new RpcBadRequestError({
-        message: 'The selected creator is not a member of the target tenant',
+        message:
+          'The selected creator is not a member of this organization. Choose another member.',
         reason: 'creatorMembershipNotFound',
       }),
     );
@@ -585,7 +591,8 @@ export const validatePlatformEventCreateReferences = ({
   if (!templateFound) {
     return Effect.fail(
       new RpcBadRequestError({
-        message: 'Template not found for the target tenant',
+        message:
+          'The selected template is no longer available in this organization. No event was created. Review the event setup and choose an available template before creating the event again.',
         reason: 'templateNotFound',
       }),
     );
@@ -623,7 +630,7 @@ const updatePlatformEventGraph = Effect.fn(
     return yield* Effect.fail(
       new RpcBadRequestError({
         message:
-          'Platform event updates must preserve the registration-option identity set',
+          'The sign-up choices changed while this page was open. Nothing was saved. Reopen the event and review the current choices before making your changes again.',
         reason: 'registrationOptionMismatch',
       }),
     );
@@ -639,7 +646,8 @@ const updatePlatformEventGraph = Effect.fn(
   if (!rolesExist) {
     return yield* Effect.fail(
       new RpcBadRequestError({
-        message: 'Registration option role not found for the target tenant',
+        message:
+          'One selected role is no longer available. Nothing was saved. Reopen the event and review who can use each sign-up choice.',
         reason: 'registrationRoleNotFound',
       }),
     );
@@ -658,7 +666,8 @@ const updatePlatformEventGraph = Effect.fn(
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Registration option dates or capacity are invalid',
+          message:
+            "Review each sign-up choice's dates and capacity, then try again.",
           reason: 'invalidRegistrationOption',
         }),
       );
@@ -671,7 +680,7 @@ const updatePlatformEventGraph = Effect.fn(
     if (!taxValidation.success) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Registration option tax rate is invalid',
+          message: 'Choose an available tax rate for each paid sign-up choice.',
           reason: 'invalidRegistrationOptionTaxRate',
         }),
       );
@@ -684,7 +693,7 @@ const updatePlatformEventGraph = Effect.fn(
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Registration option ESNcard discount is invalid',
+          message: 'Review each ESNcard price for the paid sign-up choices.',
           reason: 'invalidRegistrationOptionDiscount',
         }),
       );
@@ -754,7 +763,8 @@ const updatePlatformEventGraph = Effect.fn(
   ) {
     return yield* Effect.fail(
       new RpcBadRequestError({
-        message: 'Event add-on does not belong to the target event',
+        message:
+          'The add-ons changed while this page was open. Nothing was saved. Reopen the event and review the current add-ons before making your changes again.',
         reason: 'eventAddonMismatch',
       }),
     );
@@ -821,7 +831,7 @@ const updatePlatformEventGraph = Effect.fn(
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Event add-on configuration is invalid',
+          message: "Review each add-on's availability and sign-up choices.",
           reason: 'invalidEventAddon',
         }),
       );
@@ -834,7 +844,7 @@ const updatePlatformEventGraph = Effect.fn(
     if (!taxValidation.success) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Event add-on tax rate is invalid',
+          message: 'Choose an available tax rate for each paid add-on.',
           reason: 'invalidEventAddonTaxRate',
         }),
       );
@@ -973,7 +983,8 @@ const updatePlatformEventGraph = Effect.fn(
   ) {
     return yield* Effect.fail(
       new RpcBadRequestError({
-        message: 'Event question does not belong to the target event',
+        message:
+          'The questions changed while this page was open. Nothing was saved. Reopen the event and review the current questions before making your changes again.',
         reason: 'eventQuestionMismatch',
       }),
     );
@@ -1015,7 +1026,7 @@ const updatePlatformEventGraph = Effect.fn(
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Event registration question is invalid',
+          message: 'Review each question and the sign-up choice it belongs to.',
           reason: 'invalidEventQuestion',
         }),
       );
@@ -1079,7 +1090,13 @@ const runEventMutation = <A extends PlatformEventMutationTarget>(
               .for('update')
               .pipe(Effect.orDie);
             if (lockedEvents.length === 0) {
-              return yield* Effect.fail(eventNotFound(input.eventId));
+              yield* Effect.logWarning('Platform event not found').pipe(
+                Effect.annotateLogs({
+                  eventId: input.eventId,
+                  targetTenantId: input.targetTenantId,
+                }),
+              );
+              return yield* Effect.fail(eventNotFound());
             }
 
             const before = yield* loadPlatformEventDetail(
@@ -1425,7 +1442,7 @@ export const platformEventHandlers = {
         const stateError = platformEventStateError(
           before.status,
           'PENDING_REVIEW',
-          'Only pending events can be reviewed',
+          'Only events awaiting review can be reviewed.',
         );
         if (stateError) {
           return Effect.fail(stateError);
@@ -1453,7 +1470,8 @@ export const platformEventHandlers = {
           if (updatedEvents.length === 0) {
             return yield* Effect.fail(
               new RpcBadRequestError({
-                message: 'Event review preconditions changed',
+                message:
+                  'The event changed before the review decision was saved. No review decision was saved. Reopen the event and review its current details before reviewing it again.',
                 reason: 'eventStateConflict',
               }),
             );
@@ -1482,7 +1500,7 @@ export const platformEventHandlers = {
         const stateError = platformEventStateError(
           before.status,
           'DRAFT',
-          'Only draft events can be submitted for review',
+          'Only draft events can be submitted for review.',
         );
         if (stateError) {
           return Effect.fail(stateError);
@@ -1511,7 +1529,8 @@ export const platformEventHandlers = {
                 ? Effect.void
                 : Effect.fail(
                     new RpcBadRequestError({
-                      message: 'Event review submission preconditions changed',
+                      message:
+                        'The event changed before it could be sent for review. It was not sent for review. Reopen the event and review its current details before sending it again.',
                       reason: 'eventStateConflict',
                     }),
                   ),
@@ -1564,7 +1583,7 @@ export const platformEventHandlers = {
         const stateError = platformEventStateError(
           before.status,
           'DRAFT',
-          'Only draft events can be updated',
+          'Only draft events can be updated.',
         );
         if (stateError) {
           return Effect.fail(stateError);
@@ -1597,7 +1616,8 @@ export const platformEventHandlers = {
           if (updatedEvents.length === 0) {
             return yield* Effect.fail(
               new RpcBadRequestError({
-                message: 'Event update preconditions changed',
+                message:
+                  'The event changed while this page was open. Nothing was saved. Reopen the event and review its current details before making your changes again.',
                 reason: 'eventStateConflict',
               }),
             );
@@ -1642,7 +1662,7 @@ export const platformEventHandlers = {
             return yield* Effect.fail(
               new RpcBadRequestError({
                 message:
-                  'Announcement discovery contains a role from another organization',
+                  'One selected role belongs to another organization. Review the selected roles and try again.',
                 reason: 'invalidAnnouncementRole',
               }),
             );
@@ -1651,7 +1671,7 @@ export const platformEventHandlers = {
             return yield* Effect.fail(
               new RpcBadRequestError({
                 message:
-                  'Announcement discovery roles can only be set on events without registration options',
+                  'Roles can only control who can find announcements without sign-up choices.',
                 reason: 'announcementRolesRequireOptionlessEvent',
               }),
             );
@@ -1671,7 +1691,13 @@ export const platformEventHandlers = {
             .returning({ id: eventInstances.id })
             .pipe(Effect.orDie);
           if (updatedEvents.length === 0) {
-            return yield* Effect.fail(eventNotFound(input.eventId));
+            yield* Effect.logWarning('Platform event not found').pipe(
+              Effect.annotateLogs({
+                eventId: input.eventId,
+                targetTenantId: input.targetTenantId,
+              }),
+            );
+            return yield* Effect.fail(eventNotFound());
           }
         }),
     ),

@@ -11,7 +11,10 @@ import {
   EventListService,
   mergeEventListPages,
 } from '../event-list.service';
-import { EventListComponent } from './event-list.component';
+import {
+  EventListComponent,
+  eventListSignUpStateLabel,
+} from './event-list.component';
 
 const eventQueryState = signal<'error' | 'success'>('error');
 const hasNextPage = signal(false);
@@ -27,7 +30,47 @@ const listedEvents = [
         start: '2029-12-31T22:00:00.000Z',
         status: 'APPROVED' as const,
         title: 'Recovery workshop',
-        userRegistered: false,
+        userSignUpState: null,
+      },
+      {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
+        icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
+        id: 'event-confirmed',
+        start: '2029-12-31T22:30:00.000Z',
+        status: 'APPROVED' as const,
+        title: 'Confirmed event',
+        userSignUpState: 'confirmed' as const,
+      },
+      {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
+        icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
+        id: 'event-approval',
+        start: '2029-12-31T23:00:00.000Z',
+        status: 'APPROVED' as const,
+        title: 'Application event',
+        userSignUpState: 'approvalPending' as const,
+      },
+      {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
+        icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
+        id: 'event-payment',
+        start: '2029-12-31T23:15:00.000Z',
+        status: 'APPROVED' as const,
+        title: 'Paid event',
+        userSignUpState: 'paymentRequired' as const,
+      },
+      {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
+        icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
+        id: 'event-waitlist',
+        start: '2029-12-31T23:30:00.000Z',
+        status: 'APPROVED' as const,
+        title: 'Waitlist event',
+        userSignUpState: 'waitlisted' as const,
       },
     ],
   },
@@ -93,7 +136,7 @@ describe('EventListComponent load recovery', () => {
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('Events could not be loaded');
     expect(alert?.textContent).toContain(
-      'Event discovery is temporarily unavailable.',
+      'No events are shown. Select Try again.',
     );
 
     const retryButton: HTMLButtonElement | null =
@@ -118,10 +161,30 @@ describe('EventListComponent load recovery', () => {
       listedEvents[0]?.events[0]?.start < new Date('2030-01-01').toISOString(),
     ).toBe(true);
     expect(normalizeText(fixture)).toContain('Recovery workshop');
-    expect(normalizeText(fixture)).toContain('Eligibility based');
+    expect(normalizeText(fixture)).toContain('Sign-up event');
     expect(
       fixture.nativeElement.querySelector('[aria-label="Filter events"]'),
     ).toBeNull();
+  });
+
+  it('shows each sign-up state in text and leaves unrelated cards unmarked', () => {
+    eventQueryState.set('success');
+    const fixture = TestBed.createComponent(EventListComponent);
+    fixture.detectChanges();
+    const cards = [
+      ...fixture.nativeElement.querySelectorAll('a'),
+    ] as HTMLElement[];
+    const cardText = (title: string) =>
+      cards.find((card) => card.textContent?.includes(title))?.textContent ??
+      '';
+
+    expect(cardText('Confirmed event')).toContain('Place confirmed');
+    expect(cardText('Application event')).toContain('Waiting for approval');
+    expect(cardText('Paid event')).toContain('Finish payment');
+    expect(cardText('Waitlist event')).toContain('On waitlist');
+    expect(cardText('Recovery workshop')).not.toMatch(
+      /Place confirmed|Waiting for approval|Finish payment|On waitlist/u,
+    );
   });
 
   it('loads another bounded page when more events may exist', () => {
@@ -151,7 +214,7 @@ describe('event list paging', () => {
     start,
     status: 'APPROVED' as const,
     title: id,
-    userRegistered: false,
+    userSignUpState: null,
   });
 
   it('requests the next offset only after a full page', () => {
@@ -202,5 +265,17 @@ describe('event list paging', () => {
         ],
       },
     ]);
+  });
+});
+
+describe('eventListSignUpStateLabel', () => {
+  it('maps each server state to concise participant copy', () => {
+    expect(eventListSignUpStateLabel('confirmed')).toBe('Place confirmed');
+    expect(eventListSignUpStateLabel('approvalPending')).toBe(
+      'Waiting for approval',
+    );
+    expect(eventListSignUpStateLabel('paymentRequired')).toBe('Finish payment');
+    expect(eventListSignUpStateLabel('waitlisted')).toBe('On waitlist');
+    expect(eventListSignUpStateLabel(null)).toBeNull();
   });
 });

@@ -35,10 +35,20 @@
         <div
           class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
         >
-          <h2 class="title-medium">Loading ...</h2>
+          <h2 class="title-medium">Loading templates…</h2>
         </div>
       } @else if (templateQuery.isError()) {
-        <p>Error: {{ templateQueryErrorMessage() }}</p>
+        <div class="flex flex-col items-start gap-2">
+          <p role="alert">{{ templateQueryErrorMessage() }}</p>
+          <button
+            mat-button
+            type="button"
+            [disabled]="templateQuery.isFetching()"
+            (click)="templateQuery.refetch()"
+          >
+            {{ templateQuery.isFetching() ? "Trying again…" : "Try again" }}
+          </button>
+        </div>
       } @else if (templateQuery.isSuccess()) {
         <a
           mat-flat-button
@@ -69,7 +79,7 @@
                 <span>{{ template.title }}</span>
               </a>
             } @empty {
-              <p>No templates found in this category</p>
+              <p>No templates in this category yet.</p>
               <a
                 mat-button
                 routerLink="create/{{ templateCategory.id }}"
@@ -80,7 +90,7 @@
             }
           </div>
         } @empty {
-          <p>No template categories found</p>
+          <p>No template categories yet.</p>
         }
       }
     </nav>

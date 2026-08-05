@@ -721,12 +721,16 @@ const databaseWithReceiptReviewLifecycle = ({
     },
     where: () => updateQuery,
   };
+  let queuedEmail: Record<string, unknown> | undefined;
   const emailQuery = {
     onConflictDoNothing: () => {
       operations.push('email:enqueue');
       return Effect.succeed([]);
     },
-    values: () => emailQuery,
+    values: (values: Record<string, unknown>) => {
+      queuedEmail = values;
+      return emailQuery;
+    },
   };
   let selectCount = 0;
   const transaction = {
@@ -747,6 +751,7 @@ const databaseWithReceiptReviewLifecycle = ({
       },
     },
     operations,
+    queuedEmail: () => queuedEmail,
   };
 };
 
@@ -988,6 +993,62 @@ describe('finance receipt media permissions', () => {
   );
 
   it.effect(
+    'explains when the event is no longer available for a receipt',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers[
+          'finance.receiptMedia.createUpload'
+        ](uploadInput, { headers: {} } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: {
+                query: {
+                  eventInstances: {
+                    findFirst: () => Effect.succeed(undefined),
+                  },
+                },
+              },
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('FinanceResourceNotFoundError');
+        expect(error.message).toBe(
+          'This event is no longer available, so no receipt was added. Go back and choose an available event before adding a receipt.',
+        );
+      }),
+  );
+
+  it.effect(
+    'asks for the file again when an upload is no longer available',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers[
+          'finance.receiptMedia.finalizeUpload'
+        ]({ uploadId: 'missing-upload' }, { headers: {} } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: {
+                query: {
+                  financeReceiptUploads: {
+                    findFirst: () => Effect.succeed(undefined),
+                  },
+                },
+              },
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'This receipt file is no longer available. Add the file again.',
+        );
+      }),
+  );
+
+  it.effect(
     'does not finalize an upload when receipt storage is unavailable',
     () =>
       Effect.gen(function* () {
@@ -1003,7 +1064,8 @@ describe('finance receipt media permissions', () => {
                 createUploadPolicy: () =>
                   Effect.fail(
                     new ReceiptMediaServiceUnavailableError({
-                      message: 'Receipt storage is unavailable',
+                      message:
+                        'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                     }),
                   ),
                 objectExists: () => Effect.succeed(false),
@@ -1141,6 +1203,8 @@ describe('finance receipt reimbursement', () => {
         });
         expect(fixture.insertedTransaction()).toMatchObject({
           amount: -125,
+          comment:
+            'Receipt reimbursement via bank transfer for 1 receipt across 1 event',
           currency: 'CZK',
           targetUserId: 'user-1',
         });
@@ -1432,6 +1496,9 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'The selected receipts changed while this page was open. No reimbursement was recorded. Return to the reimbursement list and review the current selection.',
+        );
         expect(error.reason).toBe('receiptRefundPreconditionFailed');
       }),
   );
@@ -1484,6 +1551,9 @@ describe('finance receipt approval evidence', () => {
           'receipt:update',
           'email:enqueue',
         ]);
+        expect(String(fixture.queuedEmail()?.html)).toContain(
+          'https://tenant.example.com/profile/receipts',
+        );
         expect(signedPreviewUrl).not.toHaveBeenCalled();
       }),
   );
@@ -1547,7 +1617,8 @@ describe('finance receipt approval evidence', () => {
               objectExists: () =>
                 Effect.fail(
                   new ReceiptMediaServiceUnavailableError({
-                    message: 'Receipt storage is unavailable',
+                    message:
+                      'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                   }),
                 ),
               signedPreviewUrl,
@@ -1557,7 +1628,9 @@ describe('finance receipt approval evidence', () => {
       );
 
       expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
-      expect(error.message).toBe('Receipt storage is unavailable');
+      expect(error.message).toBe(
+        'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+      );
       expect(fixture.operations).toEqual(['preflight']);
       expect(signedPreviewUrl).not.toHaveBeenCalled();
     }),
@@ -1724,6 +1797,35 @@ describe('finance receipt approval evidence', () => {
 });
 
 describe('finance receipt amount validation', () => {
+  it.effect(
+    'explains when an unavailable event prevents receipt submission',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.submit'](
+          receiptSubmitInput,
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: {
+                query: {
+                  eventInstances: {
+                    findFirst: () => Effect.succeed(undefined),
+                  },
+                },
+              },
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('FinanceResourceNotFoundError');
+        expect(error.message).toBe(
+          'This event is no longer available, so the receipt was not submitted. Go back and choose an available event before submitting a receipt.',
+        );
+      }),
+  );
+
   it.effect('allows receipt submissions before the event has ended', () =>
     Effect.gen(function* () {
       const receiptDatabase = databaseWithReceiptInsert({
@@ -1782,6 +1884,9 @@ describe('finance receipt amount validation', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('receipt_upload_unavailable');
+        expect(error.message).toBe(
+          'This receipt file is no longer available. Add the file again.',
+        );
         expect(receiptDatabase.insertedValues()).toBeUndefined();
       }),
   );
@@ -1807,6 +1912,9 @@ describe('finance receipt amount validation', () => {
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.reason).toBe('receipt_upload_unavailable');
+      expect(error.message).toBe(
+        'This receipt file has already been submitted.',
+      );
       expect(receiptDatabase.insertedValues()).toBeUndefined();
     }),
   );

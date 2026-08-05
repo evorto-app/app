@@ -1,7 +1,7 @@
 <app-platform-tenant-page-header title="Create event" [tenantId]="tenantId()" />
 
 <section class="mb-6 border-l-4 border-primary pl-4">
-  <h2 class="title-small">Explicit owner attribution</h2>
+  <h2 class="title-small">Event owner</h2>
   <p class="body-medium text-on-surface-variant mt-1">
     The selected member becomes the event owner. The change history records you
     as the administrator who created it; you are not added as an organization
@@ -10,7 +10,7 @@
 </section>
 
 @if (optionsQuery.isPending()) {
-  <p role="status">Loading organization members and templates...</p>
+  <p role="status">Loading organization members and templates…</p>
 } @else if (optionsQuery.isError()) {
   <section
     class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
@@ -26,7 +26,7 @@
       [disabled]="optionsQuery.isFetching()"
       (click)="optionsQuery.refetch()"
     >
-      {{ optionsQuery.isFetching() ? "Retrying..." : "Try again" }}
+      {{ optionsQuery.isFetching() ? "Trying again…" : "Try again" }}
     </button>
   </section>
 } @else if (optionsQuery.isSuccess()) {
@@ -95,7 +95,7 @@
         </mat-form-field>
 
         <mat-form-field>
-          <mat-label>Source template</mat-label>
+          <mat-label>Event template</mat-label>
           <mat-select [formField]="createForm.templateId">
             @for (
               template of optionsQuery.data().templates;
@@ -128,7 +128,7 @@
           [formField]="createForm.description"
         ></textarea>
         <mat-hint
-          >The source template supplies icon, location, registration options,
+          >The selected template supplies icon, location, sign-up choices,
           add-ons, and questions.</mat-hint
         >
         @for (error of createForm.description().errors(); track error) {
@@ -145,7 +145,8 @@
             [formField]="createForm.start"
           />
           <mat-hint>
-            Organization time zone: {{ optionsQuery.data().timezone }}
+            Organization time zone:
+            {{ tenantTimezoneLabel(optionsQuery.data().timezone) }}
           </mat-hint>
           @for (error of createForm.start().errors(); track error) {
             <mat-error>{{ error.message }}</mat-error>
@@ -155,7 +156,8 @@
           <mat-label>End</mat-label>
           <input matInput type="datetime-local" [formField]="createForm.end" />
           <mat-hint>
-            Organization time zone: {{ optionsQuery.data().timezone }}
+            Organization time zone:
+            {{ tenantTimezoneLabel(optionsQuery.data().timezone) }}
           </mat-hint>
           @for (error of createForm.end().errors(); track error) {
             <mat-error>{{ error.message }}</mat-error>
@@ -164,7 +166,7 @@
       </div>
 
       <mat-form-field>
-        <mat-label>Operational reason</mat-label>
+        <mat-label>Reason for this change</mat-label>
         <textarea matInput rows="3" [formField]="createForm.reason"></textarea>
         <mat-hint>Saved in the event's change history.</mat-hint>
         @for (error of createForm.reason().errors(); track error) {
@@ -184,7 +186,7 @@
           type="submit"
           [disabled]="createForm().invalid() || createMutation.isPending()"
         >
-          {{ createMutation.isPending() ? "Creating..." : "Create event" }}
+          {{ createMutation.isPending() ? "Creating…" : "Create event" }}
         </button>
       </div>
     </form>

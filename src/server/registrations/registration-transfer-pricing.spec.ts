@@ -192,9 +192,26 @@ describe('registration transfer pricing', () => {
           guestUnitPrice: 0,
         }).pipe(Effect.flip);
         expect(error).toBeInstanceOf(RegistrationTransferPricingError);
+        expect(error.reason).toBe('amountTooLarge');
         expect(error.message).toBe(
           'Registration transfer price exceeds supported payment limits',
         );
+      }),
+  );
+
+  it.effect(
+    'identifies invalid saved pricing separately from an oversized total',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* registrationTransferTotalPrice({
+          addOns: [],
+          effectivePrice: -1,
+          guestCount: 0,
+          guestUnitPrice: 0,
+        }).pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(RegistrationTransferPricingError);
+        expect(error.reason).toBe('invalidAmount');
       }),
   );
 });

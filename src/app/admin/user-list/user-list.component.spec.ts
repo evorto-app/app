@@ -103,13 +103,13 @@ describe('UserListComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Users could not be loaded');
+      expect(normalizeText(fixture)).toContain('Members could not be loaded');
     });
 
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      'The user list is unavailable. Check your connection and try again.',
+      'No members are shown. Select Try again.',
     );
 
     const retryButton: HTMLButtonElement | null =

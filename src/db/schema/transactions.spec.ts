@@ -138,13 +138,13 @@ describe('transaction schema', () => {
       expiresAt: 1_800_000_000,
       lineItems: [
         {
-          name: 'Registration fee for Welcome event',
+          name: 'Ticket for Welcome event',
           quantity: 1,
           taxRateId: 'txr_123',
           unitAmount: 1500,
         },
         {
-          name: 'Guest registration fee for Welcome event',
+          name: 'Guest ticket for Welcome event',
           quantity: 2,
           unitAmount: 1500,
         },

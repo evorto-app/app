@@ -139,14 +139,49 @@ describe('event graph form mapping', () => {
       simpleEventGraphIssue([...options, { organizingRegistration: false }]),
     ).toContain('exactly one');
     expect(advancedEventGraphWarnings([])).toEqual([
-      'No organizing registration option is configured.',
-      'No non-organizing registration option is configured.',
+      'No organizer sign-up choice has been added.',
+      'No attendee sign-up choice has been added.',
     ]);
     expect(
       advancedEventGraphWarnings([
         { organizingRegistration: true },
         { organizingRegistration: true },
       ]),
-    ).toEqual(['No non-organizing registration option is configured.']);
+    ).toEqual(['No attendee sign-up choice has been added.']);
+  });
+
+  it('describes broken registration details without implementation terminology', () => {
+    const source = eventGraph();
+    const [question] = source.questions;
+    if (!question) throw new Error('Expected the question fixture');
+
+    expect(
+      eventGraphRecordToFormModel(
+        {
+          ...source,
+          questions: [{ ...question, registrationOptionId: 'missing-option' }],
+        },
+        DEFAULT_TENANT_TIMEZONE,
+      ),
+    ).toEqual({
+      error:
+        'This event has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Use Back to event, then contact Evorto support and include the event name.',
+    });
+
+    expect(
+      eventGraphRecordToFormModel(
+        {
+          ...source,
+          registrationOptions: source.registrationOptions.map((option) => ({
+            ...option,
+            organizingRegistration: true,
+          })),
+        },
+        DEFAULT_TENANT_TIMEZONE,
+      ),
+    ).toEqual({
+      error:
+        'This event has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Use Back to event, then contact Evorto support and include the event name.',
+    });
   });
 });

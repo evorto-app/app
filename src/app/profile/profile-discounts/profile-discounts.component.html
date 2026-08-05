@@ -1,11 +1,12 @@
 <section class="bg-surface text-on-surface rounded-2xl p-6">
   <div class="space-y-4">
     <h1 class="title-large" id="profile-detail-heading" tabindex="-1">
-      Discount Cards
+      Discount cards
     </h1>
     @if (esnEnabled()) {
       <p class="text-on-surface-variant text-sm">
-        Add your ESN card to receive discounted prices on eligible events.
+        Add your ESNcard to receive discounted prices on events where the
+        discount applies.
       </p>
 
       @if (myCardsQuery.isSuccess()) {
@@ -14,13 +15,13 @@
             @for (card of myCardsQuery.data(); track card.id) {
               <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-2">
-                  <span class="font-medium">ESN card</span>
+                  <span class="font-medium">ESNcard</span>
                   <span class="text-xs text-on-surface-variant">
                     {{ card.identifier }}
                   </span>
                 </div>
                 <div class="text-sm">
-                  Status: {{ esnCardStatusLabel(card.status) }}
+                  {{ esnCardStatusLabel(card.status) }}
                   @if (card.validTo) {
                     — valid until {{ card.validTo | date: "mediumDate" }}
                   }
@@ -68,17 +69,29 @@
             }
           </div>
         } @else {
-          <p class="text-sm">No discount cards on file.</p>
+          <p class="text-sm">No discount cards added.</p>
         }
       } @else if (myCardsQuery.isPending()) {
-        <p role="status">Loading your discount cards...</p>
+        <p role="status">Loading your discount cards…</p>
       } @else {
-        <p class="text-error" role="alert">Failed to load discount cards.</p>
+        <div class="flex flex-col items-start gap-2">
+          <p class="text-error" role="alert">
+            Your discount cards could not be loaded.
+          </p>
+          <button
+            mat-button
+            type="button"
+            [disabled]="myCardsQuery.isFetching()"
+            (click)="myCardsQuery.refetch()"
+          >
+            {{ myCardsQuery.isFetching() ? "Trying again…" : "Try again" }}
+          </button>
+        </div>
       }
 
       <form class="max-w-md space-y-3" (submit)="saveEsnCard($event)">
         <mat-form-field class="w-full" appearance="outline">
-          <mat-label>ESN card number</mat-label>
+          <mat-label>ESNcard number</mat-label>
           <input
             matInput
             [formField]="esnCardForm.identifier"
@@ -90,7 +103,7 @@
           esnCardForm.identifier().invalid()
         ) {
           <p class="text-error text-sm">
-            Enter a valid ESN card number (8-16 letters or numbers).
+            Enter a valid ESNcard number (8-16 letters or numbers).
           </p>
         }
         <div class="flex flex-wrap items-center gap-3">
@@ -118,7 +131,7 @@
               [href]="buyEsnCardLink"
               target="_blank"
               rel="noopener noreferrer"
-              >Get an ESN card</a
+              >Get an ESNcard</a
             >
           }
         </div>

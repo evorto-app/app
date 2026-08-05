@@ -26,9 +26,9 @@
         aria-live="polite"
         class="bg-surface-container text-on-surface flex cursor-progress flex-col gap-2 rounded-2xl p-4"
       >
-        <h2 class="title-medium">Loading event operations…</h2>
+        <h2 class="title-medium">Loading event details…</h2>
         <p class="body-medium">
-          Participant counts and actions will appear after the event loads.
+          Sign-up counts and actions will appear after the event loads.
         </p>
       </div>
     } @else if (eventQuery.isError()) {
@@ -37,10 +37,10 @@
         class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
       >
         <div>
-          <h2 class="title-medium">Event operations could not be loaded</h2>
+          <h2 class="title-medium">Event details could not be loaded</h2>
           <p class="body-medium mt-1">
-            Event details are unavailable, so participant and receipt actions
-            are hidden. Check your connection and try again.
+            Sign-up and receipt actions are hidden until the event details load.
+            Select Try again.
           </p>
         </div>
         <button
@@ -49,7 +49,7 @@
           [disabled]="eventQuery.isFetching()"
           (click)="eventQuery.refetch()"
         >
-          {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+          {{ eventQuery.isFetching() ? "Trying again…" : "Try again" }}
         </button>
       </div>
     } @else if (eventQuery.isSuccess()) {
@@ -60,10 +60,9 @@
             aria-live="polite"
             class="bg-surface-container text-on-surface flex cursor-progress flex-col gap-2 rounded-2xl p-4"
           >
-            <h2 class="title-medium">Loading participant data…</h2>
+            <h2 class="title-medium">Loading attendees…</h2>
             <p class="body-medium">
-              Current registration counts and participant actions are being
-              prepared.
+              Current sign-up counts and attendee actions are being prepared.
             </p>
           </div>
         } @else if (organizerOverviewQuery.isError()) {
@@ -73,11 +72,10 @@
             class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
           >
             <div>
-              <h2 class="title-medium">Participant data could not be loaded</h2>
+              <h2 class="title-medium">Attendees could not be loaded</h2>
               <p class="body-medium mt-1">
-                Registration counts and participant actions are unavailable. Do
-                not treat the missing counts as zero or as current event data.
-                Check your connection and try again.
+                No current sign-up counts or attendee actions are shown. Select
+                Try again.
               </p>
             </div>
             <button
@@ -87,7 +85,9 @@
               (click)="organizerOverviewQuery.refetch()"
             >
               {{
-                organizerOverviewQuery.isFetching() ? "Retrying…" : "Try again"
+                organizerOverviewQuery.isFetching()
+                  ? "Trying again…"
+                  : "Try again"
               }}
             </button>
           </div>
@@ -98,7 +98,7 @@
               class="bg-surface-container text-on-surface grid gap-x-6 gap-y-3 rounded-lg px-4 py-3 @sm:grid-cols-3"
             >
               <div>
-                <dt class="body-small text-on-surface-variant">Registered</dt>
+                <dt class="body-small text-on-surface-variant">Signed up</dt>
                 <dd
                   data-testid="event-organize-registered-stat"
                   class="title-medium mt-1"
@@ -117,7 +117,7 @@
               </div>
               <div>
                 <dt class="body-small text-on-surface-variant">
-                  Capacity used
+                  Places filled
                 </dt>
                 <dd class="title-medium mt-1">
                   {{ stats().capacityPercentage | percent: "1.0-0" }}
@@ -170,7 +170,7 @@
                               <span
                                 class="bg-error-container text-on-error-container rounded px-2 py-1 text-xs"
                               >
-                                Payment setup needs retry
+                                Payment needs attention
                               </span>
                             } @else if (user.manualApprovalAvailable) {
                               <span
@@ -263,8 +263,7 @@
                                   <p
                                     class="body-small text-on-surface-variant max-w-56"
                                   >
-                                    Only confirmed registrations can be
-                                    transferred.
+                                    Only confirmed tickets can be transferred.
                                   </p>
                                 }
                               </div>
@@ -284,7 +283,11 @@
                                   })
                                 "
                               >
-                                Cancel registration
+                                {{
+                                  organizerRegistrationCancellationActionLabel(
+                                    user
+                                  )
+                                }}
                               </button>
                             }
                           </div>
@@ -292,7 +295,7 @@
                       </div>
                     } @empty {
                       <p class="body-medium text-on-surface-variant">
-                        No registrations in this option yet.
+                        No sign-ups for this choice yet.
                       </p>
                     }
                   </div>
@@ -349,8 +352,7 @@
               <div>
                 <h3 class="title-medium">Receipts could not be loaded</h3>
                 <p class="body-medium mt-1">
-                  Existing receipt records may still be present. Check your
-                  connection and try again before treating this list as empty.
+                  No receipts are shown. Select Try again.
                 </p>
               </div>
               <button
@@ -360,7 +362,9 @@
                 (click)="receiptsByEventQuery.refetch()"
               >
                 {{
-                  receiptsByEventQuery.isFetching() ? "Retrying…" : "Try again"
+                  receiptsByEventQuery.isFetching()
+                    ? "Trying again…"
+                    : "Try again"
                 }}
               </button>
             </div>

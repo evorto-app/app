@@ -89,9 +89,10 @@ describe('PlatformEventsComponent', () => {
         fixture.detectChanges();
         return fixture.nativeElement.textContent;
       })
-      .toContain(
-        '02 Jan 2030, 10:00 – 02 Jan 2030, 12:00 · Australia/Brisbane',
-      );
+      .toContain('02 Jan 2030, 10:00 – 02 Jan 2030, 12:00 · Brisbane time');
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Australia/Brisbane',
+    );
   });
 
   it('labels registration-option-derived discovery', async () => {
@@ -102,6 +103,6 @@ describe('PlatformEventsComponent', () => {
         fixture.detectChanges();
         return fixture.nativeElement.textContent;
       })
-      .toContain('Discovery: Eligibility based');
+      .toContain('Who can find it: Sign-up event');
   });
 });

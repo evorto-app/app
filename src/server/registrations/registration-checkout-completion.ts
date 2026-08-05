@@ -1037,9 +1037,11 @@ export const completePaidRegistrationCheckout = Effect.fn(
             );
           }
           yield* enqueueRegistrationCancelledEmail(tx, {
+            cancellationKind: 'pendingSignUp',
             cancelledBy: 'eligibilityChangedAfterPayment',
             eventTitle: preflight.notificationContext.event.title,
             eventUrl: notificationEventUrl,
+            refundOutcome: 'pending',
             registrationId: input.registrationId,
             tenant: preflight.tenant,
             to: preflight.notificationContext.user.communicationEmail,

@@ -59,7 +59,7 @@ describe('platform authority source', () => {
     expect(operations).toContain('user: null');
     expect(operations).toContain('userAssigned: false');
     expect(operations).toContain(
-      "message: 'Platform administrator authority required'",
+      "message: 'You need Evorto administrator access to do this.'",
     );
   });
 
@@ -107,7 +107,7 @@ describe('platform authority source', () => {
     expect(databaseDeploymentBoundary).not.toMatch(
       /\b(?:grant|revoke)\b[^;]*\bplatform_audit_entries\b/iu,
     );
-    expect(createTemplate).toContain('Reason for platform change');
+    expect(createTemplate).toContain('Reason for this change');
     expect(createTemplate).toContain('Initial privacy policy');
     expect(createTemplate).toContain("organization's change");
     expect(createTemplate).toContain('history');
@@ -116,11 +116,18 @@ describe('platform authority source', () => {
 
   it('uses typed resource audit envelopes and tenant-scoped tax uniqueness', () => {
     const audit = readSource('src/shared/platform-audit.ts');
+    const globalAdminAudit = readSource(
+      'src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts',
+    );
     const taxRates = readSource('src/db/schema/tenant-stripe-tax-rates.ts');
 
     expect(audit).toContain('resourceId: Schema.NonEmptyString');
     expect(audit).toContain('resourceType: PlatformAuditResourceType');
     expect(audit).toContain('state: Schema.Json');
+    expect(globalAdminAudit).toContain('GlobalAdminPlatformAuditState');
+    expect(globalAdminAudit).toContain('taxRateCount: Schema.optional');
+    expect(globalAdminAudit).toContain('taxRateUpdatedCount: Schema.optional');
+    expect(globalAdminAudit).not.toContain('state: Schema.Json');
     expect(taxRates).toContain(
       "uniqueIndex('tenant_stripe_tax_rates_tenant_stripe_unique')",
     );
@@ -184,13 +191,13 @@ describe('platform authority source', () => {
       createHandler.indexOf('const creatorMemberships'),
     );
     expect(eventHandlers).toContain('updatePlatformEventGraph(');
-    expect(eventEditor).toContain('Event editor');
+    expect(eventEditor).toContain('title="Edit event"');
     expect(eventEditor).toContain(
       'Return this event to draft before editing it.',
     );
     expect(eventEditor).toContain('<mat-panel-title>Add-ons</mat-panel-title>');
     expect(eventEditor).toContain(
-      '<mat-panel-title>Registration questions</mat-panel-title>',
+      '<mat-panel-title>Sign-up questions</mat-panel-title>',
     );
 
     expect(registrationHandlers).toContain('executiveUserId: null');

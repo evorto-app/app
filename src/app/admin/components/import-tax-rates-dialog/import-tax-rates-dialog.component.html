@@ -1,9 +1,9 @@
-<h2 mat-dialog-title>Import Stripe tax rates</h2>
+<h2 mat-dialog-title>Add tax rates</h2>
 <mat-dialog-content>
   <p class="text-xs text-on-surface-variant mb-2">
-    Only inclusive (VAT-style) and active tax rates are compatible for use in
-    paid registration options. Exclusive or archived rates are shown for
-    reference but cannot be imported. Manage tax rates in the Stripe Dashboard:
+    Available tax rates where tax is included in the shown price can be used for
+    paid sign-up choices. Other rates are shown for reference but cannot be
+    added. To add or change rates, use
     <a
       [href]="dashboardLink.href"
       target="_blank"
@@ -14,10 +14,10 @@
   </p>
 
   @if (ratesQuery.isPending()) {
-    <p>Loading from Stripe ...</p>
+    <p>Loading tax rates…</p>
   } @else if (ratesQuery.isError()) {
     <div class="text-error grid gap-2" role="alert">
-      <p>Failed to load rates from Stripe.</p>
+      <p>{{ loadErrorMessage() }}</p>
       <div>
         <button
           mat-stroked-button
@@ -25,7 +25,7 @@
           [disabled]="ratesQuery.isFetching()"
           (click)="ratesQuery.refetch()"
         >
-          {{ ratesQuery.isFetching() ? "Retrying..." : "Try again" }}
+          {{ ratesQuery.isFetching() ? "Trying again…" : "Try again" }}
         </button>
       </div>
     </div>
@@ -40,34 +40,38 @@
             [checked]="selected().includes(rate.id) || importedIds.has(rate.id)"
             (change)="toggle(rate.id, $event.checked)"
           >
-            {{ rate.displayName || "Unnamed Rate" }} —
-            {{ rate.percentage ?? "?" }}%
-            @if (rate.country || rate.state) {
-              <span class="text-xs text-muted-foreground">
-                ({{ rate.country }}{{ rate.state ? ", " + rate.state : "" }})
-              </span>
-            }
+            {{ rate.displayName || "Unnamed tax rate" }} —
+            {{
+              rate.percentage === null
+                ? "Rate unavailable"
+                : rate.percentage + "%"
+            }}
+            <span class="text-xs text-muted-foreground">
+              ({{ taxRateRegionLabel(rate.country, rate.state) }})
+            </span>
           </mat-checkbox>
           <mat-chip-set>
             @if (rate.inclusive) {
-              <mat-chip color="primary" selected>included</mat-chip>
-            } @else {
-              <mat-chip color="warn" selected
-                >excluded (not compatible)</mat-chip
+              <mat-chip color="primary" selected
+                >Tax included in the shown price</mat-chip
               >
+            } @else {
+              <mat-chip color="warn" selected>Tax added when paying</mat-chip>
             }
             @if (!rate.active) {
-              <mat-chip color="warn" selected
-                >archived (not compatible)</mat-chip
-              >
+              <mat-chip color="warn" selected>Archived</mat-chip>
             }
             @if (importedIds.has(rate.id)) {
-              <mat-chip selected>imported</mat-chip>
+              <mat-chip selected>Already added</mat-chip>
             }
           </mat-chip-set>
         </div>
       }
     </div>
+  }
+
+  @if (importMutation.isError()) {
+    <p class="text-error mt-3" role="alert">{{ importErrorMessage() }}</p>
   }
 </mat-dialog-content>
 <mat-dialog-actions align="end">
@@ -78,6 +82,6 @@
     (click)="importSelected()"
     [disabled]="!canImport()"
   >
-    Import selected
+    Add selected
   </button>
 </mat-dialog-actions>

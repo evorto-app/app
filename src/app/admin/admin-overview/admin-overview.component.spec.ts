@@ -74,7 +74,7 @@ describe('AdminOverviewComponent query boundaries', () => {
     await fixture.whenStable();
 
     expect(loadPendingReviews).not.toHaveBeenCalled();
-    expect(normalizeText(fixture)).not.toContain('Event Reviews');
+    expect(normalizeText(fixture)).not.toContain('Event reviews');
   });
 
   it('renders an explicit count failure for authorized reviewers', async () => {
@@ -87,7 +87,7 @@ describe('AdminOverviewComponent query boundaries', () => {
       await fixture.whenStable();
       expect(loadPendingReviews).toHaveBeenCalledOnce();
       expect(normalizeText(fixture)).toContain(
-        'Event Reviews Count unavailable',
+        'Event reviews Count unavailable',
       );
     });
 

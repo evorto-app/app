@@ -17,7 +17,7 @@
 
 <main class="mx-auto w-full max-w-6xl pb-24">
   @if (eventQuery.isPending()) {
-    <p class="text-on-surface-variant py-8">Loading event configuration…</p>
+    <p class="text-on-surface-variant py-8">Loading event setup…</p>
   } @else if (eventQuery.isError()) {
     <section
       class="bg-error-container text-on-error-container rounded-xl p-4"
@@ -32,12 +32,8 @@
       role="alert"
       data-testid="event-graph-readonly"
     >
-      <h2 class="title-medium">Registration configuration is read-only</h2>
+      <h2 class="title-medium">Sign-up setup cannot be edited</h2>
       <p class="mt-2">{{ message }}</p>
-      <p class="mt-2 text-sm">
-        Nothing has been converted or removed. Contact a platform administrator
-        to review this event's registration setup.
-      </p>
     </section>
   } @else {
     <form (submit)="saveEvent($event)">
@@ -123,17 +119,16 @@
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 id="registration-mode-heading" class="title-large">
-                Registration configuration
+                Sign-up setup
               </h2>
               <p class="text-on-surface-variant mt-1 max-w-3xl text-sm">
-                Simple mode keeps one organizer and one participant option.
-                Advanced mode supports any number of named options and reveals
-                add-on configuration.
+                Simple setup keeps one organizer choice and one attendee choice.
+                Advanced setup lets you add more choices and set up add-ons.
               </p>
             </div>
             <div
               class="border-outline-variant flex gap-1 rounded-lg border p-1"
-              aria-label="Registration configuration mode"
+              aria-label="Sign-up setup"
             >
               <button
                 type="button"
@@ -162,27 +157,26 @@
 
           @if (!eventModel().simpleModeEnabled && simpleModeIssue()) {
             <p class="text-on-surface-variant mt-3 text-sm">
-              To return to simple mode, keep exactly one organizing and one
-              non-organizing option. Switching modes never deletes options for
+              To return to simple setup, keep exactly one organizer choice and
+              one attendee choice. Switching setups never deletes choices for
               you.
             </p>
           }
           @if (!stripeConnectionKnown()) {
             <p class="text-on-surface-variant mt-3 text-sm" role="status">
-              Paid controls are unavailable while the organization's Stripe
-              status is loading.
+              Paid choices are unavailable while payment settings load.
             </p>
           } @else if (paidControlsUnavailable()) {
             @if (paidGraphBlocked()) {
               <p class="text-error mt-3 text-sm" role="alert">
-                This event contains paid registration or add-on data. It remains
-                unchanged, but the event cannot be saved until Stripe is
-                connected again.
+                This existing event includes paid sign-up choices or add-ons.
+                They remain unchanged, but you cannot save changes until paid
+                sign-ups are ready again.
               </p>
             } @else {
               <p class="text-on-surface-variant mt-3 text-sm" role="status">
-                Paid controls are unavailable because this organization has no
-                connected Stripe account.
+                Paid choices are unavailable because paid sign-ups are not ready
+                for this organization.
               </p>
             }
           }
@@ -203,12 +197,12 @@
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="registration-options-heading" class="title-large">
-                Registration options
+                Sign-up choices
               </h2>
               @if (eventModel().simpleModeEnabled) {
                 <p class="text-on-surface-variant mt-1 text-sm">
-                  Both options remain fully editable. Switch to advanced mode
-                  before adding or removing options.
+                  Both choices remain fully editable. Switch to advanced setup
+                  before adding or removing choices.
                 </p>
               }
             </div>
@@ -218,7 +212,7 @@
                 mat-button
                 (click)="addRegistrationOption()"
               >
-                Add registration option
+                Add sign-up choice
               </button>
             }
           </div>
@@ -232,8 +226,7 @@
                 <p data-testid="event-graph-warning">{{ warning }}</p>
               }
               <p class="mt-1 text-sm">
-                This is allowed for operational events and does not block saving
-                or publishing.
+                You can still save and publish this event.
               </p>
             </div>
           }
@@ -257,9 +250,9 @@
               />
             } @empty {
               <p class="text-on-surface-variant py-4 text-sm">
-                This announcement has no registration options. Its discovery
-                roles or link-only state can be changed from the event page. Add
-                an option when participants or organizers should register.
+                This announcement has no sign-up choices. From the event page,
+                choose which roles can find it in Events. Add a choice when
+                attendees or organizers should sign up.
               </p>
             }
           </div>
@@ -272,11 +265,11 @@
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="registration-questions-heading" class="title-large">
-                Registration questions
+                Sign-up questions
               </h2>
               <p class="text-on-surface-variant mt-1 text-sm">
-                Each question belongs to one concrete option. Duplicate it
-                deliberately when multiple options should ask the same thing.
+                Each question is shown for one sign-up choice. Copy it when
+                several choices should ask the same thing.
               </p>
             </div>
             <button
@@ -307,7 +300,7 @@
                     <input matInput [formField]="question.title" />
                   </mat-form-field>
                   <mat-form-field>
-                    <mat-label>Registration option</mat-label>
+                    <mat-label>Sign-up choice</mat-label>
                     <mat-select [formField]="question.registrationOptionKey">
                       @for (option of optionChoices(); track option.key) {
                         <mat-option [value]="option.key">
@@ -317,7 +310,7 @@
                     </mat-select>
                   </mat-form-field>
                   <mat-form-field>
-                    <mat-label>Sort order</mat-label>
+                    <mat-label>Question order</mat-label>
                     <input
                       matInput
                       type="number"
@@ -361,13 +354,13 @@
               </article>
             } @empty {
               <p class="text-on-surface-variant text-sm">
-                No registration questions are configured.
+                No sign-up questions yet.
               </p>
             }
             @if (eventModel().questions.length >= maxRegistrationQuestions) {
               <p class="body-small text-on-surface-variant">
-                This event has the maximum {{ maxRegistrationQuestions }}
-                registration questions.
+                You have added the maximum of
+                {{ maxRegistrationQuestions }} questions.
               </p>
             }
           </div>
@@ -383,9 +376,10 @@
               <div>
                 <h2 id="event-addons-heading" class="title-large">Add-ons</h2>
                 <p class="text-on-surface-variant mt-1 text-sm">
-                  Reuse one add-on across several options. Each registration
-                  option has its own included and optional quantities. An event
-                  supports up to {{ maxEventAddonTypes }} add-on types.
+                  Offer one add-on with several sign-up choices. Each choice can
+                  include a different amount or let people buy a different
+                  amount. An event can have up to
+                  {{ maxEventAddonTypes }} add-ons.
                 </p>
               </div>
               <button
@@ -423,7 +417,7 @@
                 />
               } @empty {
                 <p class="text-on-surface-variant text-sm">
-                  No add-ons yet. Add one to offer extras with registration.
+                  No add-ons yet. Add one to offer extras during sign-up.
                 </p>
               }
             </div>

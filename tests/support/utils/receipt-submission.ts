@@ -111,9 +111,9 @@ export const openOrganizerReceiptsFromNavigation = async ({
     has: page.getByRole('heading', { level: 2, name: 'Receipts' }),
   });
   await expect(receiptSection).toBeVisible({ timeout: 20_000 });
-  await expect(receiptSection.getByText('Loading receipts...')).not.toBeVisible(
-    { timeout: 20_000 },
-  );
+  await expect(receiptSection.getByText('Loading receipts…')).not.toBeVisible({
+    timeout: 20_000,
+  });
   await expect(
     receiptSection.getByText(
       'Receipts can be added after the event has loaded.',

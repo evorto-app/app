@@ -70,7 +70,7 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formValue,
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Choose an image or PDF receipt file.');
+    ).toBe('Choose a receipt image or document.');
 
     expect(
       receiptSubmitDialogResultFromFormValue({
@@ -80,7 +80,9 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formValue,
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Receipts must be JPEG, PNG, WebP, or PDF files');
+    ).toBe(
+      'This receipt cannot be used. Choose a different receipt image or document.',
+    );
 
     expect(
       receiptSubmitDialogResultFromFormValue({
@@ -90,7 +92,9 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formValue,
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Receipt file must be between 1 byte and 20 MB');
+    ).toBe(
+      'This receipt is empty or larger than 20 MB. Choose another image or document.',
+    );
   });
 
   it('rejects invalid form state and countries outside tenant settings', () => {
@@ -145,7 +149,7 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         },
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Enter a valid receipt date in YYYY-MM-DD format.');
+    ).toBe('Choose a valid receipt date.');
   });
 
   it('rejects precision loss, zero totals, and contradictory optional amounts', () => {

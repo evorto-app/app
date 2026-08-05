@@ -124,7 +124,7 @@ export class PlatformRolesComponent {
     maxLength(role.description, ROLE_DESCRIPTION_MAX_LENGTH, {
       message: `Description must be ${ROLE_DESCRIPTION_MAX_LENGTH} characters or fewer.`,
     });
-    required(role.reason, { message: 'Enter an operational reason.' });
+    required(role.reason, { message: 'Enter a reason for this change.' });
     maxLength(role.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
@@ -179,7 +179,9 @@ export class PlatformRolesComponent {
         this.createRole();
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to delete role'),
+          getErrorMessage(error, 'The role could not be deleted. Try again.', [
+            'RpcBadRequestError',
+          ]),
         );
       }
     })();
@@ -242,7 +244,14 @@ export class PlatformRolesComponent {
         this.notifications.showError(
           getErrorMessage(
             error,
-            roleId ? 'Failed to update role' : 'Failed to create role',
+            roleId
+              ? 'The role could not be updated. Try again.'
+              : 'The role could not be created. Try again.',
+            [
+              'RoleNameAlreadyExistsError',
+              'RoleWriteValidationError',
+              'RpcBadRequestError',
+            ],
           ),
         );
       }

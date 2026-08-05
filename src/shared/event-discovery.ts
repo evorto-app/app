@@ -6,10 +6,10 @@ export const eventDiscoveryLabel = ({
   hasRegistrationOptions: boolean;
 }): string =>
   hasRegistrationOptions
-    ? 'Eligibility based'
+    ? 'Sign-up event'
     : announcementRoleCount > 0
       ? 'Announcement'
-      : 'Link only';
+      : 'Direct link only';
 
 export const eventDiscoveryDescription = ({
   announcementRoleCount,
@@ -19,9 +19,9 @@ export const eventDiscoveryDescription = ({
   hasRegistrationOptions: boolean;
 }): string => {
   if (hasRegistrationOptions) {
-    return 'Discovery follows current registration-option role eligibility. Anonymous discovery uses roles assigned by default to new members. Eligibility is checked again when someone registers.';
+    return 'People can find this event when a sign-up choice is available to them. People who are not signed in can see it when a choice is available to new members. Sign-in is still required before signing up.';
   }
   return announcementRoleCount > 0
-    ? 'Shown in event discovery to people with at least one selected role. This does not grant access or send notifications.'
-    : 'Hidden from event discovery; use a direct link.';
+    ? 'Members with a role selected on this announcement can find it in Events. This does not change what they can do or send them a message.'
+    : 'This announcement does not appear in Events. People can still open it from its direct link.';
 };

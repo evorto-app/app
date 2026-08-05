@@ -12,7 +12,7 @@ describe('formatInclusiveTaxLabel', () => {
         displayName: 'VAT',
         percentage: '19',
       }),
-    ).toBe('Incl. 19% VAT');
+    ).toBe('19% VAT included in the shown price');
   });
 
   it('uses Tax free for zero percent tax rates', () => {

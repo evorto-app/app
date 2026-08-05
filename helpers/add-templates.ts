@@ -90,7 +90,7 @@ export const addTemplates = async (
     (category) => category.title === 'Weekend Trips',
   );
   const exampleConfigsCategory = categories.find(
-    (category) => category.title === 'Example configurations',
+    (category) => category.title === 'Example setups',
   );
 
   if (
@@ -142,7 +142,7 @@ export const addTemplates = async (
       icon: createIconObject(template.icon),
       seedKey: 'weekend-trip' as const,
     })),
-    // Example configurations freeTemplates
+    // Example setup templates
     ...getExampleConfigTemplates(exampleConfigsCategory).map((template) => ({
       ...template,
       icon: createIconObject(template.icon),
@@ -179,7 +179,7 @@ export const addTemplates = async (
     .flatMap((template) => [
       {
         closeRegistrationOffset: 1,
-        description: 'Organizer registration',
+        description: 'Help organize this event.',
         isPaid: false,
         openRegistrationOffset: 168,
         organizingRegistration: true,
@@ -188,11 +188,11 @@ export const addTemplates = async (
         roleIds: defaultOrganizerRoles.map((role) => role.id),
         spots: 1,
         templateId: template.id,
-        title: 'Organizer',
+        title: 'Organizer sign-up',
       },
       {
         closeRegistrationOffset: 1,
-        description: 'Participant registration',
+        description: 'Attend this event.',
         isPaid: false,
         openRegistrationOffset: 168,
         organizingRegistration: false,
@@ -201,7 +201,7 @@ export const addTemplates = async (
         roleIds: defaultUserRoles.map((role) => role.id),
         spots: 20,
         templateId: template.id,
-        title: 'Participant',
+        title: 'Attendee sign-up',
       },
     ])
     .map((registrationOption) => ({ ...registrationOption, id: getId() }));
@@ -249,7 +249,7 @@ export const addTemplates = async (
     .flatMap((template) => [
       {
         closeRegistrationOffset: 1,
-        description: 'Organizer registration',
+        description: 'Help organize this event.',
         isPaid: true,
         openRegistrationOffset: 168,
         organizingRegistration: true,
@@ -259,11 +259,11 @@ export const addTemplates = async (
         spots: 1,
         stripeTaxRateId: vat7.stripeTaxRateId,
         templateId: template.id,
-        title: 'Organizer',
+        title: 'Organizer sign-up',
       },
       {
         closeRegistrationOffset: 1,
-        description: 'Participant registration',
+        description: 'Attend this event.',
         isPaid: true,
         openRegistrationOffset: 168,
         organizingRegistration: false,
@@ -273,7 +273,7 @@ export const addTemplates = async (
         spots: 20,
         stripeTaxRateId: vat19.stripeTaxRateId,
         templateId: template.id,
-        title: 'Participant',
+        title: 'Attendee sign-up',
       },
     ])
     .map((registrationOption) => ({ ...registrationOption, id: getId() }));

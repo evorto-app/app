@@ -60,15 +60,30 @@ describe('template category permission presentation', () => {
         permission: 'templates:manageCategories',
       }),
     ).toBe(
-      'You no longer have permission to manage template categories. Reload the page to refresh your access, or ask an administrator for this permission.',
+      'You can no longer manage template categories. No change was saved. Ask an administrator if you need this access.',
     );
   });
 
-  it('preserves actionable non-permission mutation messages', () => {
+  it('uses focused fallback copy for other mutation failures', () => {
     expect(
       templateCategoryMutationErrorMessage({
         message: 'Category not found',
       }),
-    ).toBe('Category not found');
+    ).toBe("We couldn't save this template category. Try again.");
+  });
+
+  it('shows a missing category without exposing internal failures', () => {
+    expect(
+      templateCategoryMutationErrorMessage({
+        _tag: 'TemplateCategoryNotFoundError',
+        message: 'This template category could not be found.',
+      }),
+    ).toBe('This template category could not be found.');
+    expect(
+      templateCategoryMutationErrorMessage({
+        _tag: 'RpcInternalServerError',
+        message: 'database failed',
+      }),
+    ).toBe("We couldn't save this template category. Try again.");
   });
 });

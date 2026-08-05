@@ -71,7 +71,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
       price()
         .errors()
         .map((error) => error.message),
-    ).toContain('Paid registrations must cost at least 0.01.');
+    ).toContain('A paid choice must cost at least 0.01.');
 
     price().value.set(1);
 
@@ -147,7 +147,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
         .errors()
         .map((error) => error.message),
     ).toContain(
-      `Maximum per user cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`,
+      `Each person can get at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
     );
 
     graph.addOns[0]
@@ -162,7 +162,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
         .errors()
         .map((error) => error.message),
     ).toContain(
-      `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per registration.`,
+      `Included and optional items cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
     );
   });
 
@@ -187,7 +187,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
         .errors()
         .map((error) => error.message),
     ).toContain(
-      `Templates support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+      `A template can have at most ${MAX_EVENT_ADDON_TYPES} add-ons.`,
     );
   });
 
@@ -218,7 +218,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
       'max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY',
     );
     expect(addOnTemplate).toContain(
-      'At most {{ maxRegistrationAddonQuantity }} units per registration.',
+      'At most {{ maxRegistrationAddonQuantity }} items per sign-up.',
     );
     expect(graphTemplate).toContain(
       '[disabled]="form.addOns.length >= maxEventAddonTypes"',
@@ -285,7 +285,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
         .closeRegistrationOffset()
         .errors()
         .map((error) => error.message),
-    ).toContain('Registration must open before it closes.');
+    ).toContain('Sign-up must open before it closes.');
   });
 
   it('rejects add-on purchase-window and mapping combinations the server cannot save', () => {
@@ -316,7 +316,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
         .registrationOptions()
         .errors()
         .map((error) => error.message),
-    ).toContain('Use each registration option only once.');
+    ).toContain('Add each sign-up choice only once.');
   });
 
   it('reactively disables paid controls until Stripe is available', () => {

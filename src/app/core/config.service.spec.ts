@@ -6,6 +6,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { toClientTenantConfig } from '../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { supportedTenantThemes, Tenant } from '../../types/custom/tenant';
 import {
   ConfigService,
@@ -13,7 +14,7 @@ import {
 } from './config.service';
 import { APP_RPC_CLIENT } from './effect-rpc-angular-client';
 
-const createTenant = (theme: Tenant['theme']) =>
+const createTenant = (theme: Tenant['theme'], stripeAccountId?: string) =>
   new Tenant({
     cancellationDeadlineHoursBeforeStart: 24,
     currency: 'EUR',
@@ -33,6 +34,7 @@ const createTenant = (theme: Tenant['theme']) =>
       receiptCountries: ['DE'],
     },
     refundFeesOnCancellation: false,
+    stripeAccountId,
     theme,
     timezone: 'Europe/Berlin',
     transferDeadlineHoursBeforeStart: 24,
@@ -101,9 +103,9 @@ describe('ConfigService initialization', () => {
     });
     const tenantCall = vi
       .fn()
-      .mockResolvedValueOnce(createTenant('evorto'))
-      .mockResolvedValueOnce(createTenant('classic'))
-      .mockResolvedValueOnce(createTenant('esn'));
+      .mockResolvedValueOnce(toClientTenantConfig(createTenant('evorto')))
+      .mockResolvedValueOnce(toClientTenantConfig(createTenant('classic')))
+      .mockResolvedValueOnce(toClientTenantConfig(createTenant('esn')));
 
     TestBed.configureTestingModule({
       providers: [
@@ -156,6 +158,59 @@ describe('ConfigService initialization', () => {
 
     await config.initialize();
     expect(configuredThemeClasses()).toEqual(['theme-esn']);
+    queryClient.clear();
+  });
+
+  it('sanitizes the server request context before exposing tenant configuration', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+    const tenant = createTenant('evorto', 'acct_server-only');
+
+    TestBed.configureTestingModule({
+      providers: [
+        ConfigService,
+        provideTanStackQuery(queryClient),
+        { provide: PLATFORM_ID, useValue: 'server' },
+        {
+          provide: REQUEST_CONTEXT,
+          useValue: {
+            permissions: [],
+            platformAuthority: undefined,
+            tenant,
+          },
+        },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            config: {
+              public: {
+                call: vi.fn().mockResolvedValue({ googleMapsApiKey: null }),
+              },
+              tenant: {
+                queryOptions: () => ({
+                  enabled: false,
+                  queryFn: vi.fn(),
+                  queryKey: ['config', 'tenant'],
+                }),
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const config = TestBed.inject(ConfigService);
+
+    await config.initialize();
+
+    expect(tenant.stripeAccountId).toBe('acct_server-only');
+    expect(config.tenant.paymentsConfigured).toBe(true);
+    expect(config.tenant).not.toHaveProperty('stripeAccountId');
     queryClient.clear();
   });
 });

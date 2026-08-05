@@ -26,7 +26,7 @@ const templateOptionCard = (page: Page, optionTitle: string) =>
     .filter({
       has: page.getByRole('heading', {
         level: 2,
-        name: 'Registration Options',
+        name: 'Sign-up choices',
       }),
     })
     .locator('.bg-surface')
@@ -100,7 +100,9 @@ test.describe('Inclusive price labels', () => {
       const card = registrationOptionCard(page, freeOption.title);
       await expectCardReady(card);
       await expect(card.locator('app-price-with-tax')).toHaveCount(0);
-      await expect(card.getByText('Incl.')).toHaveCount(0);
+      await expect(card.getByText('included in the shown price')).toHaveCount(
+        0,
+      );
       await expect(card.getByText('Tax free')).toHaveCount(0);
     });
 

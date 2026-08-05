@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect, Exit } from 'effect';
+import { Cause, Effect, Exit } from 'effect';
 
 import {
   collectStripeTaxRatePages,
@@ -98,22 +98,34 @@ describe('platform tenant-admin handler boundaries', () => {
     }),
   );
 
-  it.effect('fails tax import when the locked Stripe account changed', () =>
-    Effect.gen(function* () {
-      yield* ensureStripeAccountUnchanged('acct_original', 'acct_original');
+  it.effect(
+    'defects when tax rates do not match the locked payment owner',
+    () =>
+      Effect.gen(function* () {
+        yield* ensureStripeAccountUnchanged('acct_original', 'acct_original');
 
-      const changedError = yield* ensureStripeAccountUnchanged(
-        'acct_original',
-        'acct_replacement',
-      ).pipe(Effect.flip);
-      expect(changedError.reason).toBe('stripeAccountChanged');
+        const changedExit = yield* ensureStripeAccountUnchanged(
+          'acct_original',
+          'acct_replacement',
+        ).pipe(Effect.exit);
+        expect(Exit.isFailure(changedExit)).toBe(true);
+        if (Exit.isFailure(changedExit)) {
+          expect(Cause.squash(changedExit.cause)).toMatchObject({
+            message: 'Tenant Stripe account changed during tax-rate import',
+          });
+        }
 
-      const disconnectedError = yield* ensureStripeAccountUnchanged(
-        'acct_original',
-        null,
-      ).pipe(Effect.flip);
-      expect(disconnectedError.reason).toBe('stripeAccountChanged');
-    }),
+        const disconnectedExit = yield* ensureStripeAccountUnchanged(
+          'acct_original',
+          null,
+        ).pipe(Effect.exit);
+        expect(Exit.isFailure(disconnectedExit)).toBe(true);
+        if (Exit.isFailure(disconnectedExit)) {
+          expect(Cause.squash(disconnectedExit.cause)).toMatchObject({
+            message: 'Tenant Stripe account changed during tax-rate import',
+          });
+        }
+      }),
   );
 
   it('audits full tax-rate metadata in stable Stripe ID order', () => {
@@ -225,7 +237,11 @@ describe('platform tenant-admin handler boundaries', () => {
       }, 2).pipe(Effect.flip);
 
       expect(page).toBe(2);
-      expect(error.reason).toBe('stripeTaxRatePageLimitExceeded');
+      expect(error).toMatchObject({
+        message:
+          'There are too many tax rates to load at once. Archive tax rates you no longer use, then try again.',
+        reason: 'taxRatePageLimitExceeded',
+      });
     }),
   );
 });

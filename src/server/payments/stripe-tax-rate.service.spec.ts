@@ -1,11 +1,12 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect } from 'effect';
+import { Cause, Effect, Exit } from 'effect';
 import Stripe from 'stripe';
 
 import {
   collectStripeTaxRatePages,
   listStripeTaxRates,
   loadStripeTaxRatesForImport,
+  requireTenantStripeAccount,
   type StripeTaxRateApi,
   type StripeTaxRateSource,
 } from './stripe-tax-rate.service';
@@ -31,6 +32,20 @@ const unusedRetrieve: StripeTaxRateApi['retrieve'] = (id) =>
   Promise.resolve(stripeRate(id));
 
 describe('Stripe tax-rate service', () => {
+  it.effect(
+    'explains how to make paid sign-ups ready before adding rates',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* requireTenantStripeAccount(null).pipe(Effect.flip);
+
+        expect(error).toMatchObject({
+          message: 'Paid sign-ups are not ready for this organization.',
+          reason:
+            'Contact Evorto support before adding tax rates, then try again.',
+        });
+      }),
+  );
+
   it.effect(
     'paginates past one hundred results under the selected account',
     () =>
@@ -97,7 +112,11 @@ describe('Stripe tax-rate service', () => {
       }, 2).pipe(Effect.flip);
 
       expect(page).toBe(2);
-      expect(error.reason).toBe('stripeTaxRatePageLimitExceeded');
+      expect(error).toMatchObject({
+        message:
+          'There are too many tax rates to load at once. Archive tax rates you no longer use, then try again.',
+        reason: 'taxRatePageLimitExceeded',
+      });
     }),
   );
 
@@ -116,7 +135,9 @@ describe('Stripe tax-rate service', () => {
 
       expect(error).toMatchObject({
         _tag: 'RpcBadRequestError',
-        reason: 'unsupportedStripeTaxRate',
+        message:
+          'A selected tax rate cannot be used for shown prices. Choose an active tax rate that is included in the shown price.',
+        reason: 'taxRateNotUsable',
       });
     }),
   );
@@ -136,7 +157,9 @@ describe('Stripe tax-rate service', () => {
 
       expect(error).toMatchObject({
         _tag: 'RpcBadRequestError',
-        reason: 'unsupportedStripeTaxRate',
+        message:
+          'A selected tax rate cannot be used for shown prices. Choose an active tax rate that is included in the shown price.',
+        reason: 'taxRateNotUsable',
       });
     }),
   );
@@ -150,6 +173,7 @@ describe('Stripe tax-rate service', () => {
           requestedAccounts.push(options.stripeAccount);
           return Promise.reject(
             new Stripe.errors.StripeInvalidRequestError({
+              code: 'resource_missing',
               headers: {},
               message: 'No such tax rate for account',
               requestId: 'req_tax_rate',
@@ -169,8 +193,60 @@ describe('Stripe tax-rate service', () => {
       expect(requestedAccounts).toEqual(['acct_current']);
       expect(error).toMatchObject({
         _tag: 'RpcBadRequestError',
-        reason: 'stripeTaxRateNotFound',
+        message:
+          'A selected tax rate is no longer available. No tax rates were added. Select the tax rates again, then choose Add selected.',
+        reason: 'taxRateUnavailable',
       });
+    }),
+  );
+
+  it.effect('keeps other invalid tax-rate requests in the defect channel', () =>
+    Effect.gen(function* () {
+      const providerFailure = new Stripe.errors.StripeInvalidRequestError({
+        code: 'parameter_unknown',
+        headers: {},
+        message: 'Unexpected parameter',
+        requestId: 'req_invalid_tax_rate_contract',
+        statusCode: 400,
+        type: 'invalid_request_error',
+      });
+      const stripeTaxRates: StripeTaxRateApi = {
+        list: unusedList,
+        retrieve: () => Promise.reject(providerFailure),
+      };
+
+      const exit = yield* loadStripeTaxRatesForImport(
+        stripeTaxRates,
+        'acct_current',
+        ['txr_target'],
+      ).pipe(Effect.exit);
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        expect(Cause.squash(exit.cause)).toBe(providerFailure);
+      }
+    }),
+  );
+
+  it.effect('treats a mismatched returned tax-rate ID as a defect', () =>
+    Effect.gen(function* () {
+      const stripeTaxRates: StripeTaxRateApi = {
+        list: unusedList,
+        retrieve: () => Promise.resolve(stripeRate('txr_unexpected')),
+      };
+
+      const exit = yield* loadStripeTaxRatesForImport(
+        stripeTaxRates,
+        'acct_current',
+        ['txr_requested'],
+      ).pipe(Effect.exit);
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        expect(Cause.squash(exit.cause)).toMatchObject({
+          message: 'Stripe returned a tax rate with an unexpected ID',
+        });
+      }
     }),
   );
 
@@ -194,7 +270,10 @@ describe('Stripe tax-rate service', () => {
         ).pipe(Effect.flip);
 
         expect(retrieveCalls).toBe(0);
-        expect(error.reason).toBe('stripeTaxRateImportSizeInvalid');
+        expect(error).toMatchObject({
+          message: 'Choose between 1 and 100 tax rates to add.',
+        });
+        expect(error.reason).toBeUndefined();
       }),
   );
 

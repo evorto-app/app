@@ -1,4 +1,4 @@
-<h2 mat-dialog-title>Select an Icon</h2>
+<h2 mat-dialog-title>Choose an icon</h2>
 <mat-dialog-content>
   <div class="flex flex-col gap-4">
     <mat-form-field class="!mt-2 w-full">
@@ -11,17 +11,17 @@
     </mat-form-field>
     @if (!searchWithinLimit()) {
       <p class="text-error text-sm" role="alert">
-        Search terms are limited to 64 characters.
+        Keep your search under 65 characters.
       </p>
     }
     @if (searchWithinLimit()) {
       @if (iconSearchQuery.isPending()) {
         <p class="text-on-surface-variant text-sm" role="status">
-          Loading icons...
+          Loading icons…
         </p>
       } @else if (iconSearchQuery.isError()) {
         <div class="text-error grid gap-2 text-sm" role="alert">
-          <p>Icons could not be loaded.</p>
+          <p>We couldn't load the icons.</p>
           <div>
             <button
               type="button"
@@ -29,7 +29,7 @@
               [disabled]="iconSearchQuery.isFetching()"
               (click)="iconSearchQuery.refetch()"
             >
-              {{ iconSearchQuery.isFetching() ? "Retrying..." : "Try again" }}
+              {{ iconSearchQuery.isFetching() ? "Trying again…" : "Try again" }}
             </button>
           </div>
         </div>
@@ -80,8 +80,7 @@
     }
     @if (invalidDirectAccessName()) {
       <p class="text-on-surface-variant text-sm">
-        To add an Icons8 icon, use a lowercase name such as
-        <code>calendar:color</code>. Letters, numbers, and hyphens are allowed.
+        No matching icons found. Try another search.
       </p>
     }
     @if (addIconError()) {

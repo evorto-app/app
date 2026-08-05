@@ -301,7 +301,7 @@ describe('userHandlers', () => {
       );
 
       expect(error['_tag']).toBe('UserRoleAssignmentNotFoundError');
-      expect(error.message).toBe('Tenant user not found');
+      expect(error.message).toBe('Member not found.');
     }),
   );
 
@@ -347,7 +347,9 @@ describe('userHandlers', () => {
       );
 
       expect(error['_tag']).toBe('UserRoleAssignmentNotFoundError');
-      expect(error.message).toBe('One or more roles were not found');
+      expect(error.message).toBe(
+        'One or more selected roles are no longer available.',
+      );
     }),
   );
 
@@ -390,7 +392,7 @@ describe('userHandlers', () => {
         );
 
         expect(error['_tag']).toBe('UserSelfRoleRemovalError');
-        expect(error.message).toBe('You cannot remove all of your own roles');
+        expect(error.message).toBe('You cannot remove all of your own roles.');
         expect(deleteRoles).not.toHaveBeenCalled();
       }),
   );

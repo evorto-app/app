@@ -96,7 +96,7 @@ const openOrganizerOverview = async (
     page.getByRole('heading', {
       exact: true,
       level: 2,
-      name: 'Participant registrations',
+      name: 'Attendee sign-ups',
     }),
   ).toBeVisible({ timeout: 20_000 });
 };
@@ -206,11 +206,11 @@ test('simple organizer signup grants and revokes event-scoped access while prese
     await expect(organizerCard).toBeVisible();
     await expect(participantCard).toBeVisible();
     await expect(
-      organizerCard.getByText('Organizer/helper option', { exact: true }),
+      organizerCard.getByText('Organizer/helper choice', { exact: true }),
     ).toBeVisible();
     await expect(
       organizerCard.getByText(
-        'Use this option when you are helping run the event.',
+        'Use this choice when you are helping run the event.',
         { exact: true },
       ),
     ).toBeVisible();
@@ -236,7 +236,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
     ).toBeVisible();
     await expect(
       activeOrganizerRegistration.getByText(
-        'Organizer/helper registration confirmed',
+        'Your organizer/helper place is confirmed',
         { exact: true },
       ),
     ).toBeVisible();
@@ -246,7 +246,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       }),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { exact: true, name: 'Register' }),
+      page.getByRole('button', { exact: true, name: 'Sign up' }),
     ).toHaveCount(0);
     await expect(
       page.getByRole('button', {
@@ -331,7 +331,9 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       scenario.organizerOption.title,
     );
     await expect(
-      fullOrganizerCard.getByText('This option is full.', { exact: true }),
+      fullOrganizerCard.getByText('This sign-up choice is full.', {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       fullOrganizerCard.getByRole('button', {
@@ -356,7 +358,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
     await expect(
       page.getByRole('heading', {
         exact: true,
-        name: 'Your Event Registrations',
+        name: 'Your events',
       }),
     ).toBeVisible();
     const profileEvent = page.locator('article').filter({
@@ -418,7 +420,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
 
     const cancelRegistration = page.getByRole('button', {
       exact: true,
-      name: 'Cancel registration',
+      name: 'Cancel ticket',
     });
     await waitForHydratedAction(cancelRegistration);
     await cancelRegistration.click();
@@ -426,13 +428,13 @@ test('simple organizer signup grants and revokes event-scoped access while prese
     await expect(
       cancellationDialog.getByRole('heading', {
         exact: true,
-        name: 'Cancel your registration?',
+        name: 'Cancel your ticket?',
       }),
     ).toBeVisible();
     await expect(
       cancellationDialog.getByRole('button', {
         exact: true,
-        name: 'Keep registration',
+        name: 'Go back',
       }),
     ).toBeFocused();
     expect(
@@ -440,7 +442,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
         .violations,
     ).toEqual([]);
     await cancellationDialog
-      .getByRole('button', { exact: true, name: 'Confirm cancellation' })
+      .getByRole('button', { exact: true, name: 'Cancel ticket' })
       .click();
     await expect(page.locator('app-event-active-registration')).toHaveCount(0, {
       timeout: 20_000,
@@ -486,7 +488,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
     await expect(
       page.getByRole('heading', {
         exact: true,
-        name: 'Your Event Registrations',
+        name: 'Your events',
       }),
     ).toBeVisible();
     await expect(
@@ -500,7 +502,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
     const registerParticipant = registrationCard(
       page,
       scenario.participantOption.title,
-    ).getByRole('button', { exact: true, name: 'Register' });
+    ).getByRole('button', { exact: true, name: 'Sign up' });
     await waitForHydratedAction(registerParticipant);
     await registerParticipant.click();
     const activeParticipantRegistration = await waitForActiveRegistration(page);
@@ -512,10 +514,9 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       }),
     ).toBeVisible();
     await expect(
-      activeParticipantRegistration.getByText(
-        'Your participant registration is confirmed.',
-        { exact: true },
-      ),
+      activeParticipantRegistration.getByText('Your ticket is confirmed', {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       page.getByRole('button', {
@@ -603,10 +604,10 @@ test('advanced organizer application stays pending until an administrator approv
     );
     await expect(participantCard).toBeVisible();
     await expect(
-      participantCard.getByText('Participant option', { exact: true }),
+      participantCard.getByText('Attendee choice', { exact: true }),
     ).toBeVisible();
     await expect(
-      participantCard.getByRole('button', { exact: true, name: 'Register' }),
+      participantCard.getByRole('button', { exact: true, name: 'Sign up' }),
     ).toBeVisible();
     const applicationCard = registrationCard(
       page,
@@ -620,7 +621,7 @@ test('advanced organizer application stays pending until an administrator approv
     ).toBeVisible();
     await expect(
       applicationCard.getByText(
-        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
         { exact: true },
       ),
     ).toBeVisible();
@@ -647,9 +648,12 @@ test('advanced organizer application stays pending until an administrator approv
     await applyAction.click();
 
     const pendingApplication = await waitForActiveRegistration(page);
-    await expect(pendingApplication).toContainText(
-      'Organizer/helper application pending',
-    );
+    await expect(
+      pendingApplication.getByText(
+        'Your organizer/helper application is waiting for approval. Organizer access starts only after approval and any required payment.',
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(
       page.getByRole('link', {
         exact: true,
@@ -723,7 +727,7 @@ test('advanced organizer application stays pending until an administrator approv
     await waitForHydratedAction(approveApplication);
     await approveApplication.click();
     await expect(
-      reviewer.page.getByText('Registration confirmed', { exact: true }),
+      reviewer.page.getByText('Sign-up confirmed', { exact: true }),
     ).toBeVisible({ timeout: 20_000 });
     await expect(approveApplication).toHaveCount(0);
 
@@ -760,7 +764,7 @@ test('advanced organizer application stays pending until an administrator approv
         emailCount: 1,
         emailRecipient:
           scenario.applicant.communicationEmail ?? scenario.applicant.email,
-        emailSubject: 'Registration approved',
+        emailSubject: 'Sign-up approved',
         reservedSpots: 0,
         status: 'CONFIRMED',
       });
@@ -770,7 +774,7 @@ test('advanced organizer application stays pending until an administrator approv
       await waitForActiveRegistration(page);
     await expect(
       confirmedOrganizerRegistration.getByText(
-        'Organizer/helper registration confirmed',
+        'Your organizer/helper place is confirmed',
         { exact: true },
       ),
     ).toBeVisible();

@@ -64,7 +64,7 @@ export const nonNegativeIntegerValidationError = (value: number) => {
 export const registrationSettingsFormSchema = schema<RegistrationSettingsModel>(
   (settings) => {
     required(settings.maxActiveRegistrationsPerUser, {
-      message: 'Enter an active registration limit.',
+      message: 'Enter an active sign-up limit.',
     });
     validate(settings.maxActiveRegistrationsPerUser, ({ value }) =>
       nonNegativeIntegerValidationError(value()),
@@ -152,10 +152,14 @@ export class RegistrationSettingsComponent {
           queryKey: this.rpc.pathKey(['config', 'tenant']),
         });
         this.settingsForm().reset();
-        this.notifications.showSuccess('Registration policies updated');
+        this.notifications.showSuccess('Sign-up rules updated');
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update registration policies'),
+          getErrorMessage(
+            error,
+            'The sign-up rules could not be saved. Try again.',
+            ['RpcBadRequestError', 'AdminTenantNotFoundError'],
+          ),
         );
       }
     });

@@ -19,24 +19,7 @@ import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import { AdminRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
-import {
-  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-  stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-  tenantHasPaidEventConfiguration,
-  tenantHasStripeTaxRateConfiguration,
-} from '../../../payments/paid-event-configuration';
-import {
-  lockTenantStripeAccount,
-  tenantHasPendingStripeObligations,
-} from '../../../payments/pending-stripe-obligations';
-import { validateStripePaymentAccount } from '../../../payments/stripe-payment-account-validation';
-import {
-  applyStripeTaxRateAccountRotation,
-  fetchStripeTaxRateAccountRotationTargetRates,
-  planStripeTaxRateAccountRotation,
-  type StripeTaxRateAccountRotationPlan,
-  type StripeTaxRateAccountRotationTargetRate,
-} from '../../../payments/stripe-tax-rate-account-rotation';
+import { lockTenantStripeAccount } from '../../../payments/pending-stripe-obligations';
 import {
   ensureStripeAccountUnchanged,
   listStripeTaxRates,
@@ -61,6 +44,7 @@ import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
 } from '../../../tenant-currency-integrity';
+import { safeServerErrorSummary } from '../../../utils/safe-server-error-summary';
 import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
@@ -78,6 +62,25 @@ const databaseBadRequestEffect = <A, R>(
           ? Effect.fail(error)
           : Effect.die(error),
       ),
+    ),
+  );
+
+const validateAdminSettings = <A>(input: {
+  readonly operation: string;
+  readonly publicMessage: string;
+  readonly try: () => A;
+}) =>
+  Effect.try({
+    catch: (error) => error,
+    try: input.try,
+  }).pipe(
+    Effect.tapError((error) =>
+      Effect.logWarning('Admin settings validation failed').pipe(
+        Effect.annotateLogs(safeServerErrorSummary(input.operation, error)),
+      ),
+    ),
+    Effect.mapError(
+      () => new RpcBadRequestError({ message: input.publicMessage }),
     ),
   );
 
@@ -282,19 +285,13 @@ const tenantHasRuntimeDependentData = (
 
 const tenantTimezoneSettingsLockedError = () =>
   new RpcBadRequestError({
-    message: 'Tenant timezone setting is locked',
-    reason: 'Timezone cannot be changed after event or payment data exists.',
+    message:
+      'Time zone cannot be changed after events or payments have been added. Keep the current time zone to save these settings.',
+    reason: 'timezoneLocked',
   });
 
 const tenantCurrencySettingsLockedError = () =>
   new RpcBadRequestError(tenantCurrencyChangeBlockedErrorDetails);
-
-const staleStripeAccountSettingsError = () =>
-  new RpcBadRequestError({
-    message: 'Stripe account changed while payment settings were open',
-    reason:
-      'Reload payment and provider settings before changing the connected account. No settings were changed.',
-  });
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -382,7 +379,7 @@ export const adminHandlers = {
             if (!lockedRole) {
               return yield* new AdminRoleNotFoundError({
                 id,
-                message: 'Role not found',
+                message: 'This role no longer exists. Return to the role list.',
               });
             }
             if (lockedRole.defaultUserRole) {
@@ -496,7 +493,10 @@ export const adminHandlers = {
       );
       if (!role) {
         return yield* Effect.fail(
-          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          new AdminRoleNotFoundError({
+            id,
+            message: 'This role no longer exists. Return to the role list.',
+          }),
         );
       }
 
@@ -551,7 +551,8 @@ export const adminHandlers = {
               if (!lockedRole) {
                 return yield* new AdminRoleNotFoundError({
                   id,
-                  message: 'Role not found',
+                  message:
+                    'This role no longer exists. Return to the role list.',
                 });
               }
               if (lockedRole.defaultUserRole && !normalized.defaultUserRole) {
@@ -583,7 +584,10 @@ export const adminHandlers = {
       const updatedRole = updatedRoles[0];
       if (!updatedRole) {
         return yield* Effect.fail(
-          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          new AdminRoleNotFoundError({
+            id,
+            message: 'This role no longer exists. Return to the role list.',
+          }),
         );
       }
 
@@ -714,12 +718,10 @@ export const adminHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:changeSettings');
       const { tenant } = yield* RpcAccess.current();
-      const brandAssets = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Invalid tenant brand assets',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
+      const brandAssets = yield* validateAdminSettings({
+        operation: 'admin.settings.appearance.validate',
+        publicMessage:
+          'Choose an uploaded logo or small site icon for this organization, or enter a valid web address.',
         try: () => normalizeTenantBrandAssets(input, tenant.id),
       });
 
@@ -739,7 +741,8 @@ export const adminHandlers = {
         return yield* Effect.fail(
           new AdminTenantNotFoundError({
             id: tenant.id,
-            message: 'Tenant not found or stale',
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
           }),
         );
       }
@@ -748,12 +751,10 @@ export const adminHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:changeSettings');
       const { tenant } = yield* RpcAccess.current();
-      const legalLinks = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Invalid tenant legal links',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
+      const legalLinks = yield* validateAdminSettings({
+        operation: 'admin.settings.legal.validate',
+        publicMessage:
+          'Enter valid web addresses for the legal notice and terms.',
         try: () => normalizeTenantLegalLinks(input),
       });
 
@@ -768,7 +769,8 @@ export const adminHandlers = {
         return yield* Effect.fail(
           new AdminTenantNotFoundError({
             id: tenant.id,
-            message: 'Tenant not found or stale',
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
           }),
         );
       }
@@ -830,7 +832,8 @@ export const adminHandlers = {
         return yield* Effect.fail(
           new AdminTenantNotFoundError({
             id: tenant.id,
-            message: 'Tenant not found or stale',
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
           }),
         );
       }
@@ -841,12 +844,10 @@ export const adminHandlers = {
       const { tenant } = yield* RpcAccess.current();
       const discountProviders: TenantDiscountProviders = {
         esnCard: {
-          config: yield* Effect.try({
-            catch: (error) =>
-              new RpcBadRequestError({
-                message: 'Invalid ESN card configuration',
-                reason: error instanceof Error ? error.message : String(error),
-              }),
+          config: yield* validateAdminSettings({
+            operation: 'admin.settings.esnCard.validate',
+            publicMessage:
+              'Enter a valid secure web address for buying an ESNcard.',
             try: () =>
               normalizeEsnCardConfig(
                 { buyEsnCardUrl: input.buyEsnCardUrl },
@@ -856,42 +857,6 @@ export const adminHandlers = {
           status: input.esnCardEnabled ? 'enabled' : 'disabled',
         },
       };
-      const stripeAccountId = input.stripeAccountId?.trim() || null;
-      const currentTenantRows = yield* databaseEffect((database) =>
-        database
-          .select({ stripeAccountId: tenants.stripeAccountId })
-          .from(tenants)
-          .where(eq(tenants.id, tenant.id))
-          .limit(1),
-      );
-      const currentTenant = currentTenantRows[0];
-      if (!currentTenant) {
-        return yield* Effect.fail(
-          new AdminTenantNotFoundError({
-            id: tenant.id,
-            message: 'Tenant not found or stale',
-          }),
-        );
-      }
-      if (currentTenant.stripeAccountId !== input.expectedStripeAccountId) {
-        return yield* staleStripeAccountSettingsError();
-      }
-      const targetStripeAccountWasValidated =
-        stripeAccountId !== null &&
-        input.expectedStripeAccountId !== stripeAccountId;
-      let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
-        [];
-      if (targetStripeAccountWasValidated) {
-        const stripe = yield* StripeClient;
-        yield* validateStripePaymentAccount(stripe, stripeAccountId);
-        if (currentTenant.stripeAccountId) {
-          stripeTaxRateRotationTargets =
-            yield* fetchStripeTaxRateAccountRotationTargetRates(
-              stripe,
-              stripeAccountId,
-            );
-        }
-      }
       const updatedTenants = yield* Database.use((database) =>
         database
           .transaction((tx) =>
@@ -900,7 +865,6 @@ export const adminHandlers = {
                 .select({
                   currency: tenants.currency,
                   id: tenants.id,
-                  stripeAccountId: tenants.stripeAccountId,
                 })
                 .from(tenants)
                 .where(eq(tenants.id, tenant.id))
@@ -909,61 +873,6 @@ export const adminHandlers = {
               const lockedTenant = lockedTenantRows[0];
               if (!lockedTenant) {
                 return [];
-              }
-              if (
-                lockedTenant.stripeAccountId !== input.expectedStripeAccountId
-              ) {
-                return yield* staleStripeAccountSettingsError();
-              }
-
-              let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
-              if (lockedTenant.stripeAccountId !== stripeAccountId) {
-                const hasPendingStripeObligations =
-                  yield* tenantHasPendingStripeObligations(tx, tenant.id);
-                if (hasPendingStripeObligations) {
-                  return yield* new RpcBadRequestError({
-                    message:
-                      'Stripe account cannot change while registration Checkouts or refunds are pending',
-                    reason:
-                      'Complete or cancel every pending Checkout and refund before changing the connected account.',
-                  });
-                }
-
-                if (stripeAccountId === null) {
-                  const hasPaidEventConfiguration =
-                    yield* tenantHasPaidEventConfiguration(tx, tenant.id);
-                  if (hasPaidEventConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-                    );
-                  }
-                  const hasStripeTaxRateConfiguration =
-                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
-                  if (hasStripeTaxRateConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                    );
-                  }
-                } else if (lockedTenant.stripeAccountId) {
-                  rotationPlan = yield* planStripeTaxRateAccountRotation(tx, {
-                    sourceStripeAccountId: lockedTenant.stripeAccountId,
-                    targetRates: stripeTaxRateRotationTargets,
-                    targetStripeAccountId: stripeAccountId,
-                    tenantId: tenant.id,
-                  });
-                } else {
-                  const hasStripeTaxRateConfiguration =
-                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
-                  if (hasStripeTaxRateConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                    );
-                  }
-                }
-
-                yield* tx
-                  .delete(tenantStripeTaxRates)
-                  .where(eq(tenantStripeTaxRates.tenantId, tenant.id));
               }
 
               if (lockedTenant.currency !== input.currency) {
@@ -986,17 +895,11 @@ export const adminHandlers = {
                     receiptCountries: input.receiptCountries,
                   }),
                   refundFeesOnCancellation: input.refundFeesOnCancellation,
-                  stripeAccountId,
                 })
                 .where(eq(tenants.id, tenant.id))
                 .returning({
                   id: tenants.id,
                 });
-              if (rotationPlan) {
-                // Source metadata was removed with the old account; restore
-                // only the provider-verified target-account matches.
-                yield* applyStripeTaxRateAccountRotation(tx, rotationPlan);
-              }
               return updatedRows;
             }),
           )
@@ -1012,7 +915,8 @@ export const adminHandlers = {
         return yield* Effect.fail(
           new AdminTenantNotFoundError({
             id: tenant.id,
-            message: 'Tenant not found or stale',
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
           }),
         );
       }
@@ -1038,7 +942,8 @@ export const adminHandlers = {
         return yield* Effect.fail(
           new AdminTenantNotFoundError({
             id: tenant.id,
-            message: 'Tenant not found or stale',
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
           }),
         );
       }

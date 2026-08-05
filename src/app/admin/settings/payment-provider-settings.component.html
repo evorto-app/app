@@ -7,7 +7,7 @@
   >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
-  <h1 class="title-large">Payments and providers</h1>
+  <h1 class="title-large">Payments</h1>
 </div>
 
 <form
@@ -19,24 +19,17 @@
     [disabled]="!settingsInteractionReady()"
   >
     <section class="grid grid-cols-1">
-      <h2 class="title-small mb-2">Payment account</h2>
-      <p class="text-on-surface-variant mb-3 text-sm">
-        Confirm account changes in Stripe before saving. Changing or
-        disconnecting an account remains blocked while payment obligations or
-        incompatible paid configuration exist.
-      </p>
-      <mat-form-field>
-        <mat-label>Stripe account ID</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.stripeAccountId"
-          placeholder="acct_..."
-        />
-        <mat-hint>
-          Disconnecting requires every event and template option and add-on to
-          be free.
-        </mat-hint>
-      </mat-form-field>
+      <h2 class="title-small mb-2">Paid sign-ups</h2>
+      @if (paymentsConfigured()) {
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Paid sign-ups are ready.
+        </p>
+      } @else {
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Paid sign-ups are not ready. Contact Evorto support before adding
+          prices.
+        </p>
+      }
       <mat-form-field>
         <mat-label>Currency</mat-label>
         <mat-select [formField]="settingsForm.currency">
@@ -45,7 +38,7 @@
           }
         </mat-select>
         <mat-hint>
-          Currency is locked after templates, events, receipts, or transactions
+          Currency is locked after templates, events, receipts, or payments
           exist.
         </mat-hint>
       </mat-form-field>
@@ -53,8 +46,8 @@
         Refund fees on cancellation
       </mat-slide-toggle>
       <p class="text-on-surface-variant text-xs">
-        When enabled, eligible cancellation refunds include refundable payment
-        fees.
+        When turned on, refundable payment fees are included when a cancellation
+        receives a refund.
       </p>
     </section>
 
@@ -65,7 +58,7 @@
         <mat-select [formField]="settingsForm.receiptCountries" multiple>
           @for (country of receiptCountryOptions; track country.code) {
             <mat-option [value]="country.code">
-              {{ country.label }} ({{ country.code }})
+              {{ country.label }}
             </mat-option>
           }
         </mat-select>
@@ -74,7 +67,7 @@
         }
       </mat-form-field>
       <mat-checkbox [formField]="settingsForm.allowOther">
-        Allow other
+        Allow receipts from other countries
       </mat-checkbox>
       <p class="text-on-surface-variant text-xs">
         Adds an “Other” option for receipts outside the selected countries.
@@ -84,11 +77,11 @@
     <section class="grid grid-cols-1">
       <h2 class="title-small mb-2">Discount cards</h2>
       <mat-slide-toggle [formField]="settingsForm.esnCardEnabled">
-        ESN Card discounts
+        ESNcard discounts
       </mat-slide-toggle>
       @if (settingsForm.esnCardEnabled().value()) {
         <mat-form-field class="mt-4">
-          <mat-label>Buy ESNcard URL</mat-label>
+          <mat-label>ESNcard purchase web address</mat-label>
           <input
             matInput
             [formField]="settingsForm.buyEsnCardUrl"
@@ -114,7 +107,7 @@
         })
       "
     >
-      Save payment and provider settings
+      Save payment settings
     </button>
   </fieldset>
 </form>

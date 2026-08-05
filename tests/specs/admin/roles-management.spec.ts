@@ -8,7 +8,7 @@ test.setTimeout(120_000);
 
 test.use({ storageState: adminStateFile });
 
-test('tenant admin reviews users and manages role definitions @admin @permissions', async ({
+test('tenant admin reviews members and manages role definitions @admin @permissions', async ({
   database,
   page,
   seedDate,
@@ -19,7 +19,9 @@ test('tenant admin reviews users and manages role definitions @admin @permission
 
   await page.goto('/admin/users');
 
-  await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'All members' }),
+  ).toBeVisible();
   await expect(
     page.getByText(
       'Manage role assignments for existing members. Role changes apply only to this organization.',
@@ -38,14 +40,14 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await page.goto('/admin/roles');
 
   await expect(
-    page.getByRole('heading', { level: 1, name: 'User roles' }),
+    page.getByRole('heading', { level: 1, name: 'Member roles' }),
   ).toBeVisible();
   const createRoleAction = page.getByText('Create role', { exact: true });
   await expect(createRoleAction).toBeVisible();
 
   await createRoleAction.click();
   await expect(
-    page.getByRole('heading', { name: 'Create Role' }),
+    page.getByRole('heading', { name: 'Create role' }),
   ).toBeVisible();
   await page.waitForLoadState('networkidle');
 
@@ -98,7 +100,7 @@ test('tenant admin reviews users and manages role definitions @admin @permission
 
   await page.goto(`/admin/roles/${createdRole.id}/edit`);
 
-  await expect(page.getByRole('heading', { name: 'Edit Role' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Edit role' })).toBeVisible();
   // The SSR form is visible before Angular attaches its submit handler.
   // Event replay removes `jsaction` once saving is safely interactive.
   await expect(roleForm.locator('form')).not.toHaveAttribute(

@@ -56,8 +56,7 @@
           <div>
             <h2 class="title-medium">Events could not be loaded</h2>
             <p class="body-medium mt-1">
-              Event discovery is temporarily unavailable. Check your connection
-              and try again.
+              No events are shown. Select Try again.
             </p>
           </div>
           <button
@@ -66,7 +65,7 @@
             [disabled]="eventQuery.isFetching()"
             (click)="eventQuery.refetch()"
           >
-            {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+            {{ eventQuery.isFetching() ? "Trying again…" : "Try again" }}
           </button>
         </div>
       } @else if (eventQuery.isSuccess()) {
@@ -80,7 +79,7 @@
             <a
               routerLink="{{ event.id }}"
               class="rounded-2xl bg-surface px-4 py-2 text-on-surface relative overflow-hidden {{
-                event.userRegistered ? 'ring-3 ring-inset ring-success' : ''
+                event.userSignUpState ? 'ring-2 ring-inset ring-primary' : ''
               }}"
               routerLinkActive="bg-secondary-container! text-on-secondary-container!"
             >
@@ -129,6 +128,16 @@
                         })
                       }}
                     </span>
+                    @if (
+                      eventListSignUpStateLabel(event.userSignUpState);
+                      as signUpStateLabel
+                    ) {
+                      <span
+                        class="label-medium bg-primary-container text-on-primary-container rounded-full px-2 py-1"
+                      >
+                        {{ signUpStateLabel }}
+                      </span>
+                    }
                   </div>
                 </div>
               </div>

@@ -12,6 +12,13 @@ import {
 } from '@react-email/components';
 import { createElement, type CSSProperties, type ReactElement } from 'react';
 
+import {
+  registrationCancellationCompletedLabel,
+  type RegistrationCancellationKind,
+} from '../../shared/registration-cancellation';
+
+export type { RegistrationCancellationKind } from '../../shared/registration-cancellation';
+
 export interface ManualApprovalEmailProps {
   readonly eventTitle: string;
   readonly eventUrl: string;
@@ -21,6 +28,7 @@ export interface ManualApprovalEmailProps {
 
 export interface ReceiptReviewedEmailProps {
   readonly eventTitle: string;
+  readonly receiptUrl: string;
   readonly rejectionReason: null | string;
   readonly status: 'approved' | 'rejected';
   readonly tenantName: string;
@@ -32,10 +40,16 @@ export type RegistrationCancellationActor =
   | 'participant'
   | 'platformAdministrator';
 
+export const registrationCancellationEmailTitle = (
+  kind: RegistrationCancellationKind,
+): string => registrationCancellationCompletedLabel(kind);
+
 export interface RegistrationCancelledEmailProps {
+  readonly cancellationKind: RegistrationCancellationKind;
   readonly cancelledBy: RegistrationCancellationActor;
   readonly eventTitle: string;
   readonly eventUrl: string;
+  readonly refundOutcome: 'notStarted' | 'pending';
   readonly tenantName: string;
 }
 
@@ -49,6 +63,7 @@ export interface RegistrationTransferredEmailProps {
   readonly eventTitle: string;
   readonly eventUrl: string;
   readonly recipientRole: 'newOwner' | 'previousOwner';
+  readonly refundOutcome: 'notStarted' | 'pending';
   readonly tenantName: string;
 }
 
@@ -165,7 +180,7 @@ const TransactionalEmailLayout = ({
         createElement(
           Text,
           { style: footerStyle },
-          `This transactional message was sent by ${tenantName} through Evorto.`,
+          `This email was sent by ${tenantName} through Evorto.`,
         ),
       ),
     ),
@@ -186,27 +201,24 @@ export const ManualApprovalEmail = ({
       href: eventUrl,
       label: paymentRequired
         ? 'Open event and complete payment'
-        : 'Open your registration in Evorto',
+        : 'Open your ticket in Evorto',
     },
     body: [
-      paragraph(
-        'approved',
-        `Your registration application for ${eventTitle} was approved.`,
-      ),
+      paragraph('approved', `Your sign-up for ${eventTitle} was approved.`),
       paragraph(
         'status',
         paymentDeadlineText
-          ? `Your spot is reserved until ${paymentDeadlineText}. Complete payment before that deadline to confirm your registration.`
-          : 'Your registration is confirmed.',
+          ? `Your place is reserved until ${paymentDeadlineText}. Complete payment before that deadline to finish your sign-up.`
+          : 'Your ticket is confirmed.',
       ),
     ],
     preview: paymentRequired
-      ? `Your application for ${eventTitle} was approved. Payment is required.`
-      : `Your application for ${eventTitle} was approved and confirmed.`,
+      ? `Your sign-up for ${eventTitle} was approved. Payment is required.`
+      : `Your ticket for ${eventTitle} is confirmed.`,
     tenantName,
     title: paymentRequired
-      ? 'Registration approved: payment required'
-      : 'Registration approved',
+      ? 'Sign-up approved: payment required'
+      : 'Sign-up approved',
   });
 };
 
@@ -219,6 +231,7 @@ ManualApprovalEmail.PreviewProps = {
 
 export const ReceiptReviewedEmail = ({
   eventTitle,
+  receiptUrl,
   rejectionReason,
   status,
   tenantName,
@@ -234,10 +247,17 @@ export const ReceiptReviewedEmail = ({
     body.push(paragraph('reason', `Reason: ${rejectionReason.trim()}`));
   }
   body.push(
-    paragraph('next-step', 'You can review the receipt status in Evorto.'),
+    paragraph(
+      'next-step',
+      'Open Profile → Receipts to see the review and any reason provided.',
+    ),
   );
 
   return TransactionalEmailLayout({
+    action: {
+      href: receiptUrl,
+      label: 'Open your receipt in Evorto',
+    },
     body,
     preview: `Your ${eventTitle} receipt was ${approved ? 'approved' : 'rejected'}.`,
     tenantName,
@@ -247,6 +267,7 @@ export const ReceiptReviewedEmail = ({
 
 ReceiptReviewedEmail.PreviewProps = {
   eventTitle: 'City tour',
+  receiptUrl: 'https://example.org/profile/receipts',
   rejectionReason: null,
   status: 'approved',
   tenantName: 'Example Section',
@@ -263,18 +284,15 @@ export const RegistrationConfirmedEmail = ({
       label: 'Open your ticket in Evorto',
     },
     body: [
-      paragraph(
-        'confirmed',
-        `Your registration for ${eventTitle} is confirmed.`,
-      ),
+      paragraph('confirmed', `Your ticket for ${eventTitle} is confirmed.`),
       paragraph(
         'ticket-access',
-        'The ticket owner must sign in to Evorto before this link opens the ticket.',
+        'Sign in with the account that holds this ticket to open it.',
       ),
     ],
-    preview: `Your registration for ${eventTitle} is confirmed.`,
+    preview: `Your ticket for ${eventTitle} is confirmed.`,
     tenantName,
-    title: 'Registration confirmed',
+    title: 'Ticket confirmed',
   });
 
 RegistrationConfirmedEmail.PreviewProps = {
@@ -291,18 +309,18 @@ export const WaitlistSpotAvailableEmail = ({
   TransactionalEmailLayout({
     action: {
       href: eventUrl,
-      label: 'Review registration availability',
+      label: 'Check for an available place',
     },
     body: [
-      paragraph('available', `A spot may now be available for ${eventTitle}.`),
+      paragraph('available', `A place may now be available for ${eventTitle}.`),
       paragraph(
         'not-reserved',
-        'This message is informational and does not reserve a spot. Open the event, leave the waitlist, and register if capacity is still available.',
+        'We have not held a place for you. Open the event, leave the waitlist, and sign up while a place is still available.',
       ),
     ],
-    preview: `A spot may be available for ${eventTitle}; it is not reserved.`,
+    preview: `A place may be available for ${eventTitle}; it is not reserved.`,
     tenantName,
-    title: 'A waitlist spot may be available',
+    title: 'A place may be available',
   });
 
 WaitlistSpotAvailableEmail.PreviewProps = {
@@ -312,52 +330,66 @@ WaitlistSpotAvailableEmail.PreviewProps = {
 } satisfies WaitlistSpotAvailableEmailProps;
 
 export const RegistrationCancelledEmail = ({
+  cancellationKind,
   cancelledBy,
   eventTitle,
   eventUrl,
+  refundOutcome,
   tenantName,
 }: RegistrationCancelledEmailProps): ReactElement => {
+  const title = registrationCancellationEmailTitle(cancellationKind);
+  const refundCopy =
+    refundOutcome === 'pending'
+      ? 'A refund to your original payment method is in progress. Open Profile → Events to follow it.'
+      : cancellationKind === 'application' || cancellationKind === 'waitlist'
+        ? 'No refund was needed.'
+        : 'No refund was started for this cancellation.';
   const cancellationCopy = (() => {
-    switch (cancelledBy) {
-      case 'eligibilityChangedAfterPayment': {
-        return {
-          body: `Your registration for ${eventTitle} was cancelled because the event or registration option was no longer available to you when payment completed. This can happen if the event is no longer published, the option was removed, or your organization membership or roles changed.`,
-          nextStep:
-            "The full amount you paid was queued for refund to your original payment method. Open your Profile to follow the refund status. Do not retry this payment. After the refund, review the event's current status and options or contact the organizer.",
-          preview: `Your registration for ${eventTitle} was cancelled after your eligibility changed. A full refund was queued.`,
-        };
-      }
-      case 'organizer': {
-        return {
-          body: `An organizer cancelled your registration for ${eventTitle}.`,
-          nextStep:
-            'Open the event to review its current registration options and status.',
-          preview: `An organizer cancelled your registration for ${eventTitle}.`,
-        };
-      }
-      case 'participant': {
-        return {
-          body: `You cancelled your registration for ${eventTitle}.`,
-          nextStep:
-            'Open the event to review its current registration options and status.',
-          preview: `Your registration for ${eventTitle} was cancelled.`,
-        };
-      }
-      case 'platformAdministrator': {
-        return {
-          body: `A platform administrator cancelled your registration for ${eventTitle}.`,
-          nextStep:
-            'Open the event to review its current registration options and status.',
-          preview: `A platform administrator cancelled your registration for ${eventTitle}.`,
-        };
-      }
+    if (cancelledBy === 'eligibilityChangedAfterPayment') {
+      return {
+        body: `Your sign-up for ${eventTitle} could not be completed because the event or your access to it changed after you paid.`,
+        nextStep: `${refundCopy} Do not try to pay again. If you still want to attend, check the event or contact the organizer.`,
+        preview: `Your sign-up for ${eventTitle} was cancelled.`,
+      };
     }
+
+    const actor =
+      cancelledBy === 'participant'
+        ? 'You'
+        : cancelledBy === 'organizer'
+          ? 'An organizer'
+          : 'Evorto';
+    const body = (() => {
+      switch (cancellationKind) {
+        case 'application': {
+          return cancelledBy === 'participant'
+            ? `You withdrew your application for ${eventTitle}.`
+            : `${actor} withdrew your application for ${eventTitle}.`;
+        }
+        case 'pendingSignUp': {
+          return `${actor} cancelled your pending sign-up for ${eventTitle}.`;
+        }
+        case 'ticket': {
+          return `${actor} cancelled your ticket for ${eventTitle}.`;
+        }
+        case 'waitlist': {
+          return cancelledBy === 'participant'
+            ? `You left the waitlist for ${eventTitle}.`
+            : `${actor} removed you from the waitlist for ${eventTitle}.`;
+        }
+      }
+    })();
+    return {
+      body,
+      nextStep: `${refundCopy} Open the event to see the latest details.`,
+      preview: body,
+    };
   })();
 
   return TransactionalEmailLayout({
     action: {
       href: eventUrl,
-      label: 'Review the event in Evorto',
+      label: 'Open the event in Evorto',
     },
     body: [
       paragraph('cancelled', cancellationCopy.body),
@@ -365,14 +397,16 @@ export const RegistrationCancelledEmail = ({
     ],
     preview: cancellationCopy.preview,
     tenantName,
-    title: 'Registration cancelled',
+    title,
   });
 };
 
 RegistrationCancelledEmail.PreviewProps = {
+  cancellationKind: 'ticket',
   cancelledBy: 'participant',
   eventTitle: 'City tour',
   eventUrl: 'https://example.org/events/event-1',
+  refundOutcome: 'notStarted',
   tenantName: 'Example Section',
 } satisfies RegistrationCancelledEmailProps;
 
@@ -380,6 +414,7 @@ export const RegistrationTransferredEmail = ({
   eventTitle,
   eventUrl,
   recipientRole,
+  refundOutcome,
   tenantName,
 }: RegistrationTransferredEmailProps): ReactElement => {
   const newOwner = recipientRole === 'newOwner';
@@ -388,29 +423,37 @@ export const RegistrationTransferredEmail = ({
       href: eventUrl,
       label: newOwner
         ? 'Open your transferred ticket in Evorto'
-        : 'Review the event in Evorto',
+        : 'Open the event in Evorto',
     },
     body: [
       paragraph(
         'transfer',
         newOwner
-          ? `The registration for ${eventTitle} was transferred to you.`
-          : `Your registration for ${eventTitle} was transferred to another participant.`,
+          ? `The ticket for ${eventTitle} was transferred to you.`
+          : `Your ticket for ${eventTitle} was transferred to another person.`,
       ),
       paragraph(
         'access',
         newOwner
-          ? 'Sign in to Evorto to review the registration and open its ticket.'
-          : 'You no longer have access to this registration or its ticket.',
+          ? 'Sign in to Evorto to review and open the ticket.'
+          : 'You no longer have access to this ticket.',
       ),
+      ...(newOwner
+        ? []
+        : [
+            paragraph(
+              'refund',
+              refundOutcome === 'pending'
+                ? 'A refund to your original payment method is in progress.'
+                : 'No refund was started for this transfer.',
+            ),
+          ]),
     ],
     preview: newOwner
-      ? `The registration for ${eventTitle} was transferred to you.`
-      : `Your registration for ${eventTitle} was transferred.`,
+      ? `The ticket for ${eventTitle} was transferred to you.`
+      : `Your ticket for ${eventTitle} was transferred.`,
     tenantName,
-    title: newOwner
-      ? 'Registration transferred to you'
-      : 'Registration transferred',
+    title: newOwner ? 'Ticket transferred to you' : 'Ticket transferred',
   });
 };
 
@@ -418,5 +461,6 @@ RegistrationTransferredEmail.PreviewProps = {
   eventTitle: 'City tour',
   eventUrl: 'https://example.org/events/event-1',
   recipientRole: 'newOwner',
+  refundOutcome: 'notStarted',
   tenantName: 'Example Section',
 } satisfies RegistrationTransferredEmailProps;

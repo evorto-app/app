@@ -55,6 +55,15 @@ interface RegistrationAddonPurchaseNotice {
   readonly message: string;
 }
 
+export const activeRegistrationErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string =>
+  getErrorMessage(error, fallback, [
+    'EventRegistrationConflictError',
+    'EventRegistrationNotFoundError',
+  ]);
+
 const withoutRecordEntry = <Value>(
   record: Readonly<Record<string, Value>>,
   key: string,
@@ -136,22 +145,22 @@ export const registrationAudienceCopy = (
   registration.organizingRegistration
     ? {
         audienceLabel: 'Organizer/helper',
-        confirmedStatus: 'Organizer/helper registration confirmed',
+        confirmedStatus: 'Your organizer/helper place is confirmed',
         passHeading: 'Your organizer/helper pass',
         paymentPendingStatus:
-          'Complete payment to confirm your organizer/helper registration. Organizer access starts only after payment succeeds.',
+          'Complete payment to confirm your organizer/helper place. Organizer access starts only after payment succeeds.',
         pendingApprovalStatus:
-          'Organizer/helper application pending. Organizer access starts only after approval and any required payment.',
-        qrAlt: 'QR code for the organizer/helper registration',
+          'Your organizer/helper application is waiting for approval. Organizer access starts only after approval and any required payment.',
+        qrAlt: 'QR code for the organizer/helper pass',
       }
     : {
-        audienceLabel: 'Participant',
-        confirmedStatus: 'Your registration is confirmed',
+        audienceLabel: 'Attendee',
+        confirmedStatus: 'Your ticket is confirmed',
         passHeading: 'Your event ticket',
-        paymentPendingStatus: 'Complete payment to confirm your registration.',
+        paymentPendingStatus: 'Complete payment to confirm your ticket.',
         pendingApprovalStatus:
-          'Your registration is pending organizer approval.',
-        qrAlt: 'QR code for the registration',
+          'Your sign-up is waiting for organizer approval.',
+        qrAlt: 'QR code for the event ticket',
       };
 
 export const recipientTransferCheckoutPending = (registration: {
@@ -173,10 +182,10 @@ export const registrationCancellationCopy = (registration: {
   buttonLabel: null | string;
   helperText: string;
 } => {
-  const pendingSpotNoun =
-    registration.guestCount > 0 ? 'all selected spots' : 'the reserved spot';
-  const confirmedSpotNoun =
-    registration.guestCount > 0 ? 'all selected spots' : 'your spot';
+  const pendingPlaceNoun =
+    registration.guestCount > 0 ? 'all selected places' : 'the reserved place';
+  const confirmedPlaceNoun =
+    registration.guestCount > 0 ? 'all selected places' : 'your place';
 
   if (recipientTransferCheckoutPending(registration)) {
     return null;
@@ -188,28 +197,28 @@ export const registrationCancellationCopy = (registration: {
         return {
           buttonLabel: null,
           helperText:
-            'This registration has already been checked in and can no longer be cancelled.',
+            'This ticket has already been checked in and can no longer be cancelled.',
         };
       }
       case 'deadlinePassed': {
         return {
           buttonLabel: null,
           helperText:
-            'The cancellation deadline has passed. No cancellation, refund, or spot release has been made.',
+            'The cancellation deadline has passed. Your ticket is still active, no place has been released, and no refund has started.',
         };
       }
       case 'eventStarted': {
         return {
           buttonLabel: null,
           helperText:
-            'The event has started, so this registration can no longer be cancelled.',
+            'The event has started, so this ticket can no longer be cancelled.',
         };
       }
       case 'none': {
         return {
           buttonLabel: null,
           helperText:
-            'Cancellation is currently unavailable. Refresh the event page for the latest status.',
+            'Cancellation is unavailable for this ticket. Contact an organizer if you still need to cancel it.',
         };
       }
     }
@@ -217,17 +226,19 @@ export const registrationCancellationCopy = (registration: {
 
   if (registration.status === 'PENDING') {
     return {
-      buttonLabel: 'Cancel registration',
+      buttonLabel: registration.paymentPending
+        ? 'Cancel pending sign-up'
+        : 'Withdraw application',
       helperText: registration.paymentPending
-        ? `This cancels the pending registration and releases ${pendingSpotNoun}. It does not complete a payment.`
+        ? `This cancels the pending sign-up and releases ${pendingPlaceNoun}. The unfinished payment will not confirm your sign-up.`
         : 'This withdraws your pending application before organizer approval.',
     };
   }
 
   if (registration.status === 'CONFIRMED') {
     return {
-      buttonLabel: 'Cancel registration',
-      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. If a refund applies, Evorto starts it automatically after cancellation. It may take time to appear; do not pay or register again to retry it.`,
+      buttonLabel: 'Cancel ticket',
+      helperText: `This cancels your ticket and releases ${confirmedPlaceNoun}. If a refund applies, it will be requested after cancellation and may take time to appear.`,
     };
   }
 
@@ -235,7 +246,7 @@ export const registrationCancellationCopy = (registration: {
     return {
       buttonLabel: 'Leave waitlist',
       helperText:
-        'This removes your waitlist registration and releases your waitlist position.',
+        'This removes you from the waitlist and gives up your current position.',
     };
   }
 
@@ -246,11 +257,11 @@ export const registrationDeferredActionCopy = (registration: {
   status: EventsRegistrationStatus;
 }): null | string => {
   if (registration.status === 'PENDING') {
-    return 'Transfer/resale is not available for pending registrations.';
+    return 'A pending sign-up cannot be transferred.';
   }
 
   if (registration.status === 'WAITLIST') {
-    return 'Transfer/resale is not available for waitlist registrations.';
+    return 'A waitlist place cannot be transferred.';
   }
 
   return null;
@@ -261,10 +272,10 @@ export const registrationTransferBlockedCopy = (
 ): string => {
   switch (reason) {
     case 'activeTransfer': {
-      return 'A transfer offer is already active for this ticket.';
+      return 'A private transfer is already active for this ticket.';
     }
     case 'addonPaymentPending': {
-      return 'Finish or let the pending add-on checkout expire before transferring this ticket.';
+      return 'Wait for the current add-on payment to finish or expire before transferring this ticket.';
     }
     case 'deadlinePassed': {
       return 'The transfer deadline for this event has passed.';
@@ -276,7 +287,7 @@ export const registrationTransferBlockedCopy = (
       return '';
     }
     case 'registrationStatus': {
-      return 'Only confirmed registrations can be transferred.';
+      return 'Only confirmed tickets can be transferred.';
     }
   }
 };
@@ -297,7 +308,7 @@ export const registrationTransferActionCopy = (registration: {
     return {
       buttonLabel: 'Create transfer code',
       helperText:
-        'Create a private code for one eligible organization member. They enter it on the transfer claim page, then review the current questions, add-ons, discount, and price.',
+        'Create a private code for the new attendee. They review the current questions, add-ons, discount, and price before accepting the ticket.',
     };
   }
 
@@ -322,26 +333,26 @@ export const registrationActiveTransferStatusCopy = (
     case 'checkout_pending': {
       return activeTransfer.registrationSide === 'recipient'
         ? {
-            body: 'Canceling stops this checkout and keeps the original ticket with its current owner.',
+            body: 'Cancelling stops this payment and keeps the ticket with the previous attendee.',
             cancelLabel: 'Cancel pending transfer payment',
             showExpiry: true,
             title: 'Transfer payment is pending',
             tone: 'info',
           }
         : {
-            body: 'Your registration remains confirmed until the recipient payment is confirmed.',
-            cancelLabel: 'Cancel transfer offer',
+            body: "Your ticket remains confirmed until the new attendee's payment is complete.",
+            cancelLabel: 'Cancel private transfer',
             showExpiry: true,
-            title: 'Recipient payment is pending',
+            title: "New attendee's payment is pending",
             tone: 'info',
           };
     }
     case 'open': {
       return {
-        body: 'Your registration remains confirmed until a recipient completes the transfer.',
-        cancelLabel: 'Cancel transfer offer',
+        body: 'Your ticket remains confirmed until the new attendee completes the transfer.',
+        cancelLabel: 'Cancel private transfer',
         showExpiry: true,
-        title: 'Transfer offer is active',
+        title: 'Private transfer is active',
         tone: 'info',
       };
     }
@@ -349,8 +360,8 @@ export const registrationActiveTransferStatusCopy = (
       return {
         body:
           activeTransfer.registrationSide === 'recipient'
-            ? 'The ticket transfer is complete and your ticket remains confirmed. The previous owner refund still needs follow-up; you do not need to do anything.'
-            : 'The ticket transfer is complete, but your refund still needs follow-up and may not have reached you. Do not pay or register again; contact an organizer for an update.',
+            ? 'The ticket is now yours and confirmed. A refund for the previous attendee needs attention; you do not need to do anything.'
+            : 'The transfer is complete, but your refund needs attention and may not have reached you. Contact an organizer for an update.',
         cancelLabel: null,
         showExpiry: false,
         title: 'Transfer refund needs attention',
@@ -362,8 +373,8 @@ export const registrationActiveTransferStatusCopy = (
         return {
           body:
             activeTransfer.registrationSide === 'recipient'
-              ? 'The ticket transfer is complete and your ticket remains confirmed. The previous owner refund still needs follow-up; you do not need to do anything.'
-              : 'The ticket transfer is complete, but your refund still needs follow-up and may not have reached you. Do not pay or register again; contact an organizer for an update.',
+              ? 'The ticket is now yours and confirmed. A refund for the previous attendee needs attention; you do not need to do anything.'
+              : 'The transfer is complete, but your refund needs attention and may not have reached you. Contact an organizer for an update.',
           cancelLabel: null,
           showExpiry: false,
           title: 'Transfer refund needs attention',
@@ -374,8 +385,8 @@ export const registrationActiveTransferStatusCopy = (
         return {
           body:
             activeTransfer.registrationSide === 'recipient'
-              ? 'The ticket transfer is complete and the previous owner refund completed. Your ticket remains confirmed.'
-              : 'The ticket transfer is complete and your recorded refund completed.',
+              ? "The ticket is now yours and confirmed. The previous attendee's refund is complete."
+              : 'The transfer is complete and your refund is complete.',
           cancelLabel: null,
           showExpiry: false,
           title: 'Transfer refund completed',
@@ -386,8 +397,8 @@ export const registrationActiveTransferStatusCopy = (
         return {
           body:
             activeTransfer.registrationSide === 'recipient'
-              ? 'The ticket transfer is complete and your ticket remains confirmed. The previous owner refund still needs follow-up; you do not need to do anything.'
-              : 'The ticket transfer is complete, but your refund still needs follow-up and may not have reached you. Do not pay or register again; contact an organizer for an update.',
+              ? 'The ticket is now yours and confirmed. A refund for the previous attendee needs attention; you do not need to do anything.'
+              : 'The transfer is complete, but your refund needs attention and may not have reached you. Contact an organizer for an update.',
           cancelLabel: null,
           showExpiry: false,
           title: 'Transfer refund needs attention',
@@ -397,11 +408,11 @@ export const registrationActiveTransferStatusCopy = (
       return {
         body:
           activeTransfer.registrationSide === 'recipient'
-            ? 'The ticket transfer is complete while the previous owner refund is processed. Your ticket remains confirmed.'
-            : 'The ticket transfer is complete and your refund is being processed. The transfer can no longer be cancelled.',
+            ? "The ticket is now yours and confirmed. The previous attendee's refund is in progress."
+            : 'The transfer is complete and your refund is in progress. It can no longer be cancelled.',
         cancelLabel: null,
         showExpiry: false,
-        title: 'Transfer refund is processing',
+        title: 'Transfer refund is in progress',
         tone: 'success',
       };
     }
@@ -695,7 +706,10 @@ export class EventActiveRegistrationComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Cancellation failed');
+    return activeRegistrationErrorMessage(
+      error,
+      'The ticket could not be cancelled. Check its current status and try again.',
+    );
   }
 
   protected pendingCheckoutUrlInvalid(
@@ -761,7 +775,10 @@ export class EventActiveRegistrationComponent {
   }
 
   protected registrationCheckoutErrorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Registration payment setup failed');
+    return activeRegistrationErrorMessage(
+      error,
+      'Payment could not be started. Try again. If payment still does not open, contact an organizer.',
+    );
   }
 
   protected registrationCheckoutUrl(
@@ -782,7 +799,10 @@ export class EventActiveRegistrationComponent {
   }
 
   protected transferErrorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Transfer failed');
+    return getErrorMessage(
+      error,
+      'The ticket transfer could not be updated. Check its current status and try again.',
+    );
   }
 
   protected updateAddonQuantity(
@@ -834,13 +854,29 @@ export class EventActiveRegistrationComponent {
     error: unknown;
     key: string;
   }): Promise<void> {
-    const refreshed = await this.invalidateOwnerQueries(true);
-    const refreshCopy = refreshed
-      ? ''
-      : 'The latest ticket status could not be refreshed. ';
+    const registrationStatusRefreshed = await this.invalidateOwnerQueries(true);
+    if (
+      typeof input.error === 'object' &&
+      input.error !== null &&
+      '_tag' in input.error &&
+      input.error._tag === 'EventRegistrationConflictError'
+    ) {
+      this.clearPurchaseAttempt(input.key);
+      this.clearLocalCheckoutUrl(input.key);
+      this.setPurchaseNotice(input.key, {
+        kind: 'error',
+        message: registrationStatusRefreshed
+          ? 'The previous add-on purchase can no longer continue. We checked your ticket. If the add-on is still available, choose the quantity and start again.'
+          : 'The previous add-on purchase can no longer continue, and we could not check your latest ticket. Contact an organizer before trying again.',
+      });
+      return;
+    }
+
     this.setPurchaseNotice(input.key, {
       kind: 'error',
-      message: `${getErrorMessage(input.error, 'Add-on purchase failed')} ${refreshCopy}Trying again will not create a duplicate purchase. If the checkout has expired, reload this page and start the add-on purchase again.`,
+      message: registrationStatusRefreshed
+        ? `${activeRegistrationErrorMessage(input.error, 'The add-on could not be purchased.')} We checked your ticket. If no item or payment link appears, try again.`
+        : `${activeRegistrationErrorMessage(input.error, 'The add-on could not be purchased.')} We could not check whether anything changed. Contact an organizer before trying again.`,
     });
   }
 
@@ -850,16 +886,16 @@ export class EventActiveRegistrationComponent {
     key: string;
     result: EventsPurchaseRegistrationAddonResult;
   }): Promise<void> {
-    const refreshed = await this.invalidateOwnerQueries(true);
+    const registrationStatusRefreshed = await this.invalidateOwnerQueries(true);
 
     if (input.result.status === 'completed') {
       this.clearPurchaseAttempt(input.key);
       this.clearLocalCheckoutUrl(input.key);
       this.setPurchaseNotice(input.key, {
         kind: 'completed',
-        message: refreshed
+        message: registrationStatusRefreshed
           ? `${input.attempt.quantity} × ${input.addOn.title} added to your ticket.`
-          : `${input.attempt.quantity} × ${input.addOn.title} added to your ticket. Reload this page to refresh the displayed quantities.`,
+          : 'The item was added, but Evorto could not show the updated quantity. Contact an organizer before adding anything else.',
       });
       return;
     }
@@ -875,7 +911,7 @@ export class EventActiveRegistrationComponent {
       this.setPurchaseNotice(input.key, {
         kind: 'error',
         message:
-          'Evorto received an invalid payment link and did not open it. Refresh the status or contact an organizer.',
+          'This payment link cannot be used, so no payment page was opened. Contact an organizer for a new link.',
       });
       return;
     }
@@ -886,9 +922,9 @@ export class EventActiveRegistrationComponent {
     }));
     this.setPurchaseNotice(input.key, {
       kind: 'pending',
-      message: refreshed
-        ? 'Stripe checkout is ready. Your ticket updates only after Stripe confirms payment.'
-        : 'Stripe checkout is ready, but the latest ticket status could not be refreshed. Your ticket updates only after Stripe confirms payment.',
+      message: registrationStatusRefreshed
+        ? 'Your payment page is ready. Your ticket updates after payment is confirmed.'
+        : 'Your payment page is ready, but the latest ticket details are not available right now. Your ticket updates after payment is confirmed.',
     });
 
     try {
@@ -896,8 +932,7 @@ export class EventActiveRegistrationComponent {
     } catch {
       this.setPurchaseNotice(input.key, {
         kind: 'pending',
-        message:
-          'Stripe checkout is ready but could not be opened automatically. Continue with the same checkout below.',
+        message: 'Your payment page is ready. Use Continue to payment below.',
       });
     }
   }
@@ -923,13 +958,7 @@ export class EventActiveRegistrationComponent {
       this.queryClient.getQueryState(registrationStatusQueryKey)
         ?.dataUpdatedAt ?? 0;
 
-    const [
-      registrationStatusResult,
-      eventDetailsResult,
-      eventOrganizerAccessResult,
-      scannerAccessResult,
-      userEventsResult,
-    ] = await Promise.allSettled([
+    const [registrationStatusResult] = await Promise.allSettled([
       this.queryClient.invalidateQueries(
         { exact: true, queryKey: registrationStatusQueryKey },
         { throwOnError: true },
@@ -968,13 +997,7 @@ export class EventActiveRegistrationComponent {
       }
     }
 
-    return (
-      registrationStatusResult.status === 'fulfilled' &&
-      eventDetailsResult.status === 'fulfilled' &&
-      eventOrganizerAccessResult.status === 'fulfilled' &&
-      scannerAccessResult.status === 'fulfilled' &&
-      userEventsResult.status === 'fulfilled'
-    );
+    return registrationStatusResult.status === 'fulfilled';
   }
 
   private reconcileOwnerPurchaseAttempts(

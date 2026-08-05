@@ -91,13 +91,14 @@ export const templateCreateEventSubmitDisabled = ({
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
-    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards for registration-time purchase.`
+    ? `This template includes ${addOnCount} add-on${addOnCount === 1 ? '' : 's'}. They will be available when people sign up for the new event.`
     : null;
 
 export const templateCreateEventErrorMessage = (error: unknown): string =>
   getErrorMessage(
     error,
-    'The event could not be created. Review the form and try again.',
+    'The event could not be created. Check the event details and try again.',
+    ['RpcBadRequestError'],
   );
 
 @Component({
@@ -139,8 +140,8 @@ export class TemplateCreateEventComponent {
   protected readonly createEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel({}, this.tenantTimezone),
   );
-  protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  protected readonly stripeConnected = computed(
+    () => this.config.tenantSignal()?.paymentsConfigured === true,
   );
   protected readonly createEventForm = form(
     this.createEventModel,

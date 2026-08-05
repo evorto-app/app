@@ -12,7 +12,7 @@ import { usersToAuthenticate } from './user-data';
 
 const length = 4;
 const seedPrivacyPolicyText =
-  'Development and test tenant privacy policy. Seeded data must not be used as production legal text.';
+  'This organization uses your profile information to manage membership and event participation.';
 
 export const createId = init({ length });
 

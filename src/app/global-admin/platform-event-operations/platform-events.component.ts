@@ -14,6 +14,7 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { tenantTimezoneLabel } from '../../core/geography-labels';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { platformEventInstantToDisplayDateTime } from './platform-event-date-time';
@@ -56,6 +57,7 @@ export class PlatformEventsComponent {
   protected readonly targetTenantOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
+  protected readonly tenantTimezoneLabel = tenantTimezoneLabel;
 
   protected displayDateTime(value: string): string {
     return this.targetTenantOptionsQuery.isSuccess()

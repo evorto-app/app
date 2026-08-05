@@ -50,10 +50,17 @@ interface StripeTaxRateRequestOptions {
   readonly stripeAccount: string;
 }
 
+const isDefinitiveMissingStripeTaxRate = (
+  error: unknown,
+): error is Stripe.errors.StripeInvalidRequestError =>
+  error instanceof Stripe.errors.StripeInvalidRequestError &&
+  error.statusCode === 404 &&
+  error.code === 'resource_missing';
+
 const missingStripeAccount = () =>
   new RpcBadRequestError({
-    message: 'The tenant does not have a connected Stripe account',
-    reason: 'stripeAccountRequired',
+    message: 'Paid sign-ups are not ready for this organization.',
+    reason: 'Contact Evorto support before adding tax rates, then try again.',
   });
 
 export const requireTenantStripeAccount = Effect.fn(
@@ -73,19 +80,16 @@ export const ensureStripeAccountUnchanged = Effect.fn(
   lockedStripeAccountId: null | string,
 ) {
   if (lockedStripeAccountId !== expectedStripeAccountId) {
-    return yield* new RpcBadRequestError({
-      message:
-        'The tenant Stripe account changed while tax rates were being loaded; retry the import',
-      reason: 'stripeAccountChanged',
-    });
+    return yield* Effect.die(
+      new Error('Tenant Stripe account changed during tax-rate import'),
+    );
   }
 });
 
 export const stripeTaxRateAccountConflict = () =>
-  new RpcBadRequestError({
-    message: 'Imported tax-rate metadata belongs to a different Stripe account',
-    reason: 'stripeTaxRateAccountConflict',
-  });
+  Effect.die(
+    new Error('Stored tax-rate account does not match the tenant account'),
+  );
 
 const pageMatchesFilters = (
   rate: StripeTaxRateSource,
@@ -123,8 +127,8 @@ export const collectStripeTaxRatePages = Effect.fn(
 
   return yield* new RpcBadRequestError({
     message:
-      'The Stripe account has too many tax rates to list safely in one request',
-    reason: 'stripeTaxRatePageLimitExceeded',
+      'There are too many tax rates to load at once. Archive tax rates you no longer use, then try again.',
+    reason: 'taxRatePageLimitExceeded',
   });
 });
 
@@ -176,26 +180,27 @@ const retrieveSupportedStripeTaxRate = Effect.fn(
     try: () => stripeTaxRates.retrieve(id, undefined, { stripeAccount }),
   }).pipe(
     Effect.catch((error) =>
-      error instanceof Stripe.errors.StripeInvalidRequestError
+      isDefinitiveMissingStripeTaxRate(error)
         ? Effect.fail(
             new RpcBadRequestError({
-              message: `Stripe tax rate ${id} was not found for the connected tenant account`,
-              reason: 'stripeTaxRateNotFound',
+              message:
+                'A selected tax rate is no longer available. No tax rates were added. Select the tax rates again, then choose Add selected.',
+              reason: 'taxRateUnavailable',
             }),
           )
         : Effect.die(error),
     ),
   );
   if (stripeRate.id !== id) {
-    return yield* new RpcBadRequestError({
-      message: `Stripe returned an unexpected tax rate for ${id}`,
-      reason: 'stripeTaxRateIdentityMismatch',
-    });
+    return yield* Effect.die(
+      new Error('Stripe returned a tax rate with an unexpected ID'),
+    );
   }
   if (!stripeRate.active || !stripeRate.inclusive) {
     return yield* new RpcBadRequestError({
-      message: `Stripe tax rate ${id} must be active and inclusive`,
-      reason: 'unsupportedStripeTaxRate',
+      message:
+        'A selected tax rate cannot be used for shown prices. Choose an active tax rate that is included in the shown price.',
+      reason: 'taxRateNotUsable',
     });
   }
 
@@ -214,8 +219,7 @@ export const loadStripeTaxRatesForImport = Effect.fn(
     requestedIds.length > STRIPE_TAX_RATE_IMPORT_MAX_IDS
   ) {
     return yield* new RpcBadRequestError({
-      message: 'Import between 1 and 100 Stripe tax rates at a time',
-      reason: 'stripeTaxRateImportSizeInvalid',
+      message: 'Choose between 1 and 100 tax rates to add.',
     });
   }
 

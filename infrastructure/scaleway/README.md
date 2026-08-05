@@ -291,6 +291,87 @@ not update the successful manifest pointer. It never redeploys an older image
 after a schema release. Apply a reviewed infrastructure change explicitly or
 ship a corrected forward revision, then rerun the deployment.
 
+### Enable paid sign-ups for an organization
+
+Paid sign-ups start disabled for a new organization. A platform or organization
+administrator cannot attach, replace, or remove the payment account through the
+application. An operator may attach the first account once through the private
+worker only after confirming the organization and the account in the selected
+environment.
+
+Use an operator workstation with the selected environment's scoped Scaleway
+secret exported as `SCW_SECRET_KEY` and its project ID exported as
+`SCW_DEFAULT_PROJECT_ID`. Read the reviewed platform output directly from the
+selected Terraform root. Do not paste or type a container URL. The example
+below selects staging; use `infrastructure/scaleway/production` only for an
+explicitly approved production operation.
+
+```bash
+terraform_root=infrastructure/scaleway/staging
+platform_output="$(mktemp)"
+chmod 600 "${platform_output}"
+trap 'rm -f "${platform_output}"' EXIT
+terraform -chdir="${terraform_root}" output -json platform > "${platform_output}"
+jq '{project_id, worker: (.containers.worker | {endpoint, id})}' "${platform_output}"
+
+read -r -p 'Organization ID: ' organization_id
+read -r -p 'Organization domain: ' expected_organization_domain
+read -r -p 'Approval or operation context: ' operation_reason
+read -r -s -p 'Payment account ID: ' payment_account_id
+echo
+
+response="$(
+  printf '%s' "${payment_account_id}" | \
+  jq --raw-input --slurp --compact-output \
+    --arg expectedOrganizationDomain "${expected_organization_domain}" \
+    --arg organizationId "${organization_id}" \
+    --arg reason "${operation_reason}" \
+    '{
+      accountId: .,
+      confirmation: "attach-payment-account",
+      expectedOrganizationDomain: $expectedOrganizationDomain,
+      organizationId: $organizationId,
+      reason: $reason
+    }' | \
+  ops/scaleway/invoke-private-container.sh \
+    "${platform_output}" \
+    worker \
+    /internal/worker/payment-setup
+)"
+
+jq --raw-output \
+  'if .attached then "Paid sign-ups enabled" else "No change: \(.reason)" end' \
+  <<<"${response}"
+
+rm -f "${platform_output}"
+trap - EXIT
+unset expected_organization_domain operation_reason organization_id \
+  payment_account_id platform_output response terraform_root
+```
+
+Review the printed project ID, worker ID, and endpoint before continuing. The
+helper resolves the endpoint from that file, requires its project ID to match
+`SCW_DEFAULT_PROJECT_ID`, binds the payment operation to the worker role, and
+accepts only an exact generated Scaleway Containers hostname without a path.
+It never accepts a URL argument. Do not print the request body, store it as
+evidence, paste it into a ticket, or enable shell tracing. The reason is only
+for approval or operation context and must not contain the payment account ID.
+The account value enters `jq` and the helper through standard input, never as a
+process argument. The helper keeps the body and authorization header in
+owner-only temporary files, removes the secret from the `curl` environment,
+bypasses proxies, and removes those files before returning.
+
+The operation validates the account, normalizes the expected organization
+domain, and matches it against the organization while holding the organization
+lock. It refuses any organization that is missing, mismatched, already enabled,
+or already has payment history, pending payment work, paid event/template
+choices, or tax-rate configuration. Its response and audit entry contain
+readiness only, never the account value.
+
+Treat every refusal as a visible stop. Check the reported reason and the chosen
+environment; do not retry automatically and do not work around a guard. Account
+replacement and removal are intentionally unsupported.
+
 The production workflow is dispatch-only and is a no-op unless the repository
 variable `PRODUCTION_ENABLED` is exactly `true`. It accepts only an immutable,
 successful staging manifest, copies that exact digest into the production

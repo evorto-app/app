@@ -50,9 +50,9 @@ test.describe('Negative registration states', () => {
         await expect(page).toHaveURL(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
-        await expect(page.getByText('Registration is closed')).toBeVisible();
+        await expect(page.getByText('Sign-up closed')).toBeVisible();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
       } finally {
         await database
@@ -153,7 +153,9 @@ test.describe('Negative registration states', () => {
         await page.goto(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
-        await expect(page.getByText('This option is full.')).toBeVisible();
+        await expect(
+          page.getByText('This sign-up choice is full.'),
+        ).toBeVisible();
         const waitlistButton = page.getByRole('button', {
           name: 'Join waitlist',
         });
@@ -176,7 +178,7 @@ test.describe('Negative registration states', () => {
         );
         await expect(waitlistButton).toBeEnabled();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
 
         await waitlistButton.click();
@@ -233,7 +235,9 @@ test.describe('Negative registration states', () => {
           .getByRole('dialog')
           .getByRole('button', { name: 'Leave waitlist' })
           .click();
-        await expect(page.getByText('This option is full.')).toBeVisible();
+        await expect(
+          page.getByText('This sign-up choice is full.'),
+        ).toBeVisible();
         await expect(
           page.getByRole('button', { name: 'Join waitlist' }),
         ).toBeVisible();
@@ -368,15 +372,15 @@ test.describe('Negative registration states', () => {
         await waitForRegistrationStatus(page);
 
         await expect(
-          page.getByRole('heading', { name: 'Registration unavailable' }),
+          page.getByRole('heading', { name: 'Sign-up unavailable' }),
         ).toBeVisible();
         await expect(
           page.getByText(
-            'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+            'You can view this event, but none of its sign-up choices are available to you.',
           ),
         ).toBeVisible();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
       } finally {
         await database

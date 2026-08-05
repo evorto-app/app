@@ -31,13 +31,12 @@
     </section>
 
     <section class="grid grid-cols-1">
-      <h2 class="title-small mb-2">Brand assets</h2>
+      <h2 class="title-small mb-2">Branding</h2>
       <p class="text-on-surface-variant mb-3 text-sm">
-        Upload organization assets or enter externally hosted HTTP(S) URLs. The
-        favicon updates the browser tab icon.
+        Upload a logo or tab icon, or enter its web address.
       </p>
       <mat-form-field>
-        <mat-label>Logo URL</mat-label>
+        <mat-label>Logo web address</mat-label>
         <input
           matInput
           [formField]="settingsForm.logoUrl"
@@ -66,7 +65,7 @@
       </button>
 
       <mat-form-field>
-        <mat-label>Favicon URL</mat-label>
+        <mat-label>Tab icon web address</mat-label>
         <input
           matInput
           [formField]="settingsForm.faviconUrl"
@@ -77,7 +76,7 @@
         #faviconAssetInput
         type="file"
         class="hidden"
-        aria-label="Upload organization favicon file"
+        aria-label="Upload organization tab icon file"
         accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"
         (change)="uploadBrandAsset('favicon', $event)"
       />
@@ -91,20 +90,20 @@
         <fa-duotone-icon [icon]="faUpload" class="mr-2" />
         {{
           uploadingBrandAsset() === "favicon"
-            ? "Uploading favicon"
-            : "Upload favicon"
+            ? "Uploading tab icon"
+            : "Upload tab icon"
         }}
       </button>
     </section>
 
     <section class="grid grid-cols-1">
-      <h2 class="title-small mb-2">Search preview</h2>
+      <h2 class="title-small mb-2">Search result preview</h2>
       <p class="text-on-surface-variant mb-3 text-sm">
         Set the default title and description for your organization’s public
         pages.
       </p>
       <mat-form-field>
-        <mat-label>SEO title</mat-label>
+        <mat-label>Search result title</mat-label>
         <input
           matInput
           [formField]="settingsForm.seoTitle"
@@ -112,7 +111,7 @@
         />
       </mat-form-field>
       <mat-form-field>
-        <mat-label>SEO description</mat-label>
+        <mat-label>Search result description</mat-label>
         <textarea
           matInput
           rows="3"

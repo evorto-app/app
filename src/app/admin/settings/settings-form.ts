@@ -8,7 +8,7 @@ import {
   type Signal,
 } from '@angular/core';
 
-import type { Tenant } from '../../../types/custom/tenant';
+import type { ClientTenantConfig } from '../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import type { ConfigService } from '../../core/config.service';
 
 export interface TenantSettingsWithDirtyState {
@@ -20,7 +20,7 @@ const unsavedTenantSettingsMessage =
 
 export const initializedTenant = (
   configService: Pick<ConfigService, 'tenantSignal'>,
-): Tenant => {
+): ClientTenantConfig => {
   const tenant = configService.tenantSignal();
   if (tenant === null) {
     throw new Error('Tenant settings require initialized tenant configuration');

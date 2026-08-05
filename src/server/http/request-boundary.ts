@@ -149,7 +149,10 @@ export const requestBoundaryRouteLayers = <
 });
 
 const invalidRequestResponse = applySecurityHeaders(
-  HttpServerResponse.text('Invalid Host or request target', { status: 400 }),
+  HttpServerResponse.text(
+    'This address cannot be opened. Check the link and try again.',
+    { status: 400 },
+  ),
 );
 
 const toWebHeaders = (headers: EffectHeaders.Headers): Headers =>

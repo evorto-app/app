@@ -5,11 +5,11 @@
       class="bg-warning-container text-on-warning-container grid gap-3 rounded-xl p-4"
     >
       <div>
-        <h2 class="title-medium">You are browsing another organization</h2>
+        <h2 class="title-medium">You are viewing another organization</h2>
         <p class="body-medium mt-1">
           Your home organization is
           {{ profileUser()?.homeTenantName ?? "another organization" }}. Joining
-          this organization did not change that preference.
+          this organization did not make it your home organization.
         </p>
       </div>
       <button
@@ -21,7 +21,7 @@
       >
         {{
           setHomeTenantMutation.isPending()
-            ? "Changing..."
+            ? "Changing…"
             : "Make this my home organization"
         }}
       </button>
@@ -38,11 +38,11 @@
       </div>
       <dl class="grid gap-3 text-sm">
         <div>
-          <dt class="text-on-surface-variant">Login email</dt>
+          <dt class="text-on-surface-variant">Sign-in email</dt>
           <dd>{{ user.email }}</dd>
         </div>
         <div>
-          <dt class="text-on-surface-variant">Notification email</dt>
+          <dt class="text-on-surface-variant">Email for updates</dt>
           <dd>{{ user.communicationEmail }}</dd>
         </div>
         @if (user.homeTenantName) {
@@ -52,7 +52,7 @@
           </div>
         }
         <div>
-          <dt class="text-on-surface-variant">Reimbursements</dt>
+          <dt class="text-on-surface-variant">Reimbursement details</dt>
           <dd>{{ profileReimbursementReadiness(user) }}</dd>
         </div>
       </dl>
@@ -70,10 +70,11 @@
     </section>
 
     <section class="bg-surface text-on-surface grid gap-3 rounded-2xl p-6">
-      <h2 class="title-medium">Registration transfers</h2>
+      <h2 class="title-medium">Ticket transfers</h2>
       <p class="text-on-surface-variant text-sm">
-        Enter a private transfer code to review the event, current questions,
-        current price, and complete registration bundle before accepting it.
+        Have a private transfer code? Review the event, answer any current
+        questions, and check the price and everything included before accepting
+        the ticket.
       </p>
       <a
         mat-flat-button
@@ -81,22 +82,22 @@
         class="justify-self-start"
       >
         <fa-duotone-icon [icon]="faTicket" class="mr-2" />
-        Claim transfer
+        Use transfer code
       </a>
     </section>
 
     <section class="bg-surface text-on-surface grid gap-3 rounded-2xl p-6">
-      <h2 class="title-medium">Session</h2>
+      <h2 class="title-medium">Sign out</h2>
       <a href="/logout" mat-stroked-button class="justify-self-start">
         <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
-        Logout
+        Sign out
       </a>
     </section>
   } @else if (userQuery.isLoading()) {
-    <p role="status">Loading profile information...</p>
+    <p role="status">Loading profile information…</p>
   } @else {
     <p class="text-error" role="alert">
-      Failed to load profile information. Please try again later.
+      We couldn't load your profile. Try again.
     </p>
   }
 </div>

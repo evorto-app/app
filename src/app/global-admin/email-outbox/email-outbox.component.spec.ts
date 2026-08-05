@@ -20,10 +20,10 @@ describe('emailOutboxKindLabel', () => {
     expect(emailOutboxKindLabel).toEqual({
       manualApproval: 'Manual approval',
       receiptReviewed: 'Receipt reviewed',
-      registrationCancelled: 'Registration cancelled',
-      registrationConfirmed: 'Registration confirmed',
-      registrationTransferred: 'Registration transferred',
-      waitlistSpotAvailable: 'Waitlist spot available',
+      registrationCancelled: 'Sign-up ended',
+      registrationConfirmed: 'Ticket confirmed',
+      registrationTransferred: 'Ticket transferred',
+      waitlistSpotAvailable: 'Waitlist place available',
     });
   });
 });
@@ -75,29 +75,20 @@ describe('EmailOutboxComponent overview', () => {
     TestBed.resetTestingModule();
   });
 
-  it('renders a queued email before its single provider attempt', async () => {
+  it('uses plain delivery language for a message waiting to be sent', async () => {
     loadOverview.mockResolvedValue({
       items: [
         {
-          attempts: 0,
-          createdAt: '2026-07-15T14:30:00.000Z',
-          deliveryUnknownAt: null,
           id: 'email-queued',
           kind: 'manualApproval',
           lastAttemptAt: null,
-          lastError: null,
-          provider: null,
-          providerMessageId: null,
           recipient: 'member@example.org',
-          sentAt: null,
+          recordIncomplete: false,
           status: 'queued',
           subject: 'Manual approval',
-          suppressedAt: null,
           tenantDomain: 'section.example.org',
-          tenantId: 'tenant-1',
           tenantName: 'Section',
           tenantTimezone: 'Australia/Brisbane',
-          updatedAt: '2026-07-15T14:30:00.000Z',
         },
       ],
       summary: {
@@ -112,14 +103,38 @@ describe('EmailOutboxComponent overview', () => {
     });
 
     const fixture = TestBed.createComponent(EmailOutboxComponent);
-    fixture.detectChanges();
 
-    await vi.waitFor(() => {
-      fixture.detectChanges();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
       const text = normalizeText(fixture);
-      expect(text).toContain('Waiting for its single provider request.');
-      expect(text).toMatch(/Attempts\s*0/);
-      expect(text).toContain('Not attempted');
+      expect(text).toContain('Email delivery');
+      expect(text).toMatch(/Waiting to send\s*1/);
+      expect(text).toMatch(/Sending\s*0/);
+      expect(text).toMatch(/Could not send\s*0/);
+      expect(text).toMatch(/Sent\s*0/);
+      expect(text).toMatch(/Delivery not confirmed\s*0/);
+      expect(text).toMatch(/Not sent\s*0/);
+      expect(text).toContain('This message is waiting to be sent.');
+      expect(text).not.toContain('Send attempts');
+      expect(text).toContain('Not tried yet');
+      expect(text).not.toContain('outbox');
+    });
+  });
+
+  it('does not expose error details when email delivery cannot be loaded', async () => {
+    loadOverview.mockRejectedValue(
+      new Error('Connection refused at internal-email-service:4321'),
+    );
+
+    const fixture = TestBed.createComponent(EmailOutboxComponent);
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      const text = normalizeText(fixture);
+      expect(text).toContain("We couldn't load email delivery");
+      expect(text).toContain('Select Check again to try again.');
+      expect(text).not.toContain('internal-email-service');
+      expect(text).not.toContain('Connection refused');
     });
   });
 
@@ -127,25 +142,16 @@ describe('EmailOutboxComponent overview', () => {
     loadOverview.mockResolvedValue({
       items: [
         {
-          attempts: 1,
-          createdAt: '2026-07-15T14:30:00.000Z',
-          deliveryUnknownAt: null,
           id: 'email-1',
           kind: 'registrationConfirmed',
           lastAttemptAt: '2026-07-15T14:30:00.000Z',
-          lastError: null,
-          provider: null,
-          providerMessageId: null,
           recipient: 'member@example.org',
-          sentAt: null,
+          recordIncomplete: false,
           status: 'sending',
           subject: 'Registration confirmed',
-          suppressedAt: null,
           tenantDomain: 'section.example.org',
-          tenantId: 'tenant-1',
           tenantName: 'Section',
           tenantTimezone: 'Australia/Brisbane',
-          updatedAt: '2026-07-15T14:30:00.000Z',
         },
       ],
       summary: {
@@ -160,66 +166,59 @@ describe('EmailOutboxComponent overview', () => {
     });
 
     const fixture = TestBed.createComponent(EmailOutboxComponent);
-    fixture.detectChanges();
 
-    await vi.waitFor(() => {
-      fixture.detectChanges();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
       const text = normalizeText(fixture);
       expect(text).toContain('Jul 16, 2026, 12:30:00 AM');
       expect(text).not.toContain('Jul 15, 2026, 4:30:00 PM');
       expect(text).toContain(
-        'Delivery attempt recorded. It will settle once or become unknown; it will not be resent.',
+        'Evorto is sending this message. If delivery cannot be confirmed, it will not be sent again.',
       );
       expect(text).toContain(
-        'The summary covers the entire outbox. Details show up to 100 records: failed, unknown, and abandoned deliveries appear before routine records; each group shows the newest first.',
+        'The counts cover all emails. This list shows up to 100, placing emails that need attention first. Within each status, the newest appear first.',
       );
     });
   });
 
-  it('presents explicit provider rejection as terminal evidence', async () => {
+  it('explains emails that were not sent without exposing service diagnostics', async () => {
     loadOverview.mockResolvedValue({
       items: [
         {
-          attempts: 1,
-          createdAt: '2026-07-15T14:30:00.000Z',
-          deliveryUnknownAt: null,
           id: 'email-1',
           kind: 'registrationConfirmed',
           lastAttemptAt: '2026-07-16T14:30:00.000Z',
-          lastError: 'Mailbox unavailable',
-          provider: 'tem',
-          providerMessageId: null,
           recipient: 'member@example.org',
-          sentAt: null,
+          recordIncomplete: false,
           status: 'failed',
           subject: 'Registration confirmed',
-          suppressedAt: null,
           tenantDomain: 'section.example.org',
-          tenantId: 'tenant-1',
           tenantName: 'Section',
           tenantTimezone: 'Australia/Brisbane',
-          updatedAt: '2026-07-16T14:30:00.000Z',
         },
         {
-          attempts: 1,
-          createdAt: '2026-07-15T14:30:00.000Z',
-          deliveryUnknownAt: null,
           id: 'email-2',
           kind: 'receiptReviewed',
           lastAttemptAt: '2026-07-16T14:30:00.000Z',
-          lastError: 'Provider response was lost',
-          provider: 'tem',
-          providerMessageId: null,
           recipient: 'second-member@example.org',
-          sentAt: null,
+          recordIncomplete: true,
           status: 'deliveryUnknown',
           subject: 'Receipt reviewed',
-          suppressedAt: null,
           tenantDomain: 'section.example.org',
-          tenantId: 'tenant-1',
           tenantName: 'Section',
           tenantTimezone: 'Australia/Brisbane',
-          updatedAt: '2026-07-16T14:30:00.000Z',
+        },
+        {
+          id: 'email-3',
+          kind: 'manualApproval',
+          lastAttemptAt: null,
+          recipient: 'third-member@example.org',
+          recordIncomplete: true,
+          status: 'suppressed',
+          subject: 'Manual approval',
+          tenantDomain: 'section.example.org',
+          tenantName: 'Section',
+          tenantTimezone: 'Australia/Brisbane',
         },
       ],
       summary: {
@@ -229,29 +228,28 @@ describe('EmailOutboxComponent overview', () => {
         sending: 0,
         sent: 0,
         staleSending: 0,
-        suppressed: 0,
+        suppressed: 1,
       },
     });
 
     const fixture = TestBed.createComponent(EmailOutboxComponent);
-    fixture.detectChanges();
 
-    await vi.waitFor(() => {
-      fixture.detectChanges();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
       const text = normalizeText(fixture);
+      expect(text).toContain('This email could not be sent.');
       expect(text).toContain(
-        'Failed emails were explicitly rejected before acceptance. They remain stored as terminal operational evidence.',
+        'Evorto could not confirm whether this email was delivered, so it will not send it again.',
       );
       expect(text).toContain(
-        'Rejected before provider acceptance. Stored as terminal operational evidence.',
+        'This email was not sent because this address cannot receive organization emails.',
       );
-      expect(text).toMatch(/Attempts\s*1/);
-      expect(text).not.toContain('Next attempt');
+      expect(text).not.toContain('Send attempts');
+      expect(text).not.toContain('Provider');
+      expect(text).not.toContain('staging allowlist');
+      expect(text).not.toContain('Invalid record');
       expect(text).toContain(
-        'Outcome unknown. Stored read-only; no automatic retry.',
-      );
-      expect(text).toContain(
-        'Invalid record: missing unknown-outcome timestamp.',
+        'Some delivery details are missing. Contact Evorto support and include the organization, recipient, and subject shown below.',
       );
     });
   });

@@ -34,7 +34,7 @@ export const resolveFinanceReimbursementBatch = (
     return {
       currency: null,
       error: {
-        message: 'Reimbursement requires at least one receipt',
+        message: 'Choose at least one receipt to reimburse.',
         reason: 'missingTargetUser',
       },
       targetUserId: null,
@@ -49,7 +49,7 @@ export const resolveFinanceReimbursementBatch = (
     return {
       currency: null,
       error: {
-        message: 'Reimbursement receipts must belong to one submitter',
+        message: 'All selected receipts must belong to the same person.',
         reason: 'mismatchedSubmitter',
       },
       targetUserId: null,
@@ -60,7 +60,7 @@ export const resolveFinanceReimbursementBatch = (
     return {
       currency: null,
       error: {
-        message: 'Reimbursement receipts must use one recorded currency',
+        message: 'All selected receipts must use the same currency.',
         reason: 'mismatchedReceiptCurrency',
       },
       targetUserId: null,
@@ -80,8 +80,7 @@ export const resolveFinanceReimbursementBatch = (
     return {
       currency: null,
       error: {
-        message:
-          'Reimbursement total must be a positive whole minor-unit amount',
+        message: 'The reimbursement total is not valid. Review the receipts.',
         reason: 'invalidReimbursementTotal',
       },
       targetUserId: null,

@@ -50,7 +50,7 @@ class PlatformTenantPageHeaderStub {
 describe('platform receipt review evidence gating', () => {
   it('explains that unavailable evidence blocks only approval', () => {
     expect(platformReceiptEvidenceUnavailableNotice).toBe(
-      'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+      'The uploaded receipt file is unavailable. Approval is disabled until it can be checked. You can still reject this receipt.',
     );
 
     expect(
@@ -94,12 +94,12 @@ describe('platform receipt review evidence gating', () => {
 describe('platform transaction labels', () => {
   it('turns stored payment values into finance language', () => {
     expect(platformTransactionStatusLabel('cancelled')).toBe('Cancelled');
-    expect(platformTransactionStatusLabel('pending')).toBe('Pending');
-    expect(platformTransactionStatusLabel('successful')).toBe('Successful');
+    expect(platformTransactionStatusLabel('pending')).toBe('In progress');
+    expect(platformTransactionStatusLabel('successful')).toBe('Completed');
 
     expect(platformTransactionMethodLabel('cash')).toBe('Cash');
     expect(platformTransactionMethodLabel('paypal')).toBe('PayPal');
-    expect(platformTransactionMethodLabel('stripe')).toBe('Stripe');
+    expect(platformTransactionMethodLabel('stripe')).toBe('Online payment');
     expect(platformTransactionMethodLabel('transfer')).toBe('Bank transfer');
   });
 });
@@ -117,14 +117,14 @@ describe('platform refund lifecycle copy', () => {
 
     expect(copy).toEqual({
       detail:
-        'Automatic refund processing stopped. Open Refund recovery to review the safe next step.',
+        'This refund did not finish. Open Refunds needing attention to review what can be done.',
       label: 'Needs attention',
     });
     expect(JSON.stringify(copy)).not.toContain('Stripe');
     expect(JSON.stringify(copy)).not.toContain('error');
   });
 
-  it('does not direct non-requeueable attention states to Refund recovery', () => {
+  it('does not direct non-retryable attention states to the action list', () => {
     const copy = platformRefundLifecycleCopy(
       PlatformFinanceRefundLifecycleSummary.make({
         attempts: 1,
@@ -136,12 +136,12 @@ describe('platform refund lifecycle copy', () => {
 
     expect(copy).toEqual({
       detail:
-        'Evorto cannot safely retry this refund. Compare it with the connected Stripe account before making a manual change.',
+        "This refund did not finish. Check it in the organization's payment account, then contact Evorto support before changing its status in Evorto.",
       label: 'Needs attention',
     });
   });
 
-  it('opens recovery only for Stripe-account action claims that can be resumed', () => {
+  it('gives a specific next action for payment-account claims', () => {
     const scheduled = platformRefundLifecycleCopy(
       PlatformFinanceRefundLifecycleSummary.make({
         attempts: 1,
@@ -159,13 +159,15 @@ describe('platform refund lifecycle copy', () => {
       }),
     );
 
-    expect(scheduled.detail).toContain(
-      'Evorto will keep checking automatically',
+    expect(scheduled.detail).toBe(
+      "Complete the required step in the organization's payment account, then select Show latest status. This shows any update Evorto has received.",
     );
-    expect(scheduled.detail).toContain('connected Stripe account');
-    expect(scheduled.detail).not.toContain('provider-side');
-    expect(scheduled.detail).not.toContain('open Refund recovery');
-    expect(stopped.detail).toContain('open Refund recovery');
+    expect(stopped.detail).toBe(
+      "Complete the required step in the organization's payment account, then open Refunds needing attention to continue.",
+    );
+    expect(scheduled.detail).not.toContain('Stripe');
+    expect(stopped.detail).not.toContain('Stripe');
+    expect(scheduled.detail).not.toContain('when possible');
   });
 
   it('distinguishes all non-attention states', () => {
@@ -173,10 +175,10 @@ describe('platform refund lifecycle copy', () => {
       PlatformFinanceRefundLifecycleSummary['status'],
       string,
     ])[] = [
-      ['action-required', 'Action required in Stripe'],
-      ['pending', 'Pending'],
-      ['retrying', 'Retrying'],
-      ['succeeded', 'Succeeded'],
+      ['action-required', 'Payment action needed'],
+      ['pending', 'Waiting'],
+      ['retrying', 'Trying again'],
+      ['succeeded', 'Refunded'],
     ];
 
     for (const [status, label] of expectedLabels) {
@@ -203,14 +205,32 @@ describe('platform refund lifecycle copy', () => {
     );
 
     expect(template).toContain(
-      'Required. This reason is saved with the recovery action.',
+      'Required. This reason is saved with the action.',
     );
-    expect(template).toContain('Retry failed refund');
-    expect(template).toContain('Automatic refund checks stopped');
-    expect(template).toContain('No refunds currently need manual recovery.');
+    expect(template).toContain('Try failed refund again');
+    expect(template).toContain('This refund did not finish and needs review.');
+    expect(template).toContain('No refunds currently need attention.');
+    expect(template).toContain(
+      'Separate from the rejection reason shown to the attendee.',
+    );
+    expect(template).toContain('Select a recipient to record a reimbursement.');
+    expect(template).not.toContain('attendee-facing rejection reason');
+    expect(template).not.toContain('Select a recipient group');
+    expect(template).not.toContain('Automatic refund checks');
+    expect(template).not.toContain('Resume refund checks');
     expect(template).not.toContain('Terminal refund');
     expect(template).not.toContain('Stopped refund processing');
     expect(template).not.toContain('application append-only platform audit');
+
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-tenant-admin/platform-finance.component.ts',
+      ),
+      'utf8',
+    );
+    expect(source).toContain('The refund will be tried again');
+    expect(source).not.toContain('Failed refund will be tried again');
   });
 
   it('edits receipt values as ordinary amounts in the receipt currency', () => {
@@ -497,18 +517,29 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       fixture.detectChanges();
       const text = normalizeText(fixture);
       for (const label of [
-        'Action required in Stripe',
-        'Pending',
-        'Retrying',
-        'Succeeded',
+        'Payment action needed',
+        'Waiting',
+        'Trying again',
+        'Refunded',
         'Needs attention',
       ]) {
         expect(text).toContain(label);
       }
       expect(text).toContain(
-        'Open Refund recovery to review the safe next step.',
+        'Open Refunds needing attention to review what can be done.',
       );
+      expect(text).toContain('Show latest status');
       expect(text).not.toContain('Provider secret must never render');
+    });
+
+    const checkStatusButton = [
+      ...fixture.nativeElement.querySelectorAll('button'),
+    ].find((button) => button.textContent?.includes('Show latest status'));
+    expect(checkStatusButton).toBeInstanceOf(HTMLButtonElement);
+    (checkStatusButton as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(loadTransactions).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -589,7 +620,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       await TestbedHarnessEnvironment.loader(fixture).getHarness(
         MatTabGroupHarness,
       );
-    await tabs.selectTab({ label: 'Refund recovery' });
+    await tabs.selectTab({ label: 'Refunds needing attention' });
 
     await vi.waitFor(() => {
       fixture.detectChanges();

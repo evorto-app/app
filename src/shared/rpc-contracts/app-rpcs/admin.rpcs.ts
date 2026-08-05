@@ -5,7 +5,7 @@ import {
   nonNegativePostgresInteger,
 } from '@shared/schema-utilities';
 import { TenantReceiptSettingsSchema } from '@shared/tenant-config';
-import { Schema } from 'effect';
+import { Effect, Schema, SchemaTransformation } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
@@ -275,16 +275,39 @@ export type AdminTenantUpdateOrganizationSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdateOrganizationSettingsInput
 >;
 
-export const AdminTenantUpdatePaymentProviderSettingsInput = Schema.Struct({
+const AdminTenantUpdatePaymentProviderSettingsPayload = Schema.Struct({
   allowOther: Schema.Boolean,
   buyEsnCardUrl: Schema.optional(UrlString),
   currency: Tenant.fields.currency,
   esnCardEnabled: Schema.Boolean,
-  expectedStripeAccountId: Schema.NullOr(Schema.NonEmptyString),
   receiptCountries: TenantReceiptSettingsSchema.fields.receiptCountries,
   refundFeesOnCancellation: Schema.Boolean,
-  stripeAccountId: Schema.optional(Schema.NonEmptyString),
 });
+
+export const AdminTenantUpdatePaymentProviderSettingsInput = Schema.Json.pipe(
+  Schema.decodeTo(
+    AdminTenantUpdatePaymentProviderSettingsPayload,
+    SchemaTransformation.transformOrFail({
+      decode: (input) =>
+        Schema.decodeUnknownEffect(
+          AdminTenantUpdatePaymentProviderSettingsPayload,
+        )(input, { onExcessProperty: 'error' }).pipe(
+          Effect.mapError((error) => error.issue),
+        ),
+      encode: (value) =>
+        Effect.succeed({
+          allowOther: value.allowOther,
+          ...(value.buyEsnCardUrl !== undefined && {
+            buyEsnCardUrl: value.buyEsnCardUrl,
+          }),
+          currency: value.currency,
+          esnCardEnabled: value.esnCardEnabled,
+          receiptCountries: value.receiptCountries,
+          refundFeesOnCancellation: value.refundFeesOnCancellation,
+        }),
+    }),
+  ),
+);
 
 export type AdminTenantUpdatePaymentProviderSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdatePaymentProviderSettingsInput

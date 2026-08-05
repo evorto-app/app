@@ -289,13 +289,80 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
 
         expect(error).toBeInstanceOf(RpcBadRequestError);
         expect(error).toMatchObject({
-          message: 'Could not validate ESN card right now. Try again later.',
+          message:
+            'We could not check this ESNcard, so it was not saved or changed. Select Save ESNcard to try once more.',
           reason: 'provider-unavailable',
         });
         expect(validate).toHaveBeenCalledWith({
           identifier: 'ESN-123',
         });
         expect(database.insert).not.toHaveBeenCalled();
+        expect(database.update).not.toHaveBeenCalled();
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            Adapters.esnCard = originalAdapter;
+          }),
+        ),
+      );
+    },
+  );
+
+  it.effect(
+    'refreshMyCard reports unexpected provider failures without changing the card',
+    () => {
+      const originalAdapter = Adapters.esnCard;
+      const validate = vi.fn(async () => {
+        throw new Error('unexpected provider failure');
+      });
+      Adapters.esnCard = { validate };
+
+      return Effect.gen(function* () {
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () =>
+                Effect.succeed({
+                  discountProviders: {
+                    esnCard: {
+                      config: {},
+                      status: 'enabled',
+                    },
+                  },
+                }),
+            },
+            userDiscountCards: {
+              findFirst: () =>
+                Effect.succeed({
+                  id: 'card-1',
+                  identifier: 'ESN-123',
+                  status: 'verified' as const,
+                  type: 'esnCard' as const,
+                  validTo: null,
+                }),
+            },
+          },
+          update: vi.fn(() => {
+            throw new Error('Provider failures must not update cards');
+          }),
+        };
+
+        const error = yield* discountHandlers['discounts.refreshMyCard'](
+          { type: 'esnCard' },
+          { headers: createHeaders(createTenant('tenant-2')) },
+        ).pipe(
+          Effect.flip,
+          Effect.provide(Layer.succeed(Database, database as never)),
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'RpcInternalServerError',
+          message:
+            'We could not check this ESNcard, so it was not changed. Select Check again to try once more.',
+        });
+        expect(validate).toHaveBeenCalledWith({
+          identifier: 'ESN-123',
+        });
         expect(database.update).not.toHaveBeenCalled();
       }).pipe(
         Effect.ensuring(
@@ -404,6 +471,42 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
         ),
       );
     },
+  );
+
+  it.effect('explains when the saved ESN card is no longer available', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          tenants: {
+            findFirst: () =>
+              Effect.succeed({
+                discountProviders: {
+                  esnCard: {
+                    config: {},
+                    status: 'enabled',
+                  },
+                },
+              }),
+          },
+          userDiscountCards: {
+            findFirst: () => Effect.succeed(undefined),
+          },
+        },
+      };
+
+      const error = yield* discountHandlers['discounts.refreshMyCard'](
+        { type: 'esnCard' },
+        { headers: createHeaders(createTenant('tenant-2')) },
+      ).pipe(
+        Effect.flip,
+        Effect.provide(Layer.succeed(Database, database as never)),
+      );
+
+      expect(error['_tag']).toBe('DiscountCardNotFoundError');
+      expect(error.message).toBe(
+        'This ESNcard is no longer saved. No card was changed. Add it again if you still use it.',
+      );
+    }),
   );
 
   it.effect('deleteMyCard removes only the current user card type', () =>

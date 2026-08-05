@@ -5,14 +5,14 @@ import {
   eventDiscoveryLabel,
 } from './event-discovery';
 
-describe('event discovery presentation', () => {
-  it('labels option-derived and announcement discovery truthfully', () => {
+describe('event visibility presentation', () => {
+  it('explains sign-up events and announcements in product language', () => {
     expect(
       eventDiscoveryLabel({
         announcementRoleCount: 0,
         hasRegistrationOptions: true,
       }),
-    ).toBe('Eligibility based');
+    ).toBe('Sign-up event');
     expect(
       eventDiscoveryLabel({
         announcementRoleCount: 2,
@@ -24,22 +24,20 @@ describe('event discovery presentation', () => {
         announcementRoleCount: 0,
         hasRegistrationOptions: false,
       }),
-    ).toBe('Link only');
+    ).toBe('Direct link only');
     const ordinaryEventDescription = eventDiscoveryDescription({
       announcementRoleCount: 0,
       hasRegistrationOptions: true,
     });
+    expect(ordinaryEventDescription).toContain('available to new members');
     expect(ordinaryEventDescription).toContain(
-      'roles assigned by default to new members',
-    );
-    expect(ordinaryEventDescription).toContain(
-      'Eligibility is checked again when someone registers',
+      'Sign-in is still required before signing up',
     );
     expect(
       eventDiscoveryDescription({
         announcementRoleCount: 1,
         hasRegistrationOptions: false,
       }),
-    ).toContain('does not grant access or send notifications');
+    ).toContain('does not change what they can do or send them a message');
   });
 });

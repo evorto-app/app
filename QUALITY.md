@@ -154,6 +154,13 @@ Essential product flows should have generated documentation with screenshots whe
 Documentation generation should happen through explicit docs commands. List or
 discovery commands do not clean or rewrite generated docs output.
 
+Write every generated guide in plain product language. Describe the visible
+choice, result, denial, and safe next action. Do not publish internal component
+names, protocols, identifiers, storage or delivery mechanics, test fixtures,
+database readbacks, or implementation evidence. Name an external service only
+when the reader actually interacts with it. Keep the stronger technical proof
+in the test assertions, not in the guide.
+
 Organize generated docs by feature area, such as:
 
 - events

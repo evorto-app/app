@@ -34,7 +34,7 @@ describe('tenant user role assignment source', () => {
     );
     expect(template).toContain('mat-select');
     expect(template).toContain('Assigned roles');
-    expect(template).toContain('Search users');
+    expect(template).toContain('Search members');
     expect(template).not.toContain('This page is read-only');
     expect(template).not.toContain('Edit user');
     expect(template).not.toContain('mat-checkbox');
@@ -44,10 +44,13 @@ describe('tenant user role assignment source', () => {
     const roleForm = readSource(
       'src/app/admin/components/role-form/role-form.component.html',
     );
+    const normalizedRoleForm = roleForm.replaceAll(/\s+/gu, ' ');
 
-    expect(roleForm).toContain('Full organization-administrator authority.');
+    expect(normalizedRoleForm).toContain(
+      'Full control over this organization.',
+    );
     expect(roleForm).toContain('form.permissions["users:assignRoles"]');
-    expect(roleForm).toContain('including to themselves');
+    expect(normalizedRoleForm).toContain('including to themselves');
   });
 
   it('keeps user-list role names tenant-scoped in the read-only RPC', () => {
@@ -63,15 +66,15 @@ describe('tenant user role assignment source', () => {
     const source = readSource('tests/docs/roles/roles.doc.ts');
 
     expect(source).toContain(
-      'The **All users** page supports searching organization members by name or email',
+      'The **All members** page supports searching by name or email',
     );
     expect(source).toContain(
-      'Administrators with **Assign all user roles** access can change roles for existing members',
+      'Administrators with **Assign all member roles (organization admin)** access can change roles for existing members',
     );
     expect(source).toContain(
-      '**Assign all user roles** is full organization-administrator authority',
+      '**Assign all member roles (organization admin)** gives full control over the organization',
     );
-    expect(source).toContain('full organization-administrator authority');
+    expect(source).toContain('full control over the organization');
     expect(source).not.toContain('existing-user role assignment is deferred');
     expect(source).not.toContain('Edit user roles');
   });
@@ -81,7 +84,7 @@ describe('tenant user role assignment source', () => {
 
     expect(source).toContain('seedUserRoleAssignmentScenario');
     expect(source).toContain(
-      'assigns and removes an existing user role with persisted UI readback',
+      'assigns and removes an existing member role with persisted UI readback',
     );
     expect(source).toContain('expect.poll(scenario.readAssignedRoleIds)');
     expect(source).toContain("toHaveAttribute('aria-selected', 'true')");

@@ -88,7 +88,7 @@ export const ensureAnsweredEventQuestionsUnchanged = Effect.fn(
     return yield* Effect.fail(
       new RpcBadRequestError({
         message:
-          'Answered event questions are historical and cannot be changed or removed',
+          'Questions with saved answers cannot be changed or removed. Add a new question instead.',
         reason: 'eventQuestionInUse',
       }),
     );

@@ -11,6 +11,6 @@ default: patch
 - record each owner, payment, settled registration/add-on component, and cancellation allocation in an append-only acquisition ledger so repeat transfers never infer ownership from timestamps,
 - complete a transfer without Stripe only when the entire bundle is free and no source refund is required,
 - require every event registration option and add-on to remain free when the tenant has no connected Stripe account,
-- preserve exact checkout and refund claims across retries, expiry, webhook replay, account rotation, and operator recovery,
+- preserve exact checkout and refund claims across retries, expiry, webhook replay, and operator recovery,
 - block conflicting mutations only while an offer or Checkout owns the ticket, and fully refund a paid recipient if a competing source change still wins,
 - and document and cover the participant transfer journey without storing raw claim codes.

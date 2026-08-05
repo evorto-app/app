@@ -72,7 +72,8 @@ export const templateCategoryHandlers = {
         return yield* Effect.fail(
           new TemplateCategoryNotFoundError({
             id,
-            message: 'Category not found',
+            message:
+              'This template category no longer exists. No changes were saved. Return to Template categories and choose an existing category.',
           }),
         );
       }

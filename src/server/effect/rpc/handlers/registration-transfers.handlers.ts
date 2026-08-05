@@ -11,7 +11,8 @@ const requireTransferUser = RpcAccess.requireUser().pipe(
   Effect.mapError((error) =>
     error instanceof RpcUnauthorizedError
       ? new RegistrationTransferUnauthorizedError({
-          message: 'Authenticated participant account required',
+          message:
+            'Sign in to open or manage a ticket transfer. No ticket, payment, or refund was changed.',
         })
       : error,
   ),

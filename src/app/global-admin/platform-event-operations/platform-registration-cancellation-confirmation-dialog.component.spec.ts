@@ -55,22 +55,28 @@ describe('platformRegistrationCancellationConfirmationCopy', () => {
     });
 
     expect(copy).toMatchObject({
+      actionLabel: 'Cancel ticket',
       canConfirm: true,
-      title: "Cancel Alex Able's registration?",
+      dismissLabel: 'Go back',
+      title: "Cancel Alex Able's ticket?",
     });
-    expect(copy.impact).toContain('the attendee place, 2 guest places');
     expect(copy.impact).toContain(
-      'every remaining included, free, or purchased add-on unit',
+      "Alex Able's entire ticket: the attendee place, 2 guest places",
+    );
+    expect(copy.impact).toContain(
+      'every remaining included, free, or purchased add-on item',
     );
     expect(copy.impact).toContain(
       'Existing check-in and add-on handout history stays recorded',
     );
     expect(copy.refund).toContain('12,50');
-    expect(copy.refund).toContain('original Stripe payment');
-    expect(copy.refund).toContain('excludes payment fees');
+    expect(copy.refund).toContain('original payment');
+    expect(copy.refund).toContain(
+      'organization cancellation rules exclude payment fees',
+    );
   });
 
-  it('explains a free cancellation without inventing a refund', () => {
+  it('explains a free ticket cancellation without inventing a refund', () => {
     expect(
       platformRegistrationCancellationConfirmationCopy({
         reason: 'Participant request',
@@ -81,9 +87,7 @@ describe('platformRegistrationCancellationConfirmationCopy', () => {
           required: false,
         }),
       }).refund,
-    ).toBe(
-      'No successful event payment is recorded, so no refund is required.',
-    );
+    ).toBe('No completed payment needs to be refunded.');
   });
 
   it('fails closed when a paid event transaction is not Stripe-backed', () => {
@@ -98,6 +102,69 @@ describe('platformRegistrationCancellationConfirmationCopy', () => {
     });
 
     expect(copy.canConfirm).toBe(false);
-    expect(copy.refund).toContain('Paid event transactions are Stripe-only');
+    expect(copy).toMatchObject({
+      actionLabel: 'Cancel ticket',
+      dismissLabel: 'Go back',
+      refund:
+        'This ticket could not be matched to its original payment. The ticket was not cancelled, the attendee keeps their place, and no refund was started. Review the payment before trying again.',
+      title: 'Ticket could not be cancelled for Alex Able',
+    });
+    expect(copy.refund).toContain(
+      'The ticket was not cancelled, the attendee keeps their place, and no refund was started',
+    );
+  });
+
+  it.each([
+    [
+      'PENDING',
+      false,
+      'Withdraw application',
+      "Withdraw Alex Able's application?",
+    ],
+    ['PENDING', true, 'Cancel sign-up', "Cancel Alex Able's pending sign-up?"],
+    [
+      'WAITLIST',
+      false,
+      'Remove from waitlist',
+      'Remove Alex Able from the waitlist?',
+    ],
+  ] as const)(
+    'uses status-specific copy for %s',
+    (status, paymentPending, actionLabel, title) => {
+      const copy = platformRegistrationCancellationConfirmationCopy({
+        reason: 'Participant request',
+        registration: {
+          ...registration({
+            amount: null,
+            feesIncluded: false,
+            method: null,
+            required: false,
+          }),
+          paymentPending,
+          status,
+        },
+      });
+
+      expect(copy).toMatchObject({ actionLabel, canConfirm: true, title });
+      expect(copy.impact).not.toContain('entire ticket');
+    },
+  );
+
+  it('blocks a contradictory refund instead of hiding the mismatch', () => {
+    const copy = platformRegistrationCancellationConfirmationCopy({
+      reason: 'Review',
+      registration: {
+        ...registration({
+          amount: 1250,
+          feesIncluded: false,
+          method: 'stripe',
+          required: true,
+        }),
+        status: 'WAITLIST',
+      },
+    });
+
+    expect(copy.canConfirm).toBe(false);
+    expect(copy.refund).toContain('does not match this sign-up status');
   });
 });

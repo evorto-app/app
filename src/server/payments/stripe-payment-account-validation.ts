@@ -3,15 +3,15 @@ import { Effect, Schema } from 'effect';
 import Stripe from 'stripe';
 
 const stripeAccountLookupFailureDetails = {
-  message: 'Stripe account could not be verified',
+  message: 'The payment account could not be verified.',
   reason:
-    'Confirm that the account ID exists and is connected to this Stripe platform, then retry. No settings were changed.',
+    'Check that the payment account is connected to Evorto, then try again. No settings were changed.',
 } as const;
 
 const stripeAccountNotReadyDetails = {
-  message: 'Stripe account is not ready for payments',
+  message: 'The payment account is not ready to receive payments.',
   reason:
-    'Complete Stripe onboarding and enable both charges and payouts for this account, then retry. No settings were changed.',
+    'Finish setting up the payment account so it can receive payments and send payouts, then try again. No settings were changed.',
 } as const;
 
 const StripePaymentAccount = Schema.Struct({
@@ -28,6 +28,13 @@ export interface StripePaymentAccountClient {
   };
 }
 
+const isDefinitiveMissingStripeAccount = (
+  error: unknown,
+): error is Stripe.errors.StripeInvalidRequestError =>
+  error instanceof Stripe.errors.StripeInvalidRequestError &&
+  error.statusCode === 404 &&
+  error.code === 'resource_missing';
+
 export const validateStripePaymentAccount = Effect.fn(
   'validateStripePaymentAccount',
 )(function* (stripe: StripePaymentAccountClient, stripeAccountId: string) {
@@ -36,7 +43,7 @@ export const validateStripePaymentAccount = Effect.fn(
     try: () => Promise.resolve(stripe.accounts.retrieve(stripeAccountId)),
   }).pipe(
     Effect.catch((error) =>
-      error instanceof Stripe.errors.StripeInvalidRequestError
+      isDefinitiveMissingStripeAccount(error)
         ? Effect.fail(new RpcBadRequestError(stripeAccountLookupFailureDetails))
         : Effect.die(error),
     ),

@@ -36,8 +36,6 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import type { Tenant } from '../../../types/custom/tenant';
-
 import { supportedTenantCurrencies } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -58,7 +56,6 @@ interface PaymentProviderSettingsModel {
   esnCardEnabled: boolean;
   receiptCountries: string[];
   refundFeesOnCancellation: boolean;
-  stripeAccountId: string;
 }
 
 export const paymentProviderSettingsFormSchema =
@@ -92,6 +89,13 @@ export const paymentProviderSettingsFormSchema =
 export class PaymentProviderSettingsComponent {
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
+  private readonly configService = inject(ConfigService);
+  private readonly currentTenant = computed(() =>
+    initializedTenant(this.configService),
+  );
+  protected readonly paymentsConfigured = computed(
+    () => this.currentTenant().paymentsConfigured,
+  );
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   private readonly model = signal<PaymentProviderSettingsModel>({
     allowOther: false,
@@ -100,7 +104,6 @@ export class PaymentProviderSettingsComponent {
     esnCardEnabled: false,
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
     refundFeesOnCancellation: true,
-    stripeAccountId: '',
   });
   protected readonly settingsForm = form(
     this.model,
@@ -113,12 +116,7 @@ export class PaymentProviderSettingsComponent {
   protected readonly updateMutation = injectMutation(() =>
     this.rpc.admin.tenant.updatePaymentProviderSettings.mutationOptions(),
   );
-  private readonly configService = inject(ConfigService);
-  private readonly currentTenant = computed(() =>
-    initializedTenant(this.configService),
-  );
   private readonly document = inject(DOCUMENT);
-  private readonly expectedStripeAccountId = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
 
@@ -155,10 +153,8 @@ export class PaymentProviderSettingsComponent {
           buyEsnCardUrl: optionalTrimmed(settings.buyEsnCardUrl),
           currency: settings.currency,
           esnCardEnabled: settings.esnCardEnabled,
-          expectedStripeAccountId: this.expectedStripeAccountId(),
           receiptCountries: settings.receiptCountries,
           refundFeesOnCancellation: settings.refundFeesOnCancellation,
-          stripeAccountId: optionalTrimmed(settings.stripeAccountId),
         });
         await this.queryClient.invalidateQueries({
           queryKey: this.rpc.pathKey(['config', 'tenant']),
@@ -167,11 +163,7 @@ export class PaymentProviderSettingsComponent {
           this.rpc.queryFilter(['discounts', 'getTenantProviders']),
         );
         this.settingsForm().reset();
-        this.notifications.showSuccess(
-          reloadRequired
-            ? 'Payment and provider settings updated. Reloading to apply the currency.'
-            : 'Payment and provider settings updated',
-        );
+        this.notifications.showSuccess('Payment settings updated');
         if (reloadRequired) {
           this.document.defaultView?.location.reload();
         }
@@ -179,14 +171,17 @@ export class PaymentProviderSettingsComponent {
         this.notifications.showError(
           getErrorMessage(
             error,
-            'Failed to update payment and provider settings',
+            'The payment settings could not be saved. Try again.',
+            ['RpcBadRequestError', 'AdminTenantNotFoundError'],
           ),
         );
       }
     });
   }
 
-  private hydrateFromTenant(tenant: Tenant): void {
+  private hydrateFromTenant(
+    tenant: ReturnType<typeof initializedTenant>,
+  ): void {
     if (!tenantSettingsShouldHydrate(this.settingsForm().dirty())) {
       return;
     }
@@ -194,7 +189,6 @@ export class PaymentProviderSettingsComponent {
       const receiptSettings = resolveReceiptCountrySettings(
         tenant.receiptSettings,
       );
-      this.expectedStripeAccountId.set(tenant.stripeAccountId ?? null);
       this.model.set({
         allowOther: receiptSettings.allowOther,
         buyEsnCardUrl:
@@ -203,7 +197,6 @@ export class PaymentProviderSettingsComponent {
         esnCardEnabled: tenant.discountProviders.esnCard.status === 'enabled',
         receiptCountries: [...receiptSettings.receiptCountries],
         refundFeesOnCancellation: tenant.refundFeesOnCancellation,
-        stripeAccountId: tenant.stripeAccountId ?? '',
       });
       this.settingsForm().reset();
     });

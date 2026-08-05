@@ -253,18 +253,21 @@ describe('isAuthEmailVerifiedForAccountCreation', () => {
 });
 
 describe('createAccountErrorMessage', () => {
-  it('uses the domain error message when account creation fails', () => {
+  it('explains when the organization changes its questions or policy', () => {
     expect(
-      createAccountErrorMessage({
-        _tag: 'TenantOnboardingRequirementsChangedError',
-        message: 'Requirements changed; review and submit again',
-      }),
-    ).toBe('Requirements changed; review and submit again');
+      createAccountErrorMessage(
+        new TenantOnboardingRequirementsChangedError({
+          message: 'Requirements changed; review and submit again',
+        }),
+      ),
+    ).toBe(
+      'This organization changed its questions or privacy policy. Review the latest details and try again.',
+    );
   });
 
   it('falls back to account creation copy for unknown failures', () => {
     expect(createAccountErrorMessage(null)).toBe(
-      'Failed to complete organization setup',
+      "We couldn't finish setting up your account. Try again.",
     );
   });
 });

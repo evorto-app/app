@@ -26,7 +26,7 @@ describe('member-onboarding generated documentation source', () => {
     expect(source).toContain('storageState: userStateFile');
     expect(source).toContain("member.page.goto('/events')");
     expect(source).toContain("name: 'Join organization'");
-    expect(source).toContain("name: 'You are browsing another organization'");
+    expect(source).toContain("name: 'You are viewing another organization'");
     expect(source).toContain("name: 'Make this my home organization'");
     expect(source).toContain('await makeHomeTenantButton.click()');
     expect(source).toContain('database.query.usersToTenants.findFirst');
@@ -45,9 +45,7 @@ describe('member-onboarding generated documentation source', () => {
     );
     expect(source).toContain('.delete(schema.tenantPrivacyPolicyAcceptances)');
     expect(source).toContain('member.page.reload()');
-    expect(source).toContain(
-      '# Join Another Organization and Choose Your Home Organization',
-    );
+    expect(source).not.toMatch(/^#\s+/mu);
     expect(firstStepsGuide?.sourceSlugs).toContain(
       'join-another-organization-and-choose-your-home-organization',
     );

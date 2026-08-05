@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   templateAddonPurchaseTiming,
+  templateDetailsErrorMessage,
   templateRegistrationOptionTitle,
 } from './template-details.component';
 
@@ -64,7 +65,7 @@ describe('template detail add-on helpers', () => {
         title: 'Dinner',
         totalAvailableQuantity: 40,
       }),
-    ).toBe('During registration');
+    ).toBe('During sign-up');
   });
 
   it('marks add-ons without purchase windows as unavailable', () => {
@@ -96,7 +97,22 @@ describe('template detail add-on helpers', () => {
   it('keeps missing add-on registration option labels explicit', () => {
     expect(
       templateRegistrationOptionTitle(createTemplate(), 'missing-option'),
-    ).toBe('Broken registration option configuration');
+    ).toBe('Sign-up choice unavailable');
+  });
+
+  it('shows a missing template without exposing internal failures', () => {
+    expect(
+      templateDetailsErrorMessage({
+        _tag: 'TemplateSimpleNotFoundError',
+        message: 'This template could not be found.',
+      }),
+    ).toBe('This template could not be found.');
+    expect(
+      templateDetailsErrorMessage({
+        _tag: 'TemplateSimpleInternalError',
+        message: 'database failed',
+      }),
+    ).toBe('The template could not be loaded. Try again.');
   });
 
   it('surfaces unavailable tax details instead of treating the provider result as empty', () => {

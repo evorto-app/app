@@ -117,7 +117,7 @@ export const simpleEventGraphIssue = (
   ) {
     return null;
   }
-  return 'Simple mode requires exactly one organizing and one non-organizing registration option. Add a missing option or move questions and add-ons before removing extra options, then try again.';
+  return 'Simple setup needs exactly one organizer choice and one attendee choice. Add a missing choice or move its questions and add-ons before removing extra choices, then try again.';
 };
 
 export const advancedEventGraphWarnings = (
@@ -128,10 +128,10 @@ export const advancedEventGraphWarnings = (
 ): string[] => {
   const warnings: string[] = [];
   if (registrationOptions.every((option) => !option.organizingRegistration)) {
-    warnings.push('No organizing registration option is configured.');
+    warnings.push('No organizer sign-up choice has been added.');
   }
   if (registrationOptions.every((option) => option.organizingRegistration)) {
-    warnings.push('No non-organizing registration option is configured.');
+    warnings.push('No attendee sign-up choice has been added.');
   }
   return warnings;
 };
@@ -155,7 +155,7 @@ export const eventGraphRecordToFormModel = (
   if (hasInvalidReference) {
     return {
       error:
-        'A registration question or add-on is assigned to an option that no longer exists. Editing is unavailable until a platform administrator repairs the event.',
+        'This event has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Use Back to event, then contact Evorto support and include the event name.',
     };
   }
 
@@ -163,7 +163,8 @@ export const eventGraphRecordToFormModel = (
     const issue = simpleEventGraphIssue(event.registrationOptions);
     if (issue) {
       return {
-        error: `This event is set to simple mode, but its registration options do not match that mode. ${issue}`,
+        error:
+          'This event has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Use Back to event, then contact Evorto support and include the event name.',
       };
     }
   }
@@ -259,7 +260,7 @@ export const createEventGraphRegistrationOption = (
     roleIds: [],
     spots: 1,
     stripeTaxRateId: null,
-    title: 'New registration option',
+    title: 'New sign-up choice',
     transferDeadlineHoursBeforeStart: null,
   };
 };

@@ -390,6 +390,13 @@ describe('request boundary', () => {
       );
 
       expect(response.status).toBe(400);
+      expect(response.body._tag).toBe('Uint8Array');
+      if (response.body._tag !== 'Uint8Array') {
+        throw new Error('Expected a text response body');
+      }
+      expect(new TextDecoder().decode(response.body.body)).toBe(
+        'This address cannot be opened. Check the link and try again.',
+      );
       expect(invoked).toBe(false);
     }),
   );

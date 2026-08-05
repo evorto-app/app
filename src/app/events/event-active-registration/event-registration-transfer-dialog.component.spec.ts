@@ -32,8 +32,8 @@ describe('EventRegistrationTransferDialogComponent', () => {
   });
 
   it.each([
-    ['Copy code', 'Claim code copied to clipboard.'],
-    ['Copy claim page link', 'Claim page link copied to clipboard.'],
+    ['Copy code', 'Transfer code copied to clipboard.'],
+    ['Copy transfer page link', 'Transfer page link copied to clipboard.'],
   ])('announces successful %s actions', (buttonLabel, announcement) => {
     const fixture = TestBed.createComponent(
       EventRegistrationTransferDialogComponent,
@@ -53,24 +53,30 @@ describe('EventRegistrationTransferDialogComponent', () => {
     expect(status?.textContent).toContain(announcement);
   });
 
-  it('keeps the private code separate from the generic claim page URL', () => {
+  it('copies the transfer page without displaying its address', () => {
     const fixture = TestBed.createComponent(
       EventRegistrationTransferDialogComponent,
     );
     fixture.detectChanges();
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const inputs = [
-      ...nativeElement.querySelectorAll<HTMLInputElement>('input'),
-    ];
-    const claimCode = inputs.find((input) =>
-      input.value.includes('ABCD-1234'),
-    )?.value;
-    const claimPageUrl = inputs.find((input) =>
-      input.value.startsWith('https://'),
-    )?.value;
+    const claimCode = nativeElement.querySelector<HTMLInputElement>('input');
+    const copyPageLink = [
+      ...nativeElement.querySelectorAll<HTMLButtonElement>('button'),
+    ].find((candidate) =>
+      candidate.textContent?.includes('Copy transfer page link'),
+    );
+    copyPageLink?.click();
 
-    expect(claimCode).toBe('ABCD-1234-EF56-7890-ABCD-1234-EF56-7890');
-    expect(claimPageUrl).toBe('https://example.test/registration-transfers');
-    expect(claimPageUrl).not.toContain(claimCode);
+    expect(claimCode?.value).toBe('ABCD-1234-EF56-7890-ABCD-1234-EF56-7890');
+    expect(nativeElement.textContent).not.toContain(
+      'https://example.test/registration-transfers',
+    );
+    expect(copyPageLink).toBeDefined();
+    expect(clipboard.copy).toHaveBeenCalledWith(
+      'https://example.test/registration-transfers',
+    );
+    expect('https://example.test/registration-transfers').not.toContain(
+      claimCode?.value,
+    );
   });
 });

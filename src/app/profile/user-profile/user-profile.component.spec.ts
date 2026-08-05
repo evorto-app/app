@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isBrowsingOutsideHomeTenant,
   profileReimbursementReadiness,
+  profileUpdateErrorMessage,
   profileUserAfterEdit,
 } from './user-profile.component';
 
@@ -23,19 +24,19 @@ describe('profile overview', () => {
         iban: 'DE89370400440532013000',
         paypalEmail: 'member@example.com',
       }),
-    ).toBe('IBAN and PayPal are configured.');
+    ).toBe('IBAN and PayPal details added.');
     expect(
       profileReimbursementReadiness({
         iban: 'DE89370400440532013000',
       }),
-    ).toBe('An IBAN is configured.');
+    ).toBe('IBAN added.');
     expect(
       profileReimbursementReadiness({
         paypalEmail: 'member@example.com',
       }),
-    ).toBe('A PayPal account is configured.');
+    ).toBe('PayPal account added.');
     expect(profileReimbursementReadiness({})).toBe(
-      'No reimbursement details are configured.',
+      'No reimbursement details added.',
     );
   });
 
@@ -68,5 +69,20 @@ describe('profile overview', () => {
       lastName: 'Person',
       paypalEmail: null,
     });
+  });
+
+  it('shows profile corrections without exposing internal failures', () => {
+    expect(
+      profileUpdateErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Enter a valid IBAN.',
+      }),
+    ).toBe('Enter a valid IBAN.');
+    expect(
+      profileUpdateErrorMessage({
+        _tag: 'RpcInternalServerError',
+        message: 'database failed',
+      }),
+    ).toBe("We couldn't update your profile. Try again.");
   });
 });

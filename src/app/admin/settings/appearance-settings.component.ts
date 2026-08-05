@@ -183,7 +183,11 @@ export class AppearanceSettingsComponent {
         this.notifications.showSuccess('Appearance settings updated');
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update appearance settings'),
+          getErrorMessage(
+            error,
+            "We couldn't save the appearance settings. Try again.",
+            ['RpcBadRequestError', 'AdminTenantNotFoundError'],
+          ),
         );
       }
     });
@@ -206,9 +210,7 @@ export class AppearanceSettingsComponent {
     }
     if (!tenantBrandAssetClientMimeTypes[kind].has(file.type)) {
       this.notifications.showError(
-        kind === 'favicon'
-          ? 'Favicons must be PNG, JPEG, WebP, GIF, or ICO files'
-          : 'Logos must be PNG, JPEG, WebP, or GIF files',
+        'This image type cannot be used. Choose another image.',
       );
       if (input) {
         input.value = '';
@@ -217,7 +219,7 @@ export class AppearanceSettingsComponent {
     }
     if (file.size === 0 || file.size > tenantBrandAssetClientMaxSizeBytes) {
       this.notifications.showError(
-        'Brand asset file must be between 1 byte and 5 MB',
+        'This image is empty or larger than 5 MB. Choose another image.',
       );
       if (input) {
         input.value = '';
@@ -226,9 +228,23 @@ export class AppearanceSettingsComponent {
     }
 
     this.uploadingBrandAsset.set(kind);
+    let fileBase64: string;
+    try {
+      fileBase64 = await this.readFileAsBase64(file);
+    } catch {
+      this.notifications.showError(
+        "We couldn't read this image. Choose another file.",
+      );
+      this.uploadingBrandAsset.set(null);
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+
     try {
       const uploaded = await this.uploadBrandAssetMutation.mutateAsync({
-        fileBase64: await this.readFileAsBase64(file),
+        fileBase64,
         fileName: file.name,
         fileSizeBytes: file.size,
         kind,
@@ -242,11 +258,14 @@ export class AppearanceSettingsComponent {
       this.notifications.showSuccess(
         kind === 'logo'
           ? 'Logo uploaded. Save appearance settings to publish it.'
-          : 'Favicon uploaded. Save appearance settings to publish it.',
+          : 'Tab icon uploaded. Save appearance settings to publish it.',
       );
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to upload brand asset'),
+        getErrorMessage(error, "We couldn't upload this image. Try again.", [
+          'RpcBadRequestError',
+          'AdminTenantNotFoundError',
+        ]),
       );
     } finally {
       this.uploadingBrandAsset.set(null);
@@ -276,16 +295,16 @@ export class AppearanceSettingsComponent {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.addEventListener('error', () => {
-        reject(new Error('Failed to read brand asset'));
+        reject(new Error('Brand image could not be read'));
       });
       reader.addEventListener('load', () => {
         if (typeof reader.result !== 'string') {
-          reject(new Error('Invalid brand asset payload'));
+          reject(new Error('Brand image could not be read'));
           return;
         }
         const commaIndex = reader.result.indexOf(',');
         if (commaIndex === -1) {
-          reject(new Error('Invalid brand asset data URL'));
+          reject(new Error('Brand image could not be read'));
           return;
         }
         resolve(reader.result.slice(commaIndex + 1));

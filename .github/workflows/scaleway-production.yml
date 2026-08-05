@@ -312,12 +312,12 @@ jobs:
             deployment/platform.json ops \
             "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"
 
-          ops_endpoint="$(jq --raw-output .containers.ops.endpoint deployment/platform.json)"
           explain_response="$(
             ops/scaleway/invoke-private-container.sh \
-              "${ops_endpoint}" \
+              deployment/platform.json \
+              ops \
               /internal/ops/schema-explain \
-              '{}'
+              <<<'{}'
           )"
           jq --exit-status \
             --arg schema_hash "${SCHEMA_HASH}" \
@@ -326,9 +326,10 @@ jobs:
           plan_digest="$(jq --raw-output .digest <<<"${explain_response}")"
           apply_response="$(
             ops/scaleway/invoke-private-container.sh \
-              "${ops_endpoint}" \
+              deployment/platform.json \
+              ops \
               /internal/ops/schema-apply \
-              "$(jq --null-input --compact-output --arg plan_digest "${plan_digest}" '{ planDigest: $plan_digest }')"
+              <<<"$(jq --null-input --compact-output --arg plan_digest "${plan_digest}" '{ planDigest: $plan_digest }')"
           )"
           jq --exit-status \
             --arg plan_digest "${plan_digest}" \

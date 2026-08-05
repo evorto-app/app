@@ -7,20 +7,20 @@
 
 <main>
   @if (templateQuery.isPending()) {
-    <p role="status" aria-live="polite">Loading template...</p>
+    <p role="status" aria-live="polite">Loading template…</p>
   } @else if (templateQuery.isError()) {
     <section
       class="bg-error-container text-on-error-container p-4"
       role="alert"
     >
-      <p>This template could not be loaded. Try again.</p>
+      <p>{{ templateQueryErrorMessage() }}</p>
       <button
         mat-stroked-button
         type="button"
         [disabled]="templateQuery.isFetching()"
         (click)="templateQuery.refetch()"
       >
-        {{ templateQuery.isFetching() ? "Retrying..." : "Try again" }}
+        {{ templateQuery.isFetching() ? "Trying again…" : "Try again" }}
       </button>
     </section>
   } @else if (editorLoadError()) {
@@ -29,9 +29,9 @@
       role="alert"
       data-testid="template-graph-readonly"
     >
-      <h2 class="title-medium">This template is read-only</h2>
+      <h2 class="title-medium">This template cannot be edited</h2>
       <p>{{ editorLoadError() }}</p>
-      <p>The existing template remains available on its detail page.</p>
+      <p>You can still view the existing template.</p>
       <a mat-stroked-button routerLink="..">Back to template</a>
     </section>
   } @else if (rolesQuery.isError()) {
@@ -49,11 +49,11 @@
         [disabled]="rolesQuery.isFetching()"
         (click)="rolesQuery.refetch()"
       >
-        {{ rolesQuery.isFetching() ? "Retrying..." : "Try again" }}
+        {{ rolesQuery.isFetching() ? "Trying again…" : "Try again" }}
       </button>
     </section>
   } @else if (!rolesQuery.isSuccess()) {
-    <p role="status" aria-live="polite">Loading roles...</p>
+    <p role="status" aria-live="polite">Loading roles…</p>
   } @else if (templateQuery.isSuccess()) {
     <form
       class="text-on-surface grid max-w-6xl gap-6"
@@ -75,19 +75,20 @@
       <section class="border-outline-variant bg-surface rounded-lg border p-4">
         @if (!stripeConnectionKnown()) {
           <p class="text-on-surface-variant mb-4 text-sm" role="status">
-            Paid controls are unavailable while the organization's Stripe status
-            is loading.
+            Payment settings are still loading, so paid choices are temporarily
+            unavailable.
           </p>
         } @else if (paidControlsUnavailable()) {
           @if (paidGraphBlocked()) {
             <p class="text-error mb-4 text-sm" role="alert">
-              This template's paid configuration is preserved, but changes
-              cannot be saved until Stripe is connected again.
+              This existing template includes paid sign-up choices or add-ons.
+              They remain unchanged, but you cannot save changes until paid
+              sign-ups are ready again.
             </p>
           } @else {
             <p class="text-on-surface-variant mb-4 text-sm" role="status">
-              Paid controls are unavailable because this organization has no
-              connected Stripe account.
+              Paid choices are unavailable because paid sign-ups are not ready
+              for this organization.
             </p>
           }
         }
@@ -147,7 +148,7 @@
 
       @if (updateTemplateMutation.isError()) {
         <div class="text-error grid gap-1" role="alert">
-          <p>The template could not be saved.</p>
+          <p>{{ updateErrorMessage() }}</p>
           <p>Your entries are still here. Review them and try again.</p>
         </div>
       }
@@ -160,7 +161,7 @@
           [disabled]="!canSubmit()"
         >
           {{
-            updateTemplateMutation.isPending() ? "Saving..." : "Update template"
+            updateTemplateMutation.isPending() ? "Saving…" : "Update template"
           }}
         </button>
       </div>

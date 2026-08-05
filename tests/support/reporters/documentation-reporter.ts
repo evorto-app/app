@@ -13,6 +13,7 @@ import { documentationOutputEnvironment } from '../config/environment';
 import { buildSectionContent } from './documentation-reporter/attachments';
 import { DocumentationGroupRegistry } from './documentation-reporter/group-registry';
 import {
+  buildDocumentationPage,
   DOCUMENTATION_ATTACHMENT_NAMES,
   ensureDirectory,
   stripTagsFromTitle,
@@ -52,7 +53,7 @@ class DocumentationReporter implements Reporter {
     return root;
   }
 
-  onBegin(config: FullConfig, suite: Suite) {
+  onBegin(_config: FullConfig, suite: Suite) {
     if (this.listOnly) {
       return;
     }
@@ -65,7 +66,7 @@ class DocumentationReporter implements Reporter {
     console.log(`[docs-reporter] docsRoot=${docs} imagesRoot=${images}`);
   }
 
-  onEnd(result: FullResult) {
+  onEnd(_result: FullResult) {
     if (this.listOnly) {
       return;
     }
@@ -97,24 +98,20 @@ class DocumentationReporter implements Reporter {
           ? titleFromTestFile(doc.filePath ?? doc.folderName)
           : sections[0].title);
 
-      const pageLines: string[] = [`---\ntitle: ${mainTitle}\n---`];
-      for (const [index, section] of sections.entries()) {
-        if (index > 0) pageLines.push('');
-        if (hasMultipleTests) pageLines.push(`## ${section.title}`);
-        pageLines.push(...section.content);
-      }
-
       const pageDir = ensureDirectory(
         path.join(this.docsRoot(), doc.folderName),
         {
           empty: true,
         },
       );
-      writeFile(path.join(pageDir, 'page.md'), pageLines.join('\n'));
+      writeFile(
+        path.join(pageDir, 'page.md'),
+        buildDocumentationPage(mainTitle, sections),
+      );
     }
   }
 
-  onTestBegin(test: TestCase, result: TestResult) {}
+  onTestBegin(_test: TestCase, _result: TestResult) {}
 
   onTestEnd(test: TestCase, result: TestResult) {
     if (this.listOnly) {

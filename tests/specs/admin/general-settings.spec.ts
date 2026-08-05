@@ -24,11 +24,9 @@ test('tenant admin saves each settings section independently @admin', async ({
   if (!tenant) {
     throw new Error(`Expected tenant row for ${seededTenant.id}`);
   }
-  const stripeAccountId = tenant.stripeAccountId;
-  if (!stripeAccountId) {
-    throw new Error(
-      'Expected seeded tenant to have a connected Stripe account',
-    );
+  const paymentAccountId = tenant.stripeAccountId;
+  if (!paymentAccountId) {
+    throw new Error('Expected seeded tenant to have payments ready');
   }
 
   const suffix = seedDate.getTime();
@@ -54,11 +52,11 @@ test('tenant admin saves each settings section independently @admin', async ({
       settings.getByText('Organization name', { exact: true }),
     ).toBeVisible();
     await expect(
-      settings.getByText('Public domain', { exact: true }),
+      settings.getByText('Website address', { exact: true }),
     ).toBeVisible();
     await expect(
-      settings.getByRole('textbox', { name: 'Timezone' }),
-    ).toHaveValue('Europe/Berlin');
+      settings.getByRole('combobox', { name: 'Time zone' }),
+    ).toHaveText('Berlin time');
 
     await settings
       .getByPlaceholder('Example Section')
@@ -84,17 +82,19 @@ test('tenant admin saves each settings section independently @admin', async ({
       });
   });
 
-  await test.step('Save registration policies', async () => {
+  await test.step('Save sign-up rules', async () => {
     await page.goto('/admin/settings/registration');
     const settings = page.locator('app-registration-settings');
     await expect(
-      settings.getByRole('heading', { name: 'Registration policies' }),
+      settings.getByRole('heading', { name: 'Sign-up rules' }),
     ).toBeVisible();
     await expect(
-      settings.getByText('Waitlist entries do not consume this limit.'),
+      settings.getByText(
+        'Joining a waitlist does not count toward this limit.',
+      ),
     ).toBeVisible();
     await settings
-      .getByRole('spinbutton', { name: 'Active registration limit' })
+      .getByRole('spinbutton', { name: 'Active sign-up limit' })
       .fill(String(maxActiveRegistrationsPerUser));
     await settings
       .getByRole('spinbutton', {
@@ -106,10 +106,8 @@ test('tenant admin saves each settings section independently @admin', async ({
         name: 'Cancellation deadline before event (hours)',
       })
       .fill(String(cancellationDeadlineHoursBeforeStart));
-    await settings
-      .getByRole('button', { name: 'Save registration policies' })
-      .click();
-    await expect(page.getByText('Registration policies updated')).toBeVisible();
+    await settings.getByRole('button', { name: 'Save sign-up rules' }).click();
+    await expect(page.getByText('Sign-up rules updated')).toBeVisible();
 
     await expect
       .poll(async () =>
@@ -138,7 +136,9 @@ test('tenant admin saves each settings section independently @admin', async ({
       settings.getByRole('heading', { name: 'Appearance' }),
     ).toBeVisible();
 
-    const logoUrlInput = settings.getByRole('textbox', { name: 'Logo URL' });
+    const logoUrlInput = settings.getByRole('textbox', {
+      name: 'Logo web address',
+    });
     await settings.getByLabel('Upload organization logo file').setInputFiles({
       buffer: onePixelPng,
       mimeType: 'image/png',
@@ -153,10 +153,10 @@ test('tenant admin saves each settings section independently @admin', async ({
     logoUrl = await logoUrlInput.inputValue();
 
     const faviconUrlInput = settings.getByRole('textbox', {
-      name: 'Favicon URL',
+      name: 'Tab icon web address',
     });
     await settings
-      .getByLabel('Upload organization favicon file')
+      .getByLabel('Upload organization tab icon file')
       .setInputFiles({
         buffer: onePixelPng,
         mimeType: 'image/png',
@@ -164,7 +164,7 @@ test('tenant admin saves each settings section independently @admin', async ({
       });
     await expect(
       page.getByText(
-        'Favicon uploaded. Save appearance settings to publish it.',
+        'Tab icon uploaded. Save appearance settings to publish it.',
       ),
     ).toBeVisible();
     await expect(faviconUrlInput).toHaveValue(
@@ -210,10 +210,12 @@ test('tenant admin saves each settings section independently @admin', async ({
       settings.getByRole('heading', { name: 'Legal pages' }),
     ).toBeVisible();
     await settings
-      .getByPlaceholder('Legal notice text shown at /legal/imprint')
+      .getByRole('textbox', {
+        name: 'Imprint / legal notice text published by Evorto',
+      })
       .fill(` ${legalNoticeText} `);
     await settings
-      .getByPlaceholder('Terms shown at /legal/terms')
+      .getByRole('textbox', { name: 'Terms text published by Evorto' })
       .fill(` ${termsText} `);
     await settings.getByRole('button', { name: 'Save legal pages' }).click();
     await expect(page.getByText('Legal settings updated')).toBeVisible();
@@ -234,12 +236,13 @@ test('tenant admin saves each settings section independently @admin', async ({
       });
   });
 
-  await test.step('Save payments and providers', async () => {
+  await test.step('Save payment settings', async () => {
     await page.goto('/admin/settings/payments');
     const settings = page.locator('app-payment-provider-settings');
     await expect(
-      settings.getByRole('heading', { name: 'Payments and providers' }),
+      settings.getByRole('heading', { name: 'Payments' }),
     ).toBeVisible();
+    await expect(settings.getByText('Paid sign-ups are ready.')).toBeVisible();
 
     const currencySelect = settings.getByRole('combobox', {
       name: 'Currency',
@@ -249,10 +252,6 @@ test('tenant admin saves each settings section independently @admin', async ({
     await expect(page.getByRole('option', { name: 'CZK' })).toBeVisible();
     await expect(page.getByRole('option', { name: 'AUD' })).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(settings.getByPlaceholder('acct_...')).toHaveValue(
-      stripeAccountId,
-    );
-
     const refundFeesToggle = settings
       .locator('mat-slide-toggle')
       .filter({ hasText: 'Refund fees on cancellation' })
@@ -262,7 +261,7 @@ test('tenant admin saves each settings section independently @admin', async ({
     }
     const esnCardToggle = settings
       .locator('mat-slide-toggle')
-      .filter({ hasText: 'ESN Card discounts' })
+      .filter({ hasText: 'ESNcard discounts' })
       .getByRole('switch');
     if (!(await esnCardToggle.isChecked())) {
       await esnCardToggle.click();
@@ -271,11 +270,9 @@ test('tenant admin saves each settings section independently @admin', async ({
       .getByPlaceholder('https://esncard.org/')
       .fill(` ${buyEsnCardUrl} `);
     await settings
-      .getByRole('button', { name: 'Save payment and provider settings' })
+      .getByRole('button', { name: 'Save payment settings' })
       .click();
-    await expect(
-      page.getByText('Payment and provider settings updated'),
-    ).toBeVisible();
+    await expect(page.getByText('Payment settings updated')).toBeVisible();
 
     await expect
       .poll(async () =>
@@ -296,7 +293,7 @@ test('tenant admin saves each settings section independently @admin', async ({
           },
         },
         refundFeesOnCancellation: false,
-        stripeAccountId,
+        stripeAccountId: paymentAccountId,
       });
   });
 

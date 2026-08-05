@@ -21,7 +21,7 @@ export const taxRateHandlers = {
         !includesPermission('templates:view', context.permissions)
       ) {
         return yield* new RpcForbiddenError({
-          message: 'Forbidden',
+          message: 'You do not have permission to view tax rates.',
           permission: 'templates:view',
         });
       }

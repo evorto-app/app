@@ -88,6 +88,11 @@ const documentationConsumerEnvironmentNames = [
   'TMPDIR',
 ] as const;
 
+const documentationConsumerRelativeDirectories = [
+  'apps/marketing/src/content/generated-docs',
+  'apps/marketing/public/docs',
+] as const;
+
 export const documentationConsumerEnvironment = (
   environment: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv =>
@@ -209,15 +214,17 @@ const assertTrustedDocumentationConsumer = (
     '--',
     relativeSyncScript,
   ]);
-  const trackedConsumerFiles = runConsumerGit(repositoryRoot, [
-    'ls-files',
-    '--',
-    'apps/documentation-page',
-  ]).trim();
-  if (!trackedConsumerFiles) {
-    throw new Error(
-      'Evorto Pages documentation consumer must contain tracked files',
-    );
+  for (const relativeDirectory of documentationConsumerRelativeDirectories) {
+    const trackedConsumerFiles = runConsumerGit(repositoryRoot, [
+      'ls-files',
+      '--',
+      relativeDirectory,
+    ]).trim();
+    if (!trackedConsumerFiles) {
+      throw new Error(
+        `Evorto Pages documentation consumer must contain tracked files in ${relativeDirectory}`,
+      );
+    }
   }
 
   const status = runConsumerGit(repositoryRoot, [
@@ -236,10 +243,12 @@ export const resolveDocumentationConsumer = (
 ): { repositoryRoot: string; syncScript: string } => {
   const repositoryRoot = requiredPath(environment, 'EVORTO_PAGES_ROOT');
   assertRealDirectory(repositoryRoot, 'Evorto Pages repository root');
-  assertRealDirectory(
-    path.join(repositoryRoot, 'apps', 'documentation-page'),
-    'Evorto Pages documentation consumer',
-  );
+  for (const relativeDirectory of documentationConsumerRelativeDirectories) {
+    assertRealDirectory(
+      path.join(repositoryRoot, ...relativeDirectory.split('/')),
+      `Evorto Pages documentation consumer ${relativeDirectory}`,
+    );
+  }
   const syncScript = path.join(
     repositoryRoot,
     'tools',

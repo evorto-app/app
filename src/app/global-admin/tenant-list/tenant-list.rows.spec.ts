@@ -4,8 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   filterGlobalAdminTenants,
-  globalAdminStripeAccountLabel,
-  globalAdminTenantListErrorMessage,
+  globalAdminPaymentStatusLabel,
   globalAdminTenantRows,
 } from './tenant-list.rows';
 
@@ -14,8 +13,7 @@ const tenant = {
   domain: 'tenant.example.com',
   id: 'tenant-1',
   name: 'Tenant',
-  stripeAccountId: 'acct_123',
-  stripeConnected: true,
+  paymentsConfigured: true,
   theme: 'esn',
   timezone: 'Europe/Berlin',
 } as const satisfies GlobalAdminTenantRecord;
@@ -23,65 +21,62 @@ const tenant = {
 describe('globalAdminTenantRows', () => {
   it('summarizes organization settings for platform review', () => {
     expect(globalAdminTenantRows(tenant)).toEqual([
-      { label: 'Primary domain', value: 'tenant.example.com' },
-      { label: 'Theme', value: 'esn' },
+      { label: 'Website address', value: 'tenant.example.com' },
+      { label: 'Theme', value: 'ESN theme' },
       { label: 'Currency', value: 'EUR' },
-      { label: 'Timezone', value: 'Europe/Berlin' },
-      { label: 'Stripe account', value: 'Connected (acct_123)' },
+      { label: 'Time zone', value: 'Berlin time' },
+      { label: 'Payments', value: 'Paid sign-ups ready' },
     ]);
   });
 
   it('reuses the settings rows for organization detail review', () => {
     expect(globalAdminTenantRows(tenant).map((row) => row.label)).toEqual([
-      'Primary domain',
+      'Website address',
       'Theme',
       'Currency',
-      'Timezone',
-      'Stripe account',
+      'Time zone',
+      'Payments',
     ]);
   });
 
-  it('shows a readable Stripe state when the tenant is not connected', () => {
+  it('shows when paid sign-ups need attention', () => {
     const rows = globalAdminTenantRows({
       ...tenant,
       currency: 'EUR',
       domain: 'tenant.example.com',
       id: 'tenant-1',
       name: 'Tenant',
-      stripeConnected: false,
+      paymentsConfigured: false,
       theme: 'evorto',
     });
 
     expect(rows.at(-1)).toEqual({
-      label: 'Stripe account',
-      value: 'Not connected',
+      label: 'Payments',
+      value: 'Paid sign-ups need attention',
     });
   });
 });
 
-describe('globalAdminStripeAccountLabel', () => {
-  it('includes the connected account id when available for support lookup', () => {
+describe('globalAdminPaymentStatusLabel', () => {
+  it('shows payment readiness without exposing provider details', () => {
     expect(
-      globalAdminStripeAccountLabel({
-        stripeAccountId: 'acct_123',
-        stripeConnected: true,
+      globalAdminPaymentStatusLabel({
+        paymentsConfigured: true,
       }),
-    ).toBe('Connected (acct_123)');
+    ).toBe('Paid sign-ups ready');
   });
 
-  it('keeps connection state readable when the id is absent', () => {
+  it('keeps unavailable paid sign-ups explicit', () => {
     expect(
-      globalAdminStripeAccountLabel({
-        stripeAccountId: null,
-        stripeConnected: true,
+      globalAdminPaymentStatusLabel({
+        paymentsConfigured: true,
       }),
-    ).toBe('Connected');
+    ).toBe('Paid sign-ups ready');
     expect(
-      globalAdminStripeAccountLabel({
-        stripeAccountId: 'acct_123',
-        stripeConnected: false,
+      globalAdminPaymentStatusLabel({
+        paymentsConfigured: false,
       }),
-    ).toBe('Not connected');
+    ).toBe('Paid sign-ups need attention');
   });
 });
 
@@ -97,8 +92,7 @@ describe('filterGlobalAdminTenants', () => {
       domain: 'north.example.com',
       id: 'tenant-2',
       name: 'North',
-      stripeAccountId: null,
-      stripeConnected: false,
+      paymentsConfigured: false,
       theme: 'evorto',
       timezone: 'Australia/Brisbane',
     } as const satisfies GlobalAdminTenantRecord;
@@ -110,28 +104,13 @@ describe('filterGlobalAdminTenants', () => {
       tenant,
     ]);
     expect(
-      filterGlobalAdminTenants([tenant, secondTenant], 'not connected'),
+      filterGlobalAdminTenants(
+        [tenant, secondTenant],
+        'paid sign-ups need attention',
+      ),
     ).toEqual([secondTenant]);
     expect(
       filterGlobalAdminTenants([tenant, secondTenant], 'acct_123'),
-    ).toEqual([tenant]);
-  });
-});
-
-describe('globalAdminTenantListErrorMessage', () => {
-  it('keeps tenant-list load failures readable', () => {
-    expect(globalAdminTenantListErrorMessage(null)).toBe(
-      'Failed to load organizations',
-    );
-    expect(
-      globalAdminTenantListErrorMessage({
-        _tag: 'RpcForbiddenError',
-      }),
-    ).toBe('Forbidden');
-    expect(
-      globalAdminTenantListErrorMessage({
-        message: 'Global admin permission is required',
-      }),
-    ).toBe('Global admin permission is required');
+    ).toEqual([]);
   });
 });

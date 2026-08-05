@@ -3,17 +3,27 @@
     <a [routerLink]="['..']" mat-icon-button aria-label="Back to role">
       <fa-icon [icon]="faArrowLeft" />
     </a>
-    <h1 class="text-2xl font-medium">Edit Role</h1>
+    <h1 class="text-2xl font-medium">Edit role</h1>
   </div>
 
   @if (roleQuery.isPending()) {
     <div
       class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
     >
-      <h2 class="title-medium">Loading ...</h2>
+      <h2 class="title-medium">Loading role…</h2>
     </div>
   } @else if (roleQuery.isError()) {
-    <p>Error: {{ errorMessage(roleQuery.error()) }}</p>
+    <div class="flex flex-col items-start gap-3" role="alert">
+      <p>We couldn't load this role.</p>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="roleQuery.isFetching()"
+        (click)="roleQuery.refetch()"
+      >
+        {{ roleQuery.isFetching() ? "Trying again…" : "Try again" }}
+      </button>
+    </div>
   } @else if (roleQuery.isSuccess()) {
     <div
       class="bg-surface-container-low text-on-surface-container-low flex flex-col gap-4 rounded-2xl p-4"

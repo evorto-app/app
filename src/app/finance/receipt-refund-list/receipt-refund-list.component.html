@@ -9,11 +9,11 @@
 
 @if (refundableReceiptsQuery.isPending()) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">
-    Loading refundable receipts...
+    Loading refundable receipts…
   </div>
 } @else if (refundableReceiptsQuery.isError()) {
   <div class="bg-error-container text-on-error-container rounded-2xl p-4">
-    Failed to load refundable receipts.
+    The refundable receipts could not be loaded. Try again.
   </div>
 } @else if ((refundableReceiptsQuery.data()?.length ?? 0) === 0) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">

@@ -37,19 +37,19 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     await page.goto('/logout');
     await page.goto('.');
 
-    const loginLink = page.getByRole('link', { name: 'Login' }).first();
+    const loginLink = page.getByRole('link', { name: 'Sign in' }).first();
     if (!(await loginLink.isVisible())) {
-      const logoutLink = page.getByRole('link', { name: 'Logout' }).first();
+      const logoutLink = page.getByRole('link', { name: 'Sign out' }).first();
       if (await logoutLink.isVisible()) {
         await logoutLink.click();
         await page.waitForURL(/\/(login|$)/);
       }
     }
 
-    await page.getByRole('link', { name: 'Login' }).first().waitFor({
+    await page.getByRole('link', { name: 'Sign in' }).first().waitFor({
       state: 'visible',
     });
-    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'Sign in' }).click();
     await page.getByLabel('Email address').waitFor({ state: 'visible' });
     await page.getByLabel('Email address').fill(newUser.email);
     await fillProtectedValue(

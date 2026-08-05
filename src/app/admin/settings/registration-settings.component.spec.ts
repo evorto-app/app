@@ -47,7 +47,7 @@ describe('registration policy validation', () => {
         .maxActiveRegistrationsPerUser()
         .errors()
         .map((error) => error.message),
-    ).toContain('Enter an active registration limit.');
+    ).toContain('Enter an active sign-up limit.');
     expect(
       settings
         .transferDeadlineHoursBeforeStart()
@@ -120,6 +120,6 @@ describe('registration policy validation', () => {
     expect(template).toMatch(
       /settingsForm\s*\.cancellationDeadlineHoursBeforeStart\(\)\s*\.errors\(\)/,
     );
-    expect(template).toMatch(/Waitlist entries do not consume\s+this/);
+    expect(template).toMatch(/Joining a waitlist does not count\s+toward this/);
   });
 });

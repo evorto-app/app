@@ -70,7 +70,7 @@ export class TemplateGraphEditorComponent {
       .value()
       .registrationOptions.map((option, index) => ({
         key: option.key,
-        title: option.title.trim() || `Registration option ${index + 1}`,
+        title: option.title.trim() || `Sign-up choice ${index + 1}`,
       })),
   );
   protected readonly optionKindWarnings = computed(() => {
@@ -78,12 +78,12 @@ export class TemplateGraphEditorComponent {
     const warnings: string[] = [];
     if (options.every((option) => !option.organizingRegistration)) {
       warnings.push(
-        'No organizing option is configured. This is allowed, but nobody can register as an organizer through this template.',
+        'No organizer sign-up choice has been added. Organizers will not be able to sign up for events created with this template.',
       );
     }
     if (options.every((option) => option.organizingRegistration)) {
       warnings.push(
-        'No non-organizing option is configured. This is allowed, but ordinary participants cannot register through this template.',
+        'No attendee sign-up choice has been added. Attendees will not be able to sign up for events created with this template.',
       );
     }
     return warnings;
@@ -169,7 +169,7 @@ export class TemplateGraphEditorComponent {
         ...model.registrationOptions,
         {
           ...createTemplateGraphRegistrationOptionFormModel(
-            `Registration option ${model.registrationOptions.length + 1}`,
+            `Sign-up choice ${model.registrationOptions.length + 1}`,
             20,
             false,
           ),
@@ -254,7 +254,7 @@ export class TemplateGraphEditorComponent {
         this.graphForm()().value().registrationOptions;
       if (!isSimpleCompatibleRegistrationOptions(registrationOptions)) {
         this.modeBlockMessage.set(
-          'Simple configuration requires exactly one organizing and one non-organizing option. Reclassify or remove options first; nothing was deleted.',
+          'Simple setup needs exactly one organizer choice and one attendee choice. Change or remove choices first; nothing was deleted.',
         );
         return;
       }

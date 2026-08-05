@@ -216,7 +216,9 @@ describe('templateHandlers permissions', () => {
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'stripeRequiredForPaidEventConfiguration',
+          message:
+            'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
+          reason: 'paymentSetupRequired',
         });
       }),
   );
@@ -270,7 +272,10 @@ describe('templateHandlers permissions', () => {
           Effect.provide(createContextLayer(['events:create'], database)),
         );
 
-        expect(error['_tag']).toBe('TemplateSimpleNotFoundError');
+        expect(error).toMatchObject({
+          _tag: 'TemplateSimpleNotFoundError',
+          message: 'This template no longer exists. Return to Templates.',
+        });
       }),
   );
 });

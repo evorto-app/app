@@ -101,5 +101,13 @@ export const createAccountSubmitDisabled = ({
   mutationPending: boolean;
 }): boolean => formInvalid || formSubmitting || mutationPending;
 
-export const createAccountErrorMessage = (error: unknown): string =>
-  getErrorMessage(error, 'Failed to complete organization setup');
+export const createAccountErrorMessage = (error: unknown): string => {
+  if (isTenantOnboardingRequirementsChangedError(error)) {
+    return 'This organization changed its questions or privacy policy. Review the latest details and try again.';
+  }
+
+  return getErrorMessage(
+    error,
+    "We couldn't finish setting up your account. Try again.",
+  );
+};

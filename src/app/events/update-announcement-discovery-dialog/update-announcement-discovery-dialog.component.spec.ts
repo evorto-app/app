@@ -95,9 +95,9 @@ describe('UpdateAnnouncementDiscoveryDialogComponent', () => {
       ?.replaceAll(/\s+/g, ' ')
       .trim();
 
-    expect(text).toContain('Update announcement discovery for Welcome week');
+    expect(text).toContain('Choose who can find Welcome week');
     expect(text).toContain(
-      'Select the organization roles that should find this announcement',
+      'Select the organization roles that should see this announcement in Events',
     );
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('mat-select'),
@@ -117,10 +117,10 @@ describe('UpdateAnnouncementDiscoveryDialogComponent', () => {
 
     const text = root.textContent?.replaceAll(/\s+/g, ' ').trim();
     expect(text).toContain(
-      'With no roles selected, the announcement is link-only',
+      'Without a selected role, this announcement is available only through its direct link',
     );
     expect(text).toContain(
-      'it does not restrict direct links, grant access, or send notifications',
+      "Selecting roles does not change anyone's access or send them a message",
     );
 
     fixture.componentInstance.save();

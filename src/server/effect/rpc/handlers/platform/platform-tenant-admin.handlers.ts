@@ -128,9 +128,9 @@ const databaseRoleEffect = <A, R>(
     ),
   );
 
-const roleNotFound = (roleId: string) =>
+const roleNotFound = () =>
   new RpcBadRequestError({
-    message: `Role ${roleId} was not found for the target tenant`,
+    message: 'This role no longer exists. Return to the role list.',
     reason: 'roleNotFound',
   });
 
@@ -184,7 +184,7 @@ const loadPlatformRole = Effect.fn('PlatformTenantAdmin.loadPlatformRole')(
       })
       .pipe(Effect.orDie);
     if (!role) {
-      return yield* roleNotFound(roleId);
+      return yield* roleNotFound();
     }
 
     return toPlatformRoleRecord(role);
@@ -210,7 +210,7 @@ const lockPlatformRole = Effect.fn('PlatformTenantAdmin.lockPlatformRole')(
       .pipe(Effect.orDie);
     const role = matchingRoles[0];
     if (!role) {
-      return yield* roleNotFound(roleId);
+      return yield* roleNotFound();
     }
 
     return toPlatformRoleRecord(role);
@@ -772,7 +772,7 @@ export const platformTenantAdminHandlers = {
               const membership = memberships[0];
               if (!membership) {
                 return yield* new RpcBadRequestError({
-                  message: 'Tenant user membership was not found',
+                  message: 'Member not found.',
                   reason: 'tenantUserNotFound',
                 });
               }
@@ -800,7 +800,7 @@ export const platformTenantAdminHandlers = {
                 if (targetRoles.length !== nextRoleIds.length) {
                   return yield* new RpcBadRequestError({
                     message:
-                      'One or more roles were not found for the target tenant',
+                      'One or more selected roles are no longer available.',
                     reason: 'roleNotFound',
                   });
                 }

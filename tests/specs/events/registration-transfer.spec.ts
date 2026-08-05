@@ -21,7 +21,7 @@ test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 // order so fullyParallel does not create a fixture-only cross-transfer deadlock.
 test.describe.configure({ mode: 'default' });
 
-test('transfers a free registration through a private claim code', async ({
+test('transfers a free registration through a private transfer code', async ({
   browser,
   database,
   page,
@@ -68,7 +68,7 @@ test('transfers a free registration through a private claim code', async ({
     openRegistrationTime: eventWindow.openRegistrationTime,
     organizingRegistration: false,
     price: 0,
-    registeredDescription: 'Your transferred registration is confirmed.',
+    registeredDescription: 'Your transferred ticket is confirmed.',
     registrationMode: 'fcfs',
     roleIds: [],
     spots: 10,
@@ -130,15 +130,14 @@ test('transfers a free registration through a private claim code', async ({
     await expect(createTransferCode).not.toHaveAttribute('jsaction', /click/);
     await createTransferCode.click();
     await expect(
-      page.getByRole('heading', { name: 'Transfer code created' }),
+      page.getByRole('heading', { name: 'Private transfer ready' }),
     ).toBeVisible();
-    const claimPageUrl = await page.getByLabel('Claim page').inputValue();
-    const claimCode = await page.getByLabel('Claim code').inputValue();
-    const claimPage = new URL(claimPageUrl);
-    expect(claimPage.pathname).toBe('/registration-transfers');
-    expect(claimPage.search).toBe('');
-    expect(claimPage.hash).toBe('');
-    expect(claimPageUrl).not.toContain(claimCode);
+    const claimCode = await page.getByLabel('Transfer code').inputValue();
+    await expect(page.getByLabel('Transfer page')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Copy transfer page link' }).click();
+    await expect(page.getByRole('status')).toContainText(
+      'Transfer page link copied to clipboard.',
+    );
     expect(claimCode).toMatch(/^(?:[A-F0-9]{4}-){7}[A-F0-9]{4}$/);
 
     const persistedOffer = await database.query.registrationTransfers.findFirst(
@@ -163,14 +162,14 @@ test('transfers a free registration through a private claim code', async ({
     await openRegistrationTransferClaim(recipientPage.page, claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
-        name: 'Review before you claim',
+        name: 'Review ticket transfer',
       }),
     ).toBeVisible();
     await expect(
       recipientPage.page.getByText('Private transfer scenario'),
     ).toBeVisible();
     const claimRegistration = recipientPage.page.getByRole('button', {
-      name: 'Claim registration',
+      name: 'Accept ticket',
     });
     const claimRegistrationForm = recipientPage.page.locator('form').filter({
       has: claimRegistration,
@@ -367,7 +366,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
     registrationMode: 'fcfs',
     roleIds: [],
     spots: 10,
-    title: 'Paid participant',
+    title: 'Paid attendee',
     transferDeadlineHoursBeforeStart: 0,
   });
   await database.insert(schema.eventRegistrations).values({
@@ -450,7 +449,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
     // the test timeout before its cleanup can use the database fixture.
     await expect(createTransferCode).not.toHaveAttribute('jsaction', /click/);
     await createTransferCode.click();
-    const claimCode = await page.getByLabel('Claim code').inputValue();
+    const claimCode = await page.getByLabel('Transfer code').inputValue();
 
     const transfer = await database.query.registrationTransfers.findFirst({
       where: { sourceRegistrationId, tenantId: tenant.id },
@@ -511,10 +510,10 @@ test('offers a paid registration privately while rejecting a source self-claim',
 
     await openRegistrationTransferClaim(page, claimCode);
     await expect(
-      page.getByRole('heading', { name: 'Review before you claim' }),
+      page.getByRole('heading', { name: 'Review ticket transfer' }),
     ).toBeVisible();
     const claimRegistration = page.getByRole('button', {
-      name: 'Claim registration',
+      name: 'Accept ticket',
     });
     const claimRegistrationForm = page.locator('form').filter({
       has: claimRegistration,
@@ -526,12 +525,18 @@ test('offers a paid registration privately while rejecting a source self-claim',
     );
     await claimRegistration.click();
     await expect(
-      page.getByRole('heading', { name: 'Claim did not complete' }),
+      page.getByRole('heading', {
+        name: 'Transfer outcome could not be confirmed',
+      }),
     ).toBeVisible();
     await expect(
-      page.getByText('We could not complete the transfer. Nothing changed.', {
-        exact: true,
-      }),
+      page.getByText(
+        "Do not accept the ticket or pay again until you check the transfer's current status.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Check transfer status' }),
     ).toBeVisible();
     await expect
       .poll(() =>
@@ -552,20 +557,20 @@ test('offers a paid registration privately while rejecting a source self-claim',
     await openRegistrationTransferClaim(recipientPage.page, claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
-        name: 'Review before you claim',
+        name: 'Review ticket transfer',
       }),
     ).toBeVisible();
     await expect(
       recipientPage.page.getByText('Paid private transfer scenario'),
     ).toBeVisible();
     const currentRegistrationPrice = recipientPage.page
-      .locator('dt', { hasText: 'Your current registration price' })
+      .locator('dt', { hasText: 'Your ticket price' })
       .locator('..');
     await expect(currentRegistrationPrice.locator('dd')).toContainText(
       /18[,.]00/,
     );
     await expect(
-      recipientPage.page.getByRole('button', { name: 'Claim registration' }),
+      recipientPage.page.getByRole('button', { name: 'Accept ticket' }),
     ).toBeVisible();
   } finally {
     await recipientPage?.context.close();
@@ -844,7 +849,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
     await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
-        name: 'Transfer complete — refund processing',
+        name: 'Transfer complete — refund in progress',
       }),
     ).toBeVisible();
     await expect(
@@ -1272,7 +1277,9 @@ test('completes a paid transfer and preserves its failed refund for operator req
       }),
     ).toBeVisible();
     await expect(
-      recipientPage.page.getByText(/do not need to pay or claim again/i),
+      recipientPage.page.getByText(
+        /do not need to pay or try the transfer again/i,
+      ),
     ).toBeVisible();
     expect(
       await database.query.registrationTransfers.findFirst({
@@ -1295,7 +1302,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
     await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
-        name: 'Transfer complete — refund processing',
+        name: 'Transfer complete — refund in progress',
       }),
     ).toBeVisible();
     expect(

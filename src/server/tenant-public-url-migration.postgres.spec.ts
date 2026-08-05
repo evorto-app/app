@@ -252,14 +252,12 @@ const runUrlMigration = (
   Effect.runPromise(
     globalAdminHandlers['globalAdmin.tenants.update'](
       {
-        expectedStripeAccountId: tenant.stripeAccountId,
         id: tenant.id,
         reason: 'Exercise tenant public URL serialization',
         tenant: {
           currency: tenant.currency,
           domain: nextDomain,
           name: tenant.name,
-          stripeAccountId: tenant.stripeAccountId,
           theme: tenant.theme,
           timezone: tenant.timezone,
         },

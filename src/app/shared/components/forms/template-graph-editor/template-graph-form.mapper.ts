@@ -149,7 +149,7 @@ export const templateGraphRecordToFormModel = (
   if (invalidReference) {
     return {
       error:
-        'This template graph contains a registration-option reference that does not belong to the template.',
+        'This template has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Select Back to template, then contact Evorto support and include the template name.',
     };
   }
 

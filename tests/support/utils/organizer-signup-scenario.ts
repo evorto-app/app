@@ -17,6 +17,7 @@ import {
 type TestDatabase = NodePgDatabase<typeof relations>;
 
 export interface OrganizerSignupScenarioOption {
+  description: string;
   id: string;
   organizingRegistration: boolean;
   registrationMode: 'application' | 'fcfs';
@@ -136,14 +137,22 @@ export const seedOrganizerSignupScenario = async ({
 
   const eventId = createId();
   const participantOption: OrganizerSignupScenarioOption = {
+    description:
+      mode === 'simple'
+        ? 'Come along for lunch and meet other members.'
+        : 'Explore the fair and meet other members.',
     id: createId(),
     organizingRegistration: false,
     registrationMode: 'fcfs',
     roleIds: defaultUserRoleIds,
     spots: 4,
-    title: mode === 'simple' ? 'Participant registration' : 'Attendee',
+    title: mode === 'simple' ? 'Picnic guest' : 'Festival guest',
   };
   const organizerOption: OrganizerSignupScenarioOption = {
+    description:
+      mode === 'simple'
+        ? 'Welcome guests and help the picnic run smoothly.'
+        : 'Host a small activity and help guests take part.',
     id: createId(),
     organizingRegistration: true,
     registrationMode: mode === 'simple' ? 'fcfs' : 'application',
@@ -152,27 +161,23 @@ export const seedOrganizerSignupScenario = async ({
         ? [sectionMemberRole.id, trialMemberRole.id]
         : [trialMemberRole.id],
     spots: 1,
-    title:
-      mode === 'simple'
-        ? 'Organizer/helper registration'
-        : 'Lead organizer application',
+    title: mode === 'simple' ? 'Picnic welcome team' : 'Activity host',
   };
   const hiddenOrganizerOption: OrganizerSignupScenarioOption | undefined =
     mode === 'advanced'
       ? {
+          description: 'Help prepare the venue before guests arrive.',
           id: createId(),
           organizingRegistration: true,
           registrationMode: 'application',
           roleIds: [helperRole.id],
           spots: 2,
-          title: 'Event helper application',
+          title: 'Set-up crew',
         }
       : undefined;
   const eventWindow = futureServerEventWindow();
   const title =
-    mode === 'simple'
-      ? 'Organizer/helper signup journey'
-      : 'Advanced organizer application journey';
+    mode === 'simple' ? 'Campus welcome picnic' : 'International welcome fair';
   let eventCreated = false;
 
   const cleanup = async (): Promise<void> => {
@@ -261,8 +266,8 @@ export const seedOrganizerSignupScenario = async ({
       creatorId: reviewer.id,
       description:
         mode === 'simple'
-          ? 'Choose whether you are attending or helping run this event.'
-          : 'Choose the advanced organizer category that matches your tenant role.',
+          ? 'Meet new people over lunch, or join the welcome team and help the picnic run smoothly.'
+          : 'Spend the afternoon at our welcome fair, or apply to host one of the activities.',
       end: eventWindow.end,
       icon: sourceEvent.icon,
       id: eventId,
@@ -287,9 +292,7 @@ export const seedOrganizerSignupScenario = async ({
         .map((option) => ({
           cancellationDeadlineHoursBeforeStart: 0,
           closeRegistrationTime: eventWindow.closeRegistrationTime,
-          description: option.organizingRegistration
-            ? 'Use this category only when you are helping run the event.'
-            : 'Use this category when you are attending the event.',
+          description: option.description,
           eventId,
           id: option.id,
           isPaid: false,
@@ -298,7 +301,7 @@ export const seedOrganizerSignupScenario = async ({
           price: 0,
           registeredDescription: option.organizingRegistration
             ? null
-            : 'Your participant registration is confirmed.',
+            : 'Your ticket is confirmed.',
           registrationMode: option.registrationMode,
           roleIds: [...option.roleIds],
           spots: option.spots,

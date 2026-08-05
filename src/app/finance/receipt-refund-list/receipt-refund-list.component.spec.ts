@@ -47,7 +47,7 @@ describe('isSafeReceiptPreviewUrl', () => {
 describe('receiptReimbursementManualNotice', () => {
   it('keeps reimbursement copy honest about manual money movement', () => {
     expect(receiptReimbursementManualNotice).toBe(
-      'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.',
+      'This only records that you paid the reimbursement. Evorto does not transfer the money.',
     );
   });
 });

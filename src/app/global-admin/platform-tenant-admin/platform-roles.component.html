@@ -11,7 +11,7 @@
       <button mat-button type="button" (click)="createRole()">New role</button>
     </div>
     @if (rolesQuery.isPending()) {
-      <p role="status" class="body-medium">Loading roles...</p>
+      <p role="status" class="body-medium">Loading roles…</p>
     } @else if (rolesQuery.isError()) {
       <div role="alert" class="bg-error-container text-on-error-container p-4">
         <p>Roles could not be loaded.</p>
@@ -32,7 +32,7 @@
             <span matListItemLine>
               {{ role.permissions.length }} permissions
               @if (role.defaultUserRole) {
-                · Default user role
+                · Default member role
               }
             </span>
           </button>
@@ -89,9 +89,9 @@
     </div>
 
     <mat-form-field class="mt-4 w-full">
-      <mat-label>Operational reason</mat-label>
+      <mat-label>Reason for this change</mat-label>
       <textarea matInput rows="3" [formField]="roleForm.reason"></textarea>
-      <mat-hint>Required for save and delete operations.</mat-hint>
+      <mat-hint>Required when saving or deleting a role.</mat-hint>
       @for (error of roleForm.reason().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
       }
@@ -125,7 +125,7 @@
         type="submit"
         [disabled]="roleForm().invalid() || mutationPending()"
       >
-        {{ mutationPending() ? "Saving..." : "Save role" }}
+        {{ mutationPending() ? "Saving…" : "Save role" }}
       </button>
     </div>
   </form>

@@ -115,7 +115,11 @@ export class LegalSettingsComponent {
         this.notifications.showSuccess('Legal settings updated');
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update legal settings'),
+          getErrorMessage(
+            error,
+            'The legal pages could not be saved. Try again.',
+            ['RpcBadRequestError', 'AdminTenantNotFoundError'],
+          ),
         );
       }
     });

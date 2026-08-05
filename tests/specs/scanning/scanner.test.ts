@@ -463,29 +463,29 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
     ).toContainText('3');
     await expect(tote.getByText('No refund requested')).toBeVisible();
 
-    await tote.getByRole('button', { name: 'Cancel remaining units' }).click();
+    await tote.getByRole('button', { name: 'Cancel remaining items' }).click();
     const allocationPreviewDialog = page.getByRole('dialog');
     await expect(allocationPreviewDialog).toContainText(
-      'Selected cancellation: 1 optional, 0 included.',
+      'You are cancelling: 1 bought separately, 0 included with the ticket.',
     );
     await expect(allocationPreviewDialog).toContainText(
-      'Optional purchased units are cancelled before included units.',
+      'Items bought separately are cancelled first and can be refunded. Items included with the ticket cannot be refunded.',
     );
     const previewQuantity =
       allocationPreviewDialog.getByLabel('Quantity to cancel');
     await previewQuantity.fill('1.5');
     await previewQuantity.blur();
     await expect(allocationPreviewDialog).toContainText(
-      'Choose an available whole-unit quantity.',
+      'Enter a whole number from 1 to 3.',
     );
     await expect(
       allocationPreviewDialog.getByRole('button', {
-        name: 'Cancel selected units',
+        name: 'Cancel selected items',
       }),
     ).toBeDisabled();
     await previewQuantity.fill('1');
     await allocationPreviewDialog
-      .getByRole('button', { name: 'Keep units' })
+      .getByRole('button', { name: 'Keep items' })
       .click();
 
     await tote.getByRole('button', { name: 'Hand out 1' }).click();
@@ -513,40 +513,40 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
       tote.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('2', { timeout: 15_000 });
 
-    await tote.getByRole('button', { name: 'Cancel remaining units' }).click();
+    await tote.getByRole('button', { name: 'Cancel remaining items' }).click();
     const refundDialog = page.getByRole('dialog');
-    await expect(refundDialog).toContainText('1 unredeemed unit available');
+    await expect(refundDialog).toContainText('1 unused item available');
     await expect(refundDialog).toContainText(
-      'No monetary refund is required because these optional units were free.',
+      'These items were bought separately for free, so there is nothing to refund.',
     );
     await refundDialog
       .getByLabel('Cancellation reason')
       .fill('The attendee no longer needs the remaining tote.');
     await refundDialog
-      .getByRole('radio', { name: /Cancel with refund/ })
+      .getByRole('radio', { name: 'Cancel free items' })
       .click();
     await refundDialog
-      .getByRole('button', { name: 'Cancel selected units' })
+      .getByRole('button', { name: 'Cancel selected items' })
       .click();
     await expect(
       tote.getByText('Cancelled', { exact: true }).locator('..'),
     ).toContainText('1', { timeout: 15_000 });
     await expect(
-      page.getByText('Cancellation recorded. No monetary refund was required.'),
+      page.getByText('The items were cancelled. No refund was needed.'),
     ).toBeVisible();
     await expect(
       tote.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('0');
-    await expect(tote.getByText('No monetary refund required')).toBeVisible();
+    await expect(tote.getByText('No refund needed')).toBeVisible();
     await expect(tote.getByRole('button', { name: 'Hand out 1' })).toHaveCount(
       0,
     );
     await expect(
-      tote.getByRole('button', { name: 'Cancel remaining units' }),
+      tote.getByRole('button', { name: 'Cancel remaining items' }),
     ).toHaveCount(0);
 
     await voucher
-      .getByRole('button', { name: 'Cancel remaining units' })
+      .getByRole('button', { name: 'Cancel remaining items' })
       .click();
     const noRefundDialog = page.getByRole('dialog');
     await noRefundDialog
@@ -556,7 +556,7 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
       .getByRole('radio', { name: 'Cancel without a refund' })
       .click();
     await noRefundDialog
-      .getByRole('button', { name: 'Cancel selected units' })
+      .getByRole('button', { name: 'Cancel selected items' })
       .click();
     await expect(
       voucher.getByText('Cancelled', { exact: true }).locator('..'),
@@ -564,22 +564,22 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
     await expect(voucher.getByText('Cancelled without refund')).toBeVisible();
 
     await checklist
-      .getByRole('button', { name: 'Cancel remaining units' })
+      .getByRole('button', { name: 'Cancel remaining items' })
       .click();
     const includedDialog = page.getByRole('dialog');
-    await expect(includedDialog).toContainText('1 unredeemed unit available');
+    await expect(includedDialog).toContainText('1 unused item available');
     await expect(includedDialog).toContainText(
-      'Only included units remain. No payment refund applies to them.',
+      'Only items included with the ticket remain. They cannot be refunded.',
     );
     await expect(includedDialog).toContainText(
-      'This cancellation contains only included units and will be recorded without a refund.',
+      'Only items included with the ticket are being cancelled, so there is no refund.',
     );
     await expect(includedDialog.getByRole('radio')).toHaveCount(0);
     await includedDialog
       .getByLabel('Cancellation reason')
       .fill('The checklist item is no longer needed.');
     await includedDialog
-      .getByRole('button', { name: 'Cancel selected units' })
+      .getByRole('button', { name: 'Cancel selected items' })
       .click();
     await expect(
       checklist.getByText('Cancelled', { exact: true }).locator('..'),
@@ -587,9 +587,7 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
     await expect(
       checklist.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('0');
-    await expect(
-      checklist.getByText('No monetary refund required'),
-    ).toBeVisible();
+    await expect(checklist.getByText('No refund needed')).toBeVisible();
 
     const fulfillmentEvents = await database
       .select({
@@ -907,10 +905,10 @@ test.describe('organizer add-on cancellation permissions', () => {
         addOn.getByRole('button', { name: 'Hand out 1' }),
       ).toBeVisible();
       await expect(
-        addOn.getByRole('button', { name: 'Cancel remaining units' }),
+        addOn.getByRole('button', { name: 'Cancel remaining items' }),
       ).toHaveCount(0);
       await expect(addOn).toContainText(
-        'Cancelling units requires Cancel registrations and add-ons access.',
+        'You cannot cancel these items. Ask someone who manages tickets and add-ons for this event.',
       );
 
       await addOn.getByRole('button', { name: 'Hand out 1' }).click();
@@ -929,10 +927,10 @@ test.describe('organizer add-on cancellation permissions', () => {
       await page.reload();
       await waitForScannerAddonFulfillment(page);
       await expect(
-        addOn.getByRole('button', { name: 'Cancel remaining units' }),
+        addOn.getByRole('button', { name: 'Cancel remaining items' }),
       ).toBeVisible();
       await expect(addOn).not.toContainText(
-        'Cancelling units requires Cancel registrations and add-ons access.',
+        'You cannot cancel these items. Ask someone who manages tickets and add-ons for this event.',
       );
     } finally {
       await cleanupScannerRegistrationAcquisition({ acquisitionId, database });
@@ -945,7 +943,7 @@ test.describe('organizer add-on cancellation permissions', () => {
   });
 });
 
-test('scan confirmed registration records check-in', async ({
+test('scan confirmed ticket checks in the attendee', async ({
   database,
   page,
   seeded,
@@ -967,7 +965,7 @@ test('scan confirmed registration records check-in', async ({
 
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
-      page.getByRole('heading', { name: 'Registration scanned' }),
+      page.getByRole('heading', { name: 'Ticket scanned' }),
     ).toBeVisible();
     await expect(
       page.getByText('Check-in closed', { exact: true }),
@@ -980,7 +978,7 @@ test('scan confirmed registration records check-in', async ({
       includeAttendee: true,
     });
     await confirmCheckIn.click();
-    await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect(page.getByText('Check-in complete')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Checked in' }),
     ).toBeDisabled();
@@ -1056,7 +1054,7 @@ test('scan checked-in registration records remaining guest arrival', async ({
 
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
-      page.getByRole('heading', { name: 'Registration scanned' }),
+      page.getByRole('heading', { name: 'Ticket scanned' }),
     ).toBeVisible();
     await expect(page.getByText('1 checked in, 1 remaining.')).toBeVisible();
     await expect(page.getByText('Already checked in')).toHaveCount(0);
@@ -1066,7 +1064,7 @@ test('scan checked-in registration records remaining guest arrival', async ({
       includeAttendee: false,
     });
     await confirmGuestCheckIn.click();
-    await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect(page.getByText('Check-in complete')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Checked in' }),
     ).toBeDisabled();

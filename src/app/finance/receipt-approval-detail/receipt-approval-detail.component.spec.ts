@@ -12,25 +12,25 @@ import {
 describe('receiptReviewSuccessMessage', () => {
   it('explains that review actions queue submitter notification', () => {
     expect(receiptReviewNotificationNotice).toBe(
-      'Approving or rejecting this receipt queues an email to the submitter after saving.',
+      'Saving this decision asks Evorto to email the submitter. Delivery may take time or fail.',
     );
   });
 
   it('explains why approval is unavailable without blocking rejection', () => {
     expect(receiptEvidenceUnavailableNotice).toBe(
-      'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+      'The uploaded receipt file is unavailable. You cannot approve the receipt until the file can be checked, but you can still reject it.',
     );
   });
 
-  it('keeps approval feedback honest about queued submitter notification', () => {
+  it('explains that approval emails the submitter', () => {
     expect(receiptReviewSuccessMessage('approved')).toBe(
-      'Receipt approved and the submitter notification was queued.',
+      'Receipt approved. Evorto will now try to email the submitter.',
     );
   });
 
-  it('keeps rejection feedback honest about queued submitter notification', () => {
+  it('explains that rejection emails the submitter', () => {
     expect(receiptReviewSuccessMessage('rejected')).toBe(
-      'Receipt rejected and the submitter notification was queued.',
+      'Receipt rejected. Evorto will now try to email the submitter.',
     );
   });
 });

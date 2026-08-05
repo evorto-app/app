@@ -2,11 +2,20 @@ import { describe, expect, it } from '@effect/vitest';
 
 import {
   isMeaningfulRichTextHtml,
+  richTextToPlainText,
   sanitizeOptionalRichTextHtml,
   sanitizeRichTextHtml,
 } from './rich-text-sanitize';
 
 describe('rich-text sanitization', () => {
+  it('turns formatted descriptions into readable plain text', () => {
+    expect(
+      richTextToPlainText(
+        '<p>Welcome&nbsp;<strong>back</strong>.</p><ul><li>Bring ID</li><li>Arrive early</li></ul>',
+      ),
+    ).toBe('Welcome back. Bring ID Arrive early');
+  });
+
   it('keeps supported text, links, lists, and tables', () => {
     const sanitized = sanitizeRichTextHtml(
       '<h2>Welcome</h2><a href="https://example.com">Details</a><ul><li>Bring ID</li></ul><table><tbody><tr><td>18:00</td></tr></tbody></table>',

@@ -166,7 +166,7 @@ describe('server response middleware', () => {
 
       expect(response.status).toBe(500);
       expect(yield* Effect.promise(() => response.json())).toEqual({
-        error: 'Internal Server Error',
+        error: 'Something went wrong.',
       });
       expect(response.headers.get('x-content-type-options')).toBe('nosniff');
       expect(response.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/u);

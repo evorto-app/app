@@ -111,6 +111,8 @@ describe('answered event question history guard', () => {
 
     expect(error).toMatchObject({
       _tag: 'RpcBadRequestError',
+      message:
+        'Questions with saved answers cannot be changed or removed. Add a new question instead.',
       reason: 'eventQuestionInUse',
     });
     expect(selectedTables).toEqual([

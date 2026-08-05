@@ -1,11 +1,11 @@
 <main class="mx-auto grid w-full max-w-3xl gap-6 px-4 py-8 sm:px-6">
   <header class="grid gap-2">
-    <p class="label-large text-primary">Registration transfer</p>
-    <h1 class="headline-medium">Review before you claim</h1>
+    <p class="label-large text-primary">Ticket transfer</p>
+    <h1 class="headline-medium">Review ticket transfer</h1>
     <p class="body-large text-on-surface-variant">
-      The registration, guest count, and every included, free, or purchased
-      add-on transfer together as one fixed bundle. Current prices and your
-      eligible discount are recalculated for you.
+      The ticket, guests, add-ons, and their check-in or use history move
+      together. Current prices and any discount available to you are checked
+      again before the transfer.
     </p>
   </header>
 
@@ -53,15 +53,13 @@
         class="grid gap-1 border-t border-outline-variant pt-4 sm:grid-cols-2"
       >
         <div>
-          <p class="label-medium text-on-surface-variant">
-            Registration option
-          </p>
+          <p class="label-medium text-on-surface-variant">Sign-up choice</p>
           <p class="body-large">{{ claim.registrationOption.title }}</p>
         </div>
         <dl class="grid gap-2">
           <div class="grid grid-cols-[1fr_auto] gap-4">
             <dt class="label-medium text-on-surface-variant">
-              Current base price
+              Current regular price
             </dt>
             <dd class="body-medium text-right">
               {{
@@ -91,10 +89,10 @@
           >
             <dt class="grid gap-1">
               <span class="label-medium text-on-surface-variant">
-                Your current registration price
+                Your ticket price
               </span>
               <span class="body-small text-on-surface-variant">
-                Includes the add-on units marked Included below.
+                Includes the items marked Included below.
               </span>
             </dt>
             <dd class="body-large text-right">
@@ -108,15 +106,15 @@
       </div>
       <div class="grid gap-3 border-t border-outline-variant pt-4">
         <div>
-          <h3 class="title-medium">Fixed bundle contents</h3>
+          <h3 class="title-medium">Ticket and included items</h3>
           <p class="body-small text-on-surface-variant mt-1">
-            These quantities and their existing check-in and use history
-            transfer together and cannot be removed or changed.
+            Everything listed below moves with the ticket. Existing check-in and
+            use history stays attached and cannot be reset.
           </p>
         </div>
         <dl class="grid gap-3">
           <div class="grid gap-1 sm:grid-cols-[1fr_auto] sm:gap-4">
-            <dt class="body-medium">Registration</dt>
+            <dt class="body-medium">Sign-up choice</dt>
             <dd class="body-medium sm:text-right">
               1 × {{ claim.registrationOption.title }}
             </dd>
@@ -138,7 +136,7 @@
           <div
             class="grid gap-1 border-t border-outline-variant pt-3 sm:grid-cols-[1fr_auto] sm:gap-4"
           >
-            <dt class="body-medium">Registration check-in</dt>
+            <dt class="body-medium">Attendee check-in</dt>
             <dd class="body-medium sm:text-right">
               @if (claim.bundle.checkInTime) {
                 Checked in {{ claim.bundle.checkInTime | date: "medium" }}
@@ -174,7 +172,7 @@
                   @if (addOn.includedQuantity > 0) {
                     <div class="contents">
                       <dt class="text-on-surface-variant">
-                        Included in registration price
+                        Included in the ticket price
                       </dt>
                       <dd>{{ addOn.includedQuantity }}</dd>
                     </div>
@@ -182,7 +180,7 @@
                   @if (addOn.purchasedQuantity > 0) {
                     <div class="contents">
                       <dt class="text-on-surface-variant">
-                        Purchased at current unit price
+                        Purchased at the current price per item
                       </dt>
                       <dd>
                         {{ addOn.purchasedQuantity }} ×
@@ -198,7 +196,7 @@
                     <dd>{{ addOn.remainingQuantity }}</dd>
                   </div>
                   <div class="contents">
-                    <dt class="text-on-surface-variant">Redeemed</dt>
+                    <dt class="text-on-surface-variant">Handed out</dt>
                     <dd>{{ addOn.redeemedQuantity }}</dd>
                   </div>
                   <div class="contents">
@@ -234,8 +232,9 @@
         </dl>
       </div>
       <p class="body-small text-on-surface-variant">
-        Claim before {{ claim.expiresAt | date: "medium" }}. A paid claim keeps
-        this offer bound to the fixed bundle until Checkout finishes.
+        Complete by {{ claim.expiresAt | date: "medium" }}. If payment is
+        required, the ticket remains with the previous attendee until your
+        payment is complete.
       </p>
     </section>
 
@@ -260,7 +259,7 @@
           >
             {{
               retryMutation.isPending()
-                ? "Preparing Checkout…"
+                ? "Preparing payment…"
                 : "Continue payment"
             }}
           </button>
@@ -284,7 +283,7 @@
       >
         <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
           @if (claimMutation.isPending()) {
-            Claiming registration. Please wait.
+            Completing transfer. Please wait.
           }
         </p>
         @if (claim.registrationOption.questions.length > 0) {
@@ -294,11 +293,11 @@
           >
             <div>
               <h2 id="transfer-questions-heading" class="title-medium">
-                Current registration questions
+                Questions for you
               </h2>
               <p class="body-small text-on-surface-variant mt-1">
-                Answer for yourself. Required answers are checked again when you
-                submit.
+                Answer for yourself. Complete every required answer before you
+                continue.
               </p>
             </div>
             @for (
@@ -335,10 +334,10 @@
         <section class="bg-surface-container-high grid gap-2 rounded-xl p-4">
           <h2 class="title-small">What happens next</h2>
           <p class="body-small text-on-surface-variant">
-            Evorto checks the latest fixed bundle, total due, and any refund
-            before changing ownership. If payment is due, Stripe Checkout opens
-            and the bundle stays with its current owner until payment succeeds.
-            A free claim continues without a payment step.
+            Evorto checks the latest ticket details, your total, and any refund
+            for the previous attendee. If you need to pay, you will continue to
+            the payment page and the ticket stays with the previous attendee
+            until payment is complete. A free transfer completes immediately.
           </p>
         </section>
 
@@ -351,49 +350,82 @@
             claimMutation.isPending()
           "
         >
-          {{ claimMutation.isPending() ? "Claiming…" : "Claim registration" }}
+          {{ claimMutation.isPending() ? "Completing…" : "Accept ticket" }}
         </button>
       </form>
     }
 
     @if (claimMutation.isError()) {
       <section
-        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-5"
         role="alert"
       >
-        <h2 class="title-medium">Claim did not complete</h2>
-        <p>We could not complete the transfer. Nothing changed.</p>
-        <p class="body-small">
-          Refresh to check the transfer's current status before trying again.
+        <h2 class="title-medium">Transfer outcome could not be confirmed</h2>
+        <p>
+          Do not accept the ticket or pay again until you check the transfer's
+          current status.
         </p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          (click)="claimQuery.refetch()"
+          [disabled]="claimQuery.isFetching()"
+        >
+          {{
+            claimQuery.isFetching()
+              ? "Checking status…"
+              : "Check transfer status"
+          }}
+        </button>
       </section>
     }
     @if (unsafeCheckout()) {
       <section
-        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-5"
         role="alert"
       >
-        <h2 class="title-medium">Checkout could not be opened</h2>
+        <h2 class="title-medium">Payment page could not be opened</h2>
         <p>
-          The payment link could not be verified as Stripe Checkout. For your
-          security, nothing was opened.
+          No payment was started here, and your ticket transfer has not changed.
         </p>
-        <p class="body-small">
-          Refresh to check the latest status before trying again.
-        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          (click)="claimQuery.refetch()"
+          [disabled]="claimQuery.isFetching()"
+        >
+          {{
+            claimQuery.isFetching()
+              ? "Checking status…"
+              : "Check transfer status"
+          }}
+        </button>
       </section>
     } @else if (retryMutation.isError()) {
       <section
-        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-5"
         role="alert"
       >
-        <h2 class="title-medium">Checkout could not be reopened</h2>
+        <h2 class="title-medium">Payment page could not be reopened</h2>
         <p>
-          We could not reopen Stripe Checkout. Your transfer has not changed.
+          No payment was started here. Check the transfer's status before trying
+          to continue payment again.
         </p>
-        <p class="body-small">
-          Select Continue payment again, or refresh to check the latest status.
-        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          (click)="claimQuery.refetch()"
+          [disabled]="claimQuery.isFetching()"
+        >
+          {{
+            claimQuery.isFetching()
+              ? "Checking status…"
+              : "Check transfer status"
+          }}
+        </button>
       </section>
     }
   }

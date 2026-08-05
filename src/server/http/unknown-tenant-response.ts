@@ -117,7 +117,7 @@ export const unknownTenantDocument = `<!doctype html>
       <h1>This link does not match an Evorto organization</h1>
       <p class="lead">
         Evorto could not find an organization for this web address. Your
-        account and registrations have not been changed.
+        account and tickets have not changed.
       </p>
 
       <h2>What to do</h2>
@@ -128,9 +128,8 @@ export const unknownTenantDocument = `<!doctype html>
       </ol>
 
       <p class="note">
-        If a QR code brought you here, do not edit its address or create a new
-        registration. Ask an organizer to confirm that the code still points to
-        the organization's current domain.
+        If a QR code brought you here, ask an organizer for the current Evorto
+        link for this event.
       </p>
     </main>
   </body>

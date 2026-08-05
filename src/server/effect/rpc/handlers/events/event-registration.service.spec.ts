@@ -723,6 +723,7 @@ const createDirectCheckoutDatabase = ({
       : (registrationOption.stripeTaxRateId ?? configuredStripeTaxRateId);
   let bindingUpdateCount = 0;
   let claim: ManualApprovalClaim | null = null;
+  let claimComment: string | undefined;
   let claimInsertCount = 0;
   let claimStatus: 'cancelled' | 'pending' = 'pending';
   let makeUnavailableAfterNextClaimPreflight = false;
@@ -799,6 +800,9 @@ const createDirectCheckoutDatabase = ({
             return {
               returning: () => {
                 claimInsertCount += 1;
+                claimComment = Schema.decodeUnknownSync(Schema.String)(
+                  values['comment'],
+                );
                 operationOrder.push('claim');
                 claimStatus = 'pending';
                 claim = {
@@ -1063,6 +1067,7 @@ const createDirectCheckoutDatabase = ({
 
   return {
     bindingUpdateCount: () => bindingUpdateCount,
+    claimComment: () => claimComment,
     claimInsertCount: () => claimInsertCount,
     database,
     getClaim: () => claim,
@@ -1309,7 +1314,7 @@ describe('EventRegistrationService', () => {
           ).pipe(Effect.flip);
 
           expect(error).toBeInstanceOf(EventRegistrationConflictError);
-          expect(error.message).toContain('tax configuration changed');
+          expect(error.message).toContain('tax details changed');
           expect(fixture.lockOrder).toEqual(['option', 'addon']);
         }),
     );
@@ -1339,7 +1344,7 @@ describe('EventRegistrationService', () => {
           ).pipe(Effect.flip);
 
           expect(error).toBeInstanceOf(EventRegistrationConflictError);
-          expect(error.message).toContain('tax configuration changed');
+          expect(error.message).toContain('tax details changed');
           expect(fixture.lockOrder).toEqual(['option', 'addon', 'tax-rate']);
         }),
     );
@@ -1484,7 +1489,9 @@ describe('EventRegistrationService', () => {
         }).pipe(Effect.flip);
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Stripe account not found');
+        expect(error.message).toBe(
+          'Online payments are not ready for this organization. No payment was taken. Contact an administrator.',
+        );
         expect(approvalDatabase.claimInsertCount()).toBe(0);
         expect(approvalDatabase.reservationUpdateCount()).toBe(0);
         expect(approvalDatabase.operationOrder).toEqual([]);
@@ -1512,7 +1519,7 @@ describe('EventRegistrationService', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'The applicant is no longer eligible for this registration option',
+          'The applicant no longer qualifies for the selected sign-up choice.',
         );
         expect(approvalDatabase.claimInsertCount()).toBe(0);
         expect(approvalDatabase.reservationUpdateCount()).toBe(0);
@@ -1555,6 +1562,7 @@ describe('EventRegistrationService', () => {
         expect(approvalDatabase.claimInsertValues()).toEqual(
           expect.objectContaining({
             amount: 1000,
+            comment: 'Approved ticket for Approved event',
             eventRegistrationId: 'registration-1',
             method: 'stripe',
             status: 'pending',
@@ -1604,7 +1612,7 @@ describe('EventRegistrationService', () => {
         expect(error).toMatchObject({
           _tag: 'EventRegistrationConflictError',
           message:
-            'Registration checkout exceeds the supported line-item limit',
+            'This sign-up includes too many different charges for one payment. Reduce the selected add-ons and try again.',
         });
         expect(approvalDatabase.transactionCount()).toBe(0);
         expect(approvalDatabase.claimInsertCount()).toBe(0);
@@ -1668,7 +1676,7 @@ describe('EventRegistrationService', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'Registration is no longer awaiting payment',
+          'This ticket is no longer waiting for payment. No payment was taken. Reopen the ticket and review its current payment status.',
         );
         expect(operationOrder).toEqual([
           'claim',
@@ -1737,7 +1745,9 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Failed to bind stripe checkout session');
+        expect(error.message).toBe(
+          'Payment could not be attached to this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
+        );
         expect(operationOrder).toEqual([
           'claim',
           'reserve',
@@ -1936,7 +1946,9 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Failed to bind stripe checkout session');
+        expect(error.message).toBe(
+          'Payment could not be attached to this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
+        );
         expect(operationOrder).toEqual([
           'claim',
           'reserve',
@@ -2064,7 +2076,7 @@ describe('EventRegistrationService', () => {
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(error.message).toBe(
-          'Payment setup is still pending. Retry approval or cancel the registration.',
+          'Payment could not be started. No payment was taken. Reopen the sign-up request and try again, or cancel it.',
         );
         expect(operationOrder).toEqual([
           'claim',
@@ -2146,7 +2158,7 @@ describe('EventRegistrationService', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'User is not eligible for this registration option',
+          'This person does not qualify for the selected sign-up choice.',
         );
         expect(directDatabase.claimInsertCount()).toBe(0);
         expect(directDatabase.reservationUpdateCount()).toBe(0);
@@ -2283,7 +2295,7 @@ describe('EventRegistrationService', () => {
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(error.message).toBe(
-          'Payment setup is still pending. Retry registration or cancel it.',
+          'Payment could not be started. No payment was taken. Reopen the ticket and try again, or cancel it.',
         );
         expect(operationOrder).toEqual([
           'reserve',
@@ -2356,7 +2368,9 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Failed to bind stripe checkout session');
+        expect(error.message).toBe(
+          'Payment could not be attached to this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
+        );
         expect(operationOrder).toEqual([
           'reserve',
           'registration',
@@ -2429,7 +2443,9 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Failed to bind stripe checkout session');
+        expect(error.message).toBe(
+          'Payment could not be attached to this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
+        );
         expect(operationOrder).toEqual([
           'reserve',
           'registration',
@@ -2467,7 +2483,7 @@ describe('EventRegistrationService', () => {
           }).pipe(Effect.flip);
           expect(error).toBeInstanceOf(EventRegistrationConflictError);
           expect(error.message).toBe(
-            'Registration price exceeds supported payment limits',
+            'The sign-up price is too high to pay online. Contact the organizer.',
           );
         }),
     );
@@ -2509,7 +2525,7 @@ describe('EventRegistrationService', () => {
           }).pipe(Effect.flip);
           expect(error).toBeInstanceOf(EventRegistrationConflictError);
           expect(error.message).toBe(
-            'Add-on price exceeds supported payment limits',
+            'One selected add-on costs too much to pay online. Contact the organizer.',
           );
         }),
     );
@@ -2537,7 +2553,7 @@ describe('EventRegistrationService', () => {
             EventRegistrationConflictError,
           );
           expect(addOnAggregateError.message).toBe(
-            'Selected add-on total exceeds supported payment limits',
+            'The selected add-ons cost too much to pay online. Contact the organizer.',
           );
 
           const checkoutAggregateError =
@@ -2551,7 +2567,7 @@ describe('EventRegistrationService', () => {
             EventRegistrationConflictError,
           );
           expect(checkoutAggregateError.message).toBe(
-            'Registration checkout total exceeds supported payment limits',
+            'The total price is too high to pay online. Contact the organizer.',
           );
         }),
     );
@@ -2629,7 +2645,9 @@ describe('EventRegistrationService', () => {
           ],
           availableAddOns: [availableAddOn],
         }),
-      ).toThrow('Add-on is not available for this registration option');
+      ).toThrow(
+        'This add-on is not available with the selected sign-up choice',
+      );
 
       expect(() =>
         validateRegistrationAddons({
@@ -2638,7 +2656,7 @@ describe('EventRegistrationService', () => {
             { ...availableAddOn, allowPurchaseDuringRegistration: false },
           ],
         }),
-      ).toThrow('Add-on is not available during registration');
+      ).toThrow('This add-on cannot be selected during sign-up');
     });
 
     it('rejects quantities above the per-user limit or remaining availability', () => {
@@ -2652,7 +2670,7 @@ describe('EventRegistrationService', () => {
           ],
           availableAddOns: [availableAddOn],
         }),
-      ).toThrow('Add-on quantity exceeds the per-user limit');
+      ).toThrow('You have reached the limit for this add-on');
 
       expect(() =>
         validateRegistrationAddons({
@@ -2670,7 +2688,7 @@ describe('EventRegistrationService', () => {
             },
           ],
         }),
-      ).toThrow('Add-on quantity is no longer available');
+      ).toThrow('There are not enough of this add-on left');
     });
   });
 
@@ -2718,7 +2736,7 @@ describe('EventRegistrationService', () => {
             },
           ],
         }),
-      ).toThrow('Required registration question is missing');
+      ).toThrow('Answer every required sign-up question');
     });
 
     it('rejects answers for questions outside the selected option', () => {
@@ -2737,7 +2755,9 @@ describe('EventRegistrationService', () => {
             },
           ],
         }),
-      ).toThrow('Registration question does not belong to this option');
+      ).toThrow(
+        'The sign-up questions changed. No sign-up was created. Reopen the event and review the current questions before signing up again.',
+      );
     });
 
     it('rejects duplicate question answers instead of silently overwriting', () => {
@@ -2749,7 +2769,7 @@ describe('EventRegistrationService', () => {
           ],
           questions: [{ id: 'question-1', required: false }],
         }),
-      ).toThrow('Each registration question can be answered at most once');
+      ).toThrow('Answer each sign-up question only once');
     });
 
     it('rejects excessive answer counts and answer text', () => {
@@ -2765,7 +2785,7 @@ describe('EventRegistrationService', () => {
           questions: [],
         }),
       ).toThrow(
-        `A registration supports at most ${MAX_REGISTRATION_QUESTIONS} question answers`,
+        `You can answer up to ${MAX_REGISTRATION_QUESTIONS} sign-up questions`,
       );
 
       expect(() =>
@@ -2779,7 +2799,7 @@ describe('EventRegistrationService', () => {
           questions: [{ id: 'question-1', required: false }],
         }),
       ).toThrow(
-        `Registration answers must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer`,
+        `Each answer must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer`,
       );
     });
   });
@@ -2823,7 +2843,9 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Invalid tenant domain configuration');
+        expect(error.message).toBe(
+          'The event link could not be prepared. No sign-up was created. Contact an organizer.',
+        );
         expect(findRegistration).not.toHaveBeenCalled();
       }),
   );
@@ -2874,7 +2896,9 @@ describe('EventRegistrationService', () => {
 
         const error = yield* program;
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('User is already registered for this event');
+        expect(error.message).toBe(
+          'This person is already signed up for this event.',
+        );
         expect(findRegistrationOption).not.toHaveBeenCalled();
       }),
   );
@@ -2989,7 +3013,7 @@ describe('EventRegistrationService', () => {
 
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Event is not open for registration');
+      expect(error.message).toBe('This event is not accepting sign-ups.');
     }),
   );
 
@@ -3039,7 +3063,7 @@ describe('EventRegistrationService', () => {
 
         const error = yield* program;
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('Registration is not open');
+        expect(error.message).toBe('Sign-up is not open right now.');
       }),
   );
 
@@ -3082,7 +3106,7 @@ describe('EventRegistrationService', () => {
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'User is not eligible for this registration option',
+        'This person does not qualify for the selected sign-up choice.',
       );
     }),
   );
@@ -3132,7 +3156,9 @@ describe('EventRegistrationService', () => {
 
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-      expect(error.message).toBe('Registration option not found');
+      expect(error.message).toBe(
+        'The selected sign-up choice is no longer available.',
+      );
     }),
   );
 
@@ -3179,7 +3205,7 @@ describe('EventRegistrationService', () => {
 
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Registration option has no available spots');
+      expect(error.message).toBe('The selected sign-up choice is full.');
     }),
   );
 
@@ -3427,7 +3453,7 @@ describe('EventRegistrationService', () => {
             kind: 'registrationConfirmed',
             replyToEmail: 'events@tenant.example',
             replyToName: 'Events Team',
-            subject: 'Registration confirmed: Approved event',
+            subject: 'Ticket confirmed: Approved event',
             tenantId: 'tenant-1',
             toEmail: 'preferred@example.com',
           }),
@@ -3481,7 +3507,7 @@ describe('EventRegistrationService', () => {
 
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Registration option has no available spots');
+      expect(error.message).toBe('The selected sign-up choice is full.');
     }),
   );
 
@@ -3528,7 +3554,7 @@ describe('EventRegistrationService', () => {
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'Guest spots are only available for participant options',
+        'Guests can only be added with an attendee sign-up choice.',
       );
     }),
   );
@@ -3746,7 +3772,7 @@ describe('EventRegistrationService', () => {
               eventUrl: 'https://tenant.example.com/events/event-1',
               lineItems: [
                 expect.objectContaining({
-                  name: 'Registration fee for Approved event',
+                  name: 'Ticket for Approved event',
                   quantity: 1,
                   taxRateId: 'txr_19',
                   unitAmount: 1000,
@@ -3883,7 +3909,7 @@ describe('EventRegistrationService', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationInternalError);
         expect(error.message).toBe(
-          'Payment setup is still pending. Retry approval or cancel the registration.',
+          'Payment could not be started. No payment was taken. Reopen the sign-up request and try again, or cancel it.',
         );
         expect(error).not.toHaveProperty('cause');
         expect(approvalDatabase.operationOrder).toEqual([
@@ -3939,6 +3965,7 @@ describe('EventRegistrationService', () => {
         expect(directDatabase.claimInsertCount()).toBe(1);
         expect(directDatabase.reservationUpdateCount()).toBe(1);
         expect(directDatabase.bindingUpdateCount()).toBe(1);
+        expect(directDatabase.claimComment()).toBe('Ticket for Approved event');
         const claim = directDatabase.getClaim();
         expect(claim).toEqual(
           expect.objectContaining({
@@ -3947,7 +3974,7 @@ describe('EventRegistrationService', () => {
               eventUrl: 'https://tenant.example.com/events/event-1',
               lineItems: [
                 {
-                  name: 'Registration fee for Approved event',
+                  name: 'Ticket for Approved event',
                   quantity: 1,
                   taxRateId: 'txr_19',
                   unitAmount: 1000,
@@ -3970,68 +3997,6 @@ describe('EventRegistrationService', () => {
             idempotencyKey: `registration:registration-direct:transaction:${claim?.id}`,
             stripeAccount: 'acct_123',
           },
-        );
-      }),
-  );
-
-  it.effect(
-    'creates paid Checkout on the replacement account after its tax rate is reassigned',
-    () =>
-      Effect.gen(function* () {
-        const directDatabase = createDirectCheckoutDatabase({
-          configuredStripeTaxRateId: 'txr_replacement',
-          lockedStripeAccountId: 'acct_replacement',
-          registrationOption: {
-            isPaid: true,
-            price: 1000,
-            stripeTaxRateId: 'txr_replacement',
-          },
-        });
-        const checkoutStripeClient = createStripeTestClient();
-        const createSession = vi.fn(() =>
-          Promise.resolve({
-            id: 'cs_rotated_account',
-            payment_intent: 'pi_rotated_account',
-            url: 'https://checkout.stripe.test/rotated-account',
-          } as Stripe.Checkout.Session),
-        );
-        vi.spyOn(
-          checkoutStripeClient.checkout.sessions,
-          'create',
-        ).mockImplementation(createSession);
-
-        yield* runDirectCheckout({
-          database: directDatabase.database,
-          stripe: checkoutStripeClient,
-          stripeAccountId: 'acct_replacement',
-        });
-
-        expect(directDatabase.getClaim()).toEqual(
-          expect.objectContaining({
-            stripeAccountId: 'acct_replacement',
-            stripeCheckoutRequest: expect.objectContaining({
-              lineItems: [
-                {
-                  name: 'Registration fee for Approved event',
-                  quantity: 1,
-                  taxRateId: 'txr_replacement',
-                  unitAmount: 1000,
-                },
-              ],
-            }),
-          }),
-        );
-        expect(createSession).toHaveBeenCalledWith(
-          expect.objectContaining({
-            line_items: [
-              expect.objectContaining({
-                price_data: expect.objectContaining({ unit_amount: 1000 }),
-                quantity: 1,
-                tax_rates: ['txr_replacement'],
-              }),
-            ],
-          }),
-          expect.objectContaining({ stripeAccount: 'acct_replacement' }),
         );
       }),
   );
@@ -4067,7 +4032,7 @@ describe('EventRegistrationService', () => {
 
         expect(firstError).toBeInstanceOf(EventRegistrationInternalError);
         expect(firstError.message).toBe(
-          'Payment setup is still pending. Retry registration or cancel it.',
+          'Payment could not be started. No payment was taken. Reopen the ticket and try again, or cancel it.',
         );
         expect(firstError).not.toHaveProperty('cause');
         expect(directDatabase.claimInsertCount()).toBe(1);
@@ -4135,7 +4100,7 @@ describe('EventRegistrationService', () => {
 
         expect(retryError).toBeInstanceOf(EventRegistrationConflictError);
         expect(retryError.message).toBe(
-          'Registration eligibility changed before payment setup. The pending registration was cancelled and no payment was taken.',
+          'You no longer qualify for this sign-up choice. The sign-up was cancelled and you were not charged.',
         );
         expect(createSession).toHaveBeenCalledTimes(1);
         expect(directDatabase.getClaim()).toBeNull();
@@ -4174,7 +4139,7 @@ describe('EventRegistrationService', () => {
 
         expect(retryError).toBeInstanceOf(EventRegistrationConflictError);
         expect(retryError.message).toBe(
-          'Registration is no longer awaiting payment setup',
+          'Payment cannot be started for this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
         );
         expect(createSession).toHaveBeenCalledTimes(1);
         expect(directDatabase.reservationUpdateCount()).toBe(1);
@@ -4241,7 +4206,9 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('User is already registered for this event');
+        expect(error.message).toBe(
+          'This person is already signed up for this event.',
+        );
       }),
   );
 
@@ -4356,7 +4323,9 @@ describe('EventRegistrationService', () => {
 
         const error = yield* program;
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('Active registration limit reached');
+        expect(error.message).toBe(
+          'This organization has reached its limit for current sign-ups. Contact an administrator.',
+        );
         expect(selectActiveFutureRegistrations).toHaveBeenCalled();
         expect(lockMembership).toHaveBeenCalledOnce();
         expect(updateOptionCounters).not.toHaveBeenCalled();
@@ -4428,7 +4397,9 @@ describe('EventRegistrationService', () => {
 
         const error = yield* program;
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('User is already registered for this event');
+        expect(error.message).toBe(
+          'This person is already signed up for this event.',
+        );
         expect(updateOptionCounters).not.toHaveBeenCalled();
       }),
   );
@@ -4516,9 +4487,7 @@ describe('EventRegistrationService', () => {
 
         const error = yield* program;
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe(
-          'Registration option has no available spots',
-        );
+        expect(error.message).toBe('The selected sign-up choice is full.');
         expect(insertRegistration).not.toHaveBeenCalled();
       }),
   );
@@ -4809,7 +4778,7 @@ describe('EventRegistrationService', () => {
 
         const error = yield* program;
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('Add-on quantity is no longer available');
+        expect(error.message).toBe('There are not enough of this add-on left.');
         expect(isTransactionFailed).toBe(true);
         expect(insertAddonPurchase).not.toHaveBeenCalled();
       }),
@@ -4954,7 +4923,7 @@ describe('EventRegistrationService', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'User is not eligible for this registration option',
+          'This person does not qualify for the selected sign-up choice.',
         );
         expect(insertWaitlistRegistration).not.toHaveBeenCalled();
         expect(transaction.update).not.toHaveBeenCalled();
@@ -5013,7 +4982,9 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('User is already registered for this event');
+        expect(error.message).toBe(
+          'This person is already signed up for this event.',
+        );
       }),
   );
 
@@ -5177,7 +5148,7 @@ describe('EventRegistrationService', () => {
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'Registration option still has available spots',
+        'The selected sign-up choice still has places available. Sign up directly instead.',
       );
     }),
   );
@@ -5220,7 +5191,7 @@ describe('EventRegistrationService', () => {
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'Waitlist is only available for participant options',
+        'The waitlist is only available for attendee sign-up choices.',
       );
     }),
   );

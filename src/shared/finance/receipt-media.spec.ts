@@ -22,7 +22,9 @@ describe('receipt file metadata', () => {
         mimeType: 'image/gif',
         sizeBytes: 1,
       }),
-    ).toBe('Receipts must be JPEG, PNG, WebP, or PDF files');
+    ).toBe(
+      'This receipt cannot be used. Choose a different receipt image or document.',
+    );
   });
 
   it('accepts only positive files up to and including 20 MiB', () => {
@@ -38,7 +40,9 @@ describe('receipt file metadata', () => {
           mimeType: 'application/pdf',
           sizeBytes,
         }),
-      ).toBe('Receipt file must be between 1 byte and 20 MB');
+      ).toBe(
+        'This receipt is empty or larger than 20 MB. Choose another image or document.',
+      );
     }
   });
 });

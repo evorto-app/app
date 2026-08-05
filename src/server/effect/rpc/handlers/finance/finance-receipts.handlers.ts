@@ -31,6 +31,7 @@ import {
   users,
 } from '../../../../../db/schema';
 import { enqueueReceiptReviewedEmail } from '../../../../notifications/email-delivery';
+import { tenantOutboundUrl } from '../../../../tenant-outbound-url';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   canSubmitEventReceipts,
@@ -104,7 +105,8 @@ const loadReceiptEvidenceForApproval = Effect.fn(
   if (!receipt) {
     return yield* new FinanceReceiptNotFoundError({
       id: receiptId,
-      message: 'Receipt not found',
+      message:
+        'This receipt could not be found. No review was saved. Return to the receipt list and choose another receipt.',
       resource: 'receipt',
     });
   }
@@ -112,8 +114,8 @@ const loadReceiptEvidenceForApproval = Effect.fn(
     return yield* new RpcBadRequestError({
       message:
         receipt.status === 'refunded'
-          ? 'Refunded receipts cannot be reviewed again'
-          : 'Only submitted receipts can be reviewed',
+          ? 'Refunded receipts cannot be reviewed again.'
+          : 'Only receipts awaiting review can be reviewed.',
       reason:
         receipt.status === 'refunded'
           ? 'refundedReceipt'
@@ -134,7 +136,8 @@ export const financeReceiptsHandlers = {
       if (!canView) {
         return yield* Effect.fail(
           new RpcForbiddenError({
-            message: 'Forbidden',
+            message:
+              'You do not have permission to view receipts for this event.',
             permission: `finance:viewReceipts:${eventId}`,
           }),
         );
@@ -176,7 +179,7 @@ export const financeReceiptsHandlers = {
       const receiptIds = [...new Set(input.receiptIds)];
       if (receiptIds.length !== input.receiptIds.length) {
         return yield* new RpcBadRequestError({
-          message: 'Duplicate receipt ids are not allowed',
+          message: 'The same receipt was selected more than once.',
           reason: 'duplicateReceiptIds',
         });
       }
@@ -204,7 +207,8 @@ export const financeReceiptsHandlers = {
               .for('update');
             if (receipts.length !== receiptIds.length) {
               return yield* new RpcBadRequestError({
-                message: 'Some receipts are missing or not refundable',
+                message:
+                  'One or more selected receipts are no longer available. No reimbursement was recorded. Return to the reimbursement list and select the current receipts.',
                 reason: 'receiptCountMismatch',
               });
             }
@@ -233,7 +237,8 @@ export const financeReceiptsHandlers = {
             if (!payoutUser) {
               return yield* new FinanceResourceNotFoundError({
                 id: targetUserId,
-                message: 'Reimbursement recipient not found',
+                message:
+                  'The person receiving this reimbursement could not be found. No reimbursement was recorded. Return to the reimbursement list and select the current receipts.',
                 resource: 'payoutUser',
               });
             }
@@ -241,7 +246,8 @@ export const financeReceiptsHandlers = {
               const iban = payoutUser.iban;
               if (!iban) {
                 return yield* new RpcBadRequestError({
-                  message: 'Reimbursement recipient is missing an IBAN',
+                  message:
+                    'The person receiving this reimbursement has no IBAN saved.',
                   reason: 'missingIban',
                 });
               }
@@ -250,14 +256,15 @@ export const financeReceiptsHandlers = {
                 !isCanonicalIban(iban)
               ) {
                 return yield* new RpcBadRequestError({
-                  message: 'Reimbursement recipient has an invalid IBAN',
+                  message:
+                    'The saved IBAN for this reimbursement is not valid.',
                   reason: 'invalidIban',
                 });
               }
               if (input.payoutReference !== iban) {
                 return yield* new RpcBadRequestError({
                   message:
-                    'Payout reference does not match the selected recipient',
+                    'The payment details changed, so no reimbursement was recorded. Return to the receipt list and review the current payment details before trying again.',
                   reason: 'payoutReferenceMismatch',
                 });
               }
@@ -266,7 +273,7 @@ export const financeReceiptsHandlers = {
               if (!paypalEmail) {
                 return yield* new RpcBadRequestError({
                   message:
-                    'Reimbursement recipient is missing a PayPal email address',
+                    'The person receiving this reimbursement has no PayPal email address saved.',
                   reason: 'missingPaypal',
                 });
               }
@@ -276,14 +283,14 @@ export const financeReceiptsHandlers = {
               ) {
                 return yield* new RpcBadRequestError({
                   message:
-                    'Reimbursement recipient has an invalid PayPal email address',
+                    'The saved PayPal email address for this reimbursement is not valid.',
                   reason: 'invalidPaypal',
                 });
               }
               if (input.payoutReference !== paypalEmail) {
                 return yield* new RpcBadRequestError({
                   message:
-                    'Payout reference does not match the selected recipient',
+                    'The payment details changed, so no reimbursement was recorded. Return to the receipt list and review the current payment details before trying again.',
                   reason: 'payoutReferenceMismatch',
                 });
               }
@@ -298,7 +305,13 @@ export const financeReceiptsHandlers = {
               .insert(transactions)
               .values({
                 amount: -Math.abs(totalAmount),
-                comment: `Receipt reimbursement record (${input.payoutType}) for ${receiptIds.length} receipt(s) across events: ${uniqueEventIds.join(', ')}`,
+                comment: `Receipt reimbursement via ${
+                  input.payoutType === 'paypal' ? 'PayPal' : 'bank transfer'
+                } for ${receiptIds.length} ${
+                  receiptIds.length === 1 ? 'receipt' : 'receipts'
+                } across ${uniqueEventIds.length} ${
+                  uniqueEventIds.length === 1 ? 'event' : 'events'
+                }`,
                 currency: receiptCurrency,
                 eventId,
                 executiveUserId: user.id,
@@ -343,7 +356,8 @@ export const financeReceiptsHandlers = {
 
             if (updatedReceipts.length !== receiptIds.length) {
               return yield* new RpcBadRequestError({
-                message: 'Receipt reimbursement preconditions failed',
+                message:
+                  'The selected receipts changed while this page was open. No reimbursement was recorded. Return to the reimbursement list and review the current selection.',
                 reason: 'receiptRefundPreconditionFailed',
               });
             }
@@ -391,7 +405,8 @@ export const financeReceiptsHandlers = {
         return yield* Effect.fail(
           new FinanceReceiptNotFoundError({
             id,
-            message: 'Receipt not found',
+            message:
+              'This receipt could not be found. No review was saved. Return to the receipt list and choose another receipt.',
           }),
         );
       }
@@ -650,7 +665,7 @@ export const financeReceiptsHandlers = {
       if (!purchaseCountry) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt purchase country is invalid',
+            message: 'Choose an available purchase country.',
             reason: 'invalidPurchaseCountry',
           }),
         );
@@ -658,7 +673,7 @@ export const financeReceiptsHandlers = {
       if (input.status === 'rejected' && !input.rejectionReason) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'A rejection reason is required when rejecting a receipt',
+            message: 'Enter a reason for rejecting this receipt.',
             reason: 'missingRejectionReason',
           }),
         );
@@ -698,7 +713,8 @@ export const financeReceiptsHandlers = {
             if (!receiptRecord) {
               return yield* new FinanceReceiptNotFoundError({
                 id: input.id,
-                message: 'Receipt not found',
+                message:
+                  'This receipt could not be found. No review was saved. Return to the receipt list and choose another receipt.',
                 resource: 'receipt',
               });
             }
@@ -706,8 +722,8 @@ export const financeReceiptsHandlers = {
               return yield* new RpcBadRequestError({
                 message:
                   receiptRecord.status === 'refunded'
-                    ? 'Refunded receipts cannot be reviewed again'
-                    : 'Only submitted receipts can be reviewed',
+                    ? 'Refunded receipts cannot be reviewed again.'
+                    : 'Only receipts awaiting review can be reviewed.',
                 reason:
                   receiptRecord.status === 'refunded'
                     ? 'refundedReceipt'
@@ -720,7 +736,8 @@ export const financeReceiptsHandlers = {
                 approvalEvidence.attachmentUploadId
             ) {
               return yield* new RpcBadRequestError({
-                message: 'Receipt evidence changed before approval',
+                message:
+                  'The receipt file changed while this page was open. No review was saved. Select Back, then open the receipt again before approving it.',
                 reason: 'receiptEvidenceUnavailable',
               });
             }
@@ -749,7 +766,8 @@ export const financeReceiptsHandlers = {
                   approvalEvidence.storageKey
               ) {
                 return yield* new RpcBadRequestError({
-                  message: 'Receipt evidence changed before approval',
+                  message:
+                    'The receipt file changed while this page was open. No review was saved. Select Back, then open the receipt again before approving it.',
                   reason: 'receiptEvidenceUnavailable',
                 });
               }
@@ -794,14 +812,20 @@ export const financeReceiptsHandlers = {
             const updated = updatedRows[0];
             if (!updated) {
               return yield* new RpcBadRequestError({
-                message: 'Receipt review preconditions changed',
+                message:
+                  'The receipt changed while this page was open. No review was saved. Select Back, then open the receipt again before reviewing it.',
                 reason: 'receiptReviewPreconditionFailed',
               });
             }
+            const receiptUrl = yield* tenantOutboundUrl(
+              tenant,
+              '/profile/receipts',
+            ).pipe(Effect.orDie);
 
             yield* enqueueReceiptReviewedEmail(tx, {
               eventTitle: receiptRecord.eventTitle,
               receiptId: updated.id,
+              receiptUrl,
               rejectionReason:
                 input.status === 'rejected'
                   ? (input.rejectionReason ?? null)
@@ -832,7 +856,8 @@ export const financeReceiptsHandlers = {
       if (!canSubmit) {
         return yield* Effect.fail(
           new RpcForbiddenError({
-            message: 'Forbidden',
+            message:
+              'You do not have permission to submit receipts for this event.',
             permission: `finance:submitReceipts:${input.eventId}`,
           }),
         );
@@ -852,7 +877,8 @@ export const financeReceiptsHandlers = {
         return yield* Effect.fail(
           new FinanceResourceNotFoundError({
             id: input.eventId,
-            message: 'Event not found for receipt submission',
+            message:
+              'This event is no longer available, so the receipt was not submitted. Go back and choose an available event before submitting a receipt.',
             resource: 'event',
           }),
         );
@@ -867,7 +893,7 @@ export const financeReceiptsHandlers = {
       if (!purchaseCountry) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt purchase country is invalid',
+            message: 'Choose an available purchase country.',
             reason: 'invalid_purchase_country',
           }),
         );
@@ -903,7 +929,7 @@ export const financeReceiptsHandlers = {
             ) {
               submissionFailure = new RpcBadRequestError({
                 message:
-                  'The receipt upload is unavailable or does not match this submission',
+                  'This receipt file is no longer available. Add the file again.',
                 reason: 'receipt_upload_unavailable',
               });
               return yield* tx.rollback();
@@ -921,7 +947,7 @@ export const financeReceiptsHandlers = {
               .limit(1);
             if (existingReceipts.length > 0) {
               submissionFailure = new RpcBadRequestError({
-                message: 'The receipt upload has already been submitted',
+                message: 'This receipt file has already been submitted.',
                 reason: 'receipt_upload_unavailable',
               });
               return yield* tx.rollback();
@@ -944,7 +970,7 @@ export const financeReceiptsHandlers = {
               .returning({ id: financeReceiptUploads.id });
             if (consumedUploads.length !== 1) {
               submissionFailure = new RpcBadRequestError({
-                message: 'The receipt upload has already been submitted',
+                message: 'This receipt file has already been submitted.',
                 reason: 'receipt_upload_unavailable',
               });
               return yield* tx.rollback();

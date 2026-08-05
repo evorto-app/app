@@ -42,7 +42,7 @@ describe('profile event labels', () => {
         status: 'CONFIRMED',
       }),
     ).toBe(
-      "Open the event page for ticket access and to see whether cancellation or transfer is currently available. A transfer may be free or require the recipient to pay, based on current prices and the recipient's eligible discounts.",
+      'Open the event page for your ticket and to see whether you can cancel or transfer it. A transfer may be free, or the recipient may need to pay, based on current prices and the discounts available to them.',
     );
     expect(
       profileEventActionNote({
@@ -54,7 +54,7 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Open the event page for pending-registration details and current cancellation status.',
+      'Open the event page for details about your pending sign-up and whether you can cancel it.',
     );
     expect(
       profileEventActionNote({
@@ -66,7 +66,7 @@ describe('profile event labels', () => {
         status: 'WAITLIST',
       }),
     ).toBe(
-      'Open the event page for waitlist details and current cancellation status.',
+      'Open the event page for waitlist details and whether you can leave it.',
     );
   });
 
@@ -81,7 +81,7 @@ describe('profile event labels', () => {
     });
 
     expect(actionNote).toBe(
-      'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
+      'You are checked in. Open the event page for ticket details. You can no longer cancel, but you can still transfer the ticket and its existing check-ins.',
     );
     expect(actionNote).not.toContain(
       'transfer is no longer available after check-in',
@@ -99,7 +99,7 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Continue payment from this card, or open the event page for registration details.',
+      'Finish payment here, or open the event page for your sign-up details.',
     );
     expect(
       profileEventActionNote({
@@ -111,7 +111,7 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Payment setup is still in progress. Open the event page for the latest payment link and current cancellation status.',
+      'Payment is not ready yet. Open the event page to check the current payment option. Your place is not confirmed.',
     );
   });
 
@@ -132,7 +132,7 @@ describe('profile event labels', () => {
         status: 'CONFIRMED',
       }),
     ).toBe(
-      'Open the event page for your organizer/helper pass, event management access, and current cancellation details.',
+      'Open the event page for your organizer/helper pass, organizer tools, and cancellation details.',
     );
     expect(
       profileEventActionNote({
@@ -144,11 +144,11 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Open the event page for organizer/helper application and cancellation status. Organizer access starts only after approval and any required payment.',
+      'Open the event page for your organizer/helper application and whether you can cancel it. Organizer tools become available after approval and any required payment.',
     );
 
     expect(profileEventAudienceLabel({ organizingRegistration: false })).toBe(
-      'Participant',
+      'Attendee',
     );
     expect(profileEventPassLabel({ organizingRegistration: false })).toBe(
       'Ticket',
@@ -162,7 +162,7 @@ describe('profile event labels', () => {
         paymentState: 'pending',
         status: 'PENDING',
       }),
-    ).toBe('Finish the checkout payment to confirm your spot.');
+    ).toBe('Finish payment to confirm your place.');
     expect(
       profileEventNextStepLabel({
         checkoutUrl: null,
@@ -170,7 +170,7 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.',
+      'Payment is not ready yet. Open the event page to check the current payment option. Your place is not confirmed.',
     );
     expect(
       profileEventNextStepLabel({
@@ -186,7 +186,7 @@ describe('profile event labels', () => {
         status: 'PENDING',
       }),
     ).toBe(
-      'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.',
+      'Payment is not ready yet. Open the event page to check the current payment option. Your place is not confirmed.',
     );
     expect(
       profileEventNextStepLabel({
@@ -256,31 +256,29 @@ describe('profile event labels', () => {
   it('keeps registration payment states readable', () => {
     expect(registrationPaymentLabel('cancelled')).toBe('Payment cancelled');
     expect(registrationPaymentLabel('notRequired')).toBe('No payment required');
-    expect(registrationPaymentLabel('pending')).toBe('Payment pending');
-    expect(registrationPaymentLabel('recorded')).toBe('Payment recorded');
+    expect(registrationPaymentLabel('pending')).toBe('Payment not finished');
+    expect(registrationPaymentLabel('recorded')).toBe('Paid');
   });
 
   it('keeps registration status labels aligned with persisted states', () => {
     expect(registrationStatusLabel('CANCELLED')).toBe('Cancelled');
     expect(registrationStatusLabel('CONFIRMED')).toBe('Confirmed');
-    expect(registrationStatusLabel('PENDING')).toBe('Pending');
-    expect(registrationStatusLabel('WAITLIST')).toBe('Waitlist');
+    expect(registrationStatusLabel('PENDING')).toBe('Waiting for confirmation');
+    expect(registrationStatusLabel('WAITLIST')).toBe('On waitlist');
   });
 
   it('keeps participant refund sources and states actionable', () => {
-    expect(registrationRefundSourceLabel('registration')).toBe(
-      'Registration payment',
-    );
+    expect(registrationRefundSourceLabel('registration')).toBe('Event payment');
     expect(registrationRefundSourceLabel('addon')).toBe('Add-on payment');
     expect(registrationRefundStateLabel('actionRequired')).toBe(
-      'Contact organizer for refund update',
+      'Contact the organizer',
     );
-    expect(registrationRefundStateLabel('pending')).toBe('Refund queued');
-    expect(registrationRefundStateLabel('retrying')).toBe('Refund retrying');
+    expect(registrationRefundStateLabel('pending')).toBe('Refund requested');
+    expect(registrationRefundStateLabel('retrying')).toBe('Refund delayed');
     expect(registrationRefundStateLabel('needsAttention')).toBe(
-      'Contact organizer for refund update',
+      'Contact the organizer',
     );
-    expect(registrationRefundStateLabel('succeeded')).toBe('Refund completed');
+    expect(registrationRefundStateLabel('succeeded')).toBe('Refund complete');
   });
 
   it('keeps cancelled registrations visible with honest refund next steps', () => {
@@ -304,7 +302,7 @@ describe('profile event labels', () => {
         ...cancelledEvent,
         refunds: [{ ...baseRefund, state: 'pending' }],
       }),
-    ).toContain('Money has not necessarily been returned yet');
+    ).toContain('The money may not have reached your account yet');
     expect(
       profileEventActionNote({
         ...cancelledEvent,
@@ -318,7 +316,7 @@ describe('profile event labels', () => {
         ],
       }),
     ).toBe(
-      'Your registration remains cancelled, but at least one refund needs organizer follow-up. Money has not necessarily been returned yet. Contact the organizer for an update. Do not pay or register again to retry it. 1 of 2 refunds is complete.',
+      'Your sign-up remains cancelled, but at least one refund needs help from the organizer. The money may not have reached your account yet. Contact the organizer for an update. Do not pay or sign up again while you wait. 1 of 2 refunds is complete.',
     );
     const mixedFollowUp = profileEventActionNote({
       ...cancelledEvent,
@@ -332,7 +330,7 @@ describe('profile event labels', () => {
       ],
     });
     expect(mixedFollowUp).toContain(
-      'at least one refund needs organizer follow-up',
+      'at least one refund needs help from the organizer',
     );
     expect(mixedFollowUp).toContain('Contact the organizer for an update.');
   });
@@ -357,20 +355,22 @@ describe('profile event labels', () => {
     });
 
     expect(actionNote).toContain(
-      'the event or registration option was no longer available to you when payment completed',
+      'you were no longer able to join when payment finished',
     );
-    expect(actionNote).toContain('the event is no longer published');
-    expect(actionNote).toContain('the option was removed');
+    expect(actionNote).toContain('The event may no longer be published');
+    expect(actionNote).toContain('the sign-up choice may have been removed');
     expect(actionNote).toContain(
-      'your organization membership or roles changed',
+      'your access in the organization may have changed',
     );
     expect(actionNote).toContain(
-      'The full amount you paid was queued for refund to your original payment method',
+      'A full refund has been requested for the payment method you used',
     );
-    expect(actionNote).toContain('Money has not necessarily been returned yet');
-    expect(actionNote).toContain('Do not retry this payment');
     expect(actionNote).toContain(
-      "After the refund, review the event's current status and options or contact the organizer",
+      'The money may not have reached your account yet',
+    );
+    expect(actionNote).toContain('Do not make this payment again');
+    expect(actionNote).toContain(
+      'After the refund, check whether you can still sign up or contact the organizer',
     );
   });
 });

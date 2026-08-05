@@ -18,6 +18,9 @@ describe('fail-loud local database and seed source', () => {
     const integrationRunner = source(
       'helpers/testing/run-postgres-integration.ts',
     );
+    const integrationDatabase = source(
+      'helpers/testing/postgres-integration-database.ts',
+    );
     const reset = source('helpers/reset-database-schema.ts');
 
     expect(packageJson.scripts['db:push']).toContain('drizzle-kit push');
@@ -28,6 +31,8 @@ describe('fail-loud local database and seed source', () => {
     expect(packageJson.scripts['db:reset']).not.toContain('--config');
     expect(compose).toContain('drizzle-kit/bin.cjs push --force');
     expect(compose).not.toContain('drizzle-kit/bin.cjs push --config');
+    expect(compose).not.toContain('local-postgres-init.sql');
+    expect(compose).not.toContain('/docker-entrypoint-initdb.d');
 
     expect(drizzleConfig).toContain(
       "import { resolveLocalDatabaseEnvironment } from './helpers/local-database-preflight';",
@@ -36,6 +41,17 @@ describe('fail-loud local database and seed source', () => {
       'const { databaseUrl } = resolveLocalDatabaseEnvironment();',
     );
     expect(reset).toContain('resolveLocalDatabaseEnvironment()');
+    const ensureIntegrationDatabaseCall =
+      'await ensureLocalPostgresIntegrationDatabase({ databaseUrl });';
+    const resetPublicSchemaCall = 'await resetPublicSchema({ databaseUrl });';
+    expect(reset).toContain(ensureIntegrationDatabaseCall);
+    expect(reset).toContain(resetPublicSchemaCall);
+    expect(reset.indexOf(ensureIntegrationDatabaseCall)).toBeLessThan(
+      reset.indexOf(resetPublicSchemaCall),
+    );
+    expect(integrationDatabase).toContain(
+      'CREATE DATABASE "${postgresIntegrationDatabaseName}"',
+    );
     expect(integrationRunner).toContain("LOCAL_DATABASE: 'true'");
     expect(integrationRunner).toContain(
       'POSTGRES_DB: postgresIntegrationDatabaseName',

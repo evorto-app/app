@@ -183,7 +183,7 @@ describe('tenant onboarding authorization', () => {
           const expectedError = {
             _tag: 'RpcUnauthorizedError',
             message:
-              'Your authenticated account is missing a stable identifier. Log out and sign in again.',
+              'Your sign-in details are incomplete. Sign out and sign in again.',
           };
           expect(requirementsError).toMatchObject(expectedError);
           expect(statusError).toMatchObject(expectedError);

@@ -19,6 +19,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 import {
+  registrationCancellationActionLabel,
+  registrationCancellationCompletedLabel,
+  registrationCancellationFailureMessage,
+  registrationCancellationKind,
+} from '@shared/registration-cancellation';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -27,6 +33,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { tenantTimezoneLabel } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { platformEventInstantToDisplayDateTime } from './platform-event-date-time';
@@ -51,7 +58,7 @@ export const registrationIdFromPlatformScannerInput = (
 };
 
 export const platformScannerNavigationErrorMessage =
-  'The registration could not be opened. Check that this organization still exists, then try again.';
+  'The ticket could not be opened. Check that this organization still exists, then try again.';
 
 export interface PlatformRegistrationStatusIssueCopy {
   readonly body: string;
@@ -64,7 +71,7 @@ export const platformCheckInTimingIssueCopy = (
   switch (issue) {
     case 'ended': {
       return {
-        body: 'The event ended more than two hours ago, so check-in is closed. No check-in was recorded.',
+        body: 'The event ended more than two hours ago, so check-in is closed. The attendee was not checked in.',
         title: 'Check-in closed',
       };
     }
@@ -86,8 +93,8 @@ export const platformRegistrationStatusIssueCopy = (
   switch (status) {
     case 'CANCELLED': {
       return {
-        body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, review the existing registration and refund instead of creating a replacement.',
-        title: 'Registration cancelled',
+        body: 'This sign-up has ended and cannot be checked in. Do not ask the attendee to pay or sign up again. If the cancellation or refund looks wrong, review the existing sign-up instead of creating a replacement.',
+        title: 'Sign-up ended',
       };
     }
     case 'CONFIRMED': {
@@ -95,17 +102,32 @@ export const platformRegistrationStatusIssueCopy = (
     }
     case 'PENDING': {
       return {
-        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
-        title: 'Registration pending',
+        body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start another sign-up or payment here.',
+        title: 'Sign-up pending',
       };
     }
     case 'WAITLIST': {
       return {
-        body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
-        title: 'Registration on waitlist',
+        body: 'This attendee does not have a confirmed place yet and cannot be checked in. Review the waitlist and available places. Do not take payment or start another sign-up here.',
+        title: 'On waitlist',
       };
     }
   }
+};
+
+export const platformRegistrationCancellationActionLabel = (
+  registration: Pick<
+    PlatformRegistrationDetailRecord,
+    'paymentPending' | 'status'
+  >,
+): string => {
+  if (registration.status === 'CANCELLED') return 'Sign-up ended';
+  return registrationCancellationActionLabel(
+    registrationCancellationKind({
+      paymentPending: registration.paymentPending,
+      status: registration.status,
+    }),
+  );
 };
 
 export const platformRegistrationStatusLabel = (
@@ -260,6 +282,8 @@ export class PlatformScannerComponent {
   protected readonly lookupValue = signal('');
   protected readonly platformCheckInTimingIssueCopy =
     platformCheckInTimingIssueCopy;
+  protected readonly platformRegistrationCancellationActionLabel =
+    platformRegistrationCancellationActionLabel;
   protected readonly platformRegistrationStatusIssueCopy =
     platformRegistrationStatusIssueCopy;
   protected readonly platformRegistrationStatusLabel =
@@ -268,6 +292,7 @@ export class PlatformScannerComponent {
   protected readonly targetTenantOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
+  protected readonly tenantTimezoneLabel = tenantTimezoneLabel;
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
@@ -303,12 +328,13 @@ export class PlatformScannerComponent {
         });
         await this.refreshRegistration();
         this.resetActionState();
-        this.notifications.showSuccess('Registration approved');
+        this.notifications.showSuccess('Sign-up approved');
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(
             error,
-            'The registration could not be approved. Try again.',
+            'The sign-up could not be approved. Try again.',
+            ['RpcBadRequestError'],
           ),
         );
       }
@@ -327,6 +353,13 @@ export class PlatformScannerComponent {
       return;
     }
     const registration = this.registrationQuery.data();
+    if (registration.status === 'CANCELLED') return;
+    const cancellationKind = registrationCancellationKind({
+      paymentPending: registration.paymentPending,
+      status: registration.status,
+    });
+    const expectedPaymentPending = registration.paymentPending;
+    const expectedStatus = registration.status;
 
     void (async () => {
       const confirmed = await firstValueFrom(
@@ -345,18 +378,23 @@ export class PlatformScannerComponent {
 
       try {
         await this.cancelMutation.mutateAsync({
+          expectedPaymentPending,
+          expectedStatus,
           reason,
           registrationId,
           targetTenantId: this.tenantId(),
         });
         await this.refreshRegistration();
         this.resetActionState();
-        this.notifications.showSuccess('Registration cancelled');
+        this.notifications.showSuccess(
+          registrationCancellationCompletedLabel(cancellationKind),
+        );
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(
             error,
-            'The registration could not be cancelled. Try again.',
+            registrationCancellationFailureMessage(cancellationKind),
+            ['RpcBadRequestError'],
           ),
         );
       }
@@ -384,12 +422,13 @@ export class PlatformScannerComponent {
         });
         await this.refreshRegistration();
         this.resetActionState();
-        this.notifications.showSuccess('Registration checked in');
+        this.notifications.showSuccess('Ticket checked in');
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(
             error,
-            'The registration could not be checked in. Try again.',
+            'The ticket could not be checked in. Try again.',
+            ['RpcBadRequestError', 'EventCheckInUnavailableError'],
           ),
         );
       }
@@ -421,7 +460,7 @@ export class PlatformScannerComponent {
     );
     if (!registrationId) {
       this.lookupError.set(
-        'Paste the complete attendee ticket link or enter a registration ID.',
+        'Paste the complete attendee ticket link or enter a ticket number.',
       );
       this.lookupNavigationFailed.set(false);
       return;

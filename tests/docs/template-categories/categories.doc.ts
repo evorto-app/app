@@ -10,26 +10,24 @@ test.use({ storageState: adminStateFile });
 test('Manage template categories', async ({
   database,
   page,
-  seedDate,
   tenant,
 }, testInfo) => {
-  const categoryTitle = `Category docs ${seedDate.getTime()}`;
-  const updatedCategoryTitle = `Category docs edited ${seedDate.getTime()}`;
+  const categoryTitle = 'Outdoor activities';
+  const updatedCategoryTitle = 'Outdoor adventures';
 
   try {
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="User permissions" %}
+{% callout type="note" title="Who can do this" %}
 You need **Manage template categories** access to create and edit categories.
 {% /callout %}
-Template categories are used to group templates together. You can create categories and assign templates to them.
-Users will have an easier time finding the templates they are looking for with good grouping.
+Template categories keep related templates together and make them easier for members to find.
 
-Users who can view templates without **Manage template categories** access can still open the category overview through **View categories**. The page is read-only for them: create and edit actions are hidden, and the page explains which permission an administrator needs to grant.
+Members who can view templates without **Manage template categories** access can still open the category overview through **View categories**. They can browse categories but cannot create or edit them, and the page tells them to ask an administrator for access.
 
 Start by navigating to the **Manage categories** page under **Templates**. Here you can see an overview of the existing template categories.
-Click on _Create category_ to create a new category.`,
+Select **Create category** to create a new category.`,
     });
     await page.getByRole('link', { name: 'Templates' }).click();
     await page.getByRole('link', { name: 'Manage categories' }).click();
@@ -38,7 +36,12 @@ Click on _Create category_ to create a new category.`,
     const createCategoryButton = page.getByRole('button', {
       name: 'Create category',
     });
-    await takeScreenshot(testInfo, createCategoryButton, page);
+    await takeScreenshot(
+      testInfo,
+      createCategoryButton,
+      page,
+      'Template categories page with the Create category action',
+    );
     await expect(createCategoryButton).not.toHaveAttribute(
       'jsaction',
       /click/,
@@ -51,7 +54,7 @@ Click on _Create category_ to create a new category.`,
     ).toBeVisible();
     await testInfo.attach('markdown', {
       body: `
-You can now enter the name for your category and save it. The new category will be created and added to the list.`,
+Review or choose an icon, enter the **Category title**, and select **Save**. The new category appears in the list.`,
     });
     await page
       .getByRole('textbox', { name: 'Category title' })
@@ -78,8 +81,7 @@ You can now enter the name for your category and save it. The new category will 
     }
     await testInfo.attach('markdown', {
       body: `
-To edit the name of a category, just find it in the list and click the _Edit_ button.
-After you have changed the name, click on _Save_ to save your changes.`,
+To change a category's title or icon, find it in the list, select **Edit**, make the changes, and select **Save**.`,
     });
 
     const editCategoryButton = categoryRow.getByRole('button', {

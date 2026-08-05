@@ -84,17 +84,16 @@ export const outgoingRegistrationTransferCopy = (
       return {
         nextStep: 'No action is needed.',
         summary:
-          'This transfer moved the ticket to its recipient, and all refunds due to you completed.',
+          'The new attendee now has the ticket, and all refunds due to you are complete.',
         title: 'Transfer refund completed',
         tone: 'success',
       };
     }
     case 'needsAttention': {
       return {
-        nextStep:
-          'Contact an organizer for an update. Do not pay or register again to retry the refund.',
+        nextStep: 'Contact an organizer for an update.',
         summary:
-          'This transfer moved the ticket to its recipient, but one or more refunds due to you may not have reached you.',
+          'The new attendee now has the ticket, but one or more refunds due to you may not have arrived.',
         title: 'Transfer refund needs attention',
         tone: 'error',
       };
@@ -103,18 +102,17 @@ export const outgoingRegistrationTransferCopy = (
       return {
         nextStep: 'No action is needed.',
         summary:
-          'This transfer moved the ticket to its recipient. No refund was due for this transfer.',
+          'The new attendee now has the ticket. No refund was due to you.',
         title: 'Ticket transfer completed',
         tone: 'success',
       };
     }
     case 'processing': {
       return {
-        nextStep:
-          'No action is needed. Do not pay or register again to retry the refund.',
+        nextStep: 'No action is needed while the refund is in progress.',
         summary:
-          'This transfer moved the ticket to its recipient, and one or more refunds due to you are being processed.',
-        title: 'Transfer refund is processing',
+          'The new attendee now has the ticket, and one or more refunds due to you are in progress.',
+        title: 'Transfer refund is in progress',
         tone: 'info',
       };
     }
@@ -166,6 +164,20 @@ export const eventSubmitForReviewActionDisabled = ({
 }): boolean =>
   !controlsInteractive || !canEdit || status !== 'DRAFT' || mutationPending;
 
+export const announcementDiscoveryErrorMessage = (error: unknown): string =>
+  getErrorMessage(
+    error,
+    'Who can find this announcement could not be saved. Try again.',
+    ['EventNotFoundError', 'RpcBadRequestError'],
+  );
+
+export const eventReviewErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The event review could not be saved. Try again.', [
+    'EventConflictError',
+    'EventNotFoundError',
+    'RpcBadRequestError',
+  ]);
+
 export const eventCanEdit = ({
   canEditAll,
   isCreator,
@@ -194,7 +206,7 @@ export const eventAddonPurchaseTiming = (addOn: {
   allowPurchaseDuringRegistration: boolean;
 }): string => {
   const windows = [
-    addOn.allowPurchaseDuringRegistration ? 'During registration' : null,
+    addOn.allowPurchaseDuringRegistration ? 'During sign-up' : null,
     addOn.allowPurchaseBeforeEvent ? 'Before event' : null,
     addOn.allowPurchaseDuringEvent ? 'During event' : null,
   ].filter((window): window is string => window !== null);
@@ -209,7 +221,7 @@ export const eventRegistrationOptionTitle = (
   registrationOptionId: string,
 ): string =>
   event.registrationOptions.find((option) => option.id === registrationOptionId)
-    ?.title ?? 'Broken registration option configuration';
+    ?.title ?? 'Sign-up choice unavailable';
 
 export const eventAddonsForRegistrationOption = <
   TAddOn extends {
@@ -493,7 +505,7 @@ export class EventDetailsComponent {
     const event = this.eventQuery.data();
     if (event.announcementRoleIds === null) {
       this.notifications.showError(
-        'Announcement roles are unavailable. Refresh the event and try again.',
+        'The current visibility settings for this announcement are missing. Who can find it was not changed. Contact Evorto support and include the event name.',
       );
       return;
     }
@@ -516,11 +528,14 @@ export class EventDetailsComponent {
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to update announcement discovery'),
+              announcementDiscoveryErrorMessage(error),
             );
           },
           onSuccess: async () => {
             await this.refreshReviewState();
+            this.notifications.showSuccess(
+              'Who can find the announcement was updated',
+            );
           },
         },
       );
@@ -620,13 +635,10 @@ export class EventDetailsComponent {
   }
 
   private async handleReviewActionError(error: unknown): Promise<void> {
-    const message = getErrorMessage(
-      error,
-      'Failed to update event review status',
-    );
+    const message = eventReviewErrorMessage(error);
     if (eventReviewActionErrorRequiresRefresh(error)) {
       this.notifications.showError(
-        'Event status changed. Refreshed the latest state.',
+        'This event changed while you were working. We loaded the latest details. Review them and try again.',
       );
       await this.refreshReviewState();
       return;

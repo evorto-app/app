@@ -18,7 +18,7 @@
       aria-live="polite"
       class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
     >
-      <h2 class="title-medium">Loading template...</h2>
+      <h2 class="title-medium">Loading template…</h2>
     </div>
   } @else if (templateQuery.isError()) {
     <div
@@ -28,8 +28,8 @@
       <div>
         <h2 class="title-medium">Template could not be loaded</h2>
         <p class="body-medium mt-1">
-          The event form cannot be prepared until the selected template is
-          available. Check your connection and try again.
+          You cannot create this event until the selected template is available.
+          Nothing has been created. Select Try again.
         </p>
       </div>
       <button
@@ -38,7 +38,7 @@
         [disabled]="templateQuery.isFetching()"
         (click)="templateQuery.refetch()"
       >
-        {{ templateQuery.isFetching() ? "Retrying..." : "Try again" }}
+        {{ templateQuery.isFetching() ? "Trying again…" : "Try again" }}
       </button>
     </div>
   } @else if (templateQuery.isSuccess()) {
@@ -61,8 +61,8 @@
         <h2 class="title-medium">Event could not be created</h2>
         <p class="body-medium mt-1">{{ createEventErrorMessage() }}</p>
         <p class="body-small mt-2">
-          Your entries are still here. Retry temporary errors. If the template
-          changed, copy needed entries and restart from it.
+          Your entries are still here. Review them and try again. If the
+          template changed, return to the template and start again.
         </p>
       </section>
     }
@@ -73,7 +73,7 @@
     >
       <div class="grid gap-6">
         <section class="bg-surface text-on-surface rounded-2xl p-4">
-          <h2 class="title-large mb-4">Event Details</h2>
+          <h2 class="title-large mb-4">Event details</h2>
           <app-event-general-form
             [generalForm]="createEventForm"
             [iconUsage]="iconUsage"
@@ -83,26 +83,26 @@
         <section
           class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
         >
-          <h2 class="title-large mb-4 p-2">Registration Options</h2>
+          <h2 class="title-large mb-4 p-2">Sign-up choices</h2>
           @if (!stripeConnectionKnown()) {
             <p class="text-on-surface-variant mb-4 px-2 text-sm" role="status">
-              Paid controls are unavailable while the organization's Stripe
-              status is loading.
+              Wait for the event details to finish loading before changing
+              prices.
             </p>
           } @else if (paidControlsUnavailable()) {
             @if (paidGraphBlocked()) {
               <p class="text-error mb-4 px-2 text-sm" role="alert">
-                This template contains paid registration options. Their prices
-                remain unchanged, and the event cannot be created until Stripe
-                is connected again.
+                This template contains paid sign-up choices. Their prices remain
+                unchanged, and the event cannot be created until paid sign-ups
+                are ready again.
               </p>
             } @else {
               <p
                 class="text-on-surface-variant mb-4 px-2 text-sm"
                 role="status"
               >
-                Paid controls are unavailable because this organization has no
-                connected Stripe account.
+                Paid choices are unavailable because paid sign-ups are not ready
+                for this organization.
               </p>
             }
           }
@@ -112,8 +112,8 @@
               role="alert"
             >
               <p>
-                Discount settings could not be loaded. Event creation is
-                unavailable so template pricing is not silently changed.
+                Discount settings could not be loaded. You cannot create the
+                event, and all prices remain unchanged. Select Try again.
               </p>
               <div>
                 <button
@@ -132,8 +132,8 @@
               role="alert"
             >
               <p>
-                Tax rates could not be loaded. Event creation is unavailable so
-                existing tax selections are not silently changed.
+                Tax rates could not be loaded. You cannot create the event, and
+                its tax choices remain unchanged. Select Try again.
               </p>
               <div>
                 <button
@@ -179,7 +179,7 @@
           >
             {{
               createEventMutation.isPending()
-                ? "Creating event..."
+                ? "Creating event…"
                 : "Create event"
             }}
           </button>

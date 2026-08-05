@@ -308,7 +308,8 @@ const internal = (message: string) =>
   new EventRegistrationInternalError({ message });
 const notFound = () =>
   new EventRegistrationNotFoundError({
-    message: 'Registration add-on not found',
+    message:
+      'This add-on is no longer available on this ticket. No change was made. Reopen the ticket and review its current add-ons.',
   });
 
 const failInternal = (operation: string, message: string, error: unknown) =>
@@ -322,7 +323,9 @@ const validateOperationKey = (operationKey: string) => {
   return normalized.length > 0 && normalized.length <= 100
     ? Effect.succeed(normalized)
     : Effect.fail(
-        conflict('Operation key must contain between 1 and 100 characters'),
+        conflict(
+          'The add-on change could not be started. No change was made. Reopen the ticket and review its current add-ons before trying again.',
+        ),
       );
 };
 
@@ -416,7 +419,7 @@ export const getRegistrationAddonFulfillment = Effect.fn(
             .limit(1);
           if (activeTransfers.length > 0) {
             return yield* conflict(
-              'This registration has an active transfer. Resolve or cancel the transfer before fulfilling add-ons.',
+              'Finish or cancel the ticket transfer before changing add-ons.',
             );
           }
 
@@ -779,16 +782,16 @@ const lockFulfillmentRows = Effect.fn('lockFulfillmentRows')(function* (
   const registration = registrations[0];
   if (!registration) return yield* notFound();
   if (registration.status !== 'CONFIRMED') {
-    return yield* conflict('Only confirmed registrations can fulfill add-ons');
+    return yield* conflict(
+      'Add-ons can only be changed for a confirmed sign-up.',
+    );
   }
   yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
     registrationId: input.registrationId,
     tenantId: input.tenantId,
   }).pipe(
     Effect.mapError(() =>
-      conflict(
-        'This registration has an active transfer. Resolve or cancel the transfer before fulfilling add-ons.',
-      ),
+      conflict('Finish or cancel the ticket transfer before changing add-ons.'),
     ),
   );
   const purchases = yield* tx
@@ -1026,7 +1029,9 @@ export const redeemRegistrationAddon = Effect.fn('redeemRegistrationAddon')(
               .limit(1);
             if (existing[0]) {
               if (existing[0].type !== 'redeemed') {
-                return yield* conflict('Operation key was already used');
+                return yield* conflict(
+                  'This add-on change no longer matches the ticket. No change was made. Reopen the ticket and review its current add-ons before trying again.',
+                );
               }
               return { fulfillmentEventId: existing[0].id };
             }
@@ -1035,7 +1040,9 @@ export const redeemRegistrationAddon = Effect.fn('redeemRegistrationAddon')(
                 locked.purchase.cancelledQuantity >=
               locked.purchase.quantity
             ) {
-              return yield* conflict('No unfulfilled add-on quantity remains');
+              return yield* conflict(
+                'All of this add-on has already been handed out.',
+              );
             }
 
             const purchasedRedeemed = locked.lots.reduce(
@@ -1081,7 +1088,7 @@ export const redeemRegistrationAddon = Effect.fn('redeemRegistrationAddon')(
               .returning({ id: eventRegistrationAddonPurchases.id });
             if (updatedPurchase.length !== 1) {
               return yield* conflict(
-                'Add-on fulfillment changed; refresh and retry',
+                'The handed-out amount changed. No add-on was handed out. Reopen the ticket and review its current add-ons before trying again.',
               );
             }
             if (lot) {
@@ -1216,7 +1223,7 @@ export const undoRegistrationAddonRedemption = Effect.fn(
             .limit(1);
           if (latest[0]?.id !== original.id) {
             return yield* conflict(
-              'Only the most recent redemption can be undone',
+              'Only the most recently handed-out add-on can be undone.',
             );
           }
           const allocations = yield* tx
@@ -1312,14 +1319,10 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
     const operationKey = yield* validateOperationKey(input.operationKey);
     const reason = input.reason.trim();
     if (reason.length === 0 || reason.length > 500) {
-      return yield* conflict(
-        'Cancellation reason must contain between 1 and 500 characters',
-      );
+      return yield* conflict('Enter a reason of 500 characters or fewer.');
     }
     if (!Number.isSafeInteger(input.quantity) || input.quantity <= 0) {
-      return yield* conflict(
-        'Cancellation quantity must be a positive integer',
-      );
+      return yield* conflict('Choose a whole number greater than zero.');
     }
 
     return yield* mapUnexpected(
@@ -1345,7 +1348,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
             if (!registration) return yield* notFound();
             if (registration.status !== 'CONFIRMED') {
               return yield* conflict(
-                'Only confirmed registrations can fulfill add-ons',
+                'Add-ons can only be changed for a confirmed sign-up.',
               );
             }
             yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
@@ -1354,7 +1357,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
             }).pipe(
               Effect.mapError(() =>
                 conflict(
-                  'This registration has an active transfer. Resolve or cancel the transfer before fulfilling add-ons.',
+                  'Finish or cancel the ticket transfer before changing add-ons.',
                 ),
               ),
             );
@@ -1367,9 +1370,9 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                 registrationId: input.registrationId,
                 tenantId: input.tenantId,
               }).pipe(
-                Effect.mapError((cause) =>
+                Effect.mapError(() =>
                   conflict(
-                    `Current add-on acquisition is not settled: ${cause.message}`,
+                    'The saved sign-up and add-on details do not agree. No changes were made. Ask an administrator to review this sign-up.',
                   ),
                 ),
               );
@@ -1460,7 +1463,9 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                 existingEvent.quantity !== input.quantity ||
                 existingEvent.reason !== reason
               ) {
-                return yield* conflict('Operation key was already used');
+                return yield* conflict(
+                  'This add-on change no longer matches the ticket. No change was made. Reopen the ticket and review its current add-ons before trying again.',
+                );
               }
               if (!input.refundRequested) {
                 const purchasedAllocations = yield* tx
@@ -1556,7 +1561,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
             });
             if (!cancellationSelection) {
               return yield* conflict(
-                'Only unredeemed add-on quantities can be cancelled',
+                'Only add-ons that have not been handed out can be cancelled.',
               );
             }
             const selectedLots = cancellationSelection.lots.flatMap(
@@ -1582,7 +1587,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
             );
             if (selectedLots.length !== cancellationSelection.lots.length) {
               return yield* conflict(
-                'Current add-on acquisition components are incomplete or ambiguous',
+                'The saved add-on does not match its payment details. No changes were made. Ask an administrator to review this payment.',
               );
             }
 
@@ -1699,7 +1704,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                     component.applicationFeeAmount
                 ) {
                   return yield* conflict(
-                    'Current add-on refund entitlement is inconsistent or exhausted',
+                    'The refund cannot be calculated from the saved add-on amounts. No changes were made. Ask an administrator to review this payment.',
                   );
                 }
                 const refundAmount = refundFees
@@ -1788,7 +1793,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
               )
             ) {
               return yield* conflict(
-                'Current add-on payment ownership is not refundable',
+                'The original payment could not be confirmed, so no refund was started. Ask an administrator to review this payment.',
               );
             }
             for (const plan of plannedRefunds) {
@@ -1800,7 +1805,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
               );
               if (!source || source.currency !== plan.component.currency) {
                 return yield* conflict(
-                  'Current add-on payment currency does not match',
+                  'The add-on and its original payment use different currencies, so no refund was started. Ask an administrator to review this payment.',
                 );
               }
             }
@@ -1842,7 +1847,7 @@ export const cancelRegistrationAddon = Effect.fn('cancelRegistrationAddon')(
                   )
               ) {
                 return yield* conflict(
-                  'Current add-on payment settlement no longer matches its immutable acquisition components',
+                  'The saved payment total does not match this add-on, so no refund was started. Ask an administrator to review this payment.',
                 );
               }
             }

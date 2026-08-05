@@ -70,6 +70,8 @@ import {
   markRegistrationTransferRefundRequeued,
   type RegistrationTransferRefundRequeueStatus,
 } from '../../../../registrations/registration-transfer-refund-reconciliation';
+import { tenantOutboundUrl } from '../../../../tenant-outbound-url';
+import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import {
   ensureValidFinanceReceiptAmounts,
   ensureValidFinanceReceiptCalendarDate,
@@ -233,9 +235,10 @@ const databaseEffect = <A, R>(
     ),
   );
 
-const receiptNotFound = (receiptId: string) =>
+const receiptNotFound = (_receiptId: string) =>
   new RpcBadRequestError({
-    message: `Receipt ${receiptId} was not found for the target tenant`,
+    message:
+      'This receipt is no longer available. Return to the receipt list and choose another receipt.',
     reason: 'receiptNotFound',
   });
 
@@ -279,7 +282,7 @@ const loadReceiptEvidenceForApproval = Effect.fn(
   if (receipt.status !== 'submitted') {
     return yield* new RpcBadRequestError({
       message:
-        'This receipt has already been reviewed. Refresh the queue before taking another action.',
+        'This receipt has already been reviewed. Return to the receipt list to see its current status.',
       reason: 'receiptAlreadyReviewed',
     });
   }
@@ -540,7 +543,8 @@ const loadLockedTargetTenant = Effect.fn(
   const tenantRecord = tenantRows[0];
   if (!tenantRecord) {
     return yield* new RpcBadRequestError({
-      message: 'Target tenant not found',
+      message:
+        'The organization could not be found. Nothing was recorded or changed. Return to the organization list and choose another organization.',
       reason: 'targetTenantNotFound',
     });
   }
@@ -673,7 +677,11 @@ export const platformReimbursementTransactionInsert = (input: {
   readonly totalAmount: number;
 }): typeof transactions.$inferInsert => ({
   amount: -Math.abs(input.totalAmount),
-  comment: `Platform receipt reimbursement record (${input.payoutType}) for ${input.receiptCount} receipt(s) across ${input.eventCount} event(s)`,
+  comment: `Receipt reimbursement recorded by an Evorto administrator via ${
+    input.payoutType === 'paypal' ? 'PayPal' : 'bank transfer'
+  } for ${input.receiptCount} ${
+    input.receiptCount === 1 ? 'receipt' : 'receipts'
+  } across ${input.eventCount} ${input.eventCount === 1 ? 'event' : 'events'}`,
   currency: input.currency,
   eventId: input.eventId,
   executiveUserId: null,
@@ -722,7 +730,7 @@ const validateReceiptReviewInput = Effect.fn(
   const rejectionReason = input.rejectionReason?.trim() || null;
   if (input.status === 'rejected' && !rejectionReason) {
     return yield* new RpcBadRequestError({
-      message: 'A rejection reason is required when rejecting a receipt',
+      message: 'Enter a reason for rejecting this receipt.',
       reason: 'missingRejectionReason',
     });
   }
@@ -736,7 +744,7 @@ const validateReceiptReviewInput = Effect.fn(
   );
   if (!purchaseCountry) {
     return yield* new RpcBadRequestError({
-      message: 'Receipt purchase country is invalid',
+      message: 'Choose an available purchase country.',
       reason: 'invalidPurchaseCountry',
     });
   }
@@ -790,7 +798,7 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
               if (!canPlatformReviewReceipt(before.status)) {
                 return yield* new RpcBadRequestError({
                   message:
-                    'This receipt has already been reviewed. Refresh the queue before taking another action.',
+                    'This receipt has already been reviewed. Return to the receipt list to see its current status.',
                   reason: 'receiptAlreadyReviewed',
                 });
               }
@@ -800,7 +808,8 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
                   approvalEvidence.attachmentUploadId
               ) {
                 return yield* new RpcBadRequestError({
-                  message: 'Receipt evidence changed before approval',
+                  message:
+                    'The receipt file changed while this page was open. Nothing was approved. Open the receipt again and review the current file.',
                   reason: 'receiptEvidenceUnavailable',
                 });
               }
@@ -830,7 +839,8 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
                     approvalEvidence.storageKey
                 ) {
                   return yield* new RpcBadRequestError({
-                    message: 'Receipt evidence changed before approval',
+                    message:
+                      'The receipt file changed while this page was open. Nothing was approved. Open the receipt again and review the current file.',
                     reason: 'receiptEvidenceUnavailable',
                   });
                 }
@@ -851,7 +861,8 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
               const receiptOwner = receiptOwnerRows[0];
               if (!receiptOwner) {
                 return yield* new RpcBadRequestError({
-                  message: 'Receipt submitter not found',
+                  message:
+                    'The person who submitted this receipt could not be found. Nothing was reviewed. Return to the receipt list and choose another receipt.',
                   reason: 'receiptSubmitterNotFound',
                 });
               }
@@ -869,7 +880,8 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
               const event = eventRows[0];
               if (!event) {
                 return yield* new RpcBadRequestError({
-                  message: 'Receipt event not found for the target tenant',
+                  message:
+                    'The event linked to this receipt could not be found. Nothing was reviewed. Return to the receipt list and choose another receipt.',
                   reason: 'receiptEventNotFound',
                 });
               }
@@ -910,14 +922,20 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
               const after = updatedReceipts[0];
               if (!after) {
                 return yield* new RpcBadRequestError({
-                  message: 'Receipt review preconditions changed',
+                  message:
+                    'The receipt changed while this page was open. Nothing was reviewed. Open it again and review the current details.',
                   reason: 'receiptReviewPreconditionFailed',
                 });
               }
+              const receiptUrl = yield* tenantOutboundUrl(
+                targetTenant,
+                '/profile/receipts',
+              ).pipe(Effect.orDie);
 
               yield* enqueueReceiptReviewedEmail(transaction, {
                 eventTitle: event.title,
                 receiptId: after.id,
+                receiptUrl,
                 rejectionReason: normalized.rejectionReason,
                 status: input.status,
                 tenant: targetTenant,
@@ -947,11 +965,19 @@ export const mapPlatformRefundRequeueError = Effect.fn(
   'PlatformTenantFinance.mapRefundRequeueError',
 )((error: unknown) =>
   error instanceof RegistrationRefundRequeueError
-    ? Effect.fail(
-        new RpcBadRequestError({
-          message: error.message,
-          reason: 'refundRequeueNotAllowed',
-        }),
+    ? Effect.logWarning('Refund could not be queued for another attempt').pipe(
+        Effect.annotateLogs(
+          safeServerErrorSummary('platformFinance.refund.requeue', error),
+        ),
+        Effect.andThen(
+          Effect.fail(
+            new RpcBadRequestError({
+              message:
+                'This refund cannot be tried again. The refund was not started again. Return to Refunds needing attention and review its current status.',
+              reason: 'refundRequeueNotAllowed',
+            }),
+          ),
+        ),
       )
     : Effect.die(error),
 );
@@ -996,7 +1022,7 @@ const requeueRefundClaim = Effect.fn(
             ) {
               return yield* new RpcBadRequestError({
                 message:
-                  'Refund claim is missing its registration or source transaction identity',
+                  'This refund has incomplete payment details and cannot be tried again.',
                 reason: 'invalidRefundClaimIdentity',
               });
             }
@@ -1017,7 +1043,7 @@ const requeueRefundClaim = Effect.fn(
             if (transferLookup.status === 'ambiguous') {
               return yield* new RpcBadRequestError({
                 message:
-                  'Refund claim is linked to more than one registration transfer',
+                  'This refund is linked to more than one transfer and cannot be tried again.',
                 reason: 'ambiguousRefundTransfer',
               });
             }
@@ -1061,7 +1087,7 @@ const requeueRefundClaim = Effect.fn(
             ) {
               return yield* new RpcBadRequestError({
                 message:
-                  'Registration transfer recovery state changed before the refund could be requeued',
+                  'The refund changed while this page was open. The refund was not started again. Return to Refunds needing attention, then select Review refund to check its current status.',
                 reason: 'refundTransferRecoveryPreconditionFailed',
               });
             }
@@ -1129,7 +1155,7 @@ const recordReimbursement = Effect.fn(
             const receiptIds = [...new Set(input.receiptIds)];
             if (receiptIds.length !== input.receiptIds.length) {
               return yield* new RpcBadRequestError({
-                message: 'Duplicate receipt ids are not allowed',
+                message: 'The same receipt was selected more than once.',
                 reason: 'duplicateReceiptIds',
               });
             }
@@ -1155,7 +1181,8 @@ const recordReimbursement = Effect.fn(
               .pipe(Effect.orDie);
             if (lockedReceipts.length !== receiptIds.length) {
               return yield* new RpcBadRequestError({
-                message: 'Some receipts are missing or not reimbursable',
+                message:
+                  'One or more selected receipts are no longer available. No reimbursement was recorded. Return to the reimbursement list and select the current receipts.',
                 reason: 'receiptCountMismatch',
               });
             }
@@ -1184,7 +1211,8 @@ const recordReimbursement = Effect.fn(
             const payoutUser = payoutUsers[0];
             if (!payoutUser) {
               return yield* new RpcBadRequestError({
-                message: 'Reimbursement recipient not found',
+                message:
+                  'The person receiving this reimbursement could not be found. No reimbursement was recorded. Return to the reimbursement list and select the current receipts.',
                 reason: 'payoutUserNotFound',
               });
             }
@@ -1196,8 +1224,8 @@ const recordReimbursement = Effect.fn(
               return yield* new RpcBadRequestError({
                 message:
                   input.payoutType === 'paypal'
-                    ? 'Reimbursement recipient is missing a PayPal address'
-                    : 'Reimbursement recipient is missing an IBAN',
+                    ? 'The person receiving this reimbursement has no PayPal email address saved.'
+                    : 'The person receiving this reimbursement has no IBAN saved.',
                 reason:
                   input.payoutType === 'paypal'
                     ? 'missingPaypal'
@@ -1209,7 +1237,7 @@ const recordReimbursement = Effect.fn(
               !isCanonicalIban(payoutReference)
             ) {
               return yield* new RpcBadRequestError({
-                message: 'Reimbursement recipient has an invalid IBAN',
+                message: 'The saved IBAN for this reimbursement is not valid.',
                 reason: 'invalidIban',
               });
             }
@@ -1219,7 +1247,7 @@ const recordReimbursement = Effect.fn(
             ) {
               return yield* new RpcBadRequestError({
                 message:
-                  'Reimbursement recipient has an invalid PayPal email address',
+                  'The saved PayPal email address for this reimbursement is not valid.',
                 reason: 'invalidPaypal',
               });
             }
@@ -1230,7 +1258,7 @@ const recordReimbursement = Effect.fn(
             if (payoutFingerprint !== input.payoutVersion) {
               return yield* new RpcBadRequestError({
                 message:
-                  'The recipient payout details changed. Refresh the queue and verify the current destination before recording the reimbursement.',
+                  "The recipient's payment details changed. No reimbursement was recorded. Return to the reimbursement list and verify the current details.",
                 reason: 'payoutDetailsChanged',
               });
             }
@@ -1286,7 +1314,8 @@ const recordReimbursement = Effect.fn(
               .pipe(Effect.orDie);
             if (updatedReceipts.length !== receiptIds.length) {
               return yield* new RpcBadRequestError({
-                message: 'Receipt reimbursement preconditions changed',
+                message:
+                  'The selected receipts changed while this page was open. No reimbursement was recorded. Return to the reimbursement list and review the current selection.',
                 reason: 'receiptReimbursementPreconditionFailed',
               });
             }

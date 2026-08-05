@@ -2,9 +2,7 @@ import { expect, test } from '../../support/fixtures/permissions-test';
 import { permissionMatrix } from '../../support/permissions/matrix';
 import { openAdminTools } from '../../support/utils/admin-tools';
 
-for (const [index, matrixCase] of permissionMatrix.entries()) {
-  const reqIdBase = `PERMISSION-MATRIX-SPEC-${String(index + 1).padStart(2, '0')}`;
-
+for (const matrixCase of permissionMatrix) {
   test.describe(matrixCase.capability, () => {
     test.use({ storageState: matrixCase.storageState });
 
@@ -19,7 +17,7 @@ for (const [index, matrixCase] of permissionMatrix.entries()) {
         await page.goto('.');
         await openAdminTools(page, isMobile);
         await expect(
-          page.getByRole('link', { name: 'Tax Rates' }),
+          page.getByRole('link', { name: 'Tax rates' }),
         ).toBeVisible();
         return;
       }
@@ -41,7 +39,6 @@ for (const [index, matrixCase] of permissionMatrix.entries()) {
     });
 
     test(`denies capability when required permissions are removed @permissions`, async ({
-      isMobile,
       page,
       permissionOverride,
     }) => {

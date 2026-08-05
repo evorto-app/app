@@ -178,7 +178,7 @@ describe('tenant brand assets', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
-          'Brand asset contents do not match the declared MIME type',
+          'This file could not be used as an image. Choose another image.',
         );
       }),
   );
@@ -195,6 +195,9 @@ describe('tenant brand assets', () => {
       }).pipe(Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe(
+        'This image type cannot be used. Choose another image.',
+      );
     }),
   );
 
@@ -211,7 +214,7 @@ describe('tenant brand assets', () => {
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe(
-        'Uploaded file size does not match payload metadata',
+        'This image could not be verified. Choose the file again.',
       );
     }),
   );

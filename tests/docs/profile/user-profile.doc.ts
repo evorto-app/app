@@ -16,7 +16,7 @@ import {
 
 test.use({ storageState: defaultStateFile });
 
-test('Manage user profile', async ({
+test('Manage your profile', async ({
   database,
   page,
   seedDate,
@@ -34,11 +34,11 @@ test('Manage user profile', async ({
   if (!originalUser) {
     throw new Error('Expected dedicated profile user to exist');
   }
-  const documentedNotificationEmail = `profile-docs-${seedDate.getTime()}@evorto.app`;
+  const documentedNotificationEmail = 'alex.member@example.org';
   const documentedIban = 'DE89370400440532013000';
-  const documentedPaypalEmail = `profile-docs-paypal-${seedDate.getTime()}@evorto.app`;
+  const documentedPaypalEmail = 'alex.paypal@example.org';
   const profileReceiptId = getId();
-  const profileReceiptFileName = `profile-docs-receipt-${seedDate.getTime()}.pdf`;
+  const profileReceiptFileName = 'train-tickets.pdf';
   let profileReceiptUploadId: string | undefined;
   const profileEventId = seeded.scenario.events.freeOpen.eventId;
   const profileEvent = seeded.events.find(
@@ -86,18 +86,20 @@ test('Manage user profile', async ({
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
-# User Profile Management
 
-Your user profile contains your personal information and a quick overview of your recent activity. You can view and edit your profile at any time.
+Your profile contains your personal information and a quick overview of your recent activity. You can view and edit it at any time.
 
-## Accessing Your Profile
+## Open your profile
 
-To access your profile, click on the **Profile** link in the navigation bar at the bottom of the screen (or on the left side on larger screens).
+To access your profile, select **Profile** in the navigation bar at the bottom of the screen (or on the left side on larger screens).
 `,
     });
 
     // Click on the Profile link in the navigation bar
     await page.getByRole('link', { name: 'Profile', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Account details' }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('.navigation'),
@@ -108,30 +110,44 @@ To access your profile, click on the **Profile** link in the navigation bar at t
       testInfo,
       page.locator('app-user-profile'),
       page,
-      'User profile page',
+      'Profile contact details and available actions',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Profile Information
+## Profile information
 
 The profile page displays your personal information, including:
 
 - Name
-- Login email address and notification email address
-- Global reimbursement details (IBAN / PayPal) used when finance teams record manual receipt reimbursements
+- Sign-in email address and email for updates
+- IBAN or PayPal details used when finance teams reimburse receipts
 
 From here you can open the edit dialog to update your profile details.
 
-## Claiming a private registration transfer
+## Use a private transfer code
 
-If another participant sends you a transfer code, select **Claim transfer** under **Registration transfers**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The claim page URL is generic and does not contain the private code.
+If another attendee sends you a transfer code, select **Use transfer code** under **Ticket transfers**. Paste the complete code, including its hyphens, and review the event, questions you need to answer, price, guests, add-ons, check-ins, and handed-out items before accepting it. The code is not included in the transfer page's web address.
 `,
     });
 
+    const useTransferCode = page.getByRole('link', {
+      exact: true,
+      name: 'Use transfer code',
+    });
+    await expect(useTransferCode).toBeVisible();
+    const ticketTransfers = page.locator('section').filter({
+      has: useTransferCode,
+    });
     await expect(
-      page.getByRole('link', { exact: true, name: 'Claim transfer' }),
+      ticketTransfers.getByRole('heading', { name: 'Ticket transfers' }),
     ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      ticketTransfers,
+      page,
+      'Private transfer code guidance and Use transfer code action',
+    );
 
     const editProfileButton = page.getByRole('button', {
       name: 'Edit profile',
@@ -141,20 +157,12 @@ If another participant sends you a transfer code, select **Claim transfer** unde
     // Event replay removes `jsaction` once the hydrated action is interactive.
     await expect(editProfileButton).not.toHaveAttribute('jsaction', /click/);
 
-    // Take a screenshot of the entire profile component
-    await takeScreenshot(
-      testInfo,
-      page.locator('app-user-profile'),
-      page,
-      'Profile information section',
-    );
-
     await testInfo.attach('markdown', {
       body: `
-## Editing Your Profile
+## Edit your profile
 
-Click **Edit profile** to open the profile dialog.
-The form uses inline validation, and the save button is only enabled when both names and the notification email are filled in. IBAN and PayPal details are optional global reimbursement details, not organization-specific payout instructions. The profile summary updates immediately after saving.
+Select **Edit profile** to open the profile dialog.
+Messages beside each field explain what needs to be corrected, and **Save** becomes available after **First name**, **Last name**, and **Email for updates** are valid. IBAN and PayPal details are optional reimbursement details shared across your organizations. The profile summary updates immediately after saving.
 `,
     });
 
@@ -169,29 +177,37 @@ The form uses inline validation, and the save button is only enabled when both n
       testInfo,
       editDialog,
       page,
-      'Edit profile validation state',
+      'Profile fields that need attention',
     );
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(editDialog).toHaveCount(0);
 
     await testInfo.attach('markdown', {
       body: `
-## Notification Email Persistence
+## Change your email for updates
 
-The notification email is user-managed and may differ from the sign-in email. Optional IBAN and PayPal fields store global reimbursement details for finance teams. After saving, the profile summary displays the updated notification email while the sign-in email remains unchanged.
+You can use a different address for updates than for signing in. Optional IBAN and PayPal fields tell finance teams where to send reimbursements. After saving, the profile summary displays the updated email for updates while the sign-in email remains unchanged.
 `,
     });
 
     await editProfileButton.click();
     await expect(editDialog).toBeVisible();
-    await page
-      .getByRole('textbox', { name: 'Notification email' })
+    await editDialog
+      .getByRole('textbox', { exact: true, name: 'Email for updates' })
       .fill(documentedNotificationEmail);
-    await page.getByRole('textbox', { name: 'IBAN' }).fill(documentedIban);
-    await page
-      .getByRole('textbox', { name: 'PayPal email' })
+    await editDialog
+      .getByRole('textbox', {
+        exact: true,
+        name: 'IBAN (for reimbursements)',
+      })
+      .fill(documentedIban);
+    await editDialog
+      .getByRole('textbox', {
+        exact: true,
+        name: 'PayPal email (for reimbursements)',
+      })
       .fill(documentedPaypalEmail);
-    await page.getByRole('button', { name: 'Save' }).click();
+    await editDialog.getByRole('button', { exact: true, name: 'Save' }).click();
     await expect(editDialog).toHaveCount(0);
     await expect(
       page.getByText(documentedNotificationEmail, { exact: true }),
@@ -214,21 +230,17 @@ The notification email is user-managed and may differ from the sign-in email. Op
       testInfo,
       page.locator('app-user-profile'),
       page,
-      'Profile notification email persisted',
+      'Saved email for updates',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Summary
+## Profile pages
 
-The user profile uses focused routed pages inside a two-column layout:
-
-- Left side: profile-page navigation
-- Right side: the current profile page
-- The **Overview** page shows account contact details and whether reimbursement details are configured without displaying full bank details
-- The **Events** page links each registration to its event details and shows its status, selected option, guest quantity, purchased add-ons, payment state, and check-in time when available
-- From an event card, you can continue a pending payment or open the event to view the ticket, cancellation, transfer, or waitlist details; the card also explains that cancellation stops after check-in and that a transfer preserves attendee and guest check-in history
-- Other pages include **Discounts** and **Receipts**
+- **Overview** shows contact details and whether reimbursement details are ready, without displaying full bank details.
+- **Events** links each ticket to its event and shows the sign-up choice, guests, add-ons, payment, and check-in details.
+- From an event card, you can continue a payment or open the event to view its ticket, cancellation, transfer, or waitlist details.
+- Other pages include **Discounts** and **Receipts**.
 `,
     });
 
@@ -237,7 +249,7 @@ The user profile uses focused routed pages inside a two-column layout:
       .getByRole('link', { name: 'Events' })
       .click();
     await expect(
-      page.getByRole('heading', { name: 'Your Event Registrations' }),
+      page.getByRole('heading', { name: 'Your events' }),
     ).toBeVisible();
     const documentedEventCard = page
       .locator('article')
@@ -274,19 +286,19 @@ The user profile uses focused routed pages inside a two-column layout:
       .filter({ hasText: profileEventCards.pendingCheckout.title });
     await expect(pendingCheckoutCard).toBeVisible();
     await expect(
-      pendingCheckoutCard.getByText('Pending', { exact: true }),
+      pendingCheckoutCard.getByText('Waiting for confirmation', {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
-      pendingCheckoutCard.getByText('Payment pending'),
+      pendingCheckoutCard.getByText('Payment not finished', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText('Finish payment to confirm your place.'),
     ).toBeVisible();
     await expect(
       pendingCheckoutCard.getByText(
-        'Finish the checkout payment to confirm your spot.',
-      ),
-    ).toBeVisible();
-    await expect(
-      pendingCheckoutCard.getByText(
-        'Continue payment from this card, or open the event page for registration details.',
+        'Finish payment here, or open the event page for your sign-up details.',
       ),
     ).toBeVisible();
     await expect(
@@ -303,12 +315,12 @@ The user profile uses focused routed pages inside a two-column layout:
       .filter({ hasText: profileEventCards.waitlist.title });
     await expect(waitlistCard).toBeVisible();
     await expect(
-      waitlistCard.getByText('Waitlist', { exact: true }),
+      waitlistCard.getByText('On waitlist', { exact: true }),
     ).toBeVisible();
     await expect(waitlistCard.getByText('No payment required')).toBeVisible();
     await expect(
       waitlistCard.getByText(
-        'Open the event page for waitlist details and current cancellation status.',
+        'Open the event page for waitlist details and whether you can leave it.',
       ),
     ).toBeVisible();
     await expect(
@@ -335,7 +347,7 @@ The user profile uses focused routed pages inside a two-column layout:
     ).toBeVisible();
     await expect(
       checkedInEventCard.getByText(
-        'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
+        'You are checked in. Open the event page for ticket details. You can no longer cancel, but you can still transfer the ticket and its existing check-ins.',
       ),
     ).toBeVisible();
     await expect(
@@ -459,7 +471,7 @@ The user profile uses focused routed pages inside a two-column layout:
       .getByRole('link', { name: 'Receipts' })
       .click();
     await expect(
-      page.getByRole('heading', { name: 'Submitted receipts' }),
+      page.getByRole('heading', { name: 'Your receipts' }),
     ).toBeVisible();
     const profileReceiptCard = page
       .locator('article')

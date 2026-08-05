@@ -69,7 +69,7 @@ export const registrationOptionFormSchema = schema<RegistrationOptionFormModel>(
       when: ({ valueOf }) => valueOf(form.isPaid),
     });
     min(form.price, 1, {
-      message: 'Paid registrations must cost at least 0.01.',
+      message: 'A paid choice must cost at least 0.01.',
     });
     min(form.spots, 1);
     required(form.stripeTaxRateId);
@@ -81,13 +81,13 @@ export const registrationOptionFormSchema = schema<RegistrationOptionFormModel>(
       if (discountedPrice < 0) {
         return {
           kind: 'min',
-          message: 'Discounted price must be non-negative.',
+          message: 'Discounted price must be zero or more.',
         };
       }
       if (discountedPrice > valueOf(form.price)) {
         return {
           kind: 'max',
-          message: 'Discounted price cannot exceed the base price.',
+          message: 'Discounted price cannot exceed the regular price.',
         };
       }
       return;

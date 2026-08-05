@@ -70,7 +70,16 @@ export class RoleEditComponent {
       {
         onError: (error) => {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to update role'),
+            getErrorMessage(
+              error,
+              'The role could not be updated. Try again.',
+              [
+                'RoleNameAlreadyExistsError',
+                'RoleWriteValidationError',
+                'AdminRoleNotFoundError',
+                'RpcBadRequestError',
+              ],
+            ),
           );
         },
         onSuccess: async () => {
@@ -97,9 +106,5 @@ export class RoleEditComponent {
         },
       },
     );
-  }
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
   }
 }

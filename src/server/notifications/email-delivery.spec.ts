@@ -87,9 +87,7 @@ const outboxDatabase = ({
             returning: () => {
               if (
                 values.status === 'deliveryUnknown' &&
-                String(values.lastError).startsWith(
-                  'The delivery worker stopped',
-                )
+                !Object.hasOwn(values, 'provider')
               ) {
                 return Effect.succeed(abandonedIds.map((id) => ({ id })));
               }
@@ -128,12 +126,12 @@ describe('email delivery', () => {
     'queues receipt review notifications with a tenant reply-to and no stored sender copy',
     () =>
       Effect.gen(function* () {
-        let insertedValue: unknown;
+        let insertedValue: Record<string, unknown> | undefined;
         const database = {
           insert: (table: unknown) => {
             expect(table).toBe(emailOutbox);
             return {
-              values: (value: unknown) => {
+              values: (value: Record<string, unknown>) => {
                 insertedValue = value;
                 return {
                   onConflictDoNothing: (options: unknown) => {
@@ -153,6 +151,7 @@ describe('email delivery', () => {
           {
             eventTitle: 'City tour',
             receiptId: 'receipt-1',
+            receiptUrl: 'https://section.example.org/profile/receipts',
             rejectionReason: null,
             status: 'approved',
             tenant: {
@@ -178,6 +177,9 @@ describe('email delivery', () => {
         );
         expect(insertedValue).not.toHaveProperty('fromEmail');
         expect(insertedValue).not.toHaveProperty('fromName');
+        expect(String(insertedValue?.html)).toContain(
+          'https://section.example.org/profile/receipts',
+        );
       }),
   );
 
@@ -213,8 +215,11 @@ describe('email delivery', () => {
           to: 'alice@example.com',
         });
 
+        expect(insertedValue?.subject).toBe(
+          'Sign-up approved: payment required',
+        );
         expect(String(insertedValue?.text)).toContain(
-          '16.07.2026, 00:30 GMT+10 (Australia/Brisbane)',
+          '16.07.2026, 00:30 (local time for Example Section)',
         );
         expect(String(insertedValue?.text)).not.toContain(
           '2026-07-15T14:30:00.000Z',
@@ -303,9 +308,11 @@ describe('email delivery', () => {
           to: 'alice@example.com',
         });
         yield* enqueueRegistrationCancelledEmail(database, {
+          cancellationKind: 'ticket',
           cancelledBy: 'organizer',
           eventTitle,
           eventUrl,
+          refundOutcome: 'pending',
           registrationId: 'registration-1',
           tenant,
           to: 'alice@example.com',
@@ -323,6 +330,7 @@ describe('email delivery', () => {
           eventUrl,
           recipientRole: 'newOwner',
           recipientUserId: 'user-2',
+          refundOutcome: 'pending',
           registrationId: 'registration-1',
           tenant,
           to: 'new-owner@example.com',
@@ -333,6 +341,7 @@ describe('email delivery', () => {
           eventUrl,
           recipientRole: 'newOwner',
           recipientUserId: 'user-2',
+          refundOutcome: 'pending',
           registrationId: 'registration-1',
           tenant,
           to: 'new-owner@example.com',
@@ -343,6 +352,7 @@ describe('email delivery', () => {
           eventUrl,
           recipientRole: 'previousOwner',
           recipientUserId: 'user-1',
+          refundOutcome: 'pending',
           registrationId: 'registration-1',
           tenant,
           to: 'previous-owner@example.com',
@@ -353,6 +363,7 @@ describe('email delivery', () => {
           eventUrl,
           recipientRole: 'newOwner',
           recipientUserId: 'user-2',
+          refundOutcome: 'notStarted',
           registrationId: 'registration-1',
           tenant,
           to: 'new-owner@example.com',
@@ -379,6 +390,16 @@ describe('email delivery', () => {
           'registrationTransferred',
           'registrationTransferred',
         ]);
+        expect(insertedValues.map((value) => value.subject)).toEqual([
+          `Ticket confirmed: ${eventTitle}`,
+          `Ticket confirmed: ${eventTitle}`,
+          `Ticket cancelled: ${eventTitle}`,
+          `A place may be available: ${eventTitle}`,
+          `Ticket transferred to you: ${eventTitle}`,
+          `Ticket transferred to you: ${eventTitle}`,
+          `Ticket transferred: ${eventTitle}`,
+          `Ticket transferred to you: ${eventTitle}`,
+        ]);
         for (const insertedValue of insertedValues) {
           expect(insertedValue.html).toEqual(
             expect.stringContaining('lang="en"'),
@@ -394,9 +415,17 @@ describe('email delivery', () => {
           expect(String(insertedValue.text).length).toBeGreaterThan(20);
         }
         expect(insertedValues[0]?.text).toContain(
-          'The ticket owner must sign in to Evorto',
+          'Sign in with the account that holds this ticket',
         );
-        expect(insertedValues[3]?.text).toContain('does not reserve a spot');
+        expect(insertedValues[3]?.text).toContain(
+          'We have not held a place for you',
+        );
+        expect(insertedValues[3]?.subject).toBe(
+          `A place may be available: ${eventTitle}`,
+        );
+        expect(insertedValues.map(({ text }) => text).join('\n')).not.toContain(
+          'transactional message',
+        );
       }),
   );
 
@@ -424,8 +453,10 @@ describe('email delivery', () => {
           },
         } as Pick<DatabaseClient, 'insert'>;
         const baseInput = {
+          cancellationKind: 'ticket' as const,
           eventTitle: 'City tour',
           eventUrl: 'https://app.example/events/event-1',
+          refundOutcome: 'notStarted' as const,
           registrationId: 'registration-1',
           tenant: {
             emailSenderEmail: 'board@example.org',
@@ -451,6 +482,7 @@ describe('email delivery', () => {
         yield* enqueueRegistrationCancelledEmail(database, {
           ...baseInput,
           cancelledBy: 'eligibilityChangedAfterPayment',
+          refundOutcome: 'pending',
         });
 
         expect(insertedValues.map((value) => value.idempotencyKey)).toEqual([
@@ -460,32 +492,27 @@ describe('email delivery', () => {
           'registration-cancelled/tenant-1/registration-1',
         ]);
         expect(String(insertedValues[0]?.text)).toContain(
-          'You cancelled your registration for City tour.',
+          'You cancelled your ticket for City tour.',
         );
         expect(String(insertedValues[1]?.text)).toContain(
-          'An organizer cancelled your registration for City tour.',
+          'An organizer cancelled your ticket for City tour.',
         );
         expect(String(insertedValues[2]?.text)).toContain(
-          'A platform administrator cancelled your registration for City tour.',
+          'Evorto cancelled your ticket for City tour.',
         );
         expect(String(insertedValues[2]?.text)).not.toContain(
           'An organizer cancelled',
         );
         expect(String(insertedValues[3]?.text)).toContain(
-          'the event or registration option was no longer available to you when payment completed',
+          'the event or your access to it changed after you paid',
         );
         expect(String(insertedValues[3]?.text)).toContain(
-          'the event is no longer published',
+          'A refund to your original payment method is in progress',
         );
-        expect(String(insertedValues[3]?.text)).toContain(
-          'the option was removed',
+        expect(String(insertedValues[3]?.text)).not.toContain(
+          'registration option',
         );
-        expect(String(insertedValues[3]?.text)).toContain(
-          'your organization membership or roles changed',
-        );
-        expect(String(insertedValues[3]?.text)).toContain(
-          'The full amount you paid was queued for refund to your original payment method',
-        );
+        expect(String(insertedValues[3]?.text)).not.toContain('roles changed');
       }),
   );
 
@@ -560,9 +587,8 @@ describe('email delivery', () => {
             claimLeaseExpiresAt: null,
             claimLeaseId: null,
             deliveryUnknownAt: expect.any(Date),
-            lastError: expect.stringContaining(
-              'automatic resend is disabled to prevent duplicate email',
-            ),
+            lastError:
+              'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.',
             status: 'deliveryUnknown',
           }),
         ]);
@@ -617,11 +643,12 @@ describe('email delivery', () => {
             claimLeaseId: null,
             deliveryUnknownAt: expect.any(Date),
             lastError:
-              'tem email request failed with HTTP 503; delivery outcome is unknown',
+              'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.',
             provider: 'tem',
             status: 'deliveryUnknown',
           }),
         );
+        expect(JSON.stringify(updateSets)).not.toContain('HTTP 503');
         expect(updateSets).not.toEqual(
           expect.arrayContaining([
             expect.objectContaining({ status: 'queued' }),
@@ -652,14 +679,48 @@ describe('email delivery', () => {
         expect.objectContaining({
           claimLeaseExpiresAt: null,
           claimLeaseId: null,
-          lastError: 'tem email request failed with HTTP 400',
+          lastError:
+            'This email could not be sent. Check the recipient address and email settings.',
           provider: 'tem',
           status: 'failed',
         }),
       );
+      expect(JSON.stringify(updateSets)).not.toContain('HTTP 400');
       expect(updateSets).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ status: 'queued' })]),
       );
+    }),
+  );
+
+  it.effect('stores a plain explanation when an email is withheld', () =>
+    Effect.gen(function* () {
+      const deliveryLayer = EmailDelivery.layerFake(() =>
+        Effect.succeed({
+          _tag: 'Suppressed' as const,
+          provider: 'tem' as const,
+          reason: 'Recipient is outside the protected staging allowlist',
+        }),
+      );
+      const { database, updateSets } = outboxDatabase();
+
+      const processed = yield* processDueEmailOutbox(1).pipe(
+        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        Effect.provide(deliveryLayer),
+      );
+
+      expect(processed).toBe(1);
+      expect(updateSets.at(-1)).toEqual(
+        expect.objectContaining({
+          claimLeaseExpiresAt: null,
+          claimLeaseId: null,
+          lastError:
+            'This email was not sent because this address cannot receive organization emails.',
+          provider: 'tem',
+          status: 'suppressed',
+          suppressedAt: expect.any(Date),
+        }),
+      );
+      expect(JSON.stringify(updateSets)).not.toContain('allowlist');
     }),
   );
 });

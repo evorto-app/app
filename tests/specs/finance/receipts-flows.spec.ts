@@ -216,7 +216,6 @@ test('approve and record receipt reimbursements in finance', async ({
   const receiptId = getId();
   const receiptFileName = `approval-reimbursement-${seedDate.getTime()}.pdf`;
   let receiptUploadId: string | undefined;
-  let refundTransactionId: string | undefined;
   try {
     await database
       .update(schema.tenants)
@@ -272,7 +271,7 @@ test('approve and record receipt reimbursements in finance', async ({
     await page.goto('/finance/receipts-refunds');
     await expect(
       page.getByText(
-        'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.',
+        'This only records that you paid the reimbursement. Evorto does not transfer the money.',
       ),
     ).toBeVisible();
     await expect(
@@ -316,7 +315,7 @@ test('approve and record receipt reimbursements in finance', async ({
       .click();
 
     await expect(
-      page.getByText('Reimbursement transaction recorded'),
+      page.getByText('Reimbursement recorded', { exact: true }),
     ).toBeVisible();
 
     await expect
@@ -342,7 +341,6 @@ test('approve and record receipt reimbursements in finance', async ({
       throw new Error('Expected seeded receipt after reimbursement recording');
     }
     const createdRefundTransactionId = refundedReceipt.refundTransactionId;
-    refundTransactionId = createdRefundTransactionId;
     await expect
       .poll(() =>
         database.query.transactions.findFirst({
@@ -354,18 +352,31 @@ test('approve and record receipt reimbursements in finance', async ({
         status: 'successful',
       });
   } finally {
-    await database
+    const [deletedReceipt] = await database
       .delete(schema.financeReceipts)
-      .where(eq(schema.financeReceipts.id, receiptId));
+      .where(
+        and(
+          eq(schema.financeReceipts.id, receiptId),
+          eq(schema.financeReceipts.tenantId, tenant.id),
+        ),
+      )
+      .returning({
+        refundTransactionId: schema.financeReceipts.refundTransactionId,
+      });
     if (receiptUploadId) {
       await database
         .delete(schema.financeReceiptUploads)
         .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
     }
-    if (refundTransactionId) {
+    if (deletedReceipt?.refundTransactionId) {
       await database
         .delete(schema.transactions)
-        .where(eq(schema.transactions.id, refundTransactionId));
+        .where(
+          and(
+            eq(schema.transactions.id, deletedReceipt.refundTransactionId),
+            eq(schema.transactions.tenantId, tenant.id),
+          ),
+        );
     }
     await database
       .delete(schema.users)
@@ -391,19 +402,7 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
   const eventId = seeded.scenario.events.past.eventId;
   const receiptId = getId();
   const receiptFileName = `missing-evidence-${seedDate.getTime()}.pdf`;
-  let receiptUploadId: string | undefined;
-  registerDatabaseCleanup(async (cleanupDatabase) => {
-    await cleanupDatabase
-      .delete(schema.financeReceipts)
-      .where(eq(schema.financeReceipts.id, receiptId));
-    if (receiptUploadId) {
-      await cleanupDatabase
-        .delete(schema.financeReceiptUploads)
-        .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
-    }
-  });
-
-  receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+  const receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
     eventId,
     fileName: receiptFileName,
     mimeType: 'application/pdf',
@@ -411,6 +410,15 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
     tenantId: tenant.id,
     uploadedByUserId: organizerUser.id,
   });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceipts)
+      .where(eq(schema.financeReceipts.id, receiptId));
+    await cleanupDatabase
+      .delete(schema.financeReceiptUploads)
+      .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+  });
+
   await database.insert(schema.financeReceipts).values({
     alcoholAmount: 0,
     attachmentFileName: receiptFileName,
@@ -436,7 +444,7 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
   await expect(
     page.getByRole('alert').filter({
       hasText:
-        'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+        'The uploaded receipt file is unavailable. You cannot approve the receipt until the file can be checked, but you can still reject it.',
     }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
@@ -486,7 +494,7 @@ test('receipt dialog shows Other option when tenant allows it', async ({
   await page.getByRole('button', { name: 'Add receipt' }).click();
   await page.getByLabel('Purchase country').click();
   const otherCountryOption = page.getByRole('option', {
-    name: 'Other (outside configured countries)',
+    name: 'Other country',
   });
   await expect(otherCountryOption).toBeVisible();
 });

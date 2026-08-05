@@ -4,7 +4,7 @@
   <h2 class="title-medium mb-4">Who's who</h2>
   @if (rolesQuery.isError()) {
     <div class="text-error p-4">
-      Error loading roles: {{ errorMessage(rolesQuery.error()) }}
+      We could not load the member list. Try again.
     </div>
   } @else if (rolesQuery.isSuccess()) {
     <div class="@lg:grid-cols-3 @md:grid-cols-2 grid gap-4">
@@ -42,7 +42,7 @@
     </div>
   } @else {
     <div class="flex justify-center p-8">
-      <div class="text-on-surface-variant">Loading roles...</div>
+      <div class="text-on-surface-variant">Loading roles…</div>
     </div>
   }
 </div>

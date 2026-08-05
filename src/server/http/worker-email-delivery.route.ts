@@ -1,4 +1,4 @@
-import { Effect } from 'effect';
+import { Effect, Schema } from 'effect';
 import {
   HttpRouter as HttpLayerRouter,
   HttpServerError,
@@ -12,8 +12,8 @@ import { processDueEmailOutbox } from '../notifications/email-delivery';
 import { validateRuntimeRoleConfiguration } from '../runtime/runtime-role';
 import { APPLICATION_READINESS_PATH } from './application-readiness';
 import {
-  handleInternalTriggerWebRequest,
-  type InternalTriggerArguments,
+  handleInternalJsonTriggerWebRequest,
+  InternalTriggerArguments,
 } from './internal-trigger.web-handler';
 
 export const WORKER_EMAIL_DELIVERY_PATH =
@@ -36,6 +36,12 @@ export const workerEmailDeliveryReadinessRouteLayer = HttpLayerRouter.add(
 export const handleWorkerTrigger = <A, E, R>(
   request: HttpServerRequest.HttpServerRequest,
   operation: (arguments_: InternalTriggerArguments) => Effect.Effect<A, E, R>,
+) => handleWorkerJsonTrigger(request, InternalTriggerArguments, operation);
+
+export const handleWorkerJsonTrigger = <S extends Schema.Constraint, A, E, R>(
+  request: HttpServerRequest.HttpServerRequest,
+  schema: S,
+  operation: (arguments_: S['Type']) => Effect.Effect<A, E, R>,
 ) =>
   Effect.gen(function* () {
     const deployment = yield* DeploymentRuntimeConfig;
@@ -45,8 +51,9 @@ export const handleWorkerTrigger = <A, E, R>(
     }
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
-    const webResponse = yield* handleInternalTriggerWebRequest(
+    const webResponse = yield* handleInternalJsonTriggerWebRequest(
       webRequest,
+      schema,
       operation,
     );
     return HttpServerResponse.fromWeb(webResponse);

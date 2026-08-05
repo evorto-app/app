@@ -102,10 +102,8 @@ const currentPaymentProviderSettingsInput = {
   buyEsnCardUrl: 'https://esncard.org/',
   currency: 'EUR' as const,
   esnCardEnabled: true,
-  expectedStripeAccountId: 'acct_123',
   receiptCountries: ['DE', 'NL'],
   refundFeesOnCancellation: true,
-  stripeAccountId: 'acct_123',
 };
 
 const currentRegistrationSettingsInput = {
@@ -150,17 +148,20 @@ describe('tenant settings input schemas', () => {
     }
   });
 
-  it('requires the originally loaded Stripe account for payment updates', () => {
-    const {
-      expectedStripeAccountId: _expectedStripeAccountId,
-      ...missingExpectedAccount
-    } = currentPaymentProviderSettingsInput;
-
-    expect(() =>
-      Schema.decodeUnknownSync(AdminTenantUpdatePaymentProviderSettingsInput)(
-        missingExpectedAccount,
-      ),
-    ).toThrow();
+  it('refuses removed payment-account fields on settings updates', () => {
+    for (const removedField of [
+      { expectedStripeAccountId: 'acct_server_only' },
+      { stripeAccountId: 'acct_server_only' },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(AdminTenantUpdatePaymentProviderSettingsInput)(
+          {
+            ...currentPaymentProviderSettingsInput,
+            ...removedField,
+          },
+        ),
+      ).toThrow();
+    }
   });
 
   it('accepts a canonical Google default location', () => {

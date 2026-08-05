@@ -10,6 +10,8 @@ import {
   organizerRegistrationActionDisabled,
   organizerRegistrationApprovalDisabled,
   organizerRegistrationApprovalLabel,
+  organizerRegistrationCancellationActionLabel,
+  organizerRegistrationErrorMessage,
   organizerRegistrationTransferDisabled,
   receiptSubmissionActionDisabled,
 } from './event-organize';
@@ -17,6 +19,30 @@ import { transferParticipantLabel } from './registration-transfer-dialog.compone
 
 const readSource = (sourcePath: string): string =>
   readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
+
+describe('organizer registration error messages', () => {
+  it('shows current registration outcomes without exposing internal failures', () => {
+    const fallback = 'The ticket could not be updated. Try again.';
+    expect(
+      organizerRegistrationErrorMessage(
+        {
+          _tag: 'EventRegistrationNotFoundError',
+          message: 'This ticket could not be found.',
+        },
+        fallback,
+      ),
+    ).toBe('This ticket could not be found.');
+    expect(
+      organizerRegistrationErrorMessage(
+        {
+          _tag: 'EventRegistrationInternalError',
+          message: 'database failed',
+        },
+        fallback,
+      ),
+    ).toBe(fallback);
+  });
+});
 
 describe('computeEventOrganizeStats', () => {
   it('uses the server-provided unfiltered aggregates for organizer statistics', () => {
@@ -130,16 +156,16 @@ describe('groupEventOrganizeRegistrationOptions', () => {
 
     expect(groups).toEqual([
       {
-        emptyMessage: 'No organizer/helper registrations yet.',
+        emptyMessage: 'No organizer/helper sign-ups yet.',
         id: 'organizer-helper-team',
         options: [organizerOption],
         title: 'Organizer/helper team',
       },
       {
-        emptyMessage: 'No participant registrations yet.',
+        emptyMessage: 'No attendee sign-ups yet.',
         id: 'participant-registrations',
         options: [participantOptionA, participantOptionB],
-        title: 'Participant registrations',
+        title: 'Attendee sign-ups',
       },
     ]);
   });
@@ -233,7 +259,7 @@ describe('organizerRegistrationApprovalDisabled', () => {
 });
 
 describe('organizerRegistrationApprovalLabel', () => {
-  it('distinguishes fresh approval from payment setup recovery', () => {
+  it('distinguishes fresh approval from payment recovery', () => {
     expect(
       organizerRegistrationApprovalLabel({
         approvalPending: false,
@@ -245,7 +271,7 @@ describe('organizerRegistrationApprovalLabel', () => {
         approvalPending: false,
         paymentSetupRequired: true,
       }),
-    ).toBe('Retry payment setup');
+    ).toBe('Try payment again');
   });
 
   it('shows the in-flight state for either approval action', () => {
@@ -258,6 +284,26 @@ describe('organizerRegistrationApprovalLabel', () => {
       ).toBe('Approving…');
     }
   });
+});
+
+describe('organizerRegistrationCancellationActionLabel', () => {
+  it.each([
+    ['PENDING', false, 'Withdraw application'],
+    ['PENDING', true, 'Cancel sign-up'],
+    ['WAITLIST', false, 'Remove from waitlist'],
+    ['CONFIRMED', false, 'Cancel ticket'],
+    ['CANCELLED', false, 'Sign-up ended'],
+  ] as const)(
+    'describes %s without calling every record a ticket',
+    (status, paymentPending, expected) => {
+      expect(
+        organizerRegistrationCancellationActionLabel({
+          paymentPending,
+          status,
+        }),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe('event organizer approval template', () => {
@@ -273,7 +319,7 @@ describe('event organizer approval template', () => {
       '@if (!registrationOption.organizingRegistration)',
     );
     expect(template).toContain('[attr.aria-busy]="approvalInFlight || null"');
-    expect(template).toContain('Payment setup needs retry');
+    expect(template).toContain('Payment needs attention');
   });
 
   it('hides transfer and cancellation actions unless their server capabilities are present', () => {
@@ -288,7 +334,7 @@ describe('event organizer approval template', () => {
       '@if (registrationOption.canCancelRegistrations)',
     );
     expect(template.replaceAll(/\s+/g, ' ')).toContain(
-      'Only confirmed registrations can be transferred.',
+      'Only confirmed tickets can be transferred.',
     );
   });
 });
@@ -321,9 +367,10 @@ describe('event organizer query-state template', () => {
     expect(template).toContain('@if (eventQuery.isPending())');
     expect(template).toContain('@else if (eventQuery.isError())');
     expect(template).toContain('@else if (organizerOverviewQuery.isSuccess())');
-    expect(template).toContain('Participant data could not be loaded');
-    expect(template).toContain(
-      'not treat the missing counts as zero or as current event data',
+    expect(template).toContain('Attendees could not be loaded');
+    expect(template).toContain('No current sign-up counts');
+    expect(template.replaceAll(/\s+/g, ' ')).toContain(
+      'attendee actions are shown',
     );
     expect(template).toContain('(click)="organizerOverviewQuery.refetch()"');
     expect(template).toContain('(click)="receiptsByEventQuery.refetch()"');
@@ -335,9 +382,7 @@ describe('event organizer query-state template', () => {
     expect(source).toContain(
       'Receipt history must load before a receipt can be added.',
     );
-    expect(source).toContain(
-      "getErrorMessage(error, 'Failed to submit receipt')",
-    );
+    expect(source).toContain('The receipt was not submitted. Try again.');
   });
 
   it('binds organizer cancellation to the confirmed participant state', () => {

@@ -1,3 +1,5 @@
+import type { EventsEventListUserSignUpState } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import { RpcForbiddenError } from '@shared/errors/rpc-errors';
 import {
   includesPermission,
@@ -34,6 +36,7 @@ import {
   eventRegistrationQuestions,
   eventRegistrations,
   tenantStripeTaxRates,
+  transactions,
 } from '../../../../../db/schema';
 import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import { RpcAccess } from '../shared/rpc-access.service';
@@ -80,6 +83,43 @@ export const eventListOrder = () => [
   asc(eventInstances.start),
   asc(eventInstances.id),
 ];
+
+export const eventListUserSignUpState = ({
+  hasPendingRegistrationTransaction,
+  registrationId,
+  registrationMode,
+  registrationStatus,
+}: {
+  hasPendingRegistrationTransaction: boolean;
+  registrationId: string;
+  registrationMode: 'application' | 'fcfs';
+  registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+}): EventsEventListUserSignUpState => {
+  switch (registrationStatus) {
+    case 'CONFIRMED': {
+      return 'confirmed';
+    }
+    case 'WAITLIST': {
+      return 'waitlisted';
+    }
+    case 'PENDING': {
+      if (hasPendingRegistrationTransaction) {
+        return 'paymentRequired';
+      }
+      if (registrationMode === 'application') {
+        return 'approvalPending';
+      }
+      throw new Error(
+        `Active registration ${registrationId} is pending in first-come-first-served mode without a pending registration payment`,
+      );
+    }
+    case 'CANCELLED': {
+      throw new Error(
+        `Cancelled registration ${registrationId} reached the active event-list state mapper`,
+      );
+    }
+  }
+};
 
 export const eventRegistrationOptionRoleEligibilityFilter = ({
   allowUnrestricted,
@@ -278,7 +318,7 @@ export const eventQueryHandlers = {
       ) {
         return yield* Effect.fail(
           new RpcForbiddenError({
-            message: 'Forbidden',
+            message: 'You do not have permission to view unpublished events.',
             permission: 'events:seeDrafts',
           }),
         );
@@ -328,18 +368,6 @@ export const eventQueryHandlers = {
             start: eventInstances.start,
             status: eventInstances.status,
             title: eventInstances.title,
-            userRegistered: exists(
-              database
-                .select()
-                .from(eventRegistrations)
-                .where(
-                  and(
-                    eq(eventRegistrations.eventId, eventInstances.id),
-                    eq(eventRegistrations.userId, user?.id ?? ''),
-                    not(eq(eventRegistrations.status, 'CANCELLED')),
-                  ),
-                ),
-            ),
           })
           .from(eventInstances)
           .where(
@@ -391,6 +419,60 @@ export const eventQueryHandlers = {
           .orderBy(...eventListOrder()),
       );
 
+      const activeUserRegistrations =
+        user === null || selectedEvents.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  eventId: eventRegistrations.eventId,
+                  hasPendingRegistrationTransaction: exists(
+                    database
+                      .select()
+                      .from(transactions)
+                      .where(
+                        and(
+                          eq(
+                            transactions.eventRegistrationId,
+                            eventRegistrations.id,
+                          ),
+                          eq(transactions.tenantId, tenant.id),
+                          eq(transactions.type, 'registration'),
+                          eq(transactions.status, 'pending'),
+                        ),
+                      ),
+                  ).mapWith(Boolean),
+                  registrationId: eventRegistrations.id,
+                  registrationMode: eventRegistrationOptions.registrationMode,
+                  registrationStatus: eventRegistrations.status,
+                })
+                .from(eventRegistrations)
+                .innerJoin(
+                  eventRegistrationOptions,
+                  eq(
+                    eventRegistrationOptions.id,
+                    eventRegistrations.registrationOptionId,
+                  ),
+                )
+                .where(
+                  and(
+                    eq(eventRegistrations.tenantId, tenant.id),
+                    eq(eventRegistrations.userId, user.id),
+                    inArray(
+                      eventRegistrations.eventId,
+                      selectedEvents.map((event) => event.id),
+                    ),
+                    not(eq(eventRegistrations.status, 'CANCELLED')),
+                  ),
+                ),
+            );
+      const userSignUpStateByEventId = new Map(
+        activeUserRegistrations.map((registration) => [
+          registration.eventId,
+          eventListUserSignUpState(registration),
+        ]),
+      );
+
       const eventRecords = selectedEvents.map((event) => ({
         announcementRoleCount: event.announcementRoleIds.length,
         hasRegistrationOptions: Boolean(event.hasRegistrationOptions),
@@ -399,7 +481,7 @@ export const eventQueryHandlers = {
         start: event.start.toISOString(),
         status: event.status,
         title: event.title,
-        userRegistered: Boolean(event.userRegistered),
+        userSignUpState: userSignUpStateByEventId.get(event.id) ?? null,
       }));
 
       return groupEventsByTenantDay(eventRecords, tenant.timezone);
@@ -431,13 +513,16 @@ export const eventQueryHandlers = {
         })
       ) {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message: 'You do not have permission to edit this event.',
+          }),
         );
       }
       if (event.status !== 'DRAFT') {
         return yield* Effect.fail(
           new EventConflictError({
-            message: 'Event cannot be edited in its current state',
+            message:
+              'This event cannot be edited in its current status. Return to the event and review it.',
           }),
         );
       }

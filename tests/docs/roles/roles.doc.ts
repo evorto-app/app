@@ -15,20 +15,21 @@ import {
 } from '../../support/utils/user-role-assignment-scenario';
 
 test.use({ storageState: adminStateFile });
+test.setTimeout(180_000);
 
-test('Manage organization roles, existing-user assignments, and Members Hub @admin @permissions', async ({
+test('Manage members and roles @admin @permissions', async ({
   browser,
   database,
   page,
-  seedDate,
   tenant,
   tenantDomain,
   testClock,
 }, testInfo) => {
-  const roleName = `Role docs ${seedDate.getTime()}`;
-  const roleDescription = 'Role created by the generated roles guide';
+  const roleName = 'Event communications lead';
+  const roleDescription =
+    'Can view templates and help members find event information';
   const updatedRoleDescription =
-    'Role edited and verified by the generated roles guide';
+    'Can also open Members Hub while helping with events';
   const regularUser = usersToAuthenticate.find(
     (candidate) => candidate.roles === 'user',
   );
@@ -59,7 +60,7 @@ test('Manage organization roles, existing-user assignments, and Members Hub @adm
     database,
     roleName: 'Event assistant',
     tenant,
-    userEmail: 'casey.role-docs@evorto.test',
+    userEmail: 'casey.support@example.org',
   });
   const tenantScopeDecoy = await seedMembersHubTenantScopeDecoy({
     database,
@@ -94,24 +95,24 @@ test('Manage organization roles, existing-user assignments, and Members Hub @adm
     }
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="User permissions" %}
-You need an administrator account with:
+{% callout type="note" title="Who can do this" %}
+You need the relevant access in the current organization:
 - **Manage roles** access to create and manage roles.
-- **View all users** access to review the organization member list.
-- **Assign all user roles** access to assign any existing organization role to any member, including yourself. This is full organization-administrator authority.
+- **View all members** access to review the organization member list.
+- **Assign all member roles (organization admin)** access to assign any existing organization role to any member, including yourself. This gives full control over the organization.
 {% /callout %}
-Roles are the way to manage permissions in the app.
-You can create roles with different permissions.
-A user will have any permission that is assigned to at least one of their roles.
-You can also use roles to group users, for example to make some events only available to specific users.
+Roles group permissions for organization members. A member receives the combined permissions from all their roles. Roles can also control who can use an event's sign-up choices.
 
-Start by navigating to **Admin tools**. The current relaunch admin surface separates existing-user role assignment from role creation and editing.
+Start by opening **Admin Tools**. Assign roles under **Members**, and create or edit roles under **Member roles**.
 `,
     });
-    await page.getByRole('link', { name: 'Admin Tools' }).click();
-    await page.getByRole('link', { name: 'Users' }).click();
+    await page.getByRole('link', { exact: true, name: 'Admin Tools' }).click();
     await expect(
-      page.getByRole('heading', { name: 'All users' }),
+      page.getByRole('heading', { exact: true, name: 'Admin settings' }),
+    ).toBeVisible();
+    await page.getByRole('link', { exact: true, name: 'Members' }).click();
+    await expect(
+      page.getByRole('heading', { exact: true, name: 'All members' }),
     ).toBeVisible();
     await expect(
       page.getByText(
@@ -137,15 +138,15 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
       testInfo,
       page.locator('app-user-list'),
       page,
-      'Tenant user role assignment list',
+      'Organization members and their roles',
     );
     await testInfo.attach('markdown', {
       body: `
-## User review
+## Review members
 
-The **All users** page supports searching organization members by name or email. Administrators with **Assign all user roles** access can change roles for existing members; users without that access see read-only role chips. Because this permission allows assigning any existing organization role, including to yourself, it is full organization-administrator authority rather than limited delegation.
+The **All members** page supports searching by name or email. Administrators with **Assign all member roles (organization admin)** access can change roles for existing members; people without that access see the assigned roles without editing controls. Because this permission allows assigning any existing role, including to yourself, it gives full control over the organization.
 
-## Assign a role to an existing user
+## Assign a role to an existing member
 
 Use the search field to find the person by name or email. Open **Assigned roles** in that person's row and select one or more roles. The selection is saved immediately, so there is no separate Save button. Assigning a role changes only this organization membership; it does not edit the role itself or affect the person's memberships in other organizations.
 `,
@@ -163,7 +164,7 @@ Use the search field to find the person by name or email. Open **Assigned roles*
     await expect(assignmentOption).toHaveAttribute('aria-selected', 'false');
     await assignmentOption.click();
     await page.keyboard.press('Escape');
-    await expect(page.getByText('User roles updated')).toBeVisible();
+    await expect(page.getByText('Member roles updated')).toBeVisible();
     await expect
       .poll(assignmentScenario.readAssignedRoleIds)
       .toEqual([assignmentScenario.role.id]);
@@ -177,7 +178,7 @@ Use the search field to find the person by name or email. Open **Assigned roles*
       testInfo,
       userRow,
       page,
-      'Existing user with assigned tenant role',
+      'Member with an assigned organization role',
     );
     await roleSelect.press('Enter');
     assignmentOption = page.getByRole('option', {
@@ -189,11 +190,11 @@ Use the search field to find the person by name or email. Open **Assigned roles*
 
     await testInfo.attach('markdown', {
       body: `
-Reloading the page and seeing the selected role again confirms that the assignment was saved.
+The **Member roles updated** message confirms that the assignment was saved.
 
-## Remove a role from an existing user
+## Remove a role from an existing member
 
-Open **Assigned roles** again and deselect the role. Removal is also saved immediately. A user keeps the combined permissions from any roles that remain assigned. Administrators cannot remove every role from their own account, which prevents accidentally locking themselves out.
+Open **Assigned roles** again and deselect the role. Removal is also saved immediately. A member keeps the combined permissions from any roles that remain assigned. Administrators cannot remove every role from their own account, which prevents accidentally locking themselves out.
 `,
     });
 
@@ -224,45 +225,52 @@ Open **Assigned roles** again and deselect the role. Removal is also saved immed
       testInfo,
       userRow,
       page,
-      'Existing user after tenant role removal',
+      'Member after an organization role is removed',
     );
 
     await testInfo.attach('markdown', {
       body: `
-After removal, the person's row no longer lists the role. Users with **View all users** access but without **Assign all user roles** access see role chips instead of this editable selector.
+After removal, the person's row no longer lists the role. Members with **View all members** access but without **Assign all member roles (organization admin)** access can see assigned roles but cannot change them.
 
-Navigate to the **User roles** page to create or edit organization roles.
+Navigate to the **Member roles** page to create or edit organization roles.
 `,
     });
     await page.goto('/admin/roles');
+    await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
     await expect(
-      page.getByRole('heading', { name: 'User roles' }).first(),
+      page.getByRole('heading', { name: 'Member roles' }).first(),
     ).toBeVisible();
+    await expect(page.getByText('Regular user', { exact: true })).toBeVisible();
     const createRoleAction = page
       .locator('app-role-list a')
       .filter({ hasText: 'Create role' })
       .first();
     await expect(createRoleAction).toBeVisible();
-    await takeScreenshot(testInfo, createRoleAction, page);
+    await takeScreenshot(
+      testInfo,
+      createRoleAction,
+      page,
+      'Member roles page with the Create role action',
+    );
     await createRoleAction.click();
     await expect(
-      page.getByRole('heading', { name: 'Create Role' }),
+      page.getByRole('heading', { name: 'Create role' }),
     ).toBeVisible();
     await page.waitForLoadState('networkidle');
     await testInfo.attach('markdown', {
       body: `
 ## Role definition
-You can now define the role. You have to add a name for the role as well as a short description.
-There are some flags you can set:
-- **Default user role**: This role will be assigned to all new users.
-- **Default organizer role**: This role will be automatically included in the allowed roles of an organizer registration.
-- **Show in hub**: This role and its assigned members will be listed in the current organization's Members Hub.
+Enter a role name. A short description is optional but helps members understand the role.
+You can also choose these options:
+- **Every new member should get this role**: Evorto assigns this role to each new member.
+- **An organizer sign-up choice should be available to this role by default**: New organizer sign-up choices include this role unless you change them.
+- **Show this role in the hub**: This role and its assigned members will be listed in the current organization's Members Hub.
 
 You can also add permissions to the role. The permissions are grouped by category. Learn more at [about permissions](/docs/about-permissions).
 
-Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions with the same admin-facing labels used in the permission reference.
+When one permission needs another, Evorto includes it automatically and explains why it cannot be removed separately.
 
-Selecting **Assign all user roles** displays an explicit warning: this permission can assign any existing organization role to any member, including the current administrator, and can therefore acquire every permission present in those roles.
+Selecting **Assign all member roles (organization admin)** displays a clear warning: this permission can assign any existing organization role to any member, including the current administrator, and can therefore receive every permission present in those roles.
 `,
     });
     const roleForm = page.locator('app-role-form');
@@ -281,11 +289,11 @@ Selecting **Assign all user roles** displays an explicit warning: this permissio
     await expect(roleForm.getByText('Includes: View templates')).toBeVisible();
     await expect(roleFormCheckbox(/^View templates$/)).toBeChecked();
     const fullOrganizationAdminPermission = roleFormCheckbox(
-      /^Assign all user roles \(organization admin\)$/,
+      /^Assign all member roles \(organization admin\)$/,
     );
     await fullOrganizationAdminPermission.setChecked(true);
     await expect(
-      roleForm.getByText('Full organization-administrator authority.'),
+      roleForm.getByText('Full control over this organization.'),
     ).toBeVisible();
     await expect(roleForm.getByText(/including to themselves/)).toBeVisible();
     await fullOrganizationAdminPermission.setChecked(false);
@@ -300,7 +308,9 @@ Selecting **Assign all user roles** displays an explicit warning: this permissio
     await expect(page.getByRole('heading', { name: roleName })).toBeVisible();
     await expect(page.getByText(roleDescription)).toBeVisible();
     await expect(page.getByText('Create events')).toBeVisible();
-    await expect(page.getByText('View templates')).toBeVisible();
+    await expect(
+      page.getByText('View templates', { exact: true }),
+    ).toBeVisible();
 
     const createdRole = await database.query.roles.findFirst({
       where: { name: roleName, tenantId: tenant.id },
@@ -314,12 +324,12 @@ Selecting **Assign all user roles** displays an explicit warning: this permissio
 
     await testInfo.attach('markdown', {
       body: `
-After you have saved your newly configured role, you will be redirected to the role details page.
-The role can now be used for organization features such as event and template eligibility.
+After you save the new role, Evorto opens its details page.
+The role can now control access to organization features and who can join events.
 
 ## Edit a role and show it in Members Hub
 
-On the role details page, select the pencil action to edit the role. This example changes the description, turns on **Show this role in the hub**, and grants **View Members Hub** from the **Members Hub** permission group. This permission makes the **Members Hub** navigation available to assigned members; the hub flag determines whether this role and its members appear there.
+On the role details page, select **Edit role**. This example changes the description, turns on **Show this role in the hub**, and grants **View Members Hub** from the **Members Hub** permission group. This permission makes the **Members Hub** navigation available to assigned members. The **Show this role in the hub** setting determines whether the role and its members appear there.
 `,
     });
 
@@ -336,7 +346,7 @@ On the role details page, select the pencil action to edit the role. This exampl
     );
     await editRoleAction.click();
     await expect(
-      page.getByRole('heading', { exact: true, name: 'Edit Role' }),
+      page.getByRole('heading', { exact: true, name: 'Edit role' }),
     ).toBeVisible();
 
     const editRoleForm = page.locator('app-role-form');
@@ -373,7 +383,7 @@ On the role details page, select the pencil action to edit the role. This exampl
       testInfo,
       page.locator('app-role-details'),
       page,
-      'Reloaded role details with persisted Members Hub settings',
+      'Saved Members Hub settings on the role',
     );
 
     const updatedRole = await database.query.roles.findFirst({
@@ -387,11 +397,11 @@ On the role details page, select the pencil action to edit the role. This exampl
 
     await testInfo.attach('markdown', {
       body: `
-Reloading the details page and seeing the updated description and **View Members Hub** confirms that the edit was saved.
+After saving, Evorto returns to the role details page with the updated description and **View Members Hub** permission.
 
 ## Give a member access
 
-Return to **Admin tools** → **Users**, search for the member, and select the new role under **Assigned roles**. The assignment takes effect for this organization as soon as the success message appears. Continue as that member to verify the access granted by the role.
+Return to **Admin Tools** → **Members**, search for the member, and select the new role under **Assigned roles**. The **Member roles updated** message confirms the assignment. The member can use the access granted by the role immediately.
 `,
     });
 
@@ -410,7 +420,7 @@ Return to **Admin tools** → **Users**, search for the member, and select the n
     );
     await regularAssignmentOption.click();
     await page.keyboard.press('Escape');
-    await expect(page.getByText('User roles updated')).toBeVisible();
+    await expect(page.getByText('Member roles updated')).toBeVisible();
     await expect
       .poll(async () => {
         const assignments = await database
@@ -434,7 +444,7 @@ Return to **Admin tools** → **Users**, search for the member, and select the n
       testInfo,
       reloadedRegularAssignmentTarget.userRow,
       page,
-      'Regular member with persisted Members Hub role',
+      'Member with the saved Members Hub role',
     );
 
     const memberSession = await openAuthenticatedTestPage({
@@ -479,7 +489,7 @@ Return to **Admin tools** → **Users**, search for the member, and select the n
         testInfo,
         memberSession.page.locator('app-members-hub'),
         memberSession.page,
-        'Members Hub for an eligible organization member',
+        'Members Hub for an organization member',
       );
     } finally {
       await memberSession.context.close();
@@ -493,7 +503,7 @@ As the assigned member, select **Members Hub**. The page lists hub-visible roles
 
 Roles and member lists stay within their organization. A same-named role in another organization does not combine or expose its members here. Members without **View Members Hub** do not receive the **Members Hub** navigation or page access.
 
-**Assign all user roles** is full organization-administrator authority because it may assign any existing organization role, including to the current user. Role definitions, assignments, permissions, and Members Hub results stay inside the selected organization.
+**Assign all member roles (organization admin)** gives full control over the organization because it can assign any existing organization role, including to the current member. Roles, assignments, permissions, and Members Hub results stay inside the selected organization.
 `,
     });
   } finally {

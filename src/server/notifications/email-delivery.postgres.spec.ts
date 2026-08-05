@@ -138,17 +138,15 @@ describe('email outbox single-dispatch state transitions', () => {
             expect.objectContaining({
               attempts: 1,
               id: expiredId,
-              lastError: expect.stringContaining(
-                'automatic resend is disabled',
-              ),
+              lastError:
+                'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.',
               status: 'deliveryUnknown',
             }),
             expect.objectContaining({
               attempts: 1,
               id: missingLeaseId,
-              lastError: expect.stringContaining(
-                'automatic resend is disabled',
-              ),
+              lastError:
+                'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.',
               status: 'deliveryUnknown',
             }),
           ]),

@@ -69,7 +69,7 @@ export const normalizeRoleWrite = Effect.fn('RoleWrite.normalize')(function* (
   if (partitionedPermissions.rejected.length > 0) {
     return yield* validationError(
       'permissions',
-      'Platform authority cannot be granted through an organization role',
+      'Permissions reserved for Evorto administrators cannot be added to an organization role.',
     );
   }
 

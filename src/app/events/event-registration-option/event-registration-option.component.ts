@@ -79,6 +79,15 @@ export interface EventRegistrationOptionView {
 
 export type RegistrationAvailability = 'open' | 'tooEarly' | 'tooLate';
 
+export const registrationOptionErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string =>
+  getErrorMessage(error, fallback, [
+    'EventRegistrationConflictError',
+    'EventRegistrationNotFoundError',
+  ]);
+
 export const registrationOptionAudienceCopy = (
   option: Pick<
     EventRegistrationOptionView,
@@ -97,7 +106,7 @@ export const registrationOptionAudienceCopy = (
     return {
       actionSuffix: 'apply as organizer/helper',
       helperText:
-        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
       label: 'Organizer/helper application',
       primaryAction: 'Apply as organizer/helper',
     };
@@ -106,8 +115,8 @@ export const registrationOptionAudienceCopy = (
   if (option.organizingRegistration) {
     return {
       actionSuffix: 'sign up as organizer/helper',
-      helperText: 'Use this option when you are helping run the event.',
-      label: 'Organizer/helper option',
+      helperText: 'Use this choice when you are helping run the event.',
+      label: 'Organizer/helper choice',
       primaryAction: 'Sign up as organizer/helper',
     };
   }
@@ -116,17 +125,17 @@ export const registrationOptionAudienceCopy = (
     return {
       actionSuffix: 'apply',
       helperText:
-        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
-      label: 'Manual approval option',
+        'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
+      label: 'Organizer approval required',
       primaryAction: 'Apply for approval',
     };
   }
 
   return {
-    actionSuffix: 'register',
-    helperText: 'Use this option when you are attending the event.',
-    label: 'Participant option',
-    primaryAction: 'Register',
+    actionSuffix: 'sign up',
+    helperText: 'Use this choice when you are attending the event.',
+    label: 'Attendee choice',
+    primaryAction: 'Sign up',
   };
 };
 
@@ -601,8 +610,8 @@ export class EventRegistrationOptionComponent {
     }));
   }
 
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+  protected errorMessage(error: unknown, fallback: string): string {
+    return registrationOptionErrorMessage(error, fallback);
   }
 
   private async refreshRegistrationState(eventId: string): Promise<void> {

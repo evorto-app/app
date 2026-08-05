@@ -69,7 +69,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
           import('./email-outbox/email-outbox.component').then(
             (m) => m.EmailOutboxComponent,
           ),
-        path: 'email-outbox',
+        path: 'email-delivery',
       },
       {
         loadComponent: () =>

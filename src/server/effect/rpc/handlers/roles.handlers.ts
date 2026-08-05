@@ -39,7 +39,7 @@ const ensureRoleLookupPermission = (): Effect.Effect<
     const context = yield* RpcAccess.current();
     if (!context.authenticated) {
       return yield* Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
+        new RpcUnauthorizedError({ message: 'Sign in to view roles.' }),
       );
     }
 
@@ -49,7 +49,7 @@ const ensureRoleLookupPermission = (): Effect.Effect<
     if (!isAllowed) {
       return yield* Effect.fail(
         new RpcForbiddenError({
-          message: 'Missing required role lookup permission',
+          message: 'You do not have permission to view roles.',
         }),
       );
     }

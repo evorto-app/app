@@ -19,14 +19,14 @@ export const validateReceiptFileMetadata = (input: {
   sizeBytes: number;
 }): null | string => {
   if (!isAllowedReceiptMimeType(input.mimeType)) {
-    return 'Receipts must be JPEG, PNG, WebP, or PDF files';
+    return 'This receipt cannot be used. Choose a different receipt image or document.';
   }
   if (
     !Number.isSafeInteger(input.sizeBytes) ||
     input.sizeBytes <= 0 ||
     input.sizeBytes > maximumReceiptOriginalSizeBytes
   ) {
-    return 'Receipt file must be between 1 byte and 20 MB';
+    return 'This receipt is empty or larger than 20 MB. Choose another image or document.';
   }
   return null;
 };

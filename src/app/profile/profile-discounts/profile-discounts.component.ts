@@ -28,10 +28,12 @@ import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import {
   esnCardActionDisabled,
   esnCardActionLabel,
+  type EsnCardMutationAction,
   esnCardMutationErrorMessage,
   esnCardSaveDisabled,
   esnCardStatusLabel,
   esnCardSubmitPayloadFromIdentifier,
+  isEsnCardNotFoundError,
 } from './profile-discounts.esn-card';
 
 @Component({
@@ -103,17 +105,15 @@ export class ProfileDiscountsComponent {
     this.deleteCardMutation.mutate(
       { type: 'esnCard' },
       {
-        onError: (error) => {
-          this.esnCardErrorMessage.set(
-            esnCardMutationErrorMessage('remove', error),
-          );
+        onError: async (error) => {
+          await this.showEsnCardMutationError('remove', error);
         },
         onSuccess: async () => {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['discounts', 'getMyCards']),
           );
           this.esnCardErrorMessage.set(null);
-          this.notifications.showSuccess('ESN card removed');
+          this.notifications.showSuccess('ESNcard removed');
         },
       },
     );
@@ -128,17 +128,15 @@ export class ProfileDiscountsComponent {
     this.refreshCardMutation.mutate(
       { type: 'esnCard' },
       {
-        onError: (error) => {
-          this.esnCardErrorMessage.set(
-            esnCardMutationErrorMessage('refresh', error),
-          );
+        onError: async (error) => {
+          await this.showEsnCardMutationError('refresh', error);
         },
         onSuccess: async () => {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['discounts', 'getMyCards']),
           );
           this.esnCardErrorMessage.set(null);
-          this.notifications.showSuccess('ESN card refreshed');
+          this.notifications.showSuccess('ESNcard checked');
         },
       },
     );
@@ -155,10 +153,8 @@ export class ProfileDiscountsComponent {
       this.upsertCardMutation.mutate(
         esnCardSubmitPayloadFromIdentifier(formState().value().identifier),
         {
-          onError: (error) => {
-            this.esnCardErrorMessage.set(
-              esnCardMutationErrorMessage('save', error),
-            );
+          onError: async (error) => {
+            await this.showEsnCardMutationError('save', error);
           },
           onSuccess: async () => {
             await this.queryClient.invalidateQueries(
@@ -166,7 +162,7 @@ export class ProfileDiscountsComponent {
             );
             this.esnCardModel.set({ identifier: '' });
             this.esnCardErrorMessage.set(null);
-            this.notifications.showSuccess('ESN card saved');
+            this.notifications.showSuccess('ESNcard saved');
           },
         },
       );
@@ -179,5 +175,22 @@ export class ProfileDiscountsComponent {
       refreshPending: this.refreshCardMutation.isPending(),
       upsertPending: this.upsertCardMutation.isPending(),
     });
+  }
+
+  private async showEsnCardMutationError(
+    action: EsnCardMutationAction,
+    error: unknown,
+  ): Promise<void> {
+    this.esnCardErrorMessage.set(esnCardMutationErrorMessage(action, error));
+    if (!isEsnCardNotFoundError(error)) {
+      return;
+    }
+
+    const result = await this.myCardsQuery.refetch();
+    this.esnCardErrorMessage.set(
+      result.isSuccess
+        ? 'This ESNcard was already removed. Your card list is now up to date.'
+        : 'This ESNcard is no longer saved. Your card list could not be updated. Select Try again above.',
+    );
   }
 }

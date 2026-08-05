@@ -59,28 +59,28 @@ export const seedProfileEventCards = async ({
   const confirmedRegistrationId = getId();
   const confirmedEventId = getId();
   const confirmedEventOptionId = getId();
-  const confirmedEventTitle = `Profile docs confirmed ${seedDate.getTime()}`;
+  const confirmedEventTitle = 'Community dinner';
   const confirmedAddonId = getId();
   const confirmedAddonPurchaseId = getId();
-  const confirmedAddonTitle = `Profile docs snack ${seedDate.getTime()}`;
+  const confirmedAddonTitle = 'Meal voucher';
   const checkedInRegistrationId = getId();
   const checkedInEventId = getId();
   const checkedInEventOptionId = getId();
-  const checkedInEventTitle = `Profile docs checked in ${seedDate.getTime()}`;
+  const checkedInEventTitle = 'City museum visit';
   const checkedInAddonId = getId();
   const checkedInAddonPurchaseId = getId();
-  const checkedInAddonTitle = `Profile docs checked snack ${seedDate.getTime()}`;
+  const checkedInAddonTitle = 'Audio guide';
   const pendingCheckoutEventId = getId();
   const pendingCheckoutOptionId = getId();
   const pendingCheckoutRegistrationId = getId();
   const pendingCheckoutTransactionId = getId();
   const pendingCheckoutSessionId = `cs_profile_docs_${seedDate.getTime()}`;
-  const pendingCheckoutTitle = `Profile docs pending checkout ${seedDate.getTime()}`;
+  const pendingCheckoutTitle = 'Weekend kayaking trip';
   const pendingCheckoutUrl = `https://checkout.stripe.com/c/pay/${pendingCheckoutSessionId}`;
   const waitlistEventId = getId();
   const waitlistOptionId = getId();
   const waitlistRegistrationId = getId();
-  const waitlistTitle = `Profile docs waitlist ${seedDate.getTime()}`;
+  const waitlistTitle = 'Summer welcome picnic';
   const sourceEventId = seeded.scenario.events.freeOpen.eventId;
   const sourceOptionId = seeded.scenario.events.freeOpen.optionId;
   const paidSourceEventId = seeded.scenario.events.paidOpen.eventId;
@@ -138,7 +138,7 @@ export const seedProfileEventCards = async ({
   await database.insert(schema.eventInstances).values([
     {
       creatorId: userId,
-      description: 'Profile docs event for confirmed registration coverage.',
+      description: 'A relaxed dinner for members and their guests.',
       end: new Date(seedDate.getTime() + 8 * 60 * 60 * 1000),
       icon: sourceEvent.icon,
       id: confirmedEventId,
@@ -153,7 +153,7 @@ export const seedProfileEventCards = async ({
     },
     {
       creatorId: userId,
-      description: 'Profile docs event for checked-in registration coverage.',
+      description: 'A guided visit to the city museum.',
       end: new Date(seedDate.getTime() + 60 * 60 * 1000),
       icon: sourceEvent.icon,
       id: checkedInEventId,
@@ -168,8 +168,7 @@ export const seedProfileEventCards = async ({
     },
     {
       creatorId: userId,
-      description:
-        'Profile docs event for pending checkout continuation coverage.',
+      description: 'A guided kayaking trip for beginners.',
       end: new Date(seedDate.getTime() + 3 * 60 * 60 * 1000),
       icon: sourceEvent.icon,
       id: pendingCheckoutEventId,
@@ -184,7 +183,7 @@ export const seedProfileEventCards = async ({
     },
     {
       creatorId: userId,
-      description: 'Profile docs event for waitlist card coverage.',
+      description: 'A summer picnic for new and returning members.',
       end: new Date(seedDate.getTime() + 5 * 60 * 60 * 1000),
       icon: sourceEvent.icon,
       id: waitlistEventId,
@@ -211,7 +210,7 @@ export const seedProfileEventCards = async ({
       roleIds: [],
       spots: 20,
       stripeTaxRateId: sourceOption.stripeTaxRateId,
-      title: 'Confirmed participant',
+      title: 'Dinner attendee',
     },
     {
       closeRegistrationTime: seedDate,
@@ -225,7 +224,7 @@ export const seedProfileEventCards = async ({
       roleIds: [],
       spots: 20,
       stripeTaxRateId: sourceOption.stripeTaxRateId,
-      title: 'Checked-in participant',
+      title: 'Museum visitor',
     },
     {
       closeRegistrationTime: new Date(seedDate.getTime() + 60 * 60 * 1000),
@@ -239,7 +238,7 @@ export const seedProfileEventCards = async ({
       roleIds: [],
       spots: 20,
       stripeTaxRateId: paidSourceOption.stripeTaxRateId,
-      title: 'Participant checkout',
+      title: 'Kayaking attendee',
     },
     {
       closeRegistrationTime: new Date(seedDate.getTime() + 60 * 60 * 1000),
@@ -253,7 +252,7 @@ export const seedProfileEventCards = async ({
       roleIds: [],
       spots: 1,
       stripeTaxRateId: sourceOption.stripeTaxRateId,
-      title: 'Participant waitlist',
+      title: 'Picnic attendee',
     },
   ]);
   await seedFreeRegistrationAddon({

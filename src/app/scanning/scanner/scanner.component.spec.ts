@@ -15,13 +15,16 @@ import {
   ScannerComponent,
   scannerNavigationErrorMessage,
   scannerNonTicketMessage,
+  scannerViewUnavailableMessage,
 } from './scanner.component';
 
 describe('scannerCameraErrorMessage', () => {
-  it('maps denied camera permission to a retryable permission message', () => {
+  it('maps denied camera access to a retryable access message', () => {
     expect(
       scannerCameraErrorMessage(new DOMException('', 'NotAllowedError')),
-    ).toContain('Allow camera access');
+    ).toBe(
+      'Camera access was blocked. Allow Evorto to use the camera in your device settings, then try again.',
+    );
   });
 
   it('maps missing camera devices to a device message', () => {
@@ -37,8 +40,8 @@ describe('scannerCameraErrorMessage', () => {
   });
 
   it('keeps unknown camera errors readable', () => {
-    expect(scannerCameraErrorMessage(new Error('boom'))).toContain(
-      'could not be started',
+    expect(scannerCameraErrorMessage(new Error('boom'))).toBe(
+      'The camera could not be started. Check camera access or scan the ticket with a phone camera.',
     );
   });
 });
@@ -83,6 +86,12 @@ describe('scanner ticket feedback', () => {
     expect(scannerNonTicketMessage).toContain('not an Evorto ticket');
     expect(scannerNonTicketMessage).toContain('when you are ready');
     expect(scannerNonTicketMessage).not.toContain('camera could not');
+  });
+
+  it('explains a missing scanner view without promising that a reload will fix it', () => {
+    expect(scannerViewUnavailableMessage).toBe(
+      'The scanner did not start. No ticket was scanned. Open the ticket from the event page instead.',
+    );
   });
 });
 
@@ -353,7 +362,7 @@ describe('ScannerComponent', () => {
     expect(camera.start).toHaveBeenCalledOnce();
 
     navigate.mockResolvedValue(true);
-    buttonNamed(fixture, 'Try opening registration again')?.click();
+    buttonNamed(fixture, 'Try opening ticket again')?.click();
 
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledTimes(2));
     expect(navigate).toHaveBeenLastCalledWith([

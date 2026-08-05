@@ -33,8 +33,7 @@ export const profileEventAddonPaidAmount = (addOnPurchase: {
 
 export const profileEventAudienceLabel = (event: {
   organizingRegistration: boolean;
-}): string =>
-  event.organizingRegistration ? 'Organizer/helper' : 'Participant';
+}): string => (event.organizingRegistration ? 'Organizer/helper' : 'Attendee');
 
 export const profileEventPassLabel = (event: {
   organizingRegistration: boolean;
@@ -50,11 +49,11 @@ export const profileEventNextStepLabel = (event: {
   }
 
   if (profileEventContinuePaymentUrl(event)) {
-    return 'Finish the checkout payment to confirm your spot.';
+    return 'Finish payment to confirm your place.';
   }
 
   if (event.paymentState === 'pending') {
-    return 'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.';
+    return 'Payment is not ready yet. Open the event page to check the current payment option. Your place is not confirmed.';
   }
 
   return null;
@@ -98,7 +97,7 @@ export const profileEventActionNote = (event: {
   if (event.status === 'CANCELLED') {
     const eligibilityChangedCopy =
       event.cancellationReason === 'eligibilityChangedAfterPayment'
-        ? 'Your registration was cancelled because the event or registration option was no longer available to you when payment completed. This can happen if the event is no longer published, the option was removed, or your organization membership or roles changed. The full amount you paid was queued for refund to your original payment method.'
+        ? 'Your sign-up was cancelled because you were no longer able to join when payment finished. The event may no longer be published, the sign-up choice may have been removed, or your access in the organization may have changed. A full refund has been requested for the payment method you used.'
         : null;
     const refunds = event.refunds ?? [];
     const completedClaims = refunds.filter(
@@ -113,8 +112,8 @@ export const profileEventActionNote = (event: {
       refunds.every(({ state }) => state === 'succeeded')
     ) {
       return eligibilityChangedCopy
-        ? `${eligibilityChangedCopy} Every recorded refund has completed.`
-        : 'Your registration is cancelled and every recorded refund completed.';
+        ? `${eligibilityChangedCopy} All refunds are complete.`
+        : 'Your sign-up is cancelled and all refunds are complete.';
     }
 
     const guidance: string[] = [];
@@ -122,72 +121,72 @@ export const profileEventActionNote = (event: {
       ({ state }) => state === 'actionRequired' || state === 'needsAttention',
     );
     if (needsOrganizerFollowUp) {
-      guidance.push('at least one refund needs organizer follow-up');
+      guidance.push('at least one refund needs help from the organizer');
     }
     if (refunds.some(({ state }) => state === 'retrying')) {
-      guidance.push('at least one refund is retrying automatically');
+      guidance.push('at least one refund is delayed');
     }
     if (refunds.some(({ state }) => state === 'pending')) {
-      guidance.push('at least one refund is queued or processing');
+      guidance.push('at least one refund has been requested');
     }
     if (guidance.length > 0) {
       const organizerFollowUp = needsOrganizerFollowUp
         ? ' Contact the organizer for an update.'
         : '';
       const eligibilityRetryGuidance =
-        " Do not retry this payment. After the refund, review the event's current status and options or contact the organizer.";
-      const refundProgress = `Refund status: ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp}${eligibilityRetryGuidance}${progress}`;
+        ' Do not make this payment again. After the refund, check whether you can still sign up or contact the organizer.';
+      const refundProgress = `${guidance.join('; ')}. The money may not have reached your account yet.${organizerFollowUp}${eligibilityRetryGuidance}${progress}`;
       return eligibilityChangedCopy
         ? `${eligibilityChangedCopy} ${refundProgress}`
-        : `Your registration remains cancelled, but ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp} Do not pay or register again to retry it.${progress}`;
+        : `Your sign-up remains cancelled, but ${guidance.join('; ')}. The money may not have reached your account yet.${organizerFollowUp} Do not pay or sign up again while you wait.${progress}`;
     }
 
     return eligibilityChangedCopy
-      ? `${eligibilityChangedCopy} No refund is currently recorded for this registration; contact the organizer for an update.`
-      : 'Your registration is cancelled. No refund is recorded for this registration.';
+      ? `${eligibilityChangedCopy} Evorto does not show a refund for this sign-up. Contact the organizer for an update.`
+      : 'Your sign-up is cancelled. No refund is shown for it.';
   }
 
   if (profileEventContinuePaymentUrl(event)) {
     if (event.organizingRegistration) {
-      return 'Continue payment from this card to confirm your organizer/helper registration. Organizer access starts after payment succeeds.';
+      return 'Finish payment here to confirm your organizer/helper place. Organizer tools become available after payment succeeds.';
     }
 
-    return 'Continue payment from this card, or open the event page for registration details.';
+    return 'Finish payment here, or open the event page for your sign-up details.';
   }
 
   switch (event.status) {
     case 'CONFIRMED': {
       if (event.checkInTime) {
         if (event.organizingRegistration) {
-          return 'You are checked in. Open the event page for organizer/helper pass details. Cancellation is no longer available after check-in.';
+          return 'You are checked in. Open the event page for organizer/helper pass details. You can no longer cancel after check-in.';
         }
 
-        return 'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.';
+        return 'You are checked in. Open the event page for ticket details. You can no longer cancel, but you can still transfer the ticket and its existing check-ins.';
       }
 
       if (event.organizingRegistration) {
-        return 'Open the event page for your organizer/helper pass, event management access, and current cancellation details.';
+        return 'Open the event page for your organizer/helper pass, organizer tools, and cancellation details.';
       }
 
-      return "Open the event page for ticket access and to see whether cancellation or transfer is currently available. A transfer may be free or require the recipient to pay, based on current prices and the recipient's eligible discounts.";
+      return 'Open the event page for your ticket and to see whether you can cancel or transfer it. A transfer may be free, or the recipient may need to pay, based on current prices and the discounts available to them.';
     }
     case 'PENDING': {
       if (event.paymentState === 'pending') {
         if (event.organizingRegistration) {
-          return 'Payment setup is still in progress. Open the event page for the latest payment link. Organizer access starts only after payment succeeds.';
+          return 'Payment is not ready yet. Open the event page to check the current payment option. Your organizer/helper place is not confirmed, and organizer tools are not available.';
         }
 
-        return 'Payment setup is still in progress. Open the event page for the latest payment link and current cancellation status.';
+        return 'Payment is not ready yet. Open the event page to check the current payment option. Your place is not confirmed.';
       }
 
       if (event.organizingRegistration) {
-        return 'Open the event page for organizer/helper application and cancellation status. Organizer access starts only after approval and any required payment.';
+        return 'Open the event page for your organizer/helper application and whether you can cancel it. Organizer tools become available after approval and any required payment.';
       }
 
-      return 'Open the event page for pending-registration details and current cancellation status.';
+      return 'Open the event page for details about your pending sign-up and whether you can cancel it.';
     }
     case 'WAITLIST': {
-      return 'Open the event page for waitlist details and current cancellation status.';
+      return 'Open the event page for waitlist details and whether you can leave it.';
     }
   }
 };
@@ -203,10 +202,10 @@ export const registrationPaymentLabel = (
       return 'No payment required';
     }
     case 'pending': {
-      return 'Payment pending';
+      return 'Payment not finished';
     }
     case 'recorded': {
-      return 'Payment recorded';
+      return 'Paid';
     }
   }
 };
@@ -222,10 +221,10 @@ export const registrationStatusLabel = (
       return 'Confirmed';
     }
     case 'PENDING': {
-      return 'Pending';
+      return 'Waiting for confirmation';
     }
     case 'WAITLIST': {
-      return 'Waitlist';
+      return 'On waitlist';
     }
   }
 };
@@ -236,24 +235,23 @@ export const registrationRefundStateLabel = (
   switch (state) {
     case 'actionRequired':
     case 'needsAttention': {
-      return 'Contact organizer for refund update';
+      return 'Contact the organizer';
     }
     case 'pending': {
-      return 'Refund queued';
+      return 'Refund requested';
     }
     case 'retrying': {
-      return 'Refund retrying';
+      return 'Refund delayed';
     }
     case 'succeeded': {
-      return 'Refund completed';
+      return 'Refund complete';
     }
   }
 };
 
 export const registrationRefundSourceLabel = (
   source: ProfileEventRefund['source'],
-): string =>
-  source === 'registration' ? 'Registration payment' : 'Add-on payment';
+): string => (source === 'registration' ? 'Event payment' : 'Add-on payment');
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,

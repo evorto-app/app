@@ -434,6 +434,7 @@ describe('evaluateRuntimePreflight', () => {
     const dbSetupService = serviceBlock(composeFile, 'db-setup');
     const evortoService = serviceBlock(composeFile, 'evorto');
     const mailpitService = serviceBlock(composeFile, 'mailpit');
+    const minioService = serviceBlock(composeFile, 'minio');
     const stripeService = serviceBlock(composeFile, 'stripe');
     const workerService = serviceBlock(composeFile, 'worker');
 
@@ -441,6 +442,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(dbService).toContain('restart: unless-stopped');
     expect(dbService).toContain('postgres-data:/var/lib/postgresql/data');
     expect(dbService).toContain('POSTGRES_HOST_PORT');
+    expect(dbService).toContain(
+      '"127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"',
+    );
     expect(dbService).toContain('pg_isready');
     expect(composeFile).not.toMatch(/NEON_|Neon Local|neon-local/u);
 
@@ -506,6 +510,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).not.toContain('E2E_RUNTIME_MODE: "playwright"');
     expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
     expect(evortoService).toContain('APP_ROLE: web');
+    expect(evortoService).toContain('"127.0.0.1:${APP_HOST_PORT:-4200}:4200"');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
     );
@@ -515,7 +520,14 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(mailpitService).toContain('axllent/mailpit:v1.28.2@sha256:');
     expect(mailpitService).toContain('MAILPIT_HOST_PORT');
+    expect(mailpitService).toContain(
+      '"127.0.0.1:${MAILPIT_HOST_PORT:-8025}:8025"',
+    );
     expect(mailpitService).toContain('mailpit-data:/data');
+    expect(minioService).toContain('"127.0.0.1:${MINIO_HOST_PORT:-9000}:9000"');
+    expect(minioService).toContain(
+      '"127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"',
+    );
     expect(workerService).toContain('APP_ROLE: worker');
     expect(workerService).toContain('WORKER_TRIGGER_MODE: poll');
     expect(workerService).toContain('EMAIL_DELIVERY_PROVIDER: mailpit');

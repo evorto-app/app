@@ -27,7 +27,8 @@
     >
       <p class="title-small">Scanner access could not be checked</p>
       <p>
-        No camera access was requested. Check your connection and try again.
+        The camera stayed off because access could not be checked. Select Try
+        checking access again.
       </p>
       <button
         mat-stroked-button
@@ -50,8 +51,8 @@
     >
       <p class="title-small">Scanner unavailable</p>
       <p>
-        Your account cannot scan registrations for an event today. Ask an event
-        organizer or an administrator for access.
+        You cannot check in attendees for this event. Ask an event organizer or
+        an administrator for access.
       </p>
     </div>
   } @else if (scannerAccessGranted()) {
@@ -83,7 +84,7 @@
         aria-live="polite"
         role="status"
       >
-        Opening registration…
+        Opening ticket…
       </div>
     }
     @if (ticketFeedbackMessage()) {
@@ -110,7 +111,7 @@
         class="bg-error-container text-on-error-container mt-2 rounded p-3"
         role="alert"
       >
-        <p class="title-small">Registration did not open</p>
+        <p class="title-small">Ticket did not open</p>
         <p>{{ navigationErrorMessage() }}</p>
         <div class="mt-2 flex flex-wrap gap-2">
           <button
@@ -119,7 +120,7 @@
             [disabled]="navigationPending()"
             (click)="retryNavigation()"
           >
-            Try opening registration again
+            Try opening ticket again
           </button>
           <button
             mat-button

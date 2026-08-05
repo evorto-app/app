@@ -444,7 +444,8 @@ describe('tenant active-registration limit concurrency', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'Active registration limit reached',
+            message:
+              'This organization has reached its limit for current sign-ups. Contact an administrator.',
           }),
           status: 'failure',
         }),

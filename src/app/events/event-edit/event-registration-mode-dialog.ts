@@ -26,21 +26,20 @@ export interface EventRegistrationModeDialogData {
   ],
   selector: 'app-event-registration-mode-dialog',
   template: `
-    <h2 mat-dialog-title>Change registration configuration?</h2>
+    <h2 mat-dialog-title>Change sign-up setup?</h2>
     <mat-dialog-content>
       @if (data.to === 'advanced') {
         <p>
-          Advanced mode keeps both current options and lets you add registration
-          options and choose which registration options can use each add-on. You
-          can return to simple mode only while the event has exactly one
-          organizing and one non-organizing option.
+          Advanced setup keeps both current choices and lets you add choices and
+          choose which ones can use each add-on. You can return to simple setup
+          only while the event has exactly one organizer choice and one attendee
+          choice.
         </p>
       } @else {
         <p>
-          Simple mode shows the existing organizing and non-organizing options.
-          Questions, add-ons, and the registration options that can use each
-          add-on stay saved. Those controls are hidden until you return to
-          advanced mode.
+          Simple setup shows the existing organizer and attendee choices.
+          Questions, add-ons, and which choices can use each add-on stay saved.
+          Those controls are hidden until you return to advanced setup.
         </p>
       }
       <p class="mt-3">
@@ -50,10 +49,10 @@ export interface EventRegistrationModeDialogData {
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button type="button" mat-button mat-dialog-close>
-        Keep current mode
+        Keep current setup
       </button>
       <button type="button" mat-flat-button [mat-dialog-close]="true">
-        Use {{ data.to }} mode
+        Use {{ data.to }} setup
       </button>
     </mat-dialog-actions>
   `,

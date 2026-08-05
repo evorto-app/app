@@ -56,7 +56,7 @@ const openOrganizerView = async ({
   await expect(
     organizer.page.getByRole('heading', {
       level: 2,
-      name: 'Participant registrations',
+      name: 'Attendee sign-ups',
     }),
   ).toBeVisible({ timeout: 20_000 });
 
@@ -71,11 +71,11 @@ const applyForApproval = async (
     .locator('app-event-registration-option')
     .filter({ hasText: scenario.optionTitle });
   await expect(
-    registrationCard.getByText('Manual approval option'),
+    registrationCard.getByText('Organizer approval required'),
   ).toBeVisible();
   await expect(
     registrationCard.getByText(
-      'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
+      'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
     ),
   ).toBeVisible();
   const applyButton = registrationCard.getByRole('button', {
@@ -88,7 +88,7 @@ const applyForApproval = async (
   });
   await applyButton.click();
   await expect(
-    page.getByText('Your registration is pending organizer approval.'),
+    page.getByText('Your sign-up is waiting for organizer approval.'),
   ).toBeVisible({ timeout: 15_000 });
   await expect(
     page.getByRole('button', { name: 'Apply for approval' }),
@@ -194,9 +194,9 @@ test.describe('Manual approval registrations', () => {
         timeout: 20_000,
       });
       await approveButton.click();
-      await expect(
-        organizer.page.getByText('Registration confirmed'),
-      ).toBeVisible({ timeout: 20_000 });
+      await expect(organizer.page.getByText('Sign-up confirmed')).toBeVisible({
+        timeout: 20_000,
+      });
       await expect(approveButton).toHaveCount(0);
 
       await expect
@@ -227,14 +227,14 @@ test.describe('Manual approval registrations', () => {
           outboxCount: 1,
           reservedSpots: 0,
           status: 'CONFIRMED',
-          subject: 'Registration approved',
+          subject: 'Sign-up approved',
         });
 
       await page.reload();
       await waitForRegistrationStatus(page);
-      await expect(page.getByText('You are registered')).toBeVisible();
+      await expect(page.getByText('Your place is confirmed')).toBeVisible();
       await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
+        page.getByRole('img', { name: 'QR code for the event ticket' }),
       ).toBeVisible();
       await expect(
         page.getByRole('button', { name: 'Apply for approval' }),
@@ -299,7 +299,7 @@ test.describe('Manual approval registrations', () => {
       await approveButton.click();
       await expect(
         organizer.page.getByText(
-          'Application approved. Payment is required before confirmation.',
+          'Application approved. The attendee must pay before their place is confirmed.',
         ),
       ).toBeVisible({ timeout: 20_000 });
       await expect(organizer.page.getByText('Payment pending')).toBeVisible({
@@ -357,19 +357,20 @@ test.describe('Manual approval registrations', () => {
       );
       expect(approvalEmails).toHaveLength(1);
       expect(approvalEmails[0]?.subject).toBe(
-        'Registration approved: payment required',
+        'Sign-up approved: payment required',
       );
       expect(approvalEmails[0]?.text).toMatch(
         /\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/u,
       );
       expect(approvalEmails[0]?.text).toContain(
-        `(${scenario.tenant.timezone})`,
+        `(local time for ${scenario.tenant.name})`,
       );
+      expect(approvalEmails[0]?.text).not.toContain(scenario.tenant.timezone);
 
       await page.reload();
       await waitForRegistrationStatus(page);
       await expect(
-        page.getByText('Complete payment to confirm your registration.'),
+        page.getByText('Complete payment to confirm your ticket.'),
       ).toBeVisible();
       const payNow = page.getByRole('link', { name: 'Pay now' });
       await expect(payNow).toHaveAttribute(
@@ -377,7 +378,7 @@ test.describe('Manual approval registrations', () => {
         pendingTransaction.stripeCheckoutUrl,
       );
       await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
+        page.getByRole('img', { name: 'QR code for the event ticket' }),
       ).toHaveCount(0);
 
       await deliverCompletedRegistrationCheckoutWebhook({
@@ -415,9 +416,9 @@ test.describe('Manual approval registrations', () => {
 
       await page.reload();
       await waitForRegistrationStatus(page);
-      await expect(page.getByText('You are registered')).toBeVisible();
+      await expect(page.getByText('Your place is confirmed')).toBeVisible();
       await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
+        page.getByRole('img', { name: 'QR code for the event ticket' }),
       ).toBeVisible();
       expect(
         await database.query.eventRegistrationOptions.findFirst({
@@ -442,7 +443,7 @@ test.describe('Manual approval registrations', () => {
     }
   });
 
-  test('recovers an interrupted payment setup and allows participant cancellation', async ({
+  test('recovers an interrupted payment and allows attendee cancellation', async ({
     browser,
     database,
     page,
@@ -488,10 +489,10 @@ test.describe('Manual approval registrations', () => {
       ).toEqual({ stripeAccountId: scenario.tenant.stripeAccountId });
       await organizer.page.reload();
       await expect(
-        organizer.page.getByText('Payment setup needs retry'),
+        organizer.page.getByText('Payment needs attention'),
       ).toBeVisible({ timeout: 20_000 });
       const retryButton = organizer.page.getByRole('button', {
-        name: 'Retry payment setup',
+        name: 'Try payment again',
       });
       await expect(retryButton).toBeEnabled();
       await expect(retryButton).not.toHaveAttribute('jsaction', /click/, {
@@ -502,7 +503,7 @@ test.describe('Manual approval registrations', () => {
       await waitForRegistrationStatus(page);
       await expect(
         page.getByRole('status').filter({
-          hasText: 'Your payment link is being prepared.',
+          hasText: 'Your payment link is not ready yet.',
         }),
       ).toBeVisible();
       await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
@@ -510,7 +511,7 @@ test.describe('Manual approval registrations', () => {
       await retryButton.click();
       await expect(
         organizer.page.getByText(
-          'Application approved. Payment is required before confirmation.',
+          'Application approved. The attendee must pay before their place is confirmed.',
         ),
       ).toBeVisible({ timeout: 20_000 });
       await expect(organizer.page.getByText('Payment pending')).toBeVisible({
@@ -535,7 +536,7 @@ test.describe('Manual approval registrations', () => {
       await waitForRegistrationStatus(page);
       const payNow = page.getByRole('link', { name: 'Pay now' });
       const cancelRegistration = page.getByRole('button', {
-        name: 'Cancel registration',
+        name: 'Cancel pending sign-up',
       });
       const cancellationSucceeded = page.getByRole('button', {
         name: 'Apply for approval',
@@ -543,7 +544,7 @@ test.describe('Manual approval registrations', () => {
       const recoverableCancellationFailure = page
         .getByRole('alert')
         .getByText(
-          /^(?:Checkout cancellation could not be confirmed|Stripe did not confirm Checkout cancellation), so this request did not cancel the registration or release its reserved spots\. Refresh before retrying\.$/,
+          'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
         );
       const readCancellationState = async () => {
         const persistedRegistration =
@@ -580,7 +581,7 @@ test.describe('Manual approval registrations', () => {
       await cancelRegistration.click();
       await page
         .getByRole('dialog')
-        .getByRole('button', { name: 'Confirm cancellation' })
+        .getByRole('button', { name: 'Cancel sign-up' })
         .click();
       await expect(
         cancellationSucceeded.or(recoverableCancellationFailure).first(),
@@ -600,7 +601,7 @@ test.describe('Manual approval registrations', () => {
         await cancelRegistration.click();
         await page
           .getByRole('dialog')
-          .getByRole('button', { name: 'Confirm cancellation' })
+          .getByRole('button', { name: 'Cancel sign-up' })
           .click();
         await expect(
           cancellationSucceeded.or(recoverableCancellationFailure).first(),

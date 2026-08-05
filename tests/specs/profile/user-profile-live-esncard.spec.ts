@@ -9,7 +9,7 @@ const liveEsnCardIdentifier =
   process.env['E2E_LIVE_ESN_CARD_IDENTIFIER']?.trim();
 const expiredEsnCardIdentifier =
   process.env['E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER']?.trim();
-const seededEsnCardIdentifier = 'TEST-ESN-0001';
+const seededEsnCardIdentifier = 'DE-2026-000184';
 
 test.setTimeout(120_000);
 
@@ -22,7 +22,7 @@ test.use({
   video: 'off',
 });
 
-test('verifies active and expired ESN cards through the live provider @needs-live-esncard', async ({
+test('verifies active and expired ESNcards through the live provider @needs-live-esncard', async ({
   database,
   discounts,
   page,
@@ -98,13 +98,13 @@ test('verifies active and expired ESN cards through the live provider @needs-liv
     await expect(page.getByText('No discount cards on file.')).toBeVisible();
 
     await fillProtectedValue(
-      page.getByRole('textbox', { name: 'ESN card number' }),
+      page.getByRole('textbox', { name: 'ESNcard number' }),
       'E2E_LIVE_ESN_CARD_IDENTIFIER',
       { trim: true },
     );
-    await page.getByRole('button', { name: 'Save ESN card' }).click();
+    await page.getByRole('button', { name: 'Save ESNcard' }).click();
 
-    await expect(page.getByText(/Status: Verified/)).toBeVisible({
+    await expect(page.getByText(/^Verified/)).toBeVisible({
       timeout: 20_000,
     });
 
@@ -126,8 +126,8 @@ test('verifies active and expired ESN cards through the live provider @needs-liv
     expect(savedCard?.identifier === liveEsnCardIdentifier).toBe(true);
     expect(savedCard?.lastCheckedAt).toBeInstanceOf(Date);
 
-    await page.getByRole('button', { name: 'Refresh' }).click();
-    await expect(page.getByText(/Status: Verified/)).toBeVisible({
+    await page.getByRole('button', { name: 'Check again' }).click();
+    await expect(page.getByText(/^Verified/)).toBeVisible({
       timeout: 20_000,
     });
 
@@ -164,13 +164,13 @@ test('verifies active and expired ESN cards through the live provider @needs-liv
     expect(removedCard).toBeUndefined();
 
     await fillProtectedValue(
-      page.getByRole('textbox', { name: 'ESN card number' }),
+      page.getByRole('textbox', { name: 'ESNcard number' }),
       'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER',
       { trim: true },
     );
-    await page.getByRole('button', { name: 'Save ESN card' }).click();
+    await page.getByRole('button', { name: 'Save ESNcard' }).click();
 
-    await expect(page.getByText(/Status: Expired/)).toBeVisible({
+    await expect(page.getByText(/^Expired/)).toBeVisible({
       timeout: 20_000,
     });
 
@@ -194,8 +194,8 @@ test('verifies active and expired ESN cards through the live provider @needs-liv
     );
     expect(savedExpiredCard?.lastCheckedAt).toBeInstanceOf(Date);
 
-    await page.getByRole('button', { name: 'Refresh' }).click();
-    await expect(page.getByText(/Status: Expired/)).toBeVisible({
+    await page.getByRole('button', { name: 'Check again' }).click();
+    await expect(page.getByText(/^Expired/)).toBeVisible({
       timeout: 20_000,
     });
 

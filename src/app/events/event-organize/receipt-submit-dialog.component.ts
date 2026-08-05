@@ -88,7 +88,7 @@ export const receiptSubmitDialogResultFromFormValue = ({
 }): ReceiptSubmitDialogPayloadResult => {
   if (!file) {
     return {
-      errorMessage: 'Choose an image or PDF receipt file.',
+      errorMessage: 'Choose a receipt image or document.',
       result: null,
     };
   }
@@ -162,7 +162,7 @@ export const receiptSubmitDialogResultFromFormValue = ({
 
   if (!isFinanceReceiptCalendarDate(formValue.receiptDate)) {
     return {
-      errorMessage: 'Enter a valid receipt date in YYYY-MM-DD format.',
+      errorMessage: 'Choose a valid receipt date.',
       result: null,
     };
   }

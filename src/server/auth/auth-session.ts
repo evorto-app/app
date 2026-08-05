@@ -403,7 +403,10 @@ export const handleCallbackRequest = (
     const requestUrl = toAbsoluteRequestUrl(request);
 
     if (!requestUrl.searchParams.get('code')) {
-      return HttpServerResponse.text('Missing code.', { status: 400 });
+      return HttpServerResponse.text(
+        'Sign-in could not be completed. Return to Evorto and try again.',
+        { status: 400 },
+      );
     }
 
     const { auth0Client, storeOptions } =

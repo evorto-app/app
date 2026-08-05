@@ -23,7 +23,9 @@ test.describe('global admin route guard allow path', () => {
       new RegExp(`/global-admin/tenants/${tenant.id}`),
     );
     await expect(
-      page.getByText("Review this organization's settings and platform tools."),
+      page.getByText(
+        "Review this organization's settings and manage its events, members, roles, and finances.",
+      ),
     ).toBeVisible();
   });
 
@@ -37,23 +39,23 @@ test.describe('global admin route guard allow path', () => {
     ).toBeVisible();
   });
 
-  test('allows platform administrators to open the Email Outbox directly @permissions @globalAdmin', async ({
+  test('allows platform administrators to open Email delivery directly @permissions @globalAdmin', async ({
     page,
   }) => {
-    await page.goto('/global-admin/email-outbox');
-    await expect(page).toHaveURL(/\/global-admin\/email-outbox/);
+    await page.goto('/global-admin/email-delivery');
+    await expect(page).toHaveURL(/\/global-admin\/email-delivery/);
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Email outbox' }),
+      page.getByRole('heading', { level: 1, name: 'Email delivery' }),
     ).toBeVisible();
   });
 
-  test('allows platform administrators to open the audit log directly @permissions @globalAdmin', async ({
+  test('allows platform administrators to open change history directly @permissions @globalAdmin', async ({
     page,
   }) => {
     await page.goto('/global-admin/audit');
     await expect(page).toHaveURL(/\/global-admin\/audit/);
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Platform audit log' }),
+      page.getByRole('heading', { level: 1, name: 'Evorto change history' }),
     ).toBeVisible();
   });
 
@@ -77,7 +79,7 @@ test.describe('global admin route guard allow path', () => {
     const operations = [
       { heading: 'Events', path: 'events' },
       { heading: 'Event templates', path: 'templates' },
-      { heading: 'Registration support', path: 'scanner' },
+      { heading: 'Ticket support', path: 'scanner' },
       { heading: 'Organization members', path: 'users' },
       { heading: 'Organization roles', path: 'roles' },
       { heading: 'Organization tax rates', path: 'tax-rates' },
@@ -125,14 +127,14 @@ test.describe('global admin route guard deny path', () => {
     await expect(page).toHaveURL(/\/403/);
   });
 
-  test('denies direct Email Outbox access without platform administrator authority @permissions @globalAdmin', async ({
+  test('denies direct Email delivery access without platform administrator authority @permissions @globalAdmin', async ({
     page,
   }) => {
-    await page.goto('/global-admin/email-outbox');
+    await page.goto('/global-admin/email-delivery');
     await expect(page).toHaveURL(/\/403/);
   });
 
-  test('denies direct audit-log access without platform administrator authority @permissions @globalAdmin', async ({
+  test('denies direct change-history access without platform administrator authority @permissions @globalAdmin', async ({
     page,
   }) => {
     await page.goto('/global-admin/audit');

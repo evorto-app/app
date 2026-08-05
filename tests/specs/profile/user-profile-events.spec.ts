@@ -32,7 +32,7 @@ test('profile event cards show implemented registration actions', async ({
 
     await page.goto('/profile/events');
     await expect(
-      page.getByRole('heading', { name: 'Your Event Registrations' }),
+      page.getByRole('heading', { name: 'Your events' }),
     ).toBeVisible();
 
     const confirmedCard = page
@@ -60,15 +60,15 @@ test('profile event cards show implemented registration actions', async ({
       .locator('article')
       .filter({ hasText: profileEventCards.pendingCheckout.title });
     await expect(
-      pendingCheckoutCard.getByText('Pending', { exact: true }),
+      pendingCheckoutCard.getByText('Waiting for confirmation', {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
-      pendingCheckoutCard.getByText('Payment pending'),
+      pendingCheckoutCard.getByText('Payment not finished'),
     ).toBeVisible();
     await expect(
-      pendingCheckoutCard.getByText(
-        'Finish the checkout payment to confirm your spot.',
-      ),
+      pendingCheckoutCard.getByText('Finish payment to confirm your place.'),
     ).toBeVisible();
     await expect(
       pendingCheckoutCard.getByRole('link', { name: 'Continue payment' }),
@@ -84,11 +84,11 @@ test('profile event cards show implemented registration actions', async ({
       .locator('article')
       .filter({ hasText: profileEventCards.waitlist.title });
     await expect(
-      waitlistCard.getByText('Waitlist', { exact: true }),
+      waitlistCard.getByText('On waitlist', { exact: true }),
     ).toBeVisible();
     await expect(
       waitlistCard.getByText(
-        'Open the event page for waitlist details and current cancellation status.',
+        'Open the event page for waitlist details and whether you can leave it.',
       ),
     ).toBeVisible();
     await expect(
@@ -107,7 +107,7 @@ test('profile event cards show implemented registration actions', async ({
     await expect(checkedInCard.getByText('Checked in:')).toBeVisible();
     await expect(
       checkedInCard.getByText(
-        'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
+        'You are checked in. Open the event page for ticket details. You can no longer cancel, but you can still transfer the ticket and its existing check-ins.',
       ),
     ).toBeVisible();
     await expect(checkedInCard).not.toContainText(

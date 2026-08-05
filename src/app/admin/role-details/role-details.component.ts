@@ -11,7 +11,6 @@ import {
   type TenantRolePermission,
 } from '../../../shared/permissions/permissions';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,9 +34,5 @@ export class RoleDetailsComponent {
 
   hasPermission(permission: TenantRolePermission) {
     return this.roleQuery.data()?.permissions.includes(permission) ?? false;
-  }
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
   }
 }

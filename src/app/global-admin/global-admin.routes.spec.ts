@@ -30,7 +30,7 @@ describe('GLOBAL_ADMIN_ROUTES', () => {
       'tenants/:tenantId/tax-rates',
       'tenants/:tenantId/finance',
       'tenants/:tenantId',
-      'email-outbox',
+      'email-delivery',
       'tenants',
     ]);
   });

@@ -39,11 +39,15 @@ const platformAuthority = PlatformAdministratorAuthority.make({
 
 const createContextLayer = (
   permissions: readonly Permission[],
-  options: { includePlatformAuthority?: boolean } = {},
+  options: {
+    authenticated?: boolean;
+    includePlatformAuthority?: boolean;
+  } = {},
 ) => {
+  const authenticated = options.authenticated ?? true;
   const requestContext = {
     authData: {},
-    authenticated: true,
+    authenticated,
     permissions,
     platformAuthority: options.includePlatformAuthority
       ? platformAuthority
@@ -100,6 +104,7 @@ describe('RpcAccess.ensurePermission', () => {
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
+      expect(error.message).toBe('You do not have permission to do this.');
       expect(error.permission).toBe('templates:create');
     }),
   );
@@ -171,6 +176,21 @@ describe('RpcAccess.ensurePermission', () => {
       );
 
       expect(error['_tag']).toBe('RpcUnauthorizedError');
+      expect(error.message).toBe(
+        'Sign in with an organization account to continue.',
+      );
+    }),
+  );
+
+  it.effect('asks anonymous visitors to sign in without protocol wording', () =>
+    Effect.gen(function* () {
+      const error = yield* RpcAccess.ensureAuthenticated().pipe(
+        Effect.flip,
+        Effect.provide(createContextLayer([], { authenticated: false })),
+      );
+
+      expect(error['_tag']).toBe('RpcUnauthorizedError');
+      expect(error.message).toBe('Sign in to continue.');
     }),
   );
 });

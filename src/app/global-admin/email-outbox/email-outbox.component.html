@@ -1,5 +1,5 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <h1 class="title-large">Email outbox</h1>
+  <h1 class="title-large">Email delivery</h1>
   <div class="grow"></div>
   <button
     mat-button
@@ -8,7 +8,7 @@
     (click)="outboxQuery.refetch()"
   >
     <fa-duotone-icon [icon]="faArrowRotateRight" class="mr-2" />
-    Refresh
+    Check again
   </button>
 </div>
 
@@ -16,15 +16,12 @@
   <div
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-lg p-4"
   >
-    <h2 class="title-medium">Loading ...</h2>
+    <h2 class="title-medium">Loading…</h2>
   </div>
 } @else if (outboxQuery.isError()) {
   <div class="bg-error text-on-error rounded-lg p-4">
-    <h2 class="title-medium mb-4">There was an error</h2>
-    <p class="body-medium">
-      Error:
-      {{ getErrorMessage(outboxQuery.error(), "Failed to load email outbox") }}
-    </p>
+    <h2 class="title-medium mb-4">We couldn't load email delivery</h2>
+    <p class="body-medium">Select Check again to try again.</p>
   </div>
 } @else if (outboxQuery.isSuccess()) {
   @let overview = outboxQuery.data();
@@ -32,7 +29,7 @@
 
   <section class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
     <div class="bg-surface text-on-surface rounded-lg p-4">
-      <p class="text-on-surface-variant text-xs uppercase">Queued</p>
+      <p class="text-on-surface-variant text-xs uppercase">Waiting to send</p>
       <p class="headline-small">{{ summary.queued }}</p>
     </div>
     <div class="bg-surface text-on-surface rounded-lg p-4">
@@ -40,7 +37,7 @@
       <p class="headline-small">{{ summary.sending }}</p>
     </div>
     <div class="bg-surface text-on-surface rounded-lg p-4">
-      <p class="text-on-surface-variant text-xs uppercase">Failed</p>
+      <p class="text-on-surface-variant text-xs uppercase">Could not send</p>
       <p class="headline-small">{{ summary.failed }}</p>
     </div>
     <div class="bg-surface text-on-surface rounded-lg p-4">
@@ -48,11 +45,13 @@
       <p class="headline-small">{{ summary.sent }}</p>
     </div>
     <div class="bg-surface text-on-surface rounded-lg p-4">
-      <p class="text-on-surface-variant text-xs uppercase">Unknown</p>
+      <p class="text-on-surface-variant text-xs uppercase">
+        Delivery not confirmed
+      </p>
       <p class="headline-small">{{ summary.deliveryUnknown }}</p>
     </div>
     <div class="bg-surface text-on-surface rounded-lg p-4">
-      <p class="text-on-surface-variant text-xs uppercase">Suppressed</p>
+      <p class="text-on-surface-variant text-xs uppercase">Not sent</p>
       <p class="headline-small">{{ summary.suppressed }}</p>
     </div>
   </section>
@@ -66,23 +65,22 @@
       <div class="flex items-center gap-3">
         <fa-duotone-icon [icon]="faCircleExclamation" size="lg" />
         <div>
-          <h2 class="title-medium">Email delivery status</h2>
+          <h2 class="title-medium">Some emails need attention</h2>
           <p class="body-medium">
-            {{ summary.failed }} rejected by the provider,
-            {{ summary.deliveryUnknown }} with an unknown delivery outcome, and
-            {{ summary.staleSending }} waiting to be marked unknown after an
-            abandoned delivery.
+            Could not send: {{ summary.failed }}. Delivery not confirmed:
+            {{ summary.deliveryUnknown }}. Sending longer than expected:
+            {{ summary.staleSending }}.
           </p>
           @if (summary.failed > 0) {
             <p class="body-medium mt-1">
-              Failed emails were explicitly rejected before acceptance. They
-              remain stored as terminal operational evidence.
+              Emails marked "Could not send" will not be tried again
+              automatically.
             </p>
           }
           @if (summary.deliveryUnknown > 0) {
             <p class="body-medium mt-1">
-              Unknown deliveries are retained as read-only history and are never
-              retried automatically, which prevents duplicate messages.
+              Emails with unconfirmed delivery are not sent again, which avoids
+              duplicate messages.
             </p>
           }
         </div>
@@ -95,8 +93,11 @@
       <div class="flex items-center gap-3">
         <fa-duotone-icon [icon]="faCheckCircle" size="lg" />
         <div>
-          <h2 class="title-medium">No outbox issues</h2>
-          <p class="body-medium">There are no failed or stuck emails.</p>
+          <h2 class="title-medium">No delivery issues</h2>
+          <p class="body-medium">
+            There are no emails that could not be sent, have unconfirmed
+            delivery, or have been sending longer than expected.
+          </p>
         </div>
       </div>
     </div>
@@ -105,12 +106,20 @@
   <section class="grid gap-3">
     <h2 class="title-medium">Delivery details</h2>
     <p class="text-on-surface-variant body-medium">
-      The summary covers the entire outbox. Details show up to 100 records:
-      failed, unknown, and abandoned deliveries appear before routine records;
-      each group shows the newest first.
+      The counts cover all emails. This list shows up to 100, placing emails
+      that need attention first. Within each status, the newest appear first.
     </p>
     @for (item of overview.items; track item.id) {
       <div class="bg-surface text-on-surface rounded-lg p-4">
+        @if (item.recordIncomplete) {
+          <p
+            class="bg-error-container text-on-error-container body-medium mb-3 rounded p-3"
+            role="alert"
+          >
+            Some delivery details are missing. Contact Evorto support and
+            include the organization, recipient, and subject shown below.
+          </p>
+        }
         <div class="flex flex-wrap items-start gap-3">
           <div>
             <h3 class="title-small">{{ item.subject }}</h3>
@@ -144,39 +153,32 @@
             </dt>
             <dd>{{ item.tenantName }} ({{ item.tenantDomain }})</dd>
           </div>
-          <div>
-            <dt class="text-on-surface-variant text-xs uppercase">Attempts</dt>
-            <dd>{{ item.attempts }}</dd>
-          </div>
           @if (item.status === "failed") {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
                 Delivery
               </dt>
-              <dd>
-                Rejected before provider acceptance. Stored as terminal
-                operational evidence.
-              </dd>
+              <dd>This email could not be sent.</dd>
             </div>
           } @else if (item.status === "deliveryUnknown") {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
                 Delivery
               </dt>
-              <dd>Outcome unknown. Stored read-only; no automatic retry.</dd>
-              @if (!item.deliveryUnknownAt) {
-                <dd>Invalid record: missing unknown-outcome timestamp.</dd>
-              }
+              <dd>
+                Evorto could not confirm whether this email was delivered, so it
+                will not send it again.
+              </dd>
             </div>
           } @else if (item.status === "suppressed") {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
                 Delivery
               </dt>
-              <dd>Suppressed by the protected staging recipient allowlist.</dd>
-              @if (!item.suppressedAt) {
-                <dd>Invalid record: missing suppression timestamp.</dd>
-              }
+              <dd>
+                This email was not sent because this address cannot receive
+                organization emails.
+              </dd>
             </div>
           } @else if (item.status === "sending") {
             <div>
@@ -184,8 +186,8 @@
                 Delivery
               </dt>
               <dd>
-                Delivery attempt recorded. It will settle once or become
-                unknown; it will not be resent.
+                Evorto is sending this message. If delivery cannot be confirmed,
+                it will not be sent again.
               </dd>
             </div>
           } @else if (item.status === "queued") {
@@ -193,54 +195,33 @@
               <dt class="text-on-surface-variant text-xs uppercase">
                 Delivery
               </dt>
-              <dd>Waiting for its single provider request.</dd>
+              <dd>This message is waiting to be sent.</dd>
             </div>
           } @else {
             <div>
               <dt class="text-on-surface-variant text-xs uppercase">
                 Delivery
               </dt>
-              <dd>Invalid unresolved delivery status.</dd>
+              <dd>Evorto sent this message.</dd>
             </div>
           }
           <div>
             <dt class="text-on-surface-variant text-xs uppercase">
-              Last attempt
+              Last tried
             </dt>
             <dd>
               {{
                 item.lastAttemptAt
                   ? (item.lastAttemptAt | date: "medium" : item.tenantTimezone)
-                  : "Not attempted"
+                  : "Not tried yet"
               }}
             </dd>
           </div>
-          @if (item.provider) {
-            <div>
-              <dt class="text-on-surface-variant text-xs uppercase">
-                Provider
-              </dt>
-              <dd>
-                {{ item.provider }}
-                @if (item.providerMessageId) {
-                  ({{ item.providerMessageId }})
-                }
-              </dd>
-            </div>
-          }
-          @if (item.lastError) {
-            <div class="md:col-span-2">
-              <dt class="text-on-surface-variant text-xs uppercase">
-                Last error
-              </dt>
-              <dd class="break-words">{{ item.lastError }}</dd>
-            </div>
-          }
         </dl>
       </div>
     } @empty {
       <div class="bg-surface text-on-surface rounded-lg p-4">
-        <p class="body-medium">No unresolved email delivery records.</p>
+        <p class="body-medium">No email delivery details to show.</p>
       </div>
     }
   </section>

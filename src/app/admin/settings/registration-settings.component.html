@@ -7,7 +7,7 @@
   >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
-  <h1 class="title-large">Registration policies</h1>
+  <h1 class="title-large">Sign-up rules</h1>
 </div>
 
 <form
@@ -24,7 +24,7 @@
     </p>
 
     <mat-form-field>
-      <mat-label>Active registration limit</mat-label>
+      <mat-label>Active sign-up limit</mat-label>
       <input
         matInput
         type="number"
@@ -32,8 +32,8 @@
         [formField]="settingsForm.maxActiveRegistrationsPerUser"
       />
       <mat-hint>
-        Use 0 for no organization-wide limit. Waitlist entries do not consume
-        this limit.
+        Use 0 for no organization-wide limit. Joining a waitlist does not count
+        toward this limit.
       </mat-hint>
       @for (
         error of settingsForm.maxActiveRegistrationsPerUser().errors();
@@ -52,7 +52,7 @@
         [formField]="settingsForm.transferDeadlineHoursBeforeStart"
       />
       <mat-hint>
-        Use 0 to allow participant transfers until the event starts.
+        Use 0 to allow attendee transfers until the event starts.
       </mat-hint>
       @for (
         error of settingsForm.transferDeadlineHoursBeforeStart().errors();
@@ -92,7 +92,7 @@
         })
       "
     >
-      Save registration policies
+      Save sign-up rules
     </button>
   </fieldset>
 </form>

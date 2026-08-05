@@ -31,6 +31,7 @@ The relaunch target is a full production replacement, not a prototype. Core work
 - **Templates preserve organizational memory**: repeated events should be easy to recreate without losing reusable event knowledge.
 - **No hidden deliverables**: a new user-facing feature or page is not complete if it can only be reached by typing a URL.
 - **Documentation is part of the product**: essential flows should be documented for users and admins, preferably through Playwright-generated documentation.
+- **Plain product language**: application copy, email, and generated guides describe what people can do, what happened, and what to do next. They do not expose implementation terms, internal identifiers, storage or delivery mechanics, or test evidence. Unexpected failures remain visible, while technical diagnostics stay in logs.
 
 ## Tenants and Identity
 
@@ -204,8 +205,8 @@ A sign-up event has registration options. Registration options can represent par
 
 First-come-first-served and manual-approval (`application`) are supported
 relaunch registration modes. A manual approval remains pending until an
-authorized organizer approves it; a paid approval then follows the normal
-Stripe Checkout lifecycle.
+organizer who can review applications approves it; a paid approval then follows
+the normal payment flow.
 
 Important rules:
 
@@ -393,24 +394,22 @@ own answers, and complete the Stripe-backed flow before ownership changes.
 
 The goal is to let users transfer spots without trusting each other directly.
 
-New payments for a tenant use its currently configured Stripe Connect account.
-Every refund uses the persisted owning Connect account of its original Stripe
-payment, even if the tenant rotated accounts afterward. The application submits
-that payment-owning account with each Stripe request and adds only the platform
-application fee; all other payment and cancellation configuration belongs to
-the tenant, subject to the registration-option override rules. The ordinary
-cancellation fee policy does not reduce a transfer refund: each source
-registration or add-on payment is refunded until its total refunds equal the
-exact original Stripe amount.
+New payments for a tenant use its configured Stripe Connect account. Every
+refund uses the persisted owning account of its original Stripe payment. The
+application submits that payment-owning account with each Stripe request and
+adds only the platform application fee; all other payment and cancellation
+configuration belongs to the tenant, subject to the registration-option
+override rules. The ordinary cancellation fee policy does not reduce a
+transfer refund: each source registration or add-on payment is refunded until
+its total refunds equal the exact original Stripe amount.
 
-Stripe tax-rate IDs are account-owned configuration. Disconnecting remains
-blocked while paid event or template configuration exists. For an account
-rotation, the replacement Stripe account must already contain exactly one
-active, inclusive rate with the same normalized percentage, display name,
-country, and state as each assigned source rate. Evorto rejects a missing or
-ambiguous match; otherwise it atomically imports the replacement metadata and
-remaps every event and template registration-option and add-on binding without
-changing its tax semantics.
+The client sees only whether paid sign-ups are ready. It never receives or
+edits the connected-account identifier. A private operations action may attach
+the first account only after explicit confirmation and only while the tenant
+has no payment history, pending payment work, paid event/template configuration,
+or imported/assigned tax rates. Rotation and disconnect are intentionally
+unsupported; do not emulate them with remapping, fallback, or compatibility
+flows.
 
 ## Check-in
 
@@ -523,15 +522,21 @@ Checkout, customer, payment-intent, expiry, and refund calls must execute for
 that connected account. Evorto adds its application fee but does not own or
 silently replace the tenant's other payment configuration.
 
+Application and generated-documentation surfaces expose payment readiness only,
+never the connected-account identifier or provider setup mechanics. The first
+account attachment is a private, explicitly confirmed operations action. It is
+allowed only for a fresh tenant with no payment history, pending payment work,
+paid configuration, or tax-rate configuration. The product does not support
+rotation or disconnect through tenant or platform administration.
+
 Users should receive registration confirmation and an authenticated link to
 their ticket only after registration is successful. For paid events, that means
 after successful payment.
 
-Rendering a ticket QR requires the confirmed registration owner or an
-authorized organizer to be signed in. The QR may encode the registration id as
-an opaque locator, but that id is never a bearer credential: the scanner still
-requires tenant-scoped organizer authorization and validates the registration
-status before check-in.
+Rendering a ticket QR requires the confirmed ticket owner or someone who can
+organize the event to be signed in. The QR can identify the ticket, but opening
+or scanning it never grants event access. Evorto still checks the organization,
+the person's event access, and the ticket before check-in.
 
 ## Receipts and Reimbursements
 
@@ -597,7 +602,7 @@ Tenants should be able to customize:
 - registration limits
 - enabled complexity where applicable
 - email sender name, likely derived from tenant config
-- Stripe Connect account and tenant payment/cancellation defaults
+- payment readiness and tenant payment/cancellation defaults
 
 Evorto uses the fixed `de-DE` formatting locale for all tenants. This affects
 date, number, and money formatting only; the interface, emails, generated

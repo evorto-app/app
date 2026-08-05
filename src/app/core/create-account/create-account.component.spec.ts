@@ -109,15 +109,19 @@ describe('CreateAccountComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Organization setup could not be loaded',
+        "We couldn't load your account setup",
       );
     });
 
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      "Your verified login details or this organization's current requirements are unavailable.",
+      "We couldn't load your sign-in details or what this organization asks from new members.",
     );
+    expect(alert?.textContent).toContain(
+      'contact Evorto support and say that account setup could not be loaded',
+    );
+    expect(alert?.textContent).not.toContain('sign out and sign in again');
 
     const retryButton: HTMLButtonElement | null =
       fixture.nativeElement.querySelector('button');
@@ -126,7 +130,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Notification email');
+      expect(normalizeText(fixture)).toContain('Email for updates');
     });
     expect(loadAuthData).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
@@ -153,7 +157,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Your email is not verified');
+      expect(normalizeText(fixture)).toContain('Verify your email');
     });
 
     const retryButton = [
@@ -164,7 +168,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Notification email');
+      expect(normalizeText(fixture)).toContain('Email for updates');
     });
     expect(loadAuthData).toHaveBeenCalledTimes(2);
   });
@@ -277,7 +281,9 @@ describe('CreateAccountComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(completeOnboarding).toHaveBeenCalledOnce();
-      expect(normalizeText(fixture)).toContain('Temporary connection problem');
+      expect(normalizeText(fixture)).toContain(
+        "We couldn't finish setting up your account. Try again.",
+      );
     });
 
     const retainedAnswer: HTMLInputElement | null =
@@ -509,7 +515,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Privacy policy version 2');
+      expect(normalizeText(fixture)).toContain('Current privacy policy');
       expect(
         fixture.nativeElement.querySelector('[data-question-id="question-3"]'),
       ).not.toBeNull();

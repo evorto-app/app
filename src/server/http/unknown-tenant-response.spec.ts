@@ -12,11 +12,13 @@ describe('unknown tenant response', () => {
     expect(visibleCopy).toContain(
       'This link does not match an Evorto organization',
     );
+    expect(visibleCopy).toContain('Your account and tickets have not changed.');
     expect(visibleCopy).toContain(
-      'Your account and registrations have not been changed.',
+      'ask an organizer for the current Evorto link for this event',
     );
-    expect(visibleCopy).toContain(
-      'do not edit its address or create a new registration',
+    expect(visibleCopy).toContain("organization's current Evorto link");
+    expect(visibleCopy).not.toMatch(
+      /\b(?:domain|host|routing|subdomain|tenant)\b/iu,
     );
     expect(unknownTenantDocument).not.toContain('window.location');
     expect(unknownTenantDocument).not.toContain('document.referrer');

@@ -3,9 +3,41 @@ import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  eventEditQueryErrorMessage,
+  eventEditSaveErrorMessage,
   eventEditSubmitDisabled,
   eventOptionRemovalBlockReason,
 } from './event-edit';
+
+describe('event edit error messages', () => {
+  it('shows event conflicts and form corrections', () => {
+    expect(
+      eventEditQueryErrorMessage({
+        _tag: 'EventConflictError',
+        message: 'This event cannot be edited in its current status.',
+      }),
+    ).toBe('This event cannot be edited in its current status.');
+    expect(
+      eventEditSaveErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Choose an event end time after its start time.',
+      }),
+    ).toBe('Choose an event end time after its start time.');
+  });
+
+  it('keeps internal and access failures behind plain copy', () => {
+    const internalError = {
+      _tag: 'RpcInternalServerError',
+      message: 'database failed',
+    };
+    expect(eventEditQueryErrorMessage(internalError)).toBe(
+      'The event could not be loaded. Try again.',
+    );
+    expect(eventEditSaveErrorMessage(internalError)).toBe(
+      'The event could not be saved. Try again.',
+    );
+  });
+});
 
 describe('eventEditSubmitDisabled', () => {
   it('blocks event edit submits while invalid, submitting, or awaiting the mutation', () => {
@@ -129,9 +161,11 @@ describe('eventEditSubmitDisabled', () => {
       nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
       'utf8',
     );
+    expect(source).toContain('paymentsConfigured');
+    expect(source).not.toContain('stripeAccountId');
     expect(source).not.toContain('resetEventGraphPayments');
-    expect(template).toContain('It remains');
-    expect(template).toContain('cannot be saved until Stripe is');
+    expect(template).toContain('They remain unchanged');
+    expect(template).toContain('cannot save changes until');
   });
 });
 
@@ -173,7 +207,7 @@ describe('event edit currency inputs', () => {
     );
 
     expect(template).toContain(
-      'No add-ons yet. Add one to offer extras with registration.',
+      'No add-ons yet. Add one to offer extras during sign-up.',
     );
     expect(template).not.toContain('Add-ons are disabled for this event.');
   });
@@ -202,7 +236,7 @@ describe('event edit currency inputs', () => {
       'max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY',
     );
     expect(addOnTemplate).toContain(
-      'At most {{ maxRegistrationAddonQuantity }} units per registration.',
+      'At most {{ maxRegistrationAddonQuantity }} items per sign-up.',
     );
     expect(parentTemplate).toContain(
       '[disabled]="eventModel().addOns.length >= maxEventAddonTypes"',

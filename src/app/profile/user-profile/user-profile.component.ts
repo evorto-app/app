@@ -46,15 +46,15 @@ export const profileReimbursementReadiness = ({
   paypalEmail?: null | string | undefined;
 }): string => {
   if (iban && paypalEmail) {
-    return 'IBAN and PayPal are configured.';
+    return 'IBAN and PayPal details added.';
   }
   if (iban) {
-    return 'An IBAN is configured.';
+    return 'IBAN added.';
   }
   if (paypalEmail) {
-    return 'A PayPal account is configured.';
+    return 'PayPal account added.';
   }
-  return 'No reimbursement details are configured.';
+  return 'No reimbursement details added.';
 };
 
 export const profileUserAfterEdit = <
@@ -76,6 +76,11 @@ export const profileUserAfterEdit = <
   lastName: result.lastName,
   paypalEmail: result.paypalEmail ?? null,
 });
+
+export const profileUpdateErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, "We couldn't update your profile. Try again.", [
+    'RpcBadRequestError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -138,10 +143,7 @@ export class UserProfileComponent {
     if (!result) return;
     this.updateProfileMutation.mutate(result, {
       onError: (error) => {
-        const errorMessage = getErrorMessage(error, 'Failed to update profile');
-        this.notifications.showError(
-          'Failed to update profile: ' + errorMessage,
-        );
+        this.notifications.showError(profileUpdateErrorMessage(error));
       },
       onSuccess: async () => {
         const updatedUser = profileUserAfterEdit(user, result);
@@ -165,7 +167,7 @@ export class UserProfileComponent {
             'receipts.refundableGroupedByRecipient',
           ]),
         );
-        this.notifications.showSuccess('Profile updated successfully');
+        this.notifications.showSuccess('Profile updated');
       },
     });
   }
@@ -178,7 +180,10 @@ export class UserProfileComponent {
     this.setHomeTenantMutation.mutate(undefined, {
       onError: (error) => {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to change home organization'),
+          getErrorMessage(
+            error,
+            "We couldn't change your home organization. Try again.",
+          ),
         );
       },
       onSuccess: (homeTenant) => {

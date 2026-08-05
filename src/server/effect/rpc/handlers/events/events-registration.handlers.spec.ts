@@ -56,6 +56,7 @@ import {
   mapRegistrationAcquisitionGuardError,
   mapRegistrationMutationInternalError,
   mapRegistrationTransferGuardError,
+  registrationAddonCheckoutExpired,
   registrationAddonPurchaseAvailability,
   registrationCancellationAvailability,
   registrationCancellationStripeRefundTerms,
@@ -1861,13 +1862,13 @@ describe('registration mutation guard error mapping', () => {
         new RegistrationAcquisitionWriteError({
           message: 'Current acquisition owner does not match',
         }),
-        'Registration acquisition ownership is inconsistent.',
+        'The payment details changed. Nothing was changed. Reopen the ticket and review its current payment status.',
       ).pipe(Effect.flip);
       expect(acquisitionConflict).toBeInstanceOf(
         EventRegistrationConflictError,
       );
       expect(acquisitionConflict.message).toBe(
-        'Registration acquisition ownership is inconsistent.',
+        'The payment details changed. Nothing was changed. Reopen the ticket and review its current payment status.',
       );
     }),
   );
@@ -1879,7 +1880,7 @@ describe('registration mutation guard error mapping', () => {
         mapRegistrationTransferGuardError(unexpected),
         mapRegistrationAcquisitionGuardError(
           unexpected,
-          'Registration acquisition ownership is inconsistent.',
+          'The payment details changed. Nothing was changed. Reopen the ticket and review its current payment status.',
         ),
       ];
 
@@ -1943,6 +1944,24 @@ describe('event registration owner add-on status', () => {
     });
   });
 
+  it('uses the payment service clock for pending add-on deadlines', () => {
+    const now = new Date('2030-05-01T12:00:00.000Z');
+
+    expect(registrationAddonCheckoutExpired(undefined, now)).toBe(false);
+    expect(
+      registrationAddonCheckoutExpired(
+        new Date('2030-05-01T12:00:01.000Z'),
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      registrationAddonCheckoutExpired(
+        new Date('2030-05-01T12:00:00.000Z'),
+        now,
+      ),
+    ).toBe(true);
+  });
+
   it('allows paid and fulfilled bundles while blocking pending add-on payments', () => {
     const transferableInput = {
       activeTransfer: false,
@@ -1990,7 +2009,7 @@ describe('event registration owner add-on status', () => {
     'returns every configured add-on and owner-scoped pending checkout recovery data',
     () =>
       Effect.gen(function* () {
-        const pendingCheckoutExpiresAt = new Date('2026-09-18T09:30:00.000Z');
+        const pendingCheckoutExpiresAt = new Date('2000-01-01T00:00:00.000Z');
         const includedPurchase = {
           addOn: { title: 'Included lunch' },
           addonId: 'addon-included',
@@ -2235,6 +2254,7 @@ describe('event registration owner add-on status', () => {
         ).toBe(true);
         expect(pendingRegistration?.registrationAddOns[1]).toEqual(
           expect.objectContaining({
+            pendingCheckoutExpired: false,
             pendingCheckoutExpiresAt: null,
             pendingCheckoutUrl: null,
             pendingOperationKey: null,
@@ -2243,6 +2263,7 @@ describe('event registration owner add-on status', () => {
         );
         expect(pendingRegistration?.registrationAddOns[2]).toEqual(
           expect.objectContaining({
+            pendingCheckoutExpired: true,
             pendingCheckoutExpiresAt: pendingCheckoutExpiresAt.toISOString(),
             pendingCheckoutUrl:
               'https://checkout.stripe.com/c/pay/cs_test_addon',
@@ -2980,7 +3001,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled or refunded, and no places were released.',
         );
         expect(database.select).not.toHaveBeenCalled();
         expect(database.insert).not.toHaveBeenCalled();
@@ -3048,7 +3069,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled or refunded, and no places were released.',
         );
         expect(update).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
@@ -3122,7 +3143,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled or refunded, and no places were released.',
         );
         expect(update).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
@@ -3191,7 +3212,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.',
+          'The cancellation deadline has passed, so nothing was changed.',
         );
         expect(database.transaction).not.toHaveBeenCalled();
       }),
@@ -3577,7 +3598,12 @@ describe('event registration cancellation handlers', () => {
         expect(insertedEmails[0]?.html).toContain(
           'https://tenant.example.com/events/event-1',
         );
-        expect(insertedEmails[1]?.text).toContain('does not reserve a spot');
+        expect(insertedEmails[0]?.text).toContain(
+          'No refund was started for this cancellation.',
+        );
+        expect(insertedEmails[1]?.text).toContain(
+          'We have not held a place for you',
+        );
       }),
   );
 
@@ -3599,7 +3625,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(insertedEmails).toHaveLength(1);
         expect(insertedEmails[0]?.text).toContain(
-          'A platform administrator cancelled your registration',
+          'Evorto cancelled your ticket',
         );
       }),
   );
@@ -3670,7 +3696,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'Stripe payment ownership or acquisition settlement is inconsistent',
+          'The payment details need Evorto administrator review.',
         );
         expect(insert).not.toHaveBeenCalled();
         expect(update).not.toHaveBeenCalled();
@@ -3968,9 +3994,7 @@ describe('event registration cancellation handlers', () => {
             type: 'refund',
           }),
         );
-        expect(insertedTransaction?.['comment']).toContain(
-          'Registration refund claim',
-        );
+        expect(insertedTransaction?.['comment']).toBe('Ticket refund');
         expect(insertedTransaction?.['stripeAccountId']).not.toBe('acct_123');
         expect(insertedRefundAllocations).toEqual([
           expect.objectContaining({
@@ -4049,7 +4073,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Payment setup is still being reconciled, so this request did not cancel the registration or release its reserved spots. Retry payment setup, then retry cancellation.',
+          'The payment is still being prepared. The ticket was not cancelled and no places were released. Wait a moment before trying again.',
         );
         expect(database.transaction).not.toHaveBeenCalled();
       }),
@@ -4108,7 +4132,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'This registration has an active transfer. Complete or resolve the transfer before changing the registration.',
+          'This ticket has an active transfer. Complete or cancel that transfer before changing the ticket.',
         );
         expect(activeTransferFindFirst).toHaveBeenCalledWith({
           columns: { id: true },
@@ -4276,7 +4300,7 @@ describe('event registration cancellation handlers', () => {
         );
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+          'The sign-up or payment changed after you confirmed. Nothing was cancelled or refunded, and no places were released. Reopen the sign-up and review its current details before trying again.',
         );
         expect(updatedTables).toEqual([]);
         expect(updateSets).toEqual([]);
@@ -4383,7 +4407,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(error.message).toBe(
-          'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
+          'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
         );
         expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
           'checkout-1',
@@ -4622,7 +4646,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled or refunded, and no places were released.',
         );
         expect(updateSets).toEqual([
           {
@@ -4776,9 +4800,7 @@ describe('event registration cancellation handlers', () => {
       ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe(
-        'Checked-in registrations cannot be cancelled',
-      );
+      expect(error.message).toBe('A checked-in ticket cannot be cancelled.');
       expect(database.transaction).not.toHaveBeenCalled();
     }),
   );
@@ -5024,6 +5046,10 @@ describe('event registration transfer handlers', () => {
         expect(insertedEmails[1]?.html).toContain(
           'https://tenant.example.com/events/event-1',
         );
+        expect(insertedEmails[0]?.text).toContain(
+          'No refund was started for this transfer.',
+        );
+        expect(insertedEmails[1]?.text).not.toContain('refund');
       }),
   );
 
@@ -5066,7 +5092,7 @@ describe('event registration transfer handlers', () => {
 
               expect(error).toBeInstanceOf(EventRegistrationConflictError);
               expect(error.message).toBe(
-                'This registration has an active transfer. Complete or resolve the transfer before changing the registration.',
+                'This ticket has an active transfer. Complete or cancel that transfer before changing the ticket.',
               );
               expect(activeTransferFindFirst).toHaveBeenCalledOnce();
               expect(activeTransferFindFirst).toHaveBeenCalledWith({
@@ -5127,7 +5153,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'The registration bundle changed after it was reviewed. Review the transfer again before confirming.',
+          'The ticket or its add-ons changed after you reviewed the transfer. Review it again before confirming.',
         );
         expect(insertedEmails).toEqual([]);
         expect(updateSets).toEqual([]);
@@ -5135,7 +5161,7 @@ describe('event registration transfer handlers', () => {
   );
 
   it.effect(
-    'requires recipient claim when the registration option has participant questions',
+    'requires recipient claim when the sign-up choice has questions',
     () =>
       Effect.gen(function* () {
         const { database, updateSets } = createTransferDatabase({
@@ -5149,7 +5175,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'Ask the current owner to create a private transfer offer so the recipient can answer the current questions',
+          'Ask the attendee to create a transfer code so the new attendee can answer them.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5338,7 +5364,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'This registration bundle cannot be reassigned directly. Ask the current owner to create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.',
+          'This ticket includes a payment that needs to be reviewed before it can be transferred. Ask the attendee to create a transfer code so the new attendee can review the price and any refund.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5378,7 +5404,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain(
-          'Ask the current owner to create a private transfer offer',
+          'Ask the attendee to create a transfer code',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5452,7 +5478,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain(
-          'Ask the current owner to create a private transfer offer',
+          'Ask the attendee to create a transfer code',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5480,7 +5506,7 @@ describe('event registration transfer handlers', () => {
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'Target user is not eligible for this registration option',
+        'The selected member cannot use this sign-up choice.',
       );
       expect(updateSets).toEqual([]);
     }),
@@ -5507,7 +5533,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'Target user is not eligible for this registration option',
+          'The selected member cannot use this sign-up choice.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5533,7 +5559,7 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('Registration can no longer be transferred');
+        expect(error.message).toBe('This ticket can no longer be transferred.');
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5559,7 +5585,9 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('Registration can no longer be transferred');
+        expect(error.message).toBe(
+          'The transfer deadline has passed, so this ticket can no longer be transferred.',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5610,7 +5638,7 @@ describe('event registration transfer handlers', () => {
 
           expect(error).toBeInstanceOf(EventRegistrationConflictError);
           expect(error.message).toBe(
-            'Registration can no longer be transferred',
+            'The transfer deadline has passed, so this ticket can no longer be transferred.',
           );
           expect(updateSets).toEqual([]);
         } finally {
@@ -5639,7 +5667,9 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(error.message).toBe('Target tenant user not found');
+        expect(error.message).toBe(
+          'The selected member is no longer available in this organization. No transfer or payment was started. Review the ticket transfer and choose an available member.',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5664,7 +5694,9 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(error.message).toBe('Target tenant user not found');
+        expect(error.message).toBe(
+          'The selected member is no longer available in this organization. No transfer or payment was started. Review the ticket transfer and choose an available member.',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5690,7 +5722,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Target user already has an active registration',
+          'The selected member already has a ticket for this event.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5717,7 +5749,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Target user already has an active registration',
+          'The selected member already has a ticket for this event.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5760,7 +5792,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'Target user already has an active registration',
+          'The selected member already has a ticket for this event.',
         );
         expect(updateSets).toEqual([
           expect.objectContaining({ userId: 'target-user-1' }),
@@ -5861,7 +5893,7 @@ describe('event registration transfer handlers', () => {
 
       expect(error).toBeInstanceOf(EventRegistrationConflictError);
       expect(error.message).toContain(
-        'Source refund ownership is inconsistent',
+        'The payment history needs Evorto administrator review',
       );
       expect(updateSets).toEqual([]);
     }),
@@ -5915,7 +5947,7 @@ describe('event registration transfer handlers', () => {
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'An earlier source refund is unresolved. Resolve it before asking the current owner to create a private transfer offer.',
+        'An earlier refund is still being processed. Wait for it to finish before creating a transfer offer.',
       );
       expect(updateSets).toEqual([]);
     }),
@@ -5936,7 +5968,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain(
-          'Ask the current owner to create a private transfer offer',
+          'Ask the attendee to create a transfer code',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5973,7 +6005,9 @@ describe('event registration transfer handlers', () => {
         );
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('Active registration limit reached');
+        expect(error.message).toBe(
+          'The selected member has reached the current sign-up limit.',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -6151,7 +6185,9 @@ describe('event registration scan handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Invalid E2E_NOW_ISO server clock value');
+        expect(error.message).toBe(
+          'The event time could not be checked. No sign-up was changed. Open the event again and review its current details before continuing.',
+        );
       }),
   );
 
@@ -6483,9 +6519,7 @@ describe('event registration scan handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe(
-          'Only confirmed registrations can be checked in',
-        );
+        expect(error.message).toBe('This ticket is not ready for check-in.');
         expect(tx.update).not.toHaveBeenCalled();
       }),
   );
@@ -6541,9 +6575,7 @@ describe('event registration scan handlers', () => {
       );
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe(
-        'Guest check-in count exceeds remaining guests',
-      );
+      expect(error.message).toBe('Enter no more than 0 additional guests.');
       expect(tx.update).not.toHaveBeenCalled();
     }),
   );
@@ -6663,7 +6695,7 @@ describe('event registration scan handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Guest check-in count must be a non-negative integer',
+          'Enter a whole number of guests, starting at zero.',
         );
         expect(
           database.query.eventRegistrations.findFirst,
@@ -6723,9 +6755,7 @@ describe('event registration scan handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe(
-          'Guest check-in count exceeds remaining guests',
-        );
+        expect(error.message).toBe('Enter no more than 1 additional guest.');
         expect(database.transaction).not.toHaveBeenCalled();
       }),
   );
@@ -6939,7 +6969,7 @@ describe('event registration scan handlers', () => {
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'Users cannot check in their own registration',
+        'Ask another organizer to check in this ticket.',
       );
     }),
   );
@@ -6985,9 +7015,7 @@ describe('event registration scan handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe(
-          'Only confirmed registrations can be checked in',
-        );
+        expect(error.message).toBe('This ticket is not ready for check-in.');
         expect(database.transaction).not.toHaveBeenCalled();
       }),
     );

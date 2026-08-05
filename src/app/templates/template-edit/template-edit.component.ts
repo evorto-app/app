@@ -23,6 +23,7 @@ import consola from 'consola/browser';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
 import {
   createOrdinaryTemplateGraphFormModel,
@@ -34,6 +35,16 @@ import { TemplateGraphEditorComponent } from '../../shared/components/forms/temp
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 
 const logger = consola.withTag('app/templates/edit');
+
+export const templateEditLoadErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'This template could not be loaded. Try again.', [
+    'TemplateSimpleNotFoundError',
+  ]);
+
+export const templateEditSaveErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The template could not be saved. Try again.', [
+    'RpcBadRequestError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -85,8 +96,8 @@ export class TemplateEditComponent {
   );
   protected readonly editorLoadError = signal('');
   private readonly config = inject(ConfigService);
-  protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  protected readonly stripeConnected = computed(
+    () => this.config.tenantSignal()?.paymentsConfigured === true,
   );
   protected readonly stripeConnectionKnown = computed(
     () => this.config.tenantSignal() !== null,
@@ -150,6 +161,12 @@ export class TemplateEditComponent {
       : this.availableTaxRates() === undefined
         ? ('loading' as const)
         : ('ready' as const),
+  );
+  protected readonly templateQueryErrorMessage = computed(() =>
+    templateEditLoadErrorMessage(this.templateQuery.error()),
+  );
+  protected readonly updateErrorMessage = computed(() =>
+    templateEditSaveErrorMessage(this.updateTemplateMutation.error()),
   );
 
   private readonly initializedTemplateId = signal<null | string>(null);

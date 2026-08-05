@@ -7,7 +7,7 @@ export const getExampleConfigTemplates = (exampleConfigsCategory: {
   {
     categoryId: exampleConfigsCategory.id,
     description:
-      '<h2>Small Event Example</h2><p>This is an example configuration for a small event. Use this template to quickly set up your own small event.</p>',
+      '<h2>Small Event Example</h2><p>This is an example setup for a small event. Use this template to quickly set up your own small event.</p>',
     icon: 'user-manual',
     id: getId(),
     tenantId: exampleConfigsCategory.tenantId,
@@ -16,7 +16,7 @@ export const getExampleConfigTemplates = (exampleConfigsCategory: {
   {
     categoryId: exampleConfigsCategory.id,
     description:
-      '<h2>Medium Event Example</h2><p>This is an example configuration for a medium event. Use this template to quickly set up your own medium event.</p>',
+      '<h2>Medium Event Example</h2><p>This is an example setup for a medium event. Use this template to quickly set up your own medium event.</p>',
     icon: 'user-manual',
     id: getId(),
     tenantId: exampleConfigsCategory.tenantId,
@@ -25,7 +25,7 @@ export const getExampleConfigTemplates = (exampleConfigsCategory: {
   {
     categoryId: exampleConfigsCategory.id,
     description:
-      '<h2>Large Event Example</h2><p>This is an example configuration for a large event. Use this template to quickly set up your own large event.</p><ul><li>Duration: 3 days</li><li>Participants: 100+</li><li>Location: Conference Center</li></ul>',
+      '<h2>Large Event Example</h2><p>This is an example setup for a large event. Use this template to quickly set up your own large event.</p><ul><li>Duration: 3 days</li><li>Attendees: 100+</li><li>Location: Conference Center</li></ul>',
     icon: 'user-manual',
     id: getId(),
     tenantId: exampleConfigsCategory.tenantId,

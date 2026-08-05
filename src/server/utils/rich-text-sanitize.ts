@@ -57,6 +57,8 @@ const ALLOWED_STYLES = {
 };
 
 const STRUCTURAL_NODE_PATTERN = /<(table|hr)\b/i;
+const TEXT_BOUNDARY_NODE_PATTERN =
+  /<\/?(?:blockquote|br|h[1-6]|hr|li|ol|p|pre|table|tbody|td|th|thead|tr|ul)\b[^>]*>/giu;
 
 export const sanitizeRichTextHtml = (content: string): string => {
   return sanitizeHtml(content, {
@@ -89,6 +91,15 @@ export const sanitizeOptionalRichTextHtml = (
 
   return sanitized;
 };
+
+export const richTextToPlainText = (content: string): string =>
+  sanitizeHtml(content.replaceAll(TEXT_BOUNDARY_NODE_PATTERN, ' '), {
+    allowedAttributes: {},
+    allowedTags: [],
+  })
+    .replaceAll('\u{A0}', ' ')
+    .replaceAll(/\s+/gu, ' ')
+    .trim();
 
 export const isMeaningfulRichTextHtml = (content: string): boolean => {
   const plainText = sanitizeHtml(content, {

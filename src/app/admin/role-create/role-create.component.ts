@@ -55,7 +55,11 @@ export class RoleCreateComponent {
       {
         onError: (error) => {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to create role'),
+            getErrorMessage(
+              error,
+              'The role could not be created. Try again.',
+              ['RoleNameAlreadyExistsError', 'RoleWriteValidationError'],
+            ),
           );
         },
         onSuccess: async (data) => {

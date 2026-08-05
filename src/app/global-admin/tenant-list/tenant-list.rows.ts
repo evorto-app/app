@@ -1,30 +1,26 @@
 import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
-import { getErrorMessage } from '../../core/error-message';
-
-export const globalAdminTenantListErrorMessage = (error: unknown): string =>
-  getErrorMessage(error, 'Failed to load organizations');
+import { tenantTimezoneLabel } from '../../core/geography-labels';
 
 const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
   tenant.currency,
   tenant.domain,
   tenant.name,
-  tenant.stripeAccountId ?? '',
   tenant.theme,
-  tenant.timezone,
-  tenant.stripeConnected ? 'connected' : 'not connected',
+  tenantTimezoneLabel(tenant.timezone),
+  tenant.paymentsConfigured
+    ? 'paid sign-ups ready'
+    : 'paid sign-ups need attention',
 ];
 
-export const globalAdminStripeAccountLabel = (
-  tenant: Pick<GlobalAdminTenantRecord, 'stripeAccountId' | 'stripeConnected'>,
+export const globalAdminPaymentStatusLabel = (
+  tenant: Pick<GlobalAdminTenantRecord, 'paymentsConfigured'>,
 ): string => {
-  if (!tenant.stripeConnected) {
-    return 'Not connected';
+  if (!tenant.paymentsConfigured) {
+    return 'Paid sign-ups need attention';
   }
 
-  return tenant.stripeAccountId
-    ? `Connected (${tenant.stripeAccountId})`
-    : 'Connected';
+  return 'Paid sign-ups ready';
 };
 
 export const filterGlobalAdminTenants = (
@@ -44,12 +40,20 @@ export const filterGlobalAdminTenants = (
 };
 
 export const globalAdminTenantRows = (tenant: GlobalAdminTenantRecord) => [
-  { label: 'Primary domain', value: tenant.domain },
-  { label: 'Theme', value: tenant.theme },
-  { label: 'Currency', value: tenant.currency },
-  { label: 'Timezone', value: tenant.timezone },
+  { label: 'Website address', value: tenant.domain },
   {
-    label: 'Stripe account',
-    value: globalAdminStripeAccountLabel(tenant),
+    label: 'Theme',
+    value:
+      tenant.theme === 'esn'
+        ? 'ESN theme'
+        : tenant.theme === 'classic'
+          ? 'Classic Evorto theme'
+          : 'Default theme',
+  },
+  { label: 'Currency', value: tenant.currency },
+  { label: 'Time zone', value: tenantTimezoneLabel(tenant.timezone) },
+  {
+    label: 'Payments',
+    value: globalAdminPaymentStatusLabel(tenant),
   },
 ];

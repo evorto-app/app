@@ -14,13 +14,23 @@ This directory contains the active Playwright suite.
 Each product-facing documentation journey should be understandable without
 prior Evorto knowledge. Include:
 
-1. the intended user and exact account, tenant, permission, and external-service prerequisites;
+1. the intended reader and exact account, organization, permission, and external-service prerequisites;
 2. a click-by-click path starting from normal application navigation;
 3. an explanation of choices before the user commits a write or payment;
-4. the visible completion state plus a persisted, payment, or notification readback where applicable;
-5. critical denial, recovery, retry, timing, and tenant-boundary behavior;
+4. the visible completion state and any payment or message confirmation the reader should expect;
+5. critical denial, recovery, retry, timing, and organization-boundary behavior;
 6. explicit unsupported or deferred behavior so the guide does not promise an unavailable feature;
 7. accessible screenshots where they clarify a real decision or result, backed by behavior assertions rather than screenshots alone.
+
+Use plain product language throughout the published text, guide titles, callouts,
+and screenshot captions. Do not publish implementation names, protocols,
+identifiers, storage or delivery mechanics, database checks, fixture details, or
+test evidence. Keep those details in executable setup and assertions. Name an
+external service only where the reader sees or uses it.
+
+The documentation reporter owns each page title and writes the page's single
+level-one heading. Authored Markdown must start at `##` or a lower heading
+level; adding a `#` heading in a documentation source is an error.
 
 When a complete workflow cannot yet be documented because the product behavior
 does not exist, keep that absence in `APPLICATION_REVIEW_QUEUE.md`; do not
@@ -201,7 +211,10 @@ Remote targets are rejected. `bun run test:integration:postgres:local` loads the
 generated worktree-local loopback URL and still requires
 `POSTGRES_INTEGRATION_DISPOSABLE=true`. Never point this command at a default,
 production, shared, or otherwise persistent database. Connection URLs and
-credentials must not be printed or committed.
+credentials must not be printed or committed. An intentional local `db:reset`
+or Docker `db-setup` creates the fixed integration database when it is absent;
+PostgreSQL container startup does not depend on a host-mounted initialization
+file.
 
 ## Docker Runtime
 
@@ -365,8 +378,9 @@ credentials must not be printed or committed.
 - Use `bun run test:e2e:docs:publish` only when you intentionally want to update
   the generated guide catalog in the tracked Evorto Pages documentation app.
   Set `EVORTO_PAGES_ROOT` to an absolute path containing
-  `apps/documentation-page` and `tools/docs/sync-generated-docs.mjs`; the
-  command does not assume a developer-specific checkout. Publishing requires
+  `apps/marketing/src/content/generated-docs`, `apps/marketing/public/docs`,
+  and `tools/docs/sync-generated-docs.mjs`; the command does not assume a
+  developer-specific checkout. Publishing requires
   the complete Auth0 Management, Google Maps, active ESNcard, and permanently
   expired ESNcard credential set. It generates `docs-baseline`,
   `docs-integration`, and `docs-live-esncard` together into ignored staging,

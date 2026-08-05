@@ -43,33 +43,35 @@ test('tenant user list explains a first-load failure and recovers on retry @admi
   await page.goto('/admin', { waitUntil: 'networkidle' });
   const failureCount = await failRpcOnce(page, 'users.findMany');
 
-  await page.getByRole('link', { exact: true, name: 'Users' }).click();
+  await page.getByRole('link', { exact: true, name: 'Members' }).click();
   await expect.poll(failureCount).toBe(1);
 
-  const alert = page.getByRole('alert');
-  await expect(alert).toContainText('Users could not be loaded');
-  await expect(alert).toContainText(
-    'The user list is unavailable. Check your connection and try again.',
-  );
+  const alert = page.getByRole('alert').filter({
+    hasText: 'Members could not be loaded',
+  });
+  await expect(alert).toContainText('Members could not be loaded');
+  await expect(alert).toContainText('No members are shown. Select Try again.');
   await alert.getByRole('button', { name: 'Try again' }).click();
 
   await expect(alert).toHaveCount(0);
   await expect(page.getByRole('table')).toBeVisible();
 });
 
-test('transaction history explains a first-load failure and recovers on retry @finance @resilience', async ({
+test('payment history explains a first-load failure and recovers on retry @finance @resilience', async ({
   page,
 }) => {
   await page.goto('/finance', { waitUntil: 'networkidle' });
   const failureCount = await failRpcOnce(page, 'finance.transactions.findMany');
 
-  await page.getByRole('link', { exact: true, name: 'Transactions' }).click();
+  await page
+    .getByRole('link', { exact: true, name: 'Payment history' })
+    .click();
   await expect.poll(failureCount).toBe(1);
 
   const alert = page.getByRole('alert');
-  await expect(alert).toContainText('Transactions could not be loaded');
+  await expect(alert).toContainText('Payment history could not be loaded');
   await expect(alert).toContainText(
-    'The transaction history is unavailable. Check your connection and try again.',
+    'No payments or refunds are shown. Select Try again.',
   );
   await alert.getByRole('button', { name: 'Try again' }).click();
 
@@ -77,7 +79,11 @@ test('transaction history explains a first-load failure and recovers on retry @f
   await expect(
     page
       .getByRole('table')
-      .or(page.getByRole('heading', { name: 'No transactions recorded yet' }))
+      .or(
+        page.getByRole('heading', {
+          name: 'No payments or refunds recorded yet',
+        }),
+      )
       .first(),
   ).toBeVisible();
 });
@@ -101,7 +107,7 @@ test('template event creation explains a first-load failure and recovers on retr
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Template could not be loaded');
   await expect(alert).toContainText(
-    'The event form cannot be prepared until the selected template is available.',
+    'You cannot create this event until the selected template is available.',
   );
   await alert.getByRole('button', { name: 'Try again' }).click();
 
@@ -151,7 +157,7 @@ test('template event creation preserves the form after a save failure and succee
     alert.getByRole('heading', { name: 'Event could not be created' }),
   ).toBeVisible();
   await expect(alert).toContainText(
-    'Your entries are still here. Retry temporary errors.',
+    'Your entries are still here. Review them and try again.',
   );
   await expect(page).toHaveURL(createEventPath);
   await expect(titleInput).toHaveValue(eventTitle);
@@ -166,7 +172,7 @@ test('template event creation preserves the form after a save failure and succee
   ).toBeVisible();
 });
 
-test('organizer overview never presents failed participant data as zero and recovers on retry @events @resilience', async ({
+test('organizer overview never presents failed attendee data as zero and recovers on retry @events @resilience', async ({
   events,
   makeAxeBuilder,
   page,
@@ -187,15 +193,17 @@ test('organizer overview never presents failed participant data as zero and reco
   await navigateClientSide(page, `/events/${event.id}/organize`);
   await expect.poll(failureCount).toBe(1);
 
-  const alert = page.getByRole('alert');
-  await expect(alert).toContainText('Participant data could not be loaded');
+  const alert = page.getByRole('alert').filter({
+    hasText: 'Attendees could not be loaded',
+  });
+  await expect(alert).toContainText('Attendees could not be loaded');
   await expect(alert).toContainText(
-    'Do not treat the missing counts as zero or as current event data.',
+    'No current sign-up counts or attendee actions are shown. Select Try again.',
   );
-  await expect(page.getByText('Registered', { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole('button', { name: 'Cancel registration' }),
-  ).toHaveCount(0);
+  await expect(page.getByText('Signed up', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cancel ticket' })).toHaveCount(
+    0,
+  );
 
   const backLink = page.getByRole('link', { name: 'Back to event' });
   await expect(backLink).toBeVisible();
@@ -209,7 +217,7 @@ test('organizer overview never presents failed participant data as zero and reco
   await expect(
     page.getByRole('heading', { name: 'Overview', exact: true }),
   ).toBeVisible();
-  await expect(page.getByText('Registered', { exact: true })).toBeVisible();
+  await expect(page.getByText('Signed up', { exact: true })).toBeVisible();
 
   await backLink.focus();
   await expect(backLink).toBeFocused();

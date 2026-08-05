@@ -7,7 +7,9 @@ import {
   GlobalAdminEmailOutboxKinds,
   GlobalAdminEmailOutboxRecord,
   GlobalAdminPlatformAuditCursor,
+  GlobalAdminPlatformAuditRecord,
   GlobalAdminTenantCreateInput,
+  GlobalAdminTenantRecord,
   GlobalAdminTenantUpdateError,
   GlobalAdminTenantUpdateInput,
   GlobalAdminTenantUrlMigrationBlockedError,
@@ -18,7 +20,6 @@ const tenantWriteInput = {
   currency: 'EUR' as const,
   domain: 'tenant.example.com',
   name: 'Tenant',
-  stripeAccountId: 'acct_123',
   theme: 'evorto' as const,
   timezone: 'Europe/Berlin' as const,
 };
@@ -51,6 +52,7 @@ describe('GlobalAdminEmailOutboxKind', () => {
         provider: null,
         providerMessageId: null,
         recipient: 'member@example.org',
+        recordIncomplete: false,
         sentAt: null,
         status: 'queued',
         subject: 'Registration confirmed',
@@ -122,7 +124,6 @@ describe('GlobalAdminTenantWriteInput', () => {
     ).not.toThrow();
     expect(() =>
       Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)({
-        expectedStripeAccountId: 'acct_123',
         id: 'tenant-1',
         reason: 'Requested by tenant support contact',
         tenant: tenantWriteInput,
@@ -130,14 +131,110 @@ describe('GlobalAdminTenantWriteInput', () => {
     ).not.toThrow();
   });
 
-  it('requires the originally loaded Stripe account on tenant updates', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)({
+  it('refuses removed payment-account fields at the tenant RPC boundary', () => {
+    for (const legacyPayload of [
+      {
+        expectedStripeAccountId: 'acct_legacy',
         id: 'tenant-1',
-        reason: 'Requested by tenant support contact',
+        reason: 'Update the organization address',
         tenant: tenantWriteInput,
-      }),
-    ).toThrow();
+      },
+      {
+        id: 'tenant-1',
+        reason: 'Update the organization address',
+        tenant: {
+          ...tenantWriteInput,
+          stripeAccountId: 'acct_legacy',
+        },
+      },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)(legacyPayload),
+      ).toThrow();
+    }
+  });
+
+  it('returns payment readiness without the payment-account identifier', () => {
+    const decoded = Schema.decodeUnknownSync(GlobalAdminTenantRecord)({
+      currency: 'EUR',
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      name: 'Tenant',
+      paymentsConfigured: true,
+      stripeAccountId: 'acct_server_only',
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+    });
+
+    expect(decoded.paymentsConfigured).toBe(true);
+    expect(decoded).not.toHaveProperty('stripeAccountId');
+  });
+
+  it('keeps internal identifiers out of audit records and snapshots', () => {
+    const decoded = Schema.decodeUnknownSync(GlobalAdminPlatformAuditRecord)({
+      action: 'tenant.update',
+      actorEmail: 'Evorto operations',
+      actorId: 'operations:payment-setup',
+      after: {
+        resourceId: 'tenant-1',
+        resourceType: 'tenant',
+        state: {
+          currency: 'EUR',
+          domain: 'tenant.example.com',
+          id: 'tenant-1',
+          name: 'Tenant',
+          paymentsConfigured: true,
+          stripeAccountId: 'acct_server_only',
+          theme: 'evorto',
+          timezone: 'Europe/Berlin',
+        },
+      },
+      before: null,
+      createdAt: '2026-08-03T12:00:00.000Z',
+      id: 'audit-1',
+      reason: 'Enable paid sign-ups',
+      targetTenantId: 'tenant-1',
+      targetTenantName: 'Tenant',
+    });
+
+    expect(decoded.after?.state).not.toHaveProperty('stripeAccountId');
+    expect(decoded.after).not.toHaveProperty('resourceId');
+    expect(decoded).not.toHaveProperty('actorId');
+    expect(decoded).not.toHaveProperty('targetTenantId');
+  });
+
+  it('drops broad provider records at the audit transport boundary', () => {
+    const decoded = Schema.decodeUnknownSync(GlobalAdminPlatformAuditRecord)({
+      action: 'taxRates.import',
+      actorEmail: 'Evorto operations',
+      after: {
+        resourceId: 'internal-tax-rate-batch',
+        resourceType: 'taxRateBatch',
+        state: {
+          rates: [
+            {
+              displayName: 'Standard',
+              stripeAccountId: 'acct_server_only',
+              stripeTaxRateId: 'txr_server_only',
+            },
+          ],
+          taxRateCount: 1,
+          taxRateUpdatedCount: 1,
+        },
+      },
+      before: null,
+      createdAt: '2026-08-03T12:00:00.000Z',
+      id: 'audit-1',
+      reason: 'Add the current tax rates',
+      targetTenantName: 'Tenant',
+    });
+
+    expect(decoded.after?.state).toEqual({
+      taxRateCount: 1,
+      taxRateUpdatedCount: 1,
+    });
+    expect(JSON.stringify(decoded)).not.toContain('acct_server_only');
+    expect(JSON.stringify(decoded)).not.toContain('txr_server_only');
   });
 
   it('requires a primary domain on tenant writes', () => {

@@ -297,11 +297,11 @@ test.describe('Anonymous event discovery', () => {
         page.getByRole('heading', {
           exact: true,
           level: 3,
-          name: 'Sign in to check registration',
+          name: 'Sign in to see sign-up choices',
         }),
       ).toBeVisible({ timeout: 15_000 });
       await expect(
-        page.getByText('No registration options', { exact: true }),
+        page.getByText('Information only', { exact: true }),
       ).toHaveCount(0);
       await expect(page.locator('app-event-registration-option')).toHaveCount(
         0,
@@ -310,7 +310,7 @@ test.describe('Anonymous event discovery', () => {
       await openEventList(page);
       await eventCard(page, visibleEvent.id).click();
       await expect(
-        page.getByRole('link', { exact: true, name: 'Log in now' }),
+        page.getByRole('link', { exact: true, name: 'Sign in now' }),
       ).toHaveCount(visibleEvent.registrationOptions.length);
       await expect(
         page.getByRole('link', { exact: true, name: 'Edit Event' }),

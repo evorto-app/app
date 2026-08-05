@@ -73,7 +73,8 @@ export const financeMediaHandlers = {
       if (!canSubmit) {
         return yield* Effect.fail(
           new RpcForbiddenError({
-            message: 'Forbidden',
+            message:
+              'You do not have permission to submit receipts for this event.',
             permission: `finance:submitReceipts:${input.eventId}`,
           }),
         );
@@ -89,7 +90,8 @@ export const financeMediaHandlers = {
         return yield* Effect.fail(
           new FinanceResourceNotFoundError({
             id: input.eventId,
-            message: 'Event not found for receipt upload',
+            message:
+              'This event is no longer available, so no receipt was added. Go back and choose an available event before adding a receipt.',
             resource: 'event',
           }),
         );
@@ -191,7 +193,8 @@ export const financeMediaHandlers = {
       if (!upload) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt upload is unavailable',
+            message:
+              'This receipt file is no longer available. Add the file again.',
             reason: 'receipt_upload_unavailable',
           }),
         );
@@ -205,7 +208,8 @@ export const financeMediaHandlers = {
       if (!canSubmit) {
         return yield* Effect.fail(
           new RpcForbiddenError({
-            message: 'Forbidden',
+            message:
+              'You do not have permission to submit receipts for this event.',
             permission: `finance:submitReceipts:${upload.eventId}`,
           }),
         );
@@ -216,7 +220,8 @@ export const financeMediaHandlers = {
       if (upload.status !== 'pending') {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt upload cannot be finalized',
+            message:
+              'This receipt file can no longer be used. Add the file again.',
             reason: 'receipt_upload_unavailable',
           }),
         );
@@ -242,7 +247,8 @@ export const financeMediaHandlers = {
         );
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt upload has expired',
+            message:
+              'This receipt file was not saved in time. Add the file again.',
             reason: 'receipt_upload_expired',
           }),
         );
@@ -285,7 +291,8 @@ export const financeMediaHandlers = {
         }
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt upload is already being finalized',
+            message:
+              'This receipt file is already being saved. Wait a moment and try again.',
             reason: 'receipt_upload_unavailable',
           }),
         );
@@ -359,7 +366,7 @@ export const financeMediaHandlers = {
       yield* ReceiptMediaService.discardPromotedUpload(inspected.storageKey);
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Receipt upload could not be finalized',
+          message: 'This receipt file could not be saved. Add the file again.',
           reason: 'receipt_upload_unavailable',
         }),
       );

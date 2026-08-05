@@ -101,6 +101,10 @@ import {
   workerEmailDeliveryReadinessRouteLayer,
   workerEmailDeliveryRouteLayer,
 } from './server/http/worker-email-delivery.route';
+import {
+  WORKER_PAYMENT_SETUP_PATH,
+  workerPaymentSetupRouteLayer,
+} from './server/http/worker-payment-setup.route';
 import { EmailDelivery } from './server/integrations/email-delivery';
 import { ObjectStorage } from './server/integrations/object-storage';
 import { runEmailOutboxProcessor } from './server/notifications/email-delivery';
@@ -152,6 +156,7 @@ const internalTriggerPaths = new Set([
   opsSchemaExplainPath,
   opsSeedStagingPath,
   WORKER_EMAIL_DELIVERY_PATH,
+  WORKER_PAYMENT_SETUP_PATH,
   workerExpiredCheckoutCleanupPath,
   workerReceiptOrphanCleanupPath,
   workerStripeRefundPath,
@@ -579,7 +584,7 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
 
       const registrationId = extractRegistrationId(request);
       if (!registrationId) {
-        return HttpServerResponse.text('Registration id missing', {
+        return HttpServerResponse.text('This ticket link is incomplete.', {
           status: 400,
         });
       }
@@ -602,7 +607,7 @@ const tenantBrandAssetRouteLayer = HttpLayerRouter.add(
     Effect.gen(function* () {
       const asset = extractTenantBrandAsset(request);
       if (!asset) {
-        return HttpServerResponse.text('Asset not found', { status: 404 });
+        return HttpServerResponse.text('Image not found', { status: 404 });
       }
 
       const webResponse = yield* handleTenantBrandAssetWebRequest(asset);
@@ -752,6 +757,7 @@ const workerRoutesLayer = Layer.mergeAll(
   workerEmailDeliveryRouteLayer,
   workerExpiredCheckoutCleanupRouteLayer,
   workerReceiptOrphanCleanupRouteLayer,
+  workerPaymentSetupRouteLayer,
   workerStripeRefundRouteLayer,
   requestBoundaryLayer,
   responseMiddlewareLayer,
@@ -842,16 +848,17 @@ const requestBodyLimit = (method: string, pathname: string) => {
 
 const requestBodyErrorResponse = (error: unknown) => {
   let response: HttpServerResponse.HttpServerResponse | undefined;
-  if (error instanceof RequestBodyInvalidContentLengthError) {
-    response = HttpServerResponse.text('Invalid Content-Length', {
-      status: 400,
-    });
-  } else if (error instanceof RequestBodyReadError) {
-    response = HttpServerResponse.text('Unable to read request body', {
+  if (
+    error instanceof RequestBodyInvalidContentLengthError ||
+    error instanceof RequestBodyReadError
+  ) {
+    response = HttpServerResponse.text('This request could not be read.', {
       status: 400,
     });
   } else if (error instanceof RequestBodyTooLargeError) {
-    response = HttpServerResponse.text('Payload too large', { status: 413 });
+    response = HttpServerResponse.text('This request is too large.', {
+      status: 413,
+    });
   }
 
   return response
@@ -887,7 +894,7 @@ const toNodeWebRequest = async (request: IncomingMessage) => {
     discardNodeRequestBody(request);
     return HttpServerResponse.toWeb(
       applySecurityHeaders(
-        HttpServerResponse.text('Invalid Host or request target', {
+        HttpServerResponse.text('This address is not valid.', {
           status: 400,
         }),
       ),

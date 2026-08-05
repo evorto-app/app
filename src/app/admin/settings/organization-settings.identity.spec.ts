@@ -11,7 +11,7 @@ describe('tenantIdentityRows', () => {
       }),
     ).toEqual([
       { label: 'Organization name', value: 'Example Tenant' },
-      { label: 'Public domain', value: 'tenant.example.com' },
+      { label: 'Website address', value: 'tenant.example.com' },
     ]);
   });
 });

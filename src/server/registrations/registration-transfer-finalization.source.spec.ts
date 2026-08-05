@@ -122,6 +122,9 @@ describe('registration transfer transactional finalization source', () => {
     expect(finalization).toContain(
       "refundClaimIds.length > 0 ? 'refund_pending' : 'completed'",
     );
+    expect(finalization).toContain(
+      "refundOutcome: refundClaimIds.length > 0 ? 'pending' : 'notStarted'",
+    );
   });
 
   it('locks every current acquisition payment and requires exact refund-plan coverage before ownership changes', () => {
@@ -326,7 +329,7 @@ describe('registration transfer transactional finalization source', () => {
     ).toBeGreaterThan(claimedRefund.indexOf('registrationRefundStatusUpdate('));
   });
 
-  it('uses each persisted source account even after the tenant account rotates', () => {
+  it('uses each persisted source payment account for refund operations', () => {
     const refund = readSiblingSource('../payments/registration-refund.ts');
     const createClaim = refund.slice(
       refund.indexOf('export const createRegistrationRefundClaim'),

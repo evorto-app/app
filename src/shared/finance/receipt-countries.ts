@@ -46,8 +46,7 @@ export const RECEIPT_COUNTRY_OPTIONS: readonly ReceiptCountryOption[] = [
 ];
 
 export const OTHER_RECEIPT_COUNTRY_CODE = 'OTHER';
-export const OTHER_RECEIPT_COUNTRY_LABEL =
-  'Other (outside configured countries)';
+export const OTHER_RECEIPT_COUNTRY_LABEL = 'Other country';
 
 export const DEFAULT_RECEIPT_COUNTRIES: readonly string[] = [
   'DE',

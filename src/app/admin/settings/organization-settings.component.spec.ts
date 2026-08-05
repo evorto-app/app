@@ -17,7 +17,7 @@ describe('tenantTimezoneValidationError', () => {
     expect(tenantTimezoneValidationError('America/New_York')).toBeUndefined();
     expect(tenantTimezoneValidationError('PST')).toEqual({
       kind: 'ianaTimezone',
-      message: 'Enter a recognized city or region timezone.',
+      message: 'Enter a recognized city or region time zone.',
     });
   });
 
@@ -40,6 +40,6 @@ describe('tenantTimezoneValidationError', () => {
         .timezone()
         .errors()
         .map((error) => error.message),
-    ).toContain('Enter a recognized city or region timezone.');
+    ).toContain('Enter a recognized city or region time zone.');
   });
 });

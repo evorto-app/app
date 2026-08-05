@@ -58,6 +58,7 @@ import type {
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { countryLabel } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import {
@@ -115,7 +116,7 @@ export const platformTransactionMethodLabel = (
       return 'PayPal';
     }
     case 'stripe': {
-      return 'Stripe';
+      return 'Online payment';
     }
     case 'transfer': {
       return 'Bank transfer';
@@ -131,16 +132,16 @@ export const platformTransactionStatusLabel = (
       return 'Cancelled';
     }
     case 'pending': {
-      return 'Pending';
+      return 'In progress';
     }
     case 'successful': {
-      return 'Successful';
+      return 'Completed';
     }
   }
 };
 
 export const platformReceiptEvidenceUnavailableNotice =
-  'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.';
+  'The uploaded receipt file is unavailable. Approval is disabled until it can be checked. You can still reject this receipt.';
 
 export const platformReceiptReviewDisabled = ({
   evidenceAvailable,
@@ -169,35 +170,35 @@ export const platformRefundLifecycleCopy = (
     case 'action-required': {
       return {
         detail: summary.recoveryMode
-          ? 'Complete the required action in the connected Stripe account, then open Refund recovery to resume checks.'
-          : 'Complete the required action in the connected Stripe account. Evorto will keep checking automatically.',
-        label: 'Action required in Stripe',
+          ? "Complete the required step in the organization's payment account, then open Refunds needing attention to continue."
+          : "Complete the required step in the organization's payment account, then select Show latest status. This shows any update Evorto has received.",
+        label: 'Payment action needed',
       };
     }
     case 'needs-attention': {
       return {
         detail: summary.recoveryMode
-          ? 'Automatic refund processing stopped. Open Refund recovery to review the safe next step.'
-          : 'Evorto cannot safely retry this refund. Compare it with the connected Stripe account before making a manual change.',
+          ? 'This refund did not finish. Open Refunds needing attention to review what can be done.'
+          : "This refund did not finish. Check it in the organization's payment account, then contact Evorto support before changing its status in Evorto.",
         label: 'Needs attention',
       };
     }
     case 'pending': {
       return {
-        detail: 'The refund is waiting to be processed.',
-        label: 'Pending',
+        detail: 'The refund has not started yet.',
+        label: 'Waiting',
       };
     }
     case 'retrying': {
       return {
-        detail: 'Evorto will try the refund again automatically.',
-        label: 'Retrying',
+        detail: 'The refund will be tried again.',
+        label: 'Trying again',
       };
     }
     case 'succeeded': {
       return {
-        detail: 'Refund processing is complete.',
-        label: 'Succeeded',
+        detail: 'The refund is complete.',
+        label: 'Refunded',
       };
     }
   }
@@ -303,6 +304,7 @@ export class PlatformFinanceComponent {
   protected readonly approvalQueueQuery = injectQuery(() =>
     this.operations.approvalQueue(this.tenantId()),
   );
+  protected readonly countryLabel = countryLabel;
   protected readonly platformReceiptEvidenceUnavailableNotice =
     platformReceiptEvidenceUnavailableNotice;
   protected readonly platformReceiptReviewDisabled =
@@ -330,7 +332,7 @@ export class PlatformFinanceComponent {
     (recovery) => {
       required(recovery.refundClaimId);
       required(recovery.reason, {
-        message: 'Enter an operational reason.',
+        message: 'Enter a reason for this action.',
       });
       maxLength(recovery.reason, 500, {
         message: 'Reason must be 500 characters or fewer.',
@@ -363,10 +365,10 @@ export class PlatformFinanceComponent {
       required(reimbursement.payoutType, { message: 'Select a payout type.' });
       minLength(reimbursement.receiptIds, 1);
       maxLength(reimbursement.receiptIds, 100, {
-        message: 'Select at most 100 receipts in one reimbursement batch.',
+        message: 'Select at most 100 receipts at a time.',
       });
       required(reimbursement.reason, {
-        message: 'Enter an operational reason.',
+        message: 'Enter a reason for this reimbursement.',
       });
       maxLength(reimbursement.reason, 500, {
         message: 'Reason must be 500 characters or fewer.',
@@ -382,7 +384,7 @@ export class PlatformFinanceComponent {
     required(review.id);
     required(review.purchaseCountry, { message: 'Select a purchase country.' });
     required(review.receiptDate, { message: 'Enter the receipt date.' });
-    required(review.reason, { message: 'Enter an operational reason.' });
+    required(review.reason, { message: 'Enter a reason for this decision.' });
     maxLength(review.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
@@ -418,7 +420,7 @@ export class PlatformFinanceComponent {
         ? undefined
         : {
             kind: 'calendarDate',
-            message: 'Enter a valid date in YYYY-MM-DD format.',
+            message: 'Enter a valid receipt date.',
           },
     );
     validate(review.totalAmount, ({ valueOf }) =>
@@ -543,7 +545,13 @@ export class PlatformFinanceComponent {
         this.tenantId() === targetTenantId
       ) {
         this.notifications.showError(
-          getErrorMessage(error, 'Receipt details could not be loaded'),
+          getErrorMessage(error, 'Receipt details could not be loaded', [
+            'RpcBadRequestError',
+            'FinanceReceiptNotFoundError',
+            'FinanceResourceNotFoundError',
+            'ReceiptMediaBadRequestError',
+            'ReceiptMediaServiceUnavailableError',
+          ]),
         );
       }
     } finally {
@@ -672,6 +680,7 @@ export class PlatformFinanceComponent {
           getErrorMessage(
             error,
             'The reimbursement could not be recorded. Review the details and try again.',
+            ['RpcBadRequestError'],
           ),
         );
       }
@@ -693,8 +702,8 @@ export class PlatformFinanceComponent {
         this.refreshFinance();
         this.notifications.showSuccess(
           result.mode === 'newGeneration'
-            ? 'Failed refund scheduled for retry'
-            : 'Refund checks resumed',
+            ? 'The refund will be tried again'
+            : 'Refund continued',
         );
         this.selectedRefundClaim.set(null);
         this.refundRecoveryModel.set({ reason: '', refundClaimId: '' });
@@ -702,7 +711,8 @@ export class PlatformFinanceComponent {
         this.notifications.showError(
           getErrorMessage(
             error,
-            'The refund recovery action could not be saved. Try again.',
+            'This refund action could not be saved. Try again.',
+            ['RpcBadRequestError'],
           ),
         );
       }
@@ -751,6 +761,13 @@ export class PlatformFinanceComponent {
           getErrorMessage(
             error,
             'The receipt review could not be saved. Review the details and try again.',
+            [
+              'RpcBadRequestError',
+              'FinanceReceiptNotFoundError',
+              'FinanceResourceNotFoundError',
+              'ReceiptMediaBadRequestError',
+              'ReceiptMediaServiceUnavailableError',
+            ],
           ),
         );
       }

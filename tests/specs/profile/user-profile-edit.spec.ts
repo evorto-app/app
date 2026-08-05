@@ -59,7 +59,7 @@ test('profile edit persists notification email and reimbursement details', async
     });
     const notificationEmailInput = editDialog.getByRole('textbox', {
       exact: true,
-      name: 'Notification email',
+      name: 'Email for updates',
     });
     const ibanInput = editDialog.getByRole('textbox', {
       exact: true,

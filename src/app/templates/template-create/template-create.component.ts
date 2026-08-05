@@ -23,6 +23,7 @@ import consola from 'consola/browser';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
 import {
   createOrdinaryTemplateGraphFormModel,
@@ -33,6 +34,11 @@ import { TemplateGraphEditorComponent } from '../../shared/components/forms/temp
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 
 const logger = consola.withTag('app/templates/create');
+
+export const templateCreateErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The template could not be saved. Try again.', [
+    'RpcBadRequestError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -92,8 +98,8 @@ export class TemplateCreateComponent {
     this.rolesQuery.isSuccess(),
   );
   private readonly config = inject(ConfigService);
-  protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  protected readonly stripeConnected = computed(
+    () => this.config.tenantSignal()?.paymentsConfigured === true,
   );
   protected readonly stripeConnectionKnown = computed(
     () => this.config.tenantSignal() !== null,
@@ -125,6 +131,9 @@ export class TemplateCreateComponent {
       !this.createTemplateMutation.isPending(),
   );
   protected readonly categoryId = input<string>();
+  protected readonly createErrorMessage = computed(() =>
+    templateCreateErrorMessage(this.createTemplateMutation.error()),
+  );
   protected readonly defaultParticipantRoleIds = computed(() =>
     this.rolesQuery.isSuccess()
       ? this.rolesQuery

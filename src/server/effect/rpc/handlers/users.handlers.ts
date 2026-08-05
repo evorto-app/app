@@ -271,7 +271,7 @@ export const userHandlers = {
               if (!membership) {
                 return yield* Effect.fail(
                   new UserRoleAssignmentNotFoundError({
-                    message: 'Tenant user not found',
+                    message: 'Member not found.',
                   }),
                 );
               }
@@ -279,7 +279,7 @@ export const userHandlers = {
               if (userId === currentUser.id && nextRoleIds.length === 0) {
                 return yield* Effect.fail(
                   new UserSelfRoleRemovalError({
-                    message: 'You cannot remove all of your own roles',
+                    message: 'You cannot remove all of your own roles.',
                   }),
                 );
               }
@@ -297,7 +297,8 @@ export const userHandlers = {
                 if (tenantRoles.length !== nextRoleIds.length) {
                   return yield* Effect.fail(
                     new UserRoleAssignmentNotFoundError({
-                      message: 'One or more roles were not found',
+                      message:
+                        'One or more selected roles are no longer available.',
                     }),
                   );
                 }
@@ -699,7 +700,7 @@ export const userHandlers = {
               if (memberships.length === 0) {
                 return yield* Effect.fail(
                   new RpcUnauthorizedError({
-                    message: 'Current tenant membership required',
+                    message: 'You are no longer a member of this organization.',
                   }),
                 );
               }
@@ -727,7 +728,7 @@ export const userHandlers = {
 
       if (!isCanonicalEmailAddress(input.communicationEmail)) {
         return yield* new RpcBadRequestError({
-          message: 'Notification email must be a valid canonical email address',
+          message: 'Enter a valid notification email address.',
           reason: 'invalidCommunicationEmail',
         });
       }
@@ -737,7 +738,7 @@ export const userHandlers = {
         !isCanonicalIban(input.iban)
       ) {
         return yield* new RpcBadRequestError({
-          message: 'IBAN must have a valid country, length, and checksum',
+          message: 'Enter a valid IBAN.',
           reason: 'invalidIban',
         });
       }
@@ -747,7 +748,7 @@ export const userHandlers = {
         !isCanonicalEmailAddress(input.paypalEmail)
       ) {
         return yield* new RpcBadRequestError({
-          message: 'PayPal email must be a valid canonical email address',
+          message: 'Enter a valid PayPal email address.',
           reason: 'invalidPaypalEmail',
         });
       }

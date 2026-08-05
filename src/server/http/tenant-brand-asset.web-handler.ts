@@ -27,13 +27,13 @@ export const handleTenantBrandAssetWebRequest = (input: {
 }) =>
   Effect.gen(function* () {
     if (!input.tenantId.trim() || !isTenantBrandAssetKind(input.kind)) {
-      return response('Asset not found', 404);
+      return response('Image not found', 404);
     }
 
     const fileName = input.fileName.trim();
     const contentType = tenantBrandAssetContentTypeFromFileName(fileName);
     if (!fileName || !contentType) {
-      return response('Asset not found', 404);
+      return response('Image not found', 404);
     }
 
     const storageKey = tenantBrandAssetStorageKey({
@@ -49,12 +49,12 @@ export const handleTenantBrandAssetWebRequest = (input: {
       Effect.mapError(
         () =>
           new RpcInternalServerError({
-            message: 'Failed to load tenant brand asset',
+            message: 'The organization image could not be loaded. Try again.',
           }),
       ),
     );
     if (!body) {
-      return response('Asset not found', 404);
+      return response('Image not found', 404);
     }
 
     return new Response(body, {

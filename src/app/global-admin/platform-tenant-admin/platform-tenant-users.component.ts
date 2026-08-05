@@ -101,8 +101,10 @@ export class PlatformTenantUsersComponent {
   protected readonly assignmentForm = form(
     this.assignmentModel,
     (assignment) => {
-      required(assignment.userId, { message: 'Select a user.' });
-      required(assignment.reason, { message: 'Enter an operational reason.' });
+      required(assignment.userId, { message: 'Select a member.' });
+      required(assignment.reason, {
+        message: 'Enter a reason for this change.',
+      });
       maxLength(assignment.reason, 500, {
         message: 'Reason must be 500 characters or fewer.',
       });
@@ -180,11 +182,15 @@ export class PlatformTenantUsersComponent {
           userId: assignment.userId,
         });
         await this.queryClient.invalidateQueries(this.operations.usersFilter());
-        this.notifications.showSuccess('User roles updated');
+        this.notifications.showSuccess('Member roles updated');
         this.cancelAssignment();
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update user roles'),
+          getErrorMessage(
+            error,
+            'The member roles could not be updated. Try again.',
+            ['RpcBadRequestError'],
+          ),
         );
       }
     });

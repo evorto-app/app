@@ -7,6 +7,71 @@ import { PlatformAdministratorAuthority } from '../../../types/custom/platform-a
 import { Tenant } from '../../../types/custom/tenant';
 import { BadRequestRpcError } from '../../errors/rpc-errors';
 import { PermissionSchema } from '../../permissions/permissions';
+
+export class ClientTenantConfig extends Schema.Class<ClientTenantConfig>(
+  'ClientTenantConfig',
+)({
+  cancellationDeadlineHoursBeforeStart:
+    Tenant.fields.cancellationDeadlineHoursBeforeStart,
+  currency: Tenant.fields.currency,
+  defaultLocation: Tenant.fields.defaultLocation,
+  discountProviders: Tenant.fields.discountProviders,
+  domain: Tenant.fields.domain,
+  emailSenderEmail: Tenant.fields.emailSenderEmail,
+  emailSenderName: Tenant.fields.emailSenderName,
+  faviconUrl: Tenant.fields.faviconUrl,
+  id: Tenant.fields.id,
+  legalNoticeText: Tenant.fields.legalNoticeText,
+  legalNoticeUrl: Tenant.fields.legalNoticeUrl,
+  logoUrl: Tenant.fields.logoUrl,
+  maxActiveRegistrationsPerUser: Tenant.fields.maxActiveRegistrationsPerUser,
+  name: Tenant.fields.name,
+  paymentsConfigured: Schema.Boolean,
+  privacyPolicyText: Tenant.fields.privacyPolicyText,
+  privacyPolicyUrl: Tenant.fields.privacyPolicyUrl,
+  receiptSettings: Tenant.fields.receiptSettings,
+  refundFeesOnCancellation: Tenant.fields.refundFeesOnCancellation,
+  seoDescription: Tenant.fields.seoDescription,
+  seoTitle: Tenant.fields.seoTitle,
+  termsText: Tenant.fields.termsText,
+  termsUrl: Tenant.fields.termsUrl,
+  theme: Tenant.fields.theme,
+  timezone: Tenant.fields.timezone,
+  transferDeadlineHoursBeforeStart:
+    Tenant.fields.transferDeadlineHoursBeforeStart,
+}) {}
+
+export const toClientTenantConfig = (tenant: Tenant): ClientTenantConfig =>
+  new ClientTenantConfig({
+    cancellationDeadlineHoursBeforeStart:
+      tenant.cancellationDeadlineHoursBeforeStart,
+    currency: tenant.currency,
+    defaultLocation: tenant.defaultLocation,
+    discountProviders: tenant.discountProviders,
+    domain: tenant.domain,
+    emailSenderEmail: tenant.emailSenderEmail,
+    emailSenderName: tenant.emailSenderName,
+    faviconUrl: tenant.faviconUrl,
+    id: tenant.id,
+    legalNoticeText: tenant.legalNoticeText,
+    legalNoticeUrl: tenant.legalNoticeUrl,
+    logoUrl: tenant.logoUrl,
+    maxActiveRegistrationsPerUser: tenant.maxActiveRegistrationsPerUser,
+    name: tenant.name,
+    paymentsConfigured: Boolean(tenant.stripeAccountId),
+    privacyPolicyText: tenant.privacyPolicyText,
+    privacyPolicyUrl: tenant.privacyPolicyUrl,
+    receiptSettings: tenant.receiptSettings,
+    refundFeesOnCancellation: tenant.refundFeesOnCancellation,
+    seoDescription: tenant.seoDescription,
+    seoTitle: tenant.seoTitle,
+    termsText: tenant.termsText,
+    termsUrl: tenant.termsUrl,
+    theme: tenant.theme,
+    timezone: tenant.timezone,
+    transferDeadlineHoursBeforeStart: tenant.transferDeadlineHoursBeforeStart,
+  });
+
 export const PublicConfig = Schema.Struct({
   googleMapsApiKey: Schema.NullOr(Schema.NonEmptyString),
 });
@@ -55,7 +120,7 @@ export const ConfigTenant = asRpcQuery(
   Rpc.make('config.tenant', {
     error: ConfigHeaderRpcError,
     payload: Schema.Void,
-    success: Tenant,
+    success: ClientTenantConfig,
   }),
 );
 

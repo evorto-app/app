@@ -64,10 +64,10 @@ const requireUserFixture = (
   return user;
 };
 
-test.describe('Register for events', () => {
+test.describe('Sign up for events', () => {
   test.describe.configure({ mode: 'serial' });
 
-  test('Register for a free event', async ({
+  test('Sign up for a free event', async ({
     database,
     events,
     page,
@@ -137,14 +137,19 @@ test.describe('Register for events', () => {
     await testInfo.attach('markdown', {
       body: `
   {% callout type="note" title="Before you start" %}
-  This guide is for a signed-in participant whose account belongs to the same organization as the event. Use the account that should own the ticket. The account must match any participant-role restrictions shown on the registration option; no organizer or administrator permission is required for an ordinary participant registration.
+  This guide is for a signed-in attendee whose account belongs to the same organization as the event. Use the account that should own the ticket. The account must have one of the roles allowed to use the attendee choice; no organizer or administrator access is required for an ordinary sign-up.
 
-  A paid registration also requires the organization's Stripe payments to be available and a payment method accepted by Stripe.
+  For a paid sign-up, the organization's online payments must be available and you need an accepted payment method.
   {% /callout %}
 
-  Open **Events** from the main navigation and browse the events available to you. Select an event to read its details and registration options.`,
+  Open **Events** from the main navigation and browse the events available to you. Select an event to read its details and sign-up choices.`,
     });
-    await takeScreenshot(testInfo, freeEventLink, page);
+    await takeScreenshot(
+      testInfo,
+      freeEventLink,
+      page,
+      'Choose a published event from the event list',
+    );
     await freeEventLink.click();
     await expect(page).toHaveURL(/\/events\/[a-z0-9]+$/i);
     await expect(
@@ -153,27 +158,28 @@ test.describe('Register for events', () => {
     await waitForRegistrationStatus(page);
     await testInfo.attach('markdown', {
       body: `
-  After you have selected your event, you can see the event description and your options for registration.
-  If you arrived while signed out, select **Log in**, sign in with the participant account that should own the ticket, and return to the event.
+  After you have selected your event, you can see the event description and your sign-up choices.
+  If you arrived while signed out, select **Sign in**, use the account that should own the ticket, and return to the event.
 
-  ### Free events
-  Here we will make a distinction for free events and paid events (covered further down).
-  Participant options are labeled separately from organizer/helper options, which use **Sign up as organizer/helper** copy when you are helping run the event.
-  When a participant option is full, registration changes to a distinct **Join waitlist** action instead of pretending a normal spot is still available. Waitlisted participants can return to the event page and use **Leave waitlist** before the event starts.
-  If you open a direct event link but your account does not match the roles required by any available option, the event remains visible and the registration area explains that registration is unavailable for your account.`,
+  ### Free sign-ups
+  This section covers free sign-ups. Paid sign-ups are covered later in this guide.
+  Attendee choices are labeled separately from organizer/helper choices, which use **Sign up as organizer/helper** when you are helping run the event.
+  When an attendee choice is full, **Join waitlist** replaces **Sign up**. People on the waitlist can return to the event page and use **Leave waitlist** before the event starts.
+  If you open a direct event link but your account does not match the roles required by any available choice, the event remains visible and the sign-up area explains that sign-up is unavailable for your account.`,
     });
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { level: 2, name: 'Registration' }),
+      page.getByRole('heading', { level: 2, name: 'Your sign-up' }),
       page,
+      'Choose guests, add-ons, and answers before a free sign-up',
     );
     await testInfo.attach('markdown', {
       body: `
-  Free registration cards can also offer guests, registration-time add-ons, and required questions. In **Guests**, enter only the people attending with you; guests do not need separate accounts, but each guest uses one available event spot and stays attached to your registration. The total beside the field includes you. Then choose any add-on quantity, answer every required question, and register. After registration, the ticket shows the guest count and selected add-ons, while question answers are stored for organizers.`,
+  A free sign-up choice can also offer guests, add-ons, and required questions. In **Guests**, enter only the people attending with you; guests do not need separate accounts, but each guest uses one available event place and stays attached to your ticket. The total beside the field includes you. Then choose any add-on quantity, answer every required question, and sign up. Afterwards, the ticket shows the guest count and selected add-ons, while organizers can review the answers.`,
     });
     const participantRegistrationCard = page
       .locator('app-event-registration-option')
-      .filter({ hasText: 'Participant registration' })
+      .filter({ hasText: 'Attendee sign-up' })
       .first();
     await expect(participantRegistrationCard).toBeVisible({ timeout: 20_000 });
     await expect(
@@ -186,28 +192,30 @@ test.describe('Register for events', () => {
     await expect(guestCountInput).toBeEnabled({ timeout: 15_000 });
     await expect(
       participantRegistrationCard.getByText(
-        'Guests do not need separate accounts. Each guest uses one available spot and shares your registration.',
+        'Guests do not need separate accounts. Each guest uses one available place and shares your ticket.',
       ),
     ).toBeVisible();
     await guestCountInput.fill('1');
     await expect(guestCountInput).toHaveValue('1');
     await expect(
-      participantRegistrationCard.getByText('+ you = 2 spots'),
+      participantRegistrationCard.getByText('+ you = 2 places'),
     ).toBeVisible();
     await expect(
-      participantRegistrationCard.getByRole('button', { name: 'Register' }),
+      participantRegistrationCard.getByRole('button', { name: 'Sign up' }),
     ).toBeDisabled();
     await participantRegistrationCard.getByLabel('Quantity').fill('2');
     await participantRegistrationCard
       .getByLabel(registrationQuestion.title)
       .fill('Vegetarian snack, please.');
     await participantRegistrationCard
-      .getByRole('button', { name: 'Register' })
+      .getByRole('button', { name: 'Sign up' })
       .click();
     await waitForActiveRegistration(page);
     const activeRegistration = page.locator('app-event-active-registration');
     await expect(
-      activeRegistration.getByText('You are registered', { exact: true }),
+      activeRegistration.getByText('Your ticket is confirmed', {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       activeRegistration.getByText('Includes 1 guest plus you.'),
@@ -271,28 +279,27 @@ test.describe('Register for events', () => {
     expect(registrationEmail).toBeTruthy();
     expect(registrationEmail?.html).toContain(`/events/${freeEventId}`);
     expect(registrationEmail?.text).toContain(
-      'The ticket owner must sign in to Evorto',
+      'Sign in with the account that holds this ticket to open it.',
     );
 
     await testInfo.attach('markdown', {
       body: `
-  ### Successful registration
-  You should now have a successful registration.
-  You can see this by additional information being available and also your ticket QR code.
-  This example shows **Includes 1 guest plus you.** The guest remains attached to the signed-in buyer's registration, and the two people consume two confirmed spots. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
-  Show this ticket QR code when attending the event. Evorto also queues a confirmation email with a link back to this authenticated ticket page. The ticket owner must still sign in to open the link.
-  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. Paid event registrations and add-ons are Stripe-only, so Evorto submits the applicable refunds against their original Stripe payment sources.`,
+  ### Confirmed free ticket
+  The event page now shows **Your ticket is confirmed**, the ticket details, and its QR code.
+  **Includes 1 guest plus you.** means the guest remains attached to the signed-in attendee's ticket and the two people use two confirmed places. Selected add-ons appear on the same ticket and organizers can review the answers.
+  Show the QR code when attending the event. Evorto also tries to send a confirmation email with a link back to the ticket. The ticket shown on the event page is the confirmation: if the email does not arrive, sign in with the account used for the sign-up and open the event to find it.
+  You can cancel while payment or approval is still pending. You can also cancel a confirmed ticket before its displayed cancellation deadline and before the event starts. Cancelling a confirmed ticket releases your selected places, including guests, and starts any refund shown in the confirmation.`,
     });
 
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      page.locator('section').filter({ hasText: 'Your sign-up' }),
       page,
-      'Event details after registration',
+      'Confirmed free ticket with QR code, guest count, and add-ons',
     );
   });
 
-  test('Buy add-ons after registration', async ({
+  test('Buy add-ons for a confirmed ticket', async ({
     database,
     page,
     registerDatabaseCleanup,
@@ -318,7 +325,7 @@ test.describe('Register for events', () => {
       templateId: template.id,
       tenant,
       testClock,
-      title: 'Participant add-ons after registration',
+      title: 'Attendee add-ons after sign-up',
       userId: regularUser.id,
     });
     registerDatabaseCleanup(() => scenario.cleanup());
@@ -328,13 +335,13 @@ test.describe('Register for events', () => {
     await expect(eventLink).toBeVisible({ timeout: 20_000 });
     await testInfo.attach('markdown', {
       body: `
-  A confirmed participant can return to a discoverable event and buy optional add-ons from the existing ticket. The organizer controls whether each add-on is sold before the event, during the event, or in both windows.`,
+  A confirmed attendee can return to an event shown in **Events** and buy optional add-ons from the existing ticket. The organizer controls whether each add-on is sold before the event, during the event, or at both times.`,
     });
     await takeScreenshot(
       testInfo,
       eventLink,
       page,
-      'Registered event with participant add-ons',
+      'Open a confirmed ticket to buy add-ons',
     );
     await eventLink.click();
     await expect(
@@ -390,7 +397,7 @@ test.describe('Register for events', () => {
     );
     await testInfo.attach('markdown', {
       body: `
-  Free add-ons are added immediately. The ticket shows the settled **Purchased** and **Available to use** quantities, while a before-event restriction remains visible instead of showing an unusable purchase action.`,
+  Free add-ons are added immediately. The ticket shows the **Purchased** and **Available to use** quantities. If an add-on cannot be used until later, the ticket explains when it becomes available.`,
     });
     await takeScreenshot(
       testInfo,
@@ -416,11 +423,11 @@ test.describe('Register for events', () => {
     const paidAddOnRow = registrationAddOnRow(page, scenario.addOns.paid.title);
     await testInfo.attach('markdown', {
       body: `
-  For a paid add-on, choose the quantity and select **Continue to Stripe**. Evorto creates one pending order, reserves that stock, and opens Stripe Checkout. Leaving Checkout does not add the items to the ticket: return to this event and continue the same payment link instead of starting another purchase.`,
+  For a paid add-on, choose the quantity and select **Continue to payment**. Evorto holds those items while payment is pending. Leaving the payment page does not add them to the ticket: return to this event and continue the same payment instead of starting another purchase.`,
     });
     const continueToStripeButton = paidAddOnRow.getByRole('button', {
       exact: true,
-      name: 'Continue to Stripe',
+      name: 'Continue to payment',
     });
     await fillHydratedInputForAction(
       paidAddOnRow.getByLabel(`Quantity for ${scenario.addOns.paid.title}`, {
@@ -433,7 +440,7 @@ test.describe('Register for events', () => {
       testInfo,
       paidAddOnRow,
       page,
-      'Start a paid add-on purchase from the participant ticket',
+      'Start a paid add-on purchase from the attendee ticket',
     );
     await Promise.all([
       page.waitForURL(/checkout\.stripe\.com/, { timeout: 90_000 }),
@@ -465,7 +472,7 @@ test.describe('Register for events', () => {
     await expect(
       paidAddOnRow.getByRole('link', {
         exact: true,
-        name: 'Continue Stripe checkout',
+        name: 'Continue to payment',
       }),
     ).toHaveAttribute('href', pendingCheckout.checkoutUrl);
     await expect(
@@ -518,13 +525,13 @@ test.describe('Register for events', () => {
     expect(prematurePaidLot).toBeUndefined();
     await testInfo.attach('markdown', {
       body: `
-  A paid add-on first reserves stock and shows **Payment is pending**. Pending payment is not an entitlement: reloading keeps the same **Continue Stripe checkout** link, and the purchased quantity changes only after Stripe confirms payment. While checkout is pending, cancellation and transfer stay disabled so the ticket cannot change ownership underneath the reservation.`,
+  A paid add-on first holds the selected quantity and shows **Payment is pending**. It becomes available only after payment succeeds. The same **Continue to payment** action remains available while payment is pending; use it to return to the existing payment. Cancellation and transfer stay unavailable so the ticket cannot change at the same time.`,
     });
     await takeScreenshot(
       testInfo,
       page.locator('app-event-active-registration'),
       page,
-      'Paid add-on checkout pending after reload',
+      'Paid add-on held while payment is pending',
     );
 
     await expect(scenario.completeCheckout()).resolves.toBe('finalized');
@@ -599,17 +606,17 @@ test.describe('Register for events', () => {
     );
     await testInfo.attach('markdown', {
       body: `
-  After Stripe confirms payment, the pending state disappears and the purchased quantity becomes available to use. During-event restrictions remain in effect and are shown with the add-on.`,
+  After payment succeeds, the purchased quantity becomes available to use. Any timing restrictions remain visible with the add-on.`,
     });
     await takeScreenshot(
       testInfo,
       page.locator('app-event-active-registration'),
       page,
-      'Paid add-on settled on the participant ticket',
+      'Paid add-on available on the attendee ticket',
     );
   });
 
-  test('Review unavailable registration states', async ({
+  test('See when sign-up is unavailable', async ({
     database,
     page,
     seeded,
@@ -639,7 +646,7 @@ test.describe('Register for events', () => {
     }
     await testInfo.attach('markdown', {
       body: `
-  Event pages stay readable when registration is not currently possible. The registration card explains the current state instead of showing an action that cannot succeed.
+  Event pages stay readable when sign-up is not currently possible. The sign-up card explains why and what you can do instead of showing an action that cannot succeed.
 `,
     });
 
@@ -654,20 +661,20 @@ test.describe('Register for events', () => {
       );
     await page.goto(`/events/${closedEventId}`);
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Registration is closed')).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Register$/ })).toHaveCount(
+    await expect(page.getByText('Sign-up closed')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Sign up$/ })).toHaveCount(
       0,
     );
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      page.locator('section').filter({ hasText: 'Your sign-up' }),
       page,
-      'Closed registration window',
+      'Event details show that sign-up has closed',
     );
 
     await testInfo.attach('markdown', {
       body: `
-  When the registration window is closed, participants can still read the event details, but the registration action is removed.
+  When the sign-up window is closed, attendees can still read the event details, but the sign-up action is removed.
 `,
     });
 
@@ -705,7 +712,7 @@ test.describe('Register for events', () => {
     });
     await page.goto(`/events/${fullEventId}`);
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('This option is full.')).toBeVisible();
+    await expect(page.getByText('This sign-up choice is full.')).toBeVisible();
     const waitlistButton = page.getByRole('button', { name: 'Join waitlist' });
     await expect(waitlistButton).toBeVisible();
     const waitlistQuestionInput = page.getByLabel(waitlistQuestion.title);
@@ -716,14 +723,14 @@ test.describe('Register for events', () => {
       'Please tell me if a spot opens.',
       waitlistButton,
     );
-    await expect(page.getByRole('button', { name: /^Register$/ })).toHaveCount(
+    await expect(page.getByRole('button', { name: /^Sign up$/ })).toHaveCount(
       0,
     );
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      page.locator('section').filter({ hasText: 'Your sign-up' }),
       page,
-      'Full registration option with waitlist',
+      'Full sign-up choice with waitlist',
     );
     await waitlistButton.click();
     await expect(
@@ -762,19 +769,19 @@ test.describe('Register for events', () => {
     ).toBeVisible();
     await expect(
       leaveWaitlistDialog.getByRole('button', {
-        name: 'Keep registration',
+        name: 'Stay on waitlist',
       }),
     ).toBeFocused();
     await takeScreenshot(
       testInfo,
       leaveWaitlistDialog,
       page,
-      'Confirm before giving up a waitlist position',
+      'Review before leaving the waitlist',
     );
     await leaveWaitlistDialog
       .getByRole('button', { name: 'Leave waitlist' })
       .click();
-    await expect(page.getByText('This option is full.')).toBeVisible();
+    await expect(page.getByText('This sign-up choice is full.')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Join waitlist' }),
     ).toBeVisible();
@@ -805,9 +812,9 @@ test.describe('Register for events', () => {
 
     await testInfo.attach('markdown', {
       body: `
-Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full.
+When all places in an attendee choice are taken, **Join waitlist** replaces **Sign up**. If that choice asks required sign-up questions, attendees must answer them before joining. A waitlist place is not a confirmed ticket.
 
-To give up the position before the event starts, select **Leave waitlist**. Review the **Leave the waitlist?** confirmation; **Keep registration** receives focus by default. Select **Leave waitlist** in that dialog only when you intend to cancel the waitlist registration and release its position.
+To give up the position before the event starts, select **Leave waitlist**. When the **Leave the waitlist?** confirmation opens, pressing Enter chooses **Stay on waitlist**, so your place stays unchanged. Select **Leave waitlist** only when you intend to give up that place.
 `,
     });
     await database
@@ -828,10 +835,10 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
       .where(eq(schema.eventInstances.id, fullEventId));
   });
 
-  test.describe('without eligible roles', () => {
+  test.describe('When you cannot sign up', () => {
     test.use({ storageState: userStateFile });
 
-    test('Review role-ineligible registration state', async ({
+    test('Understand why sign-up is unavailable', async ({
       database,
       page,
       roles,
@@ -879,26 +886,26 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
         await waitForRegistrationStatus(page);
 
         await expect(
-          page.getByRole('heading', { name: 'Registration unavailable' }),
+          page.getByRole('heading', { name: 'Sign-up unavailable' }),
         ).toBeVisible();
         await expect(
           page.getByText(
-            'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+            'You can view this event, but none of its sign-up choices are available to you.',
           ),
         ).toBeVisible();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
         await takeScreenshot(
           testInfo,
-          page.locator('section').filter({ hasText: 'Registration' }),
+          page.locator('section').filter({ hasText: 'Your sign-up' }),
           page,
-          'Role-ineligible registration state',
+          'Why this account cannot sign up',
         );
 
         await testInfo.attach('markdown', {
           body: `
-  Direct event links remain readable for signed-in users without eligible organization roles. The registration area states that the current account is not eligible instead of hiding the event or rendering an empty registration section.
+  Shared event links remain readable for signed-in members who cannot use any sign-up choice. **Sign-up unavailable** means none of the event's sign-up choices are available to the current account. Check that you opened the correct organization and signed in with the intended account. If you expected access, ask an organizer which organization role the choice requires. A shared link does not make a sign-up choice available to you.
 `,
         });
       } finally {
@@ -910,7 +917,7 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
     });
   });
 
-  test('Register for a paid event', async ({
+  test('Sign up for a paid event', async ({
     database,
     events,
     page,
@@ -986,15 +993,16 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
-  To register for a paid event, you have to pay the registration fee.`,
+  A paid sign-up is confirmed only after its payment succeeds.`,
     });
     await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
     await waitForRegistrationStatus(page);
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { level: 2, name: 'Registration' }),
+      page.getByRole('heading', { level: 2, name: 'Your sign-up' }),
       page,
+      'Paid sign-up choice before selecting guests',
     );
     const paidRegistrationCard = page
       .locator('app-event-registration-option')
@@ -1005,29 +1013,29 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
     await expect(paidGuestCountInput).toBeEnabled({ timeout: 15_000 });
     await testInfo.attach('markdown', {
       body: `
-  In **Guests**, enter the number of people attending with you before starting payment. This guide selects one guest, so the field shows **+ you = 2 spots**. The amount on **Pay and register** includes the signed-in participant and the guest; each person reserves one event spot while payment is pending.
+  In **Guests**, enter the number of people attending with you before starting payment. This guide selects one guest, so the field shows **+ you = 2 places**. The total on the payment button includes the signed-in attendee and the guest; each person reserves one event place while payment is pending.
 
-  Check the guest count and total carefully, then select **Pay and register** to start the payment process.
-  Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind. Cancelling a pending payment registration releases every selected buyer and guest spot and expires the pending checkout when possible.`,
+  Check the guest count and total carefully, then select the payment button to continue.
+  Afterwards, you can pay to confirm the ticket or cancel the unfinished sign-up if you change your mind. Cancelling releases the places only after Evorto confirms that payment was stopped. If Evorto cannot confirm that, the unfinished sign-up and held places remain unchanged; open the ticket again and follow the displayed message before trying again.`,
     });
     await expect(
       paidRegistrationCard.getByText(
-        'Guests do not need separate accounts. Each guest uses one available spot and shares your registration.',
+        'Guests do not need separate accounts. Each guest uses one available place and shares your ticket.',
       ),
     ).toBeVisible();
     await paidGuestCountInput.fill('1');
     await expect(paidGuestCountInput).toHaveValue('1');
     await expect(
-      paidRegistrationCard.getByText('+ you = 2 spots'),
+      paidRegistrationCard.getByText('+ you = 2 places'),
     ).toBeVisible();
     const payButton = paidRegistrationCard.getByRole('button');
     await expect(payButton).toHaveCount(1);
-    await expect(payButton).toContainText('and register');
+    await expect(payButton).toContainText('and sign up');
     await takeScreenshot(
       testInfo,
       paidRegistrationCard,
       page,
-      'Paid registration with one guest selected',
+      'Paid sign-up with one guest and two places',
     );
     const payNowLink = page.getByRole('link', { name: 'Pay now' }).first();
     let checkoutUrl: null | string = null;
@@ -1121,9 +1129,9 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
 
     await testInfo.attach('markdown', {
       body: `
-  Stripe Checkout opens on Stripe's website. Review the event and amount there, enter a payment method, and submit the payment. Closing Checkout leaves this registration pending, so return here and use the same **Pay now** link instead of starting another registration.
+  **Pay now** opens the secure payment page. Review the event and amount, enter a payment method, and submit the payment. Closing the payment page leaves this sign-up waiting for payment, so return here and use the same **Pay now** link instead of starting a second sign-up.
 
-  This guide verifies the exact Stripe destination and the signed completion event Evorto accepts for this registration. It shows Evorto immediately before and after payment instead of reproducing Stripe's changing card form.`,
+  Return to Evorto after paying and check that the ticket is confirmed before relying on it.`,
     });
     await deliverCompletedRegistrationCheckoutWebhook({
       amount: pendingTransaction.amount,
@@ -1184,7 +1192,7 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
     await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
     await waitForRegistrationStatus(page);
-    const registeredMessage = page.getByText('You are registered');
+    const registeredMessage = page.getByText('Your ticket is confirmed');
     await expect(registeredMessage).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('Includes 1 guest plus you.')).toBeVisible();
     const paidOptionAfterCheckout =
@@ -1198,15 +1206,15 @@ To give up the position before the event starts, select **Leave waitlist**. Revi
     });
     await testInfo.attach('markdown', {
       body: `
-  ### Successful paid registration
-  After Stripe accepts the payment, return to the event page to see your registration confirmation.
-  Your ticket details and QR code are now available. **Includes 1 guest plus you** confirms that both paid spots belong to this registration.`,
+  ### Confirmed paid ticket
+  After payment succeeds, return to the event page and check for **Your ticket is confirmed**. The ticket details and QR code are now available. **Includes 1 guest plus you** confirms that both paid places belong to this ticket.
+  Evorto tries to send a confirmation email with a link back to the ticket. You can always check the confirmed ticket on the event page, even if that email does not arrive.`,
     });
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { level: 2, name: 'Registration' }),
+      page.getByRole('heading', { level: 2, name: 'Your sign-up' }),
       page,
-      'Event details after successful paid registration',
+      'Confirmed paid ticket with QR code and guest count',
     );
   });
 });

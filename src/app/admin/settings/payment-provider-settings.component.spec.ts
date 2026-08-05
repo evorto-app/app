@@ -19,7 +19,6 @@ describe('paymentProviderSettingsFormSchema', () => {
         esnCardEnabled: false,
         receiptCountries: [],
         refundFeesOnCancellation: true,
-        stripeAccountId: '',
       }),
       paymentProviderSettingsFormSchema,
       {

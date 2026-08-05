@@ -21,6 +21,12 @@ import {
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
 import {
+  registrationCancellationActionLabel,
+  registrationCancellationCompletedLabel,
+  registrationCancellationFailureMessage,
+  registrationCancellationKind,
+} from '@shared/registration-cancellation';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -116,7 +122,7 @@ export const groupEventOrganizeRegistrationOptions = <
 ) =>
   [
     {
-      emptyMessage: 'No organizer/helper registrations yet.',
+      emptyMessage: 'No organizer/helper sign-ups yet.',
       id: 'organizer-helper-team',
       options: registrationOptions.filter(
         (option) => option.organizingRegistration,
@@ -124,12 +130,12 @@ export const groupEventOrganizeRegistrationOptions = <
       title: 'Organizer/helper team',
     },
     {
-      emptyMessage: 'No participant registrations yet.',
+      emptyMessage: 'No attendee sign-ups yet.',
       id: 'participant-registrations',
       options: registrationOptions.filter(
         (option) => !option.organizingRegistration,
       ),
-      title: 'Participant registrations',
+      title: 'Attendee sign-ups',
     },
   ] as const;
 
@@ -185,8 +191,18 @@ export const organizerRegistrationApprovalLabel = ({
     return 'Approving…';
   }
 
-  return paymentSetupRequired ? 'Retry payment setup' : 'Approve application';
+  return paymentSetupRequired ? 'Try payment again' : 'Approve application';
 };
+
+export const organizerRegistrationCancellationActionLabel = ({
+  paymentPending,
+  status,
+}: Pick<EventOrganizeParticipant, 'paymentPending' | 'status'>): string =>
+  status === 'CANCELLED'
+    ? 'Sign-up ended'
+    : registrationCancellationActionLabel(
+        registrationCancellationKind({ paymentPending, status }),
+      );
 
 export const receiptSubmissionActionDisabled = ({
   submissionUnavailable,
@@ -197,6 +213,15 @@ export const receiptSubmissionActionDisabled = ({
   submitPending: boolean;
   uploadPending: boolean;
 }): boolean => submissionUnavailable || submitPending || uploadPending;
+
+export const organizerRegistrationErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string =>
+  getErrorMessage(error, fallback, [
+    'EventRegistrationConflictError',
+    'EventRegistrationNotFoundError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -237,6 +262,8 @@ export class EventOrganize {
     organizerRegistrationApprovalDisabled;
   protected readonly organizerRegistrationApprovalLabel =
     organizerRegistrationApprovalLabel;
+  protected readonly organizerRegistrationCancellationActionLabel =
+    organizerRegistrationCancellationActionLabel;
   protected readonly organizerRegistrationTransferDisabled =
     organizerRegistrationTransferDisabled;
   protected readonly receiptCreateUploadMutation = injectMutation(() =>
@@ -334,11 +361,11 @@ export class EventOrganize {
       {
         onError: (error) => {
           this.notifications.showError(
-            getErrorMessage(
+            organizerRegistrationErrorMessage(
               error,
               registration.paymentSetupRequired
-                ? 'Failed to set up registration payment'
-                : 'Failed to approve application',
+                ? 'Payment could not be started. Check the sign-up and try again.'
+                : 'The application could not be approved. Check its current status and try again.',
             ),
           );
         },
@@ -352,8 +379,8 @@ export class EventOrganize {
         onSuccess: (result) => {
           this.notifications.showSuccess(
             result.status === 'confirmed'
-              ? 'Registration confirmed'
-              : 'Application approved. Payment is required before confirmation.',
+              ? 'Sign-up confirmed'
+              : 'Application approved. The attendee must pay before their place is confirmed.',
           );
         },
       },
@@ -376,6 +403,10 @@ export class EventOrganize {
     if (expectedStatus === 'CANCELLED') {
       return;
     }
+    const cancellationKind = registrationCancellationKind({
+      paymentPending: expectedPaymentPending,
+      status: expectedStatus,
+    });
     if (
       organizerRegistrationActionDisabled({
         checkedIn: registration.checkedIn,
@@ -433,13 +464,18 @@ export class EventOrganize {
             await this.invalidateOrganizerState();
           } finally {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to cancel registration'),
+              organizerRegistrationErrorMessage(
+                error,
+                registrationCancellationFailureMessage(cancellationKind),
+              ),
             );
           }
         },
         onSuccess: async () => {
           await this.invalidateOrganizerState();
-          this.notifications.showSuccess('Registration cancelled');
+          this.notifications.showSuccess(
+            registrationCancellationCompletedLabel(cancellationKind),
+          );
         },
       },
     );
@@ -498,7 +534,10 @@ export class EventOrganize {
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to submit receipt'),
+              getErrorMessage(
+                error,
+                'The receipt was not submitted. Try again.',
+              ),
             );
           },
           onSuccess: async () => {
@@ -522,7 +561,10 @@ export class EventOrganize {
       );
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to upload receipt file'),
+        getErrorMessage(
+          error,
+          'The receipt file could not be added. Check the file and try again.',
+        ),
       );
     }
   }
@@ -574,26 +616,19 @@ export class EventOrganize {
       {
         onError: (error) => {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to transfer registration'),
+            organizerRegistrationErrorMessage(
+              error,
+              'The ticket could not be transferred. Check the current details and try again.',
+            ),
           );
         },
         onSuccess: async () => {
           await this.invalidateOrganizerState();
-          this.notifications.showSuccess('Registration transferred');
+          this.notifications.showSuccess('Ticket transferred');
         },
       },
     );
   }
-
-  protected readonly showOrganizerRow = (
-    index: number,
-    row: { type?: string },
-  ) => row?.type !== 'Registration Option';
-
-  protected readonly showRegistrationOptionRow = (
-    index: number,
-    row: { type?: string },
-  ) => row?.type === 'Registration Option';
 
   private invalidateOrganizerState(): Promise<void> {
     const eventId = this.eventId();
@@ -642,7 +677,7 @@ export class EventOrganize {
       mode: 'cors',
     });
     if (!response.ok) {
-      throw new Error('Object storage rejected the receipt upload');
+      throw new Error('The receipt file could not be uploaded. Try again.');
     }
 
     return this.receiptFinalizeUploadMutation.mutateAsync({

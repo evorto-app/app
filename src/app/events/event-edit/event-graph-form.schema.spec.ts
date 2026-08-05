@@ -89,7 +89,7 @@ describe('eventGraphFormSchema', () => {
       price()
         .errors()
         .map((error) => error.message),
-    ).toContain('Paid registrations must cost at least 0.01.');
+    ).toContain('A paid choice must cost at least 0.01.');
 
     price().value.set(1);
 
@@ -165,7 +165,7 @@ describe('eventGraphFormSchema', () => {
         .errors()
         .map((error) => error.message),
     ).toContain(
-      `Maximum optional units cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`,
+      `Each person can buy at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
     );
 
     graph.addOns[0]
@@ -180,7 +180,7 @@ describe('eventGraphFormSchema', () => {
         .errors()
         .map((error) => error.message),
     ).toContain(
-      `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per registration.`,
+      `Included and optional items cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
     );
   });
 
@@ -201,9 +201,7 @@ describe('eventGraphFormSchema', () => {
         .addOns()
         .errors()
         .map((error) => error.message),
-    ).toContain(
-      `Events support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
-    );
+    ).toContain(`An event can have at most ${MAX_EVENT_ADDON_TYPES} add-ons.`);
   });
 
   it('rejects cleared required dates and graph numbers without throwing', () => {

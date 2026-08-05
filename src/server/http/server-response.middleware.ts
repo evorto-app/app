@@ -54,7 +54,7 @@ export const createInternalErrorResponse = (
   }
 
   return HttpServerResponse.jsonUnsafe(
-    { error: 'Internal Server Error' },
+    { error: 'Something went wrong.' },
     { status: 500 },
   );
 };

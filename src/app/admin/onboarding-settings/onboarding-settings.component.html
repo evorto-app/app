@@ -1,20 +1,20 @@
 <main class="grid gap-4 p-4 lg:p-0">
   <header>
-    <h1 class="title-large">Member onboarding</h1>
+    <h1 class="title-large">New member setup</h1>
     <p class="body-medium text-on-surface-variant mt-1">
-      Publish the privacy policy and required questions shown before a user can
-      join or continue in this organization.
+      Choose the privacy policy and questions people see before they join or
+      continue in this organization.
     </p>
   </header>
 
   @if (settingsQuery.isPending()) {
-    <p role="status">Loading onboarding settings...</p>
+    <p role="status">Loading new member setup…</p>
   } @else if (settingsQuery.isError()) {
     <section
       role="alert"
       class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-4"
     >
-      <p>Onboarding settings could not be loaded.</p>
+      <p>We couldn't load the setup for new members.</p>
       <button
         type="button"
         mat-stroked-button
@@ -22,7 +22,7 @@
         [disabled]="settingsQuery.isFetching()"
         (click)="settingsQuery.refetch()"
       >
-        {{ settingsQuery.isFetching() ? "Retrying..." : "Try again" }}
+        {{ settingsQuery.isFetching() ? "Trying again…" : "Try again" }}
       </button>
     </section>
   } @else if (settingsQuery.isSuccess()) {
@@ -31,8 +31,8 @@
         <div>
           <h2 class="title-medium">Privacy policy</h2>
           <p class="body-medium text-on-surface-variant mt-1">
-            Publish hosted text, an external HTTP or HTTPS link, or both. Each
-            changed version is retained with its author and publication time.
+            Add the policy here, link to it on another website, or do both. We
+            keep a record of who published each change and when.
           </p>
         </div>
 
@@ -40,13 +40,12 @@
           class="bg-warning-container text-on-warning-container rounded-lg p-3"
           role="note"
         >
-          Publishing changed policy text or a changed link immediately requires
-          every member, including you, to accept the new version before
-          continuing in this organization.
+          When you publish a policy change, every member, including you, must
+          accept it before continuing in this organization.
         </div>
 
         <mat-form-field>
-          <mat-label>Privacy policy URL</mat-label>
+          <mat-label>Privacy policy web address</mat-label>
           <input
             matInput
             type="url"
@@ -76,8 +75,8 @@
           <div>
             <h2 class="title-medium">Required questions</h2>
             <p class="body-medium text-on-surface-variant mt-1">
-              Short-text answers are limited to 250 characters. Selection
-              questions use one option per line.
+              Written answers can be up to 250 characters. For questions with
+              set choices, put one choice on each line.
             </p>
           </div>
           <button type="button" mat-stroked-button (click)="addQuestion()">
@@ -103,7 +102,7 @@
               <button
                 type="button"
                 mat-icon-button
-                aria-label="Remove onboarding question"
+                aria-label="Remove question"
                 (click)="removeQuestion(questionIndex)"
               >
                 <fa-duotone-icon [icon]="faTrashCan" />
@@ -111,25 +110,25 @@
             </div>
 
             <mat-form-field>
-              <mat-label>Answer type</mat-label>
+              <mat-label>How members answer</mat-label>
               <mat-select [formField]="question.type">
-                <mat-option value="shortText">Short text</mat-option>
-                <mat-option value="selection">Selection list</mat-option>
+                <mat-option value="shortText">Write an answer</mat-option>
+                <mat-option value="selection">Choose from a list</mat-option>
               </mat-select>
             </mat-form-field>
 
             @if (question.type().value() === "selection") {
               <mat-form-field>
-                <mat-label>Selection options</mat-label>
+                <mat-label>Choices</mat-label>
                 <textarea
                   matInput
                   rows="4"
-                  placeholder="Option one&#10;Option two"
+                  placeholder="Choice one&#10;Choice two"
                   [formField]="question.optionsText"
                 ></textarea>
                 <mat-hint
-                  >One per line; 2 to 20 unique options, up to 80 characters
-                  each</mat-hint
+                  >One choice per line; add 2 to 20 different choices, each up
+                  to 80 characters</mat-hint
                 >
                 @if (
                   question.optionsText().touched() &&
@@ -144,8 +143,8 @@
           </article>
         } @empty {
           <p class="body-medium text-on-surface-variant">
-            No organization-wide questions are configured. Privacy acceptance is
-            still required.
+            No questions have been added. Members still need to accept the
+            privacy policy.
           </p>
         }
       </section>
@@ -160,7 +159,7 @@
           publishMutation.isPending()
         "
       >
-        {{ publishMutation.isPending() ? "Publishing..." : "Publish settings" }}
+        {{ publishMutation.isPending() ? "Publishing…" : "Publish changes" }}
       </button>
     </form>
   }

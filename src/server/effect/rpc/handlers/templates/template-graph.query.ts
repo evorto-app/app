@@ -22,9 +22,10 @@ interface TemplateRole {
   name: string;
 }
 
-export const templateGraphNotFoundError = (templateId: string) =>
+export const templateGraphNotFoundError = () =>
   new RpcBadRequestError({
-    message: `Template ${templateId} was not found for the target tenant`,
+    message:
+      'This template no longer exists in this organization. No changes were made. Return to Templates and choose an existing template.',
     reason: 'templateNotFound',
   });
 
@@ -77,7 +78,10 @@ export const loadTemplateGraphDetail = Effect.fn(
     .pipe(Effect.orDie);
   const template = templates[0];
   if (!template) {
-    return yield* Effect.fail(templateGraphNotFoundError(templateId));
+    yield* Effect.logWarning('Template graph not found').pipe(
+      Effect.annotateLogs({ templateId, tenantId }),
+    );
+    return yield* Effect.fail(templateGraphNotFoundError());
   }
 
   const registrationOptions = yield* database

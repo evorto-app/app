@@ -12,7 +12,7 @@ interface RegistrationModeOptionIdentity {
 }
 
 export const persistedAdvancedToSimpleModeBlockMessage =
-  'Save the compatible advanced changes first, reopen this editor, then switch to simple mode. Switching modes must preserve every persisted registration option ID.';
+  'Save these changes first. Nothing has been changed.';
 
 export const persistedAdvancedToSimpleModeIssue = (
   persistedGraph: PersistedRegistrationModeGraph | undefined,

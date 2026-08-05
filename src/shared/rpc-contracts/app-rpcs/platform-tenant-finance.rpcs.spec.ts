@@ -139,7 +139,7 @@ describe('platform tenant finance RPC schemas', () => {
     const decoded = Schema.decodeUnknownSync(PlatformFinanceTransactionRecord)({
       amount: -1200,
       appFee: null,
-      comment: 'Registration refund',
+      comment: 'Ticket refund',
       createdAt: '2026-07-10T10:00:00.000Z',
       currency: 'EUR',
       id: 'refund-claim-1',

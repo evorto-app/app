@@ -1,19 +1,16 @@
-<h2 mat-dialog-title>
-  Update announcement discovery for {{ data.event.title }}
-</h2>
+<h2 mat-dialog-title>Choose who can find {{ data.event.title }}</h2>
 <mat-dialog-content>
   <div class="mt-2 grid w-full gap-3">
     <p class="body-medium">
-      Select the organization roles that should find this announcement in the
-      event list.
+      Select the organization roles that should see this announcement in Events.
     </p>
     <app-role-select
       [formField]="announcementDiscoveryForm.announcementRoleIds"
     />
     <p class="text-on-surface-variant body-medium">
-      With no roles selected, the announcement is link-only. A selection only
-      affects discovery: it does not restrict direct links, grant access, or
-      send notifications.
+      Without a selected role, this announcement is available only through its
+      direct link. Selecting roles does not change anyone's access or send them
+      a message.
     </p>
   </div>
 </mat-dialog-content>

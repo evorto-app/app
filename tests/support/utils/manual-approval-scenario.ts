@@ -36,6 +36,7 @@ export interface ManualApprovalScenario {
     currency: 'AUD' | 'CZK' | 'EUR';
     domain: string;
     id: string;
+    name: string;
     stripeAccountId: null | string;
     timezone: string;
   };
@@ -93,6 +94,7 @@ export const seedManualApprovalScenario = async ({
       currency: true,
       domain: true,
       id: true,
+      name: true,
       stripeAccountId: true,
       timezone: true,
     },
@@ -333,7 +335,7 @@ export const seedManualApprovalScenario = async ({
             expiresAt: Math.floor(Date.now() / 1000) + 23 * 60 * 60,
             lineItems: [
               {
-                name: `Registration fee for ${event.title}`,
+                name: `Ticket for ${event.title}`,
                 quantity: 1,
                 ...(option.stripeTaxRateId && {
                   taxRateId: option.stripeTaxRateId,
@@ -355,6 +357,7 @@ export const seedManualApprovalScenario = async ({
       currency: tenant.currency,
       domain: tenant.domain,
       id: tenant.id,
+      name: tenant.name,
       stripeAccountId: tenant.stripeAccountId,
       timezone: tenant.timezone,
     },

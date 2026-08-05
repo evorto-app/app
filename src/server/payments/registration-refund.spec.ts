@@ -80,7 +80,12 @@ describe('registration refund claims', () => {
         'platform-refund:refund-1',
         new Date('2026-07-10T12:00:00.000Z'),
       ),
-    ).toEqual(expect.objectContaining({ executiveUserId: null }));
+    ).toEqual(
+      expect.objectContaining({
+        comment: 'Ticket refund',
+        executiveUserId: null,
+      }),
+    );
   });
 
   it('uses the durable claim generation as the stable Stripe idempotency key', () => {
@@ -118,7 +123,7 @@ describe('registration refund claims', () => {
     ).toEqual(
       expect.objectContaining({
         amount: -400,
-        comment: 'Refund recorded by Stripe',
+        comment: 'Ticket refund',
         eventRegistrationId: 'registration-1',
         manuallyCreated: false,
         refundOperationKey: operationKey,

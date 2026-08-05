@@ -81,10 +81,12 @@ before `evorto` and the polling worker start. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run
 `docker compose down --timeout 60 --remove-orphans` first, then run the
 equivalent of `bun run db:reset` against the Docker database during stack
-startup. That path drops and recreates `public`, applies Drizzle, and seeds the
-local dataset without an interactive confirmation. PostgreSQL data, Mailpit
-messages, and the Stripe signing secret use project-scoped named volumes;
-MinIO data is container-local for the disposable test stack.
+startup. The one-shot setup ensures the fixed disposable integration database
+exists directly through PostgreSQL, then drops and recreates the application's
+`public` schema, applies Drizzle, and seeds the local dataset without an
+interactive confirmation. PostgreSQL data, Mailpit messages, and the Stripe
+signing secret use project-scoped named volumes; MinIO data is container-local
+for the disposable test stack. PostgreSQL startup has no host-file mount.
 
 The generated `E2E_USE_DOCKER_STACK=true` environment makes Playwright use
 `bun run docker:webserver`. That wrapper refuses to take ownership when an

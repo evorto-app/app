@@ -38,12 +38,11 @@ const nearestDateHeading = async (card: Locator): Promise<string> =>
     return '';
   });
 
-test('Find an eligible event', async ({
+test('Find an event you can join', async ({
   database,
   page,
   registerDatabaseCleanup,
   roles,
-  seedDate,
   seeded,
   tenant,
 }, testInfo) => {
@@ -78,10 +77,9 @@ test('Find an eligible event', async ({
   const registeredWindow = futureServerEventWindow({ startInDays: 2 });
   const otherWindow = futureServerEventWindow({ startInDays: 4 });
   const ineligibleWindow = futureServerEventWindow({ startInDays: 6 });
-  const suffix = seedDate.getTime();
-  const registeredTitle = `Community breakfast ${suffix}`;
-  const otherTitle = `City walk ${suffix}`;
-  const ineligibleTitle = `Organizer planning session ${suffix}`;
+  const registeredTitle = 'Community breakfast';
+  const otherTitle = 'City walk';
+  const ineligibleTitle = 'Organizer planning session';
   const defaultUserRole = roles.find((role) => role.defaultUserRole);
   const organizerOnlyRole = roles.find(
     (role) => role.defaultOrganizerRole && !role.defaultUserRole,
@@ -127,7 +125,7 @@ test('Find an eligible event', async ({
     {
       creatorId: participant.id,
       description:
-        '<p>A relaxed eligible event used to explain ordinary event discovery.</p>',
+        '<p>A relaxed afternoon event with places available for members.</p>',
       end: registeredWindow.end,
       icon: sourceEvent.icon,
       id: registeredEventId,
@@ -141,8 +139,7 @@ test('Find an eligible event', async ({
     },
     {
       creatorId: participant.id,
-      description:
-        '<p>A second eligible event used to explain compact event navigation.</p>',
+      description: '<p>A small-group event with clear meeting details.</p>',
       end: otherWindow.end,
       icon: sourceEvent.icon,
       id: otherEventId,
@@ -156,8 +153,7 @@ test('Find an eligible event', async ({
     },
     {
       creatorId: participant.id,
-      description:
-        '<p>An event whose options are not available to this participant.</p>',
+      description: '<p>A planning session for a different member group.</p>',
       end: ineligibleWindow.end,
       icon: sourceEvent.icon,
       id: ineligibleEventId,
@@ -182,7 +178,7 @@ test('Find an eligible event', async ({
       registrationMode: 'fcfs',
       roleIds: [defaultUserRole.id],
       spots: 20,
-      title: 'Participant registration',
+      title: 'Attendee sign-up',
       waitlistSpots: 1,
     },
     {
@@ -196,7 +192,7 @@ test('Find an eligible event', async ({
       registrationMode: 'fcfs',
       roleIds: [],
       spots: 20,
-      title: 'Participant registration',
+      title: 'Attendee sign-up',
     },
     {
       closeRegistrationTime: ineligibleWindow.closeRegistrationTime,
@@ -223,19 +219,18 @@ test('Find an eligible event', async ({
 
   await testInfo.attach('markdown', {
     body: `
-# Find an eligible event
 
-This guide explains the ordinary event list for a participant. You only need to be on the correct organization's Evorto address. A published sign-up event appears for a signed-in member when at least one of its registration options accepts one of that member's roles. The option can be for participants, organizers, or another tenant-defined purpose; there is no separate event audience.
+Open the correct organization's Evorto address to see its events. After signing in, a sign-up event appears when it has at least one choice available to you, whether you want to attend, help organize, or join in another way defined by the organization.
 
 {% callout type="note" title="Before you start" %}
-Check the organization name and address before choosing an event. Each organization has its own list. Draft, past, and role-ineligible events are absent from ordinary discovery. A direct link still opens a published event for a signed-in member whose roles do not match, and its registration area explains the ineligibility instead of hiding the defect. Optionless announcements intentionally use a different rule: only signed-in members with one of the announcement's selected roles discover it, and an empty selection means link-only. Announcement targeting does not grant roles, event access, or send notifications.
+Check the organization name and address before choosing an event. Each organization has its own list. Events that are not yet published, have ended, or are not open to you do not appear. A shared link still opens a published event and explains when you cannot sign up. Announcements follow a different rule: they appear to members with roles selected on the announcement. Without a selected role, an announcement can be opened only through a shared link. This choice does not change anyone's role or send a message.
 {% /callout %}
 
 ## Open Events
 
 1. Use the main navigation and select **Events**.
-2. Read the date headings from top to bottom. Evorto groups upcoming cards by the event date in the organization's timezone and shows each start time on its card.
-3. Read the title before selecting a card. A green outline means this signed-in account already has a non-cancelled registration, application, payment-in-progress registration, or waitlist entry for that event. It does not by itself mean payment or confirmation is complete.
+2. Read the date headings from top to bottom. Evorto groups upcoming cards by the event date in the organization's time zone and shows each start time on its card.
+3. Read the title and sign-up status before selecting a card. **Place confirmed**, **Waiting for approval**, **Finish payment**, and **On waitlist** show exactly where you stand. Open the event when you need details or an action.
 `,
   });
 
@@ -256,8 +251,11 @@ Check the organization name and address before choosing an event. Each organizat
   await expect(registeredCard).toBeVisible({ timeout: 20_000 });
   await expect(otherCard).toBeVisible({ timeout: 20_000 });
   await expect(eventCard(page, ineligibleEventId)).toHaveCount(0);
-  await expect(registeredCard).toHaveClass(/ring-success/u);
-  await expect(otherCard).not.toHaveClass(/ring-success/u);
+  await expect(registeredCard).toHaveClass(/ring-primary/u);
+  await expect(
+    registeredCard.getByText('On waitlist', { exact: true }),
+  ).toBeVisible();
+  await expect(otherCard).not.toHaveClass(/ring-primary/u);
   const registeredDay = await nearestDateHeading(registeredCard);
   const otherDay = await nearestDateHeading(otherCard);
   expect(registeredDay).not.toBe('');
@@ -267,14 +265,14 @@ Check the organization name and address before choosing an event. Each organizat
     testInfo,
     [registeredCard, otherCard],
     page,
-    'Eligible events grouped by date, including an account registration marker',
+    'Available events grouped by date, including a waitlist place',
   );
 
   await testInfo.attach('markdown', {
     body: `
-## Open an event on a desktop or wide screen
+## Open an event from the list
 
-Select the event card. On a wide screen, the event list stays on the left while the selected event opens on the right. Review the event title and description first, then read the **Registration** section for eligibility, availability, price, and the current state of your account.
+Select the event card. When there is enough space, the event list stays on the left while the selected event opens on the right. Review the title and description first, then read **Your sign-up** to see who can sign up, remaining places, the price, and what you need to do.
 `,
   });
   await registeredCard.click();
@@ -296,14 +294,14 @@ Select the event card. On a wide screen, the event list stays on the left while 
     testInfo,
     page.locator('app-event-list'),
     page,
-    'Desktop event list and selected event details',
+    'Event list beside the selected event details',
   );
 
   await testInfo.attach('markdown', {
     body: `
-## Open an event on a phone or compact screen
+## Open an event on a small screen
 
-The same **Events** list is used on a compact screen. Selecting a card opens the event details at full width. Use **Back to events** at the top of the detail page to return to the list; the browser Back action works too.
+The same **Events** list is used on a small screen. Selecting a card opens the event details across the available space. Use **Back to events** at the top of the detail page to return to the list.
 `,
   });
   await page.setViewportSize({ height: 844, width: 390 });
@@ -326,7 +324,7 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     testInfo,
     page.locator('app-event-list'),
     page,
-    'Compact event details with the Back to events action',
+    'Selected event with the Back to events action',
   );
   await backToEvents.click();
   await expect(page).toHaveURL('/events');
@@ -347,14 +345,14 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     body: `
 ## If the list is empty
 
-**No events found** is a successful empty result, not a loading failure. It means Evorto found no upcoming published sign-up event with a registration option matching this account, and no upcoming optionless announcement explicitly targeted to one of this account's roles, for this organization. Check that you used the intended organization's Evorto address. The event may also be in the past, still a draft, restricted to another role, or an announcement with no discovery roles. Ask an organizer for the complete direct link when they intentionally made an announcement link-only.
+**No events found** means there are currently no upcoming events available to you and no announcements selected for one of your organization roles. Check that you opened the intended organization's Evorto address. An event may also have ended, still be waiting for publication, or be open to another role. Ask an organizer for the full shared link when an announcement is shared by link only.
 `,
   });
   await takeScreenshot(
     testInfo,
     emptyState,
     page,
-    'Successful empty event list',
+    'No upcoming events are currently available',
   );
 
   for (const event of originalEventTimes) {
@@ -405,7 +403,7 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     errorState.getByRole('heading', { name: 'Events could not be loaded' }),
   ).toBeVisible();
   await expect(errorState).toContainText(
-    'Event discovery is temporarily unavailable. Check your connection and try again.',
+    'No events are shown. Select Try again.',
   );
   await expect(
     errorState.getByRole('button', { name: 'Try again' }),
@@ -414,14 +412,14 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     body: `
 ## If the list fails to load
 
-**Events could not be loaded** is different from **No events found**: Evorto could not load the event list, so do not assume there are no events. Check the connection and select **Try again**. If the error continues, report the displayed message and organization address to an administrator.
+**Events could not be loaded** is different from **No events found**: Evorto could not load the event list, so do not assume there are no events. Select **Try again** once. If the warning remains, contact Evorto support.
 `,
   });
   await takeScreenshot(
     testInfo,
     errorState,
     page,
-    'Event list request failure shown separately from an empty result',
+    'Event list could not be loaded',
   );
   await page.unroute(rpcUrlPattern, failEventListRequests);
   await page.reload();
@@ -451,7 +449,7 @@ The same **Events** list is used on a compact screen. Selecting a card opens the
     body: `
 ## Browse before signing in
 
-An anonymous visitor sees a published sign-up event in the event list only when at least one option is available to a role that this organization assigns to new members by default. This is a preview, not access: the page exposes only public event information and asks the visitor to sign in before registration. A complete direct link to another published sign-up event still opens its public projection, but restricted option details remain hidden and Evorto explicitly asks the visitor to sign in instead of claiming that the event has no registration options. Default new-member roles are not borrowed for announcements; announcement discovery requires the current signed-in account to hold an explicitly selected role.
+Before signing in, visitors may see published events that are open to new members. The page shows only public event details and asks the visitor to sign in before signing up. A shared link to another published event still opens its public details, while sign-up choices remain hidden until the visitor signs in. Announcements do not appear before sign-in, but their public details still open from a shared link.
 `,
   });
   await page.goto(`/events/${ineligibleEventId}`);
@@ -466,22 +464,22 @@ An anonymous visitor sees a published sign-up event in the event list only when 
     page.getByRole('heading', {
       exact: true,
       level: 3,
-      name: 'Sign in to check registration',
+      name: 'Sign in to see sign-up choices',
     }),
   ).toBeVisible();
   await expect(
-    page.getByText('No registration options', { exact: true }),
+    page.getByText('No sign-up choices', { exact: true }),
   ).toHaveCount(0);
   await expect(page.locator('app-event-registration-option')).toHaveCount(0);
 
   await page.goto('/events');
   await eventCard(page, registeredEventId).click();
   await waitForRegistrationPage(page);
-  const loginAction = page.getByRole('link', {
+  const signInAction = page.getByRole('link', {
     exact: true,
-    name: 'Log in now',
+    name: 'Sign in now',
   });
-  await expect(loginAction).toBeVisible();
+  await expect(signInAction).toBeVisible();
   await expect(
     page.getByRole('link', { exact: true, name: 'Edit Event' }),
   ).toHaveCount(0);
@@ -490,8 +488,8 @@ An anonymous visitor sees a published sign-up event in the event list only when 
   ).toHaveCount(0);
   await takeScreenshot(
     testInfo,
-    page.locator('section').filter({ hasText: 'Registration' }),
+    page.locator('section').filter({ hasText: 'Your sign-up' }),
     page,
-    'Public event preview requires sign-in before registration',
+    'Public event preview requires sign-in before sign-up',
   );
 });

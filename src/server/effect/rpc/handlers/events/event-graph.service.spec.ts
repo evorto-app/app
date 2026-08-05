@@ -134,7 +134,7 @@ const validInput = (): EventGraphUpdateInput => ({
 describe('event graph structural validation', () => {
   it('explains why a purchased add-on must keep its registration option', () => {
     expect(purchasedAddOnRegistrationOptionRemovalMessage).toBe(
-      'An add-on that has already been purchased must remain available with its existing registration option',
+      'An add-on that has already been bought must remain available with its current sign-up choice.',
     );
   });
 

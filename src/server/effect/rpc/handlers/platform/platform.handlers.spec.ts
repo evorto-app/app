@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import {
   MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
   MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
@@ -288,6 +289,9 @@ describe('platform event, template, and registration handlers', () => {
           templateFound: false,
         }).pipe(Effect.flip);
         expect(templateError.reason).toBe('templateNotFound');
+        expect(templateError.message).toBe(
+          'The selected template is no longer available in this organization. No event was created. Review the event setup and choose an available template before creating the event again.',
+        );
       }),
   );
 
@@ -368,6 +372,22 @@ describe('platform event, template, and registration handlers', () => {
     ).toMatchObject({
       _tag: 'RpcBadRequestError',
       reason: 'paidEventAddonRequiresPositivePrice',
+    });
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: false },
+        input: {
+          addOns: Array.from({ length: MAX_EVENT_ADDON_TYPES + 1 }, () => ({
+            ...paidAddOn,
+            isPaid: false,
+            stripeTaxRateId: null,
+          })),
+          registrationOptions: eventRecord.registrationOptions,
+        },
+      }),
+    ).toMatchObject({
+      message: `Add no more than ${MAX_EVENT_ADDON_TYPES} different add-ons.`,
+      reason: 'eventAddonTypeLimitExceeded',
     });
     expect(
       platformEventGraphCompatibilityError({
@@ -510,7 +530,10 @@ describe('platform event, template, and registration handlers', () => {
       platformEventQuestionLimitError(
         Array.from({ length: MAX_REGISTRATION_QUESTIONS + 1 }, () => question),
       ),
-    ).toMatchObject({ reason: 'eventQuestionLimitExceeded' });
+    ).toMatchObject({
+      message: `Add no more than ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+      reason: 'eventQuestionLimitExceeded',
+    });
     for (const invalidQuestion of [
       { ...question, title: ' ' },
       {
@@ -565,7 +588,7 @@ describe('platform event, template, and registration handlers', () => {
     expect(platformEventAddonMappingRemovalError(true)).toMatchObject({
       _tag: 'RpcBadRequestError',
       message:
-        'An add-on that has already been purchased must remain available with its existing registration option',
+        'An add-on that has already been bought must remain available with its current sign-up choice.',
       reason: 'eventAddonMappingInUse',
     });
   });
@@ -626,7 +649,8 @@ describe('platform event, template, and registration handlers', () => {
       const defect = Cause.squash(exit.cause);
       expect(defect).toBeInstanceOf(EventRegistrationInternalError);
       expect(defect).toMatchObject({
-        message: 'Invalid E2E_NOW_ISO server clock value',
+        message:
+          'The current time could not be checked. No sign-up was changed. Try again.',
       });
       expect(defect).not.toHaveProperty('cause');
     }),
@@ -636,6 +660,8 @@ describe('platform event, template, and registration handlers', () => {
     Effect.gen(function* () {
       const exit = yield* platformHandlers['platform.registrations.cancel'](
         {
+          expectedPaymentPending: false,
+          expectedStatus: 'CONFIRMED',
           reason: 'Cancel the target registration',
           registrationId: registrationRecord.id,
           targetTenantId: targetTenant.id,
@@ -653,7 +679,8 @@ describe('platform event, template, and registration handlers', () => {
       const defect = Cause.squash(exit.cause);
       expect(defect).toBeInstanceOf(EventRegistrationInternalError);
       expect(defect).toMatchObject({
-        message: 'Invalid E2E_NOW_ISO server clock value',
+        message:
+          'The event time could not be checked. No sign-up was changed. Open the event again and review its current details before continuing.',
       });
       expect(defect).not.toHaveProperty('cause');
     }),
@@ -670,7 +697,7 @@ describe('platform event, template, and registration handlers', () => {
     );
 
     expect(error.reason).toBe('registrationTransferActive');
-    expect(error.message).toContain('this registration');
+    expect(error.message).toContain('this ticket');
     expect(error.message).toContain('Finish or cancel');
   });
 
@@ -824,6 +851,12 @@ describe('platform event, template, and registration handlers', () => {
     );
     expect(registrationSource).toContain('enforceParticipantDeadline: false');
     expect(registrationSource).toContain('executiveUserId: null');
+    expect(registrationSource).toContain(
+      'expectedPaymentPending: input.expectedPaymentPending',
+    );
+    expect(registrationSource).toContain(
+      'expectedStatus: input.expectedStatus',
+    );
     expect(registrationSource).toContain("action: 'registration.approve'");
     expect(registrationSource).toContain("action: 'registration.cancel'");
     expect(registrationSource).toContain(

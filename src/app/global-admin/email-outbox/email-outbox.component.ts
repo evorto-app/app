@@ -3,7 +3,6 @@ import type { GlobalAdminEmailOutboxKind } from '@shared/rpc-contracts/app-rpcs/
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { AppRpc } from '@app/core/effect-rpc-angular-client';
-import { getErrorMessage } from '@app/core/error-message';
 import { TenantDatePipe } from '@app/core/tenant-date.pipe';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -16,19 +15,19 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 export const emailOutboxKindLabel = {
   manualApproval: 'Manual approval',
   receiptReviewed: 'Receipt reviewed',
-  registrationCancelled: 'Registration cancelled',
-  registrationConfirmed: 'Registration confirmed',
-  registrationTransferred: 'Registration transferred',
-  waitlistSpotAvailable: 'Waitlist spot available',
+  registrationCancelled: 'Sign-up ended',
+  registrationConfirmed: 'Ticket confirmed',
+  registrationTransferred: 'Ticket transferred',
+  waitlistSpotAvailable: 'Waitlist place available',
 } as const satisfies Record<GlobalAdminEmailOutboxKind, string>;
 
 const emailOutboxStatusLabel = {
-  deliveryUnknown: 'Delivery unknown',
-  failed: 'Failed',
-  queued: 'Queued',
+  deliveryUnknown: 'Delivery not confirmed',
+  failed: 'Could not send',
+  queued: 'Waiting to send',
   sending: 'Sending',
   sent: 'Sent',
-  suppressed: 'Suppressed',
+  suppressed: 'Not sent',
 } as const;
 
 @Component({
@@ -41,7 +40,6 @@ export class EmailOutboxComponent {
   protected readonly faArrowRotateRight = faArrowRotateRight;
   protected readonly faCheckCircle = faCheckCircle;
   protected readonly faCircleExclamation = faCircleExclamation;
-  protected readonly getErrorMessage = getErrorMessage;
   protected readonly kindLabel = emailOutboxKindLabel;
   private readonly rpc = AppRpc.injectClient();
   protected readonly outboxQuery = injectQuery(() =>

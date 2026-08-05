@@ -400,7 +400,7 @@ describe('registration acquisition settlement', () => {
       false,
     );
     expect(
-      sourceMatches({ ...matchingSource, stripeAccountId: 'acct_rotated' }),
+      sourceMatches({ ...matchingSource, stripeAccountId: 'acct_unexpected' }),
     ).toBe(false);
     expect(
       sourceMatches({ ...matchingSource, stripeChargeId: 'ch_replayed' }),

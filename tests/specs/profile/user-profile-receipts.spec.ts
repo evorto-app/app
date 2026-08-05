@@ -61,7 +61,7 @@ test('profile receipts show submitted receipt status and event context', async (
 
     await page.goto('/profile/receipts');
     await expect(
-      page.getByRole('heading', { name: 'Submitted receipts' }),
+      page.getByRole('heading', { name: 'Your receipts' }),
     ).toBeVisible();
 
     const receiptCard = page.locator('article').filter({

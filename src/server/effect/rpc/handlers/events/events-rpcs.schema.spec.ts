@@ -23,6 +23,7 @@ import {
   EventsCancelRegistration,
   EventsCreateRegistrationOptionInput,
   EventsEventListInput,
+  EventsEventListRecord,
   EventsFindOneAddon,
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
@@ -73,6 +74,46 @@ describe('events RPC list input schema', () => {
         Schema.decodeUnknownSync(EventsEventListInput)({
           status: ['APPROVED'],
           ...input,
+        }),
+      ).toThrow();
+    }
+  });
+});
+
+describe('events RPC list record schema', () => {
+  const record = {
+    announcementRoleCount: 0,
+    hasRegistrationOptions: true,
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: 'event-1',
+    start: '2026-07-15T14:30:00.000Z',
+    status: 'APPROVED',
+    title: 'Example event',
+  };
+
+  it('accepts absence and every explicit participant sign-up state', () => {
+    for (const userSignUpState of [
+      null,
+      'approvalPending',
+      'confirmed',
+      'paymentRequired',
+      'waitlisted',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListRecord)({
+          ...record,
+          userSignUpState,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('rejects the former boolean and unknown sign-up states', () => {
+    for (const userSignUpState of [true, false, 'unknown']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListRecord)({
+          ...record,
+          userSignUpState,
         }),
       ).toThrow();
     }
@@ -269,6 +310,7 @@ describe('events RPC registration status schema', () => {
       nextPurchaseUnitPrice: 500,
       nextPurchaseUnitTaxAmount: 95,
       optionalPurchaseQuantity: 3,
+      pendingCheckoutExpired: false,
       pendingCheckoutExpiresAt: '2026-08-01T17:00:00.000Z',
       pendingCheckoutUrl: null,
       pendingOperationKey: 'purchase-addon-1',

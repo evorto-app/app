@@ -100,7 +100,7 @@ export const eventOptionRemovalBlockReason = (
       (question) => question.registrationOptionKey === optionKey,
     )
   ) {
-    return 'Move or remove the questions attached to this option first.';
+    return 'Move or remove the questions shown for this choice first.';
   }
   if (
     model.addOns.some((addOn) =>
@@ -109,10 +109,23 @@ export const eventOptionRemovalBlockReason = (
       ),
     )
   ) {
-    return 'Remove this registration option from its add-ons first.';
+    return 'Remove this sign-up choice from its add-ons first.';
   }
   return null;
 };
+
+export const eventEditQueryErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The event could not be loaded. Try again.', [
+    'EventConflictError',
+    'EventNotFoundError',
+  ]);
+
+export const eventEditSaveErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The event could not be saved. Try again.', [
+    'EventConflictError',
+    'EventNotFoundError',
+    'RpcBadRequestError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -183,8 +196,8 @@ export class EventEdit {
       );
   });
   protected readonly eventEditSubmitDisabled = eventEditSubmitDisabled;
-  protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  protected readonly stripeConnected = computed(
+    () => this.config.tenantSignal()?.paymentsConfigured === true,
   );
 
   protected readonly eventForm = form(
@@ -372,10 +385,7 @@ export class EventEdit {
   }
 
   protected queryErrorMessage(): string {
-    return getErrorMessage(
-      this.eventQuery.error(),
-      'Failed to load the event editor.',
-    );
+    return eventEditQueryErrorMessage(this.eventQuery.error());
   }
 
   protected removeAddOn(addOnIndex: number): void {
@@ -511,9 +521,7 @@ export class EventEdit {
         );
         await this.router.navigate(['/events', result.id]);
       } catch (error) {
-        this.saveError.set(
-          getErrorMessage(error, 'Failed to save the event configuration.'),
-        );
+        this.saveError.set(eventEditSaveErrorMessage(error));
       }
     });
   }

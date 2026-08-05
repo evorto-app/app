@@ -80,6 +80,31 @@ describe('ReceiptMediaService', () => {
     }),
   );
 
+  it.effect('describes an unsupported uploaded receipt in plain language', () =>
+    Effect.gen(function* () {
+      const error = yield* ReceiptMediaService.inspectUpload({
+        eventId: 'event-1',
+        fileName: 'receipt.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 5,
+        storageKey:
+          'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.txt',
+        tenantId: 'tenant-1',
+        uploadId: 'upload-1',
+        userId: 'user-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(ReceiptMediaService.Default),
+        Effect.provide(ObjectStorage.Default),
+      );
+
+      expect(error['_tag']).toBe('ReceiptMediaBadRequestError');
+      expect(error.message).toBe(
+        'This file cannot be used as a receipt. Choose another file.',
+      );
+    }),
+  );
+
   it.effect('fails closed when receipt storage configuration is missing', () =>
     Effect.gen(function* () {
       const now = new Date('2026-07-16T12:00:00.000Z');
@@ -308,7 +333,8 @@ describe('ReceiptMediaService', () => {
               objectExists: () =>
                 Effect.fail(
                   new ReceiptMediaServiceUnavailableError({
-                    message: 'Receipt storage is unavailable',
+                    message:
+                      'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                   }),
                 ),
               signedPreviewUrl,
@@ -317,7 +343,9 @@ describe('ReceiptMediaService', () => {
         );
 
         expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
-        expect(error.message).toBe('Receipt storage is unavailable');
+        expect(error.message).toBe(
+          'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+        );
         expect(signedPreviewUrl).not.toHaveBeenCalled();
       }),
   );
@@ -334,7 +362,8 @@ describe('ReceiptMediaService', () => {
               signedPreviewUrl: () =>
                 Effect.fail(
                   new ReceiptMediaServiceUnavailableError({
-                    message: 'Receipt storage is unavailable',
+                    message:
+                      'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                   }),
                 ),
             }),
@@ -342,7 +371,9 @@ describe('ReceiptMediaService', () => {
         );
 
         expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
-        expect(error.message).toBe('Receipt storage is unavailable');
+        expect(error.message).toBe(
+          'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+        );
       }),
   );
 
@@ -358,6 +389,9 @@ describe('ReceiptMediaService', () => {
         );
         expect(unavailable['_tag']).toBe('RpcBadRequestError');
         expect(unavailable.reason).toBe('receiptEvidenceUnavailable');
+        expect(unavailable.message).toBe(
+          'The receipt file is no longer available. Ask the person who submitted it to add it again.',
+        );
 
         const signedPreviewUrl = vi.fn(() =>
           Effect.dieMessage('Approval must not sign a preview URL'),
@@ -390,7 +424,8 @@ describe('ReceiptMediaService', () => {
             objectExists: () =>
               Effect.fail(
                 new ReceiptMediaServiceUnavailableError({
-                  message: 'Receipt storage is unavailable',
+                  message:
+                    'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                 }),
               ),
             signedPreviewUrl,
@@ -399,7 +434,9 @@ describe('ReceiptMediaService', () => {
       );
 
       expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
-      expect(error.message).toBe('Receipt storage is unavailable');
+      expect(error.message).toBe(
+        'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+      );
       expect(signedPreviewUrl).not.toHaveBeenCalled();
     }),
   );

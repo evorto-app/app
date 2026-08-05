@@ -2,7 +2,6 @@ import { expect, layer, vi } from '@effect/vitest';
 import { type SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect, Layer } from 'effect';
-import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import {
@@ -16,7 +15,6 @@ import {
   type RpcRequestContextShape,
 } from '../../../../shared/rpc-contracts/app-rpcs';
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
-import { StripeClient } from '../../../stripe-client';
 import {
   GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE,
   globalAdminHandlers,
@@ -67,274 +65,6 @@ const globalAdminHandlerLayer = Layer.mergeAll(
 
 const provideDatabase = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
-
-const readyStripeAccountResponse = (stripeAccountId: string) => ({
-  charges_enabled: true,
-  details_submitted: true,
-  id: stripeAccountId,
-  object: 'account',
-  payouts_enabled: true,
-});
-
-class RotationStripeHttpClient extends Stripe.HttpClient {
-  readonly requestedAccountIds: string[] = [];
-
-  constructor(
-    private readonly accountResponse: (
-      stripeAccountId: string,
-    ) => unknown = readyStripeAccountResponse,
-  ) {
-    super();
-  }
-
-  override getClientName(): string {
-    return 'evorto-global-admin-rotation-test';
-  }
-
-  override makeRequest(
-    ...arguments_: Parameters<
-      InstanceType<typeof Stripe.HttpClient>['makeRequest']
-    >
-  ): Promise<RotationStripeResponse> {
-    const [host, , path, method] = arguments_;
-    if (host !== 'api.stripe.com' || method !== 'GET') {
-      return Promise.reject(
-        new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
-      );
-    }
-
-    const accountMatch = /^\/v1\/accounts\/([^/?]+)$/u.exec(path);
-    if (accountMatch?.[1]) {
-      const stripeAccountId = decodeURIComponent(accountMatch[1]);
-      this.requestedAccountIds.push(stripeAccountId);
-      const accountResponse = this.accountResponse(stripeAccountId);
-      if (accountResponse instanceof Stripe.errors.StripeInvalidRequestError) {
-        return Promise.resolve(
-          new RotationStripeResponse(
-            {
-              error: {
-                message: accountResponse.message,
-                type: 'invalid_request_error',
-              },
-            },
-            404,
-          ),
-        );
-      }
-      return accountResponse instanceof Error
-        ? Promise.reject(accountResponse)
-        : Promise.resolve(new RotationStripeResponse(accountResponse));
-    }
-
-    if (path !== '/v1/tax_rates' && !path.startsWith('/v1/tax_rates?')) {
-      return Promise.reject(
-        new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
-      );
-    }
-
-    return Promise.resolve(
-      new RotationStripeResponse({
-        data: [],
-        has_more: false,
-        object: 'list',
-        url: '/v1/tax_rates',
-      }),
-    );
-  }
-}
-
-class RotationStripeResponse extends Stripe.HttpClientResponse {
-  constructor(
-    private readonly body: unknown,
-    statusCode = 200,
-  ) {
-    super(statusCode, { 'request-id': 'req_rotation_tax_rates' });
-  }
-
-  override getRawResponse(): unknown {
-    return this.body;
-  }
-
-  override toJSON(): Promise<unknown> {
-    return Promise.resolve(this.body);
-  }
-}
-
-const provideStripeRotation = (
-  database: object,
-  httpClient = new RotationStripeHttpClient(),
-) =>
-  Layer.mergeAll(
-    provideDatabase(database),
-    Layer.succeed(
-      StripeClient,
-      new Stripe('sk_test_global_admin_rotation', {
-        httpClient,
-        maxNetworkRetries: 0,
-      }),
-    ),
-  );
-
-const createStripeAccountChangeDatabase = ({
-  currentStripeAccountId = 'acct_current',
-  hasPaidEventConfiguration = false,
-  hasPendingStripeObligations = false,
-  hasStripeTaxRateConfiguration = false,
-  lockedStripeAccountId = currentStripeAccountId,
-  nextStripeAccountId,
-}: {
-  readonly currentStripeAccountId?: null | string;
-  readonly hasPaidEventConfiguration?: boolean;
-  readonly hasPendingStripeObligations?: boolean;
-  readonly hasStripeTaxRateConfiguration?: boolean;
-  readonly lockedStripeAccountId?: null | string;
-  readonly nextStripeAccountId: null | string;
-}) => {
-  const operations: string[] = [];
-  let capturedUpdate: Record<string, unknown> | undefined;
-  let nonTaxLimitedSelectCount = 0;
-  let taxRateConfigurationSelectCount = 0;
-  const beforeTenant = {
-    currency: 'EUR',
-    domain: 'tenant.example.com',
-    id: 'tenant-1',
-    name: 'Tenant',
-    stripeAccountId: currentStripeAccountId,
-    theme: 'evorto',
-    timezone: 'Europe/Berlin',
-  };
-  const lockedTenant = {
-    ...beforeTenant,
-    stripeAccountId: lockedStripeAccountId,
-  };
-  const updateQuery = {
-    returning: () => {
-      operations.push('tenant-update');
-      return Effect.succeed([
-        { ...beforeTenant, stripeAccountId: nextStripeAccountId },
-      ]);
-    },
-    set: (value: Record<string, unknown>) => {
-      capturedUpdate = value;
-      return updateQuery;
-    },
-    where: () => updateQuery,
-  };
-  const database = {
-    delete: () => ({
-      where: () => {
-        operations.push('tax-metadata-delete');
-        return Effect.void;
-      },
-    }),
-    insert: () => ({
-      values: () => {
-        operations.push('audit-insert');
-        return Effect.void;
-      },
-    }),
-    query: {
-      tenants: {
-        findFirst: () => Effect.succeed(beforeTenant),
-      },
-    },
-    select: (selection: Record<string, unknown>) => {
-      if (Reflect.has(selection, 'currency')) {
-        const lockQuery = {
-          for: () => {
-            operations.push('tenant-lock');
-            return Effect.succeed([lockedTenant]);
-          },
-          from: () => lockQuery,
-          where: () => lockQuery,
-        };
-        return lockQuery;
-      }
-
-      const isStripeTaxRateConfigurationQuery = Reflect.has(
-        selection,
-        'stripeTaxRateId',
-      );
-      const isStripeTaxRateRotationBindingQuery = Reflect.has(
-        selection,
-        'sourceStripeTaxRateId',
-      );
-      const isStripeAccountRead = Reflect.has(selection, 'stripeAccountId');
-      const limitedQuery = {
-        for: () => {
-          operations.push('tax-rate-rotation-binding-check');
-          return Effect.succeed(
-            isStripeTaxRateRotationBindingQuery ? [] : [beforeTenant],
-          );
-        },
-        from: () => limitedQuery,
-        innerJoin: () => limitedQuery,
-        limit: () => {
-          if (isStripeAccountRead) {
-            operations.push('rotated-account-check');
-            return Effect.succeed([{ stripeAccountId: nextStripeAccountId }]);
-          }
-          if (isStripeTaxRateConfigurationQuery) {
-            taxRateConfigurationSelectCount += 1;
-            operations.push('tax-rate-configuration-check');
-            return Effect.succeed(
-              hasStripeTaxRateConfiguration &&
-                taxRateConfigurationSelectCount === 1
-                ? [{ stripeTaxRateId: 'txr_assigned' }]
-                : [],
-            );
-          }
-
-          const selectIndex = nonTaxLimitedSelectCount++;
-          if (selectIndex === 0) {
-            operations.push('pending-obligation-check');
-            return Effect.succeed(
-              hasPendingStripeObligations
-                ? [{ id: 'pending-obligation-1' }]
-                : [],
-            );
-          }
-
-          operations.push('paid-configuration-check');
-          return Effect.succeed(
-            hasPaidEventConfiguration && selectIndex === 1
-              ? [{ id: 'paid-configuration-1' }]
-              : [],
-          );
-        },
-        orderBy: () => limitedQuery,
-        where: () => limitedQuery,
-      };
-      return limitedQuery;
-    },
-    transaction: (operation: (transaction: object) => unknown) =>
-      operation(database),
-    update: () => updateQuery,
-  };
-
-  return {
-    capturedUpdate: () => capturedUpdate,
-    database,
-    operations,
-  };
-};
-
-const createStripeAccountUpdateInput = (
-  stripeAccountId?: string,
-  expectedStripeAccountId: null | string = 'acct_current',
-) => ({
-  expectedStripeAccountId,
-  id: 'tenant-1',
-  reason: 'Change the connected Stripe account',
-  tenant: {
-    currency: 'EUR' as const,
-    domain: 'tenant.example.com',
-    name: 'Tenant',
-    stripeAccountId,
-    theme: 'evorto' as const,
-    timezone: 'Europe/Berlin' as const,
-  },
-});
 
 layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
   it.effect('allows tenant reads through explicit platform authority', () =>
@@ -390,8 +120,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
           domain: 'tenant.example.com',
           id: 'tenant-1',
           name: 'Tenant',
-          stripeAccountId: 'acct_123',
-          stripeConnected: true,
+          paymentsConfigured: true,
           theme: 'esn',
           timezone: 'Europe/Berlin',
         },
@@ -434,8 +163,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         domain: 'tenant.example.com',
         id: 'tenant-1',
         name: 'Tenant',
-        stripeAccountId: null,
-        stripeConnected: false,
+        paymentsConfigured: false,
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       });
@@ -492,7 +220,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.message).toBe('Platform administrator authority required');
+      expect(error.message).toBe('Evorto administrator access required');
     }),
   );
 
@@ -530,8 +258,6 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
     'summarizes single-dispatch state and bounds an incident-first detail page',
     () =>
       Effect.gen(function* () {
-        const now = new Date('2026-07-09T10:00:00.000Z');
-        const failedAt = new Date('2026-07-09T09:00:00.000Z');
         let itemLimit: number | undefined;
         let itemOrderByExpressions: readonly unknown[] = [];
         const selectResults = [
@@ -542,25 +268,46 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
           [{ total: 1 }],
           [
             {
-              attempts: 1,
-              createdAt: now,
               deliveryUnknownAt: null,
               id: 'email-1',
               kind: 'receiptReviewed',
-              lastAttemptAt: failedAt,
-              lastError: 'tem email request failed with HTTP 400',
-              provider: 'tem',
-              providerMessageId: null,
+              lastAttemptAt: null,
               recipient: 'member@example.org',
               sentAt: null,
               status: 'failed',
               subject: 'Receipt rejected',
               suppressedAt: null,
               tenantDomain: 'section.example.org',
-              tenantId: 'tenant-1',
               tenantName: 'Section',
               tenantTimezone: 'Australia/Brisbane',
-              updatedAt: failedAt,
+            },
+            {
+              deliveryUnknownAt: null,
+              id: 'email-2',
+              kind: 'registrationConfirmed',
+              lastAttemptAt: new Date('2026-07-10T09:15:00.000Z'),
+              recipient: 'sent@example.org',
+              sentAt: new Date('2026-07-10T09:15:01.000Z'),
+              status: 'sent',
+              subject: 'Ticket confirmed',
+              suppressedAt: null,
+              tenantDomain: 'section.example.org',
+              tenantName: 'Section',
+              tenantTimezone: 'Australia/Brisbane',
+            },
+            {
+              deliveryUnknownAt: null,
+              id: 'email-3',
+              kind: 'registrationConfirmed',
+              lastAttemptAt: new Date('2026-07-10T09:15:00.000Z'),
+              recipient: 'incomplete@example.org',
+              sentAt: null,
+              status: 'sent',
+              subject: 'Ticket confirmed',
+              suppressedAt: null,
+              tenantDomain: 'section.example.org',
+              tenantName: 'Section',
+              tenantTimezone: 'Australia/Brisbane',
             },
           ],
         ];
@@ -614,13 +361,25 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         expect(itemLimit).toBe(100);
         expect(overview.items).toEqual([
           expect.objectContaining({
-            attempts: 1,
             id: 'email-1',
-            lastError: 'tem email request failed with HTTP 400',
+            recordIncomplete: true,
             status: 'failed',
             tenantTimezone: 'Australia/Brisbane',
           }),
+          expect.objectContaining({
+            id: 'email-2',
+            recordIncomplete: false,
+            status: 'sent',
+          }),
+          expect.objectContaining({
+            id: 'email-3',
+            recordIncomplete: true,
+            status: 'sent',
+          }),
         ]);
+        expect(overview.items[0]).not.toHaveProperty('lastError');
+        expect(overview.items[0]).not.toHaveProperty('provider');
+        expect(overview.items[0]).not.toHaveProperty('tenantId');
       }),
   );
 
@@ -635,8 +394,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
           domain: 'section.example.org',
           id: 'tenant-1',
           name: 'Section',
-          stripeAccountId: null,
-          stripeConnected: false,
+          paymentsConfigured: false,
           theme: 'evorto',
           timezone: 'Europe/Berlin',
         },
@@ -697,20 +455,181 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
       expect(page.items[0]).toEqual(
         expect.objectContaining({
           action: 'tenant.create',
-          actorId: 'auth0|platform-admin',
           createdAt: '2026-07-10T09:15:00.000Z',
           id: 'audit-001',
           reason: 'Provision requested by section board',
-          targetTenantId: 'tenant-1',
           targetTenantName: 'Section',
         }),
       );
+      expect(page.items[0]).not.toHaveProperty('actorId');
+      expect(page.items[0]).not.toHaveProperty('targetTenantId');
+      expect(page.items[0]?.after).toEqual({
+        resourceType: 'tenant',
+        state: {
+          currency: 'EUR',
+          domain: 'section.example.org',
+          name: 'Section',
+          paymentsConfigured: false,
+          theme: 'evorto',
+          timezone: 'Europe/Berlin',
+        },
+      });
       expect(page.items.at(-1)?.id).toBe('audit-050');
       expect(page.nextCursor).toEqual({
         createdAt: '2026-07-10T09:15:00.000Z',
         id: 'audit-050',
       });
     }),
+  );
+
+  it.effect('projects formatted descriptions as readable audit text', () =>
+    Effect.gen(function* () {
+      const rows = [
+        {
+          action: 'event.update' as const,
+          actorEmail: 'platform@example.org',
+          actorId: 'auth0|platform-admin',
+          after: {
+            resourceId: 'event-1',
+            resourceType: 'event' as const,
+            state: {
+              description:
+                '<p>Welcome <strong>everyone</strong>.</p><ul><li>Bring ID</li></ul>',
+            },
+          },
+          before: {
+            resourceId: 'event-1',
+            resourceType: 'event' as const,
+            state: { description: '<p>Welcome.</p>' },
+          },
+          createdAt: new Date('2026-07-10T09:15:00.000Z'),
+          id: 'audit-001',
+          reason: 'Clarify arrival details',
+          targetTenantId: 'tenant-1',
+          targetTenantName: 'Section',
+        },
+      ];
+      const selectQuery = {
+        from: () => selectQuery,
+        leftJoin: () => selectQuery,
+        limit: () => Effect.succeed(rows),
+        orderBy: () => selectQuery,
+        where: () => selectQuery,
+      };
+
+      const page = yield* globalAdminHandlers[
+        'globalAdmin.platformAudit.findMany'
+      ]({ cursor: null }, { headers: createHeaders([]) } as never).pipe(
+        Effect.provide(provideDatabase({ select: () => selectQuery })),
+      );
+
+      expect(page.items[0]?.before?.state.description).toBe('Welcome.');
+      expect(page.items[0]?.after?.state.description).toBe(
+        'Welcome everyone. Bring ID',
+      );
+      expect(JSON.stringify(page)).not.toContain('<p>');
+    }),
+  );
+
+  it.effect(
+    'summarizes a same-count tax-rate refresh without returning provider records',
+    () =>
+      Effect.gen(function* () {
+        const createdAt = new Date('2026-07-10T09:15:00.000Z');
+        const rows = [
+          {
+            action: 'taxRates.import' as const,
+            actorEmail: 'platform@example.org',
+            actorId: 'auth0|platform-admin',
+            after: {
+              resourceId: 'internal-tax-rate-batch',
+              resourceType: 'taxRateBatch' as const,
+              state: {
+                rates: [
+                  {
+                    active: true,
+                    country: 'DE',
+                    displayName: 'Current standard rate',
+                    inclusive: true,
+                    percentage: '19',
+                    state: null,
+                    stripeAccountId: 'acct_server_only',
+                    stripeTaxRateId: 'txr_standard',
+                  },
+                  {
+                    active: true,
+                    country: 'DE',
+                    displayName: 'Reduced',
+                    inclusive: true,
+                    percentage: '7',
+                    state: null,
+                    stripeAccountId: 'acct_server_only',
+                    stripeTaxRateId: 'txr_reduced',
+                  },
+                ],
+              },
+            },
+            before: {
+              resourceId: 'internal-tax-rate-batch',
+              resourceType: 'taxRateBatch' as const,
+              state: {
+                rates: [
+                  {
+                    active: true,
+                    country: 'DE',
+                    displayName: 'Old standard rate',
+                    inclusive: true,
+                    percentage: '19',
+                    state: null,
+                    stripeAccountId: 'acct_server_only',
+                    stripeTaxRateId: 'txr_standard',
+                  },
+                  {
+                    active: true,
+                    country: 'DE',
+                    displayName: 'Reduced',
+                    inclusive: true,
+                    percentage: '7',
+                    state: null,
+                    stripeAccountId: 'acct_server_only',
+                    stripeTaxRateId: 'txr_reduced',
+                  },
+                ],
+              },
+            },
+            createdAt,
+            id: 'audit-001',
+            reason: 'Add the current tax rates',
+            targetTenantId: 'tenant-1',
+            targetTenantName: 'Section',
+          },
+        ];
+        const selectQuery = {
+          from: () => selectQuery,
+          leftJoin: () => selectQuery,
+          limit: () => Effect.succeed(rows),
+          orderBy: () => selectQuery,
+          where: () => selectQuery,
+        };
+
+        const page = yield* globalAdminHandlers[
+          'globalAdmin.platformAudit.findMany'
+        ]({ cursor: null }, { headers: createHeaders([]) } as never).pipe(
+          Effect.provide(provideDatabase({ select: () => selectQuery })),
+        );
+
+        expect(page.items[0]?.before).toEqual({
+          resourceType: 'taxRateBatch',
+          state: { taxRateCount: 2 },
+        });
+        expect(page.items[0]?.after).toEqual({
+          resourceType: 'taxRateBatch',
+          state: { taxRateCount: 2, taxRateUpdatedCount: 1 },
+        });
+        expect(JSON.stringify(page)).not.toContain('acct_server_only');
+        expect(JSON.stringify(page)).not.toContain('txr_standard');
+        expect(JSON.stringify(page)).not.toContain('internal-tax-rate-batch');
+      }),
   );
 
   it.effect('continues after equal timestamps by ascending audit id', () =>
@@ -789,7 +708,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.message).toBe('Platform administrator authority required');
+      expect(error.message).toBe('Evorto administrator access required');
     }),
   );
 
@@ -806,7 +725,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
               domain: 'section.example.org',
               id: 'tenant-1',
               name: 'Example Section',
-              stripeAccountId: 'acct_123',
+              stripeAccountId: null,
               theme: 'esn',
               timezone: 'Europe/Prague',
             },
@@ -848,8 +767,6 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         transaction: (operation: (transaction: object) => unknown) =>
           operation(database),
       };
-      const stripeHttpClient = new RotationStripeHttpClient();
-
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.create'](
         {
           initialPrivacyPolicy: {
@@ -861,20 +778,18 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
             currency: 'CZK',
             domain: ' https://Section.Example.Org ',
             name: ' Example Section ',
-            stripeAccountId: ' acct_123 ',
             theme: 'esn',
             timezone: 'Europe/Prague',
           },
         },
         { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(Effect.provide(provideStripeRotation(database, stripeHttpClient)));
+      ).pipe(Effect.provide(provideDatabase(database)));
 
-      expect(stripeHttpClient.requestedAccountIds).toEqual(['acct_123']);
       expect(capturedInsert).toMatchObject({
         currency: 'CZK',
         domain: 'section.example.org',
         name: 'Example Section',
-        stripeAccountId: 'acct_123',
+        stripeAccountId: null,
         theme: 'esn',
         timezone: 'Europe/Prague',
       });
@@ -894,6 +809,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         state: {
           domain: 'section.example.org',
           id: 'tenant-1',
+          paymentsConfigured: false,
           privacyPolicyDigestSha256: tenantPrivacyPolicyDigest({
             privacyPolicyText: 'Section privacy policy',
             privacyPolicyUrl: null,
@@ -917,65 +833,10 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
       expect(tenant).toMatchObject({
         domain: 'section.example.org',
         name: 'Example Section',
-        stripeAccountId: 'acct_123',
-        stripeConnected: true,
+        paymentsConfigured: false,
       });
-    }),
-  );
-
-  it.effect('rejects a foreign Stripe account before creating a tenant', () =>
-    Effect.gen(function* () {
-      let transactionStarted = false;
-      const stripeHttpClient = new RotationStripeHttpClient(
-        () =>
-          new Stripe.errors.StripeInvalidRequestError({
-            headers: {},
-            message: 'No such connected account',
-            requestId: 'req_foreign_account',
-            statusCode: 404,
-            type: 'invalid_request_error',
-          }),
-      );
-      const database = {
-        query: {
-          tenants: {
-            findFirst: () => Effect.succeed(),
-          },
-        },
-        transaction: () => {
-          transactionStarted = true;
-          throw new Error('database transaction should not run');
-        },
-      };
-
-      const error = yield* globalAdminHandlers['globalAdmin.tenants.create'](
-        {
-          initialPrivacyPolicy: {
-            privacyPolicyText: 'Tenant privacy policy',
-            privacyPolicyUrl: '',
-          },
-          reason: 'Provision requested by tenant board',
-          tenant: {
-            currency: 'EUR',
-            domain: 'tenant.example.com',
-            name: 'Tenant',
-            stripeAccountId: 'acct_foreign',
-            theme: 'evorto',
-            timezone: 'Europe/Berlin',
-          },
-        },
-        { headers: createHeaders([]) } as never,
-      ).pipe(
-        Effect.provide(provideStripeRotation(database, stripeHttpClient)),
-        Effect.flip,
-      );
-
-      expect(error).toMatchObject({
-        _tag: 'RpcBadRequestError',
-        message: 'Stripe account could not be verified',
-      });
-      expect(stripeHttpClient.requestedAccountIds).toEqual(['acct_foreign']);
-      expect(transactionStarted).toBe(false);
+      expect(tenant).not.toHaveProperty('stripeAccountId');
+      expect(JSON.stringify(capturedAudit)).not.toContain('stripeAccountId');
     }),
   );
 
@@ -1013,7 +874,9 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe('Organization domain already exists');
+        expect(error.message).toBe(
+          'This website address is already used by another organization.',
+        );
         expect(error.reason).toBe('tenant.example.com');
       }),
   );
@@ -1047,423 +910,143 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
       ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toContain('privacy policy');
+      expect(error.message).toBe(
+        'Add privacy policy text or enter a valid privacy policy web address.',
+      );
+      expect(error.reason).toBeUndefined();
     }),
   );
 
-  it.effect('updates tenants and clears blank Stripe account ids', () =>
-    Effect.gen(function* () {
-      let capturedAudit: Record<string, unknown> | undefined;
-      let capturedUpdate: Record<string, unknown> | undefined;
-      let deletedTaxMetadata = false;
-      const beforeTenant = {
-        currency: 'EUR',
-        domain: 'tenant.example.com',
-        id: 'tenant-1',
-        name: 'Tenant before update',
-        stripeAccountId: 'acct_previous',
-        theme: 'evorto',
-        timezone: 'Europe/Berlin',
-      };
-      const updateQuery = {
-        returning: () =>
-          Effect.succeed([
-            {
-              currency: 'EUR',
-              domain: 'tenant.example.com',
-              id: 'tenant-1',
-              name: 'Tenant',
-              stripeAccountId: null,
-              theme: 'evorto',
-              timezone: 'Europe/Berlin',
-            },
-          ]),
-        set: (value: Record<string, unknown>) => {
-          capturedUpdate = value;
-          return updateQuery;
-        },
-        where: () => updateQuery,
-      };
-      const selectQuery = {
-        for: () => Effect.succeed([beforeTenant]),
-        from: () => selectQuery,
-        where: () => selectQuery,
-      };
-      const pendingObligationsQuery = {
-        from: () => pendingObligationsQuery,
-        innerJoin: () => pendingObligationsQuery,
-        limit: () => Effect.succeed([]),
-        where: () => pendingObligationsQuery,
-      };
-      let selectCount = 0;
-      const database = {
-        delete: () => ({
-          where: () => {
-            deletedTaxMetadata = true;
-            return Effect.void;
-          },
-        }),
-        insert: (table: unknown) => ({
-          values: (value: Record<string, unknown>) => {
-            expect(table).toBe(platformAuditEntries);
-            capturedAudit = value;
-            return Effect.void;
-          },
-        }),
-        query: {
-          tenants: {
-            findFirst: () =>
-              Effect.succeed({
-                id: 'tenant-1',
-                stripeAccountId: 'acct_previous',
-              }),
-          },
-        },
-        select: () =>
-          selectCount++ === 0 ? selectQuery : pendingObligationsQuery,
-        transaction: (operation: (transaction: object) => unknown) =>
-          operation(database),
-        update: () => updateQuery,
-      };
-
-      const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-        {
-          expectedStripeAccountId: 'acct_previous',
+  it.effect(
+    'updates tenant settings without changing the payment account',
+    () =>
+      Effect.gen(function* () {
+        let capturedAudit: Record<string, unknown> | undefined;
+        let capturedUpdate: Record<string, unknown> | undefined;
+        const beforeTenant = {
+          currency: 'EUR',
+          domain: 'tenant.example.com',
           id: 'tenant-1',
-          reason: ' Tenant requested a support correction ',
-          tenant: {
-            currency: 'EUR',
-            domain: 'tenant.example.com',
-            name: 'Tenant',
-            stripeAccountId: ' ',
-            theme: 'evorto',
-            timezone: 'Europe/Berlin',
-          },
-        },
-        { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(Effect.provide(provideDatabase(database)));
-
-      expect(capturedUpdate).toMatchObject({
-        domain: 'tenant.example.com',
-        name: 'Tenant',
-        stripeAccountId: null,
-      });
-      expect(deletedTaxMetadata).toBe(true);
-      expect(capturedAudit).toMatchObject({
-        action: 'tenant.update',
-        actorEmail: 'platform@example.org',
-        actorId: 'auth0|platform-admin',
-        reason: 'Tenant requested a support correction',
-        targetTenantId: 'tenant-1',
-      });
-      expect(capturedAudit?.['before']).toMatchObject({
-        resourceId: 'tenant-1',
-        resourceType: 'tenant',
-        state: {
           name: 'Tenant before update',
           stripeAccountId: 'acct_previous',
-        },
-      });
-      expect(capturedAudit?.['after']).toMatchObject({
-        resourceId: 'tenant-1',
-        resourceType: 'tenant',
-        state: {
-          name: 'Tenant',
-          stripeAccountId: null,
-        },
-      });
-      expect(tenant.stripeConnected).toBe(false);
-    }),
-  );
+          theme: 'evorto',
+          timezone: 'Europe/Berlin',
+        };
+        const updateQuery = {
+          returning: () =>
+            Effect.succeed([
+              {
+                currency: 'EUR',
+                domain: 'tenant.example.com',
+                id: 'tenant-1',
+                name: 'Tenant',
+                stripeAccountId: 'acct_previous',
+                theme: 'evorto',
+                timezone: 'Europe/Berlin',
+              },
+            ]),
+          set: (value: Record<string, unknown>) => {
+            capturedUpdate = value;
+            return updateQuery;
+          },
+          where: () => updateQuery,
+        };
+        const selectQuery = {
+          for: () => Effect.succeed([beforeTenant]),
+          from: () => selectQuery,
+          where: () => selectQuery,
+        };
+        const database = {
+          insert: (table: unknown) => ({
+            values: (value: Record<string, unknown>) => {
+              expect(table).toBe(platformAuditEntries);
+              capturedAudit = value;
+              return Effect.void;
+            },
+          }),
+          query: {
+            tenants: {
+              findFirst: () =>
+                Effect.succeed({
+                  id: 'tenant-1',
+                  stripeAccountId: 'acct_previous',
+                }),
+            },
+          },
+          select: () => selectQuery,
+          transaction: (operation: (transaction: object) => unknown) =>
+            operation(database),
+          update: () => updateQuery,
+        };
 
-  it.effect('blocks Stripe account changes while obligations are pending', () =>
-    Effect.gen(function* () {
-      const beforeSelect = {
-        for: () =>
-          Effect.succeed([
-            {
+        const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          {
+            id: 'tenant-1',
+            reason: ' Tenant requested a support correction ',
+            tenant: {
               currency: 'EUR',
               domain: 'tenant.example.com',
-              id: 'tenant-1',
               name: 'Tenant',
-              stripeAccountId: 'acct_current',
               theme: 'evorto',
               timezone: 'Europe/Berlin',
             },
-          ]),
-        from: () => beforeSelect,
-        where: () => beforeSelect,
-      };
-      const obligationsSelect = {
-        from: () => obligationsSelect,
-        limit: () => Effect.succeed([{ id: 'pending-checkout' }]),
-        where: () => obligationsSelect,
-      };
-      let selectCount = 0;
-      const update = vi.fn(() => {
-        throw new Error('tenant update should not run');
-      });
-      const insert = vi.fn(() => {
-        throw new Error('audit insert should not run');
-      });
-      const database = {
-        insert,
-        query: {
-          tenants: {
-            findFirst: () =>
-              Effect.succeed({
-                id: 'tenant-1',
-                stripeAccountId: 'acct_current',
-              }),
           },
-        },
-        select: () => (selectCount++ === 0 ? beforeSelect : obligationsSelect),
-        transaction: (operation: (transaction: object) => unknown) =>
-          operation(database),
-        update,
-      };
+          { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
+        ).pipe(Effect.provide(provideDatabase(database)));
 
-      const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-        {
-          expectedStripeAccountId: 'acct_current',
-          id: 'tenant-1',
-          reason: 'Migrate the connected Stripe account',
-          tenant: {
-            currency: 'EUR',
-            domain: 'tenant.example.com',
+        expect(capturedUpdate).toMatchObject({
+          domain: 'tenant.example.com',
+          name: 'Tenant',
+        });
+        expect(capturedUpdate).not.toHaveProperty('stripeAccountId');
+        expect(capturedAudit).toMatchObject({
+          action: 'tenant.update',
+          actorEmail: 'platform@example.org',
+          actorId: 'auth0|platform-admin',
+          reason: 'Tenant requested a support correction',
+          targetTenantId: 'tenant-1',
+        });
+        expect(capturedAudit?.['before']).toMatchObject({
+          resourceId: 'tenant-1',
+          resourceType: 'tenant',
+          state: {
+            name: 'Tenant before update',
+            paymentsConfigured: true,
+          },
+        });
+        expect(capturedAudit?.['after']).toMatchObject({
+          resourceId: 'tenant-1',
+          resourceType: 'tenant',
+          state: {
             name: 'Tenant',
-            stripeAccountId: 'acct_next',
-            theme: 'evorto',
-            timezone: 'Europe/Berlin',
+            paymentsConfigured: true,
           },
-        },
-        { headers: createHeaders([]) } as never,
-      ).pipe(Effect.provide(provideStripeRotation(database)), Effect.flip);
-
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe(
-        'Stripe account cannot change while registration Checkouts or refunds are pending',
-      );
-      expect(update).not.toHaveBeenCalled();
-      expect(insert).not.toHaveBeenCalled();
-    }),
-  );
-
-  it.effect(
-    'validates an initial Stripe connection before updating a tenant',
-    () =>
-      Effect.gen(function* () {
-        const fixture = createStripeAccountChangeDatabase({
-          currentStripeAccountId: null,
-          nextStripeAccountId: 'acct_initial',
         });
-        const stripeHttpClient = new RotationStripeHttpClient();
-
-        const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-          createStripeAccountUpdateInput('acct_initial', null),
-          { headers: createHeaders([]) } as never,
-        ).pipe(
-          Effect.provide(
-            provideStripeRotation(fixture.database, stripeHttpClient),
-          ),
-        );
-
-        expect(stripeHttpClient.requestedAccountIds).toEqual(['acct_initial']);
-        expect(fixture.capturedUpdate()?.['stripeAccountId']).toBe(
-          'acct_initial',
-        );
-        expect(tenant.stripeAccountId).toBe('acct_initial');
-      }),
-  );
-
-  it.effect('rejects a foreign Stripe account before updating a tenant', () =>
-    Effect.gen(function* () {
-      const fixture = createStripeAccountChangeDatabase({
-        currentStripeAccountId: null,
-        nextStripeAccountId: 'acct_foreign',
-      });
-      const stripeHttpClient = new RotationStripeHttpClient(
-        () =>
-          new Stripe.errors.StripeInvalidRequestError({
-            headers: {},
-            message: 'No such connected account',
-            requestId: 'req_foreign_account_update',
-            statusCode: 404,
-            type: 'invalid_request_error',
-          }),
-      );
-
-      const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-        createStripeAccountUpdateInput('acct_foreign', null),
-        { headers: createHeaders([]) } as never,
-      ).pipe(
-        Effect.provide(
-          provideStripeRotation(fixture.database, stripeHttpClient),
-        ),
-        Effect.flip,
-      );
-
-      expect(error).toMatchObject({
-        _tag: 'RpcBadRequestError',
-        message: 'Stripe account could not be verified',
-      });
-      expect(stripeHttpClient.requestedAccountIds).toEqual(['acct_foreign']);
-      expect(fixture.operations).toEqual([]);
-    }),
-  );
-
-  it.effect(
-    'rejects a stale loaded account before validating a new rotation target',
-    () =>
-      Effect.gen(function* () {
-        const fixture = createStripeAccountChangeDatabase({
-          currentStripeAccountId: 'acct_current',
-          nextStripeAccountId: 'acct_next',
-        });
-
-        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-          createStripeAccountUpdateInput('acct_next', 'acct_stale'),
-          { headers: createHeaders([]) } as never,
-        ).pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
-
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          message: 'Stripe account changed while tenant settings were open',
-        });
-        expect(fixture.operations).toEqual([]);
+        expect(JSON.stringify(capturedAudit)).not.toContain('stripeAccountId');
+        expect(tenant.paymentsConfigured).toBe(true);
+        expect(tenant).not.toHaveProperty('stripeAccountId');
       }),
   );
 
   it.effect(
-    'rejects a Stripe disconnect when the account changed after the tenant was loaded',
-    () =>
-      Effect.gen(function* () {
-        const fixture = createStripeAccountChangeDatabase({
-          currentStripeAccountId: 'acct_stale',
-          lockedStripeAccountId: 'acct_current',
-          nextStripeAccountId: null,
-        });
-
-        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-          createStripeAccountUpdateInput(undefined, 'acct_stale'),
-          {
-            headers: createHeaders([]),
-          } as never,
-        ).pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
-
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          message: 'Stripe account changed while tenant settings were open',
-        });
-        expect(fixture.operations).toEqual(['tenant-lock']);
-      }),
-  );
-
-  it.effect(
-    'allows Stripe account rotation after locking when no tax-rate bindings exist',
-    () =>
-      Effect.gen(function* () {
-        const fixture = createStripeAccountChangeDatabase({
-          hasPaidEventConfiguration: true,
-          nextStripeAccountId: 'acct_next',
-        });
-
-        const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-          createStripeAccountUpdateInput('acct_next'),
-          { headers: createHeaders([]) } as never,
-        ).pipe(Effect.provide(provideStripeRotation(fixture.database)));
-
-        expect(fixture.capturedUpdate()?.['stripeAccountId']).toBe('acct_next');
-        expect(tenant.stripeAccountId).toBe('acct_next');
-        expect(fixture.operations).toEqual([
-          'tenant-lock',
-          'pending-obligation-check',
-          'tax-rate-rotation-binding-check',
-          'tax-rate-rotation-binding-check',
-          'tax-rate-rotation-binding-check',
-          'tax-rate-rotation-binding-check',
-          'tax-metadata-delete',
-          'tenant-update',
-          'rotated-account-check',
-          'audit-insert',
-        ]);
-      }),
-  );
-
-  it.effect(
-    'blocks Stripe disconnect while tax-rate bindings remain assigned',
-    () =>
-      Effect.gen(function* () {
-        const fixture = createStripeAccountChangeDatabase({
-          hasStripeTaxRateConfiguration: true,
-          nextStripeAccountId: null,
-        });
-        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-          createStripeAccountUpdateInput(),
-          {
-            headers: createHeaders([]),
-          } as never,
-        ).pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe(
-          'Stripe account cannot be disconnected while tax rates remain assigned',
-        );
-        expect(fixture.operations).not.toContain('tax-metadata-delete');
-        expect(fixture.operations).not.toContain('tenant-update');
-        expect(fixture.operations).not.toContain('audit-insert');
-      }),
-  );
-
-  it.effect(
-    'rejects a true disconnect with paid configuration before tax cleanup or mutation',
-    () =>
-      Effect.gen(function* () {
-        const fixture = createStripeAccountChangeDatabase({
-          hasPaidEventConfiguration: true,
-          hasStripeTaxRateConfiguration: true,
-          nextStripeAccountId: null,
-        });
-
-        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
-          createStripeAccountUpdateInput(),
-          {
-            headers: createHeaders([]),
-          } as never,
-        ).pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe(
-          'Stripe account cannot be disconnected while paid event configuration exists',
-        );
-        expect(fixture.operations).toEqual([
-          'tenant-lock',
-          'pending-obligation-check',
-          'paid-configuration-check',
-        ]);
-      }),
-  );
-
-  it.effect(
-    'blocks public URL migrations for pending Stripe links or active transfer offers after locking the tenant',
+    'blocks public URL migrations for pending payment links or active transfer offers after locking the tenant',
     () =>
       Effect.gen(function* () {
         const scenarios = [
           {
             activeRegistrationTransfers: false,
             pendingStripeObligations: true,
-            reasonFragment: 'pending Stripe Checkout or refund',
+            reasonFragment: 'every payment or refund',
           },
           {
             activeRegistrationTransfers: true,
             pendingStripeObligations: false,
-            reasonFragment: 'active registration transfer',
+            reasonFragment: 'active ticket transfer',
           },
           {
             activeRegistrationTransfers: true,
             pendingStripeObligations: true,
-            reasonFragment:
-              'pending Stripe Checkout or refund and every active registration transfer',
+            reasonFragment: 'every payment, refund, and active ticket transfer',
           },
         ] as const;
 
@@ -1538,14 +1121,12 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
             'globalAdmin.tenants.update'
           ](
             {
-              expectedStripeAccountId: 'acct_current',
               id: 'tenant-1',
               reason: 'Move the tenant to its verified replacement domain',
               tenant: {
                 currency: 'EUR',
                 domain: 'new.example.com',
                 name: 'Tenant',
-                stripeAccountId: 'acct_current',
                 theme: 'evorto',
                 timezone: 'Europe/Berlin',
               },
@@ -1561,6 +1142,7 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
           }
           expect(error).toMatchObject({
             activeRegistrationTransfers: scenario.activeRegistrationTransfers,
+            message: "The organization's public address cannot be changed yet.",
             pendingStripeObligations: scenario.pendingStripeObligations,
             tenantId: 'tenant-1',
           });
@@ -1640,14 +1222,12 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
-            expectedStripeAccountId: 'acct_current',
             id: 'tenant-1',
             reason: 'Switch the tenant to Australian dollars',
             tenant: {
               currency: 'AUD',
               domain: 'tenant.example.com',
               name: 'Tenant',
-              stripeAccountId: 'acct_current',
               theme: 'evorto',
               timezone: 'Europe/Berlin',
             },
@@ -1657,16 +1237,18 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
-          'Tenant currency is locked by existing financial configuration',
+          'Currency cannot be changed after financial information has been added.',
         );
-        expect(error.reason).toContain('dedicated currency migration');
+        expect(error.reason).toBe(
+          'This organization already has templates, events, receipts, or payments. Keep the current currency to save these settings.',
+        );
         expect(update).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
       }),
   );
 
   it.effect(
-    'allows non-Stripe tenant edits when the connected account is unchanged',
+    'updates ordinary tenant settings without exposing the payment account',
     () =>
       Effect.gen(function* () {
         const beforeTenant = {
@@ -1709,14 +1291,12 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
         const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
-            expectedStripeAccountId: 'acct_current',
             id: 'tenant-1',
             reason: 'Correct the tenant display name',
             tenant: {
               currency: 'EUR',
               domain: 'tenant.example.com',
               name: 'Tenant after update',
-              stripeAccountId: 'acct_current',
               theme: 'evorto',
               timezone: 'Europe/Berlin',
             },
@@ -1725,6 +1305,8 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         ).pipe(Effect.provide(provideDatabase(database)));
 
         expect(tenant.name).toBe('Tenant after update');
+        expect(tenant.paymentsConfigured).toBe(true);
+        expect(tenant).not.toHaveProperty('stripeAccountId');
         expect(select).toHaveBeenCalledTimes(1);
       }),
   );
@@ -1746,7 +1328,6 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
-            expectedStripeAccountId: null,
             id: 'tenant-1',
             reason: 'Tenant requested a domain correction',
             tenant: {
@@ -1761,7 +1342,9 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe('Organization domain already exists');
+        expect(error.message).toBe(
+          'This website address is already used by another organization.',
+        );
         expect(error.reason).toBe('tenant.example.com');
       }),
   );
@@ -1793,7 +1376,10 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
       ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe('Invalid tenant settings');
+      expect(error.message).toBe(
+        'Enter a name and a valid public address for this organization.',
+      );
+      expect(error.reason).toBeUndefined();
     }),
   );
 
@@ -1832,8 +1418,10 @@ layer(globalAdminHandlerLayer)('globalAdminHandlers', (it) => {
         ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe('Invalid tenant settings');
-        expect(error.reason).toContain('single host name');
+        expect(error.message).toBe(
+          'Enter a name and a valid public address for this organization.',
+        );
+        expect(error.reason).toBeUndefined();
       }),
   );
 });

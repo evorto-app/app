@@ -716,7 +716,7 @@ describe('registration transfer finalization tenant limit', () => {
       expect(directOutcome).toMatchObject({
         error: {
           _tag: 'EventRegistrationConflictError',
-          message: 'User is already registered for this event',
+          message: 'This person is already signed up for this event.',
         },
         status: 'failure',
       });

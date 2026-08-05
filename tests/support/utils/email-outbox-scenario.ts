@@ -32,23 +32,25 @@ export const seedEmailOutboxScenario = async ({
   database: TestDatabase;
   tenant: { domain: string; id: string; name: string };
 }): Promise<EmailOutboxScenario> => {
-  const scope = tenant.id.slice(-8);
-  const item = (label: string): EmailOutboxScenarioItem => ({
+  const item = (
+    recipientLabel: string,
+    subject: string,
+  ): EmailOutboxScenarioItem => ({
     id: getId(),
-    recipient: `outbox-${label.toLocaleLowerCase()}-${scope}@example.org`,
-    subject: `${label} delivery ${scope}`,
+    recipient: `alex.${recipientLabel}@example.org`,
+    subject,
   });
-  const unknown = item('Unknown');
-  const sending = item('Sending');
-  const failed = item('Failed');
-  const sent = item('Sent');
+  const unknown = item('receipts', 'We could not confirm your receipt update');
+  const sending = item('events', 'Your event update is being sent');
+  const failed = item('receipts', 'Your receipt update could not be sent');
+  const sent = item('events', 'Your event ticket is confirmed');
   const rows = [unknown, sending, failed, sent];
 
   await database.insert(schema.emailOutbox).values([
     {
       attempts: 1,
       deliveryUnknownAt: priorAttempt,
-      html: '<p>Unknown delivery operational test email</p>',
+      html: '<p>We could not confirm your receipt update.</p>',
       id: unknown.id,
       idempotencyKey: `outbox-docs/${tenant.id}/${unknown.id}`,
       kind: 'receiptReviewed',
@@ -58,14 +60,14 @@ export const seedEmailOutboxScenario = async ({
       status: 'deliveryUnknown',
       subject: unknown.subject,
       tenantId: tenant.id,
-      text: 'Unknown delivery operational test email',
+      text: 'We could not confirm your receipt update.',
       toEmail: unknown.recipient,
     },
     {
       attempts: 1,
       claimLeaseExpiresAt: activeClaimExpiry,
       claimLeaseId: `lease-${sending.id}`,
-      html: '<p>Sending operational test email</p>',
+      html: '<p>Your event update is being sent.</p>',
       id: sending.id,
       idempotencyKey: `outbox-docs/${tenant.id}/${sending.id}`,
       kind: 'manualApproval',
@@ -73,12 +75,12 @@ export const seedEmailOutboxScenario = async ({
       status: 'sending',
       subject: sending.subject,
       tenantId: tenant.id,
-      text: 'Sending operational test email',
+      text: 'Your event update is being sent.',
       toEmail: sending.recipient,
     },
     {
       attempts: 1,
-      html: '<p>Failed operational test email</p>',
+      html: '<p>Your receipt update could not be sent.</p>',
       id: failed.id,
       idempotencyKey: `outbox-docs/${tenant.id}/${failed.id}`,
       kind: 'receiptReviewed',
@@ -88,12 +90,12 @@ export const seedEmailOutboxScenario = async ({
       status: 'failed',
       subject: failed.subject,
       tenantId: tenant.id,
-      text: 'Failed operational test email',
+      text: 'Your receipt update could not be sent.',
       toEmail: failed.recipient,
     },
     {
       attempts: 1,
-      html: '<p>Sent operational test email</p>',
+      html: '<p>Your event ticket is confirmed.</p>',
       id: sent.id,
       idempotencyKey: `outbox-docs/${tenant.id}/${sent.id}`,
       kind: 'manualApproval',
@@ -104,7 +106,7 @@ export const seedEmailOutboxScenario = async ({
       status: 'sent',
       subject: sent.subject,
       tenantId: tenant.id,
-      text: 'Sent operational test email',
+      text: 'Your event ticket is confirmed.',
       toEmail: sent.recipient,
     },
   ]);

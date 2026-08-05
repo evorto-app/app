@@ -79,41 +79,38 @@ export const ensureValidFinanceReceiptAmounts = Effect.fn(
 
   const error = {
     alcoholAmountOutOfRange: {
-      message:
-        'Alcohol amount must be a non-negative whole minor-unit amount within the supported range',
+      message: 'Enter a valid alcohol amount of zero or more.',
       reason: 'invalidAlcoholAmount',
     },
     alcoholFlagContradiction: {
       message:
-        'Alcohol amount must be positive when alcohol is included and zero otherwise',
+        'Enter an alcohol amount greater than zero when the receipt includes alcohol; otherwise enter zero.',
       reason: 'alcoholAmountContradiction',
     },
     depositAmountOutOfRange: {
-      message:
-        'Deposit amount must be a non-negative whole minor-unit amount within the supported range',
+      message: 'Enter a valid deposit amount of zero or more.',
       reason: 'invalidDepositAmount',
     },
     depositAndAlcoholExceedTotal: {
-      message: 'Deposit and alcohol amounts exceed the total amount',
+      message:
+        'The deposit and alcohol amounts cannot be greater than the receipt total.',
       reason: 'inconsistentAmounts',
     },
     depositFlagContradiction: {
       message:
-        'Deposit amount must be positive when a deposit is included and zero otherwise',
+        'Enter a deposit amount greater than zero when the receipt includes a deposit; otherwise enter zero.',
       reason: 'depositAmountContradiction',
     },
     taxAmountExceedsTotal: {
-      message: 'Tax amount exceeds the total amount',
+      message: 'The tax amount cannot be greater than the receipt total.',
       reason: 'taxAmountExceedsTotal',
     },
     taxAmountOutOfRange: {
-      message:
-        'Tax amount must be a non-negative whole minor-unit amount within the supported range',
+      message: 'Enter a valid tax amount of zero or more.',
       reason: 'invalidTaxAmount',
     },
     totalAmountOutOfRange: {
-      message:
-        'Total amount must be a positive whole minor-unit amount within the supported range',
+      message: 'Enter a valid receipt total greater than zero.',
       reason: 'invalidTotalAmount',
     },
   } as const;
@@ -126,8 +123,7 @@ export const ensureValidFinanceReceiptCalendarDate = Effect.fn(
 )(function* (receiptDate: string) {
   if (!isFinanceReceiptCalendarDate(receiptDate)) {
     return yield* new RpcBadRequestError({
-      message:
-        'Receipt date must be a valid calendar date in YYYY-MM-DD format',
+      message: 'Enter a valid receipt date.',
       reason: 'invalidReceiptDate',
     });
   }

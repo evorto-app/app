@@ -82,16 +82,16 @@ describe('PERMISSION_GROUPS', () => {
       expect.arrayContaining([
         expect.objectContaining({
           description: expect.stringContaining(
-            'full organization-administrator authority',
+            'full organization-administrator access',
           ),
           key: 'users:assignRoles',
-          label: 'Assign all user roles (organization admin)',
+          label: 'Assign all member roles (organization admin)',
         }),
       ]),
     );
   });
 
-  it('keeps payment-provider administration separate from general settings', () => {
+  it('describes payment permissions in product language', () => {
     const adminGroup = PERMISSION_GROUPS.find((group) => group.key === 'admin');
 
     expect(adminGroup?.permissions).toEqual(
@@ -101,8 +101,63 @@ describe('PERMISSION_GROUPS', () => {
           label: 'Change organization settings',
         }),
         expect.objectContaining({
+          description:
+            'View whether paid sign-ups are ready, and manage currency, accepted receipt countries, cancellation refund fees, and ESNcard discounts.',
           key: 'admin:managePayments',
-          label: 'Manage payments and providers',
+          label: 'Manage payments',
+        }),
+        expect.objectContaining({
+          description:
+            'Manage the tax rates used for paid sign-up choices and add available tax rates to Evorto.',
+          key: 'admin:tax',
+          label: 'Manage tax rates',
+        }),
+      ]),
+    );
+  });
+
+  it('describes event creation as template based', () => {
+    const eventsGroup = PERMISSION_GROUPS.find(
+      (group) => group.key === 'events',
+    );
+
+    expect(eventsGroup?.permissions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          description:
+            'Create events from templates for the current organization.',
+          key: 'events:create',
+          label: 'Create events',
+        }),
+      ]),
+    );
+  });
+
+  it('uses ticket and money wording for cancellation and finance access', () => {
+    const eventPermissions = PERMISSION_GROUPS.find(
+      (group) => group.key === 'events',
+    )?.permissions;
+    const financePermissions = PERMISSION_GROUPS.find(
+      (group) => group.key === 'finance',
+    )?.permissions;
+
+    expect(eventPermissions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'events:cancelRegistrations',
+          label: 'Cancel tickets and add-ons',
+        }),
+      ]),
+    );
+    expect(financePermissions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'finance:createTransactions',
+          label: 'Record money received or spent',
+        }),
+        expect.objectContaining({
+          key: 'finance:viewTransactions',
+          label: 'View money received and spent',
         }),
       ]),
     );

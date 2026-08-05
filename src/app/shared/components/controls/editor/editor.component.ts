@@ -198,7 +198,7 @@ export class EditorComponent implements OnDestroy {
         attributes: {
           class:
             'ProseMirror prose prose-sm max-w-none min-h-[200px] outline-none',
-          'data-placeholder': 'Start writing...',
+          'data-placeholder': 'Start writing…',
           'data-testid': 'rich-editor-content',
         },
       },
@@ -280,7 +280,10 @@ export class EditorComponent implements OnDestroy {
     }
 
     const previousUrl = this.editor.getAttributes('link')['href'];
-    const nextUrl = globalThis.prompt('Enter URL', previousUrl || 'https://');
+    const nextUrl = globalThis.prompt(
+      'Paste or enter a link',
+      previousUrl || 'https://',
+    );
 
     if (nextUrl === null) {
       return;

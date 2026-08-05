@@ -11,7 +11,7 @@ import {
 
 test.use({ storageState: adminStateFile });
 
-test('Manage announcement discovery', async ({
+test('Choose who can find an announcement', async ({
   browser,
   database,
   events,
@@ -41,20 +41,18 @@ test('Manage announcement discovery', async ({
   }
 
   const announcementId = getId();
-  const announcementTitle = `Welcome announcement ${announcementId.slice(0, 6)}`;
-  let participantPage: AuthenticatedTestPage | undefined;
+  const announcementTitle = 'Welcome week announcement';
   registerDatabaseCleanup(async (cleanupDatabase) => {
     await cleanupDatabase
       .delete(schema.eventInstances)
       .where(eq(schema.eventInstances.id, announcementId));
   });
-  registerDatabaseCleanup(async () => participantPage?.context.close());
 
   await database.insert(schema.eventInstances).values({
     announcementRoleIds: [],
     creatorId: source.creatorId,
     description:
-      '<p>An optionless announcement used to explain explicit role targeting.</p>',
+      '<p>Important information for selected organization members.</p>',
     end: source.end,
     icon: source.icon,
     id: announcementId,
@@ -88,35 +86,37 @@ test('Manage announcement discovery', async ({
 
   await testInfo.attach('markdown', {
     body: `
-{% callout type="note" title="Permission" %}
-Use an account with **Change announcement discovery** access.
+{% callout type="note" title="Who can do this" %}
+Use an account with **Change who can find announcements** access.
 {% /callout %}
 
-# Manage announcement discovery
 
-An optionless announcement has no registration options from which Evorto could derive eligibility. It therefore uses an explicit list of organization roles for normal discovery. This is intentionally different from ordinary sign-up events, whose discovery always comes from their registration options.
+For an announcement without sign-up choices, select the organization roles that should see it in **Events**. This is different from a sign-up event, which appears to signed-in members who can use at least one of its sign-up choices.
 
-Selecting announcement roles changes visibility only. It does not assign a role, grant event access, or send a notification. With no roles selected, the announcement is link-only and still opens from its complete direct link.
+This choice only controls whether the announcement appears in **Events**. It does not change anyone's role or access, or send them a message. Without a selected role, people can open the announcement only through a shared link.
 `,
   });
 
   const discoveryAction = page.getByRole('button', {
     exact: true,
-    name: 'Update announcement discovery',
+    name: 'Choose who can find this announcement',
   });
+  const discoveryUpdatedNotice = page
+    .locator('mat-snack-bar-container')
+    .filter({ hasText: 'Who can find the announcement was updated' });
   await expect(discoveryAction).toBeEnabled({ timeout: 20_000 });
   await discoveryAction.click();
   let dialog = page.locator('mat-dialog-container');
   await expect(
     dialog.getByRole('heading', {
-      name: `Update announcement discovery for ${announcementTitle}`,
+      name: `Choose who can find ${announcementTitle}`,
     }),
   ).toBeVisible();
   await expect(dialog).toContainText(
-    'With no roles selected, the announcement is link-only',
+    'Without a selected role, this announcement is available only through its direct link',
   );
   await expect(dialog).toContainText(
-    'it does not restrict direct links, grant access, or send notifications',
+    "Selecting roles does not change anyone's access or send them a message",
   );
 
   const roleInput = dialog.getByRole('combobox', {
@@ -130,10 +130,16 @@ Selecting announcement roles changes visibility only. It does not assign a role,
     testInfo,
     dialog,
     page,
-    'Target an optionless announcement to an organization role',
+    'Choose an organization role that should see the announcement',
   );
   await dialog.getByRole('button', { exact: true, name: 'Save' }).click();
   await expect(dialog).toHaveCount(0);
+  await expect(
+    discoveryUpdatedNotice.getByText(
+      'Who can find the announcement was updated',
+      { exact: true },
+    ),
+  ).toBeVisible();
   await expect
     .poll(async () => {
       const announcement = await database.query.eventInstances.findFirst({
@@ -143,14 +149,20 @@ Selecting announcement roles changes visibility only. It does not assign a role,
       return announcement?.announcementRoleIds;
     })
     .toEqual([defaultUserRole.id]);
+  await discoveryUpdatedNotice
+    .getByRole('button', { exact: true, name: 'Close' })
+    .click();
+  await expect(discoveryUpdatedNotice).toHaveCount(0);
 
-  participantPage = await openAuthenticatedTestPage({
-    baseUrl: new URL(page.url()).origin,
-    browser,
-    storageState: userStateFile,
-    tenantDomain: tenant.domain,
-    testClock,
-  });
+  const participantPage: AuthenticatedTestPage =
+    await openAuthenticatedTestPage({
+      baseUrl: new URL(page.url()).origin,
+      browser,
+      storageState: userStateFile,
+      tenantDomain: tenant.domain,
+      testClock,
+    });
+  registerDatabaseCleanup(async () => participantPage.context.close());
   await participantPage.page.goto('/events');
   const announcementCard = participantPage.page.locator(
     `app-event-list nav a[href="/events/${announcementId}"]`,
@@ -160,7 +172,7 @@ Selecting announcement roles changes visibility only. It does not assign a role,
     testInfo,
     announcementCard,
     participantPage.page,
-    'Announcement visible to a selected signed-in role',
+    'Announcement visible to a member with the selected role',
   );
 
   await discoveryAction.click();
@@ -177,6 +189,12 @@ Selecting announcement roles changes visibility only. It does not assign a role,
   await expect(roleInput).toHaveAttribute('aria-expanded', 'false');
   await dialog.getByRole('button', { exact: true, name: 'Save' }).click();
   await expect(dialog).toHaveCount(0);
+  await expect(
+    discoveryUpdatedNotice.getByText(
+      'Who can find the announcement was updated',
+      { exact: true },
+    ),
+  ).toBeVisible();
   await expect
     .poll(async () => {
       const announcement = await database.query.eventInstances.findFirst({
@@ -223,9 +241,9 @@ Selecting announcement roles changes visibility only. It does not assign a role,
 
   await testInfo.attach('markdown', {
     body: `
-After the last selected role is removed, the announcement disappears from the member's event list. Its complete direct link still opens. The persisted readback confirms that changing discovery roles neither changed organization role assignments nor queued email.
+After the last selected role is removed, the announcement disappears from the member's event list. The announcement still opens from its full shared link. Changing who can find the announcement does not change anyone's role or send a message.
 
-Anonymous visitors do not borrow the organization's default new-member roles for announcements. Anonymous discovery through default roles applies only to ordinary events with registration options.
+Announcements do not appear in the event list before someone signs in. Shared links still open their public details.
 `,
   });
 });

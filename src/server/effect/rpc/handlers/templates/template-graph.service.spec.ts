@@ -213,6 +213,8 @@ describe('TemplateGraphService structural validation', () => {
         },
       }),
     ).toMatchObject({
+      message:
+        'Simple setup needs exactly one organizer choice and one attendee choice.',
       reason: 'invalidSimpleTemplateConfiguration',
     });
   });
@@ -248,6 +250,8 @@ describe('TemplateGraphService structural validation', () => {
     expect(
       validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
     ).toMatchObject({
+      message:
+        'Before using simple setup, keep exactly one organizer choice and one attendee choice, save the template, and reopen it.',
       reason: 'templateAdvancedToSimpleRequiresPersistedSimpleShape',
     });
   });
@@ -264,6 +268,7 @@ describe('TemplateGraphService structural validation', () => {
     expect(
       validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
     ).toMatchObject({
+      message: 'Save the template, reopen it, then change the setup.',
       reason: 'templateModeTransitionMustPreserveOptionIds',
     });
 
@@ -335,6 +340,7 @@ describe('TemplateGraphService structural validation', () => {
     expect(error).toBeInstanceOf(RpcBadRequestError);
     expect(error).toMatchObject({
       _tag: 'RpcBadRequestError',
+      message: 'Enter a price greater than zero for each paid sign-up choice.',
       reason: 'paidTemplateRegistrationOptionRequiresPositivePrice',
     });
   });
@@ -384,6 +390,8 @@ describe('TemplateGraphService structural validation', () => {
         input,
       }),
     ).toMatchObject({
+      message:
+        "Review each add-on's name, availability, quantities, and sign-up choices.",
       reason: 'invalidTemplateAddon',
     });
   });

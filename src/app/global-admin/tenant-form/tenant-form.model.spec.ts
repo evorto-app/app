@@ -1,7 +1,9 @@
+import { TenantDomainValidationError } from '@shared/tenant-origin';
 import { describe, expect, it } from 'vitest';
 
 import {
   createGlobalAdminTenantFormModel,
+  globalAdminTenantDomainValidationMessage,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantSubmitDisabled,
@@ -15,10 +17,8 @@ describe('global admin tenant form model', () => {
     expect(createGlobalAdminTenantFormModel()).toEqual({
       currency: 'EUR',
       domain: '',
-      expectedStripeAccountId: null,
       name: '',
       reason: '',
-      stripeAccountId: '',
       theme: 'evorto',
       timezone: 'Europe/Berlin',
     });
@@ -31,18 +31,15 @@ describe('global admin tenant form model', () => {
         domain: 'tenant.example.com',
         id: 'tenant-1',
         name: 'Tenant',
-        stripeAccountId: 'acct_123',
-        stripeConnected: true,
+        paymentsConfigured: true,
         theme: 'esn',
         timezone: 'Australia/Brisbane',
       }),
     ).toEqual({
       currency: 'AUD',
       domain: 'tenant.example.com',
-      expectedStripeAccountId: 'acct_123',
       name: 'Tenant',
       reason: '',
-      stripeAccountId: 'acct_123',
       theme: 'esn',
       timezone: 'Australia/Brisbane',
     });
@@ -54,8 +51,7 @@ describe('global admin tenant form model', () => {
       domain: 'tenant.example.com',
       id: 'tenant-1',
       name: 'Tenant',
-      stripeAccountId: null,
-      stripeConnected: false,
+      paymentsConfigured: false,
       theme: 'evorto' as const,
       timezone: 'Europe/Berlin' as const,
     };
@@ -82,8 +78,7 @@ describe('global admin tenant form model', () => {
       domain: 'tenant.example.com',
       id: 'tenant-1',
       name: 'Tenant',
-      stripeAccountId: null,
-      stripeConnected: false,
+      paymentsConfigured: false,
       theme: 'evorto' as const,
       timezone: 'Europe/Berlin' as const,
     };
@@ -105,8 +100,7 @@ describe('global admin tenant form model', () => {
       domain: 'first.example.com',
       id: 'tenant-1',
       name: 'First tenant',
-      stripeAccountId: null,
-      stripeConnected: false,
+      paymentsConfigured: false,
       theme: 'evorto' as const,
       timezone: 'Europe/Berlin' as const,
     };
@@ -134,15 +128,13 @@ describe('global admin tenant form model', () => {
     ).toEqual(globalAdminTenantFormModelFromRecord(nextTenant));
   });
 
-  it('trims tenant create/edit payloads and clears blank Stripe account IDs', () => {
+  it('trims tenant create/edit payloads without payment setup fields', () => {
     expect(
       globalAdminTenantPayloadFromForm({
         currency: 'CZK',
         domain: ' section.example.org ',
-        expectedStripeAccountId: null,
         name: ' Section ',
         reason: ' Production support request ',
-        stripeAccountId: ' ',
         theme: 'evorto',
         timezone: 'Europe/Prague',
       }),
@@ -152,7 +144,6 @@ describe('global admin tenant form model', () => {
         currency: 'CZK',
         domain: 'section.example.org',
         name: 'Section',
-        stripeAccountId: undefined,
         theme: 'evorto',
         timezone: 'Europe/Prague',
       },
@@ -164,7 +155,20 @@ describe('global admin tenant form model', () => {
       normalizeGlobalAdminTenantDomain(' https://Section.Example.Org:443 '),
     ).toBe('section.example.org');
     expect(() => normalizeGlobalAdminTenantDomain(' LOCALHOST:4200 ')).toThrow(
-      'Domain must be a single host name',
+      'Enter the main website address only, for example section.example.org.',
+    );
+  });
+
+  it('handles only the expected website-address validation error at the form boundary', () => {
+    expect(
+      globalAdminTenantDomainValidationMessage(
+        new TenantDomainValidationError('Enter a public website address.'),
+      ),
+    ).toBe('Enter a public website address.');
+
+    const unexpected = new Error('Unexpected parser failure');
+    expect(() => globalAdminTenantDomainValidationMessage(unexpected)).toThrow(
+      unexpected,
     );
   });
 
@@ -173,14 +177,14 @@ describe('global admin tenant form model', () => {
       globalAdminTenantPayloadFromForm({
         currency: 'EUR',
         domain: 'section.example.org/path',
-        expectedStripeAccountId: null,
         name: 'Section',
         reason: 'Create a production tenant',
-        stripeAccountId: '',
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
-    ).toThrow('Domain must be a single host name');
+    ).toThrow(
+      'Enter the main website address only, for example section.example.org.',
+    );
   });
 
   it('rejects credential-like domain input before deriving a trusted origin', () => {
@@ -188,14 +192,14 @@ describe('global admin tenant form model', () => {
       globalAdminTenantPayloadFromForm({
         currency: 'EUR',
         domain: 'section.example.org@attacker.invalid',
-        expectedStripeAccountId: null,
         name: 'Section',
         reason: 'Create a production tenant',
-        stripeAccountId: '',
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
-    ).toThrow('Domain must be a single host name');
+    ).toThrow(
+      'Enter the main website address only, for example section.example.org.',
+    );
   });
 
   it('shows the actionable reason for typed public URL migration blockers', () => {
@@ -211,8 +215,31 @@ describe('global admin tenant form model', () => {
         tenantId: 'tenant-1',
       }),
     ).toBe(
-      "Organization public URL cannot change while issued links are active. Complete or cancel every active registration transfer before changing the organization's public URL.",
+      'The website address cannot be changed while payments, refunds, or ticket transfers are unfinished. Finish or cancel them and try again.',
     );
+  });
+
+  it('shows expected organization update outcomes without exposing access or internal messages', () => {
+    expect(
+      globalAdminTenantUpdateErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message:
+          'This website address is already used by another organization.',
+      }),
+    ).toBe('This website address is already used by another organization.');
+
+    for (const _tag of [
+      'RpcForbiddenError',
+      'RpcInternalServerError',
+      'RpcUnauthorizedError',
+    ]) {
+      expect(
+        globalAdminTenantUpdateErrorMessage({
+          _tag,
+          message: 'internal details must stay hidden',
+        }),
+      ).toBe('The organization could not be updated. Try again.');
+    }
   });
 
   it('keeps tenant writes disabled while invalid, submitting, or awaiting the mutation', () => {

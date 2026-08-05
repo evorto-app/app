@@ -1,10 +1,7 @@
-<app-platform-tenant-page-header
-  title="Event administration"
-  [tenantId]="tenantId()"
-/>
+<app-platform-tenant-page-header title="Edit event" [tenantId]="tenantId()" />
 
 @if (eventQuery.isPending()) {
-  <p role="status">Loading event...</p>
+  <p role="status">Loading event…</p>
 } @else if (eventQuery.isError()) {
   <section
     class="bg-error-container text-on-error-container grid gap-3 p-4"
@@ -31,7 +28,7 @@
             })
           "
         >
-          Discovery:
+          Who can find it:
           {{
             eventDiscoveryLabel({
               announcementRoleCount: event.announcementRoleIds.length,
@@ -43,22 +40,20 @@
 
       <dl class="mb-6 grid gap-3 sm:grid-cols-2">
         <div>
-          <dt class="label-medium text-on-surface-variant">Attributed owner</dt>
+          <dt class="label-medium text-on-surface-variant">Event owner</dt>
           <dd class="body-medium">
             {{ event.creator.firstName }} {{ event.creator.lastName }} ·
             {{ event.creator.email }}
           </dd>
         </div>
         <div>
-          <dt class="label-medium text-on-surface-variant">Registrations</dt>
+          <dt class="label-medium text-on-surface-variant">Sign-ups</dt>
           <dd class="body-medium">{{ event.registrationCount }}</dd>
         </div>
         <div>
-          <dt class="label-medium text-on-surface-variant">
-            Registration configuration
-          </dt>
+          <dt class="label-medium text-on-surface-variant">Sign-up setup</dt>
           <dd class="body-medium">
-            {{ event.simpleModeEnabled ? "Simple" : "Advanced" }}
+            {{ event.simpleModeEnabled ? "Basic" : "Custom" }}
           </dd>
         </div>
         <div>
@@ -66,11 +61,11 @@
           <dd class="body-medium">
             @if (formOptionsQuery.isSuccess()) {
               {{ displayDateTime(event.start) }} ·
-              {{ formOptionsQuery.data().timezone }}
+              {{ tenantTimezoneLabel(formOptionsQuery.data().timezone) }}
             } @else if (formOptionsQuery.isError()) {
               <span role="alert">Organization time zone unavailable.</span>
             } @else {
-              <span role="status">Loading organization time zone...</span>
+              <span role="status">Loading organization time zone…</span>
             }
           </dd>
         </div>
@@ -79,11 +74,11 @@
           <dd class="body-medium">
             @if (formOptionsQuery.isSuccess()) {
               {{ displayDateTime(event.end) }} ·
-              {{ formOptionsQuery.data().timezone }}
+              {{ tenantTimezoneLabel(formOptionsQuery.data().timezone) }}
             } @else if (formOptionsQuery.isError()) {
               <span role="alert">Organization time zone unavailable.</span>
             } @else {
-              <span role="status">Loading organization time zone...</span>
+              <span role="status">Loading organization time zone…</span>
             }
           </dd>
         </div>
@@ -105,10 +100,10 @@
             id="event-editor-read-only"
             role="status"
           >
-            <h3 class="title-small">Event details are read-only</h3>
+            <h3 class="title-small">Event details cannot be edited</h3>
             <p class="body-medium">
               Return this event to draft before editing it. If it is awaiting
-              review, use Return to draft under Lifecycle and discovery.
+              review, use Return to draft in the publishing section.
             </p>
           </section>
         }
@@ -117,25 +112,22 @@
           [attr.inert]="eventEditorIsReadOnly(event.status) ? '' : null"
           [disabled]="eventEditorIsReadOnly(event.status)"
         >
-          <h3 class="title-medium">Event editor</h3>
+          <h3 class="title-medium">Event details</h3>
           <p class="body-small text-on-surface-variant">
-            Edit core details and the complete registration setup for this
-            organization. Existing options and live registration counts are
-            preserved.
+            Edit core details and the complete sign-up setup for this
+            organization. Existing sign-up choices and current sign-up totals
+            stay unchanged.
           </p>
           @if (formOptionsQuery.isFetching()) {
             <p class="body-small text-on-surface-variant" role="status">
-              Loading event editing settings. Saving is paused until they are
-              ready.
+              Loading event choices. Saving is paused until they are ready.
             </p>
           } @else if (formOptionsQuery.isError()) {
             <section
               class="bg-error-container text-on-error-container grid gap-3 p-4"
               role="alert"
             >
-              <p>
-                Event editing settings could not be loaded. Nothing changed.
-              </p>
+              <p>Event choices could not be loaded. Nothing changed.</p>
               <div>
                 <button
                   mat-stroked-button
@@ -149,29 +141,28 @@
           }
           @if (targetTenantQuery.isPending()) {
             <p class="body-small text-on-surface-variant" role="status">
-              Paid controls are unavailable while the organization's Stripe
-              status is loading.
+              Paid sign-up choices are unavailable while payment settings load.
             </p>
           } @else if (targetTenantQuery.isError()) {
             <p class="body-small text-error" role="alert">
-              Paid controls are unavailable because the organization's Stripe
-              status could not be loaded. Existing payment data is preserved.
+              Paid sign-up choices are unavailable because payment settings
+              could not be loaded. Existing payment details are preserved.
             </p>
           } @else if (!targetTenantQuery.data()) {
             <p class="body-small text-error" role="alert">
-              Paid controls are unavailable because the organization could not
-              be found. Existing payment data is preserved.
+              Paid sign-up choices are unavailable because the organization
+              could not be found. Existing payment details are preserved.
             </p>
           } @else if (stripeDisconnected()) {
             @if (paidGraphBlocked()) {
               <p class="body-small text-error" role="alert">
-                Existing paid registration and add-on data is preserved. This
-                event cannot be saved until Stripe is connected again.
+                Existing paid sign-ups and add-ons are preserved. This event
+                cannot be saved until paid sign-ups are ready again.
               </p>
             } @else {
               <p class="body-small text-on-surface-variant" role="status">
-                Paid controls are unavailable because the organization has no
-                connected Stripe account.
+                Paid sign-up choices are unavailable because paid sign-ups are
+                not ready for this organization.
               </p>
             }
           }
@@ -222,9 +213,9 @@
           <mat-accordion class="grid gap-3" multi>
             <mat-expansion-panel>
               <mat-expansion-panel-header>
-                <mat-panel-title>Registration options</mat-panel-title>
+                <mat-panel-title>Sign-up choices</mat-panel-title>
                 <mat-panel-description>
-                  {{ graph.registrationOptions.length }} options
+                  {{ graph.registrationOptions.length }} choices
                 </mat-panel-description>
               </mat-expansion-panel-header>
 
@@ -250,8 +241,8 @@
                     <div class="flex flex-wrap items-center gap-2">
                       <h4 class="title-small grow">{{ option.title }}</h4>
                       <span class="body-small text-on-surface-variant">
-                        {{ option.confirmedSpots }} confirmed ·
-                        {{ option.checkedInSpots }} checked in
+                        {{ option.confirmedSpots }} confirmed places ·
+                        {{ option.checkedInSpots }} checked-in places
                       </span>
                     </div>
 
@@ -264,7 +255,7 @@
                           (input)="setOptionText(optionIndex, 'title', $event)"
                         />
                         @if (
-                          titleIssue(option.title, "registration option");
+                          titleIssue(option.title, "sign-up choice");
                           as error
                         ) {
                           <mat-hint class="text-error" role="alert">
@@ -273,7 +264,7 @@
                         }
                       </mat-form-field>
                       <mat-form-field>
-                        <mat-label>Registration mode</mat-label>
+                        <mat-label>Approval</mat-label>
                         <mat-select
                           [value]="option.registrationMode"
                           (selectionChange)="setOptionMode(optionIndex, $event)"
@@ -287,7 +278,7 @@
                         </mat-select>
                       </mat-form-field>
                       <mat-form-field>
-                        <mat-label>Capacity</mat-label>
+                        <mat-label>Number of places</mat-label>
                         <input
                           matInput
                           min="0"
@@ -307,7 +298,7 @@
 
                     <div class="grid gap-4 sm:grid-cols-2">
                       <mat-form-field>
-                        <mat-label>Registration opens</mat-label>
+                        <mat-label>Sign-up opens</mat-label>
                         <input
                           matInput
                           type="datetime-local"
@@ -329,12 +320,16 @@
                         ) {
                           <mat-hint class="text-error" role="alert">
                             Enter a valid time in
-                            {{ formOptionsQuery.data()?.timezone }}.
+                            {{
+                              tenantTimezoneLabel(
+                                formOptionsQuery.data()?.timezone ?? ""
+                              )
+                            }}.
                           </mat-hint>
                         }
                       </mat-form-field>
                       <mat-form-field>
-                        <mat-label>Registration closes</mat-label>
+                        <mat-label>Sign-up closes</mat-label>
                         <input
                           matInput
                           type="datetime-local"
@@ -356,11 +351,15 @@
                         ) {
                           <mat-hint class="text-error" role="alert">
                             Enter a valid time in
-                            {{ formOptionsQuery.data()?.timezone }}.
+                            {{
+                              tenantTimezoneLabel(
+                                formOptionsQuery.data()?.timezone ?? ""
+                              )
+                            }}.
                           </mat-hint>
                         } @else if (registrationWindowOrderInvalid(option)) {
                           <mat-hint class="text-error" role="alert">
-                            Registration must close at or after it opens.
+                            Sign-up must close at or after it opens.
                           </mat-hint>
                         }
                       </mat-form-field>
@@ -379,7 +378,7 @@
                         ></textarea>
                       </mat-form-field>
                       <mat-form-field>
-                        <mat-label>Confirmed-user description</mat-label>
+                        <mat-label>Message after sign-up</mat-label>
                         <textarea
                           matInput
                           rows="3"
@@ -397,7 +396,7 @@
 
                     <div class="grid gap-4 sm:grid-cols-3">
                       <mat-form-field>
-                        <mat-label>Participant cancellation deadline</mat-label>
+                        <mat-label>Cancellation deadline</mat-label>
                         <input
                           matInput
                           min="0"
@@ -414,7 +413,10 @@
                             )
                           "
                         />
-                        <mat-hint>Hours before start; blank inherits</mat-hint>
+                        <mat-hint>
+                          Hours before start. Leave blank to use the
+                          organization setting.
+                        </mat-hint>
                       </mat-form-field>
                       <mat-form-field>
                         <mat-label>Transfer deadline</mat-label>
@@ -434,10 +436,13 @@
                             )
                           "
                         />
-                        <mat-hint>Hours before start; blank inherits</mat-hint>
+                        <mat-hint>
+                          Hours before start. Leave blank to use the
+                          organization setting.
+                        </mat-hint>
                       </mat-form-field>
                       <mat-form-field>
-                        <mat-label>Cancellation fee policy</mat-label>
+                        <mat-label>Payment fees in refunds</mat-label>
                         <mat-select
                           [value]="
                             option.refundFeesOnCancellation === null
@@ -470,7 +475,7 @@
                           )
                         "
                       >
-                        Organizing registration
+                        Organizer choice
                       </mat-checkbox>
                       <mat-checkbox
                         [checked]="option.isPaid"
@@ -483,7 +488,7 @@
                           )
                         "
                       >
-                        Paid registration
+                        Paid choice
                       </mat-checkbox>
                     </div>
 
@@ -520,7 +525,7 @@
                           }
                         </mat-form-field>
                         <mat-form-field>
-                          <mat-label>Inclusive tax rate</mat-label>
+                          <mat-label>Tax rate included in price</mat-label>
                           <mat-select
                             [value]="option.stripeTaxRateId"
                             [disabled]="!stripeConnected()"
@@ -602,7 +607,9 @@
                     }
 
                     <section>
-                      <h5 class="label-large">Eligible organization roles</h5>
+                      <h5 class="label-large">
+                        Who can use this sign-up choice
+                      </h5>
                       @if (formOptionsQuery.isSuccess()) {
                         <p class="body-small text-on-surface-variant mt-1">
                           Leave every role unchecked to allow all organization
@@ -686,7 +693,7 @@
                         />
                       </mat-form-field>
                       <mat-form-field>
-                        <mat-label>Total available quantity</mat-label>
+                        <mat-label>Items available</mat-label>
                         <input
                           matInput
                           min="0"
@@ -772,7 +779,7 @@
                           )
                         "
                       >
-                        Available during registration
+                        During sign-up
                       </mat-checkbox>
                       <mat-checkbox
                         [checked]="addOn.allowPurchaseBeforeEvent"
@@ -842,7 +849,7 @@
                           }
                         </mat-form-field>
                         <mat-form-field>
-                          <mat-label>Inclusive tax rate</mat-label>
+                          <mat-label>Tax rate included in price</mat-label>
                           <mat-select
                             [value]="addOn.stripeTaxRateId"
                             [disabled]="!stripeConnected()"
@@ -880,11 +887,11 @@
 
                     <section>
                       <h5 class="label-large">
-                        Available with registration options
+                        Available with sign-up choices
                       </h5>
                       <p class="body-small text-on-surface-variant">
                         Included and optional quantities together cannot exceed
-                        {{ maxRegistrationAddonQuantity }} per registration.
+                        {{ maxRegistrationAddonQuantity }} per sign-up.
                       </p>
                       <div class="mt-2 grid gap-3 sm:grid-cols-2">
                         @for (
@@ -995,7 +1002,7 @@
 
             <mat-expansion-panel>
               <mat-expansion-panel-header>
-                <mat-panel-title>Registration questions</mat-panel-title>
+                <mat-panel-title>Sign-up questions</mat-panel-title>
                 <mat-panel-description>
                   {{ graph.questions.length }} questions
                 </mat-panel-description>
@@ -1038,7 +1045,7 @@
                         }
                       </mat-form-field>
                       <mat-form-field>
-                        <mat-label>Registration option</mat-label>
+                        <mat-label>Sign-up choice</mat-label>
                         <mat-select
                           [value]="question.registrationOptionId"
                           (selectionChange)="
@@ -1090,7 +1097,7 @@
                         }
                       </mat-form-field>
                       <mat-form-field>
-                        <mat-label>Sort order</mat-label>
+                        <mat-label>Question order</mat-label>
                         <input
                           matInput
                           min="0"
@@ -1130,7 +1137,7 @@
                 @if (graph.questions.length >= maxRegistrationQuestions) {
                   <p class="body-small text-on-surface-variant">
                     This event has the maximum
-                    {{ maxRegistrationQuestions }} registration questions.
+                    {{ maxRegistrationQuestions }} sign-up questions.
                   </p>
                 }
               </div>
@@ -1138,7 +1145,7 @@
           </mat-accordion>
 
           <mat-form-field>
-            <mat-label>Update reason</mat-label>
+            <mat-label>Reason for this change</mat-label>
             <textarea
               matInput
               rows="3"
@@ -1173,12 +1180,12 @@
     </main>
 
     <aside class="border-outline-variant h-fit border-l pl-5">
-      <h3 class="title-medium">Lifecycle and discovery</h3>
+      <h3 class="title-medium">Publishing and who can find it</h3>
       <p class="body-small text-on-surface-variant mt-1">
         Each action below requires a reason recorded in the change history.
       </p>
       <mat-form-field class="mt-4 w-full">
-        <mat-label>Action reason</mat-label>
+        <mat-label>Reason for this action</mat-label>
         <textarea
           matInput
           rows="3"
@@ -1236,11 +1243,12 @@
 
       @if (event.registrationOptions.length === 0) {
         <section class="border-outline-variant mt-3 grid gap-2 border-t pt-3">
-          <h3 class="title-small">Announcement discovery</h3>
+          <h3 class="title-small">Who can find this announcement</h3>
           <p class="body-small text-on-surface-variant">
-            Selected roles find this announcement in the event list. This does
-            not restrict direct links, grant access, or send notifications. With
-            no roles selected, the announcement is link-only.
+            Members with a selected role see this announcement in Events. People
+            with the direct link can still open it. Selecting roles does not
+            change anyone's access or send them a message. Without a selected
+            role, only people with the direct link can find it.
           </p>
           @if (formOptionsQuery.isSuccess()) {
             @for (role of formOptionsQuery.data().roles; track role.id) {
@@ -1258,7 +1266,7 @@
             </p>
           } @else {
             <p class="body-small text-on-surface-variant" role="status">
-              Loading organization roles...
+              Loading organization roles…
             </p>
           }
           <button
@@ -1271,7 +1279,7 @@
             "
             (click)="saveAnnouncementDiscovery()"
           >
-            Save announcement discovery
+            Save who can find it
           </button>
         </section>
       }
@@ -1282,7 +1290,7 @@
         [routerLink]="['/global-admin/tenants', tenantId(), 'scanner']"
         [queryParams]="{ eventId: event.id }"
       >
-        Inspect registrations
+        Ticket support
       </a>
     </aside>
   </div>

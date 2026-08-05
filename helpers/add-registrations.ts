@@ -374,7 +374,7 @@ export async function addRegistrations(
         if (option.isPaid && paymentState) {
           transactions.push({
             amount: option.price,
-            comment: `Registration for event ${event.title}`,
+            comment: `Ticket for ${event.title}`,
             currency,
             eventId: event.id,
             eventRegistrationId: registrationId,

@@ -16,8 +16,8 @@ import {
 } from '../../../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import {
   platformAuditActionLabel,
+  platformAuditChangedRows,
   PlatformAuditComponent,
-  platformAuditSnapshotRows,
   platformAuditTargetLabel,
 } from './platform-audit.component';
 
@@ -29,29 +29,23 @@ const makeAuditRecord = (options: {
 }): GlobalAdminPlatformAuditRecord => ({
   action: 'role.update',
   actorEmail: 'platform@example.org',
-  actorId: 'auth0|platform-admin',
   after: {
-    resourceId: 'role-1',
     resourceType: 'role',
     state: {
-      lastError: 'raw provider failure',
       name: 'Event coordinator',
-      permissions: ['events:manage', 'registrations:checkIn'],
-      providerPayload: { secret: 'provider response body' },
+      permissions: ['events:create', 'events:viewPublic'],
     },
   },
   before: {
-    resourceId: 'role-1',
     resourceType: 'role',
     state: {
       name: 'Event helper',
-      permissions: ['registrations:checkIn'],
+      permissions: ['events:viewPublic'],
     },
   },
   createdAt: '2026-07-15T14:30:00.000Z',
   id: options.id,
   reason: options.reason,
-  targetTenantId: 'tenant-1',
   targetTenantName: 'Section',
 });
 
@@ -64,14 +58,17 @@ describe('platformAuditActionLabel', () => {
       'Organization settings updated',
     );
     expect(platformAuditActionLabel('refundClaim.requeue')).toBe(
-      'Registration refund requeued',
+      'Refund continued',
     );
     expect(platformAuditActionLabel('event.updateAnnouncementDiscovery')).toBe(
-      'Event announcement discovery changed',
+      'Who can find the announcement changed',
+    );
+    expect(platformAuditActionLabel('taxRates.import')).toBe(
+      'Tax rates checked',
     );
   });
 
-  it('keeps raw errors out and exposes investigation identifiers', () => {
+  it('keeps raw errors and implementation identifiers out', () => {
     const source = readFileSync(
       nodePath.join(
         process.cwd(),
@@ -89,20 +86,24 @@ describe('platformAuditActionLabel', () => {
 
     expect(source).not.toContain('getErrorMessage');
     expect(template).not.toContain('errorMessage(');
-    expect(template).toContain('entry.actorId');
-    expect(template).toContain('entry.targetTenantId');
-    expect(template).toContain('before.resourceId');
-    expect(template).toContain('after.resourceId');
-    expect(template).toContain('Administrator email unavailable');
+    expect(template).not.toContain('entry.actorId');
+    expect(template).not.toContain('entry.targetTenantId');
+    expect(template).not.toContain('before.resourceId');
+    expect(template).not.toContain('after.resourceId');
+    expect(template).not.toContain('row.value');
+    expect(template).not.toContain('No listed fields');
+    expect(template).toContain('This change summary is unavailable.');
+    expect(template).toContain('Contact Evorto support');
+    expect(template).toContain('the organization and time shown above.');
+    expect(template).toContain('Administrator unavailable');
   });
 
-  it('uses a readable organization name alongside explicit authority ids', () => {
+  it('uses a readable organization name', () => {
     expect(
       platformAuditTargetLabel({
         after: {
-          resourceId: 'tenant-1',
           resourceType: 'tenant',
-          state: { id: 'tenant-1', name: 'Target tenant' },
+          state: { name: 'Target tenant' },
         },
         before: null,
         targetTenantName: null,
@@ -111,14 +112,12 @@ describe('platformAuditActionLabel', () => {
     expect(
       platformAuditTargetLabel({
         after: {
-          resourceId: 'event-1',
           resourceType: 'event',
-          state: { id: 'event-1', status: 'APPROVED' },
+          state: { status: 'APPROVED' },
         },
         before: {
-          resourceId: 'event-1',
           resourceType: 'event',
-          state: { id: 'event-1', status: 'PENDING_REVIEW' },
+          state: { status: 'PENDING_REVIEW' },
         },
         targetTenantName: 'Example Organization',
       }),
@@ -133,45 +132,187 @@ describe('platformAuditActionLabel', () => {
   });
 });
 
-describe('platformAuditSnapshotRows', () => {
-  it('formats useful values and hides internal identifiers', () => {
+describe('platformAuditChangedRows', () => {
+  it.each([
+    ['approved', 'Approved'],
+    ['rejected', 'Rejected'],
+  ] as const)(
+    'describes a submitted receipt changing to %s',
+    (status, label) => {
+      expect(
+        platformAuditChangedRows({
+          after: {
+            resourceType: 'receipt',
+            state: { currency: 'EUR', status },
+          },
+          before: {
+            resourceType: 'receipt',
+            state: { currency: 'EUR', status: 'submitted' },
+          },
+        }),
+      ).toEqual([{ after: label, before: 'Submitted', label: 'Status' }]);
+    },
+  );
+
+  it('describes payment readiness without exposing account details', () => {
     expect(
-      platformAuditSnapshotRows({
-        resourceId: 'refund-1',
-        resourceType: 'refundClaim',
-        state: {
-          amount: 1250,
-          currency: 'EUR',
-          generation: 2,
-          refundClaimId: 'refund-1',
-          status: 'needs_attention',
-          transferId: 'transfer-1',
+      platformAuditChangedRows({
+        after: {
+          resourceType: 'tenant',
+          state: { paymentsConfigured: true },
+        },
+        before: {
+          resourceType: 'tenant',
+          state: { paymentsConfigured: false },
         },
       }),
     ).toEqual([
-      { label: 'Amount', value: '12,50 €' },
-      { label: 'Currency', value: 'EUR' },
-      { label: 'Status', value: 'needs attention' },
+      { after: 'Ready', before: 'Not ready', label: 'Paid sign-ups' },
     ]);
   });
 
-  it('shows permission changes without exposing error or provider payload fields', () => {
+  it('describes a tax-rate refresh even when the total stays the same', () => {
     expect(
-      platformAuditSnapshotRows({
-        resourceId: 'role-1',
-        resourceType: 'role',
-        state: {
-          lastError: 'raw provider failure',
-          permissions: ['events:manage', 'registrations:checkIn'],
-          providerPayload: { secret: 'provider response body' },
+      platformAuditChangedRows({
+        after: {
+          resourceType: 'taxRateBatch',
+          state: { taxRateCount: 2, taxRateUpdatedCount: 1 },
+        },
+        before: {
+          resourceType: 'taxRateBatch',
+          state: { taxRateCount: 2 },
+        },
+      }),
+    ).toEqual([{ after: '1', before: 'Not set', label: 'Tax rates updated' }]);
+  });
+
+  it('describes a real refund continuation without exposing recovery details', () => {
+    expect(
+      platformAuditChangedRows({
+        action: 'refundClaim.requeue',
+        after: {
+          resourceType: 'refundClaim',
+          state: {
+            status: 'pending',
+            transferStatus: 'refund_pending',
+          },
+        },
+        before: {
+          resourceType: 'refundClaim',
+          state: {
+            status: 'pending',
+            transferStatus: 'refund_failed',
+          },
         },
       }),
     ).toEqual([
       {
-        label: 'Permissions',
-        value: 'events:manage, registrations:checkIn',
+        after: 'Started again',
+        before: 'Needed attention',
+        label: 'Refund',
       },
     ]);
+  });
+
+  it('uses the friendly organization time-zone label', () => {
+    expect(
+      platformAuditChangedRows({
+        after: {
+          resourceType: 'tenant',
+          state: { timezone: 'Europe/Berlin' },
+        },
+        before: {
+          resourceType: 'tenant',
+          state: { timezone: 'America/New_York' },
+        },
+      }),
+    ).toEqual([
+      { after: 'Berlin time', before: 'New York time', label: 'Time zone' },
+    ]);
+  });
+
+  it('uses readable permission labels', () => {
+    expect(
+      platformAuditChangedRows({
+        after: {
+          resourceType: 'role',
+          state: {
+            permissions: ['events:create', 'events:viewPublic'],
+          },
+        },
+        before: {
+          resourceType: 'role',
+          state: {
+            permissions: ['events:viewPublic'],
+          },
+        },
+      }),
+    ).toEqual([
+      {
+        after: 'Create events, View public events',
+        before: 'View public events',
+        label: 'Role permissions',
+      },
+    ]);
+  });
+
+  it('omits a row when changed permission details have the same safe display', () => {
+    expect(
+      platformAuditChangedRows({
+        after: {
+          resourceType: 'role',
+          state: {
+            permissions: ['unrecognized:after'],
+          },
+        },
+        before: {
+          resourceType: 'role',
+          state: {
+            permissions: ['unrecognized:before'],
+          },
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it('uses plain copy when an access setting cannot be shown', () => {
+    expect(
+      platformAuditChangedRows({
+        after: {
+          resourceType: 'role',
+          state: {
+            permissions: ['unrecognized:after'],
+          },
+        },
+        before: {
+          resourceType: 'role',
+          state: {
+            permissions: [],
+          },
+        },
+      }),
+    ).toEqual([
+      {
+        after: 'This role includes an access setting that cannot be shown',
+        before: 'No permissions',
+        label: 'Role permissions',
+      },
+    ]);
+  });
+
+  it('requires investigation when no displayable details were recorded', () => {
+    expect(
+      platformAuditChangedRows({
+        after: {
+          resourceType: 'role',
+          state: {},
+        },
+        before: {
+          resourceType: 'role',
+          state: {},
+        },
+      }),
+    ).toEqual([]);
   });
 });
 
@@ -229,7 +370,7 @@ describe('PlatformAuditComponent pagination', () => {
     TestBed.resetTestingModule();
   });
 
-  it('loads older entries and displays only safe investigation evidence', async () => {
+  it('loads older entries and displays only business-readable details', async () => {
     const nextCursor: GlobalAdminPlatformAuditCursor = {
       createdAt: '2026-07-15T14:30:00.000Z',
       id: 'audit-050',
@@ -254,10 +395,17 @@ describe('PlatformAuditComponent pagination', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       const text = normalizedText(fixture);
-      expect(text).toContain('auth0|platform-admin');
-      expect(text).toContain('tenant-1');
-      expect(text).toContain('role · role-1');
-      expect(text).toContain('events:manage, registrations:checkIn');
+      expect(text).toContain('platform@example.org');
+      expect(text).toContain('Section');
+      expect(text).toContain('Name');
+      expect(text).toContain('Event helper');
+      expect(text).toContain('Event coordinator');
+      expect(text).toContain('Role permissions');
+      expect(text).toContain('Create events, View public events');
+      expect(text).not.toContain('auth0|platform-admin');
+      expect(text).not.toContain('tenant-1');
+      expect(text).not.toContain('role-1');
+      expect(text).not.toContain('events:create');
       expect(text).not.toContain('raw provider failure');
       expect(text).not.toContain('provider response body');
     });
@@ -269,9 +417,7 @@ describe('PlatformAuditComponent pagination', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(loadOlder.disabled).toBe(true);
-      expect(normalizedText(fixture)).toContain(
-        'Loading older platform changes...',
-      );
+      expect(normalizedText(fixture)).toContain('Loading older changes…');
     });
 
     resolveOlder?.({
@@ -317,7 +463,7 @@ describe('PlatformAuditComponent pagination', () => {
       const text = normalizedText(fixture);
       expect(text).toContain('Current change');
       expect(text).toContain(
-        'Older platform changes could not be loaded. The entries above are still available.',
+        'Older changes could not be loaded. The entries above are still available.',
       );
       expect(text).not.toContain('provider response body');
       expect(buttonByText(fixture, 'Load older').disabled).toBe(false);

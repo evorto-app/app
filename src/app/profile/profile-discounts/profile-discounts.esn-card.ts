@@ -1,48 +1,48 @@
 import type { DiscountCardRecord } from '@shared/rpc-contracts/app-rpcs/discounts.rpcs';
 
-type EsnCardMutationAction = 'refresh' | 'remove' | 'save';
+export type EsnCardMutationAction = 'refresh' | 'remove' | 'save';
 
 const esnCardFallbackMessages = {
-  refresh: "We couldn't refresh this ESN card. Try again.",
-  remove: "We couldn't remove this ESN card. Try again.",
-  save: "We couldn't check this ESN card. Check the number and try again.",
+  refresh:
+    "We couldn't check this ESNcard again, so it was not changed. Select Check again to try again.",
+  remove:
+    "We couldn't remove this ESNcard, so it is still saved. Select Remove to try again.",
+  save: "We couldn't check this ESNcard, so it was not saved. Check the number, then select Save ESNcard to try again.",
 } as const satisfies Record<EsnCardMutationAction, string>;
 
-const taggedErrorField = (
-  error: unknown,
-  field: '_tag' | 'reason',
-): string | undefined => {
+const taggedErrorName = (error: unknown): string | undefined => {
   if (!error || typeof error !== 'object') return;
-  const value = Reflect.get(error, field);
+  const value = Reflect.get(error, '_tag');
   return typeof value === 'string' ? value : undefined;
 };
+
+export const isEsnCardNotFoundError = (error: unknown): boolean =>
+  taggedErrorName(error) === 'DiscountCardNotFoundError';
 
 export const esnCardMutationErrorMessage = (
   action: EsnCardMutationAction,
   error: unknown,
 ): string => {
-  const tag = taggedErrorField(error, '_tag');
+  const tag = taggedErrorName(error);
 
   switch (tag) {
     case 'DiscountCardConflictError': {
-      return 'This ESN card is already linked to another account in this organization.';
+      return 'This ESNcard is already linked to another account in this organization, so it was not saved.';
     }
     case 'DiscountCardNotFoundError': {
-      return 'This ESN card is no longer saved. Reload the page to see your current cards.';
+      return 'This ESNcard is no longer saved. Checking your current cards…';
     }
     case 'RpcBadRequestError': {
-      return taggedErrorField(error, 'reason')?.startsWith('provider-')
-        ? 'ESN card verification is temporarily unavailable. Try again later.'
-        : esnCardFallbackMessages[action];
+      return esnCardFallbackMessages[action];
     }
     case 'RpcForbiddenError': {
-      return 'ESN card discounts are not available for this organization.';
+      return 'ESNcard discounts are not available for this organization, so no card was changed.';
     }
     case 'RpcInternalServerError': {
-      return 'ESN card verification is temporarily unavailable. Try again later.';
+      return esnCardFallbackMessages[action];
     }
     case 'RpcUnauthorizedError': {
-      return 'Your session expired. Sign in again to manage your ESN card.';
+      return 'You were signed out, so no ESNcard was changed. Sign in again to manage it.';
     }
     default: {
       return esnCardFallbackMessages[action];
@@ -56,13 +56,13 @@ export const esnCardActionLabel = (
 ): string => {
   switch (action) {
     case 'refresh': {
-      return pending ? 'Refreshing...' : 'Refresh';
+      return pending ? 'Checking…' : 'Check again';
     }
     case 'remove': {
-      return pending ? 'Removing...' : 'Remove';
+      return pending ? 'Removing…' : 'Remove';
     }
     case 'save': {
-      return pending ? 'Checking ESN card...' : 'Save ESN card';
+      return pending ? 'Checking ESNcard…' : 'Save ESNcard';
     }
   }
 };

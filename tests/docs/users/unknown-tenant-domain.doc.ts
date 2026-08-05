@@ -17,12 +17,11 @@ test('Recover from an unknown organization link', async ({
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="No account is required" %}
-This recovery page is public. It appears before Evorto can select an organization, so signing in, changing accounts, or creating another registration cannot repair the address.
+This page is public. Signing in, changing accounts, or starting another sign-up will not fix an incorrect organization address.
 {% /callout %}
 
-# Recover from an unknown Evorto organization link
 
-You may reach this page after typing an organization address, opening an old bookmark, following an outdated event link, or scanning a QR code whose organization address has changed. Evorto returns a real **404 Not Found** page and does not reveal whether another organization or account exists.
+You may reach this page after typing an organization address, opening an old bookmark, following an outdated event link, or scanning a QR code whose organization address has changed. Evorto shows **This link does not match an Evorto organization** when it cannot find an organization for the address.
 `,
   });
 
@@ -38,25 +37,25 @@ You may reach this page after typing an organization address, opening an old boo
     }),
   ).toBeVisible();
   await expect(
-    page.getByText('Your account and registrations have not been changed.'),
+    page.getByText('Your account and tickets have not changed.'),
   ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'What to do' })).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.locator('main'),
     page,
-    'Unknown organization link recovery',
+    'Help for an unknown organization link',
   );
 
   await testInfo.attach('markdown', {
     body: `
 ## What to do
 
-1. Return to the latest event email or invitation and open its complete link without editing the organization part of the address.
+1. Open the complete link from the latest email, invitation, or message that contained it without editing the organization part of the address.
 2. If you typed the address, check it for a missing or misspelled organization name.
-3. Ask the event organizer for the organization's current Evorto link.
+3. Ask the person or organization that shared the link for the current Evorto address.
 
-If a QR code led here, do not change the encoded link and do not create a replacement registration. Show the error to an organizer so they can confirm whether the organization address changed and provide a current ticket link. The message **Your account and registrations have not been changed** confirms that the failed lookup did not alter anything.
+If a QR code led here, ask the person running the activity for the current Evorto link for this event. **Your account and tickets have not changed** confirms that nothing was altered.
 `,
   });
 });

@@ -150,7 +150,8 @@ const logReceiptStorageFailure = (operation: string, error: unknown) =>
 
 const receiptMediaServiceUnavailable = () =>
   new ReceiptMediaServiceUnavailableError({
-    message: 'Receipt storage is unavailable',
+    message:
+      'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
   });
 
 const verifyBoundReceiptEvidence = Effect.fn(
@@ -198,7 +199,7 @@ export const ensureReceiptEvidenceAvailableForApproval = Effect.fn(
     );
     return yield* new RpcBadRequestError({
       message:
-        'Receipt evidence is unavailable or does not match this submission',
+        'The receipt file is no longer available. Ask the person who submitted it to add it again.',
       reason: 'receiptEvidenceUnavailable',
     });
   }
@@ -206,7 +207,8 @@ export const ensureReceiptEvidenceAvailableForApproval = Effect.fn(
   const evidence = yield* verifyBoundReceiptEvidence(binding);
   if (!evidence) {
     return yield* new RpcBadRequestError({
-      message: 'Receipt evidence is unavailable and cannot be approved',
+      message:
+        'The receipt file is no longer available. Ask the person who submitted it to add it again.',
       reason: 'receiptEvidenceUnavailable',
     });
   }
@@ -384,7 +386,8 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
         if (input.expiresAt.getTime() <= input.now.getTime()) {
           return yield* Effect.fail(
             new ReceiptMediaBadRequestError({
-              message: 'Receipt upload expiry must be in the future',
+              message:
+                'This receipt file was not saved in time. Add the file again.',
             }),
           );
         }
@@ -430,7 +433,8 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
           if (!isAllowedReceiptMimeType(input.mimeType)) {
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
-                message: 'Unsupported receipt MIME type',
+                message:
+                  'This file cannot be used as a receipt. Choose another file.',
               }),
             );
           }
@@ -440,7 +444,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
                 message:
-                  'Receipt upload key does not match its authorization scope',
+                  'This receipt file no longer belongs to this receipt. Add the file again.',
               }),
             );
           }
@@ -460,7 +464,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
                 message:
-                  'Uploaded receipt size does not match its signed policy',
+                  'This receipt file no longer matches the selected file. Add the file again.',
               }),
             );
           }
@@ -468,7 +472,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             return yield* Effect.fail(
               new ReceiptMediaBadRequestError({
                 message:
-                  'Uploaded receipt content does not match its declared type',
+                  'This file cannot be used as a receipt. Choose another file.',
               }),
             );
           }

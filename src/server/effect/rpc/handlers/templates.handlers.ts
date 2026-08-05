@@ -82,7 +82,7 @@ export const templateHandlers = {
           Effect.catchTag('RpcBadRequestError', () =>
             Effect.fail(
               new TemplateSimpleNotFoundError({
-                message: 'Template not found',
+                message: 'This template no longer exists. Return to Templates.',
               }),
             ),
           ),
@@ -163,7 +163,7 @@ export const templateHandlers = {
                 )
                 .for('update');
               if (lockedTemplates.length === 0) {
-                return yield* Effect.fail(templateGraphNotFoundError(id));
+                return yield* Effect.fail(templateGraphNotFoundError());
               }
 
               const before = yield* loadTemplateGraphDetail(
