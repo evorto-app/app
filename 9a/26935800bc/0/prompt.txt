@@ -80,3 +80,7 @@ Explain to me announcements again
 ---
 
 Make sure to keep technical wording out of the entire application and automatically generated docs, the users should not be concerned with that
+
+---
+
+Feel free to reset docker as hard as you have to, ideally find out why it keeps getting stuck and solve that more permanently
