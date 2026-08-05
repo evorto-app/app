@@ -57,10 +57,14 @@ export const templateCategoryMutationErrorMessage = (
     typeof error === 'object' &&
     Reflect.get(error, 'permission') === 'templates:manageCategories'
   ) {
-    return 'You no longer have permission to manage template categories. Reload the page to refresh your access, or ask an administrator for this permission.';
+    return 'You can no longer manage template categories. No change was saved. Ask an administrator if you need this access.';
   }
 
-  return getErrorMessage(error, 'Template category could not be saved');
+  return getErrorMessage(
+    error,
+    "We couldn't save this template category. Try again.",
+    ['TemplateCategoryNotFoundError'],
+  );
 };
 
 @Component({
@@ -92,7 +96,7 @@ export class CategoryListComponent {
   );
   protected readonly templateCategoryGroupsErrorMessage = computed(() => {
     const error = this.templateCategoryGroupsQuery.error();
-    return getErrorMessage(error, 'Unknown error');
+    return getErrorMessage(error, 'Template categories could not be loaded.');
   });
   private createCategoryMutation = injectMutation(() =>
     this.appRpc.templateCategories.create.mutationOptions(),

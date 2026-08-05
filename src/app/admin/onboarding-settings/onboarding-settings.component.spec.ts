@@ -26,7 +26,7 @@ describe('tenant onboarding settings', () => {
   it('uses the same option count and length limits as the server', () => {
     expect(onboardingOptionsValidationMessage('One\nTwo')).toBeUndefined();
     expect(onboardingOptionsValidationMessage('Only one')).toBe(
-      'Selection questions require between 2 and 20 options.',
+      'Add between 2 and 20 choices.',
     );
     expect(
       onboardingOptionsValidationMessage(
@@ -34,15 +34,16 @@ describe('tenant onboarding settings', () => {
           '\n',
         ),
       ),
-    ).toBe('Selection questions require between 2 and 20 options.');
+    ).toBe('Add between 2 and 20 choices.');
     expect(onboardingOptionsValidationMessage(`${'x'.repeat(81)}\nTwo`)).toBe(
-      'Selection options must be no longer than 80 characters.',
+      'Each choice must be 80 characters or fewer.',
     );
   });
 
   it('explains accepted policy links and selection limits in the form', () => {
-    expect(template).toContain('an external HTTP or HTTPS link');
-    expect(template).toContain('2 to 20 unique options, up to 80 characters');
+    expect(template).toContain('link to it on another website');
+    expect(template).toContain('2 to 20 different choices');
+    expect(template).toContain('placeholder="Choice one&#10;Choice two"');
     expect(template).toContain('question.optionsText().errors()');
     expect(template).toContain('<mat-error>{{ error.message }}</mat-error>');
   });
@@ -63,7 +64,7 @@ describe('tenant onboarding settings', () => {
         questionsChanged: false,
       }),
     ).toBe(
-      'Privacy policy version 3 published. 12 members must accept it before continuing.',
+      'Privacy policy updated. 12 members must accept the new policy before continuing.',
     );
   });
 
@@ -76,7 +77,7 @@ describe('tenant onboarding settings', () => {
         questionsChanged: true,
       }),
     ).toBe(
-      'Onboarding questions updated. Members with missing answers will be prompted before continuing.',
+      'Questions updated. Members who have not answered them will be asked before continuing.',
     );
   });
 });

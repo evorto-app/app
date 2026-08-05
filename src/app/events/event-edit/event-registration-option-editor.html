@@ -2,7 +2,7 @@
 <article class="border-outline-variant bg-surface rounded-xl border p-4">
   <div class="mb-4 flex flex-wrap items-start gap-3">
     <mat-form-field class="min-w-56 flex-1">
-      <mat-label>Option name</mat-label>
+      <mat-label>Sign-up choice name</mat-label>
       <input matInput [formField]="option.title" />
       @if (option.title().touched() && option.title().errors()[0]; as error) {
         <mat-error>{{ error.message }}</mat-error>
@@ -15,7 +15,7 @@
         class="mt-1"
         (click)="removeRequested.emit()"
       >
-        Remove option
+        Remove choice
       </button>
     }
   </div>
@@ -23,7 +23,7 @@
   <div class="grid gap-5">
     <section class="grid gap-4 md:grid-cols-2">
       <mat-form-field>
-        <mat-label>Registration mode</mat-label>
+        <mat-label>How sign-ups are confirmed</mat-label>
         <mat-select [formField]="option.registrationMode">
           @for (mode of registrationModes; track mode) {
             <mat-option [value]="mode">{{
@@ -34,7 +34,7 @@
       </mat-form-field>
 
       <mat-form-field>
-        <mat-label>Capacity</mat-label>
+        <mat-label>Number of places</mat-label>
         <input matInput type="number" [formField]="option.spots" />
         @if (option.spots().touched() && option.spots().errors()[0]; as error) {
           <mat-error>{{ error.message }}</mat-error>
@@ -44,25 +44,25 @@
       @if (simpleMode()) {
         <p class="text-on-surface-variant self-center text-sm">
           @if (option.organizingRegistration().value()) {
-            Organizing option
+            Organizer choice
           } @else {
-            Non-organizing option
+            Attendee choice
           }
         </p>
       } @else {
         <mat-checkbox [formField]="option.organizingRegistration">
-          Organizing or helper option
+          This choice is for organizers or helpers
         </mat-checkbox>
       }
     </section>
 
     <section class="grid gap-2">
-      <h3 class="title-medium">Eligible roles</h3>
+      <h3 class="title-medium">Who can use this choice</h3>
       <app-role-select [formField]="option.roleIds" />
     </section>
 
     <section class="grid gap-4">
-      <h3 class="title-medium">Registration window</h3>
+      <h3 class="title-medium">When sign-up is open</h3>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <mat-form-field>
           <mat-label>Opens on</mat-label>
@@ -115,9 +115,11 @@
     </section>
 
     <section class="grid gap-3">
-      <mat-checkbox [formField]="option.isPaid">Paid option</mat-checkbox>
+      <mat-checkbox [formField]="option.isPaid">
+        Charge for this choice
+      </mat-checkbox>
       <p class="text-on-surface-variant text-sm">
-        Paid options require a connected Stripe account.
+        A price can be added only when paid sign-ups are ready.
       </p>
       @if (!option.price().hidden()) {
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -141,20 +143,29 @@
           <mat-form-field>
             <mat-label>Tax rate</mat-label>
             <mat-select [formField]="option.stripeTaxRateId">
-              @if (taxRatesQuery.isPending()) {
-                <mat-option disabled>Loading tax rates...</mat-option>
-              } @else if (taxRatesQuery.isSuccess()) {
-                @for (rate of taxRatesQuery.data(); track rate.id) {
+              @if (taxRateState() === "loading") {
+                <mat-option disabled>Loading tax rates…</mat-option>
+              } @else if (taxRateState() === "error") {
+                <mat-option disabled>Tax rates are unavailable</mat-option>
+              } @else if (taxRates(); as resolvedTaxRates) {
+                @for (rate of resolvedTaxRates; track rate.id) {
                   <mat-option [value]="rate.stripeTaxRateId">
-                    {{ rate.displayName || rate.stripeTaxRateId }} —
-                    {{ rate.percentage ?? "?" }}%
+                    {{ rate.displayName || "Tax rate name unavailable" }} —
+                    {{
+                      rate.percentage === null
+                        ? "Percentage unavailable"
+                        : rate.percentage + "%"
+                    }}
                   </mat-option>
                 }
               } @else {
-                <mat-option disabled>Failed to load tax rates</mat-option>
+                <mat-option disabled>
+                  Tax rates could not be loaded. Paid prices cannot be saved
+                  until they are available.
+                </mat-option>
               }
             </mat-select>
-            <mat-hint>Inclusive tax; the shown price is final.</mat-hint>
+            <mat-hint>The shown price already includes this tax.</mat-hint>
             @if (
               option.stripeTaxRateId().touched() &&
                 option.stripeTaxRateId().errors()[0];
@@ -203,7 +214,7 @@
 
     <section class="grid gap-2">
       <span class="text-on-surface-variant text-sm">
-        Description for registered users
+        Details shown after sign-up
       </span>
       <app-editor [control]="option.registeredDescription" />
     </section>

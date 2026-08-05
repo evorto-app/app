@@ -11,7 +11,7 @@ import {
   markRegistrationTransferRefundRequeued,
   reconcileRegistrationTransferRefund,
 } from '@server/registrations/registration-transfer-refund-reconciliation';
-import { createRegistrationTransferCredentials } from '@server/registrations/registration-transfer-credentials';
+import { createRegistrationTransferClaimCode } from '@server/registrations/registration-transfer-claim-code';
 import { StripeClient } from '@server/stripe-client';
 import {
   type RegistrationRefundRequeueState,
@@ -203,7 +203,7 @@ interface PaidRegistrationTransferScenarioInput {
 }
 
 export interface PaidRegistrationTransferScenario {
-  readonly claimPath: string;
+  readonly claimCode: string;
   readonly eventId: string;
   readonly optionId: string;
   readonly recipientRegistrationId: string;
@@ -300,7 +300,7 @@ export const seedPaidRegistrationTransferScenario = async (
   const freeRedemptionEventId = createId();
   const freeCancellationEventId = createId();
   const transferId = createId();
-  const credentials = createRegistrationTransferCredentials();
+  const claimCredential = createRegistrationTransferClaimCode();
   const stripeAccountId = `acct_transfer_${transferId}`;
   const sourceStripeAccountId = `acct_transfer_source_${transferId}`;
   const checkoutSessionId = `cs_test_transfer_${recipientTransactionId}`;
@@ -341,16 +341,17 @@ export const seedPaidRegistrationTransferScenario = async (
     .where(eq(schema.tenants.id, input.tenant.id));
   await input.database.insert(schema.eventInstances).values({
     creatorId: input.source.id,
-    description: 'Deterministic paid transfer lifecycle scenario',
+    description: 'A private ticket transfer for a paid event.',
     end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
+    reviewedAt: latestServerOrWallNow(),
+    reviewedBy: input.recipient.id,
     start: startsAt,
     status: 'APPROVED',
     templateId: input.templateId,
     tenantId: input.tenant.id,
     title: input.title,
-    unlisted: true,
   });
   await input.database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,
@@ -362,11 +363,11 @@ export const seedPaidRegistrationTransferScenario = async (
     organizingRegistration: false,
     price: recipientUnitPrice,
     refundFeesOnCancellation: true,
-    registeredDescription: 'Your transferred registration is confirmed.',
+    registeredDescription: 'Your transferred ticket is confirmed.',
     registrationMode: 'fcfs',
     roleIds: [],
     spots: 10,
-    title: 'Paid participant',
+    title: 'Paid attendee',
     transferDeadlineHoursBeforeStart: 0,
   });
   const checkInTime = new Date(latestServerOrWallNow().getTime() - 60_000);
@@ -391,8 +392,7 @@ export const seedPaidRegistrationTransferScenario = async (
       allowPurchaseBeforeEvent: false,
       allowPurchaseDuringEvent: false,
       allowPurchaseDuringRegistration: true,
-      description:
-        'Included and purchased units with settled fulfillment history.',
+      description: 'A workshop kit to collect when you arrive at the event.',
       eventId,
       id: paidAddonId,
       isPaid: true,
@@ -407,7 +407,7 @@ export const seedPaidRegistrationTransferScenario = async (
       allowPurchaseBeforeEvent: false,
       allowPurchaseDuringEvent: false,
       allowPurchaseDuringRegistration: true,
-      description: 'Free optional units with settled fulfillment history.',
+      description: 'A printed checklist to help you prepare for the event.',
       eventId,
       id: freeAddonId,
       isPaid: false,
@@ -510,12 +510,12 @@ export const seedPaidRegistrationTransferScenario = async (
         expiresAt: Math.floor(checkoutExpiresAt.getTime() / 1000),
         lineItems: [
           {
-            name: `Registration fee for ${input.title}`,
+            name: `Ticket for ${input.title}`,
             quantity: 1,
             unitAmount: recipientUnitPrice,
           },
           {
-            name: `Guest registration fee for ${input.title}`,
+            name: `Guest ticket for ${input.title}`,
             quantity: 1,
             unitAmount: recipientUnitPrice,
           },
@@ -821,19 +821,15 @@ export const seedPaidRegistrationTransferScenario = async (
       tenantId: input.tenant.id,
     });
   await input.database.insert(schema.registrationTransfers).values({
-    claimCodeHash: credentials.claimCodeHash,
-    claimTokenHash: credentials.claimTokenHash,
+    claimCodeHash: claimCredential.claimCodeHash,
     eventId,
     expiresAt: checkoutExpiresAt,
     id: transferId,
     recipientCheckoutTransactionId: recipientTransactionId,
     recipientBasePrice: recipientUnitPrice,
     recipientDiscountAmount: 0,
-    recipientRegistrationId: sourceRegistrationId,
-    recipientSpotCount: 2,
     recipientUserId: input.recipient.id,
     registrationOptionId: optionId,
-    reservedAdditionalSpots: 0,
     sourceRegistrationId,
     sourceSpotCount: 2,
     sourceUserId: input.source.id,
@@ -1363,7 +1359,7 @@ export const seedPaidRegistrationTransferScenario = async (
 
   return {
     cancelInheritedAddon,
-    claimPath: `/registration-transfers/${credentials.claimToken}`,
+    claimCode: claimCredential.claimCode,
     cleanup,
     completeCheckout,
     completeSourceRefunds,

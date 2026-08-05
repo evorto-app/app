@@ -1,7 +1,13 @@
 import { describe, expect, it } from '@effect/vitest';
+import {
+  EventRegistrationConflictError,
+  EventRegistrationNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { PgDialect } from 'drizzle-orm/pg-core';
+import { Effect } from 'effect';
 
 import {
+  mapPlatformRegistrationMutationError,
   platformRegistrationActiveTransferPredicate,
   platformRegistrationCancellationBlockedReason,
   platformRegistrationCancellationRefundPreview,
@@ -106,6 +112,41 @@ const transferredRegistration = () => ({
   ],
 });
 
+describe('platform registration mutation errors', () => {
+  it.effect('directs a missing sign-up back to the event sign-up list', () =>
+    Effect.gen(function* () {
+      const error = yield* mapPlatformRegistrationMutationError(
+        new EventRegistrationNotFoundError({
+          message: 'Internal lookup details',
+        }),
+      ).pipe(Effect.flip);
+
+      expect(error).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message:
+          "This sign-up no longer exists. No changes were made. Return to the event's sign-ups and choose an existing sign-up.",
+        reason: 'registrationNotFound',
+      });
+    }),
+  );
+
+  it.effect('preserves a plain conflict outcome unchanged', () =>
+    Effect.gen(function* () {
+      const message =
+        'The selected sign-up choice is full. Choose another one or try again later.';
+      const error = yield* mapPlatformRegistrationMutationError(
+        new EventRegistrationConflictError({ message }),
+      ).pipe(Effect.flip);
+
+      expect(error).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message,
+        reason: 'registrationStateConflict',
+      });
+    }),
+  );
+});
+
 describe('platform registration cancellation refund preview', () => {
   it('blocks platform cancellation for an active source transfer', () => {
     const predicate = platformRegistrationActiveTransferPredicate({
@@ -136,7 +177,7 @@ describe('platform registration cancellation refund preview', () => {
         refundBlockedReason: null,
         status: 'CONFIRMED',
       }),
-    ).toContain('active registration transfer');
+    ).toContain('active transfer');
   });
 
   it('uses the recipient acquisition and only the unfulfilled add-on entitlement after transfer', () => {
@@ -165,8 +206,8 @@ describe('platform registration cancellation refund preview', () => {
       },
     });
 
-    expect(preview.blockedReason).toContain(
-      "current attendee's refundable payment",
+    expect(preview.blockedReason).toBe(
+      "The attendee's payment details could not be confirmed. Resolve the payment before cancelling.",
     );
     expect(preview.refund).toEqual({
       amount: null,

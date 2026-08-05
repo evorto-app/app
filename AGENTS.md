@@ -62,7 +62,7 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run docker:resume` - bring back the existing `db`, `minio`, `stripe`,
   and `evorto` containers without recreating them or rerunning the one-shot
   setup services; it refuses incomplete or unsuccessfully initialized stacks.
-- `bun run db:migrate`, `bun run db:push`, `bun run db:reset` - database commands.
+- `bun run db:push`, `bun run db:reset` - database commands.
 
 ## Local Environment
 
@@ -153,10 +153,10 @@ package scripts instead of bare `dotenv` shell commands.
   reasons to defer coverage to CI. CI confirms an already-green local result;
   it is never the first full test run.
 - After every file edit, run `bun run lint` and `bun run format:write`.
-- Lint covers application, test, helper, migration, and root TypeScript config
-  sources while excluding vendored `repos/`. Node-side helper/migration/config
-  tooling uses the shared TypeScript correctness rules without Angular UI or
-  deterministic sort-order rules.
+- Lint covers application, test, helper, and root TypeScript config sources
+  while excluding vendored `repos/`. Node-side helper/config tooling uses the
+  shared TypeScript correctness rules without Angular UI or deterministic
+  sort-order rules.
 - Markdown-only edits do not need a WebStorm `get_file_problems` pass.
 - Before calling WebStorm `get_file_problems` on edited files, run `bun run lint`.
 - After editing non-Markdown files, run WebStorm `get_file_problems` on those files when possible.
@@ -171,7 +171,9 @@ package scripts instead of bare `dotenv` shell commands.
 - Indentation: 2 spaces.
 - Filenames: `kebab-case.ts`.
 - Symbols: `camelCase` and `PascalCase`.
-- Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@types/*`.
+- Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@helpers/*`.
+- Import `src/types/**` directly; TypeScript reserves the `@types/*` package
+  namespace and rejects that path form in production builds.
 - For Effect reference and usage patterns, consult the local Effect source at `/Users/hedde/code/effect` when behavior or recommended composition is unclear.
 
 ## Commit, PR, and Release Notes

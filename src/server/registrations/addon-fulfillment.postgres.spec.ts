@@ -142,6 +142,8 @@ const seedFixture = async (
     end: new Date(now + 2 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
+    reviewedAt: new Date(now),
+    reviewedBy: userId,
     start: new Date(now - 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -181,6 +183,8 @@ const seedFixture = async (
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: 0,
+    discountAmount: 0,
     eventId,
     id: registrationId,
     registrationOptionId: optionId,
@@ -569,7 +573,7 @@ describe('add-on fulfillment concurrency', () => {
     expect(error).toMatchObject({
       _tag: 'EventRegistrationConflictError',
       message: expect.stringContaining(
-        'Current add-on acquisition components are incomplete',
+        'The saved add-on does not match its payment details',
       ),
     });
 
@@ -690,7 +694,9 @@ describe('add-on fulfillment concurrency', () => {
     );
     expect(error).toMatchObject({
       _tag: 'EventRegistrationConflictError',
-      message: expect.stringContaining('payment settlement no longer matches'),
+      message: expect.stringContaining(
+        'The saved payment total does not match this add-on',
+      ),
     });
     expect(
       await database

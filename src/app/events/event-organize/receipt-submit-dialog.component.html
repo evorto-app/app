@@ -21,20 +21,20 @@
     </mat-form-field>
 
     <div class="bg-surface-container rounded-xl border border-dashed p-4">
-      <p class="mb-2 font-medium">Receipt file</p>
+      <p class="mb-2 font-medium">Receipt image or document</p>
       <p class="text-on-surface-variant mb-3 text-sm">
-        Upload one image or PDF file.
+        Choose one clear receipt image or document up to 20 MB.
       </p>
       <input
         #fileInput
         type="file"
-        accept="image/*,application/pdf"
+        [accept]="receiptFileAccept"
         class="hidden"
         (change)="onFileSelected($event)"
       />
       <div class="flex flex-wrap items-center gap-2">
         <button mat-stroked-button type="button" (click)="fileInput.click()">
-          Choose receipt file
+          Choose receipt
         </button>
         @if (file()) {
           <button mat-button type="button" (click)="clearFile()">Remove</button>

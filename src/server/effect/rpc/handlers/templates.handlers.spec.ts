@@ -10,7 +10,6 @@ import {
 } from '../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from './shared/rpc-access.service';
 import { templateHandlers } from './templates.handlers';
-import { SimpleTemplateService } from './templates/simple-template.service';
 
 const tenant = {
   currency: 'EUR' as const,
@@ -23,7 +22,6 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
@@ -35,7 +33,6 @@ const tenant = {
 };
 
 const createUser = (permissions: readonly Permission[]) => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
   email: 'alice@example.com',
   firstName: 'Alice',
@@ -65,71 +62,6 @@ const createContextLayer = (
     Layer.succeed(RpcRequestContext, requestContext),
     Layer.succeed(Database, database as never),
   );
-};
-
-const createSimpleHandlerLayer = (
-  permissions: readonly Permission[],
-  database: unknown,
-) =>
-  Layer.mergeAll(
-    createContextLayer(permissions, database),
-    SimpleTemplateService.Default,
-  );
-
-const templateInput = {
-  categoryId: 'category-1',
-  description: '<p>Useful event template description</p>',
-  icon: {
-    iconColor: 0,
-    iconName: 'calendar:fas',
-  },
-  location: null,
-  organizerRegistration: {
-    cancellationDeadlineHoursBeforeStart: null,
-    closeRegistrationOffset: 24,
-    isPaid: false,
-    openRegistrationOffset: 168,
-    price: 0,
-    refundFeesOnCancellation: null,
-    registrationMode: 'fcfs' as const,
-    roleIds: ['role-1'],
-    spots: 10,
-    stripeTaxRateId: null,
-    title: 'Organizer registration',
-    transferDeadlineHoursBeforeStart: null,
-  },
-  participantRegistration: {
-    cancellationDeadlineHoursBeforeStart: null,
-    closeRegistrationOffset: 24,
-    isPaid: false,
-    openRegistrationOffset: 168,
-    price: 0,
-    refundFeesOnCancellation: null,
-    registrationMode: 'fcfs' as const,
-    roleIds: ['role-1'],
-    spots: 10,
-    stripeTaxRateId: null,
-    title: 'Participant registration',
-    transferDeadlineHoursBeforeStart: null,
-  },
-  title: 'Template',
-};
-
-const paidZeroPriceTemplateAddonInput = {
-  allowMultiple: true,
-  allowPurchaseBeforeEvent: true,
-  allowPurchaseDuringEvent: false,
-  allowPurchaseDuringRegistration: true,
-  description: null,
-  includedQuantity: 0,
-  isPaid: true,
-  maxQuantityPerUser: 2,
-  optionalPurchaseQuantity: 1,
-  price: 0,
-  registrationOptionKind: 'participant' as const,
-  stripeTaxRateId: 'txr_vat_19',
-  title: 'Dinner',
-  totalAvailableQuantity: 10,
 };
 
 const graphInput = {
@@ -185,10 +117,9 @@ const graphInput = {
   ],
   simpleModeEnabled: true,
   title: 'Template',
-  unlisted: false,
 };
 
-const createSimpleWriteValidationDatabase = (
+const createGraphWriteValidationDatabase = (
   stripeAccountId: null | string = 'acct_connected',
 ) => {
   const transactionalDatabase = {
@@ -236,7 +167,7 @@ describe('templateHandlers permissions', () => {
     expect(
       source.indexOf('yield* lockTenantCurrencyForFinancialConfiguration'),
     ).toBeLessThan(
-      source.indexOf('yield* SimpleTemplateService.createSimpleTemplate'),
+      source.indexOf('yield* TemplateGraphService.createTemplate'),
     );
     expect(source).toContain("'templates.create'");
     expect(source).toContain("'templates.update'");
@@ -245,126 +176,6 @@ describe('templateHandlers permissions', () => {
     expect(source).toContain('loadTemplateGraphDetail');
     expect(source).toContain('tenantId: tenant.id');
   });
-
-  it.effect('create requires templates:create', () =>
-    Effect.gen(function* () {
-      const error = yield* templateHandlers['templates.createSimpleTemplate'](
-        templateInput,
-        { headers: {} } as never,
-      ).pipe(
-        Effect.flip,
-        Effect.provide(createContextLayer(['templates:view'])),
-      );
-
-      expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('templates:create');
-    }),
-  );
-
-  it.effect('update requires templates:editAll', () =>
-    Effect.gen(function* () {
-      const error = yield* templateHandlers['templates.updateSimpleTemplate'](
-        {
-          id: 'template-1',
-          ...templateInput,
-        },
-        { headers: {} } as never,
-      ).pipe(
-        Effect.flip,
-        Effect.provide(createContextLayer(['templates:create'])),
-      );
-
-      expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('templates:editAll');
-    }),
-  );
-
-  it.effect(
-    'simple create surfaces a zero-price paid add-on as a typed bad request',
-    () =>
-      Effect.gen(function* () {
-        const error = yield* templateHandlers['templates.createSimpleTemplate'](
-          {
-            ...templateInput,
-            addOns: [paidZeroPriceTemplateAddonInput],
-          },
-          { headers: {} } as never,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            createSimpleHandlerLayer(
-              ['templates:create'],
-              createSimpleWriteValidationDatabase(),
-            ),
-          ),
-        );
-
-        expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
-        expect(error.message).toBe(
-          'Paid template add-ons require a positive price',
-        );
-      }),
-  );
-
-  it.effect(
-    'simple create rejects paid configuration when Stripe is not connected',
-    () =>
-      Effect.gen(function* () {
-        const error = yield* templateHandlers['templates.createSimpleTemplate'](
-          {
-            ...templateInput,
-            participantRegistration: {
-              ...templateInput.participantRegistration,
-              isPaid: true,
-              price: 2500,
-            },
-          },
-          { headers: {} } as never,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            createSimpleHandlerLayer(
-              ['templates:create'],
-              createSimpleWriteValidationDatabase(null),
-            ),
-          ),
-        );
-
-        expect(error).toMatchObject({
-          _tag: 'TemplateSimpleBadRequestError',
-          message:
-            'Connect Stripe before configuring paid registration options or add-ons',
-        });
-      }),
-  );
-
-  it.effect(
-    'simple update surfaces a zero-price paid add-on as a typed bad request',
-    () =>
-      Effect.gen(function* () {
-        const error = yield* templateHandlers['templates.updateSimpleTemplate'](
-          {
-            id: 'template-1',
-            ...templateInput,
-            addOns: [paidZeroPriceTemplateAddonInput],
-          },
-          { headers: {} } as never,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            createSimpleHandlerLayer(
-              ['templates:editAll'],
-              createSimpleWriteValidationDatabase(),
-            ),
-          ),
-        );
-
-        expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
-        expect(error.message).toBe(
-          'Paid template add-ons require a positive price',
-        );
-      }),
-  );
 
   it.effect('graph create requires templates:create', () =>
     Effect.gen(function* () {
@@ -398,14 +209,16 @@ describe('templateHandlers permissions', () => {
           Effect.provide(
             createContextLayer(
               ['templates:create'],
-              createSimpleWriteValidationDatabase(null),
+              createGraphWriteValidationDatabase(null),
             ),
           ),
         );
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'stripeRequiredForPaidEventConfiguration',
+          message:
+            'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
+          reason: 'paymentSetupRequired',
         });
       }),
   );
@@ -459,7 +272,10 @@ describe('templateHandlers permissions', () => {
           Effect.provide(createContextLayer(['events:create'], database)),
         );
 
-        expect(error['_tag']).toBe('TemplateSimpleNotFoundError');
+        expect(error).toMatchObject({
+          _tag: 'TemplateSimpleNotFoundError',
+          message: 'This template no longer exists. Return to Templates.',
+        });
       }),
   );
 });

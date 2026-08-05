@@ -2,15 +2,20 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import {
+  generatedGuideLanguageViolations,
+  generatedGuideLevelOneHeadingViolations,
+} from './generated-docs-language';
+
 export const documentationConsumerGuideCatalog = [
   {
     id: 'evorto:complete-your-profile',
     slug: 'complete-your-profile',
     sourceSlugs: [
-      'manage-user-profile',
-      'understand-esn-discount-card-states',
-      'manage-esn-discount-card',
-      'live-esncard-verification',
+      'manage-your-profile',
+      'understand-your-esncard-status',
+      'manage-esncard',
+      'check-your-esncard',
     ],
     title: 'Complete your profile',
   },
@@ -18,33 +23,32 @@ export const documentationConsumerGuideCatalog = [
     id: 'evorto:find-an-event',
     slug: 'find-an-event',
     sourceSlugs: [
-      'find-a-listed-event',
-      'user-understanding-unlisted-events',
-      'admin-manage-unlisted-events',
+      'find-an-event-you-can-join',
+      'choose-who-can-find-an-announcement',
       'recover-from-an-unknown-organization-link',
     ],
     title: 'Find an event',
   },
   {
-    id: 'evorto:register-for-an-event',
-    slug: 'register-for-an-event',
+    id: 'evorto:sign-up-for-an-event',
+    slug: 'sign-up-for-an-event',
     sourceSlugs: [
-      'register-for-events',
-      'without-eligible-roles',
-      'manual-approval-registrations',
+      'sign-up-for-events',
+      'when-you-cannot-sign-up',
+      'manual-approval-sign-ups',
     ],
-    title: 'Register for an event',
+    title: 'Sign up for an event',
   },
   {
-    id: 'evorto:manage-your-registration',
-    slug: 'manage-your-registration',
+    id: 'evorto:manage-your-ticket',
+    slug: 'manage-your-ticket',
     sourceSlugs: [
-      'participant-registration-cancellation',
-      'organizer-registration-cancellation',
-      'transfer-a-registration-with-a-private-offer',
-      'complete-a-paid-transfer-and-retry-a-failed-refund',
+      'cancel-a-ticket',
+      'cancel-an-attendee-as-an-organizer',
+      'transfer-your-ticket-privately',
+      'finish-a-paid-transfer-and-resolve-a-refund-problem',
     ],
-    title: 'Manage your registration',
+    title: 'Manage your ticket',
   },
   {
     id: 'evorto:create-an-event',
@@ -55,16 +59,16 @@ export const documentationConsumerGuideCatalog = [
   {
     id: 'evorto:submit-an-event-for-approval',
     slug: 'submit-an-event-for-approval',
-    sourceSlugs: ['event-approval-workflow'],
+    sourceSlugs: ['review-and-publish-an-event'],
     title: 'Submit an event for approval',
   },
   {
     id: 'evorto:run-an-event',
     slug: 'run-an-event',
     sourceSlugs: [
-      'organizer-and-helper-signup',
+      'organizer-and-helper-sign-up',
       'check-in-event-attendees',
-      'fulfill-scanned-registration-add-ons',
+      'hand-out-add-ons-from-a-scanned-ticket',
     ],
     title: 'Run an event',
   },
@@ -73,24 +77,24 @@ export const documentationConsumerGuideCatalog = [
     slug: 'first-steps',
     sourceSlugs: [
       'understand-organization-account-setup',
-      'auth0-backed-account-creation-docs',
+      'create-your-account',
       'join-another-organization-and-choose-your-home-organization',
-      'publish-and-complete-member-onboarding',
+      'choose-what-members-need-to-provide',
     ],
     title: 'First steps',
   },
   {
-    id: 'evorto:manage-your-tenant',
-    slug: 'manage-your-tenant',
+    id: 'evorto:manage-your-organization',
+    slug: 'manage-your-organization',
     sourceSlugs: [
-      'manage-organization-general-settings',
-      'publish-hosted-legal-pages-and-verify-the-signed-out-footer',
-      'choose-an-organization-default-location-with-google-maps',
+      'manage-organization-settings',
+      'publish-legal-pages',
+      'choose-an-organization-default-location',
       'manage-finances',
       'review-and-reimburse-receipts',
       'submit-an-event-receipt',
-      'review-global-email-delivery-health',
-      'review-platform-organization-administration',
+      'review-email-delivery-across-organizations',
+      'manage-organizations',
       'manage-one-organization-and-review-change-history',
       'about-permissions',
     ],
@@ -102,29 +106,30 @@ export const documentationConsumerGuideCatalog = [
     sourceSlugs: [
       'manage-template-categories',
       'manage-templates',
-      'inclusive-tax-rates-documentation-admin',
-      'inclusive-tax-rates-documentation-creators',
+      'manage-tax-rates',
+      'use-tax-rates-for-paid-sign-ups',
     ],
     title: 'Create an event template',
   },
   {
-    id: 'evorto:manage-section-users',
-    slug: 'manage-section-users',
-    sourceSlugs: [
-      'manage-organization-roles-existing-user-assignments-and-members',
-    ],
-    title: 'Manage section users',
+    id: 'evorto:manage-organization-members',
+    slug: 'manage-organization-members',
+    sourceSlugs: ['manage-members-and-roles'],
+    title: 'Manage organization members',
   },
   {
-    id: 'evorto:configure-user-data',
-    slug: 'configure-user-data',
-    sourceSlugs: ['publish-and-complete-member-onboarding'],
-    title: 'Configure user data',
+    id: 'evorto:member-information',
+    slug: 'member-information',
+    sourceSlugs: ['choose-what-members-need-to-provide'],
+    title: 'Choose what members need to provide',
   },
   {
     id: 'evorto:review-and-publish-an-event',
     slug: 'review-and-publish-an-event',
-    sourceSlugs: ['event-approval-workflow', 'admin-manage-unlisted-events'],
+    sourceSlugs: [
+      'review-and-publish-an-event',
+      'choose-who-can-find-an-announcement',
+    ],
     title: 'Review and publish an event',
   },
 ] as const;
@@ -293,6 +298,20 @@ const sourceHeading =
   /^(?<indent> {0,3})(?<marks>#{1,6})(?<space>[\t ]+)(?<text>.*)$/u;
 const fence = /^(?<indent> {0,3})(?<marks>`{3,}|~{3,})(?<tail>.*)$/u;
 
+const stripReporterOwnedTitleHeading = (
+  markdown: string,
+  title: string,
+): string => {
+  const lines = markdown.split('\n');
+  const firstContentLine = lines.findIndex((line) => line.trim().length > 0);
+  if (firstContentLine < 0 || lines[firstContentLine] !== `# ${title}`) {
+    return markdown;
+  }
+
+  lines.splice(firstContentLine, 1);
+  return lines.join('\n').trim();
+};
+
 const mapMarkdownOutsideFences = (
   markdown: string,
   transform: (line: string) => string,
@@ -350,11 +369,7 @@ const rewriteInternalDocumentationReferences = (markdown: string): string => {
   const targetSlugs = new Set(documentationConsumerGuideSlugs);
   const sourceTargets = new Map<string, Set<string>>();
   for (const guide of documentationConsumerGuideCatalog) {
-    const sourceReferences = [
-      ...guide.sourceSlugs,
-      ...('linkAliases' in guide ? guide.linkAliases : []),
-    ];
-    for (const sourceReference of sourceReferences) {
+    for (const sourceReference of guide.sourceSlugs) {
       const targets = sourceTargets.get(sourceReference) ?? new Set<string>();
       targets.add(guide.slug);
       sourceTargets.set(sourceReference, targets);
@@ -516,6 +531,17 @@ export const buildDocumentationConsumerBundle = (input: {
   for (const guide of documentationConsumerGuideCatalog) {
     const pageSections = guide.sourceSlugs.map((sourceSlug) => {
       const sourcePage = readSourcePage(input.rawDocsRoot, sourceSlug);
+      const sourceBody = stripReporterOwnedTitleHeading(
+        sourcePage.body,
+        sourcePage.title,
+      );
+      const headingViolations =
+        generatedGuideLevelOneHeadingViolations(sourceBody);
+      if (headingViolations.length > 0) {
+        throw new Error(
+          `Generated guide source ${sourceSlug} contains another level-one heading: ${headingViolations.join(', ')}`,
+        );
+      }
       copySourceAssets(
         sourceSlug,
         guide.slug,
@@ -525,7 +551,7 @@ export const buildDocumentationConsumerBundle = (input: {
       );
       const rewrittenBody = rewriteInternalDocumentationReferences(
         normalizeSourceHeadings(
-          rewriteAssetReferences(sourcePage.body, sourceSlug, guide.slug),
+          rewriteAssetReferences(sourceBody, sourceSlug, guide.slug),
         ),
       );
       for (const reference of collectLocalImageReferences(rewrittenBody)) {
@@ -535,18 +561,22 @@ export const buildDocumentationConsumerBundle = (input: {
     });
     const pageDirectory = path.join(contentRoot, guide.slug);
     fs.mkdirSync(pageDirectory, { recursive: true });
-    fs.writeFileSync(
-      path.join(pageDirectory, pageFileName),
-      [
-        `---`,
-        `title: ${JSON.stringify(guide.title)}`,
-        `---`,
-        '',
-        ...pageSections,
-      ]
-        .join('\n\n')
-        .replace(/\n{3,}/gu, '\n\n'),
-    );
+    const page = [
+      `---`,
+      `title: ${JSON.stringify(guide.title)}`,
+      `---`,
+      '',
+      ...pageSections,
+    ]
+      .join('\n\n')
+      .replace(/\n{3,}/gu, '\n\n');
+    const languageViolations = generatedGuideLanguageViolations(page);
+    if (languageViolations.length > 0) {
+      throw new Error(
+        `Generated guide ${guide.slug} contains implementation wording: ${languageViolations.join(', ')}`,
+      );
+    }
+    fs.writeFileSync(path.join(pageDirectory, pageFileName), page);
   }
 
   assertExactSet(

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from '@effect/vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 
@@ -17,7 +18,13 @@ import {
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
-import { eventQueryHandlers } from './events-query.handlers';
+import {
+  eventDiscoveryWindow,
+  eventQueryHandlers,
+  eventRegistrationOptionRoleEligibilityFilter,
+  eventRegistrationOptionsBypassEligibility,
+  eventReviewMetadata,
+} from './events-query.handlers';
 import { eventHandlers } from './events.handlers';
 
 const emptyHandlerOptions = { headers: Headers.fromInput({}) };
@@ -28,7 +35,6 @@ const tenant = {
   discountProviders: null,
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
   name: 'Tenant',
   receiptSettings: null,
   stripeAccountId: null,
@@ -37,9 +43,8 @@ const tenant = {
 };
 
 const createUser = (permissions: readonly Permission[] = []) => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
-  communicationEmail: undefined,
+  communicationEmail: 'member@example.com',
   email: 'member@example.com',
   firstName: 'Tenant',
   iban: undefined,
@@ -171,6 +176,7 @@ describe('event discount tenant isolation', () => {
           eventInstances: {
             findFirst: () =>
               Effect.succeed({
+                announcementRoleIds: ['role-internal'],
                 creatorId: 'organizer-1',
                 description: 'Tenant-scoped event',
                 end: new Date('2099-01-02T00:00:00.000Z'),
@@ -203,7 +209,6 @@ describe('event discount tenant isolation', () => {
                 status: 'APPROVED' as const,
                 statusComment: null,
                 title: 'Tenant-scoped event',
-                unlisted: false,
               }),
           },
           userDiscountCards: {
@@ -236,6 +241,39 @@ describe('event discount tenant isolation', () => {
         effectivePrice: 2000,
         esnCardDiscountedPrice: null,
       });
+      expect(event).toMatchObject({
+        announcementRoleCount: 1,
+        announcementRoleIds: null,
+        userIsCreator: false,
+      });
+      expect(event.registrationOptions[0]).not.toHaveProperty('checkedInSpots');
+      expect(event.registrationOptions[0]).not.toHaveProperty(
+        'registeredDescription',
+      );
+      expect(event.registrationOptions[0]).not.toHaveProperty('roleIds');
+      expect(event.registrationOptions[0]).not.toHaveProperty(
+        'stripeTaxRateId',
+      );
+      const announcementEditorEvent = yield* eventQueryHandlers[
+        'events.findOne'
+      ]({ id: 'event-1' }, emptyHandlerOptions).pipe(
+        Effect.provide(
+          createContextLayer({
+            database,
+            tenantOverride: {
+              ...tenant,
+              discountProviders: {
+                esnCard: { config: {}, status: 'enabled' },
+              },
+            },
+            user: createUser(['events:changeAnnouncementDiscovery']),
+          }),
+        ),
+      );
+      expect(announcementEditorEvent).toMatchObject({
+        announcementRoleCount: 1,
+        announcementRoleIds: ['role-internal'],
+      });
       expect(findCards).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
@@ -250,13 +288,125 @@ describe('event discount tenant isolation', () => {
   );
 });
 
+describe('event discovery window', () => {
+  it('keeps an event discoverable until its end instant', () => {
+    const from = new Date('2030-01-02T10:00:00.000Z');
+    const query = new PgDialect().sqlToQuery(eventDiscoveryWindow(from));
+
+    expect(query.sql).toBe('"event_instances"."end" > $1');
+    expect(query.params).toEqual([from.toISOString()]);
+  });
+});
+
+describe('event registration-option discovery eligibility', () => {
+  it('matches unrestricted options and any current viewer role', () => {
+    const condition = eventRegistrationOptionRoleEligibilityFilter({
+      allowUnrestricted: true,
+      roleIds: ['role-1', 'role-2'],
+    });
+    const query = new PgDialect().sqlToQuery(condition);
+
+    expect(query.sql).toContain(
+      'cardinality("event_registration_options"."roleIds") = 0',
+    );
+    expect(query.sql).toContain('"event_registration_options"."roleIds" && $1');
+    expect(query.params).toEqual([['role-1', 'role-2']]);
+  });
+
+  it('fails closed when an anonymous tenant has no default roles', () => {
+    const condition = eventRegistrationOptionRoleEligibilityFilter({
+      allowUnrestricted: false,
+      roleIds: [],
+    });
+    const query = new PgDialect().sqlToQuery(condition);
+
+    expect(query.sql).toBe('false');
+    expect(query.params).toEqual([]);
+  });
+
+  it('keeps unrestricted options visible to a signed-in roleless member', () => {
+    const condition = eventRegistrationOptionRoleEligibilityFilter({
+      allowUnrestricted: true,
+      roleIds: [],
+    });
+    const query = new PgDialect().sqlToQuery(condition);
+
+    expect(query.sql).toBe(
+      'cardinality("event_registration_options"."roleIds") = 0',
+    );
+    expect(query.params).toEqual([]);
+  });
+});
+
+describe('event registration-option detail authorization', () => {
+  it('bypasses discovery eligibility only for authorized non-approved event inspection', () => {
+    expect(
+      eventRegistrationOptionsBypassEligibility({
+        canEdit: false,
+        canInspectAllTenantEvents: false,
+        canReview: false,
+        canSeeDrafts: true,
+        status: 'DRAFT',
+      }),
+    ).toBe(true);
+    expect(
+      eventRegistrationOptionsBypassEligibility({
+        canEdit: false,
+        canInspectAllTenantEvents: false,
+        canReview: false,
+        canSeeDrafts: true,
+        status: 'APPROVED',
+      }),
+    ).toBe(false);
+    expect(
+      eventRegistrationOptionsBypassEligibility({
+        canEdit: false,
+        canInspectAllTenantEvents: false,
+        canReview: false,
+        canSeeDrafts: false,
+        status: 'PENDING_REVIEW',
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('event review metadata projection', () => {
+  const metadata = {
+    reviewer: { firstName: 'Review', lastName: 'Admin' },
+    statusComment: 'Internal review note',
+  };
+
+  it('removes review metadata for an ordinary or public approved-event caller', () => {
+    expect(
+      eventReviewMetadata({
+        canEdit: false,
+        canReview: false,
+        canSeeDrafts: false,
+        ...metadata,
+      }),
+    ).toEqual({
+      reviewer: null,
+      statusComment: null,
+    });
+  });
+
+  it.each([
+    { canEdit: true, canReview: false, canSeeDrafts: false },
+    { canEdit: false, canReview: true, canSeeDrafts: false },
+    { canEdit: false, canReview: false, canSeeDrafts: true },
+  ])('keeps review metadata for an authorized caller', (authority) => {
+    expect(eventReviewMetadata({ ...authority, ...metadata })).toEqual(
+      metadata,
+    );
+  });
+});
+
 describe('eventHandlers composition', () => {
   it('contains the full events rpc handler set', () => {
     expect(Object.keys(eventHandlers).toSorted()).toEqual([
       'events.approveRegistration',
       'events.canOrganize',
       'events.cancelEventRegistration',
-      'events.cancelPendingRegistration',
       'events.cancelRegistration',
       'events.cancelRegistrationAddon',
       'events.checkInRegistration',
@@ -264,7 +414,6 @@ describe('eventHandlers composition', () => {
       'events.eventList',
       'events.findGraphForEdit',
       'events.findOne',
-      'events.findOneForEdit',
       'events.findTransferTargets',
       'events.getOrganizeOverview',
       'events.getPendingReviews',
@@ -276,14 +425,13 @@ describe('eventHandlers composition', () => {
       'events.redeemRegistrationAddon',
       'events.registerForEvent',
       'events.registrationScanned',
+      'events.retryRegistrationCheckout',
       'events.reviewEvent',
       'events.submitForReview',
       'events.transferEventRegistration',
-      'events.transferMyRegistration',
       'events.undoRegistrationAddonRedemption',
-      'events.update',
+      'events.updateAnnouncementDiscovery',
       'events.updateGraph',
-      'events.updateListing',
     ]);
   });
 });

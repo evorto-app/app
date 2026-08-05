@@ -6,52 +6,35 @@ import {
   schema,
   validate,
 } from '@angular/forms/signals';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import { TemplateGraphRegistrationOptionFormModel } from './template-graph-form.model';
 
 export const templateGraphRegistrationOptionFormSchema =
   schema<TemplateGraphRegistrationOptionFormModel>((registration) => {
     required(registration.title, {
-      message: 'Enter a registration option name.',
+      message: 'Enter a sign-up choice name.',
     });
     validate(registration.title, ({ value }) =>
       value().trim()
         ? undefined
         : {
             kind: 'required',
-            message: 'Enter a registration option name.',
+            message: 'Enter a sign-up choice name.',
           },
     );
-    validate(registration.description, ({ value }) =>
-      hasTemporaryRichTextImageSources(value())
-        ? {
-            kind: 'richTextPendingUpload',
-            message: 'Wait for image uploads to finish before saving.',
-          }
-        : undefined,
-    );
-    validate(registration.registeredDescription, ({ value }) =>
-      hasTemporaryRichTextImageSources(value())
-        ? {
-            kind: 'richTextPendingUpload',
-            message: 'Wait for image uploads to finish before saving.',
-          }
-        : undefined,
-    );
     required(registration.closeRegistrationOffset, {
-      message: 'Enter a closing offset.',
+      message: 'Choose when sign-up closes.',
     });
     min(registration.closeRegistrationOffset, 0);
     required(registration.openRegistrationOffset, {
-      message: 'Enter an opening offset.',
+      message: 'Choose when sign-up opens.',
     });
     min(registration.openRegistrationOffset, 0);
     validate(registration.closeRegistrationOffset, ({ value, valueOf }) =>
       value() > valueOf(registration.openRegistrationOffset)
         ? {
             kind: 'registrationWindowOrder',
-            message: 'Registration must open before it closes.',
+            message: 'Sign-up must open before it closes.',
           }
         : undefined,
     );
@@ -60,15 +43,15 @@ export const templateGraphRegistrationOptionFormSchema =
       when: ({ valueOf }) => valueOf(registration.isPaid),
     });
     min(registration.price, 1, {
-      message: 'Paid registrations must cost at least 0.01.',
+      message: 'A paid choice must cost at least 0.01.',
     });
-    required(registration.spots, { message: 'Enter available spots.' });
+    required(registration.spots, { message: 'Enter the number of places.' });
     min(registration.spots, 1);
     minLength(registration.roleIds, 1, {
-      message: 'Select at least one eligible role.',
+      message: 'Choose who can use this sign-up choice.',
     });
     required(registration.stripeTaxRateId, {
-      message: 'Select an inclusive tax rate.',
+      message: 'Select the tax included in the shown price.',
       when: ({ valueOf }) => valueOf(registration.isPaid),
     });
     hidden(registration.price, ({ valueOf }) => !valueOf(registration.isPaid));
@@ -104,7 +87,7 @@ export const templateGraphRegistrationOptionFormSchema =
       return discountedPrice > valueOf(registration.price)
         ? {
             kind: 'max',
-            message: 'Discounted price cannot exceed the base price.',
+            message: 'Discounted price cannot exceed the regular price.',
           }
         : undefined;
     });

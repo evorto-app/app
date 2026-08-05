@@ -10,8 +10,25 @@
   <h1 class="title-large">Create template</h1>
 </div>
 <main>
-  @if (!defaultsReady()) {
-    <p role="status" aria-live="polite">Preparing template defaults...</p>
+  @if (rolesQuery.isError()) {
+    <section
+      class="bg-error-container text-on-error-container grid gap-3 p-4"
+      role="alert"
+    >
+      <p>Roles could not be loaded. Try again before creating a template.</p>
+      <div>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="rolesQuery.isFetching()"
+          (click)="rolesQuery.refetch()"
+        >
+          {{ rolesQuery.isFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
+    </section>
+  } @else if (!defaultsReady()) {
+    <p role="status" aria-live="polite">Preparing the template…</p>
   } @else {
     <form
       class="text-on-surface grid max-w-6xl gap-6"
@@ -28,36 +45,84 @@
           [generalForm]="templateForm"
           [iconUsage]="iconUsage"
         />
-        <mat-checkbox [formField]="templateForm.unlisted">
-          Hide this template from the standard template list
-        </mat-checkbox>
       </section>
 
       <section class="border-outline-variant bg-surface rounded-lg border p-4">
         @if (!stripeConnectionKnown()) {
           <p class="text-on-surface-variant mb-4 text-sm" role="status">
-            Paid controls are unavailable while the organization's Stripe status
-            is loading.
+            Payment settings are still loading, so paid choices are temporarily
+            unavailable.
           </p>
         } @else if (paidControlsUnavailable()) {
-          <p class="text-on-surface-variant mb-4 text-sm" role="status">
-            Paid controls are unavailable because this organization has no
-            connected Stripe account. Saving keeps registration options and
-            add-ons free.
+          @if (paidGraphBlocked()) {
+            <p class="text-error mb-4 text-sm" role="alert">
+              This template includes paid sign-up choices or add-ons. Paid
+              sign-ups are not ready for this organization, so it cannot be
+              saved. Contact Evorto support.
+            </p>
+          } @else {
+            <p class="text-on-surface-variant mb-4 text-sm" role="status">
+              Paid choices are unavailable because paid sign-ups are not ready
+              for this organization.
+            </p>
+          }
+        }
+        @if (discountProviderState() === "error") {
+          <div class="text-error mb-4 grid gap-2 text-sm" role="alert">
+            <p>
+              Discount settings could not be loaded. Try again before creating
+              this template.
+            </p>
+            <div>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="discountProvidersQuery.refetch()"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        }
+        @if (taxRatesQuery.isError()) {
+          <div class="text-error mb-4 grid gap-2 text-sm" role="alert">
+            <p>
+              Tax rates could not be loaded. Try again before creating this
+              template.
+            </p>
+            <div>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="taxRatesQuery.refetch()"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        }
+        @if (authoringProvidersReady()) {
+          @if (availableTaxRates(); as taxRates) {
+            <app-template-graph-editor
+              [defaultParticipantRoleIds]="defaultParticipantRoleIds()"
+              [esnEnabled]="esnEnabled()"
+              [graphForm]="templateForm"
+              [taxRates]="taxRates"
+              [taxRateState]="taxRateState()"
+            />
+          }
+        } @else if (
+          discountProviderState() !== "error" && !taxRatesQuery.isError()
+        ) {
+          <p class="text-on-surface-variant text-sm" role="status">
+            Loading discount settings and tax rates…
           </p>
         }
-        <app-template-graph-editor
-          [defaultParticipantRoleIds]="defaultParticipantRoleIds()"
-          [esnEnabled]="esnEnabled()"
-          [graphForm]="templateForm"
-          [taxRates]="taxRatesQuery.data() ?? []"
-          [taxRateState]="taxRateState()"
-        />
       </section>
 
       @if (createTemplateMutation.isError()) {
         <div class="text-error grid gap-1" role="alert">
-          <p>The template could not be saved.</p>
+          <p>{{ createErrorMessage() }}</p>
           <p>Your entries are still here. Review them and try again.</p>
         </div>
       }
@@ -69,9 +134,7 @@
           data-testid="save-template-graph"
           [disabled]="!canSubmit()"
         >
-          {{
-            createTemplateMutation.isPending() ? "Saving..." : "Save template"
-          }}
+          {{ createTemplateMutation.isPending() ? "Saving…" : "Save template" }}
         </button>
       </div>
     </form>

@@ -1,7 +1,7 @@
 @let question = questionForm();
 <fieldset class="border-outline-variant grid gap-4 border-t pt-4">
   <legend class="title-small pr-3">
-    {{ question.title().value().trim() || "Registration question" }}
+    {{ question.title().value().trim() || "Sign-up question" }}
   </legend>
   <div class="grid gap-4 @md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_auto]">
     <mat-form-field>
@@ -23,7 +23,7 @@
       }
     </mat-form-field>
     <mat-form-field>
-      <mat-label>Sort order</mat-label>
+      <mat-label>Question order</mat-label>
       <input matInput type="number" [formField]="question.sortOrder" />
       <mat-hint>Lower numbers appear first.</mat-hint>
       @for (error of question.sortOrder().errors(); track error) {

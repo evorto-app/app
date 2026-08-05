@@ -5,6 +5,10 @@ import type {
 
 import { describe, expect, it } from '@effect/vitest';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
 
 import { validateTemplateGraphStructure } from './template-graph.service';
 
@@ -94,7 +98,6 @@ const validGraph = (): TemplateGraphInput => ({
   ],
   simpleModeEnabled: false,
   title: 'Advanced template',
-  unlisted: false,
 });
 
 const persistedGraph = (simpleModeEnabled: boolean): TemplateGraphRecord => {
@@ -124,8 +127,7 @@ const updateInputFrom = (before: TemplateGraphRecord): TemplateGraphInput => ({
     return {
       ...record,
       key: option.id,
-      registrationMode:
-        option.registrationMode === 'random' ? 'fcfs' : option.registrationMode,
+      registrationMode: option.registrationMode,
     };
   }),
   simpleModeEnabled: before.simpleModeEnabled,
@@ -141,49 +143,52 @@ describe('TemplateGraphService structural validation', () => {
     ).toBeNull();
   });
 
-  it('rejects random allocation even when an untrusted caller bypasses RPC decoding', () => {
-    const source = validGraph();
-    const input = {
-      ...source,
-      registrationOptions: source.registrationOptions.map((option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-      ),
-    };
+  it('accepts the add-on type cap and rejects cap plus one', () => {
+    const input = validGraph();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    input.addOns = Array.from(
+      { length: MAX_EVENT_ADDON_TYPES },
+      (_, index) => ({
+        ...addOn,
+        key: `addon-${index}`,
+      }),
+    );
 
     expect(
       validateTemplateGraphStructure({
         esnCardEnabled: false,
         input,
       }),
-    ).toMatchObject({
-      reason: 'unsupportedTemplateRegistrationMode',
-    });
+    ).toBeNull();
+    input.addOns.push({ ...addOn, key: 'addon-over-limit' });
+    expect(
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input,
+      }),
+    ).toMatchObject({ reason: 'templateAddonTypeLimitExceeded' });
   });
 
-  it('keeps a persisted legacy random template read-only when the payload changes it to fcfs', () => {
-    const before = persistedGraph(false);
-    before.registrationOptions = before.registrationOptions.map(
-      (option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-    );
-    const input = updateInputFrom(before);
+  it('rejects a mapped add-on quantity above the per-registration cap', () => {
+    const input = validGraph();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    addOn.registrationOptions = [
+      {
+        includedQuantity: MAX_REGISTRATION_ADDON_QUANTITY,
+        optionalPurchaseQuantity: 1,
+        registrationOptionKey: 'participant-key',
+      },
+    ];
 
     expect(
-      input.registrationOptions.every(
-        (option) => option.registrationMode !== 'random',
-      ),
-    ).toBe(true);
-    const error = validateTemplateGraphStructure({
-      before,
-      esnCardEnabled: false,
-      input,
-    });
-
-    expect(error).toBeInstanceOf(RpcBadRequestError);
-    expect(error).toMatchObject({
-      _tag: 'RpcBadRequestError',
-      reason: 'unsupportedTemplateRegistrationMode',
-    });
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input,
+      }),
+    ).toMatchObject({ reason: 'invalidTemplateAddon' });
   });
 
   it('accepts simple mode only with one organizer and one participant option', () => {
@@ -208,6 +213,8 @@ describe('TemplateGraphService structural validation', () => {
         },
       }),
     ).toMatchObject({
+      message:
+        'Simple setup needs exactly one organizer choice and one attendee choice.',
       reason: 'invalidSimpleTemplateConfiguration',
     });
   });
@@ -243,6 +250,8 @@ describe('TemplateGraphService structural validation', () => {
     expect(
       validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
     ).toMatchObject({
+      message:
+        'Before using simple setup, keep exactly one organizer choice and one attendee choice, save the template, and reopen it.',
       reason: 'templateAdvancedToSimpleRequiresPersistedSimpleShape',
     });
   });
@@ -259,6 +268,7 @@ describe('TemplateGraphService structural validation', () => {
     expect(
       validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
     ).toMatchObject({
+      message: 'Save the template, reopen it, then change the setup.',
       reason: 'templateModeTransitionMustPreserveOptionIds',
     });
 
@@ -330,6 +340,7 @@ describe('TemplateGraphService structural validation', () => {
     expect(error).toBeInstanceOf(RpcBadRequestError);
     expect(error).toMatchObject({
       _tag: 'RpcBadRequestError',
+      message: 'Enter a price greater than zero for each paid sign-up choice.',
       reason: 'paidTemplateRegistrationOptionRequiresPositivePrice',
     });
   });
@@ -379,6 +390,8 @@ describe('TemplateGraphService structural validation', () => {
         input,
       }),
     ).toMatchObject({
+      message:
+        "Review each add-on's name, availability, quantities, and sign-up choices.",
       reason: 'invalidTemplateAddon',
     });
   });

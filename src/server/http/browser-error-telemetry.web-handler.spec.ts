@@ -6,35 +6,43 @@ import {
   sanitizeBrowserErrorPayload,
 } from './browser-error-telemetry.web-handler';
 
-const telemetryRequest = (payload: unknown, headers: HeadersInit = {}) =>
-  new Request('https://staging.evorto.app/telemetry/browser-errors', {
+const telemetryRequest = (
+  payload: unknown,
+  headers: HeadersInit = {},
+  host = 'staging.evorto.app',
+) =>
+  new Request(`https://${host}/telemetry/browser-errors`, {
     body: JSON.stringify(payload),
     headers: {
       'Content-Type': 'application/json',
-      Host: 'staging.evorto.app',
-      Origin: 'https://staging.evorto.app',
+      Host: host,
+      Origin: `https://${host}`,
       ...headers,
     },
     method: 'POST',
   });
 
 describe('browser error telemetry', () => {
-  it('redacts tokens, identities, email addresses, and URL queries', () => {
+  it('redacts claim codes, tokens, identities, emails, and URL queries', () => {
+    const claimCode = 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890';
     const sanitized = sanitizeBrowserErrorPayload({
-      message:
-        'Bearer secret.token.value for auth0|person and person@example.test',
+      message: `Bearer secret.token.value for auth0|person, person@example.test, and ${claimCode}`,
       name: 'Error',
-      stack: 'request 01890f84-4a73-7e10-9c1b-0242ac120002',
-      url: 'https://staging.evorto.app/events?token=secret#private',
+      stack: `request 01890f84-4a73-7e10-9c1b-0242ac120002 ${claimCode}`,
+      url: 'https://staging.evorto.app/registration-transfers?token=secret#private',
     });
 
     expect(sanitized.message).not.toContain('secret.token.value');
     expect(sanitized.message).not.toContain('auth0|person');
     expect(sanitized.message).not.toContain('person@example.test');
+    expect(sanitized.message).not.toContain(claimCode);
     expect(sanitized.stack).not.toContain(
       '01890f84-4a73-7e10-9c1b-0242ac120002',
     );
-    expect(sanitized.url).toBe('https://staging.evorto.app/events');
+    expect(sanitized.stack).not.toContain(claimCode);
+    expect(sanitized.url).toBe(
+      'https://staging.evorto.app/registration-transfers',
+    );
   });
 
   it.effect('accepts same-origin JSON and deduplicates repeated reports', () =>
@@ -54,6 +62,51 @@ describe('browser error telemetry', () => {
       expect(first.status).toBe(204);
       expect(second.status).toBe(204);
       expect(log).toHaveBeenCalledTimes(1);
+    }),
+  );
+
+  it.effect('includes the sanitized URL in the deduplication fingerprint', () =>
+    Effect.gen(function* () {
+      const log = vi.fn(() => Effect.void);
+      const handler = makeBrowserErrorTelemetryHandler({ log, now: () => 100 });
+      const payload = {
+        message: 'render failed',
+        name: 'Error',
+        stack: 'Error: render failed',
+      };
+
+      yield* handler(
+        telemetryRequest({
+          ...payload,
+          url: 'https://staging.evorto.app/events/one?secret=first',
+        }),
+      );
+      yield* handler(
+        telemetryRequest({
+          ...payload,
+          url: 'https://staging.evorto.app/events/two?secret=second',
+        }),
+      );
+
+      expect(log).toHaveBeenCalledTimes(2);
+    }),
+  );
+
+  it.effect('isolates deduplication state by trusted host', () =>
+    Effect.gen(function* () {
+      const log = vi.fn(() => Effect.void);
+      const handler = makeBrowserErrorTelemetryHandler({ log, now: () => 100 });
+      const payload = {
+        message: 'render failed',
+        name: 'Error',
+        stack: null,
+        url: null,
+      };
+
+      yield* handler(telemetryRequest(payload));
+      yield* handler(telemetryRequest(payload, {}, 'tenant-two.evorto.app'));
+
+      expect(log).toHaveBeenCalledTimes(2);
     }),
   );
 
@@ -110,6 +163,22 @@ describe('browser error telemetry', () => {
 
       expect(limited.status).toBe(429);
       expect(log).toHaveBeenCalledTimes(10);
+
+      const otherHost = yield* handler(
+        telemetryRequest(
+          {
+            message: 'failure-11',
+            name: 'Error',
+            stack: null,
+            url: null,
+          },
+          {},
+          'tenant-two.evorto.app',
+        ),
+      );
+
+      expect(otherHost.status).toBe(204);
+      expect(log).toHaveBeenCalledTimes(11);
     }),
   );
 });

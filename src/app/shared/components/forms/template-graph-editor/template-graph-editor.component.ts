@@ -14,6 +14,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus } from '@fortawesome/duotone-regular-svg-icons';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../../../core/config.service';
@@ -60,13 +62,15 @@ export class TemplateGraphEditorComponent {
   readonly taxRateState = input<TemplateTaxRateLoadState>('loading');
 
   protected readonly faPlus = faPlus;
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
   protected readonly modeBlockMessage = signal('');
   protected readonly optionChoices = computed(() =>
     this.graphForm()()
       .value()
       .registrationOptions.map((option, index) => ({
         key: option.key,
-        title: option.title.trim() || `Registration option ${index + 1}`,
+        title: option.title.trim() || `Sign-up choice ${index + 1}`,
       })),
   );
   protected readonly optionKindWarnings = computed(() => {
@@ -74,12 +78,12 @@ export class TemplateGraphEditorComponent {
     const warnings: string[] = [];
     if (options.every((option) => !option.organizingRegistration)) {
       warnings.push(
-        'No organizing option is configured. This is allowed, but nobody can register as an organizer through this template.',
+        'No organizer sign-up choice has been added. Organizers will not be able to sign up for events created with this template.',
       );
     }
     if (options.every((option) => option.organizingRegistration)) {
       warnings.push(
-        'No non-organizing option is configured. This is allowed, but ordinary participants cannot register through this template.',
+        'No attendee sign-up choice has been added. Attendees will not be able to sign up for events created with this template.',
       );
     }
     return warnings;
@@ -92,6 +96,9 @@ export class TemplateGraphEditorComponent {
   private readonly dialog = inject(MatDialog);
 
   protected addAddOn(): void {
+    if (this.graphForm()().value().addOns.length >= MAX_EVENT_ADDON_TYPES) {
+      return;
+    }
     const firstOptionKey = this.optionChoices()[0]?.key;
     this.updateModel((model) => ({
       ...model,
@@ -138,7 +145,11 @@ export class TemplateGraphEditorComponent {
 
   protected addQuestion(): void {
     const firstOptionKey = this.optionChoices()[0]?.key;
-    if (!firstOptionKey) return;
+    if (
+      !firstOptionKey ||
+      this.graphForm()().value().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.updateModel((model) => ({
       ...model,
       questions: [
@@ -158,7 +169,7 @@ export class TemplateGraphEditorComponent {
         ...model.registrationOptions,
         {
           ...createTemplateGraphRegistrationOptionFormModel(
-            `Registration option ${model.registrationOptions.length + 1}`,
+            `Sign-up choice ${model.registrationOptions.length + 1}`,
             20,
             false,
           ),
@@ -243,7 +254,7 @@ export class TemplateGraphEditorComponent {
         this.graphForm()().value().registrationOptions;
       if (!isSimpleCompatibleRegistrationOptions(registrationOptions)) {
         this.modeBlockMessage.set(
-          'Simple configuration requires exactly one organizing and one non-organizing option. Reclassify or remove options first; nothing was deleted.',
+          'Simple setup needs exactly one organizer choice and one attendee choice. Change or remove choices first; nothing was deleted.',
         );
         return;
       }

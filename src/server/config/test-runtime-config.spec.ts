@@ -10,6 +10,7 @@ import {
   isPlaywrightListOnly,
   makePlaywrightEnvironmentConfig,
   requiresIntegrationOnlyPlaywrightEnvironment,
+  testRuntimeConfigState,
 } from './test-runtime-config';
 
 const readPlaywrightEnvironment = (
@@ -25,6 +26,18 @@ const readPlaywrightEnvironment = (
         ),
     ),
   );
+
+const readTestRuntimeConfig = (provider: ConfigProvider.ConfigProvider) =>
+  testRuntimeConfigState
+    .parse(provider)
+    .pipe(
+      Effect.mapError(
+        (error) =>
+          new Error(
+            `Invalid test runtime configuration:\n${formatConfigError(error)}`,
+          ),
+      ),
+    );
 
 const requiredPlaywrightEntries = [
   ['CLIENT_ID', 'client-id'],
@@ -57,6 +70,28 @@ const providerFromEntries = (entries: readonly (readonly [string, string])[]) =>
   ConfigProvider.fromEnv({ env: Object.fromEntries(entries) });
 
 describe('test-runtime-config', () => {
+  it.effect(
+    'parses local E2E platform-authority ids as explicit test config',
+    () =>
+      Effect.gen(function* () {
+        const config = yield* readTestRuntimeConfig(
+          providerFromEntries([
+            ['APP_ENVIRONMENT', 'local'],
+            ['DATABASE_URL', 'postgresql://db.example/app'],
+            [
+              'E2E_GLOBAL_ADMIN_AUTH0_IDS',
+              ' auth0|global-admin, auth0|other, auth0|global-admin ',
+            ],
+          ]),
+        );
+
+        expect(config.E2E_GLOBAL_ADMIN_AUTH0_IDS).toEqual([
+          'auth0|global-admin',
+          'auth0|other',
+        ]);
+      }),
+  );
+
   it('treats UI mode as unrestricted for integration-only credentials', () => {
     expect(
       requiresIntegrationOnlyPlaywrightEnvironment([

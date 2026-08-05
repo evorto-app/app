@@ -10,11 +10,13 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
+import { maximumFinanceReimbursementReceiptCount } from '@shared/finance/reimbursement';
 import {
   injectMutation,
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
@@ -25,6 +27,10 @@ import {
   isSafeReceiptPreviewUrl,
   ReceiptPreviewDialogComponent,
 } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
+import {
+  type ReimbursementConfirmationData,
+  ReimbursementConfirmationDialogComponent,
+} from '../shared/reimbursement-confirmation-dialog/reimbursement-confirmation-dialog.component';
 
 export type ReceiptReimbursementPayoutType = 'iban' | 'paypal';
 type ReceiptCurrency = 'AUD' | 'CZK' | 'EUR';
@@ -35,7 +41,7 @@ interface ReceiptReimbursementPayoutDetails {
 }
 
 export const receiptReimbursementManualNotice =
-  'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.';
+  'This only records that you paid the reimbursement. Evorto does not transfer the money.';
 
 export const receiptReimbursementMissingPayoutNotice =
   'This person has no payout details. Ask them to add an IBAN or PayPal address to their profile before recording a reimbursement.';
@@ -46,6 +52,9 @@ export function receiptReimbursementCanRecord(
   payoutType: ReceiptReimbursementPayoutType,
 ): boolean {
   if (selectedReceiptIds.length === 0) {
+    return false;
+  }
+  if (selectedReceiptIds.length > maximumFinanceReimbursementReceiptCount) {
     return false;
   }
 
@@ -105,6 +114,26 @@ export const receiptReimbursementGroupKey = (group: {
   submittedByUserId: string;
 }): string => `${group.submittedByUserId}:${group.currency}`;
 
+export const receiptReimbursementConfirmationData = (input: {
+  currency: ReceiptCurrency;
+  payoutDestination: string;
+  payoutType: ReceiptReimbursementPayoutType;
+  receiptCount: number;
+  recipientEmail: string;
+  recipientFirstName: string;
+  recipientLastName: string;
+  totalAmount: number;
+}): ReimbursementConfirmationData => ({
+  currency: input.currency,
+  payoutDestination: input.payoutDestination,
+  payoutMethod: input.payoutType === 'paypal' ? 'PayPal' : 'Bank transfer',
+  receiptCount: input.receiptCount,
+  recipient:
+    `${input.recipientFirstName} ${input.recipientLastName}`.trim() ||
+    input.recipientEmail,
+  totalAmount: input.totalAmount,
+});
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -128,6 +157,8 @@ export class ReceiptRefundListComponent {
     'totalAmount',
     'preview',
   ];
+  protected readonly maximumFinanceReimbursementReceiptCount =
+    maximumFinanceReimbursementReceiptCount;
   protected readonly receiptReimbursementHasPayoutDetails =
     receiptReimbursementHasPayoutDetails;
   protected readonly receiptReimbursementManualNotice =
@@ -275,6 +306,10 @@ export class ReceiptRefundListComponent {
   protected async refundRecipient(group: {
     currency: ReceiptCurrency;
     payout: { iban: null | string; paypalEmail: null | string };
+    receipts: readonly { id: string; totalAmount: number }[];
+    submittedByEmail: string;
+    submittedByFirstName: string;
+    submittedByLastName: string;
     submittedByUserId: string;
   }): Promise<void> {
     const groupKey = receiptReimbursementGroupKey(group);
@@ -305,6 +340,34 @@ export class ReceiptRefundListComponent {
     }
     if (!payoutReference) {
       this.notifications.showError('Selected payout detail is missing');
+      return;
+    }
+
+    const confirmed = await firstValueFrom(
+      this.dialog
+        .open<
+          ReimbursementConfirmationDialogComponent,
+          ReimbursementConfirmationData,
+          boolean
+        >(ReimbursementConfirmationDialogComponent, {
+          data: receiptReimbursementConfirmationData({
+            currency: group.currency,
+            payoutDestination: payoutReference,
+            payoutType,
+            receiptCount: receiptIds.length,
+            recipientEmail: group.submittedByEmail,
+            recipientFirstName: group.submittedByFirstName,
+            recipientLastName: group.submittedByLastName,
+            totalAmount: receiptReimbursementSelectedTotal(
+              group.receipts,
+              receiptIds,
+            ),
+          }),
+          width: 'min(38rem, calc(100vw - 2rem))',
+        })
+        .afterClosed(),
+    );
+    if (confirmed !== true || this.refundMutation.isPending()) {
       return;
     }
 
@@ -341,14 +404,24 @@ export class ReceiptRefundListComponent {
           },
         },
       );
-      this.notifications.showSuccess('Reimbursement transaction recorded');
+      this.notifications.showSuccess('Reimbursement recorded');
       this.selectionByRecipient.update((current) => ({
         ...current,
         [groupKey]: {},
       }));
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to record reimbursement'),
+        getErrorMessage(
+          error,
+          'The reimbursement could not be recorded. Try again.',
+          [
+            'RpcBadRequestError',
+            'FinanceReceiptNotFoundError',
+            'FinanceResourceNotFoundError',
+            'ReceiptMediaBadRequestError',
+            'ReceiptMediaServiceUnavailableError',
+          ],
+        ),
       );
     }
   }
@@ -388,10 +461,14 @@ export class ReceiptRefundListComponent {
     receiptIds: readonly string[],
     checked: boolean,
   ): void {
+    const boundedReceiptIds = receiptIds.slice(
+      0,
+      maximumFinanceReimbursementReceiptCount,
+    );
     this.selectionByRecipient.update((current) => ({
       ...current,
       [recipientId]: Object.fromEntries(
-        receiptIds.map((receiptId) => [receiptId, checked]),
+        boundedReceiptIds.map((receiptId) => [receiptId, checked]),
       ),
     }));
   }
@@ -401,6 +478,17 @@ export class ReceiptRefundListComponent {
     receiptId: string,
     checked: boolean,
   ): void {
+    if (
+      checked &&
+      !this.isReceiptSelected(recipientId, receiptId) &&
+      this.selectedReceiptIds(recipientId).length >=
+        maximumFinanceReimbursementReceiptCount
+    ) {
+      this.notifications.showError(
+        `Select at most ${maximumFinanceReimbursementReceiptCount} receipts per reimbursement`,
+      );
+      return;
+    }
     this.selectionByRecipient.update((current) => ({
       ...current,
       [recipientId]: {

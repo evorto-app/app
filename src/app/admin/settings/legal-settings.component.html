@@ -1,0 +1,86 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to administration"
+  >
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Legal pages</h1>
+</div>
+
+<form
+  class="bg-surface text-on-surface rounded-2xl p-4"
+  (submit)="save($event)"
+>
+  <fieldset
+    class="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-0"
+    [disabled]="!settingsInteractionReady()"
+  >
+    <p class="text-on-surface-variant text-sm">
+      Link to a page on another website, or add text for Evorto to publish. When
+      both are present, your public pages link to the other website.
+    </p>
+
+    <mat-form-field>
+      <mat-label>Imprint / legal notice web address</mat-label>
+      <input
+        matInput
+        [formField]="settingsForm.legalNoticeUrl"
+        placeholder="https://section.example.org/imprint"
+      />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Imprint / legal notice text published by Evorto</mat-label>
+      <textarea
+        matInput
+        rows="5"
+        [formField]="settingsForm.legalNoticeText"
+        placeholder="Legal notice shown on your Evorto site"
+      ></textarea>
+    </mat-form-field>
+
+    <div class="bg-surface-container-low rounded-lg p-3">
+      <p class="text-on-surface-variant text-sm">
+        The privacy policy and questions for new members are managed together in
+        <a class="underline" routerLink="/admin/onboarding">New member setup</a
+        >. Publishing a new privacy policy asks every member to accept it.
+      </p>
+    </div>
+
+    <mat-form-field>
+      <mat-label>Terms web address</mat-label>
+      <input
+        matInput
+        [formField]="settingsForm.termsUrl"
+        placeholder="https://section.example.org/terms"
+      />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Terms text published by Evorto</mat-label>
+      <textarea
+        matInput
+        rows="5"
+        [formField]="settingsForm.termsText"
+        placeholder="Terms shown on your Evorto site"
+      ></textarea>
+    </mat-form-field>
+
+    <button
+      mat-flat-button
+      type="submit"
+      class="w-fit"
+      [disabled]="
+        tenantSettingsSaveDisabled({
+          formInvalid: settingsForm().invalid(),
+          formSubmitting: settingsForm().submitting(),
+          interactionReady: settingsInteractionReady(),
+          mutationPending: updateMutation.isPending(),
+        })
+      "
+    >
+      Save legal pages
+    </button>
+  </fieldset>
+</form>

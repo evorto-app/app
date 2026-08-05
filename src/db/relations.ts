@@ -320,6 +320,13 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.eventTemplates.id,
     }),
   },
+  tenantPrivacyPolicyVersions: {
+    tenant: r.one.tenants({
+      from: r.tenantPrivacyPolicyVersions.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+  },
   tenants: {
     emailOutbox: r.many.emailOutbox(),
     eventRegistrations: r.many.eventRegistrations(),
@@ -330,6 +337,7 @@ export const relations = defineRelations(schema, (r) => ({
       alias: 'users_homeTenantId_tenants_id',
     }),
     icons: r.many.icons(),
+    privacyPolicyVersions: r.many.tenantPrivacyPolicyVersions(),
     roles: r.many.roles(),
     stripeTaxRates: r.many.tenantStripeTaxRates(),
     templateCategories: r.many.eventTemplateCategories(),

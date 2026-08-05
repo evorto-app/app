@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { adminStateFile, userStateFile } from '../../../helpers/user-data';
 import * as schema from '@db/schema';
 import { formatInclusiveTaxLabel } from '@shared/price/format-inclusive-tax-label';
-import { TENANT_FORMATTING_LOCALE } from '@types/custom/tenant';
+import { TENANT_FORMATTING_LOCALE } from '../../../src/types/custom/tenant';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 const priceText = (amountInCents: number) =>
@@ -26,7 +26,7 @@ const templateOptionCard = (page: Page, optionTitle: string) =>
     .filter({
       has: page.getByRole('heading', {
         level: 2,
-        name: 'Registration Options',
+        name: 'Sign-up choices',
       }),
     })
     .locator('.bg-surface')
@@ -100,7 +100,9 @@ test.describe('Inclusive price labels', () => {
       const card = registrationOptionCard(page, freeOption.title);
       await expectCardReady(card);
       await expect(card.locator('app-price-with-tax')).toHaveCount(0);
-      await expect(card.getByText('Incl.')).toHaveCount(0);
+      await expect(card.getByText('included in the shown price')).toHaveCount(
+        0,
+      );
       await expect(card.getByText('Tax free')).toHaveCount(0);
     });
 
@@ -149,7 +151,7 @@ test.describe('Inclusive price labels', () => {
       }
     });
 
-    test('fallback label shown when tax rate details are unavailable', async ({
+    test('missing tax details are surfaced without an inclusive-tax claim', async ({
       database,
       page,
       seeded,
@@ -176,7 +178,7 @@ test.describe('Inclusive price labels', () => {
         const card = registrationOptionCard(page, paidOption.title);
         await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
-        await expect(card.getByText('Incl. Tax')).toBeVisible();
+        await expect(card.getByText('Tax details unavailable')).toBeVisible();
       } finally {
         await database
           .update(schema.eventRegistrationOptions)

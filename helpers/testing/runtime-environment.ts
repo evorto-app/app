@@ -39,8 +39,11 @@ const digestSeed = (seed: string): string =>
 const seed = deriveSeed();
 const digest = digestSeed(seed);
 
-const parsePort = (value: string | undefined): number | undefined => {
-  const parsed = Number.parseInt(value ?? '', 10);
+const parsePort = (value: string): number | undefined => {
+  if (!/^[0-9]+$/u.test(value)) {
+    return undefined;
+  }
+  const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 65_535) {
     return undefined;
   }
@@ -59,17 +62,22 @@ const derivePort = (
 
 const resolvePort = (
   environment: NodeJS.ProcessEnv,
-  names: readonly string[],
+  name: string,
   fallback: number,
 ): number => {
-  for (const name of names) {
-    const parsed = parsePort(environment[name]);
-    if (parsed !== undefined) {
-      return parsed;
-    }
+  const configured = environment[name];
+  if (configured === undefined) {
+    return fallback;
   }
 
-  return fallback;
+  const parsed = parsePort(configured);
+  if (parsed === undefined) {
+    throw new Error(
+      `${name} must be an integer from 1024 through 65535; received ${JSON.stringify(configured)}`,
+    );
+  }
+
+  return parsed;
 };
 
 export interface RuntimePorts {
@@ -88,17 +96,17 @@ export const resolveRuntimePorts = (
   const ports = {
     appHostPort: resolvePort(
       environment,
-      ['APP_HOST_PORT'],
+      'APP_HOST_PORT',
       derivePort(digest, DEFAULT_APP_HOST_PORT, DEFAULT_PORT_SPAN, 0),
     ),
     mailpitHostPort: resolvePort(
       environment,
-      ['MAILPIT_HOST_PORT'],
+      'MAILPIT_HOST_PORT',
       derivePort(digest, DEFAULT_MAILPIT_HOST_PORT, DEFAULT_PORT_SPAN, 32),
     ),
     minioConsoleHostPort: resolvePort(
       environment,
-      ['MINIO_CONSOLE_HOST_PORT'],
+      'MINIO_CONSOLE_HOST_PORT',
       derivePort(
         digest,
         DEFAULT_MINIO_CONSOLE_HOST_PORT,
@@ -108,12 +116,12 @@ export const resolveRuntimePorts = (
     ),
     minioHostPort: resolvePort(
       environment,
-      ['MINIO_HOST_PORT'],
+      'MINIO_HOST_PORT',
       derivePort(digest, DEFAULT_MINIO_HOST_PORT, DEFAULT_PORT_SPAN, 16),
     ),
     postgresHostPort: resolvePort(
       environment,
-      ['POSTGRES_HOST_PORT'],
+      'POSTGRES_HOST_PORT',
       derivePort(digest, DEFAULT_POSTGRES_HOST_PORT, DEFAULT_PORT_SPAN, 8),
     ),
   } satisfies RuntimePorts;

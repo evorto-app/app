@@ -11,12 +11,14 @@ import {
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
-import consola from 'consola/browser';
 
 import { Permission } from '../../shared/permissions/permissions';
+import {
+  ClientTenantConfig,
+  toClientTenantConfig,
+} from '../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Context } from '../../types/custom/context';
 import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
-import { Tenant } from '../../types/custom/tenant';
 import { AppRpc } from './effect-rpc-angular-client';
 
 @Injectable({
@@ -26,11 +28,7 @@ export class ConfigService {
   public readonly permissionsSignal = signal<Permission[]>([]);
   public readonly platformAuthoritySignal =
     signal<null | PlatformAdministratorAuthority>(null);
-  public readonly tenantSignal = signal<null | Tenant>(null);
-
-  public get missingContext() {
-    return this._missingContext;
-  }
+  public readonly tenantSignal = signal<ClientTenantConfig | null>(null);
 
   public get permissions(): Permission[] {
     return this.permissionsSignal();
@@ -44,17 +42,16 @@ export class ConfigService {
     return this._publicConfig;
   }
 
-  public get tenant(): Tenant {
+  public get tenant(): ClientTenantConfig {
     return this._tenant;
   }
-  private _missingContext = false;
 
   private _publicConfig: {
     googleMapsApiKey: null | string;
   } = {
     googleMapsApiKey: null,
   };
-  private _tenant!: Tenant;
+  private _tenant!: ClientTenantConfig;
 
   private readonly rpc = AppRpc.injectClient();
 
@@ -64,7 +61,6 @@ export class ConfigService {
 
   private document = inject(DOCUMENT);
   private readonly meta = inject(Meta);
-
   private readonly platformId = inject(PLATFORM_ID);
 
   private renderer = inject(RendererFactory2).createRenderer(null, null);
@@ -76,34 +72,22 @@ export class ConfigService {
     effect(() => {
       const currentTenant = this.currentTenantQuery.data();
       if (currentTenant) {
-        const previousTenant = this.tenantSignal();
-        if (previousTenant) {
-          this.renderer.removeClass(
-            this.document.documentElement,
-            `theme-${previousTenant.theme}`,
-          );
-        }
         this.applyTenantConfig(currentTenant);
-        this.renderer.addClass(
-          this.document.documentElement,
-          `theme-${this.tenant.theme}`,
-        );
       }
     });
   }
 
   public async initialize() {
-    if (this.requestContext === null && isPlatformServer(this.platformId)) {
-      this._missingContext = true;
-      consola.warn('Missing context on server. Skipping config loading.');
-      return;
-    }
+    if (isPlatformServer(this.platformId)) {
+      const requestContext = this.requestContext;
+      if (requestContext === null) {
+        throw new ServerRequestContextRequiredError();
+      }
 
-    if (this.requestContext !== null && isPlatformServer(this.platformId)) {
-      this.applyTenantConfig(this.requestContext.tenant);
-      this.permissionsSignal.set([...this.requestContext.permissions]);
+      this.applyTenantConfig(toClientTenantConfig(requestContext.tenant));
+      this.permissionsSignal.set([...requestContext.permissions]);
       this.platformAuthoritySignal.set(
-        this.requestContext.platformAuthority ?? null,
+        requestContext.platformAuthority ?? null,
       );
       this._publicConfig = await this.rpc.config.public.call();
       return;
@@ -131,7 +115,19 @@ export class ConfigService {
     this.title.setTitle(`${title} | ${this.tenant.name}`);
   }
 
-  private applyTenantConfig(tenant: Tenant): void {
+  private applyTenantConfig(tenant: ClientTenantConfig): void {
+    const previousTheme = this.tenantSignal()?.theme;
+    if (previousTheme && previousTheme !== tenant.theme) {
+      this.renderer.removeClass(
+        this.document.documentElement,
+        `theme-${previousTheme}`,
+      );
+    }
+    this.renderer.addClass(
+      this.document.documentElement,
+      `theme-${tenant.theme}`,
+    );
+
     this._tenant = tenant;
     this.tenantSignal.set(tenant);
     this.title.setTitle(tenant.seoTitle ?? tenant.name);
@@ -153,5 +149,14 @@ export class ConfigService {
     if (!existingIcon) {
       this.renderer.appendChild(this.document.head, icon);
     }
+  }
+}
+
+export class ServerRequestContextRequiredError extends Error {
+  public constructor() {
+    super(
+      'ConfigService requires Angular REQUEST_CONTEXT during server-side initialization',
+    );
+    this.name = 'ServerRequestContextRequiredError';
   }
 }

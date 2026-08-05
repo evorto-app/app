@@ -20,15 +20,6 @@
       <button
         type="button"
         mat-icon-button
-        aria-label="Filter events"
-        (click)="openFilterPanel()"
-        *appIfAnyPermission="['events:seeDrafts', 'events:seeUnlisted']"
-      >
-        <fa-icon [icon]="faFilter" />
-      </button>
-      <button
-        type="button"
-        mat-icon-button
         aria-label="Open event list actions"
         [matMenuTriggerFor]="menu"
       >
@@ -65,8 +56,7 @@
           <div>
             <h2 class="title-medium">Events could not be loaded</h2>
             <p class="body-medium mt-1">
-              Event discovery is temporarily unavailable. Check your connection
-              and try again.
+              No events are shown. Select Try again.
             </p>
           </div>
           <button
@@ -75,11 +65,11 @@
             [disabled]="eventQuery.isFetching()"
             (click)="eventQuery.refetch()"
           >
-            {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+            {{ eventQuery.isFetching() ? "Trying again…" : "Try again" }}
           </button>
         </div>
       } @else if (eventQuery.isSuccess()) {
-        @for (day of eventQuery.data(); track day.day) {
+        @for (day of eventDays(); track day.day) {
           <p
             class="title-medium sticky top-0 lg:-top-4 z-10 bg-surface-container px-4 py-2"
           >
@@ -89,7 +79,7 @@
             <a
               routerLink="{{ event.id }}"
               class="rounded-2xl bg-surface px-4 py-2 text-on-surface relative overflow-hidden {{
-                event.userRegistered ? 'ring-3 ring-inset ring-success' : ''
+                event.userSignUpState ? 'ring-2 ring-inset ring-primary' : ''
               }}"
               routerLinkActive="bg-secondary-container! text-on-secondary-container!"
             >
@@ -122,11 +112,31 @@
                       <fa-icon [icon]="faClock" />
                       <p>{{ event.start | date: "shortTime" }}</p>
                     </div>
-                    @if (event.unlisted) {
-                      <div class="flex flex-row items-center gap-2">
-                        <fa-icon [icon]="faEyeSlash" />
-                        <p>unlisted</p>
-                      </div>
+                    <span
+                      class="label-medium bg-secondary-container text-on-secondary-container rounded-full px-2 py-1"
+                      [matTooltip]="
+                        eventDiscoveryDescription({
+                          announcementRoleCount: event.announcementRoleCount,
+                          hasRegistrationOptions: event.hasRegistrationOptions,
+                        })
+                      "
+                    >
+                      {{
+                        eventDiscoveryLabel({
+                          announcementRoleCount: event.announcementRoleCount,
+                          hasRegistrationOptions: event.hasRegistrationOptions,
+                        })
+                      }}
+                    </span>
+                    @if (
+                      eventListSignUpStateLabel(event.userSignUpState);
+                      as signUpStateLabel
+                    ) {
+                      <span
+                        class="label-medium bg-primary-container text-on-primary-container rounded-full px-2 py-1"
+                      >
+                        {{ signUpStateLabel }}
+                      </span>
                     }
                   </div>
                 </div>
@@ -135,6 +145,35 @@
           }
         } @empty {
           <p>No events found</p>
+        }
+        @if (
+          eventQuery.hasNextPage() ||
+          eventQuery.isFetchingNextPage() ||
+          eventQuery.isFetchNextPageError()
+        ) {
+          <div
+            class="border-outline-variant mt-2 flex flex-col items-start gap-2 border-t px-4 py-3"
+          >
+            @if (eventQuery.isFetchNextPageError()) {
+              <p class="body-medium text-error" role="alert">
+                More events could not be loaded. The events above are still
+                available.
+              </p>
+            }
+            <button
+              mat-button
+              type="button"
+              [disabled]="eventQuery.isFetchingNextPage()"
+              (click)="eventQuery.fetchNextPage()"
+            >
+              Load more
+            </button>
+            @if (eventQuery.isFetchingNextPage()) {
+              <p class="body-small text-on-surface-variant" role="status">
+                Loading more events…
+              </p>
+            }
+          </div>
         }
       }
     </nav>

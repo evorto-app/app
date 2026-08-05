@@ -57,7 +57,6 @@ export const addAvailableConsumedFinanceReceiptUpload = async (
   );
 
   const now = new Date();
-  const bucket = process.env['S3_BUCKET'] || 'evorto-testing';
   await database.insert(schema.financeReceiptUploads).values({
     consumedAt: now,
     eventId: input.eventId,
@@ -67,7 +66,6 @@ export const addAvailableConsumedFinanceReceiptUpload = async (
     sizeBytes: source.size,
     status: 'consumed',
     storageKey,
-    storageUrl: `http://minio:9000/${bucket}/${storageKey}`,
     tenantId: input.tenantId,
     uploadedAt: now,
     uploadedByUserId: input.uploadedByUserId,
@@ -105,7 +103,6 @@ export const addConsumedFinanceReceiptUpload = async (
       uploadId,
       userId: input.uploadedByUserId,
     }),
-    storageUrl: 'local-unavailable://receipt',
     tenantId: input.tenantId,
     uploadedAt: now,
     uploadedByUserId: input.uploadedByUserId,

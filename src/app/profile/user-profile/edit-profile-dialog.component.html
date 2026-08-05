@@ -10,7 +10,7 @@
       <input matInput [formField]="profileForm.lastName" />
     </mat-form-field>
     <mat-form-field>
-      <mat-label>Notification email</mat-label>
+      <mat-label>Email for updates</mat-label>
       <input
         matInput
         type="email"
@@ -22,23 +22,44 @@
         profileForm.communicationEmail().invalid()
       ) {
         <mat-error>
-          Enter the email address where event and finance notifications should
-          be sent.
+          Enter the email address where you want to receive event and
+          reimbursement updates.
         </mat-error>
       }
     </mat-form-field>
     <mat-form-field>
       <mat-label>IBAN (for reimbursements)</mat-label>
-      <input matInput [formField]="profileForm.iban" />
+      <input
+        matInput
+        autocomplete="off"
+        autocapitalize="characters"
+        [formField]="profileForm.iban"
+      />
+      @if (profileForm.iban().touched() && profileForm.iban().invalid()) {
+        <mat-error>
+          Enter a valid IBAN, including its country code and check digits.
+        </mat-error>
+      }
       <mat-hint
-        >Used for manual receipt reimbursements across organizations.</mat-hint
+        >Organizations can use this to reimburse approved receipts.</mat-hint
       >
     </mat-form-field>
     <mat-form-field>
       <mat-label>PayPal email (for reimbursements)</mat-label>
-      <input matInput [formField]="profileForm.paypalEmail" />
+      <input
+        matInput
+        type="email"
+        autocomplete="email"
+        [formField]="profileForm.paypalEmail"
+      />
+      @if (
+        profileForm.paypalEmail().touched() &&
+        profileForm.paypalEmail().invalid()
+      ) {
+        <mat-error>Enter a valid PayPal email address.</mat-error>
+      }
       <mat-hint
-        >Used for manual receipt reimbursements across organizations.</mat-hint
+        >Organizations can use this to reimburse approved receipts.</mat-hint
       >
     </mat-form-field>
   </mat-dialog-content>

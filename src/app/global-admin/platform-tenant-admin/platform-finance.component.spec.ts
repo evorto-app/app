@@ -13,6 +13,7 @@ import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  PlatformFinanceReceiptApprovalDetailRecord,
   PlatformFinanceReceiptWithSubmitterRecord,
   PlatformFinanceRefundLifecycleSummary,
   PlatformFinanceRefundRecoveryRecord,
@@ -23,6 +24,10 @@ import {
 import { NotificationService } from '../../core/notification.service';
 import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import {
+  type ReimbursementConfirmationData,
+  ReimbursementConfirmationDialogComponent,
+} from '../../finance/shared/reimbursement-confirmation-dialog/reimbursement-confirmation-dialog.component';
+import {
   PlatformFinanceComponent,
   PlatformFinanceOperations,
   platformReceiptEvidenceUnavailableNotice,
@@ -31,10 +36,6 @@ import {
   platformTransactionMethodLabel,
   platformTransactionStatusLabel,
 } from './platform-finance.component';
-import {
-  type PlatformReimbursementConfirmationData,
-  PlatformReimbursementConfirmationDialogComponent,
-} from './platform-reimbursement-confirmation-dialog.component';
 import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
 
 @Component({
@@ -49,7 +50,7 @@ class PlatformTenantPageHeaderStub {
 describe('platform receipt review evidence gating', () => {
   it('explains that unavailable evidence blocks only approval', () => {
     expect(platformReceiptEvidenceUnavailableNotice).toBe(
-      'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+      'The uploaded receipt file is unavailable. Approval is disabled until it can be checked. You can still reject this receipt.',
     );
 
     expect(
@@ -93,12 +94,12 @@ describe('platform receipt review evidence gating', () => {
 describe('platform transaction labels', () => {
   it('turns stored payment values into finance language', () => {
     expect(platformTransactionStatusLabel('cancelled')).toBe('Cancelled');
-    expect(platformTransactionStatusLabel('pending')).toBe('Pending');
-    expect(platformTransactionStatusLabel('successful')).toBe('Successful');
+    expect(platformTransactionStatusLabel('pending')).toBe('In progress');
+    expect(platformTransactionStatusLabel('successful')).toBe('Completed');
 
     expect(platformTransactionMethodLabel('cash')).toBe('Cash');
     expect(platformTransactionMethodLabel('paypal')).toBe('PayPal');
-    expect(platformTransactionMethodLabel('stripe')).toBe('Stripe');
+    expect(platformTransactionMethodLabel('stripe')).toBe('Online payment');
     expect(platformTransactionMethodLabel('transfer')).toBe('Bank transfer');
   });
 });
@@ -116,14 +117,14 @@ describe('platform refund lifecycle copy', () => {
 
     expect(copy).toEqual({
       detail:
-        'Automatic refund processing stopped. Open Refund recovery to review the safe next step.',
+        'This refund did not finish. Open Refunds needing attention to review what can be done.',
       label: 'Needs attention',
     });
     expect(JSON.stringify(copy)).not.toContain('Stripe');
     expect(JSON.stringify(copy)).not.toContain('error');
   });
 
-  it('does not direct non-requeueable attention states to Refund recovery', () => {
+  it('does not direct non-retryable attention states to the action list', () => {
     const copy = platformRefundLifecycleCopy(
       PlatformFinanceRefundLifecycleSummary.make({
         attempts: 1,
@@ -135,12 +136,12 @@ describe('platform refund lifecycle copy', () => {
 
     expect(copy).toEqual({
       detail:
-        'Evorto cannot safely retry this refund. Compare it with the connected Stripe account before making a manual change.',
+        "This refund did not finish. Check it in the organization's payment account, then contact Evorto support before changing its status in Evorto.",
       label: 'Needs attention',
     });
   });
 
-  it('opens recovery only for Stripe-account action claims that can be resumed', () => {
+  it('gives a specific next action for payment-account claims', () => {
     const scheduled = platformRefundLifecycleCopy(
       PlatformFinanceRefundLifecycleSummary.make({
         attempts: 1,
@@ -158,13 +159,15 @@ describe('platform refund lifecycle copy', () => {
       }),
     );
 
-    expect(scheduled.detail).toContain(
-      'Evorto will keep checking automatically',
+    expect(scheduled.detail).toBe(
+      "Complete the required step in the organization's payment account, then select Show latest status. This shows any update Evorto has received.",
     );
-    expect(scheduled.detail).toContain('connected Stripe account');
-    expect(scheduled.detail).not.toContain('provider-side');
-    expect(scheduled.detail).not.toContain('open Refund recovery');
-    expect(stopped.detail).toContain('open Refund recovery');
+    expect(stopped.detail).toBe(
+      "Complete the required step in the organization's payment account, then open Refunds needing attention to continue.",
+    );
+    expect(scheduled.detail).not.toContain('Stripe');
+    expect(stopped.detail).not.toContain('Stripe');
+    expect(scheduled.detail).not.toContain('when possible');
   });
 
   it('distinguishes all non-attention states', () => {
@@ -172,10 +175,10 @@ describe('platform refund lifecycle copy', () => {
       PlatformFinanceRefundLifecycleSummary['status'],
       string,
     ])[] = [
-      ['action-required', 'Action required in Stripe'],
-      ['pending', 'Pending'],
-      ['retrying', 'Retrying'],
-      ['succeeded', 'Succeeded'],
+      ['action-required', 'Payment action needed'],
+      ['pending', 'Waiting'],
+      ['retrying', 'Trying again'],
+      ['succeeded', 'Refunded'],
     ];
 
     for (const [status, label] of expectedLabels) {
@@ -202,14 +205,32 @@ describe('platform refund lifecycle copy', () => {
     );
 
     expect(template).toContain(
-      'Required. This reason is saved with the recovery action.',
+      'Required. This reason is saved with the action.',
     );
-    expect(template).toContain('Retry failed refund');
-    expect(template).toContain('Automatic refund checks stopped');
-    expect(template).toContain('No refunds currently need manual recovery.');
+    expect(template).toContain('Try failed refund again');
+    expect(template).toContain('This refund did not finish and needs review.');
+    expect(template).toContain('No refunds currently need attention.');
+    expect(template).toContain(
+      'Separate from the rejection reason shown to the attendee.',
+    );
+    expect(template).toContain('Select a recipient to record a reimbursement.');
+    expect(template).not.toContain('attendee-facing rejection reason');
+    expect(template).not.toContain('Select a recipient group');
+    expect(template).not.toContain('Automatic refund checks');
+    expect(template).not.toContain('Resume refund checks');
     expect(template).not.toContain('Terminal refund');
     expect(template).not.toContain('Stopped refund processing');
     expect(template).not.toContain('application append-only platform audit');
+
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-tenant-admin/platform-finance.component.ts',
+      ),
+      'utf8',
+    );
+    expect(source).toContain('The refund will be tried again');
+    expect(source).not.toContain('Failed refund will be tried again');
   });
 
   it('edits receipt values as ordinary amounts in the receipt currency', () => {
@@ -228,6 +249,7 @@ describe('platform refund lifecycle copy', () => {
 });
 
 const loadRecoveryQueue = vi.fn();
+const loadApprovalDetail = vi.fn();
 const loadReimbursementQueue = vi.fn();
 const loadTransactions = vi.fn();
 const openDialog = vi.fn();
@@ -239,6 +261,43 @@ const tenantContext = PlatformFinanceTenantContext.make({
   targetTenantId: 'tenant-1',
   timezone: 'Australia/Brisbane',
 });
+
+const approvalQueueReceipt = (id: string) =>
+  PlatformFinanceReceiptWithSubmitterRecord.make({
+    alcoholAmount: 0,
+    attachmentFileName: `${id}.pdf`,
+    attachmentMimeType: 'application/pdf',
+    createdAt: '2026-07-10T10:00:00.000Z',
+    currency: 'EUR',
+    depositAmount: 0,
+    eventId: `event-${id}`,
+    hasAlcohol: false,
+    hasDeposit: false,
+    id,
+    purchaseCountry: 'DE',
+    receiptDate: '2026-07-09',
+    refundedAt: null,
+    refundTransactionId: null,
+    rejectionReason: null,
+    reviewedAt: null,
+    status: 'submitted',
+    submittedByEmail: 'participant@example.test',
+    submittedByFirstName: 'Pat',
+    submittedByLastName: 'Example',
+    submittedByUserId: 'user-participant',
+    taxAmount: 190,
+    totalAmount: 1190,
+    updatedAt: '2026-07-10T10:00:00.000Z',
+  });
+
+const approvalDetailReceipt = (id: string) =>
+  PlatformFinanceReceiptApprovalDetailRecord.make({
+    ...approvalQueueReceipt(id),
+    eventStart: '2026-07-20T10:00:00.000Z',
+    eventTitle: 'Approval event',
+    previewImageUrl: `https://example.test/${id}.pdf`,
+    receiptEvidenceAvailable: true,
+  });
 
 const reimbursementReceipt = (
   id: string,
@@ -258,10 +317,8 @@ const reimbursementReceipt = (
     hasAlcohol: false,
     hasDeposit: false,
     id,
-    previewImageUrl: `https://example.test/${id}.pdf`,
     purchaseCountry: 'DE',
     receiptDate: '2026-07-09',
-    receiptEvidenceAvailable: true,
     refundedAt: null,
     refundTransactionId: null,
     rejectionReason: null,
@@ -324,6 +381,12 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    loadApprovalDetail.mockImplementation(
+      async (_targetTenantId: string, id: string) => ({
+        receipt: approvalDetailReceipt(id),
+        tenantContext,
+      }),
+    );
     loadRecoveryQueue.mockResolvedValue({ claims: [], tenantContext });
     loadReimbursementQueue.mockResolvedValue({ groups: [], tenantContext });
     loadTransactions.mockResolvedValue({
@@ -364,6 +427,10 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
         {
           provide: PlatformFinanceOperations,
           useValue: {
+            approvalDetail: (targetTenantId: string, id: string) => ({
+              queryFn: () => loadApprovalDetail(targetTenantId, id),
+              queryKey: ['platform-finance', 'approval-detail', id],
+            }),
             approvalQueue: () => ({
               queryFn: async () => ({ groups: [], tenantContext }),
               queryKey: ['platform-finance', 'approval'],
@@ -450,18 +517,29 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       fixture.detectChanges();
       const text = normalizeText(fixture);
       for (const label of [
-        'Action required in Stripe',
-        'Pending',
-        'Retrying',
-        'Succeeded',
+        'Payment action needed',
+        'Waiting',
+        'Trying again',
+        'Refunded',
         'Needs attention',
       ]) {
         expect(text).toContain(label);
       }
       expect(text).toContain(
-        'Open Refund recovery to review the safe next step.',
+        'Open Refunds needing attention to review what can be done.',
       );
+      expect(text).toContain('Show latest status');
       expect(text).not.toContain('Provider secret must never render');
+    });
+
+    const checkStatusButton = [
+      ...fixture.nativeElement.querySelectorAll('button'),
+    ].find((button) => button.textContent?.includes('Show latest status'));
+    expect(checkStatusButton).toBeInstanceOf(HTMLButtonElement);
+    (checkStatusButton as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(loadTransactions).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -542,7 +620,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       await TestbedHarnessEnvironment.loader(fixture).getHarness(
         MatTabGroupHarness,
       );
-    await tabs.selectTab({ label: 'Refund recovery' });
+    await tabs.selectTab({ label: 'Refunds needing attention' });
 
     await vi.waitFor(() => {
       fixture.detectChanges();
@@ -608,7 +686,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
 
     await vi.waitFor(() => {
       expect(openDialog).toHaveBeenCalledWith(
-        PlatformReimbursementConfirmationDialogComponent,
+        ReimbursementConfirmationDialogComponent,
         {
           data: {
             currency: 'EUR',
@@ -617,7 +695,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
             receiptCount: 2,
             recipient: 'Ada Lovelace',
             totalAmount: 2900,
-          } satisfies PlatformReimbursementConfirmationData,
+          } satisfies ReimbursementConfirmationData,
           width: 'min(38rem, calc(100vw - 2rem))',
         },
       );
@@ -834,35 +912,50 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     });
   });
 
-  it('clears tenant-scoped selections and form models when the tenant changes', async () => {
-    const receipt = PlatformFinanceReceiptWithSubmitterRecord.make({
-      alcoholAmount: 0,
-      attachmentFileName: 'tenant-a-receipt.pdf',
-      attachmentMimeType: 'application/pdf',
-      createdAt: '2026-07-10T10:00:00.000Z',
-      currency: 'EUR',
-      depositAmount: 0,
-      eventId: 'tenant-a-event',
-      hasAlcohol: false,
-      hasDeposit: false,
-      id: 'tenant-a-receipt',
-      previewImageUrl: 'https://example.test/tenant-a-receipt.pdf',
-      purchaseCountry: 'DE',
-      receiptDate: '2026-07-09',
-      receiptEvidenceAvailable: true,
-      refundedAt: null,
-      refundTransactionId: null,
-      rejectionReason: null,
-      reviewedAt: null,
-      status: 'submitted',
-      submittedByEmail: 'tenant-a-participant@example.test',
-      submittedByFirstName: 'Tenant A',
-      submittedByLastName: 'Participant',
-      submittedByUserId: 'tenant-a-user',
-      taxAmount: 190,
-      totalAmount: 1190,
-      updatedAt: '2026-07-10T10:00:00.000Z',
+  it('ignores an in-flight receipt detail after the tenant changes', async () => {
+    interface ApprovalDetailResult {
+      receipt: PlatformFinanceReceiptApprovalDetailRecord;
+      tenantContext: PlatformFinanceTenantContext;
+    }
+    let resolveDetail: ((detail: ApprovalDetailResult) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const pendingDetail = new Promise<ApprovalDetailResult>((resolve) => {
+      resolveDetail = resolve;
     });
+    loadApprovalDetail.mockImplementationOnce(() => pendingDetail);
+
+    const fixture = TestBed.createComponent(PlatformFinanceComponent);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const detailPromise = component['chooseReceipt'](
+      approvalQueueReceipt('stale-receipt'),
+    );
+
+    await vi.waitFor(() => {
+      expect(component['receiptDetailPending']()).toBe(true);
+    });
+
+    fixture.componentRef.setInput('tenantId', 'tenant-2');
+    fixture.detectChanges();
+    expect(component['receiptDetailPending']()).toBe(false);
+
+    if (!resolveDetail) {
+      throw new Error('Expected the receipt detail request to be pending');
+    }
+    resolveDetail({
+      receipt: approvalDetailReceipt('stale-receipt'),
+      tenantContext,
+    });
+    await detailPromise;
+
+    expect(component['selectedReceipt']()).toBeNull();
+    expect(component['reviewForm'].id().value()).toBe('');
+  });
+
+  it('clears tenant-scoped selections and form models when the tenant changes', async () => {
+    const receipt = approvalQueueReceipt('tenant-a-receipt');
     const reimbursementGroup = PlatformFinanceReimbursementGroup.make({
       currency: 'EUR',
       payout: {
@@ -914,11 +1007,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       expect(component['reimbursementQueueQuery'].isSuccess()).toBe(true);
     });
 
-    component['chooseReceipt'](
-      receipt,
-      'Tenant A event',
-      '2026-07-20T10:00:00.000Z',
-    );
+    await component['chooseReceipt'](receipt);
     component['chooseReimbursement'](reimbursementGroup);
     component['chooseRefundClaim'](refundClaim);
     component['reviewModel'].update((model) => ({
@@ -936,6 +1025,13 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     component['transactionPageIndex'].set(4);
 
     expect(component['selectedReceipt']()).not.toBeNull();
+    expect(loadApprovalDetail).toHaveBeenCalledWith(
+      'tenant-1',
+      'tenant-a-receipt',
+    );
+    expect(component['selectedReceipt']()?.receipt.previewImageUrl).toBe(
+      'https://example.test/tenant-a-receipt.pdf',
+    );
     expect(component['selectedReimbursement']()).not.toBeNull();
     expect(component['selectedRefundClaim']()).not.toBeNull();
 

@@ -2,6 +2,10 @@ import type { EventGraphEditRecord } from '@shared/rpc-contracts/app-rpcs/events
 
 import { describe, expect, it } from '@effect/vitest';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
 
 import {
   type EventGraphUpdateInput,
@@ -115,8 +119,7 @@ const validInput = (): EventGraphUpdateInput => ({
     price: option.price,
     refundFeesOnCancellation: option.refundFeesOnCancellation,
     registeredDescription: option.registeredDescription,
-    registrationMode:
-      option.registrationMode === 'random' ? 'fcfs' : option.registrationMode,
+    registrationMode: option.registrationMode,
     roleIds: [...option.roleIds],
     spots: option.spots,
     stripeTaxRateId: option.stripeTaxRateId,
@@ -131,7 +134,7 @@ const validInput = (): EventGraphUpdateInput => ({
 describe('event graph structural validation', () => {
   it('explains why a purchased add-on must keep its registration option', () => {
     expect(purchasedAddOnRegistrationOptionRemovalMessage).toBe(
-      'An add-on that has already been purchased must remain available with its existing registration option',
+      'An add-on that has already been bought must remain available with its current sign-up choice.',
     );
   });
 
@@ -142,28 +145,6 @@ describe('event graph structural validation', () => {
         input: validInput(),
       }),
     ).toBeNull();
-  });
-
-  it('keeps a persisted legacy random event read-only when the payload changes it to fcfs', () => {
-    const before = beforeGraph();
-    before.registrationOptions = before.registrationOptions.map(
-      (option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-    );
-    const input = validInput();
-
-    expect(
-      input.registrationOptions.every(
-        (option) => option.registrationMode !== 'random',
-      ),
-    ).toBe(true);
-    const error = validateEventGraphStructure({ before, input });
-
-    expect(error).toBeInstanceOf(RpcBadRequestError);
-    expect(error).toMatchObject({
-      _tag: 'RpcBadRequestError',
-      reason: 'unsupportedEventRegistrationMode',
-    });
   });
 
   it('rejects simple mode with an extra registration option', () => {
@@ -272,6 +253,45 @@ describe('event graph structural validation', () => {
     expect(
       validateEventGraphStructure({ before: beforeGraph(), input }),
     ).toBeNull();
+  });
+
+  it('accepts the add-on type cap and rejects cap plus one', () => {
+    const input = validInput();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    input.addOns = Array.from(
+      { length: MAX_EVENT_ADDON_TYPES },
+      (_, index) => ({
+        ...addOn,
+        key: `addon-${index}`,
+      }),
+    );
+
+    expect(
+      validateEventGraphStructure({ before: beforeGraph(), input }),
+    ).toBeNull();
+    input.addOns.push({ ...addOn, key: 'addon-over-limit' });
+    expect(
+      validateEventGraphStructure({ before: beforeGraph(), input }),
+    ).toMatchObject({ reason: 'eventAddonTypeLimitExceeded' });
+  });
+
+  it('rejects a mapped add-on quantity above the per-registration cap', () => {
+    const input = validInput();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    addOn.registrationOptions = [
+      {
+        includedQuantity: MAX_REGISTRATION_ADDON_QUANTITY,
+        optionalPurchaseQuantity: 1,
+        registrationOptionKey: 'option-participant',
+      },
+    ];
+
+    expect(
+      validateEventGraphStructure({ before: beforeGraph(), input }),
+    ).toMatchObject({ reason: 'invalidEventAddon' });
   });
 
   it('rejects a paid registration option with a zero price as a typed bad request', () => {

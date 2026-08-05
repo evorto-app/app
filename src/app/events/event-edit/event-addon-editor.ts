@@ -1,3 +1,5 @@
+import type { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,11 +12,10 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 
 import type { EventGraphAddonFormModel } from './event-graph-form.model';
 
-import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
 
@@ -45,11 +46,13 @@ export class EventAddonEditor {
   readonly optionChoices = input.required<readonly EventGraphOptionChoice[]>();
   readonly removeMappingRequested = output<number>();
   readonly removeRequested = output();
+  readonly taxRates = input.required<
+    readonly TaxRatesListActiveRecord[] | undefined
+  >();
+  readonly taxRateState = input.required<'error' | 'loading' | 'ready'>();
 
-  private readonly rpc = AppRpc.injectClient();
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.rpc.taxRates.listActive.queryOptions(),
-  );
+  protected readonly maxRegistrationAddonQuantity =
+    MAX_REGISTRATION_ADDON_QUANTITY;
 
   protected canAddMapping(): boolean {
     const mappedKeys = new Set(

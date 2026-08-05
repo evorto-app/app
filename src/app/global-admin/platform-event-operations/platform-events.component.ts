@@ -7,9 +7,14 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
+import {
+  eventDiscoveryDescription,
+  eventDiscoveryLabel,
+} from '@shared/event-discovery';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { tenantTimezoneLabel } from '../../core/geography-labels';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { platformEventInstantToDisplayDateTime } from './platform-event-date-time';
@@ -43,6 +48,8 @@ export class PlatformEventsOperations {
 export class PlatformEventsComponent {
   readonly tenantId = input.required<string>();
 
+  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   private readonly operations = inject(PlatformEventsOperations);
   protected readonly eventsQuery = injectQuery(() =>
     this.operations.list(this.tenantId()),
@@ -50,6 +57,7 @@ export class PlatformEventsComponent {
   protected readonly targetTenantOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
+  protected readonly tenantTimezoneLabel = tenantTimezoneLabel;
 
   protected displayDateTime(value: string): string {
     return this.targetTenantOptionsQuery.isSuccess()

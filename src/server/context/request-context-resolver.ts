@@ -4,41 +4,24 @@ import { uniq } from 'es-toolkit';
 import { Database, type DatabaseClient } from '../../db';
 import { getPreparedStatements } from '../../db/prepared-statements';
 import {
-  partitionTenantRolePermissions,
   type Permission,
+  type TenantRolePermission,
+  TenantRolePermissionSchema,
 } from '../../shared/permissions/permissions';
 import { type Authentication } from '../../types/custom/authentication';
 import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
 import { hasCurrentTenantOnboarding } from '../onboarding/tenant-onboarding.service';
 
-// Keep backward-compatible permission aliases while migrating toward a single
-// canonical set. This avoids breaking handlers that still check the old value.
-const expandPermissionAliases = (permission: Permission): Permission[] => {
-  if (permission === 'admin:manageTaxes') {
-    return ['admin:manageTaxes', 'admin:tax'];
-  }
+const normalizePermissions = <P extends Permission>(
+  permissions: readonly P[],
+): P[] => uniq(permissions);
 
-  return [permission];
-};
-
-const normalizePermissions = (permissions: readonly Permission[]) =>
-  uniq(
-    permissions.flatMap((permission) => expandPermissionAliases(permission)),
-  );
-
-const configuredLocalEndToEndGlobalAdminAuth0Ids = () =>
-  (process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'] ?? '')
-    .split(',')
-    .map((auth0Id) => auth0Id.trim())
-    .filter((auth0Id) => auth0Id.length > 0);
-
-const localEndToEndGlobalAdminOverrideEnabled = (): boolean =>
-  process.env['NODE_ENV'] === 'development' ||
-  process.env['NODE_ENV'] === 'test';
+const PersistedTenantRolePermissions = Schema.Array(TenantRolePermissionSchema);
 
 export const resolvePlatformAuthority = (
   oidcUser: unknown,
+  testGlobalAdminAuth0Ids: readonly string[] = [],
 ): PlatformAdministratorAuthority | undefined => {
   const user = asRecord(oidcUser);
   const appMetadata =
@@ -47,13 +30,10 @@ export const resolvePlatformAuthority = (
     asRecord(user?.['app_metadata']);
   const auth0Id = asString(user?.['sub']);
   const configuredLocalEndToEndGlobalAdmin =
-    localEndToEndGlobalAdminOverrideEnabled() &&
-    auth0Id !== undefined &&
-    configuredLocalEndToEndGlobalAdminAuth0Ids().includes(auth0Id);
+    auth0Id !== undefined && testGlobalAdminAuth0Ids.includes(auth0Id);
 
   const isPlatformAdministrator =
     appMetadata?.['platformAdministrator'] === true ||
-    appMetadata?.['globalAdmin'] === true ||
     configuredLocalEndToEndGlobalAdmin;
 
   return isPlatformAdministrator && auth0Id
@@ -66,22 +46,18 @@ export const resolvePlatformAuthority = (
 };
 
 export const resolveRequestPermissions = (input: {
-  oidcUser: unknown;
+  platformAuthority: PlatformAdministratorAuthority | undefined;
   user:
     | undefined
     | {
-        permissions: readonly Permission[];
+        permissions: readonly TenantRolePermission[];
       };
 }) => {
-  const tenantPermissions = partitionTenantRolePermissions(
-    input.user?.permissions ?? [],
-  ).accepted;
-
   return normalizePermissions([
-    ...(resolvePlatformAuthority(input.oidcUser)
+    ...(input.platformAuthority
       ? (['globalAdmin:manageTenants'] as const)
       : []),
-    ...tenantPermissions,
+    ...(input.user?.permissions ?? []),
   ]);
 };
 
@@ -134,6 +110,24 @@ const findTenantByDomain = (domain: string) =>
     }),
   );
 
+const tenantContextRecord = (
+  tenant: NonNullable<Effect.Success<ReturnType<typeof findTenantByDomain>>>,
+) => {
+  const { privacyPolicyVersions, ...tenantFields } = tenant;
+  const currentPrivacyPolicy = privacyPolicyVersions[0];
+  if (!currentPrivacyPolicy) {
+    throw new Error(
+      `Tenant ${tenant.id} is missing its required privacy policy version`,
+    );
+  }
+
+  return {
+    ...tenantFields,
+    privacyPolicyText: currentPrivacyPolicy.privacyPolicyText,
+    privacyPolicyUrl: currentPrivacyPolicy.privacyPolicyUrl,
+  };
+};
+
 export const resolveAuthenticationContext = (input: {
   isAuthenticated: boolean;
 }): Authentication => ({
@@ -153,7 +147,7 @@ export const resolveTenantContext = (input: {
     // tenant, while still supporting local/dev fallback when host resolution
     // does not map to a tenant.
     const cause = { domain: '', tenantCookie: '' };
-    let tenantRecord: unknown;
+    let tenantRecord: Effect.Success<ReturnType<typeof findTenantByDomain>>;
     const hostDomain = toHostDomain(input.protocol, input.requestHost);
     const tenantCookie = asString(input.cookies?.['evorto-tenant']);
 
@@ -178,7 +172,7 @@ export const resolveTenantContext = (input: {
     return {
       cause,
       tenant: tenantRecord
-        ? Schema.decodeUnknownSync(Tenant)(tenantRecord)
+        ? Schema.decodeUnknownSync(Tenant)(tenantContextRecord(tenantRecord))
         : undefined,
     };
   });
@@ -233,51 +227,17 @@ export const resolveUserContext = (
       .flatMap((assignment) => assignment.roles)
       .map((role) => ({
         ...role,
-        permissions: partitionTenantRolePermissions(role.permissions),
+        permissions: Schema.decodeUnknownSync(PersistedTenantRolePermissions)(
+          role.permissions,
+        ),
       }));
 
-    for (const role of assignedRoles) {
-      if (role.permissions.rejected.length === 0) continue;
-
-      yield* Effect.logWarning(
-        'Discarded platform-global permissions from tenant role',
-      ).pipe(
-        Effect.annotateLogs({
-          rejectedPermissions: role.permissions.rejected,
-          roleId: role.id,
-          tenantId: input.tenantId,
-          userId: user.id,
-        }),
-      );
-    }
-
-    const permissions = assignedRoles.flatMap(
-      (role) => role.permissions.accepted,
-    );
+    const permissions = assignedRoles.flatMap((role) => role.permissions);
 
     const roleIds = assignedRoles.map((role) => role.id);
 
-    const attributeResponse = yield* databaseEffect((database) =>
-      Effect.map(
-        getPreparedStatements(
-          database,
-        ).getUserAttributesByTenantAndUser.execute({
-          tenantId: input.tenantId,
-          userId: user.id,
-        }),
-        (result) => result[0],
-      ),
-    );
-
-    const attributes = [
-      ...(attributeResponse?.organizesSome
-        ? (['events:organizesSome'] as const)
-        : []),
-    ];
-
     return {
       ...user,
-      attributes,
       homeTenantName: user.homeTenant?.name,
       permissions: normalizePermissions(permissions),
       roleIds,

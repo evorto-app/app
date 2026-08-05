@@ -4,16 +4,16 @@
 />
 
 <mat-tab-group animationDuration="150ms">
-  <mat-tab label="Transactions">
-    <section class="py-4" aria-label="Transactions">
+  <mat-tab label="Payment history">
+    <section class="py-4" aria-label="Payment history">
       @if (transactionsQuery.isPending()) {
-        <p role="status" class="body-medium">Loading transactions...</p>
+        <p role="status" class="body-medium">Loading payment history…</p>
       } @else if (transactionsQuery.isError()) {
         <div
           role="alert"
           class="bg-error-container text-on-error-container p-4"
         >
-          <p>Transactions could not be loaded.</p>
+          <p>Payment history could not be loaded.</p>
           <button
             mat-stroked-button
             type="button"
@@ -24,7 +24,7 @@
         </div>
       } @else if (transactionsQuery.isSuccess()) {
         <p class="body-small text-on-surface-variant mb-2">
-          {{ transactionsQuery.data().total }} transactions
+          {{ transactionsQuery.data().total }} items in payment history
         </p>
         <div class="overflow-x-auto border-y border-outline-variant">
           <table mat-table [dataSource]="transactionsQuery.data().data">
@@ -74,6 +74,23 @@
                   <p class="body-small text-on-surface-variant max-w-64 py-1">
                     {{ copy.detail }}
                   </p>
+                  @if (
+                    lifecycle.status === "action-required" &&
+                    !lifecycle.recoveryMode
+                  ) {
+                    <button
+                      mat-button
+                      type="button"
+                      [disabled]="transactionsQuery.isFetching()"
+                      (click)="transactionsQuery.refetch()"
+                    >
+                      {{
+                        transactionsQuery.isFetching()
+                          ? "Showing latest status…"
+                          : "Show latest status"
+                      }}
+                    </button>
+                  }
                 } @else {
                   —
                 }
@@ -91,7 +108,7 @@
         </div>
         <mat-paginator
           showFirstLastButtons
-          aria-label="Select page of organization transactions"
+          aria-label="Select page of organization payments and refunds"
           [length]="transactionsQuery.data().total"
           [pageIndex]="transactionPageIndex()"
           [pageSize]="transactionPageSize()"
@@ -108,13 +125,13 @@
     >
       <div>
         @if (approvalQueueQuery.isPending()) {
-          <p role="status" class="body-medium">Loading receipt queue...</p>
+          <p role="status" class="body-medium">Loading receipts…</p>
         } @else if (approvalQueueQuery.isError()) {
           <div
             role="alert"
             class="bg-error-container text-on-error-container p-4"
           >
-            <p>Receipt approvals could not be loaded.</p>
+            <p>Receipts could not be loaded.</p>
             <button
               mat-stroked-button
               type="button"
@@ -154,9 +171,8 @@
                   <button
                     mat-button
                     type="button"
-                    (click)="
-                      chooseReceipt(receipt, group.eventTitle, group.eventStart)
-                    "
+                    [disabled]="receiptDetailPending()"
+                    (click)="chooseReceipt(receipt)"
                   >
                     Review
                   </button>
@@ -234,7 +250,9 @@
                   country of receiptCountryConfig().receiptCountries;
                   track country
                 ) {
-                  <mat-option [value]="country">{{ country }}</mat-option>
+                  <mat-option [value]="country">
+                    {{ countryLabel(country) }}
+                  </mat-option>
                 }
                 @if (receiptCountryConfig().allowOther) {
                   <mat-option value="OTHER">Other</mat-option>
@@ -268,15 +286,15 @@
             </mat-form-field>
           }
           <mat-form-field class="w-full">
-            <mat-label>Platform operational reason</mat-label>
+            <mat-label>Reason for this decision</mat-label>
             <textarea
               matInput
               rows="3"
               [formField]="reviewForm.reason"
             ></textarea>
-            <mat-hint
-              >Separate from the participant-facing rejection reason.</mat-hint
-            >
+            <mat-hint>
+              Separate from the rejection reason shown to the attendee.
+            </mat-hint>
           </mat-form-field>
           <div class="flex justify-end">
             <button
@@ -291,10 +309,14 @@
                 })
               "
             >
-              {{ reviewMutation.isPending() ? "Saving..." : "Save decision" }}
+              {{ reviewMutation.isPending() ? "Saving…" : "Save decision" }}
             </button>
           </div>
         </form>
+      } @else if (receiptDetailPending()) {
+        <p role="status" class="body-medium text-on-surface-variant">
+          Loading receipt details…
+        </p>
       } @else {
         <p class="body-medium text-on-surface-variant">
           Select a receipt to review.
@@ -309,7 +331,7 @@
     >
       <div>
         @if (reimbursementQueueQuery.isPending()) {
-          <p role="status" class="body-medium">Loading reimbursements...</p>
+          <p role="status" class="body-medium">Loading reimbursements…</p>
         } @else if (reimbursementQueueQuery.isError()) {
           <div
             role="alert"
@@ -391,18 +413,18 @@
             }
           </dl>
           <fieldset class="mb-4 border-y border-outline-variant py-3">
-            <legend class="label-large px-1">Receipts in this batch</legend>
+            <legend class="label-large px-1">Selected receipts</legend>
             <p class="body-small text-on-surface-variant mb-2">
               {{ reimbursementForm.receiptIds().value().length }} selected ·
               {{
                 selectedReimbursementTotal() / 100 | currency: group.currency
               }}
-              · maximum 100 per reimbursement record
+              · up to 100 at a time
             </p>
             @if (group.receipts.length > 100) {
               <p class="body-small text-on-surface-variant mb-2">
                 This recipient has {{ group.receipts.length }} approved
-                receipts. Record them in batches of at most 100.
+                receipts. Select up to 100 at a time.
               </p>
             }
             <div class="grid max-h-64 gap-1 overflow-y-auto">
@@ -428,7 +450,7 @@
             </div>
           </fieldset>
           <mat-form-field class="w-full">
-            <mat-label>Payout type</mat-label>
+            <mat-label>Payment method</mat-label>
             <mat-select [formField]="reimbursementForm.payoutType">
               <mat-option value="iban" [disabled]="!group.payout.iban"
                 >Bank transfer</mat-option
@@ -439,7 +461,7 @@
             </mat-select>
           </mat-form-field>
           <mat-form-field class="w-full">
-            <mat-label>Operational reason</mat-label>
+            <mat-label>Reason for this reimbursement</mat-label>
             <textarea
               matInput
               rows="3"
@@ -457,7 +479,7 @@
             >
               {{
                 reimbursementMutation.isPending()
-                  ? "Recording..."
+                  ? "Recording…"
                   : "Review reimbursement"
               }}
             </button>
@@ -465,30 +487,30 @@
         </form>
       } @else {
         <p class="body-medium text-on-surface-variant">
-          Select a recipient group to record a reimbursement.
+          Select a recipient to record a reimbursement.
         </p>
       }
     </section>
   </mat-tab>
 
-  <mat-tab label="Refund recovery">
+  <mat-tab label="Refunds needing attention">
     <section
       class="grid gap-6 py-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
     >
       <div>
         <p class="body-small text-on-surface-variant mb-3">
-          Refunds appear here only when Evorto can safely retry them or resume
-          checking their Stripe status. Refunds still scheduled, currently
-          processing, or already completed stay out of this list.
+          Refunds appear here when they did not finish and there is a clear next
+          action. Refunds that are waiting, in progress, or completed do not
+          appear here.
         </p>
         @if (recoveryQueueQuery.isPending()) {
-          <p role="status" class="body-medium">Loading refund recovery...</p>
+          <p role="status" class="body-medium">Loading refunds…</p>
         } @else if (recoveryQueueQuery.isError()) {
           <div
             role="alert"
             class="bg-error-container text-on-error-container p-4"
           >
-            <p>Refund recovery could not be loaded.</p>
+            <p>Refunds needing attention could not be loaded.</p>
             <button
               mat-stroked-button
               type="button"
@@ -520,7 +542,7 @@
                   </p>
                   @if (claim.transfer) {
                     <p class="body-small text-on-surface-variant">
-                      Related to a registration transfer
+                      Related to a ticket transfer
                     </p>
                   }
                 </div>
@@ -529,20 +551,20 @@
                   type="button"
                   (click)="chooseRefundClaim(claim)"
                 >
-                  Review recovery
+                  Review refund
                 </button>
               </div>
               <p class="body-small text-error mt-2">
                 {{
                   claim.mode === "newGeneration"
-                    ? "Stripe marked the previous refund as failed."
-                    : "Automatic refund checks stopped before completion."
+                    ? "The previous refund failed."
+                    : "This refund did not finish and needs review."
                 }}
               </p>
             </div>
           } @empty {
             <p class="body-medium text-on-surface-variant">
-              No refunds currently need manual recovery.
+              No refunds currently need attention.
             </p>
           }
         }
@@ -553,18 +575,18 @@
           <h2 class="title-medium">
             {{
               claim.mode === "newGeneration"
-                ? "Retry failed refund"
-                : "Resume refund checks"
+                ? "Try failed refund again"
+                : "Continue refund"
             }}
           </h2>
           <p class="body-small text-on-surface-variant mt-1">
             @if (claim.mode === "newGeneration") {
-              The failed Stripe refund stays in the payment history. Retrying
-              starts a new refund attempt for the same amount. It does not
-              increase the refund amount or issue two refunds.
+              The failed refund stays in the payment history. Evorto will try
+              the same amount again. It will not increase the total refund or
+              create two completed refunds.
             } @else {
-              Evorto resumes checking the existing Stripe refund. It does not
-              issue another refund.
+              Evorto will continue the existing refund. It will not create
+              another refund.
             }
           </p>
           <dl class="my-4 grid gap-2 text-sm">
@@ -583,31 +605,31 @@
               <dd>{{ claim.amount / 100 | currency: claim.currency }}</dd>
             </div>
             <div>
-              <dt class="text-on-surface-variant">Safe next step</dt>
+              <dt class="text-on-surface-variant">Next step</dt>
               <dd>
                 {{
                   claim.mode === "newGeneration"
-                    ? "Retry this failed refund"
-                    : "Resume checks for this refund"
+                    ? "Try this refund again"
+                    : "Continue this refund"
                 }}
               </dd>
             </div>
             @if (claim.transfer) {
               <div>
                 <dt class="text-on-surface-variant">Related activity</dt>
-                <dd>Registration transfer</dd>
+                <dd>Ticket transfer</dd>
               </div>
             }
           </dl>
           <mat-form-field class="w-full">
-            <mat-label>Operational recovery reason</mat-label>
+            <mat-label>Reason for this action</mat-label>
             <textarea
               matInput
               rows="3"
               [formField]="refundRecoveryForm.reason"
             ></textarea>
             <mat-hint>
-              Required. This reason is saved with the recovery action.
+              Required. This reason is saved with the action.
             </mat-hint>
           </mat-form-field>
           <div class="flex justify-end">
@@ -622,18 +644,18 @@
               {{
                 refundRecoveryMutation.isPending()
                   ? claim.mode === "newGeneration"
-                    ? "Retrying..."
-                    : "Resuming..."
+                    ? "Trying again…"
+                    : "Continuing…"
                   : claim.mode === "newGeneration"
-                    ? "Retry failed refund"
-                    : "Resume refund checks"
+                    ? "Try failed refund again"
+                    : "Continue refund"
               }}
             </button>
           </div>
         </form>
       } @else {
         <p class="body-medium text-on-surface-variant">
-          Select a refund to review its safe recovery action.
+          Select a refund to review what can be done.
         </p>
       }
     </section>

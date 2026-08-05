@@ -8,7 +8,7 @@
   rolesQuery.isPending() ||
   (templateId() && templateQuery.isPending())
 ) {
-  <p role="status" aria-live="polite">Loading template editor...</p>
+  <p role="status" aria-live="polite">Loading template…</p>
 } @else if (
   optionsQuery.isError() || rolesQuery.isError() || templateQuery.isError()
 ) {
@@ -16,7 +16,7 @@
     class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
     role="alert"
   >
-    <p>Template data, categories, or organization roles could not be loaded.</p>
+    <p>The template, categories, or organization roles could not be loaded.</p>
     <p class="body-small">
       No changes can be saved until the template, categories, and organization
       roles finish loading.
@@ -27,7 +27,7 @@
       [disabled]="editorDataRetrying()"
       (click)="retryEditorData()"
     >
-      {{ editorDataRetrying() ? "Retrying..." : "Try again" }}
+      {{ editorDataRetrying() ? "Trying again…" : "Try again" }}
     </button>
   </section>
 } @else if (editorLoadError()) {
@@ -143,17 +143,17 @@
 
       <div class="grid gap-3">
         <div>
-          <h2 class="title-medium">Registration configuration</h2>
+          <h2 class="title-medium">Sign-up setup</h2>
           <p class="body-small text-on-surface-variant mt-1">
-            Simple configuration keeps one organizing and one non-organizing
-            option. Advanced configuration lets you add registration options and
-            choose which registration options can use each reusable add-on.
+            Simple setup keeps one organizer choice and one attendee choice.
+            Advanced setup lets you add sign-up choices and choose which choices
+            can use each reusable add-on.
           </p>
         </div>
         <div
           class="flex flex-wrap gap-2"
           role="group"
-          aria-label="Configuration mode"
+          aria-label="Sign-up setup"
         >
           <button
             mat-stroked-button
@@ -161,7 +161,7 @@
             [attr.aria-pressed]="isSimpleMode()"
             (click)="requestMode('simple')"
           >
-            Use simple configuration
+            Use simple setup
           </button>
           <button
             mat-stroked-button
@@ -169,7 +169,7 @@
             [attr.aria-pressed]="!isSimpleMode()"
             (click)="requestMode('advanced')"
           >
-            Use advanced configuration
+            Use advanced setup
           </button>
         </div>
         @if (modeBlockMessage()) {
@@ -181,9 +181,6 @@
             {{ modeBlockMessage() }}
           </p>
         }
-        <mat-checkbox [formField]="templateForm.unlisted">
-          Hide this template from the standard template list
-        </mat-checkbox>
       </div>
     </section>
 
@@ -205,22 +202,21 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="registration-options-title" class="title-medium">
-            Registration options
+            Sign-up choices
           </h2>
           <p class="body-small text-on-surface-variant mt-1">
-            Registration options, their add-ons, and questions are saved
-            together. The operational reason is added to the change history.
+            Sign-up choices, their add-ons, and questions are saved together.
+            The reason is added to the change history.
           </p>
           @if (targetTenantQuery.isPending()) {
             <p class="body-small text-on-surface-variant mt-2" role="status">
-              Paid controls are unavailable while the organization's Stripe
-              status is loading.
+              Paid sign-up choices are unavailable while payment settings load.
             </p>
           } @else if (targetTenantQuery.isError()) {
             <div class="mt-2" role="alert">
               <p class="body-small text-error">
-                Paid controls are unavailable because the organization's Stripe
-                status could not be loaded. Existing payment data is preserved.
+                Paid sign-up choices are unavailable because payment settings
+                could not be loaded. Existing payment details are preserved.
               </p>
               <button
                 class="mt-2"
@@ -230,32 +226,38 @@
                 (click)="targetTenantQuery.refetch()"
               >
                 {{
-                  targetTenantQuery.isFetching() ? "Retrying..." : "Try again"
+                  targetTenantQuery.isFetching() ? "Trying again…" : "Try again"
                 }}
               </button>
             </div>
           } @else if (!targetTenantQuery.data()) {
             <p class="body-small text-error mt-2" role="alert">
-              Paid controls are unavailable because the organization could not
-              be found. Existing payment data is preserved.
+              Paid sign-up choices are unavailable because the organization
+              could not be found. Existing payment details are preserved.
             </p>
           } @else if (stripeDisconnected()) {
-            <p class="body-small text-on-surface-variant mt-2" role="status">
-              Paid controls are unavailable because the organization has no
-              connected Stripe account. Saving keeps registration options and
-              add-ons free.
-            </p>
+            @if (paidGraphBlocked()) {
+              <p class="body-small text-error mt-2" role="alert">
+                Existing paid sign-ups and add-ons are preserved. This template
+                cannot be saved until paid sign-ups are ready again.
+              </p>
+            } @else {
+              <p class="body-small text-on-surface-variant mt-2" role="status">
+                Paid sign-up choices are unavailable because paid sign-ups are
+                not ready for this organization.
+              </p>
+            }
           }
           @if (stripeConnected() && taxRatesQuery.isPending()) {
             <p class="body-small text-on-surface-variant mt-2" role="status">
-              Loading the organization's tax rates. Paid prices cannot be
-              configured yet.
+              Loading the organization's tax rates. Paid prices cannot be added
+              yet.
             </p>
           } @else if (stripeConnected() && taxRatesQuery.isError()) {
             <div class="mt-2" role="alert">
               <p class="body-small text-error">
-                Tax rates could not be loaded. Paid prices cannot be configured
-                until you try again.
+                Tax rates could not be loaded. Paid prices cannot be added until
+                you try again.
               </p>
               <button
                 class="mt-2"
@@ -264,7 +266,7 @@
                 [disabled]="taxRatesQuery.isFetching()"
                 (click)="taxRatesQuery.refetch()"
               >
-                {{ taxRatesQuery.isFetching() ? "Retrying..." : "Try again" }}
+                {{ taxRatesQuery.isFetching() ? "Trying again…" : "Try again" }}
               </button>
             </div>
           }
@@ -272,7 +274,7 @@
         @if (!isSimpleMode()) {
           <button mat-button type="button" (click)="addRegistrationOption()">
             <fa-duotone-icon [icon]="faPlus" />
-            Add option
+            Add sign-up choice
           </button>
         }
       </div>
@@ -285,7 +287,7 @@
         ) {
           <fieldset class="border-outline-variant grid gap-4 border-t pt-4">
             <legend class="title-small pr-3">
-              Registration option {{ registrationIndex + 1 }}
+              Sign-up choice {{ registrationIndex + 1 }}
             </legend>
 
             <div class="flex flex-wrap items-center justify-between gap-2">
@@ -293,13 +295,13 @@
                 <p class="body-small text-on-surface-variant">
                   {{
                     registration.organizingRegistration().value()
-                      ? "Organizing registration"
-                      : "Non-organizing registration"
+                      ? "Organizer choice"
+                      : "Attendee choice"
                   }}
                 </p>
               } @else {
                 <mat-checkbox [formField]="registration.organizingRegistration">
-                  Organizer option
+                  Organizer choice
                 </mat-checkbox>
                 <button
                   mat-button
@@ -310,7 +312,7 @@
                   (click)="removeRegistrationOption(registrationIndex)"
                 >
                   <fa-duotone-icon [icon]="faTrashCan" />
-                  Remove option
+                  Remove sign-up choice
                 </button>
               }
             </div>
@@ -319,13 +321,13 @@
               registrationReferenceCount(registration.key().value()) > 0
             ) {
               <p class="body-small text-on-surface-variant">
-                Reassign this option's questions and remove it from any add-ons
-                before removing the option.
+                Move this sign-up choice's questions to another choice and
+                remove it from every add-on before removing the choice.
               </p>
             }
 
             <mat-form-field>
-              <mat-label>Option title</mat-label>
+              <mat-label>Sign-up choice name</mat-label>
               <input matInput [formField]="registration.title" />
               @for (error of registration.title().errors(); track error) {
                 <mat-error>{{ error.message }}</mat-error>
@@ -334,7 +336,7 @@
 
             <section class="grid gap-2">
               <span class="text-on-surface-variant text-sm">
-                Description before registration
+                Description before sign-up
               </span>
               <app-editor [control]="registration.description" />
               @for (error of registration.description().errors(); track error) {
@@ -346,7 +348,7 @@
 
             <section class="grid gap-2">
               <span class="text-on-surface-variant text-sm">
-                Description after registration
+                Description after sign-up
               </span>
               <app-editor [control]="registration.registeredDescription" />
               @for (
@@ -360,7 +362,7 @@
             </section>
 
             <mat-form-field>
-              <mat-label>Eligible organization roles</mat-label>
+              <mat-label>Who can use this sign-up choice</mat-label>
               <mat-select multiple [formField]="registration.roleIds">
                 @for (
                   missingRoleId of missingRoleIds(
@@ -385,7 +387,7 @@
 
             <div class="grid gap-4 sm:grid-cols-2">
               <mat-form-field>
-                <mat-label>Allocation</mat-label>
+                <mat-label>Approval</mat-label>
                 <mat-select [formField]="registration.registrationMode">
                   <mat-option value="fcfs">
                     First come, first served
@@ -395,7 +397,7 @@
               </mat-form-field>
 
               <mat-form-field>
-                <mat-label>Spots</mat-label>
+                <mat-label>Number of places</mat-label>
                 <input
                   matInput
                   type="number"
@@ -409,7 +411,7 @@
 
             <div class="grid gap-4 sm:grid-cols-2">
               <mat-form-field>
-                <mat-label>Open hours before event</mat-label>
+                <mat-label>Hours before event when sign-up opens</mat-label>
                 <input
                   matInput
                   type="number"
@@ -423,7 +425,7 @@
                 }
               </mat-form-field>
               <mat-form-field>
-                <mat-label>Close hours before event</mat-label>
+                <mat-label>Hours before event when sign-up closes</mat-label>
                 <input
                   matInput
                   type="number"
@@ -440,7 +442,7 @@
 
             <div class="grid gap-4 sm:grid-cols-2">
               <mat-form-field>
-                <mat-label>Cancellation deadline (hours before)</mat-label>
+                <mat-label>Cancellation deadline in hours</mat-label>
                 <input
                   matInput
                   type="number"
@@ -461,7 +463,7 @@
                 }
               </mat-form-field>
               <mat-form-field>
-                <mat-label>Transfer deadline (hours before)</mat-label>
+                <mat-label>Transfer deadline in hours</mat-label>
                 <input
                   matInput
                   type="number"
@@ -495,35 +497,40 @@
                 />
 
                 <mat-form-field>
-                  <mat-label>Inclusive tax rate</mat-label>
+                  <mat-label>Tax rate included in price</mat-label>
                   <mat-select [formField]="registration.stripeTaxRateId">
                     @if (
                       registration.stripeTaxRateId().value();
                       as selectedTaxRateId
                     ) {
-                      @if (!taxRateIsAvailable(selectedTaxRateId)) {
+                      @if (taxRateIsAvailable(selectedTaxRateId) === false) {
                         <mat-option [value]="selectedTaxRateId">
                           Previously selected tax rate (no longer available)
                         </mat-option>
                       }
                     }
                     @if (taxRatesQuery.isPending()) {
-                      <mat-option disabled>Loading tax rates...</mat-option>
+                      <mat-option disabled>Loading tax rates…</mat-option>
                     } @else if (taxRatesQuery.isError()) {
                       <mat-option disabled>
-                        Stripe tax rates are unavailable
+                        Tax rates could not be loaded
                       </mat-option>
-                    } @else {
-                      @for (rate of availableTaxRates(); track rate.id) {
+                    } @else if (availableTaxRates(); as resolvedTaxRates) {
+                      @for (rate of resolvedTaxRates; track rate.id) {
                         <mat-option [value]="rate.id">
                           {{ taxRateLabel(rate) }}
                         </mat-option>
                       }
+                    } @else {
+                      <mat-option disabled>
+                        Tax rates could not be loaded. Paid prices cannot be
+                        saved until they are available.
+                      </mat-option>
                     }
                   </mat-select>
                   <mat-hint>
-                    Only active inclusive tax rates from this organization are
-                    available.
+                    Only available tax rates that are already included in the
+                    price are shown.
                   </mat-hint>
                   @for (
                     error of registration.stripeTaxRateId().errors();
@@ -573,14 +580,26 @@
               Reusable add-ons
             </h2>
             <p class="body-small text-on-surface-variant mt-1">
-              Purchase windows and quantities are saved exactly as configured.
+              When each add-on can be bought and how many are available are
+              saved as shown. A template supports up to
+              {{ maxEventAddonTypes }} add-on types.
             </p>
           </div>
-          <button mat-button type="button" (click)="addAddOn()">
+          <button
+            mat-button
+            type="button"
+            [disabled]="templateForm.addOns.length >= maxEventAddonTypes"
+            (click)="addAddOn()"
+          >
             <fa-duotone-icon [icon]="faPlus" />
             Add add-on
           </button>
         </div>
+        @for (error of templateForm.addOns().errors(); track error) {
+          <p class="body-small text-error" role="alert">
+            {{ error.message }}
+          </p>
+        }
 
         <div class="grid gap-6">
           @for (addOn of templateForm.addOns; track addOn; let index = $index) {
@@ -622,12 +641,10 @@
 
               <section
                 class="grid gap-3"
-                aria-label="Registration options available for this add-on"
+                aria-label="Sign-up choices available for this add-on"
               >
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <h3 class="title-small">
-                    Available with registration options
-                  </h3>
+                  <h3 class="title-small">Available with sign-up choices</h3>
                   <button
                     mat-button
                     type="button"
@@ -638,9 +655,13 @@
                     (click)="addAddOnMapping(index)"
                   >
                     <fa-duotone-icon [icon]="faPlus" />
-                    Add registration option
+                    Add sign-up choice
                   </button>
                 </div>
+                <p class="body-small text-on-surface-variant">
+                  Included and optional quantities together cannot exceed
+                  {{ maxRegistrationAddonQuantity }} per sign-up.
+                </p>
                 @for (
                   mapping of addOn.registrationOptions;
                   track mapping;
@@ -650,7 +671,7 @@
                     class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem_10rem_auto]"
                   >
                     <mat-form-field>
-                      <mat-label>Registration option</mat-label>
+                      <mat-label>Sign-up choice</mat-label>
                       <mat-select [formField]="mapping.registrationOptionKey">
                         @for (
                           option of templateForm.registrationOptions;
@@ -669,10 +690,11 @@
                       }
                     </mat-form-field>
                     <mat-form-field>
-                      <mat-label>Included quantity</mat-label>
+                      <mat-label>Items included</mat-label>
                       <input
                         matInput
                         type="number"
+                        step="1"
                         [formField]="mapping.includedQuantity"
                       />
                       @for (
@@ -683,10 +705,11 @@
                       }
                     </mat-form-field>
                     <mat-form-field>
-                      <mat-label>Optional purchase quantity</mat-label>
+                      <mat-label>Items people can buy</mat-label>
                       <input
                         matInput
                         type="number"
+                        step="1"
                         [formField]="mapping.optionalPurchaseQuantity"
                       />
                       @for (
@@ -699,8 +722,8 @@
                     <button
                       mat-icon-button
                       type="button"
-                      aria-label="Remove registration option from add-on"
-                      title="Remove registration option from add-on"
+                      aria-label="Remove sign-up choice from add-on"
+                      title="Remove sign-up choice from add-on"
                       (click)="removeAddOnMapping(index, mappingIndex)"
                     >
                       <fa-duotone-icon [icon]="faTrashCan" />
@@ -708,7 +731,7 @@
                   </div>
                 } @empty {
                   <p class="body-small text-on-surface-variant">
-                    This add-on is not available with any registration option.
+                    This add-on is not available with any sign-up choice.
                   </p>
                 }
                 @for (
@@ -723,10 +746,11 @@
 
               <div class="grid gap-4 sm:grid-cols-2">
                 <mat-form-field>
-                  <mat-label>Available quantity</mat-label>
+                  <mat-label>Items available</mat-label>
                   <input
                     matInput
                     type="number"
+                    step="1"
                     [formField]="addOn.totalAvailableQuantity"
                   />
                   @for (
@@ -737,12 +761,16 @@
                   }
                 </mat-form-field>
                 <mat-form-field>
-                  <mat-label>Maximum per user</mat-label>
+                  <mat-label>Maximum items per person</mat-label>
                   <input
                     matInput
                     type="number"
+                    step="1"
                     [formField]="addOn.maxQuantityPerUser"
                   />
+                  <mat-hint>
+                    At most {{ maxRegistrationAddonQuantity }} items per person.
+                  </mat-hint>
                   @for (
                     error of addOn.maxQuantityPerUser().errors();
                     track error
@@ -754,15 +782,15 @@
 
               <div class="grid gap-2 sm:grid-cols-2">
                 <mat-checkbox [formField]="addOn.allowMultiple">
-                  Allow multiple purchases per user
+                  Let each person buy more later
                 </mat-checkbox>
                 <mat-checkbox
                   [formField]="addOn.allowPurchaseDuringRegistration"
                 >
-                  Available during registration
+                  During sign-up
                 </mat-checkbox>
                 <mat-checkbox [formField]="addOn.allowPurchaseBeforeEvent">
-                  Available after registration and before the event
+                  Available after sign-up and before the event
                 </mat-checkbox>
                 <mat-checkbox [formField]="addOn.allowPurchaseDuringEvent">
                   Available during the event
@@ -790,30 +818,35 @@
                     [minimumMinorUnits]="1"
                   />
                   <mat-form-field>
-                    <mat-label>Inclusive tax rate</mat-label>
+                    <mat-label>Tax rate included in price</mat-label>
                     <mat-select [formField]="addOn.stripeTaxRateId">
                       @if (
                         addOn.stripeTaxRateId().value();
                         as selectedTaxRateId
                       ) {
-                        @if (!taxRateIsAvailable(selectedTaxRateId)) {
+                        @if (taxRateIsAvailable(selectedTaxRateId) === false) {
                           <mat-option [value]="selectedTaxRateId">
                             Previously selected tax rate (no longer available)
                           </mat-option>
                         }
                       }
                       @if (taxRatesQuery.isPending()) {
-                        <mat-option disabled>Loading tax rates...</mat-option>
+                        <mat-option disabled>Loading tax rates…</mat-option>
                       } @else if (taxRatesQuery.isError()) {
                         <mat-option disabled>
-                          Stripe tax rates are unavailable
+                          Tax rates could not be loaded
                         </mat-option>
-                      } @else {
-                        @for (rate of availableTaxRates(); track rate.id) {
+                      } @else if (availableTaxRates(); as resolvedTaxRates) {
+                        @for (rate of resolvedTaxRates; track rate.id) {
                           <mat-option [value]="rate.id">
                             {{ taxRateLabel(rate) }}
                           </mat-option>
                         }
+                      } @else {
+                        <mat-option disabled>
+                          Tax rates could not be loaded. Paid prices cannot be
+                          saved until they are available.
+                        </mat-option>
                       }
                     </mat-select>
                     @for (
@@ -827,9 +860,7 @@
               }
             </fieldset>
           } @empty {
-            <p class="body-medium text-on-surface-variant">
-              No add-ons configured.
-            </p>
+            <p class="body-medium text-on-surface-variant">No add-ons added.</p>
           }
         </div>
       </section>
@@ -841,9 +872,17 @@
     >
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 id="template-questions-title" class="title-medium">
-          Registration questions
+          Sign-up questions
         </h2>
-        <button mat-button type="button" (click)="addQuestion()">
+        <button
+          mat-button
+          type="button"
+          [disabled]="
+            templateModel().registrationOptions.length === 0 ||
+            templateModel().questions.length >= maxRegistrationQuestions
+          "
+          (click)="addQuestion()"
+        >
           <fa-duotone-icon [icon]="faPlus" />
           Add question
         </button>
@@ -882,7 +921,7 @@
                   </mat-select>
                 </mat-form-field>
                 <mat-form-field>
-                  <mat-label>Sort order</mat-label>
+                  <mat-label>Question order</mat-label>
                   <input
                     matInput
                     type="number"
@@ -917,7 +956,13 @@
           </fieldset>
         } @empty {
           <p class="body-medium text-on-surface-variant">
-            No registration questions configured.
+            No sign-up questions added.
+          </p>
+        }
+        @if (templateModel().questions.length >= maxRegistrationQuestions) {
+          <p class="body-small text-on-surface-variant">
+            This template has the maximum {{ maxRegistrationQuestions }}
+            sign-up questions.
           </p>
         }
       </div>
@@ -925,7 +970,7 @@
 
     <section class="border-outline-variant grid gap-4 border-t pt-6">
       <mat-form-field>
-        <mat-label>Operational reason</mat-label>
+        <mat-label>Reason for this change</mat-label>
         <textarea
           matInput
           rows="3"
@@ -954,10 +999,12 @@
             templateForm().invalid() ||
             templateForm().submitting() ||
             !editorDataReady() ||
+            paidGraphBlocked() ||
+            !taxRatesReady() ||
             mutationPending()
           "
         >
-          {{ mutationPending() ? "Saving..." : "Save template" }}
+          {{ mutationPending() ? "Saving…" : "Save template" }}
         </button>
       </div>
     </section>

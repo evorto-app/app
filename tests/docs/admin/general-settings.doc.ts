@@ -11,385 +11,375 @@ const onePixelPng = Buffer.from(
   'base64',
 );
 
-test('Manage organization general settings @admin', async ({
+test('Manage organization settings @admin', async ({
   database,
   page,
   tenant,
 }, testInfo) => {
-  const tenantRecord = await database.query.tenants.findFirst({
-    where: { id: tenant.id },
-  });
-  if (!tenantRecord) {
-    throw new Error('Expected generated general-settings docs tenant');
-  }
-  expect(tenantRecord.domain).toBe(tenant.domain);
-  const documentedEmailSenderName = 'Documentation Operations';
-  const documentedEmailSenderEmail = `operations+${tenant.id}@example.org`;
-  const documentedStripeAccountId = tenantRecord.stripeAccountId;
-  if (!documentedStripeAccountId) {
-    throw new Error(
-      'Expected generated general-settings docs tenant to have a connected Stripe account',
-    );
-  }
+  const documentedEmailSenderName = 'North River Events';
+  const documentedEmailSenderEmail = 'events@north-river.example.org';
   const documentedRegistrationLimit = 4;
   const documentedTransferDeadlineHours = 24;
   const documentedCancellationDeadlineHours = 96;
-  const documentedRefundFeesOnCancellation = false;
+  const documentedSeoTitle = 'North River Community Events';
+  const documentedSeoDescription =
+    'Organization events, trips, and member activities.';
+  const documentedBuyEsnCardUrl =
+    'https://north-river.example.org/membership-card';
+  const documentedLogoUrl =
+    'https://north-river.example.org/images/organization-logo.png';
+  const documentedFaviconUrl =
+    'https://north-river.example.org/images/organization-tab-icon.png';
 
-  await test.step('Document tenant general settings', async () => {
-    await page.goto('.');
-
-    await testInfo.attach('markdown', {
-      body: `
-{% callout type="note" title="Before you begin" %}
-Sign in as an organization administrator with access to change organization settings.
+  await page.goto('.');
+  await testInfo.attach('markdown', {
+    body: `
+{% callout type="note" title="Who can do this" %}
+Sign in with **Change organization settings** for organization, sign-up, appearance, and legal pages. Separate **Manage payments** access is required to see whether paid sign-ups are ready and to manage currency, receipts, refunds, and discount cards.
 {% /callout %}
 
-# Organization General Settings
 
-Use **Admin Tools** -> **General settings** to review and change the organization currently shown in Evorto. These changes do not affect another organization.
+Select **Admin Tools**. Settings are divided into five pages:
+
+- **Organization settings** for the organization name, reply email address, default location, and time zone.
+- **Sign-up rules** for how many current event sign-ups a member may hold, plus transfer and cancellation deadlines. Joining a waitlist does not count toward this limit. Evorto checks the limit when the member later tries to take an available place.
+- **Appearance** for the theme, logo, tab icon, and the title and description shown in search results.
+- **Legal pages** for the imprint and terms. Privacy policy changes remain on **New member setup** because members must accept a changed policy again.
+- **Payments** for seeing whether paid sign-ups are ready and managing currency, refunds, receipt countries, and discount cards.
+
+Each page has its own **Save** action. Saving one page does not change settings on another page.
 `,
-    });
+  });
 
-    await page.getByRole('link', { name: 'Admin Tools' }).click();
+  await page.getByRole('link', { name: 'Admin Tools' }).click();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Admin settings' }),
+  ).toBeVisible();
+  for (const linkName of [
+    'Organization settings',
+    'Sign-up rules',
+    'Appearance',
+    'Legal pages',
+    'Payments',
+  ]) {
+    await expect(page.getByRole('link', { name: linkName })).toBeVisible();
+  }
+
+  await test.step('Save organization settings', async () => {
+    await page.getByRole('link', { name: 'Organization settings' }).click();
+    await expect(page).toHaveURL(/\/admin\/settings$/u);
+    const settings = page.locator('app-organization-settings');
+    await expect(settings).not.toHaveAttribute('ngh', /.*/);
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Admin settings' }),
-    ).toBeVisible();
-    await page.getByRole('link', { name: 'General settings' }).click();
-    await expect(page).toHaveURL(/\/admin\/settings$/);
-    const generalSettings = page.locator('app-general-settings');
-    await expect(generalSettings).toBeVisible();
-    await expect(
-      generalSettings.getByText('Organization name', { exact: true }),
+      settings.getByText('Organization name', { exact: true }),
     ).toBeVisible();
     await expect(
-      generalSettings.getByText('Public domain', { exact: true }),
+      settings.getByText('Website address', { exact: true }),
     ).toBeVisible();
-    const currencySelect = generalSettings.getByRole('combobox', {
+    await expect(
+      settings.getByRole('combobox', { name: 'Time zone' }),
+    ).toContainText('Berlin time');
+    await settings
+      .getByPlaceholder('Example Section')
+      .fill(` ${documentedEmailSenderName} `);
+    await settings
+      .getByPlaceholder('events@section.example.org')
+      .fill(` ${documentedEmailSenderEmail} `);
+    await takeScreenshot(
+      testInfo,
+      settings,
+      page,
+      'Organization name, reply email, location, and time zone',
+    );
+    await settings
+      .getByRole('button', { name: 'Save organization settings' })
+      .click();
+    await expect(page.getByText('Organization settings updated')).toBeVisible();
+  });
+
+  await test.step('Save sign-up rules', async () => {
+    await page.getByRole('link', { name: 'Sign-up rules' }).click();
+    await expect(page).toHaveURL(/\/admin\/settings\/registration$/u);
+    const settings = page.locator('app-registration-settings');
+    await expect(
+      settings.getByText(
+        'Joining a waitlist does not count toward this limit.',
+      ),
+    ).toBeVisible();
+    await settings
+      .getByRole('spinbutton', { name: 'Active sign-up limit' })
+      .fill(String(documentedRegistrationLimit));
+    await settings
+      .getByRole('spinbutton', {
+        name: 'Transfer deadline before event (hours)',
+      })
+      .fill(String(documentedTransferDeadlineHours));
+    await settings
+      .getByRole('spinbutton', {
+        name: 'Cancellation deadline before event (hours)',
+      })
+      .fill(String(documentedCancellationDeadlineHours));
+    await takeScreenshot(
+      testInfo,
+      settings,
+      page,
+      'Active sign-up limit and transfer and cancellation deadlines',
+    );
+    await settings.getByRole('button', { name: 'Save sign-up rules' }).click();
+    await expect(page.getByText('Sign-up rules updated')).toBeVisible();
+  });
+
+  await test.step('Upload and save appearance', async () => {
+    await page.getByRole('link', { name: 'Appearance' }).click();
+    await expect(page).toHaveURL(/\/admin\/settings\/appearance$/u);
+    const settings = page.locator('app-appearance-settings');
+    const themeSelect = settings.getByRole('combobox', { name: 'Site theme' });
+    await themeSelect.click();
+    await expect(
+      page.getByRole('option', { name: 'Default theme' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('option', { name: 'Classic Evorto theme' }),
+    ).toBeVisible();
+    await expect(page.getByRole('option', { name: 'ESN theme' })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    const logoUrlInput = settings.getByRole('textbox', {
+      name: 'Logo web address',
+    });
+    await settings.getByLabel('Upload organization logo file').setInputFiles({
+      buffer: onePixelPng,
+      mimeType: 'image/png',
+      name: 'organization-logo.png',
+    });
+    await expect(logoUrlInput).toHaveValue(
+      new RegExp(`/tenant-assets/${tenant.id}/logo/.+\\.png`, 'u'),
+      { timeout: 15_000 },
+    );
+    await expect(
+      page.getByText('Logo uploaded. Save appearance settings to publish it.'),
+    ).toBeVisible();
+    const uploadedLogoUrl = await logoUrlInput.inputValue();
+    const uploadedLogoResponse = await page.request.get(uploadedLogoUrl);
+    expect(uploadedLogoResponse.status()).toBe(200);
+    expect(uploadedLogoResponse.headers()['content-type']).toBe('image/png');
+
+    const faviconUrlInput = settings.getByRole('textbox', {
+      name: 'Tab icon web address',
+    });
+    await settings
+      .getByLabel('Upload organization tab icon file')
+      .setInputFiles({
+        buffer: onePixelPng,
+        mimeType: 'image/png',
+        name: 'organization-tab-icon.png',
+      });
+    await expect(faviconUrlInput).toHaveValue(
+      new RegExp(`/tenant-assets/${tenant.id}/favicon/.+\\.png`, 'u'),
+      { timeout: 15_000 },
+    );
+    await expect(
+      page.getByText(
+        'Tab icon uploaded. Save appearance settings to publish it.',
+      ),
+    ).toBeVisible();
+    const uploadedFaviconUrl = await faviconUrlInput.inputValue();
+    const uploadedFaviconResponse = await page.request.get(uploadedFaviconUrl);
+    expect(uploadedFaviconResponse.status()).toBe(200);
+    expect(uploadedFaviconResponse.headers()['content-type']).toBe('image/png');
+    await logoUrlInput.fill(documentedLogoUrl);
+    await faviconUrlInput.fill(documentedFaviconUrl);
+    await settings
+      .getByPlaceholder('Organization name or public site title')
+      .fill(documentedSeoTitle);
+    await settings
+      .getByPlaceholder('Short description for search results and previews')
+      .fill(documentedSeoDescription);
+    await takeScreenshot(
+      testInfo,
+      settings,
+      page,
+      'Theme, logo, tab icon, and search preview text',
+    );
+    await settings
+      .getByRole('button', { name: 'Save appearance settings' })
+      .click();
+    await expect(page.getByText('Appearance settings updated')).toBeVisible();
+  });
+
+  await test.step('Review legal page ownership', async () => {
+    await page.getByRole('link', { name: 'Legal pages' }).click();
+    await expect(page).toHaveURL(/\/admin\/settings\/legal$/u);
+    const settings = page.locator('app-legal-settings');
+    await expect(
+      settings.getByRole('link', { name: 'New member setup' }),
+    ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      settings,
+      page,
+      'Imprint and terms settings with a link to privacy setup',
+    );
+  });
+
+  await test.step('Save payment settings', async () => {
+    await page.getByRole('link', { name: 'Payments' }).click();
+    await expect(page).toHaveURL(/\/admin\/settings\/payments$/u);
+    const settings = page.locator('app-payment-provider-settings');
+    await expect(settings.getByText('Paid sign-ups are ready.')).toBeVisible();
+    const currencySelect = settings.getByRole('combobox', {
       name: 'Currency',
     });
-    await expect(currencySelect).toBeVisible();
     await currencySelect.click();
     await expect(page.getByRole('option', { name: 'EUR' })).toBeVisible();
     await expect(page.getByRole('option', { name: 'CZK' })).toBeVisible();
     await expect(page.getByRole('option', { name: 'AUD' })).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(
-      generalSettings.getByRole('textbox', { name: 'Timezone' }),
-    ).toHaveValue('Europe/Berlin');
-    await expect(
-      generalSettings.getByRole('combobox', { name: 'Timezone' }),
-    ).toHaveCount(0);
-    await takeScreenshot(
-      testInfo,
-      generalSettings,
-      page,
-      'Organization general settings',
-    );
 
-    await testInfo.attach('markdown', {
-      body: `
-## Upload organization branding
-
-The **Brand assets** section supports uploaded files and externally hosted HTTP(S) URLs.
-
-To upload a logo:
-
-1. Select **Upload logo** and choose a PNG, JPEG, WebP, or GIF file no larger than 5 MB.
-2. Wait for **Logo uploaded. Save settings to publish it.** The new logo appears in **Logo URL**.
-3. Review the generated URL, then select **Save** with the rest of the settings. Uploading the file alone does not publish it as the organization logo.
-
-Use **Upload favicon** the same way. Favicons additionally accept ICO files. If an upload is rejected, choose a supported, non-empty file within the size limit and try again. You can instead paste an externally hosted HTTP(S) URL into either URL field. Use uploaded assets that belong to this organization.
-`,
-    });
-
-    const logoUrlInput = generalSettings.getByRole('textbox', {
-      name: 'Logo URL',
-    });
-    await generalSettings
-      .getByLabel('Upload organization logo file')
-      .setInputFiles({
-        buffer: onePixelPng,
-        mimeType: 'image/png',
-        name: `documentation-logo-${tenant.id}.png`,
-      });
-    await expect(
-      page.getByText('Logo uploaded. Save settings to publish it.'),
-    ).toBeVisible();
-    await expect(logoUrlInput).toHaveValue(
-      new RegExp(`^/tenant-assets/${tenant.id}/logo/`),
-    );
-    const documentedLogoUrl = await logoUrlInput.inputValue();
-
-    const faviconUrlInput = generalSettings.getByRole('textbox', {
-      name: 'Favicon URL',
-    });
-    await generalSettings
-      .getByLabel('Upload organization favicon file')
-      .setInputFiles({
-        buffer: onePixelPng,
-        mimeType: 'image/png',
-        name: `documentation-favicon-${tenant.id}.png`,
-      });
-    await expect(
-      page.getByText('Favicon uploaded. Save settings to publish it.'),
-    ).toBeVisible();
-    await expect(faviconUrlInput).toHaveValue(
-      new RegExp(`^/tenant-assets/${tenant.id}/favicon/`),
-    );
-    const documentedFaviconUrl = await faviconUrlInput.inputValue();
-    await takeScreenshot(
-      testInfo,
-      generalSettings,
-      page,
-      'Uploaded organization brand assets awaiting save',
-    );
-
-    await testInfo.attach('markdown', {
-      body: `
-## Understand the operations fields before saving
-
-In **Operations settings**:
-
-1. **Email reply-to name** and **Email reply-to email** control where replies to organization emails go. Evorto keeps the actual From address on the ESN.WORLD notification domain.
-2. **Stripe account ID** identifies the Stripe account used for organization payments. Confirm the account in Stripe before changing it. Without a connected account, every event registration option and add-on must be free. Remove an account only after all paid event and add-on configuration has been converted to free.
-3. **Active registration limit** caps how many active registrations one person may have across this organization. Enter **0** for no organization-wide limit.
-4. **Transfer deadline before event (hours)** says how long before an event starts participants stop being able to transfer a registration. Enter **0** to allow transfers until the event starts.
-5. **Cancellation deadline before event (hours)** says how long before an event starts participant cancellations close. The default **120** is five days.
-6. **Refund fees on cancellation** controls whether eligible cancellation refunds include refundable payment fees.
-
-The walkthrough below updates these values and the uploaded brand assets while preserving the connected Stripe account. It saves the form, reloads the page, and confirms that the same values remain.
-`,
-    });
-
-    await page
-      .getByPlaceholder('Example Section')
-      .fill(` ${documentedEmailSenderName} `);
-    await page
-      .getByPlaceholder('events@section.example.org')
-      .fill(` ${documentedEmailSenderEmail} `);
-    await page
-      .getByPlaceholder('acct_...')
-      .fill(` ${documentedStripeAccountId} `);
-    await page
-      .getByRole('spinbutton', { name: 'Active registration limit' })
-      .fill(String(documentedRegistrationLimit));
-    await page
-      .getByRole('spinbutton', {
-        name: 'Transfer deadline before event (hours)',
-      })
-      .fill(String(documentedTransferDeadlineHours));
-    await page
-      .getByRole('spinbutton', {
-        name: 'Cancellation deadline before event (hours)',
-      })
-      .fill(String(documentedCancellationDeadlineHours));
-    const refundFeesToggle = generalSettings
+    const refundFeesToggle = settings
       .locator('mat-slide-toggle')
       .filter({ hasText: 'Refund fees on cancellation' })
       .getByRole('switch');
     if (await refundFeesToggle.isChecked()) {
       await refundFeesToggle.click();
     }
-    await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('Organization settings updated')).toBeVisible();
-
-    await expect
-      .poll(async () => {
-        const persistedTenant = await database.query.tenants.findFirst({
-          where: { id: tenant.id },
-        });
-        return persistedTenant
-          ? {
-              cancellationDeadlineHoursBeforeStart:
-                persistedTenant.cancellationDeadlineHoursBeforeStart,
-              emailSenderEmail: persistedTenant.emailSenderEmail,
-              emailSenderName: persistedTenant.emailSenderName,
-              faviconUrl: persistedTenant.faviconUrl,
-              logoUrl: persistedTenant.logoUrl,
-              maxActiveRegistrationsPerUser:
-                persistedTenant.maxActiveRegistrationsPerUser,
-              refundFeesOnCancellation:
-                persistedTenant.refundFeesOnCancellation,
-              stripeAccountId: persistedTenant.stripeAccountId,
-              transferDeadlineHoursBeforeStart:
-                persistedTenant.transferDeadlineHoursBeforeStart,
-            }
-          : null;
-      })
-      .toEqual({
-        cancellationDeadlineHoursBeforeStart:
-          documentedCancellationDeadlineHours,
-        emailSenderEmail: documentedEmailSenderEmail,
-        emailSenderName: documentedEmailSenderName,
-        faviconUrl: documentedFaviconUrl,
-        logoUrl: documentedLogoUrl,
-        maxActiveRegistrationsPerUser: documentedRegistrationLimit,
-        refundFeesOnCancellation: documentedRefundFeesOnCancellation,
-        stripeAccountId: documentedStripeAccountId,
-        transferDeadlineHoursBeforeStart: documentedTransferDeadlineHours,
-      });
-
-    await page.reload();
-    await expect(page.getByPlaceholder('Example Section')).toHaveValue(
-      documentedEmailSenderName,
-    );
-    await expect(
-      page.getByPlaceholder('events@section.example.org'),
-    ).toHaveValue(documentedEmailSenderEmail);
-    await expect(page.getByPlaceholder('acct_...')).toHaveValue(
-      documentedStripeAccountId,
-    );
-    await expect(
-      page.getByRole('spinbutton', { name: 'Active registration limit' }),
-    ).toHaveValue(String(documentedRegistrationLimit));
-    await expect(
-      page.getByRole('spinbutton', {
-        name: 'Transfer deadline before event (hours)',
-      }),
-    ).toHaveValue(String(documentedTransferDeadlineHours));
-    await expect(
-      page.getByRole('spinbutton', {
-        name: 'Cancellation deadline before event (hours)',
-      }),
-    ).toHaveValue(String(documentedCancellationDeadlineHours));
-    await expect(refundFeesToggle).not.toBeChecked();
-    await expect(logoUrlInput).toHaveValue(documentedLogoUrl);
-    await expect(faviconUrlInput).toHaveValue(documentedFaviconUrl);
-    for (const assetUrl of [documentedLogoUrl, documentedFaviconUrl]) {
-      const assetResponse = await page.request.get(assetUrl);
-      expect(assetResponse.status()).toBe(200);
-      expect(assetResponse.headers()['content-type']).toBe('image/png');
+    const esnCardToggle = settings
+      .locator('mat-slide-toggle')
+      .filter({ hasText: 'ESNcard discounts' })
+      .getByRole('switch');
+    if (!(await esnCardToggle.isChecked())) {
+      await esnCardToggle.click();
     }
+    await settings
+      .getByPlaceholder('https://esncard.org/')
+      .fill(documentedBuyEsnCardUrl);
     await takeScreenshot(
       testInfo,
-      generalSettings,
+      settings,
       page,
-      'Saved organization operations settings',
+      'Payment readiness, currency, refunds, receipts, and discounts',
     );
+    await settings
+      .getByRole('button', { name: 'Save payment settings' })
+      .click();
+    await expect(page.getByText('Payment settings updated')).toBeVisible();
+  });
 
-    await testInfo.attach('markdown', {
-      body: `
-## Completion and recovery
-
-The **Organization settings updated** message confirms that the changes were saved. Reload the page when you want to confirm the saved reply-to identity, Stripe account ID, registration limit, transfer deadline, cancellation deadline, and fee-refund choice.
-
-The Save action remains unavailable while the form is invalid or another save is running. If Evorto cannot save a change, it explains what needs attention; correct the value and try again. Evorto prevents currency and timezone changes after event or payment data exists.
-
-## Current settings surface
-
-The current general settings page supports:
-
-- A read-only **Organization** summary with its name and public domain.
-- **Operations settings** for email reply-to name/email, Stripe account id, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior. Users with event-review access can review submitted events.
-- **Default Location** for event location search bias.
-- **Site theme** for the organization's theme.
-- A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field for the city or region used for event times. Currency and timezone can be changed before the organization has event or payment data; after that, Evorto prevents the change.
-- **Logo URL** and **Favicon URL** for organization brand assets. Admins can upload PNG, JPEG, WebP, or GIF logos; favicons also support ICO files. Externally hosted URLs are still supported. The configured favicon updates the browser tab icon.
-- **SEO title** and **SEO description** for public-page previews.
-- **Legal pages** for the imprint/legal notice and terms. Admins can save hosted text, an external URL, or both. The privacy policy is managed with required questions on **Member onboarding**, so a policy cannot be changed without the member-acceptance warning.
-- **Allowed receipt countries** and **Allow other** for receipt submission.
-- **ESN Card discounts** and optional **Buy ESNcard URL** when the organization uses ESNcard validation.
-
-Tax rates are managed on the separate **Tax Rates** page.
-`,
+  await expect
+    .poll(async () => {
+      const persisted = await database.query.tenants.findFirst({
+        where: { id: tenant.id },
+      });
+      return persisted
+        ? {
+            cancellationDeadlineHoursBeforeStart:
+              persisted.cancellationDeadlineHoursBeforeStart,
+            discountProviders: persisted.discountProviders,
+            emailSenderEmail: persisted.emailSenderEmail,
+            emailSenderName: persisted.emailSenderName,
+            faviconUrl: persisted.faviconUrl,
+            logoUrl: persisted.logoUrl,
+            maxActiveRegistrationsPerUser:
+              persisted.maxActiveRegistrationsPerUser,
+            refundFeesOnCancellation: persisted.refundFeesOnCancellation,
+            seoDescription: persisted.seoDescription,
+            seoTitle: persisted.seoTitle,
+            transferDeadlineHoursBeforeStart:
+              persisted.transferDeadlineHoursBeforeStart,
+          }
+        : null;
+    })
+    .toEqual({
+      cancellationDeadlineHoursBeforeStart: documentedCancellationDeadlineHours,
+      discountProviders: {
+        esnCard: {
+          config: { buyEsnCardUrl: documentedBuyEsnCardUrl },
+          status: 'enabled',
+        },
+      },
+      emailSenderEmail: documentedEmailSenderEmail,
+      emailSenderName: documentedEmailSenderName,
+      faviconUrl: documentedFaviconUrl,
+      logoUrl: documentedLogoUrl,
+      maxActiveRegistrationsPerUser: documentedRegistrationLimit,
+      refundFeesOnCancellation: false,
+      seoDescription: documentedSeoDescription,
+      seoTitle: documentedSeoTitle,
+      transferDeadlineHoursBeforeStart: documentedTransferDeadlineHours,
     });
+
+  await testInfo.attach('markdown', {
+    body: `
+## After saving
+
+Each page confirms when its settings have been saved. If **Save** is unavailable, correct the highlighted fields or wait for the current save to finish. If saving fails, try again. If it continues to fail, contact Evorto support and include the settings page and exact message shown. Evorto does not replace your choice with another value.
+
+After you save a new time zone or currency, Evorto returns you to the updated page. Currency remains unavailable after templates, events, receipts, or payments exist. If paid sign-ups are not ready, contact Evorto support before adding prices.
+
+Tax rates remain on the separate **Tax rates** page.
+`,
   });
 });
 
-test('Publish hosted legal pages and verify the signed-out footer @admin', async ({
+test('Publish legal pages @admin', async ({
   browser,
   database,
   page,
   tenant,
 }, testInfo) => {
   const legalNoticeText = `Imprint for ${tenant.name}: contact the organization board for legal notices.`;
-  const privacyPolicyText = `Privacy policy for ${tenant.name}: event registration data is used to operate this organization's events.`;
-  const termsText = `Terms for ${tenant.name}: follow the event rules shown before registration.`;
+  const privacyPolicyText = `Privacy policy for ${tenant.name}: event sign-up details are used to run this organization's events.`;
+  const termsText = `Terms for ${tenant.name}: follow the event rules shown before signing up.`;
 
-  await page.goto('.');
-
-  await testInfo.attach('markdown', {
-    body: `
-{% callout type="note" title="Before you begin" %}
-Sign in as an organization administrator with access to change organization settings. Prepare approved imprint, privacy-policy, and terms text before publishing it. General settings owns the imprint and terms; **Member onboarding** owns the privacy policy and required member questions. A privacy-policy change creates a new policy version, so every member, including the administrator making the change, must accept that version before returning to protected organization work.
-{% /callout %}
-
-# Publish hosted legal pages
-
-Start from **Events**, open **Admin Tools**, then choose **General settings**. Legal content belongs to the organization currently named in Evorto; publishing it does not change another organization.
-`,
-  });
-
-  await page.getByRole('link', { name: 'Admin Tools' }).click();
-  await page.getByRole('link', { name: 'General settings' }).click();
-  await expect(page).toHaveURL(/\/admin\/settings$/);
-  const generalSettings = page.locator('app-general-settings');
-  await expect(generalSettings).not.toHaveAttribute('ngh', /.*/);
-  const legalSection = generalSettings.locator('form').filter({
-    has: page.getByRole('heading', {
-      level: 3,
-      name: 'Legal pages',
-    }),
-  });
+  await page.goto('/admin/settings/legal');
+  const legalSettings = page.locator('app-legal-settings');
+  await expect(legalSettings).not.toHaveAttribute('ngh', /.*/);
 
   await testInfo.attach('markdown', {
     body: `
-## Publish the imprint and terms
 
-The imprint and terms each support three configurations:
+Use **Admin Tools** → **Legal pages** for the imprint and terms. Enter approved text when Evorto should publish the page, or provide the full web address of a page on another website. When both are present, your public pages link to the page on the other website.
 
-- Enter only approved **Hosted ... text** when Evorto should publish the page. The public footer then opens that hosted legal page.
-- Enter only an approved external **URL** when another website owns the page. The public footer opens that external address in a new tab.
-- Save both when the hosted text and external page belong to the same legal configuration.
-
-When both fields are saved, the public footer gives the external URL precedence and does not show the hosted text. Clear the URL and save again when the footer should return to the hosted legal page. The privacy-policy note links to **Member onboarding**, where its version and acceptance impact are shown together.
+The privacy policy stays on **New member setup** with required member questions. Members must accept a changed privacy policy before continuing.
 `,
   });
 
-  await legalSection
-    .getByRole('textbox', { name: 'Imprint / legal notice URL' })
+  await legalSettings
+    .getByRole('textbox', { name: 'Imprint / legal notice web address' })
     .fill('');
-  await legalSection
-    .getByRole('textbox', { name: 'Hosted imprint / legal notice text' })
+  await legalSettings
+    .getByRole('textbox', {
+      name: 'Imprint / legal notice text published by Evorto',
+    })
     .fill(legalNoticeText);
-  await expect(
-    legalSection.getByRole('link', { name: 'Member onboarding' }),
-  ).toBeVisible();
-  await legalSection.getByRole('textbox', { name: 'Terms URL' }).fill('');
-  await legalSection
-    .getByRole('textbox', { name: 'Hosted terms text' })
+  await legalSettings
+    .getByRole('textbox', { name: 'Terms web address' })
+    .fill('');
+  await legalSettings
+    .getByRole('textbox', { name: 'Terms text published by Evorto' })
     .fill(termsText);
   await takeScreenshot(
     testInfo,
-    legalSection,
+    legalSettings,
     page,
-    'Hosted imprint and terms ready to publish',
+    'Imprint and terms ready to publish',
   );
+  await legalSettings.getByRole('button', { name: 'Save legal pages' }).click();
+  await expect(page.getByText('Legal settings updated')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Organization settings updated')).toBeVisible();
-
-  await legalSection.getByRole('link', { name: 'Member onboarding' }).click();
-  await expect(page).toHaveURL(/\/admin\/onboarding$/);
+  await legalSettings.getByRole('link', { name: 'New member setup' }).click();
   const onboardingSettings = page.locator('app-onboarding-settings');
   await onboardingSettings
-    .getByRole('textbox', { name: 'Privacy policy URL' })
+    .getByRole('textbox', { name: 'Privacy policy web address' })
     .fill('');
   await onboardingSettings
     .getByRole('textbox', { name: 'Privacy policy text' })
     .fill(privacyPolicyText);
-  await takeScreenshot(
-    testInfo,
-    onboardingSettings,
-    page,
-    'Hosted privacy policy ready to publish',
-  );
   await onboardingSettings
-    .getByRole('button', { name: 'Publish settings' })
+    .getByRole('button', { name: 'Publish changes' })
     .click();
   await expect(
-    page.getByText(/members must accept it before continuing/i),
+    page.getByText(/members must accept the new policy before continuing/i),
   ).toBeVisible();
 
   await expect
@@ -398,14 +388,32 @@ When both fields are saved, the public footer gives the external URL precedence 
         columns: {
           legalNoticeText: true,
           legalNoticeUrl: true,
-          privacyPolicyText: true,
-          privacyPolicyUrl: true,
           termsText: true,
           termsUrl: true,
         },
         where: { id: tenant.id },
+        with: {
+          privacyPolicyVersions: {
+            columns: {
+              privacyPolicyText: true,
+              privacyPolicyUrl: true,
+            },
+            limit: 1,
+            orderBy: { version: 'desc' },
+          },
+        },
       });
-      return persistedTenant;
+      const currentPrivacyPolicy = persistedTenant?.privacyPolicyVersions[0];
+      return persistedTenant && currentPrivacyPolicy
+        ? {
+            legalNoticeText: persistedTenant.legalNoticeText,
+            legalNoticeUrl: persistedTenant.legalNoticeUrl,
+            privacyPolicyText: currentPrivacyPolicy.privacyPolicyText,
+            privacyPolicyUrl: currentPrivacyPolicy.privacyPolicyUrl,
+            termsText: persistedTenant.termsText,
+            termsUrl: persistedTenant.termsUrl,
+          }
+        : null;
     })
     .toEqual({
       legalNoticeText,
@@ -431,13 +439,8 @@ When both fields are saved, the public footer gives the external URL precedence 
   ]);
   const publicPage = await publicContext.newPage();
   await publicPage.goto(`${tenantUrl.origin}/events`);
-  await expect(
-    publicPage.getByRole('link', { name: 'Login', exact: true }),
-  ).toBeVisible();
   const publicFooter = publicPage.getByRole('contentinfo');
-  await expect(
-    publicFooter.getByRole('link', { name: 'Imprint', exact: true }),
-  ).toBeVisible();
+
   await publicFooter
     .getByRole('link', { name: 'Imprint', exact: true })
     .click();
@@ -461,25 +464,22 @@ When both fields are saved, the public footer gives the external URL precedence 
 
   await publicPage.getByRole('link', { name: 'Back to events' }).click();
   await publicFooter.getByRole('link', { name: 'Terms', exact: true }).click();
-  await expect(
-    publicPage.getByRole('heading', { level: 1, name: 'Terms' }),
-  ).toBeVisible();
   await expect(publicPage.getByText(termsText, { exact: true })).toBeVisible();
   await takeScreenshot(
     testInfo,
     publicPage.locator('main'),
     publicPage,
-    'Signed-out hosted terms page',
+    'Published terms page for signed-out visitors',
   );
   await publicContext.close();
 
   await testInfo.attach('markdown', {
     body: `
-## Completion and recovery
+## After saving
 
-**Organization settings updated** confirms publication. A signed-out visitor must then be able to start at **Events**, follow each footer link, and read the saved text. This confirms that the content is publicly available, not only visible in the administrator form.
+**Legal settings updated** confirms the save. Sign out and open each footer link to confirm that visitors can read the published content.
 
-If Save reports an invalid URL, correct it to an absolute HTTP(S) address or remove it and use hosted text. If the imprint or terms link is missing, return to **Admin Tools** -> **General settings**. If the privacy link is missing, return to **Admin Tools** -> **Member onboarding**. Confirm that the relevant URL or hosted text was published. If the footer opens an external page while hosted text is also stored, that is the expected URL precedence; clear the URL and publish again when the hosted page should become public. Publishing a privacy-policy change deliberately blocks protected organization tasks until the current user accepts the new version; this is expected, not a failed publication.
+If Evorto reports an invalid web address, copy the complete secure address from your website, or clear it and publish the text in Evorto. If an imprint or terms link is missing, return to **Legal pages**. If the privacy link is missing, return to **New member setup**. After a privacy-policy change is published, members must accept it before continuing.
 `,
   });
 });

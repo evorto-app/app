@@ -30,7 +30,6 @@ describe('production provider scope', () => {
     const documentationJourney = source(
       'tests/docs/admin/google-maps-location.doc.ts',
     );
-    const testInventory = source('tests/test-inventory.md');
     const releaseGuides = [
       source('README.md'),
       source('QUALITY.md'),
@@ -96,17 +95,9 @@ describe('production provider scope', () => {
     }
     expect(functionalJourney).toContain('@needs-google-maps');
     expect(documentationJourney).toContain('@needs-google-maps');
-    expect(testInventory).toContain(
-      'unrelated Auth0 Management/Google Maps provider',
-    );
-    expect(testInventory).not.toContain(
-      'unrelated Auth0 Management/Cloudflare provider',
-    );
     expectLiveProviderTimeout(functionalJourney);
     expectLiveProviderTimeout(documentationJourney);
-    expect(documentationJourney).toContain(
-      'Google Maps location search must be available',
-    );
+    expect(documentationJourney).toContain('Location search must be available');
     for (const prerequisite of [
       'billing enabled',
       'Maps JavaScript API',
@@ -130,122 +121,5 @@ describe('production provider scope', () => {
         ),
       ),
     ).toBe(true);
-  });
-
-  it('removes Cloudflare Images without removing S3-compatible storage', () => {
-    const packageJson = JSON.parse(source('package.json')) as {
-      dependencies?: Record<string, string>;
-      scripts?: Record<string, string>;
-    };
-    const compose = source('docker-compose.yml');
-    const appRpcs = source(
-      'src/shared/rpc-contracts/app-rpcs/app-rpcs.group.ts',
-    );
-    const runtime = source('src/server/config/runtime-config.ts');
-    const objectStorageConfig = source(
-      'src/server/config/object-storage-config.ts',
-    );
-    const objectStorageIntegration = source(
-      'src/server/integrations/object-storage.ts',
-    );
-    const receiptMedia = source(
-      'src/server/effect/rpc/handlers/finance/receipt-media.service.ts',
-    );
-    const tenantBrandAssets = source('src/server/tenant-brand-assets.ts');
-    const tenantBrandAssetHandler = source(
-      'src/server/http/tenant-brand-asset.web-handler.ts',
-    );
-    const server = source('src/server.ts');
-    const editor = source(
-      'src/app/shared/components/controls/editor/editor.component.ts',
-    );
-
-    expect(packageJson.dependencies?.['cloudflare']).toBeUndefined();
-    expect(
-      packageJson.dependencies?.['@tiptap/extension-file-handler'],
-    ).toBeUndefined();
-    expect(
-      packageJson.scripts?.['test:cleanup:receipt-images'],
-    ).toBeUndefined();
-    expect(compose).not.toContain('CLOUDFLARE_IMAGES');
-    for (const variableName of [
-      'S3_ACCESS_KEY_ID',
-      'S3_BUCKET',
-      'S3_ENDPOINT',
-      'S3_REGION',
-      'S3_SECRET_ACCESS_KEY',
-    ]) {
-      expect(compose).toContain(`${variableName}:`);
-      expect(objectStorageConfig).toContain(variableName);
-    }
-    expect(objectStorageConfig).toContain("missingFieldError('S3_BUCKET')");
-    expect(objectStorageConfig).not.toContain("onNone: () => 'testing'");
-    expect(compose).toContain('S3_PUBLIC_ENDPOINT:');
-    expect(objectStorageConfig).toContain('S3_PUBLIC_ENDPOINT');
-
-    expect(objectStorageIntegration).toContain('objectStorageConfig,');
-    expect(objectStorageIntegration).toContain(
-      "from '../config/object-storage-config';",
-    );
-    expect(objectStorageIntegration).toContain('export class ObjectStorage');
-    expect(objectStorageIntegration).toContain('presignPost');
-    expect(objectStorageIntegration).toContain('metadata');
-    expect(objectStorageIntegration).toContain("acl: 'private'");
-    expect(receiptMedia).toContain(
-      "from '../../../../integrations/object-storage';",
-    );
-    expect(receiptMedia).toContain('.presignPost({');
-    expect(receiptMedia).toContain('objectStorage.get(input.storageKey)');
-    expect(receiptMedia).toContain('const stored = yield* objectStorage');
-    expect(receiptMedia).toContain('.put({');
-    expect(receiptMedia).toContain('.presignGet(');
-    expect(receiptMedia).toContain('export const buildReceiptUploadStorageKey');
-    expect(receiptMedia).toContain('export const buildReceiptStorageKey');
-    expect(receiptMedia).toContain("'receipts',");
-    expect(tenantBrandAssets).toContain(
-      "import { ObjectStorage } from './integrations/object-storage';",
-    );
-    expect(tenantBrandAssets).toContain(
-      'return `tenant-assets/${tenantId}/${input.kind}/${input.fileName}`;',
-    );
-    expect(tenantBrandAssets).toContain('yield* ObjectStorage.put({');
-    expect(tenantBrandAssetHandler).toContain(
-      "import { ObjectStorage } from '../integrations/object-storage';",
-    );
-    expect(tenantBrandAssetHandler).toContain(
-      'const storageKey = tenantBrandAssetStorageKey({',
-    );
-    expect(tenantBrandAssetHandler).toContain(
-      'const body = yield* ObjectStorage.get(storageKey)',
-    );
-    expect(server).toContain("'/tenant-assets/:tenantId/:kind/:fileName'");
-    expect(server).toContain('handleTenantBrandAssetWebRequest(asset)');
-    expect(runtime).toContain("from './object-storage-config';");
-    expect(runtime).toContain('objectStorage: yield* objectStorageStateConfig');
-    expect(appRpcs).not.toContain('EditorMediaRpcs');
-    expect(runtime).not.toContain('cloudflareImages');
-    expect(editor).not.toContain('createImageDirectUpload');
-    expect(editor).not.toContain('FileHandler');
-
-    for (const removedPath of [
-      'helpers/cleanup-testing-receipt-images.ts',
-      'src/server/config/cloudflare-images-config.ts',
-      'src/server/effect/rpc/handlers/editor-media.handlers.ts',
-      'src/server/integrations/cloudflare-images.ts',
-      'src/shared/rpc-contracts/app-rpcs/editor-media.rpcs.ts',
-    ]) {
-      expect(existsSync(path.join(repositoryRoot, removedPath))).toBe(false);
-    }
-
-    for (const preservedBehaviorTest of [
-      'src/server/integrations/object-storage.spec.ts',
-      'src/server/effect/rpc/handlers/finance/receipt-media.service.spec.ts',
-      'src/server/tenant-brand-assets.spec.ts',
-      'src/server/http/tenant-brand-asset.web-handler.spec.ts',
-    ]) {
-      expect(existsSync(path.join(repositoryRoot, preservedBehaviorTest))).toBe(
-        true,
-      );
-    }
   });
 });

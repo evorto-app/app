@@ -13,13 +13,17 @@ import {
 const requiredDockerEnvironment = Object.fromEntries(
   requiredByTarget.docker.map(({ name }) => [
     name,
-    `${name.toLowerCase()}-value`,
+    name === 'SECRET'
+      ? '0123456789abcdef0123456789abcdef'
+      : `${name.toLowerCase()}-value`,
   ]),
 );
 const requiredPlaywrightEnvironment = Object.fromEntries(
   requiredByTarget.playwright.map(({ name }) => [
     name,
-    `${name.toLowerCase()}-value`,
+    name === 'SECRET'
+      ? '0123456789abcdef0123456789abcdef'
+      : `${name.toLowerCase()}-value`,
   ]),
 );
 
@@ -167,7 +171,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(dockerfile).toContain('&& bun install --frozen-lockfile');
   });
 
-  it('keeps premium and brand icon packages on the Font Awesome registry path', () => {
+  it('keeps the premium icon package on the Font Awesome registry path', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
     ) as { dependencies: Record<string, string> };
@@ -179,18 +183,11 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.dependencies).toEqual(
       expect.objectContaining({
         '@fortawesome/duotone-regular-svg-icons': expect.any(String),
-        '@fortawesome/free-brands-svg-icons': expect.any(String),
       }),
     );
-
-    for (const packageName of [
-      '@fortawesome/duotone-regular-svg-icons',
-      '@fortawesome/free-brands-svg-icons',
-    ]) {
-      expect(lockfile).toContain(
-        `https://npm.fontawesome.com/${packageName}/-/`,
-      );
-    }
+    expect(lockfile).toContain(
+      'https://npm.fontawesome.com/@fortawesome/duotone-regular-svg-icons/-/',
+    );
   });
 
   it('keeps Docker startup scripts behind the non-mutating preflight', () => {
@@ -409,7 +406,7 @@ describe('evaluateRuntimePreflight', () => {
       '--project=docs-live-esncard',
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      "--grep '@needs-live-esncard'",
+      '--grep "@needs-live-esncard"',
     );
     expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
       'runtime-preflight.ts esncard-release',
@@ -437,6 +434,7 @@ describe('evaluateRuntimePreflight', () => {
     const dbSetupService = serviceBlock(composeFile, 'db-setup');
     const evortoService = serviceBlock(composeFile, 'evorto');
     const mailpitService = serviceBlock(composeFile, 'mailpit');
+    const minioService = serviceBlock(composeFile, 'minio');
     const stripeService = serviceBlock(composeFile, 'stripe');
     const workerService = serviceBlock(composeFile, 'worker');
 
@@ -444,6 +442,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(dbService).toContain('restart: unless-stopped');
     expect(dbService).toContain('postgres-data:/var/lib/postgresql/data');
     expect(dbService).toContain('POSTGRES_HOST_PORT');
+    expect(dbService).toContain(
+      '"127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"',
+    );
     expect(dbService).toContain('pg_isready');
     expect(composeFile).not.toMatch(/NEON_|Neon Local|neon-local/u);
 
@@ -509,28 +510,31 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).not.toContain('E2E_RUNTIME_MODE: "playwright"');
     expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
     expect(evortoService).toContain('APP_ROLE: web');
+    expect(evortoService).toContain('"127.0.0.1:${APP_HOST_PORT:-4200}:4200"');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
     );
-    expect(evortoService).toContain("trap 'cleanup_server TERM 143' TERM");
-    expect(evortoService).toContain(
-      'kill -"$$signal" "$$server_pid" 2>/dev/null || true',
-    );
-    expect(evortoService).toContain('finish_tee()');
-    expect(evortoService).toContain('sleep 2');
-    expect(evortoService).toContain(
-      'kill -TERM "$$tee_pid" 2>/dev/null || true',
-    );
+    expect(evortoService).not.toContain('command:');
+    expect(evortoService).not.toContain('server.log');
+    expect(evortoService).not.toContain('mkfifo');
 
     expect(mailpitService).toContain('axllent/mailpit:v1.28.2@sha256:');
     expect(mailpitService).toContain('MAILPIT_HOST_PORT');
+    expect(mailpitService).toContain(
+      '"127.0.0.1:${MAILPIT_HOST_PORT:-8025}:8025"',
+    );
     expect(mailpitService).toContain('mailpit-data:/data');
+    expect(minioService).toContain('"127.0.0.1:${MINIO_HOST_PORT:-9000}:9000"');
+    expect(minioService).toContain(
+      '"127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"',
+    );
     expect(workerService).toContain('APP_ROLE: worker');
     expect(workerService).toContain('WORKER_TRIGGER_MODE: poll');
     expect(workerService).toContain('EMAIL_DELIVERY_PROVIDER: mailpit');
     expect(workerService).toContain(
       'MAILPIT_API_URL: http://mailpit:8025/api/v1/send',
     );
+    expect(workerService).not.toContain('command:');
 
     expect(stripeService).toContain('STRIPE_API_KEY:');
     expect(stripeService).toContain(
@@ -614,6 +618,7 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'CLIENT_SECRET: Auth0 application secret',
             'FONT_AWESOME_TOKEN: Font Awesome package registry access for premium and brand icons',
+            'SECRET: Application session secret must contain at least 32 UTF-8 bytes',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
             'STRIPE_TEST_ACCOUNT_ID: Stripe connected account id for seeded paid flows',
           ]),
@@ -624,7 +629,6 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'CLIENT_ID: Auth0 application id',
             'ISSUER_BASE_URL: Auth0 issuer URL',
-            'SECRET: Application session secret',
           ]),
           label: 'Available docker runtime variables',
           severity: 'ok',

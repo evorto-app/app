@@ -25,24 +25,23 @@ export interface TemplateModeConfirmationData {
   ],
   selector: 'app-template-mode-confirmation-dialog',
   template: `
-    <h2 mat-dialog-title>Switch to {{ data.targetMode }} configuration?</h2>
+    <h2 mat-dialog-title>Switch to {{ data.targetMode }} setup?</h2>
     <mat-dialog-content>
       @if (data.targetMode === 'advanced') {
         <p>
-          Advanced configuration keeps both current options and lets you add,
-          remove, rename, and reclassify registration options. You can also
-          choose which registration options can use each reusable add-on.
+          Advanced setup keeps both current choices and lets you add, remove,
+          rename, and choose who each choice is for. You can also choose which
+          choices can use each reusable add-on.
         </p>
       } @else {
         <p>
-          Simple configuration shows one organizing and one non-organizing
-          option. Questions, add-ons, and the registration options that can use
-          each add-on stay saved. Those controls are hidden until you switch
-          back to advanced configuration.
+          Simple setup shows one organizer choice and one attendee choice.
+          Questions, add-ons, and which choices can use each add-on stay saved.
+          Those controls are hidden until you switch back to advanced setup.
         </p>
       }
       <p class="mt-3">
-        This changes only the unsaved form. You can switch back before saving.
+        This change is not saved yet. You can switch back before saving.
       </p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
@@ -52,14 +51,14 @@ export interface TemplateModeConfirmationData {
         [mat-dialog-close]="undefined"
         cdkFocusInitial
       >
-        Keep current mode
+        Keep current setup
       </button>
       <button
         mat-flat-button
         type="button"
         [mat-dialog-close]="data.targetMode"
       >
-        Switch to {{ data.targetMode }}
+        Use {{ data.targetMode }} setup
       </button>
     </mat-dialog-actions>
   `,

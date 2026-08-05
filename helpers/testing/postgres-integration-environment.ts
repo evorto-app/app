@@ -1,5 +1,5 @@
 const POSTGRES_MAJOR_VERSION = 17;
-const LOCAL_DATABASE_NAME = 'evorto_postgres_integration';
+export const postgresIntegrationDatabaseName = 'evorto_postgres_integration';
 const localHosts = new Set(['127.0.0.1', '::1', 'localhost']);
 const allowedConnectionParameters = new Set(['sslmode']);
 const normalizeHost = (host: string) => host.replace(/^\[(.*)\]$/u, '$1');
@@ -64,9 +64,9 @@ const parseDatabaseUrl = (value: string): URL => {
   const databaseName = decodeURIComponent(
     databaseUrl.pathname.replace(/^\/+/, ''),
   );
-  if (databaseName !== LOCAL_DATABASE_NAME) {
+  if (databaseName !== postgresIntegrationDatabaseName) {
     throw new Error(
-      `Local PostgreSQL integration tests require database ${LOCAL_DATABASE_NAME}`,
+      `Local PostgreSQL integration tests require database ${postgresIntegrationDatabaseName}`,
     );
   }
 

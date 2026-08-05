@@ -1,8 +1,13 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  eventCheckInTimingIssue,
+  eventCheckInTimingMessage,
+} from '@shared/event-check-in';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import { registrationSpotCount } from '@shared/registration-spots';
 import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
 import {
+  EventCheckInUnavailableError,
   EventRegistrationConflictError,
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
@@ -13,17 +18,7 @@ import {
   type PlatformRegistrationsCancelInput,
   type PlatformRegistrationsCheckInInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  exists,
-  inArray,
-  isNull,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -64,8 +59,6 @@ import {
   resolvePlatformRead,
   writePlatformAudit,
 } from '../shared/platform-operation.service';
-
-const CHECK_IN_PRE_START_WINDOW_MS = 60 * 60 * 1000;
 
 type DatabaseReader = Pick<DatabaseClient, 'select'>;
 
@@ -108,9 +101,28 @@ const databaseEffect = <A, R>(
     ),
   );
 
-const registrationNotFound = (registrationId: string) =>
+const checkInDatabaseEffect = <A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+): Effect.Effect<
+  A,
+  EventCheckInUnavailableError | RpcBadRequestError,
+  Database | R
+> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        error instanceof EventCheckInUnavailableError ||
+        error instanceof RpcBadRequestError
+          ? Effect.fail(error)
+          : Effect.die(error),
+      ),
+    ),
+  );
+
+const registrationNotFound = () =>
   new RpcBadRequestError({
-    message: `Registration ${registrationId} was not found for the target tenant`,
+    message:
+      "This sign-up no longer exists. No changes were made. Return to the event's sign-ups and choose an existing sign-up.",
     reason: 'registrationNotFound',
   });
 
@@ -119,7 +131,7 @@ export const platformRegistrationActiveTransferError = (
 ) =>
   new RpcBadRequestError({
     message:
-      'Finish or cancel the active transfer before checking in this registration.',
+      'Finish or cancel the active transfer before checking in this ticket.',
     reason: 'registrationTransferActive',
   });
 
@@ -135,14 +147,15 @@ const ensurePlatformRegistrationMutationHasNoActiveTransfer = (
     ),
   );
 
-const mapPlatformRegistrationMutationError = (error: unknown) => {
+export const mapPlatformRegistrationMutationError = (error: unknown) => {
   if (error instanceof RpcBadRequestError) {
     return Effect.fail(error);
   }
   if (error instanceof EventRegistrationNotFoundError) {
     return Effect.fail(
       new RpcBadRequestError({
-        message: error.message,
+        message:
+          "This sign-up no longer exists. No changes were made. Return to the event's sign-ups and choose an existing sign-up.",
         reason: 'registrationNotFound',
       }),
     );
@@ -260,9 +273,6 @@ const platformRegistrationNow = serverClockConfig.pipe(
   ),
 );
 
-const isWithinCheckInWindow = (eventStart: Date, now: Date): boolean =>
-  eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
-
 export const platformRegistrationCheckInPlan = ({
   checkedInGuestCount,
   checkInTime,
@@ -279,7 +289,7 @@ export const platformRegistrationCheckInPlan = ({
   if (status !== 'CONFIRMED') {
     return Effect.fail(
       new RpcBadRequestError({
-        message: 'Only confirmed registrations can be checked in',
+        message: 'Only confirmed tickets can be checked in.',
         reason: 'registrationStateConflict',
       }),
     );
@@ -288,7 +298,7 @@ export const platformRegistrationCheckInPlan = ({
   if (guestCheckInCount > remainingGuestCount) {
     return Effect.fail(
       new RpcBadRequestError({
-        message: 'Guest check-in count exceeds remaining guests',
+        message: 'You selected more guests than remain to be checked in.',
         reason: 'guestCheckInCountExceeded',
       }),
     );
@@ -313,6 +323,7 @@ const platformRegistrationSelection = {
     eventRegistrationOptions.cancellationDeadlineHoursBeforeStart,
   checkedInGuestCount: eventRegistrations.checkedInGuestCount,
   checkInTime: eventRegistrations.checkInTime,
+  eventEnd: eventInstances.end,
   eventId: eventInstances.id,
   eventStart: eventInstances.start,
   eventTitle: eventInstances.title,
@@ -380,7 +391,7 @@ export const platformRegistrationActiveTransferPredicate = (input: {
         ]),
       ),
       and(
-        eq(registrationTransfers.recipientRegistrationId, input.registrationId),
+        eq(registrationTransfers.sourceRegistrationId, input.registrationId),
         eq(registrationTransfers.status, 'checkout_pending'),
       ),
     ),
@@ -400,24 +411,24 @@ export const platformRegistrationCancellationBlockedReason = (input: {
   readonly status: PlatformRegistrationDetailRecord['status'];
 }): null | string => {
   if (input.status === 'CANCELLED') {
-    return 'Registration is already cancelled.';
+    return 'This ticket is already cancelled.';
   }
-  if (input.checkInTime) return 'Checked-in registrations cannot be cancelled.';
+  if (input.checkInTime) return 'A checked-in ticket cannot be cancelled.';
   if (input.eventStart <= input.now) return 'The event has already started.';
   if (input.activeTransfer) {
-    return 'Resolve the active registration transfer before cancelling this registration.';
+    return 'Finish or cancel the active transfer before cancelling this ticket.';
   }
   if (input.pendingStripePayment?.stripeCheckoutSessionId === null) {
-    return 'Payment setup is still being reconciled. Resume approval before cancelling.';
+    return 'Payment setup is still finishing. Wait for it to complete before cancelling.';
   }
   if (
     input.pendingStripePayment &&
     !input.pendingStripePayment.stripeAccountId
   ) {
-    return 'The pending payment is missing its Stripe account and cannot be cancelled safely.';
+    return 'The saved payment details are incomplete, so this ticket cannot be cancelled. No changes were made.';
   }
   if (input.pendingAddonPayment) {
-    return 'An add-on payment is still in progress. Finish or let that checkout expire before cancelling.';
+    return 'An add-on payment is still in progress. Finish it or wait for the payment window to expire before cancelling.';
   }
   return input.refundBlockedReason;
 };
@@ -490,7 +501,7 @@ const refundPreviewUnavailable = (
   refundFeesOnCancellation: boolean,
 ): PlatformRegistrationCancellationRefundPreview => ({
   blockedReason:
-    "The current attendee's refundable payment could not be verified. Reconcile the registration payment before cancelling.",
+    "The attendee's payment details could not be confirmed. Resolve the payment before cancelling.",
   refund: {
     amount: null,
     feesIncluded: refundFeesOnCancellation,
@@ -867,7 +878,7 @@ export const loadPlatformRegistrationDetail = Effect.fn(
     .pipe(Effect.orDie);
   const registration = registrations[0];
   if (!registration) {
-    return yield* Effect.fail(registrationNotFound(registrationId));
+    return yield* Effect.fail(registrationNotFound());
   }
 
   const now = yield* platformRegistrationNow;
@@ -886,7 +897,8 @@ export const loadPlatformRegistrationDetail = Effect.fn(
   if (!tenantPolicy) {
     return yield* Effect.fail(
       new RpcBadRequestError({
-        message: 'Target tenant cancellation policy was not found',
+        message:
+          'This organization no longer exists. No changes were made. Return to Organizations and choose an existing organization.',
         reason: 'targetTenantNotFound',
       }),
     );
@@ -936,10 +948,11 @@ export const loadPlatformRegistrationDetail = Effect.fn(
   );
   const attendeeCheckedIn = registration.checkInTime !== null;
   const registrationStatusIssue = registration.status !== 'CONFIRMED';
-  const checkInTimingIssue = !isWithinCheckInWindow(
-    registration.eventStart,
+  const checkInTimingIssue = eventCheckInTimingIssue({
+    end: registration.eventEnd,
     now,
-  );
+    start: registration.eventStart,
+  });
   const alreadyFullyCheckedIn = attendeeCheckedIn && remainingGuestCount === 0;
   const cancellationDeadlineHoursBeforeStart =
     registration.cancellationDeadlineHoursBeforeStart ??
@@ -994,7 +1007,9 @@ export const loadPlatformRegistrationDetail = Effect.fn(
   return {
     ...normalizeRegistrationListRecord(registration),
     allowCheckIn:
-      !registrationStatusIssue && !checkInTimingIssue && !alreadyFullyCheckedIn,
+      !registrationStatusIssue &&
+      checkInTimingIssue === null &&
+      !alreadyFullyCheckedIn,
     attendeeCheckedIn,
     cancellation: {
       available: cancellationBlockedReason === null,
@@ -1091,6 +1106,8 @@ export const platformRegistrationHandlers = {
             cancelledBy: 'platformAdministrator',
             enforceParticipantDeadline: false,
             executiveUserId: null,
+            expectedPaymentPending: input.expectedPaymentPending,
+            expectedStatus: input.expectedStatus,
             onCancelled: (transaction, transition) => {
               const snapshots =
                 platformRegistrationCancellationAuditSnapshots(transition);
@@ -1131,7 +1148,7 @@ export const platformRegistrationHandlers = {
     ) {
       return Effect.fail(
         new RpcBadRequestError({
-          message: 'Guest check-in count must be a non-negative integer',
+          message: 'Enter a whole number of guests, zero or greater.',
           reason: 'invalidGuestCheckInCount',
         }),
       );
@@ -1140,7 +1157,7 @@ export const platformRegistrationHandlers = {
     return Effect.gen(function* () {
       const operation = yield* resolvePlatformMutation(input);
       return yield* providePlatformOperation(
-        databaseEffect((database) =>
+        checkInDatabaseEffect((database) =>
           Effect.gen(function* () {
             yield* ensurePlatformRegistrationMutationHasNoActiveTransfer(
               database,
@@ -1173,9 +1190,7 @@ export const platformRegistrationHandlers = {
                   .pipe(Effect.orDie);
                 const lockedRegistration = lockedRegistrations[0];
                 if (!lockedRegistration) {
-                  return yield* Effect.fail(
-                    registrationNotFound(input.registrationId),
-                  );
+                  return yield* Effect.fail(registrationNotFound());
                 }
 
                 yield* ensurePlatformRegistrationMutationHasNoActiveTransfer(
@@ -1186,11 +1201,6 @@ export const platformRegistrationHandlers = {
                   },
                 );
 
-                const before = yield* loadPlatformRegistrationDetail(
-                  transaction,
-                  input.targetTenantId,
-                  input.registrationId,
-                );
                 const checkInPlan = yield* platformRegistrationCheckInPlan({
                   checkedInGuestCount: lockedRegistration.checkedInGuestCount,
                   checkInTime: lockedRegistration.checkInTime,
@@ -1199,16 +1209,48 @@ export const platformRegistrationHandlers = {
                   status: lockedRegistration.status,
                 });
 
+                const lockedEvents = yield* transaction
+                  .select({
+                    end: eventInstances.end,
+                    start: eventInstances.start,
+                  })
+                  .from(eventInstances)
+                  .where(
+                    and(
+                      eq(eventInstances.id, lockedRegistration.eventId),
+                      eq(eventInstances.tenantId, input.targetTenantId),
+                    ),
+                  )
+                  .for('share')
+                  .pipe(Effect.orDie);
+                const lockedEvent = lockedEvents[0];
+                if (!lockedEvent) {
+                  return yield* Effect.die(
+                    new Error(
+                      'Registration event was missing during platform check-in',
+                    ),
+                  );
+                }
                 const now = yield* platformRegistrationNow;
-                if (!isWithinCheckInWindow(new Date(before.event.start), now)) {
+                const timingIssue = eventCheckInTimingIssue({
+                  end: lockedEvent.end,
+                  now,
+                  start: lockedEvent.start,
+                });
+                if (timingIssue) {
                   return yield* Effect.fail(
-                    new RpcBadRequestError({
-                      message: 'Check-in is not open for this event yet',
-                      reason: 'checkInNotOpen',
+                    new EventCheckInUnavailableError({
+                      message: eventCheckInTimingMessage(timingIssue),
+                      reason: timingIssue,
                     }),
                   );
                 }
 
+                const before = yield* loadPlatformRegistrationDetail(
+                  transaction,
+                  input.targetTenantId,
+                  input.registrationId,
+                );
                 if (!checkInPlan.alreadyCheckedInWithoutMoreGuests) {
                   const updatedRegistrations = yield* transaction
                     .update(eventRegistrations)
@@ -1233,7 +1275,8 @@ export const platformRegistrationHandlers = {
                   if (updatedRegistrations.length === 0) {
                     return yield* Effect.fail(
                       new RpcBadRequestError({
-                        message: 'Registration check-in preconditions changed',
+                        message:
+                          "This sign-up changed while you were reviewing it. No one was checked in. Return to the event's sign-ups and select it again before checking in.",
                         reason: 'registrationStateConflict',
                       }),
                     );
@@ -1310,48 +1353,6 @@ export const platformRegistrationHandlers = {
             input.targetTenantId,
             input.registrationId,
           ),
-        ),
-        operation,
-        [],
-      );
-    }),
-  'platform.registrations.list': (
-    input: {
-      eventId?: string | undefined;
-      limit: number;
-      offset: number;
-      targetTenantId: string;
-    },
-    _options: unknown,
-  ) =>
-    Effect.gen(function* () {
-      const operation = yield* resolvePlatformRead(input.targetTenantId);
-      return yield* providePlatformOperation(
-        databaseEffect((database) =>
-          registrationBaseQuery(database)
-            .where(
-              and(
-                eq(eventRegistrations.tenantId, input.targetTenantId),
-                eq(eventInstances.tenantId, input.targetTenantId),
-                ...(input.eventId
-                  ? [eq(eventRegistrations.eventId, input.eventId)]
-                  : []),
-              ),
-            )
-            .orderBy(
-              desc(eventInstances.start),
-              asc(users.lastName),
-              asc(users.firstName),
-            )
-            .limit(input.limit)
-            .offset(input.offset)
-            .pipe(
-              Effect.map((registrations) =>
-                registrations.map((registration) =>
-                  normalizeRegistrationListRecord(registration),
-                ),
-              ),
-            ),
         ),
         operation,
         [],

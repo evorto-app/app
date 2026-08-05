@@ -45,7 +45,10 @@ export interface RegistrationTransferPrice<DiscountType extends string> {
 
 export class RegistrationTransferPricingError extends Schema.TaggedErrorClass<RegistrationTransferPricingError>()(
   'RegistrationTransferPricingError',
-  { message: Schema.String },
+  {
+    message: Schema.String,
+    reason: Schema.Literals(['amountTooLarge', 'invalidAmount']),
+  },
 ) {}
 
 export const registrationTransferBasePrice = (input: {
@@ -144,6 +147,7 @@ export const registrationTransferTotalPrice = Effect.fn(
   ) {
     return yield* RegistrationTransferPricingError.make({
       message: 'Registration transfer pricing contains an invalid amount',
+      reason: 'invalidAmount',
     });
   }
 
@@ -158,6 +162,7 @@ export const registrationTransferTotalPrice = Effect.fn(
   if (totalPrice > BigInt(maximumPersistedPaymentAmount)) {
     return yield* RegistrationTransferPricingError.make({
       message: 'Registration transfer price exceeds supported payment limits',
+      reason: 'amountTooLarge',
     });
   }
 

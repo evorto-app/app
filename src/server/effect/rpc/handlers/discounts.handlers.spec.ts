@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@effect/vitest';
+import { expect, layer, vi } from '@effect/vitest';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
@@ -6,14 +6,15 @@ import * as Headers from 'effect/unstable/http/Headers';
 import { Database } from '../../../../db';
 import { userDiscountCards } from '../../../../db/schema';
 import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import {
   Adapters,
   ProviderValidationUnavailableError,
 } from '../../../discounts/providers';
-import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
 import { discountHandlers } from './discounts.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const createTenant = (id = 'tenant-1') => ({
   currency: 'EUR' as const,
@@ -26,7 +27,6 @@ const createTenant = (id = 'tenant-1') => ({
   },
   domain: `${id}.example.com`,
   id,
-  locale: 'en',
   name: id,
   receiptSettings: {
     allowOther: false,
@@ -38,8 +38,8 @@ const createTenant = (id = 'tenant-1') => ({
 });
 
 const createUser = () => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
+  communicationEmail: 'alice@example.com',
   email: 'alice@example.com',
   firstName: 'Alice',
   iban: null,
@@ -50,14 +50,25 @@ const createUser = () => ({
   roleIds: [],
 });
 
-const createHeaders = (tenant = createTenant(), user = createUser()) =>
-  Headers.fromInput({
-    [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-    [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-    [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-  });
+const createHeaders = (_tenant = createTenant(), _user = createUser()) =>
+  Headers.empty;
 
-describe('discountHandlers', () => {
+const discountRequestContext = {
+  authData: {},
+  authenticated: true,
+  permissions: [],
+  platformAuthority: null,
+  tenant: createTenant('tenant-2'),
+  user: createUser(),
+  userAssigned: true,
+} satisfies RpcRequestContextShape;
+
+const discountHandlerLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(RpcRequestContext, discountRequestContext),
+);
+
+layer(discountHandlerLayer)('discountHandlers', (it) => {
   it.effect('getMyCards reads discount cards for the current tenant', () =>
     Effect.gen(function* () {
       const findMany = vi.fn(() =>
@@ -188,7 +199,6 @@ describe('discountHandlers', () => {
       });
       expect(insertedValues).not.toHaveBeenCalled();
       expect(validate).toHaveBeenCalledWith({
-        config: {},
         identifier: 'ESN-123',
       });
       expect(updateSet).toHaveBeenCalledWith(
@@ -279,14 +289,80 @@ describe('discountHandlers', () => {
 
         expect(error).toBeInstanceOf(RpcBadRequestError);
         expect(error).toMatchObject({
-          message: 'Could not validate ESN card right now. Try again later.',
+          message:
+            'We could not check this ESNcard, so it was not saved or changed. Select Save ESNcard to try once more.',
           reason: 'provider-unavailable',
         });
         expect(validate).toHaveBeenCalledWith({
-          config: {},
           identifier: 'ESN-123',
         });
         expect(database.insert).not.toHaveBeenCalled();
+        expect(database.update).not.toHaveBeenCalled();
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            Adapters.esnCard = originalAdapter;
+          }),
+        ),
+      );
+    },
+  );
+
+  it.effect(
+    'refreshMyCard reports unexpected provider failures without changing the card',
+    () => {
+      const originalAdapter = Adapters.esnCard;
+      const validate = vi.fn(async () => {
+        throw new Error('unexpected provider failure');
+      });
+      Adapters.esnCard = { validate };
+
+      return Effect.gen(function* () {
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () =>
+                Effect.succeed({
+                  discountProviders: {
+                    esnCard: {
+                      config: {},
+                      status: 'enabled',
+                    },
+                  },
+                }),
+            },
+            userDiscountCards: {
+              findFirst: () =>
+                Effect.succeed({
+                  id: 'card-1',
+                  identifier: 'ESN-123',
+                  status: 'verified' as const,
+                  type: 'esnCard' as const,
+                  validTo: null,
+                }),
+            },
+          },
+          update: vi.fn(() => {
+            throw new Error('Provider failures must not update cards');
+          }),
+        };
+
+        const error = yield* discountHandlers['discounts.refreshMyCard'](
+          { type: 'esnCard' },
+          { headers: createHeaders(createTenant('tenant-2')) },
+        ).pipe(
+          Effect.flip,
+          Effect.provide(Layer.succeed(Database, database as never)),
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'RpcInternalServerError',
+          message:
+            'We could not check this ESNcard, so it was not changed. Select Check again to try once more.',
+        });
+        expect(validate).toHaveBeenCalledWith({
+          identifier: 'ESN-123',
+        });
         expect(database.update).not.toHaveBeenCalled();
       }).pipe(
         Effect.ensuring(
@@ -378,7 +454,6 @@ describe('discountHandlers', () => {
           }),
         );
         expect(validate).toHaveBeenCalledWith({
-          config: {},
           identifier: 'ESN-123',
         });
         expect(updateSet).toHaveBeenCalledWith(
@@ -396,6 +471,42 @@ describe('discountHandlers', () => {
         ),
       );
     },
+  );
+
+  it.effect('explains when the saved ESN card is no longer available', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          tenants: {
+            findFirst: () =>
+              Effect.succeed({
+                discountProviders: {
+                  esnCard: {
+                    config: {},
+                    status: 'enabled',
+                  },
+                },
+              }),
+          },
+          userDiscountCards: {
+            findFirst: () => Effect.succeed(undefined),
+          },
+        },
+      };
+
+      const error = yield* discountHandlers['discounts.refreshMyCard'](
+        { type: 'esnCard' },
+        { headers: createHeaders(createTenant('tenant-2')) },
+      ).pipe(
+        Effect.flip,
+        Effect.provide(Layer.succeed(Database, database as never)),
+      );
+
+      expect(error['_tag']).toBe('DiscountCardNotFoundError');
+      expect(error.message).toBe(
+        'This ESNcard is no longer saved. No card was changed. Add it again if you still use it.',
+      );
+    }),
   );
 
   it.effect('deleteMyCard removes only the current user card type', () =>

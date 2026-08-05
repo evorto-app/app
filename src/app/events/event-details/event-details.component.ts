@@ -17,16 +17,16 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '@app/shared/components/icon/icon.component';
 import { Shape } from '@app/shared/components/shape/shape';
 import { MaterialThemeDirective } from '@app/shared/directives/material-theme.directive';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { faArrowLeft, faUsers } from '@fortawesome/duotone-regular-svg-icons';
 import {
-  faArrowLeft,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
+  eventDiscoveryDescription,
+  eventDiscoveryLabel,
+} from '@shared/event-discovery';
 import {
   injectMutation,
   injectQuery,
@@ -47,22 +47,28 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
 import { EventRegistrationOptionComponent } from '../event-registration-option/event-registration-option.component';
 import { EventReviewDialogComponent } from '../event-review-dialog/event-review-dialog.component';
+import { eventReviewActionErrorRequiresRefresh } from '../event-rpc-error';
 import { SubmitEventDialogComponent } from '../submit-event-dialog/submit-event-dialog.component';
-import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/update-visibility-dialog.component';
+import {
+  UpdateAnnouncementDiscoveryDialogComponent,
+  type UpdateAnnouncementDiscoveryDialogResult,
+} from '../update-announcement-discovery-dialog/update-announcement-discovery-dialog.component';
 
 export type RegistrationOptionsState =
-  'hiddenByEligibility' | 'none' | 'visible';
+  'hiddenByEligibility' | 'none' | 'requiresSignIn' | 'visible';
 
 export const registrationOptionsState = (event: {
+  hasRegistrationOptions: boolean;
   registrationOptions: readonly unknown[];
   registrationOptionsHiddenByEligibility: boolean;
 }): RegistrationOptionsState => {
   if (event.registrationOptions.length > 0) {
     return 'visible';
   }
-  return event.registrationOptionsHiddenByEligibility
-    ? 'hiddenByEligibility'
-    : 'none';
+  if (event.registrationOptionsHiddenByEligibility) {
+    return 'hiddenByEligibility';
+  }
+  return event.hasRegistrationOptions ? 'requiresSignIn' : 'none';
 };
 
 export const outgoingRegistrationTransferCopy = (
@@ -78,17 +84,16 @@ export const outgoingRegistrationTransferCopy = (
       return {
         nextStep: 'No action is needed.',
         summary:
-          'This transfer moved the ticket to its recipient, and all refunds due to you completed.',
+          'The new attendee now has the ticket, and all refunds due to you are complete.',
         title: 'Transfer refund completed',
         tone: 'success',
       };
     }
     case 'needsAttention': {
       return {
-        nextStep:
-          'Contact an organizer for an update. Do not pay or register again to retry the refund.',
+        nextStep: 'Contact an organizer for an update.',
         summary:
-          'This transfer moved the ticket to its recipient, but one or more refunds due to you may not have reached you.',
+          'The new attendee now has the ticket, but one or more refunds due to you may not have arrived.',
         title: 'Transfer refund needs attention',
         tone: 'error',
       };
@@ -97,18 +102,17 @@ export const outgoingRegistrationTransferCopy = (
       return {
         nextStep: 'No action is needed.',
         summary:
-          'This transfer moved the ticket to its recipient. No refund was due for this transfer.',
+          'The new attendee now has the ticket. No refund was due to you.',
         title: 'Ticket transfer completed',
         tone: 'success',
       };
     }
     case 'processing': {
       return {
-        nextStep:
-          'No action is needed. Do not pay or register again to retry the refund.',
+        nextStep: 'No action is needed while the refund is in progress.',
         summary:
-          'This transfer moved the ticket to its recipient, and one or more refunds due to you are being processed.',
-        title: 'Transfer refund is processing',
+          'The new attendee now has the ticket, and one or more refunds due to you are in progress.',
+        title: 'Transfer refund is in progress',
         tone: 'info',
       };
     }
@@ -160,6 +164,20 @@ export const eventSubmitForReviewActionDisabled = ({
 }): boolean =>
   !controlsInteractive || !canEdit || status !== 'DRAFT' || mutationPending;
 
+export const announcementDiscoveryErrorMessage = (error: unknown): string =>
+  getErrorMessage(
+    error,
+    'Who can find this announcement could not be saved. Try again.',
+    ['EventNotFoundError', 'RpcBadRequestError'],
+  );
+
+export const eventReviewErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The event review could not be saved. Try again.', [
+    'EventConflictError',
+    'EventNotFoundError',
+    'RpcBadRequestError',
+  ]);
+
 export const eventCanEdit = ({
   canEditAll,
   isCreator,
@@ -188,7 +206,7 @@ export const eventAddonPurchaseTiming = (addOn: {
   allowPurchaseDuringRegistration: boolean;
 }): string => {
   const windows = [
-    addOn.allowPurchaseDuringRegistration ? 'During registration' : null,
+    addOn.allowPurchaseDuringRegistration ? 'During sign-up' : null,
     addOn.allowPurchaseBeforeEvent ? 'Before event' : null,
     addOn.allowPurchaseDuringEvent ? 'During event' : null,
   ].filter((window): window is string => window !== null);
@@ -203,7 +221,7 @@ export const eventRegistrationOptionTitle = (
   registrationOptionId: string,
 ): string =>
   event.registrationOptions.find((option) => option.id === registrationOptionId)
-    ?.title ?? 'Broken registration option configuration';
+    ?.title ?? 'Sign-up choice unavailable';
 
 export const eventAddonsForRegistrationOption = <
   TAddOn extends {
@@ -245,8 +263,14 @@ export class EventDetailsOperations {
     return this.rpc.events.findOne.queryKey({ id });
   }
 
-  findEvent(id: string) {
-    return this.rpc.events.findOne.queryOptions({ id });
+  findEvent(id: string, principalKey: string) {
+    return {
+      queryFn: () => this.rpc.events.findOne.call({ id }),
+      queryKey: [
+        ...this.rpc.events.findOne.queryKey({ id }),
+        { principalKey },
+      ] as const,
+    };
   }
 
   myCards() {
@@ -273,8 +297,8 @@ export class EventDetailsOperations {
     return this.rpc.events.submitForReview.mutationOptions();
   }
 
-  updateListing() {
-    return this.rpc.events.updateListing.mutationOptions();
+  updateAnnouncementDiscovery() {
+    return this.rpc.events.updateAnnouncementDiscovery.mutationOptions();
   }
 }
 
@@ -287,7 +311,6 @@ export class EventDetailsOperations {
     CurrencyPipe,
     TenantDatePipe,
     MatButtonModule,
-    MatMenuModule,
     RouterLink,
     FontAwesomeModule,
     EventRegistrationOptionComponent,
@@ -321,14 +344,39 @@ export class EventDetailsOperations {
 export class EventDetailsComponent {
   public eventId = input.required<string>();
   private readonly operations = inject(EventDetailsOperations);
-  protected readonly eventQuery = injectQuery(() =>
-    this.operations.findEvent(this.eventId()),
-  );
-  protected readonly selfQery = injectQuery(() => this.operations.self());
+  protected readonly selfQuery = injectQuery(() => this.operations.self());
+  private readonly eventProjectionPrincipalKey = computed(() => {
+    if (this.selfQuery.isPending()) {
+      return null;
+    }
+    if (this.selfQuery.isSuccess()) {
+      const self = this.selfQuery.data();
+      return self ? `user:${self.id}` : 'anonymous';
+    }
+    return 'identity-unavailable';
+  });
+  protected readonly eventQuery = injectQuery(() => {
+    const principalKey = this.eventProjectionPrincipalKey();
+    return {
+      ...this.operations.findEvent(
+        this.eventId(),
+        principalKey ?? 'identity-pending',
+      ),
+      enabled: principalKey !== null,
+    };
+  });
   private readonly isEventCreator = computed(() => {
+    if (
+      !this.selfQuery.isSuccess() ||
+      this.selfQuery.isFetching() ||
+      !this.eventQuery.isSuccess() ||
+      this.eventQuery.isFetching()
+    ) {
+      return false;
+    }
     const event = this.eventQuery.data();
-    const self = this.selfQery.data();
-    return !!event && !!self && event.creatorId === self.id;
+    const self = this.selfQuery.data();
+    return !!event && !!self && event.userIsCreator;
   });
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
@@ -342,13 +390,20 @@ export class EventDetailsComponent {
       status: event.status,
     });
   });
-  protected readonly canOrganizeQuery = injectQuery(() =>
-    this.operations.canOrganize(this.eventId()),
+  protected readonly isAuthenticated = computed(
+    () =>
+      this.selfQuery.isSuccess() &&
+      !this.selfQuery.isFetching() &&
+      this.selfQuery.data() !== null,
   );
+  protected readonly canOrganizeQuery = injectQuery(() => ({
+    ...this.operations.canOrganize(this.eventId()),
+    enabled: this.isAuthenticated(),
+  }));
   protected readonly canOrganize = computed(() => {
-    return this.canOrganizeQuery.isSuccess()
+    return this.isAuthenticated() && this.canOrganizeQuery.isSuccess()
       ? this.canOrganizeQuery.data()
-      : false;
+      : null;
   });
   protected readonly canReview =
     this.permissions.hasPermission('events:review');
@@ -360,16 +415,18 @@ export class EventDetailsComponent {
       isCreator: this.isEventCreator(),
     });
   });
-  protected readonly myCardsQuery = injectQuery(() =>
-    this.operations.myCards(),
-  );
   private readonly config = inject(ConfigService);
+  protected readonly discountCardsRequired = computed(
+    () => this.config.tenant.discountProviders?.esnCard?.status === 'enabled',
+  );
+  protected readonly myCardsQuery = injectQuery(() => ({
+    ...this.operations.myCards(),
+    enabled: this.isAuthenticated() && this.discountCardsRequired(),
+  }));
   protected readonly cardExpiresBeforeEvent = computed(() => {
-    const isEsnCardEnabled =
-      this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
-    if (!isEsnCardEnabled) return false;
+    if (!this.isAuthenticated() || !this.discountCardsRequired()) return false;
     if (!this.eventQuery.isSuccess() || !this.myCardsQuery.isSuccess()) {
-      return false;
+      return null;
     }
     const event = this.eventQuery.data();
     const cards = this.myCardsQuery.data();
@@ -386,6 +443,8 @@ export class EventDetailsComponent {
   protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
   protected readonly eventAddonsForRegistrationOption =
     eventAddonsForRegistrationOption;
+  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
 
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
@@ -398,7 +457,7 @@ export class EventDetailsComponent {
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faUsers = faUsers;
   protected readonly outgoingRegistrationTransferCopy =
     outgoingRegistrationTransferCopy;
   protected readonly registrationOptionGroups = computed(() =>
@@ -420,11 +479,13 @@ export class EventDetailsComponent {
   protected readonly submitForReviewMutation = injectMutation(() =>
     this.operations.submitForReview(),
   );
-  protected readonly updateListingMutation = injectMutation(() =>
-    this.operations.updateListing(),
+  protected readonly updateAnnouncementDiscoveryMutation = injectMutation(() =>
+    this.operations.updateAnnouncementDiscovery(),
   );
   private dialog = inject(MatDialog);
+
   private notifications = inject(NotificationService);
+
   private queryClient = inject(QueryClient);
 
   constructor() {
@@ -438,28 +499,43 @@ export class EventDetailsComponent {
       }
     });
   }
-
-  async updateVisibility() {
+  async updateAnnouncementDiscovery() {
     if (!this.controlsInteractive() || !this.eventQuery.isSuccess()) return;
 
     const event = this.eventQuery.data();
+    if (event.announcementRoleIds === null) {
+      this.notifications.showError(
+        'The current visibility settings for this announcement are missing. Who can find it was not changed. Contact Evorto support and include the event name.',
+      );
+      return;
+    }
 
-    const unlisted = await firstValueFrom(
-      this.dialog
-        .open(UpdateVisibilityDialogComponent, {
-          data: { event },
-        })
-        .afterClosed(),
-    );
-    if (unlisted !== null && unlisted !== undefined) {
-      this.updateListingMutation.mutate(
+    const announcementDiscovery:
+      undefined | UpdateAnnouncementDiscoveryDialogResult =
+      await firstValueFrom(
+        this.dialog
+          .open(UpdateAnnouncementDiscoveryDialogComponent, {
+            data: { event },
+          })
+          .afterClosed(),
+      );
+    if (announcementDiscovery !== undefined) {
+      this.updateAnnouncementDiscoveryMutation.mutate(
         {
+          announcementRoleIds: announcementDiscovery.announcementRoleIds,
           eventId: this.eventId(),
-          unlisted,
         },
         {
+          onError: (error) => {
+            this.notifications.showError(
+              announcementDiscoveryErrorMessage(error),
+            );
+          },
           onSuccess: async () => {
             await this.refreshReviewState();
+            this.notifications.showSuccess(
+              'Who can find the announcement was updated',
+            );
           },
         },
       );
@@ -559,19 +635,10 @@ export class EventDetailsComponent {
   }
 
   private async handleReviewActionError(error: unknown): Promise<void> {
-    const message = getErrorMessage(
-      error,
-      'Failed to update event review status',
-    );
-    const normalizedMessage = message.toLowerCase();
-    if (
-      normalizedMessage.includes('status changed') ||
-      normalizedMessage.includes('refresh and try again') ||
-      normalizedMessage.includes('no longer pending review') ||
-      normalizedMessage.includes('conflict')
-    ) {
+    const message = eventReviewErrorMessage(error);
+    if (eventReviewActionErrorRequiresRefresh(error)) {
       this.notifications.showError(
-        'Event status changed. Refreshed the latest state.',
+        'This event changed while you were working. We loaded the latest details. Review them and try again.',
       );
       await this.refreshReviewState();
       return;

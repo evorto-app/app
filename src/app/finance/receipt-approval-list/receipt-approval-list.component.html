@@ -4,11 +4,11 @@
 
 @if (pendingReceiptsQuery.isPending()) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">
-    Loading receipts...
+    Loading receipts…
   </div>
 } @else if (pendingReceiptsQuery.isError()) {
   <div class="bg-error-container text-on-error-container rounded-2xl p-4">
-    Failed to load pending receipts.
+    The pending receipts could not be loaded. Try again.
   </div>
 } @else if ((pendingReceiptsQuery.data()?.length ?? 0) === 0) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">

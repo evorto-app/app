@@ -28,30 +28,35 @@ describe('IconSelectorDialogComponent accessibility', () => {
       'class="bg-surface text-on-surface break-all rounded px-2 text-sm"',
     );
     expect(template).toContain('class="text-on-surface!">Cancel</button>');
+    expect(template).toContain("We couldn't load the icons.");
+    expect(template).toContain('iconSearchQuery.refetch()');
   });
 });
 
 describe('iconAddErrorMessage', () => {
   it.each([
-    ['IconSourceBusyError', 'The icon source is busy. Try again shortly.'],
+    ['IconSourceBusyError', "We couldn't add this icon right now. Try again."],
     [
       'IconSourceUnavailableError',
-      'That Icons8 icon could not be verified. Check the name and try again.',
+      "We couldn't add this icon right now. Try again.",
     ],
     [
       'InvalidIconNameError',
-      'Use a lowercase Icons8 name with letters, numbers, hyphens, and at most one style suffix.',
+      "We couldn't find that icon. Choose one from the list or try another search.",
     ],
-    ['RpcForbiddenError', 'You do not have permission to add icons here.'],
+    [
+      'RpcForbiddenError',
+      'Your account does not have access to add icons here.',
+    ],
   ])('maps %s to a clear message', (tag, expected) => {
     expect(iconAddErrorMessage({ _tag: tag })).toBe(expected);
   });
 
-  it('surfaces the typed authentication error message', () => {
+  it('does not expose the authentication error message', () => {
     expect(
       iconAddErrorMessage(
         new RpcUnauthorizedError({ message: 'Authentication required' }),
       ),
-    ).toBe('Authentication required');
+    ).toBe("We couldn't add this icon. Try again.");
   });
 });

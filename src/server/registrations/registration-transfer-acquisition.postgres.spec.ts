@@ -85,6 +85,8 @@ const makeLayer = (url: string) => {
 
 type TestLayer = ReturnType<typeof makeLayer>;
 
+const paymentAccountId = 'acct_payment_owner';
+
 const requireValue = <A>(value: A | null | undefined, label: string): A => {
   if (value === null || value === undefined) {
     throw new Error(`Missing ${label}`);
@@ -139,7 +141,7 @@ const seedAcquisitionFixture = async (
     domain: `${tenantId}.acquisition.example`,
     id: tenantId,
     name: 'Registration acquisition ledger',
-    stripeAccountId: 'acct_current_second_recipient',
+    stripeAccountId: paymentAccountId,
   });
   await database.insert(users).values(
     [sourceUserId, firstRecipientUserId, secondRecipientUserId].map(
@@ -181,6 +183,8 @@ const seedAcquisitionFixture = async (
     end: new Date(now + 2 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
+    reviewedAt: new Date(now - 2 * 60 * 60 * 1000),
+    reviewedBy: sourceUserId,
     start: new Date(now + 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -220,8 +224,10 @@ const seedAcquisitionFixture = async (
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: 1100,
     checkedInGuestCount: 1,
     checkInTime: new Date(now - 5000),
+    discountAmount: 0,
     eventId,
     guestCount: 1,
     id: registrationId,
@@ -240,7 +246,7 @@ const seedAcquisitionFixture = async (
       id: sourceTransactionId,
       method: 'stripe',
       status: 'successful',
-      stripeAccountId: 'acct_historical_source',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${sourceTransactionId}`,
       stripeFee: 10,
       stripeNetAmount: sourceAddonAmount - 30,
@@ -258,7 +264,7 @@ const seedAcquisitionFixture = async (
       id: firstRecipientTransactionId,
       method: 'stripe',
       status: 'successful',
-      stripeAccountId: 'acct_first_recipient',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${firstRecipientTransactionId}`,
       stripeFee: 15,
       stripeNetAmount: firstRecipientAmount - 40,
@@ -276,7 +282,7 @@ const seedAcquisitionFixture = async (
       id: secondRecipientTransactionId,
       method: 'stripe',
       status: 'successful',
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${secondRecipientTransactionId}`,
       stripeFee: secondRecipientStripeFee,
       stripeNetAmount:
@@ -376,7 +382,6 @@ const seedAcquisitionFixture = async (
   await database.insert(registrationTransfers).values([
     {
       claimCodeHash: `code-${firstTransferId}`,
-      claimTokenHash: `token-${firstTransferId}`,
       completedAt: firstTransferredAt,
       eventId,
       expiresAt: new Date(now + 60 * 60 * 1000),
@@ -385,8 +390,6 @@ const seedAcquisitionFixture = async (
       recipientBasePrice: 1000,
       recipientCheckoutTransactionId: firstRecipientTransactionId,
       recipientConfirmedAt: firstTransferredAt,
-      recipientRegistrationId: registrationId,
-      recipientSpotCount: 2,
       recipientUserId: firstRecipientUserId,
       registrationOptionId: optionId,
       sourceRegistrationId: registrationId,
@@ -397,7 +400,6 @@ const seedAcquisitionFixture = async (
     },
     {
       claimCodeHash: `code-${secondTransferId}`,
-      claimTokenHash: `token-${secondTransferId}`,
       completedAt: secondTransferredAt,
       eventId,
       expiresAt: new Date(now + 60 * 60 * 1000),
@@ -406,8 +408,6 @@ const seedAcquisitionFixture = async (
       recipientBasePrice: 1100,
       recipientCheckoutTransactionId: secondRecipientTransactionId,
       recipientConfirmedAt: secondTransferredAt,
-      recipientRegistrationId: registrationId,
-      recipientSpotCount: 2,
       recipientUserId: secondRecipientUserId,
       registrationOptionId: optionId,
       sourceRegistrationId: registrationId,
@@ -491,7 +491,7 @@ const seedAcquisitionFixture = async (
     ownerUserId: sourceUserId,
     payment: {
       settlement: initialSettlement,
-      stripeAccountId: 'acct_historical_source',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${sourceTransactionId}`,
       stripePaymentIntentId: `pi_${sourceTransactionId}`,
       transactionId: sourceTransactionId,
@@ -523,7 +523,7 @@ const seedAcquisitionFixture = async (
     ownerUserId: firstRecipientUserId,
     payment: {
       settlement: firstSettlement,
-      stripeAccountId: 'acct_first_recipient',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${firstRecipientTransactionId}`,
       stripePaymentIntentId: `pi_${firstRecipientTransactionId}`,
       transactionId: firstRecipientTransactionId,
@@ -559,7 +559,7 @@ const seedAcquisitionFixture = async (
     ownerUserId: secondRecipientUserId,
     payment: {
       settlement: secondSettlement,
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${secondRecipientTransactionId}`,
       stripePaymentIntentId: `pi_${secondRecipientTransactionId}`,
       transactionId: secondRecipientTransactionId,
@@ -609,7 +609,7 @@ const seedAcquisitionFixture = async (
       sourceRegistrationId: registrationId,
       sourceTransactionId,
       sourceTransactionType: 'addon',
-      stripeAccountId: 'acct_historical_source',
+      stripeAccountId: paymentAccountId,
       tenantId,
       transferId: firstTransferId,
     },
@@ -624,7 +624,7 @@ const seedAcquisitionFixture = async (
       sourceRegistrationId: registrationId,
       sourceTransactionId: firstRecipientTransactionId,
       sourceTransactionType: 'registration',
-      stripeAccountId: 'acct_first_recipient',
+      stripeAccountId: paymentAccountId,
       tenantId,
       transferId: secondTransferId,
     },
@@ -730,7 +730,7 @@ const seedPaidRepeatTransferCheckout = async (
     id: recipientTransactionId,
     method: 'stripe',
     status: 'successful',
-    stripeAccountId: 'acct_current_second_recipient',
+    stripeAccountId: paymentAccountId,
     stripeChargeId: `ch_${recipientTransactionId}`,
     stripeCheckoutRequest: checkoutRequest,
     stripeFee: 20,
@@ -742,14 +742,11 @@ const seedPaidRepeatTransferCheckout = async (
   });
   await database.insert(registrationTransfers).values({
     claimCodeHash: `code-${transferId}`,
-    claimTokenHash: `token-${transferId}`,
     eventId: fixture.eventId,
     expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     id: transferId,
     recipientBasePrice: 1200,
     recipientCheckoutTransactionId: recipientTransactionId,
-    recipientRegistrationId: fixture.registrationId,
-    recipientSpotCount: 2,
     recipientUserId,
     registrationOptionId: requireValue(
       await database
@@ -822,7 +819,7 @@ const seedPaidRepeatTransferCheckout = async (
     sourceRegistrationId: fixture.registrationId,
     sourceTransactionId,
     sourceTransactionType: 'registration',
-    stripeAccountId: 'acct_current_second_recipient',
+    stripeAccountId: paymentAccountId,
     tenantId: fixture.tenantId,
     transferId,
   });
@@ -1084,7 +1081,7 @@ describe('registration acquisition ledger', () => {
       refundOperationKey: `refund-recovery:${refundTransactionId}`,
       sourceTransactionId,
       status: 'pending',
-      stripeAccountId: 'acct_historical_source',
+      stripeAccountId: paymentAccountId,
       stripeRefundApplicationFee: true,
       stripeRefundAttempts: 8,
       stripeRefundId: `re_${refundTransactionId}`,
@@ -1179,7 +1176,7 @@ describe('registration acquisition ledger', () => {
     expect(await lookupTransfer()).toEqual({ status: 'ambiguous' });
   });
 
-  it('links exact payments and the same immutable add-on lot through account rotation', async () => {
+  it('links each exact payment and the same immutable add-on lot across transfers', async () => {
     const fixture = await seedAcquisitionFixture(database, layer);
     fixtures.push(fixture);
 
@@ -1208,7 +1205,7 @@ describe('registration acquisition ledger', () => {
       .orderBy(asc(registrationAcquisitions.ordinal));
     expect(lineage).toEqual([
       {
-        accountId: 'acct_historical_source',
+        accountId: paymentAccountId,
         acquisitionId: fixture.acquisitionIds[0],
         amount: 1000,
         ordinal: 0,
@@ -1216,7 +1213,7 @@ describe('registration acquisition ledger', () => {
         transactionId: fixture.registrationTransactionIds[0],
       },
       {
-        accountId: 'acct_first_recipient',
+        accountId: paymentAccountId,
         acquisitionId: fixture.acquisitionIds[1],
         amount: 1200,
         ordinal: 1,
@@ -1224,7 +1221,7 @@ describe('registration acquisition ledger', () => {
         transactionId: fixture.registrationTransactionIds[1],
       },
       {
-        accountId: 'acct_current_second_recipient',
+        accountId: paymentAccountId,
         acquisitionId: fixture.acquisitionIds[2],
         amount: 1400,
         ordinal: 2,
@@ -1339,13 +1336,13 @@ describe('registration acquisition ledger', () => {
       .orderBy(asc(registrationTransferRefundPlanItems.createdAt));
     expect(sourceLinks).toEqual([
       {
-        accountId: 'acct_historical_source',
+        accountId: paymentAccountId,
         sourceAcquisitionId: fixture.acquisitionIds[0],
         sourceAcquisitionPaymentId: fixture.acquisitionPaymentIds[0],
         sourceTransactionId: fixture.registrationTransactionIds[0],
       },
       {
-        accountId: 'acct_first_recipient',
+        accountId: paymentAccountId,
         sourceAcquisitionId: fixture.acquisitionIds[1],
         sourceAcquisitionPaymentId: fixture.acquisitionPaymentIds[1],
         sourceTransactionId: fixture.registrationTransactionIds[1],
@@ -1484,7 +1481,7 @@ describe('registration acquisition ledger', () => {
       amount: -1400,
       sourceTransactionId,
       status: 'pending',
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       targetUserId: sourceUserId,
       type: 'refund',
     });
@@ -1614,7 +1611,7 @@ describe('registration acquisition ledger', () => {
       amount: -1600,
       sourceTransactionId: recipientTransactionId,
       status: 'pending',
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       type: 'refund',
     });
     expect(transfer).toEqual({
@@ -1777,7 +1774,7 @@ describe('registration acquisition ledger', () => {
       amount: -finalSlotAmounts.grossAmount,
       sourceTransactionId: fixture.registrationTransactionIds[2],
       status: 'pending',
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       stripeRefundApplicationFee: true,
       targetUserId: fixture.ownerUserIds[2],
       type: 'refund',

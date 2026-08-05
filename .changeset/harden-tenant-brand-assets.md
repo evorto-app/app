@@ -6,6 +6,8 @@ default: patch
 
 - reject uploaded logo and favicon paths that belong to another tenant or the
   wrong brand-asset kind,
+- treat only an explicit object-storage existence result as missing and keep
+  provider or network failures visible,
 - exercise real object-storage uploads in the tenant settings browser test,
   and
 - document upload, save, persisted readback, and recovery behavior in the

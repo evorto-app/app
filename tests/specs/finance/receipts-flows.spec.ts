@@ -59,8 +59,6 @@ const seedPendingReceiptForApproval = async ({
   await database.insert(schema.financeReceipts).values({
     alcoholAmount: 150,
     attachmentFileName: receiptFileName,
-    attachmentMimeType: 'application/pdf',
-    attachmentSizeBytes: receiptUpload.sizeBytes,
     attachmentUploadId: receiptUpload.id,
     currency,
     depositAmount: 150,
@@ -69,7 +67,9 @@ const seedPendingReceiptForApproval = async ({
     hasDeposit: true,
     id: receiptId,
     purchaseCountry: 'DE',
-    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2),
+    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2)
+      .toISOString()
+      .slice(0, 10),
     status: 'submitted',
     submittedByUserId,
     taxAmount: 0,
@@ -95,7 +95,9 @@ test('submit receipt through Events and organizer navigation', async ({
     .where(eq(schema.eventInstances.id, eventId))
     .limit(1);
   if (!event) {
-    throw new Error('Expected seeded listed event for receipt submission flow');
+    throw new Error(
+      'Expected seeded discoverable event for receipt submission flow',
+    );
   }
   let submittedReceiptId: string | undefined;
   let submittedUploadId: string | undefined;
@@ -127,6 +129,9 @@ test('submit receipt through Events and organizer navigation', async ({
     });
     await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
     await expect(receiptDialog).not.toBeVisible();
+    await expect(page.getByText('Receipt submitted')).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(
       receiptSection.getByText(path.basename(receiptFile), { exact: true }),
     ).toBeVisible({ timeout: 20_000 });
@@ -206,36 +211,26 @@ test('approve and record receipt reimbursements in finance', async ({
   tenant,
 }) => {
   const currency = 'CZK';
-  const organizerUser = usersToAuthenticate.find(
-    (user) => user.roles === 'organizer',
-  );
-  if (!organizerUser) {
-    throw new Error('Expected seeded organizer user');
-  }
-  const originalOrganizer = await database.query.users.findFirst({
-    where: { id: organizerUser.id },
-  });
-  if (!originalOrganizer) {
-    throw new Error('Expected seeded organizer user record');
-  }
   const seededEventId = seeded.scenario.events.past.eventId;
+  const reimbursementUserId = getId();
   const receiptId = getId();
   const receiptFileName = `approval-reimbursement-${seedDate.getTime()}.pdf`;
   let receiptUploadId: string | undefined;
-  let refundTransactionId: string | undefined;
   try {
     await database
       .update(schema.tenants)
       .set({ currency })
       .where(eq(schema.tenants.id, tenant.id));
-    await database
-      .update(schema.users)
-      .set({
-        communicationEmail: `delivered+receipt-flow-${receiptId}@notifications.example.test`,
-        iban: 'DE00123456781234567890',
-        paypalEmail: 'organizer-refunds@example.com',
-      })
-      .where(eq(schema.users.id, organizerUser.id));
+    await database.insert(schema.users).values({
+      auth0Id: `test|receipt-reimbursement-${reimbursementUserId}`,
+      communicationEmail: `delivered+receipt-flow-${receiptId}@notifications.example.test`,
+      email: `receipt-flow-${reimbursementUserId}@example.test`,
+      firstName: 'Receipt',
+      iban: 'DE89370400440532013000',
+      id: reimbursementUserId,
+      lastName: 'Recipient',
+      paypalEmail: 'organizer-refunds@example.com',
+    });
 
     receiptUploadId = await seedPendingReceiptForApproval({
       currency,
@@ -244,7 +239,7 @@ test('approve and record receipt reimbursements in finance', async ({
       receiptFileName,
       receiptId,
       seedDate,
-      submittedByUserId: organizerUser.id,
+      submittedByUserId: reimbursementUserId,
       tenantId: tenant.id,
     });
 
@@ -276,7 +271,7 @@ test('approve and record receipt reimbursements in finance', async ({
     await page.goto('/finance/receipts-refunds');
     await expect(
       page.getByText(
-        'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.',
+        'This only records that you paid the reimbursement. Evorto does not transfer the money.',
       ),
     ).toBeVisible();
     await expect(
@@ -308,8 +303,19 @@ test('approve and record receipt reimbursements in finance', async ({
     await expect(issueRefundButton).toBeEnabled();
     await issueRefundButton.click();
 
+    const confirmationDialog = page.getByRole('dialog', {
+      name: 'Record reimbursement?',
+    });
+    await expect(confirmationDialog).toBeVisible();
     await expect(
-      page.getByText('Reimbursement transaction recorded'),
+      confirmationDialog.getByText('Bank transfer · DE89370400440532013000'),
+    ).toBeVisible();
+    await confirmationDialog
+      .getByRole('button', { name: 'Record reimbursement' })
+      .click();
+
+    await expect(
+      page.getByText('Reimbursement recorded', { exact: true }),
     ).toBeVisible();
 
     await expect
@@ -335,7 +341,6 @@ test('approve and record receipt reimbursements in finance', async ({
       throw new Error('Expected seeded receipt after reimbursement recording');
     }
     const createdRefundTransactionId = refundedReceipt.refundTransactionId;
-    refundTransactionId = createdRefundTransactionId;
     await expect
       .poll(() =>
         database.query.transactions.findFirst({
@@ -347,29 +352,35 @@ test('approve and record receipt reimbursements in finance', async ({
         status: 'successful',
       });
   } finally {
-    await database
-      .update(schema.users)
-      .set({
-        communicationEmail: originalOrganizer.communicationEmail,
-        firstName: originalOrganizer.firstName,
-        iban: originalOrganizer.iban,
-        lastName: originalOrganizer.lastName,
-        paypalEmail: originalOrganizer.paypalEmail,
-      })
-      .where(eq(schema.users.id, organizerUser.id));
-    await database
+    const [deletedReceipt] = await database
       .delete(schema.financeReceipts)
-      .where(eq(schema.financeReceipts.id, receiptId));
+      .where(
+        and(
+          eq(schema.financeReceipts.id, receiptId),
+          eq(schema.financeReceipts.tenantId, tenant.id),
+        ),
+      )
+      .returning({
+        refundTransactionId: schema.financeReceipts.refundTransactionId,
+      });
     if (receiptUploadId) {
       await database
         .delete(schema.financeReceiptUploads)
         .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
     }
-    if (refundTransactionId) {
+    if (deletedReceipt?.refundTransactionId) {
       await database
         .delete(schema.transactions)
-        .where(eq(schema.transactions.id, refundTransactionId));
+        .where(
+          and(
+            eq(schema.transactions.id, deletedReceipt.refundTransactionId),
+            eq(schema.transactions.tenantId, tenant.id),
+          ),
+        );
     }
+    await database
+      .delete(schema.users)
+      .where(eq(schema.users.id, reimbursementUserId));
   }
 });
 
@@ -391,19 +402,7 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
   const eventId = seeded.scenario.events.past.eventId;
   const receiptId = getId();
   const receiptFileName = `missing-evidence-${seedDate.getTime()}.pdf`;
-  let receiptUploadId: string | undefined;
-  registerDatabaseCleanup(async (cleanupDatabase) => {
-    await cleanupDatabase
-      .delete(schema.financeReceipts)
-      .where(eq(schema.financeReceipts.id, receiptId));
-    if (receiptUploadId) {
-      await cleanupDatabase
-        .delete(schema.financeReceiptUploads)
-        .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
-    }
-  });
-
-  receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+  const receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
     eventId,
     fileName: receiptFileName,
     mimeType: 'application/pdf',
@@ -411,11 +410,18 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
     tenantId: tenant.id,
     uploadedByUserId: organizerUser.id,
   });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceipts)
+      .where(eq(schema.financeReceipts.id, receiptId));
+    await cleanupDatabase
+      .delete(schema.financeReceiptUploads)
+      .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+  });
+
   await database.insert(schema.financeReceipts).values({
     alcoholAmount: 0,
     attachmentFileName: receiptFileName,
-    attachmentMimeType: 'application/pdf',
-    attachmentSizeBytes: 1024,
     attachmentUploadId: receiptUploadId,
     currency: tenant.currency,
     depositAmount: 0,
@@ -424,7 +430,9 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
     hasDeposit: false,
     id: receiptId,
     purchaseCountry: 'DE',
-    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24),
+    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24)
+      .toISOString()
+      .slice(0, 10),
     status: 'submitted',
     submittedByUserId: organizerUser.id,
     taxAmount: 100,
@@ -436,7 +444,7 @@ test('blocks approval but keeps rejection available when receipt evidence is mis
   await expect(
     page.getByRole('alert').filter({
       hasText:
-        'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+        'The uploaded receipt file is unavailable. You cannot approve the receipt until the file can be checked, but you can still reject it.',
     }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
@@ -486,7 +494,7 @@ test('receipt dialog shows Other option when tenant allows it', async ({
   await page.getByRole('button', { name: 'Add receipt' }).click();
   await page.getByLabel('Purchase country').click();
   const otherCountryOption = page.getByRole('option', {
-    name: 'Other (outside configured countries)',
+    name: 'Other country',
   });
   await expect(otherCountryOption).toBeVisible();
 });

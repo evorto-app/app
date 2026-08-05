@@ -1,11 +1,7 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
-import {
-  isStorageStateFresh,
-  readStorageState,
-} from '../../support/utils/storage-state';
+import { isStorageStateFresh } from '../../support/utils/storage-state';
 
 test('storage state freshness - age and tenant cookie checks', async ({}, testInfo) => {
   const statePath = testInfo.outputPath('state.json');

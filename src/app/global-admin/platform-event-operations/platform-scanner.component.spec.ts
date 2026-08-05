@@ -1,13 +1,11 @@
 import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,38 +19,55 @@ import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { PlatformRegistrationCancellationConfirmationDialogComponent } from './platform-registration-cancellation-confirmation-dialog.component';
 import {
+  platformCheckInTimingIssueCopy,
   platformGuestCheckInIssue,
   platformGuestCheckInSelection,
+  platformRegistrationCancellationActionLabel,
   platformRegistrationStatusIssueCopy,
   platformRegistrationStatusLabel,
   PlatformScannerComponent,
+  platformScannerNavigationErrorMessage,
   PlatformScannerOperations,
   registrationIdFromPlatformScannerInput,
 } from './platform-scanner.component';
+
+describe('platformCheckInTimingIssueCopy', () => {
+  it('distinguishes not-yet-open check-in from an ended window', () => {
+    expect(platformCheckInTimingIssueCopy('notOpen')).toEqual({
+      body: 'Check-in opens one hour before the event starts.',
+      title: 'Check-in not open',
+    });
+    expect(platformCheckInTimingIssueCopy('ended')).toEqual({
+      body: 'The event ended more than two hours ago, so check-in is closed. The attendee was not checked in.',
+      title: 'Check-in closed',
+    });
+    expect(platformCheckInTimingIssueCopy(null)).toBeNull();
+  });
+});
 
 describe('platformRegistrationStatusIssueCopy', () => {
   it('keeps confirmed registrations free of a status warning', () => {
     expect(platformRegistrationStatusIssueCopy('CONFIRMED')).toBeNull();
   });
 
-  it('explains cancelled tickets without suggesting replacement payment or registration', () => {
+  it('explains an ended sign-up without guessing its former state', () => {
     expect(platformRegistrationStatusIssueCopy('CANCELLED')).toEqual({
-      body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, review the existing registration and refund instead of creating a replacement.',
-      title: 'Registration cancelled',
+      body: 'This sign-up has ended and cannot be checked in. Do not ask the attendee to pay or sign up again. If the cancellation or refund looks wrong, review the existing sign-up instead of creating a replacement.',
+      title: 'Sign-up ended',
     });
   });
 
   it('distinguishes pending approval or payment from a duplicate payment', () => {
     expect(platformRegistrationStatusIssueCopy('PENDING')).toEqual({
-      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
-      title: 'Registration pending',
+      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start another sign-up or payment here.',
+      title: 'Sign-up pending',
     });
   });
 
-  it('explains that a waitlisted attendee has no confirmed spot', () => {
+  it('explains that a waitlisted attendee has no confirmed place', () => {
     expect(platformRegistrationStatusIssueCopy('WAITLIST')).toEqual({
-      body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
-      title: 'Registration on waitlist',
+      body: 'This attendee does not have a confirmed place yet and cannot be checked in. Review the waitlist and available places. Do not take payment or start another sign-up here.',
+      title: 'On waitlist',
     });
   });
 
@@ -62,6 +77,23 @@ describe('platformRegistrationStatusIssueCopy', () => {
     expect(platformRegistrationStatusLabel('WAITLIST')).toBe('On waitlist');
     expect(platformRegistrationStatusLabel('CANCELLED')).toBe('Cancelled');
   });
+});
+
+describe('platformRegistrationCancellationActionLabel', () => {
+  it.each([
+    ['PENDING', false, 'Withdraw application'],
+    ['PENDING', true, 'Cancel sign-up'],
+    ['WAITLIST', false, 'Remove from waitlist'],
+    ['CONFIRMED', false, 'Cancel ticket'],
+    ['CANCELLED', false, 'Sign-up ended'],
+  ] as const)(
+    'describes %s without guessing ticket state',
+    (status, paymentPending, expected) => {
+      expect(
+        platformRegistrationCancellationActionLabel({ paymentPending, status }),
+      ).toBe(expected);
+    },
+  );
 });
 
 describe('platform guest check-in selection', () => {
@@ -132,30 +164,6 @@ describe('registrationIdFromPlatformScannerInput', () => {
       registrationIdFromPlatformScannerInput('registration/one'),
     ).toBeUndefined();
   });
-
-  it('keeps lookup controls disabled until browser hydration completes', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-scanner.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-scanner.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain(
-      'afterNextRender(() => this.lookupInteractive.set(true))',
-    );
-    expect(
-      template.match(/\[disabled\]="!lookupInteractive\(\)"/g),
-    ).toHaveLength(2);
-  });
 });
 
 @Component({
@@ -190,7 +198,7 @@ const inspectedRegistration: PlatformRegistrationDetailRecord = {
   },
   checkedInGuestCount: 0,
   checkInTime: null,
-  checkInTimingIssue: false,
+  checkInTimingIssue: null,
   currency: 'EUR',
   event: {
     id: 'event-1',
@@ -233,6 +241,10 @@ const findAlertButton = (
     ?.querySelector<HTMLButtonElement>('button') ?? undefined;
 
 describe('PlatformScannerComponent', () => {
+  const approveRegistration = vi.fn(
+    async (): Promise<PlatformRegistrationDetailRecord> =>
+      inspectedRegistration,
+  );
   const cancelRegistration = vi.fn(
     async (
       _input: PlatformRegistrationsCancelInput,
@@ -250,15 +262,14 @@ describe('PlatformScannerComponent', () => {
     async (): Promise<PlatformRegistrationDetailRecord> =>
       inspectedRegistration,
   );
-  const listRegistrations = vi.fn(async () => []);
   const loadFormOptions = vi.fn(async () => ({
     timezone: 'Australia/Brisbane',
   }));
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    approveRegistration.mockReset().mockResolvedValue(inspectedRegistration);
     findRegistration.mockReset().mockResolvedValue(inspectedRegistration);
-    listRegistrations.mockReset().mockResolvedValue([]);
     loadFormOptions.mockReset().mockResolvedValue({
       timezone: 'Australia/Brisbane',
     });
@@ -286,7 +297,7 @@ describe('PlatformScannerComponent', () => {
           provide: PlatformScannerOperations,
           useValue: {
             approve: () => ({
-              mutationFn: vi.fn(),
+              mutationFn: approveRegistration,
               mutationKey: ['platform-scanner', 'approve'],
             }),
             cancel: () => ({
@@ -304,10 +315,6 @@ describe('PlatformScannerComponent', () => {
             formOptions: () => ({
               queryFn: loadFormOptions,
               queryKey: ['platform-scanner', 'target-tenant-options'],
-            }),
-            list: () => ({
-              queryFn: listRegistrations,
-              queryKey: ['platform-scanner', 'registrations'],
             }),
             registrationFilter: () => ({
               queryKey: ['platform-scanner', 'registration'],
@@ -355,6 +362,24 @@ describe('PlatformScannerComponent', () => {
     return fixture;
   };
 
+  it('does not preload registrations before an explicit lookup', async () => {
+    const fixture = renderInitial();
+    const root = fixture.nativeElement as HTMLElement;
+    const input = root.querySelector<HTMLInputElement>('input');
+    const submit = root.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+
+    expect(findRegistration).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(input?.disabled).toBe(false);
+      expect(submit?.disabled).toBe(false);
+    });
+    expect(findRegistration).not.toHaveBeenCalled();
+  });
+
   it('retries a failed registration lookup', async () => {
     findRegistration
       .mockReset()
@@ -367,7 +392,7 @@ describe('PlatformScannerComponent', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        'This registration could not be loaded.',
+        'This ticket could not be loaded.',
       );
     });
     expect(findRegistration).toHaveBeenCalledOnce();
@@ -375,7 +400,7 @@ describe('PlatformScannerComponent', () => {
 
     const retryButton = findAlertButton(
       fixture,
-      'This registration could not be loaded.',
+      'This ticket could not be loaded.',
     );
     if (!retryButton) throw new Error('Expected a registration retry button');
     retryButton.click();
@@ -388,35 +413,56 @@ describe('PlatformScannerComponent', () => {
     });
   });
 
-  it('retries a failed registrations list', async () => {
-    listRegistrations
-      .mockReset()
-      .mockRejectedValueOnce(new Error('Unavailable'))
-      .mockResolvedValue([]);
+  it('surfaces failed lookup navigation and keeps an explicit retry action', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(false);
     const fixture = renderInitial();
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain(
-        'Registrations for this organization could not be loaded.',
-      );
+      const input = (
+        fixture.nativeElement as HTMLElement
+      ).querySelector<HTMLInputElement>('input');
+      expect(input?.disabled).toBe(false);
     });
-    expect(listRegistrations).toHaveBeenCalledOnce();
-
-    const retryButton = findAlertButton(
-      fixture,
-      'Registrations for this organization could not be loaded.',
-    );
-    if (!retryButton) throw new Error('Expected a registrations retry button');
-    retryButton.click();
+    const input = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLInputElement>('input');
+    if (!input) throw new Error('Expected a registration lookup input');
+    input.value = 'registration-1';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    findButton(fixture, 'Open ticket')?.click();
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(listRegistrations).toHaveBeenCalledTimes(2);
-      expect(fixture.nativeElement.textContent).toContain(
-        'No registrations found.',
+      const alert = (
+        fixture.nativeElement as HTMLElement
+      ).querySelector<HTMLElement>('[role="alert"]');
+      expect(alert?.textContent).toContain(
+        platformScannerNavigationErrorMessage,
+      );
+      expect(findButton(fixture, 'Try opening ticket again')?.disabled).toBe(
+        false,
       );
     });
+    expect(navigate).toHaveBeenCalledWith([
+      '/global-admin/tenants',
+      'tenant-1',
+      'scanner',
+      'registration-1',
+    ]);
+
+    navigate.mockResolvedValue(true);
+    findButton(fixture, 'Try opening ticket again')?.click();
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledTimes(2));
+    expect(navigate).toHaveBeenLastCalledWith([
+      '/global-admin/tenants',
+      'tenant-1',
+      'scanner',
+      'registration-1',
+    ]);
   });
 
   it('retries loading the organization time zone', async () => {
@@ -445,7 +491,7 @@ describe('PlatformScannerComponent', () => {
       fixture.detectChanges();
       expect(loadFormOptions).toHaveBeenCalledTimes(2);
       expect(fixture.nativeElement.textContent).toContain(
-        '02 Jan 2030, 10:00 · Australia/Brisbane',
+        '02 Jan 2030, 10:00 · Brisbane time',
       );
     });
   });
@@ -456,10 +502,13 @@ describe('PlatformScannerComponent', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        '02 Jan 2030, 10:00 · Australia/Brisbane',
+        '02 Jan 2030, 10:00 · Brisbane time',
       );
       expect(fixture.nativeElement.textContent).toContain(
-        '01 Jan 2030, 10:00 · Australia/Brisbane',
+        '01 Jan 2030, 10:00 · Brisbane time',
+      );
+      expect(fixture.nativeElement.textContent).not.toContain(
+        'Australia/Brisbane',
       );
     });
   });
@@ -509,6 +558,7 @@ describe('PlatformScannerComponent', () => {
 
   it('clears the reason and guest count after a successful check-in', async () => {
     const fixture = await render();
+    const notifications = TestBed.inject(NotificationService);
     const guestCount = (
       fixture.nativeElement as HTMLElement
     ).querySelector<HTMLInputElement>('input[type="number"]');
@@ -534,12 +584,35 @@ describe('PlatformScannerComponent', () => {
       registrationId: 'registration-1',
       targetTenantId: 'tenant-1',
     });
+    expect(notifications.showSuccess).toHaveBeenCalledWith('Ticket checked in');
+  });
+
+  it('shows an expected approval outcome', async () => {
+    findRegistration.mockResolvedValue({
+      ...inspectedRegistration,
+      manualApprovalAvailable: true,
+    });
+    approveRegistration.mockRejectedValue({
+      _tag: 'RpcBadRequestError',
+      message: 'This registration no longer needs approval.',
+    });
+    const fixture = await render();
+    const notifications = TestBed.inject(NotificationService);
+
+    findButton(fixture, 'Approve')?.click();
+
+    await vi.waitFor(() => {
+      expect(approveRegistration).toHaveBeenCalledOnce();
+      expect(notifications.showError).toHaveBeenCalledWith(
+        'This registration no longer needs approval.',
+      );
+    });
   });
 
   it('does not cancel when the administrator keeps the registration', async () => {
     const fixture = await render();
 
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Cancel ticket')?.click();
 
     await vi.waitFor(() => expect(dialogOpen).toHaveBeenCalledOnce());
     expect(dialogOpen).toHaveBeenCalledWith(
@@ -554,17 +627,31 @@ describe('PlatformScannerComponent', () => {
     expect(cancelRegistration).not.toHaveBeenCalled();
   });
 
+  it('describes attendee cancellation updates as an attempt', async () => {
+    const fixture = await render();
+    const text = (fixture.nativeElement as HTMLElement).textContent
+      ?.replaceAll(/\s+/g, ' ')
+      .trim();
+
+    expect(text).toContain('tries to send the attendee an update');
+    expect(text).not.toContain('notifies the attendee');
+  });
+
   it('cancels only after explicit confirmation', async () => {
     dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
     const fixture = await render();
+    const notifications = TestBed.inject(NotificationService);
 
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Cancel ticket')?.click();
 
     await vi.waitFor(() => expect(cancelRegistration).toHaveBeenCalledOnce());
     expect(cancelRegistration.mock.calls[0]?.[0]).toEqual({
+      expectedPaymentPending: false,
+      expectedStatus: 'CONFIRMED',
       reason: 'Duplicate registration',
       registrationId: 'registration-1',
       targetTenantId: 'tenant-1',
     });
+    expect(notifications.showSuccess).toHaveBeenCalledWith('Ticket cancelled');
   });
 });

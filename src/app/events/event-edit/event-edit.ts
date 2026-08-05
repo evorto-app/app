@@ -16,15 +16,17 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import {
-  faArrowLeft,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { EventEditIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -43,8 +45,8 @@ import {
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
+import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
 import { persistedAdvancedToSimpleModeIssue } from '../../shared/components/forms/registration-mode-transition';
-import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventAddonEditor } from './event-addon-editor';
 import {
   advancedEventGraphWarnings,
@@ -55,7 +57,6 @@ import {
   type EventGraphFormModel,
   eventGraphFormToPayload,
   eventGraphRecordToFormModel,
-  resetEventGraphPayments,
   simpleEventGraphIssue,
 } from './event-graph-form.model';
 import { eventGraphFormSchemaWithPaymentAvailability } from './event-graph-form.schema';
@@ -71,18 +72,24 @@ export const eventEditSubmitDisabled = ({
   formSubmitting,
   graphReadOnly,
   mutationPending,
+  paidGraphBlocked,
+  taxRatesReady,
 }: {
   discountProvidersReady: boolean;
   formInvalid: boolean;
   formSubmitting: boolean;
   graphReadOnly: boolean;
   mutationPending: boolean;
+  paidGraphBlocked: boolean;
+  taxRatesReady: boolean;
 }): boolean =>
   !discountProvidersReady ||
+  !taxRatesReady ||
   formInvalid ||
   formSubmitting ||
   graphReadOnly ||
-  mutationPending;
+  mutationPending ||
+  paidGraphBlocked;
 
 export const eventOptionRemovalBlockReason = (
   model: Pick<EventGraphFormModel, 'addOns' | 'questions'>,
@@ -93,7 +100,7 @@ export const eventOptionRemovalBlockReason = (
       (question) => question.registrationOptionKey === optionKey,
     )
   ) {
-    return 'Move or remove the questions attached to this option first.';
+    return 'Move or remove the questions shown for this choice first.';
   }
   if (
     model.addOns.some((addOn) =>
@@ -102,10 +109,23 @@ export const eventOptionRemovalBlockReason = (
       ),
     )
   ) {
-    return 'Remove this registration option from its add-ons first.';
+    return 'Remove this sign-up choice from its add-ons first.';
   }
   return null;
 };
+
+export const eventEditQueryErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The event could not be loaded. Try again.', [
+    'EventConflictError',
+    'EventNotFoundError',
+  ]);
+
+export const eventEditSaveErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The event could not be saved. Try again.', [
+    'EventConflictError',
+    'EventNotFoundError',
+    'RpcBadRequestError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,14 +136,12 @@ export const eventOptionRemovalBlockReason = (
     FontAwesomeModule,
     FormField,
     IconSelectorFieldComponent,
-    IfAnyPermissionDirective,
     LocationSelectorField,
     MatButtonModule,
     MatCheckboxModule,
     MatDatepickerModule,
     MatFormFieldModule,
     MatInputModule,
-    MatMenuModule,
     MatSelectModule,
     MatTimepickerModule,
     RouterLink,
@@ -147,6 +165,14 @@ export class EventEdit {
       : advancedEventGraphWarnings(this.eventModel().registrationOptions),
   );
   private readonly rpc = AppRpc.injectClient();
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.rpc.taxRates.listActive.queryOptions(),
+  );
+  protected readonly availableTaxRates = computed(() =>
+    this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
+      ? this.taxRatesQuery.data()
+      : undefined,
+  );
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -169,11 +195,11 @@ export class EventEdit {
           provider.type === 'esnCard' && provider.status === 'enabled',
       );
   });
-
   protected readonly eventEditSubmitDisabled = eventEditSubmitDisabled;
-  protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  protected readonly stripeConnected = computed(
+    () => this.config.tenantSignal()?.paymentsConfigured === true,
   );
+
   protected readonly eventForm = form(
     this.eventModel,
     eventGraphFormSchemaWithPaymentAvailability(() => this.stripeConnected()),
@@ -182,12 +208,17 @@ export class EventEdit {
     this.rpc.events.findGraphForEdit.queryOptions({ id: this.eventId() }),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly graphActionMessage = signal<null | string>(null);
   protected readonly iconUsage = computed(() =>
     EventEditIconUsage.make({ eventId: this.eventId() }),
   );
   protected readonly loadBlock = signal<null | string>(null);
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationQuestionDescriptionLength =
+    MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
+  protected readonly maxRegistrationQuestionTitleLength =
+    MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
   protected readonly modeControlsInteractive = signal(false);
   protected readonly optionChoices = computed(() =>
     this.eventModel().registrationOptions.map((option) => ({
@@ -201,9 +232,24 @@ export class EventEdit {
   protected readonly paidControlsUnavailable = computed(
     () => this.stripeConnectionKnown() && !this.stripeConnected(),
   );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.paidControlsUnavailable() &&
+      graphHasPaidConfiguration(this.eventModel()),
+  );
   protected readonly saveError = signal<null | string>(null);
   protected readonly simpleModeIssue = computed(() =>
     simpleEventGraphIssue(this.eventModel().registrationOptions),
+  );
+  protected readonly taxRatesReady = computed(
+    () => this.availableTaxRates() !== undefined,
+  );
+  protected readonly taxRateState = computed(() =>
+    this.taxRatesQuery.isError()
+      ? ('error' as const)
+      : this.availableTaxRates() === undefined
+        ? ('loading' as const)
+        : ('ready' as const),
   );
   protected readonly tenantCurrency = computed(() =>
     tenantCurrencyCode(this.config),
@@ -233,28 +279,21 @@ export class EventEdit {
           this.initializedEventId.set(event.id);
           return;
         }
-        this.eventModel.set(
-          this.paidControlsUnavailable()
-            ? resetEventGraphPayments(loadResult.model)
-            : loadResult.model,
-        );
+        this.eventModel.set(loadResult.model);
         this.eventForm().reset();
         this.loadBlock.set(null);
         this.initializedEventId.set(event.id);
       });
     });
-
-    effect(() => {
-      if (!this.paidControlsUnavailable()) return;
-      const model = this.eventModel();
-      const resetModel = resetEventGraphPayments(model);
-      if (resetModel === model) return;
-      untracked(() => this.eventModel.set(resetModel));
-    });
   }
 
   protected addAddOn(): void {
-    if (this.eventModel().simpleModeEnabled) return;
+    if (
+      this.eventModel().simpleModeEnabled ||
+      this.eventModel().addOns.length >= MAX_EVENT_ADDON_TYPES
+    ) {
+      return;
+    }
     const optionKey = this.eventModel().registrationOptions[0]?.key;
     this.eventModel.update((model) => ({
       ...model,
@@ -298,7 +337,11 @@ export class EventEdit {
 
   protected addQuestion(): void {
     const optionKey = this.eventModel().registrationOptions[0]?.key;
-    if (!optionKey) return;
+    if (
+      !optionKey ||
+      this.eventModel().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.eventModel.update((model) => ({
       ...model,
       questions: [
@@ -323,7 +366,9 @@ export class EventEdit {
   protected duplicateQuestion(questionIndex: number): void {
     this.eventModel.update((model) => {
       const source = model.questions[questionIndex];
-      if (!source) return model;
+      if (!source || model.questions.length >= MAX_REGISTRATION_QUESTIONS) {
+        return model;
+      }
       return {
         ...model,
         questions: [
@@ -340,10 +385,7 @@ export class EventEdit {
   }
 
   protected queryErrorMessage(): string {
-    return getErrorMessage(
-      this.eventQuery.error(),
-      'Failed to load the event editor.',
-    );
+    return eventEditQueryErrorMessage(this.eventQuery.error());
   }
 
   protected removeAddOn(addOnIndex: number): void {
@@ -451,16 +493,16 @@ export class EventEdit {
         formSubmitting: this.eventForm().submitting(),
         graphReadOnly: this.loadBlock() !== null,
         mutationPending: this.updateEventMutation.isPending(),
+        paidGraphBlocked: this.paidGraphBlocked(),
+        taxRatesReady: this.taxRatesReady(),
       })
     ) {
       return;
     }
 
     await submit(this.eventForm, async (formState) => {
-      if (!this.discountProvidersReady()) return;
-      const formValue = this.paidControlsUnavailable()
-        ? resetEventGraphPayments(formState().value())
-        : formState().value();
+      if (!this.discountProvidersReady() || !this.taxRatesReady()) return;
+      const formValue = formState().value();
       const payloadResult = eventGraphFormToPayload(
         formValue,
         this.esnEnabled(),
@@ -479,9 +521,7 @@ export class EventEdit {
         );
         await this.router.navigate(['/events', result.id]);
       } catch (error) {
-        this.saveError.set(
-          getErrorMessage(error, 'Failed to save the event configuration.'),
-        );
+        this.saveError.set(eventEditSaveErrorMessage(error));
       }
     });
   }

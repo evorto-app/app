@@ -4,7 +4,10 @@ import {
   type PlatformTemplatesCreateInput,
   type PlatformTemplatesUpdateInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import { type TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
+import {
+  type TemplateGraphRecord,
+  TemplateRegistrationMode,
+} from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import { and, asc, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -39,7 +42,7 @@ const PlatformTemplateAuditRegistrationOption = Schema.Struct({
   organizingRegistration: Schema.Boolean,
   price: Schema.Number,
   refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
-  registrationMode: Schema.Literals(['application', 'fcfs', 'random']),
+  registrationMode: TemplateRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
@@ -87,7 +90,6 @@ const PlatformTemplateAuditState = Schema.Struct({
   registrationOptions: Schema.Array(PlatformTemplateAuditRegistrationOption),
   simpleModeEnabled: Schema.Boolean,
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 const databaseEffect = <A, R>(
@@ -158,7 +160,6 @@ export const platformTemplateAuditSnapshot = (
     })),
     simpleModeEnabled: template.simpleModeEnabled,
     title: template.title,
-    unlisted: template.unlisted,
   }),
 });
 
@@ -357,9 +358,7 @@ export const platformTemplateHandlers = {
                 .for('update')
                 .pipe(Effect.orDie);
               if (lockedTemplates.length === 0) {
-                return yield* Effect.fail(
-                  templateGraphNotFoundError(templateId),
-                );
+                return yield* Effect.fail(templateGraphNotFoundError());
               }
               const before = yield* loadTemplateGraphDetail(
                 transaction,

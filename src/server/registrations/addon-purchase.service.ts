@@ -16,6 +16,7 @@ import {
   transactions,
   users,
 } from '@db/schema';
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -32,6 +33,7 @@ import {
 } from '../integrations/stripe-checkout';
 import { resolveAddonTaxAmounts } from '../payments/addon-payment-allocation';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
+import { safeServerErrorSummary } from '../utils/safe-server-error-summary';
 import {
   appendAddonLotAcquisitionComponent,
   settleAcquisitionComponentTerms,
@@ -98,18 +100,23 @@ type AddonPurchaseReservation =
 
 const conflict = (message: string) =>
   new EventRegistrationConflictError({ message });
-const internal = (message: string, cause?: unknown) =>
-  new EventRegistrationInternalError({
-    ...(cause !== undefined && { cause }),
-    message,
-  });
+const internal = (message: string) =>
+  new EventRegistrationInternalError({ message });
 const notFound = () =>
   new EventRegistrationNotFoundError({
-    message: 'Registration or optional add-on not found',
+    message:
+      'This ticket or add-on is no longer available. No purchase was started. Reopen the ticket and review its current add-ons.',
   });
 
-const mapStorageError = <A, E, R>(
-  effect: Effect.Effect<A, E, R>,
+const failInternal = (operation: string, message: string, error: unknown) =>
+  Effect.logError(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(Effect.fail(internal(message))),
+  );
+
+const mapStorageError = <A, R>(
+  effect: Effect.Effect<A, unknown, R>,
+  operation: string,
   message: string,
 ): Effect.Effect<
   A,
@@ -119,12 +126,20 @@ const mapStorageError = <A, E, R>(
   R
 > =>
   effect.pipe(
-    Effect.mapError((error) =>
-      error instanceof EventRegistrationConflictError ||
-      error instanceof EventRegistrationInternalError ||
-      error instanceof EventRegistrationNotFoundError
-        ? error
-        : internal(message, error),
+    Effect.catch(
+      (
+        error,
+      ): Effect.Effect<
+        never,
+        | EventRegistrationConflictError
+        | EventRegistrationInternalError
+        | EventRegistrationNotFoundError
+      > =>
+        error instanceof EventRegistrationConflictError ||
+        error instanceof EventRegistrationInternalError ||
+        error instanceof EventRegistrationNotFoundError
+          ? Effect.fail(error)
+          : failInternal(operation, message, error),
     ),
   );
 
@@ -133,7 +148,9 @@ const validateOperationKey = (operationKey: string) => {
   return normalized.length > 0 && normalized.length <= 100
     ? Effect.succeed(normalized)
     : Effect.fail(
-        conflict('Operation key must contain between 1 and 100 characters'),
+        conflict(
+          'The purchase could not be started. No purchase was created. Reopen the ticket and review its current add-ons before trying again.',
+        ),
       );
 };
 
@@ -155,6 +172,7 @@ export const resolveRegistrationAddonPurchaseWindow = (input: {
 
 export const registrationAddonPurchaseCapacity = (input: {
   readonly allowMultiple: boolean;
+  readonly includedQuantity: number;
   readonly maxQuantityPerUser: number;
   readonly optionalPurchaseQuantity: number;
   readonly pendingOptionalQuantity: number;
@@ -163,6 +181,7 @@ export const registrationAddonPurchaseCapacity = (input: {
   readonly stock: number;
 }): RegistrationAddonPurchaseCapacity => {
   const integers = [
+    input.includedQuantity,
     input.maxQuantityPerUser,
     input.optionalPurchaseQuantity,
     input.pendingOptionalQuantity,
@@ -172,7 +191,8 @@ export const registrationAddonPurchaseCapacity = (input: {
   ];
   if (
     integers.some((value) => !Number.isSafeInteger(value) || value < 0) ||
-    input.requestedQuantity === 0
+    input.requestedQuantity === 0 ||
+    input.requestedQuantity > MAX_REGISTRATION_ADDON_QUANTITY
   ) {
     return 'invalid_quantity';
   }
@@ -180,6 +200,12 @@ export const registrationAddonPurchaseCapacity = (input: {
     input.purchasedOptionalQuantity + input.pendingOptionalQuantity;
   const requestedTotal = existingOptionalQuantity + input.requestedQuantity;
   if (!Number.isSafeInteger(requestedTotal)) return 'invalid_quantity';
+  if (
+    input.includedQuantity + requestedTotal >
+    MAX_REGISTRATION_ADDON_QUANTITY
+  ) {
+    return 'user_limit_exceeded';
+  }
   if (!input.allowMultiple && requestedTotal > 1) {
     return 'multiple_not_allowed';
   }
@@ -232,19 +258,19 @@ const capacityConflictMessage = (
 ) => {
   switch (capacity) {
     case 'invalid_quantity': {
-      return 'Add-on quantity must be a positive integer';
+      return 'Choose a whole number greater than zero.';
     }
     case 'multiple_not_allowed': {
-      return 'This add-on can only be purchased once per registration';
+      return 'This add-on can only be bought once for each sign-up.';
     }
     case 'option_limit_exceeded': {
-      return 'This registration option does not allow that many optional add-ons';
+      return 'This sign-up choice does not allow that many of this add-on.';
     }
     case 'out_of_stock': {
-      return 'This add-on no longer has enough stock';
+      return 'There are not enough of this add-on left.';
     }
     case 'user_limit_exceeded': {
-      return 'This add-on exceeds the per-user purchase limit';
+      return 'You have reached the purchase limit for this add-on.';
     }
   }
 };
@@ -277,7 +303,7 @@ const lockRegistration = Effect.fn('lockAddonPurchaseRegistration')(function* (
   }
   if (registration.status !== 'CONFIRMED') {
     return yield* conflict(
-      'Only a confirmed registration can purchase optional add-ons',
+      'You can only buy add-ons after the sign-up is confirmed.',
     );
   }
   yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
@@ -285,9 +311,7 @@ const lockRegistration = Effect.fn('lockAddonPurchaseRegistration')(function* (
     tenantId: input.tenantId,
   }).pipe(
     Effect.mapError(() =>
-      conflict(
-        'Resolve or cancel the active registration transfer before purchasing add-ons',
-      ),
+      conflict('Finish or cancel the ticket transfer before buying add-ons.'),
     ),
   );
   return registration;
@@ -343,7 +367,7 @@ const replayReservation = Effect.fn('replayAddonPurchaseReservation')(
       order.requestedByUserId !== input.userId
     ) {
       return yield* conflict(
-        'This operation key was already used for a different add-on purchase',
+        'This add-on purchase no longer matches the ticket. No new purchase was started. Reopen the ticket and review its current add-ons before starting again.',
       );
     }
     if (order.status === 'completed') {
@@ -354,7 +378,7 @@ const replayReservation = Effect.fn('replayAddonPurchaseReservation')(
     }
     if (order.status === 'expired') {
       return yield* conflict(
-        'This add-on purchase checkout expired. Start a new purchase.',
+        'The time to pay for this add-on ran out. Start the purchase again.',
       );
     }
     if (
@@ -443,7 +467,7 @@ const reserveRegistrationAddonPurchase = Effect.fn(
       .where(eq(eventRegistrationAddonPurchaseOrders.id, pendingCandidate.id))
       .for('update');
     return yield* conflict(
-      'This registration already has an add-on payment in progress',
+      'This sign-up already has an add-on payment in progress. Finish it before starting another.',
     );
   }
 
@@ -524,7 +548,7 @@ const reserveRegistrationAddonPurchase = Effect.fn(
   if (!addon || addon.optionalPurchaseQuantity <= 0) return yield* notFound();
   if (addon.eventStatus !== 'APPROVED') {
     return yield* conflict(
-      'Optional add-ons can only be purchased for an approved event',
+      'This event is not open, so add-ons cannot be bought.',
     );
   }
   const window = resolveRegistrationAddonPurchaseWindow({
@@ -535,9 +559,7 @@ const reserveRegistrationAddonPurchase = Effect.fn(
     start: addon.start,
   });
   if (!window) {
-    return yield* conflict(
-      'This add-on is not available for purchase at this time',
-    );
+    return yield* conflict('This add-on is not available to buy right now.');
   }
 
   const taxRows =
@@ -563,13 +585,14 @@ const reserveRegistrationAddonPurchase = Effect.fn(
   const taxRate = taxRows[0];
   if (addon.stripeTaxRateId && (!taxRate || taxRate.percentage === null)) {
     return yield* conflict(
-      'This add-on has an incomplete or inactive Stripe tax configuration',
+      'The saved tax details for this add-on are no longer available. Ask an administrator to choose a current tax rate.',
     );
   }
   const taxRateInclusive = taxRate?.inclusive ?? null;
   const taxRatePercentage = taxRate?.percentage ?? null;
   const capacity = registrationAddonPurchaseCapacity({
     allowMultiple: addon.allowMultiple,
+    includedQuantity: existingPurchase?.includedQuantity ?? 0,
     maxQuantityPerUser: addon.maxQuantityPerUser,
     optionalPurchaseQuantity: addon.optionalPurchaseQuantity,
     pendingOptionalQuantity: 0,
@@ -611,7 +634,7 @@ const reserveRegistrationAddonPurchase = Effect.fn(
     )
     .returning({ id: eventAddons.id });
   if (updatedStock.length !== 1) {
-    return yield* conflict('This add-on no longer has enough stock');
+    return yield* conflict('There are not enough of this add-on left.');
   }
 
   if (!addon.isPaid) {
@@ -726,8 +749,12 @@ const reserveRegistrationAddonPurchase = Effect.fn(
       registrationId: input.registrationId,
       tenantId: input.tenantId,
     }).pipe(
-      Effect.mapError((cause) =>
-        internal('Free add-on acquisition could not be persisted', cause),
+      Effect.catch((error) =>
+        failInternal(
+          'registrationAddonPurchase.persistFreeAcquisition',
+          'Free add-on acquisition could not be persisted',
+          error,
+        ),
       ),
     );
     return {
@@ -749,8 +776,12 @@ const reserveRegistrationAddonPurchase = Effect.fn(
     { domain: tenant.domain, id: input.tenantId },
     `/events/${encodeURIComponent(registration.eventId)}`,
   ).pipe(
-    Effect.mapError((cause) =>
-      internal('Add-on purchase return URL could not be created', cause),
+    Effect.catch((error) =>
+      failInternal(
+        'registrationAddonPurchase.createReturnUrl',
+        'Add-on purchase return URL could not be created',
+        error,
+      ),
     ),
   );
   const expiresAtEpoch = buildCheckoutSessionExpiresAt(30);
@@ -968,6 +999,7 @@ const bindAddonPurchaseCheckout = Effect.fn('bindAddonPurchaseCheckout')(
           }),
         ),
       ),
+      'registrationAddonPurchase.bindCheckout',
       'Add-on checkout binding failed',
     );
   },
@@ -977,9 +1009,17 @@ export const purchaseRegistrationAddon = Effect.fn('purchaseRegistrationAddon')(
   function* (input: PurchaseRegistrationAddonInput) {
     const operationKey = yield* validateOperationKey(input.operationKey);
     const now = yield* Effect.try({
-      catch: (cause) => internal('Server clock is invalid', cause),
+      catch: (error) => error,
       try: () => getServerNow(undefined).toJSDate(),
-    });
+    }).pipe(
+      Effect.catch((error) =>
+        failInternal(
+          'registrationAddonPurchase.readClock',
+          'Server clock is invalid',
+          error,
+        ),
+      ),
+    );
     const reservation = yield* mapStorageError(
       Database.use((database) =>
         database.transaction((tx) =>
@@ -990,6 +1030,7 @@ export const purchaseRegistrationAddon = Effect.fn('purchaseRegistrationAddon')(
           }),
         ),
       ),
+      'registrationAddonPurchase.reserve',
       'Add-on purchase reservation failed',
     );
     if (reservation._tag === 'Completed') {
@@ -1014,10 +1055,11 @@ export const purchaseRegistrationAddon = Effect.fn('purchaseRegistrationAddon')(
         stripeAccount: reservation.stripeAccountId,
       },
     ).pipe(
-      Effect.mapError((cause) =>
-        internal(
+      Effect.catch((error) =>
+        failInternal(
+          'registrationAddonPurchase.createCheckout',
           'Add-on payment setup is still pending. Retry without creating another order.',
-          cause,
+          error,
         ),
       ),
     );
@@ -1027,15 +1069,16 @@ export const purchaseRegistrationAddon = Effect.fn('purchaseRegistrationAddon')(
         session.id,
         reservation.stripeAccountId,
       ).pipe(
-        Effect.mapError((cause) =>
-          internal(
+        Effect.catch((error) =>
+          failInternal(
+            'registrationAddonPurchase.expireCheckout',
             'The add-on reservation changed, but its Checkout session could not be expired',
-            cause,
+            error,
           ),
         ),
       );
       return yield* conflict(
-        'The add-on purchase is no longer awaiting payment',
+        'This add-on purchase can no longer be paid. No payment was taken. Reopen the ticket and review its current add-ons.',
       );
     }
     return {

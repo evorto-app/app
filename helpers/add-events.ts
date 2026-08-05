@@ -10,14 +10,15 @@ import type { SeedTemplate } from './add-templates';
 
 import { getId } from './get-id';
 import { getSeedDate } from './seed-clock';
+import {
+  requireSeedRoles,
+  requireSeedStripeTaxRates,
+  requireSeedUserId,
+} from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 
-const fallbackId = usersToAuthenticate[0].id;
-const adminUser =
-  usersToAuthenticate.find((user) => user.roles === 'admin')?.id ?? fallbackId;
-const organizerUser =
-  usersToAuthenticate.find((user) => user.roles === 'organizer')?.id ??
-  fallbackId;
+const adminUser = requireSeedUserId(usersToAuthenticate, 'admin');
+const organizerUser = requireSeedUserId(usersToAuthenticate, 'organizer');
 
 export interface AddEventsResult {
   events: Awaited<ReturnType<typeof loadCreatedEvents>>;
@@ -73,9 +74,8 @@ interface SeedScenarioOptionHandle {
 }
 
 interface TaxRateSelection {
-  defaultRateId: null | string;
-  vat7Id: null | string;
-  vat19Id: null | string;
+  vat7Id: string;
+  vat19Id: string;
 }
 
 type TenantStripeTaxRate = InferSelectModel<typeof schema.tenantStripeTaxRates>;
@@ -91,35 +91,20 @@ const demoTemplateLimits = {
 const resolveTaxRateSelection = (
   taxRates: TenantStripeTaxRate[],
 ): TaxRateSelection => {
-  const vat19 = taxRates.find((rate) => rate.percentage === '19');
-  const vat7 = taxRates.find((rate) => rate.percentage === '7');
-  const defaultRate = vat19 ?? vat7 ?? taxRates[0];
+  const { vat7, vat19 } = requireSeedStripeTaxRates(taxRates);
   return {
-    defaultRateId: defaultRate?.stripeTaxRateId ?? null,
-    vat7Id: vat7?.stripeTaxRateId ?? null,
-    vat19Id: vat19?.stripeTaxRateId ?? null,
+    vat7Id: vat7.stripeTaxRateId,
+    vat19Id: vat19.stripeTaxRateId,
   };
 };
 
 const fetchTenantTaxRates = async (
   database: NodePgDatabase<typeof relations>,
   tenantId: string,
-): Promise<TenantStripeTaxRate[]> => {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      return await database.query.tenantStripeTaxRates.findMany({
-        where: { tenantId },
-      });
-    } catch (error) {
-      if (attempt === 2) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
-    }
-  }
-
-  return [];
-};
+): Promise<TenantStripeTaxRate[]> =>
+  database.query.tenantStripeTaxRates.findMany({
+    where: { tenantId },
+  });
 
 const computeEventClock = (
   templateId: string,
@@ -309,19 +294,14 @@ const createEvents = (
   const scenario: ScenarioCandidates = {};
 
   const eventsPerTemplate = options.profile === 'demo' ? 4 : 3;
-  const participantTaxRateId = options.paid
-    ? (taxRateSelection.vat19Id ?? taxRateSelection.defaultRateId)
-    : null;
-  const organizerTaxRateId = options.paid
-    ? (taxRateSelection.vat7Id ?? taxRateSelection.defaultRateId)
-    : null;
+  const participantTaxRateId = options.paid ? taxRateSelection.vat19Id : null;
+  const organizerTaxRateId = options.paid ? taxRateSelection.vat7Id : null;
 
   for (const [templateIndex, template] of templates.entries()) {
     for (let index = 0; index < eventsPerTemplate; index += 1) {
       const eventClock = computeEventClock(template.id, index);
       let eventStart: Date;
       let status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
-      let unlisted: boolean;
       let creatorId: string;
 
       switch (index) {
@@ -336,7 +316,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'APPROVED';
-          unlisted = false;
           creatorId = organizerUser;
 
           break;
@@ -352,7 +331,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'APPROVED';
-          unlisted = false;
           creatorId = organizerUser;
 
           break;
@@ -368,7 +346,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'DRAFT';
-          unlisted = true;
           creatorId = organizerUser;
 
           break;
@@ -384,7 +361,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'PENDING_REVIEW';
-          unlisted = false;
           creatorId = adminUser;
         }
       }
@@ -396,12 +372,13 @@ const createEvents = (
         end: DateTime.fromJSDate(eventStart).plus({ hours: 6 }).toJSDate(),
         icon: template.icon,
         id: eventId,
+        reviewedAt: status === 'APPROVED' ? seedNow.toJSDate() : null,
+        reviewedBy: status === 'APPROVED' ? adminUser : null,
         start: eventStart,
         status,
         templateId: template.id,
         tenantId: template.tenantId,
         title: `${template.title} ${index + 1}`,
-        unlisted,
       };
       events.push(event);
 
@@ -419,35 +396,35 @@ const createEvents = (
       registrationOptions.push(
         {
           closeRegistrationTime,
-          description: `${template.title} registration ${index + 1}`,
+          description: `${template.title} attendee sign-up ${index + 1}`,
           eventId,
           id: participantOptionId,
           isPaid: options.paid,
           openRegistrationTime,
           organizingRegistration: false,
           price: options.paid ? 100 * 25 : 0,
-          registeredDescription: 'You are registered',
+          registeredDescription: 'Your place is confirmed',
           registrationMode: 'fcfs',
           roleIds: defaultUserRoles.map((role) => role.id),
           spots: 15,
           stripeTaxRateId: participantTaxRateId,
-          title: 'Participant registration',
+          title: 'Attendee sign-up',
         },
         {
           closeRegistrationTime,
-          description: `${template.title} registration ${index + 1}`,
+          description: `${template.title} organizer sign-up ${index + 1}`,
           eventId,
           id: organizerOptionId,
           isPaid: options.paid,
           openRegistrationTime,
           organizingRegistration: true,
           price: options.paid ? 100 * 10 : 0,
-          registeredDescription: 'You are registered',
+          registeredDescription: 'Your place is confirmed',
           registrationMode: 'fcfs',
           roleIds: defaultOrganizerRoles.map((role) => role.id),
           spots: 3,
           stripeTaxRateId: organizerTaxRateId,
-          title: 'Organizer registration',
+          title: 'Organizer sign-up',
         },
       );
 
@@ -538,10 +515,7 @@ export const addEvents = async (
     throw new Error('No templates found for event creation');
   }
 
-  const defaultUserRoles = roles.filter((role) => role.defaultUserRole);
-  const defaultOrganizerRoles = roles.filter(
-    (role) => role.defaultOrganizerRole,
-  );
+  const { defaultOrganizerRoles, defaultUserRoles } = requireSeedRoles(roles);
 
   const seedNow = DateTime.fromJSDate(seedDate ?? getSeedDate(), {
     zone: 'utc',
@@ -633,25 +607,22 @@ export const addEvents = async (
     `Inserted ${allRegistrationOptions.length} event registration options`,
   );
 
-  try {
-    const paidParticipantOptions = allRegistrationOptions.filter(
-      (
-        option,
-      ): option is typeof option & {
-        id: string;
-      } => option.isPaid && !option.organizingRegistration,
+  const paidParticipantOptions = allRegistrationOptions.filter(
+    (
+      option,
+    ): option is typeof option & {
+      id: string;
+    } => option.isPaid && !option.organizingRegistration,
+  );
+  if (paidParticipantOptions.length > 0) {
+    await database.insert(schema.eventRegistrationOptionDiscounts).values(
+      paidParticipantOptions.map((option) => ({
+        discountedPrice: Math.max(0, (option.price ?? 0) - 500),
+        discountType: 'esnCard' as const,
+        eventId: option.eventId,
+        registrationOptionId: option.id,
+      })),
     );
-    if (paidParticipantOptions.length > 0) {
-      await database.insert(schema.eventRegistrationOptionDiscounts).values(
-        paidParticipantOptions.map((option) => ({
-          discountedPrice: Math.max(0, (option.price ?? 0) - 500),
-          discountType: 'esnCard' as const,
-          registrationOptionId: option.id,
-        })),
-      );
-    }
-  } catch (error) {
-    consola.warn('Failed to seed event discounts', error);
   }
 
   const createdEvents = await loadCreatedEvents(

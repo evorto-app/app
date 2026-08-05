@@ -19,6 +19,7 @@ import StripeClientLibrary from 'stripe';
 import { EventRegistrationService } from '../../server/effect/rpc/handlers/events/event-registration.service';
 import { eventRegistrationHandlers } from '../../server/effect/rpc/handlers/events/events-registration.handlers';
 import { RpcAccess } from '../../server/effect/rpc/handlers/shared/rpc-access.service';
+import { completePaidRegistrationCheckout } from '../../server/registrations/registration-checkout-completion';
 import { StripeClient } from '../../server/stripe-client';
 import {
   RpcRequestContext,
@@ -32,6 +33,7 @@ import {
   emailOutbox,
   eventAddons,
   eventInstances,
+  eventRegistrationAddonFulfillmentAllocations,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
   eventRegistrationOptions,
@@ -78,14 +80,39 @@ interface Fixture {
   userId: string;
 }
 
+interface PreparedStripeCharge {
+  readonly amount: number;
+  readonly applicationFeeAmount: number;
+  readonly chargeId: string;
+  readonly currency: string;
+  readonly paymentIntentId: string;
+  readonly stripeAccountId: string;
+  readonly stripeFeeAmount: number;
+}
+
 type StripeHttpRequestArguments = Parameters<
   InstanceType<typeof StripeClientLibrary.HttpClient>['makeRequest']
 >;
 type TestDatabase = NodePgDatabase<typeof relations>;
 
+const readStripeHeader = (
+  headers: StripeHttpRequestArguments[4],
+  expectedName: string,
+): string | undefined => {
+  const value = Object.entries(headers).find(
+    ([name]) => name.toLowerCase() === expectedName.toLowerCase(),
+  )?.[1];
+  return Array.isArray(value)
+    ? value.join(',')
+    : value === undefined
+      ? undefined
+      : String(value);
+};
+
 class IdempotentStripeHttpClient extends StripeClientLibrary.HttpClient {
   readonly createRequests: CapturedStripeRequest[] = [];
   readonly expiredSessionIds: string[] = [];
+  readonly retrievedChargeIds: string[] = [];
 
   get createdSessionIds(): readonly string[] {
     return [...this.sessionsByIdempotencyKey.values()].map(
@@ -94,6 +121,7 @@ class IdempotentStripeHttpClient extends StripeClientLibrary.HttpClient {
   }
   private createGate: Promise<unknown> | undefined;
   private failNextCreateAfterSessionCreation = false;
+  private readonly preparedCharges = new Map<string, PreparedStripeCharge>();
   private readonly sessionNamespace = randomUUID()
     .replaceAll('-', '')
     .slice(0, 8);
@@ -153,6 +181,57 @@ class IdempotentStripeHttpClient extends StripeClientLibrary.HttpClient {
       return new JsonStripeResponse(session);
     }
 
+    const preparedCharge = [...this.preparedCharges.values()].find(
+      ({ chargeId }) =>
+        method === 'GET' &&
+        path ===
+          `/v1/charges/${encodeURIComponent(chargeId)}?expand[0]=balance_transaction`,
+    );
+    if (preparedCharge) {
+      if (
+        readStripeHeader(headers, 'Stripe-Account') !==
+        preparedCharge.stripeAccountId
+      ) {
+        throw new Error('Stripe charge used the wrong connected account');
+      }
+      this.retrievedChargeIds.push(preparedCharge.chargeId);
+      const stripeNetAmount =
+        preparedCharge.amount -
+        preparedCharge.applicationFeeAmount -
+        preparedCharge.stripeFeeAmount;
+      return new JsonStripeResponse({
+        amount: preparedCharge.amount,
+        balance_transaction: {
+          amount: preparedCharge.amount,
+          currency: preparedCharge.currency.toLowerCase(),
+          fee:
+            preparedCharge.applicationFeeAmount +
+            preparedCharge.stripeFeeAmount,
+          fee_details: [
+            {
+              amount: preparedCharge.applicationFeeAmount,
+              currency: preparedCharge.currency.toLowerCase(),
+              type: 'application_fee',
+            },
+            {
+              amount: preparedCharge.stripeFeeAmount,
+              currency: preparedCharge.currency.toLowerCase(),
+              type: 'stripe_fee',
+            },
+          ],
+          id: `txn_${preparedCharge.chargeId}`,
+          net: stripeNetAmount,
+          object: 'balance_transaction',
+        },
+        captured: true,
+        currency: preparedCharge.currency.toLowerCase(),
+        id: preparedCharge.chargeId,
+        object: 'charge',
+        paid: true,
+        payment_intent: preparedCharge.paymentIntentId,
+      });
+    }
+
     const expireMatch =
       method === 'POST'
         ? /^\/v1\/checkout\/sessions\/([^/]+)\/expire$/.exec(path)
@@ -173,6 +252,13 @@ class IdempotentStripeHttpClient extends StripeClientLibrary.HttpClient {
     }
 
     throw new Error(`Unexpected Stripe request: ${method} ${path}`);
+  }
+
+  prepareCharge(charge: PreparedStripeCharge): void {
+    if (this.preparedCharges.has(charge.chargeId)) {
+      throw new Error('Stripe charge was already prepared');
+    }
+    this.preparedCharges.set(charge.chargeId, charge);
   }
 
   private createSession(sequence: number): FakeStripeSession {
@@ -272,6 +358,66 @@ const makeConfigLayer = (url: string) =>
     }),
   );
 
+const completedRegistrationCheckoutSession = (input: {
+  readonly amount: number;
+  readonly chargeId: string;
+  readonly currency: string;
+  readonly paymentIntentId: string;
+  readonly registrationId: string;
+  readonly sessionId: string;
+  readonly tenantId: string;
+  readonly transactionId: string;
+}): Stripe.Checkout.Session => {
+  const webhookSecret = 'whsec_registration_concurrency';
+  const payload = JSON.stringify({
+    account: `acct_${input.tenantId.replace('tenant-', '')}`,
+    api_version: null,
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        amount_total: input.amount,
+        currency: input.currency.toLowerCase(),
+        id: input.sessionId,
+        metadata: {
+          registrationId: input.registrationId,
+          tenantId: input.tenantId,
+          transactionId: input.transactionId,
+        },
+        object: 'checkout.session',
+        payment_intent: {
+          id: input.paymentIntentId,
+          latest_charge: input.chargeId,
+          object: 'payment_intent',
+        },
+        payment_status: 'paid',
+        status: 'complete',
+      },
+    },
+    id: `evt_${input.transactionId}`,
+    livemode: false,
+    object: 'event',
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: 'checkout.session.completed',
+  });
+  const signature = StripeClientLibrary.webhooks.generateTestHeaderString({
+    payload,
+    secret: webhookSecret,
+  });
+  const event = StripeClientLibrary.webhooks.constructEvent(
+    payload,
+    signature,
+    webhookSecret,
+  );
+  if (event.type !== 'checkout.session.completed') {
+    throw new Error('Expected a completed registration Checkout event');
+  }
+  return event.data.object;
+};
+
 const makeServiceLayer = (url: string, stripe: Stripe) => {
   const configLayer = makeConfigLayer(url);
   return Layer.mergeAll(
@@ -283,6 +429,9 @@ const makeServiceLayer = (url: string, stripe: Stripe) => {
 
 type ApprovalInput = Parameters<
   typeof EventRegistrationService.approveManualRegistration
+>[0];
+type RegistrationCheckoutRetryInput = Parameters<
+  typeof EventRegistrationService.retryRegistrationCheckout
 >[0];
 type RegistrationInput = Parameters<
   typeof EventRegistrationService.registerForEvent
@@ -318,6 +467,79 @@ const runRegistration = (
     ),
   );
 
+const runRegistrationCheckoutRetry = (
+  input: RegistrationCheckoutRetryInput,
+  serviceLayer: ReturnType<typeof makeServiceLayer>,
+) =>
+  Effect.runPromise(
+    EventRegistrationService.retryRegistrationCheckout(input).pipe(
+      Effect.match({
+        onFailure: (error) => ({ error, status: 'failure' as const }),
+        onSuccess: () => ({ status: 'success' as const }),
+      }),
+      Effect.provide(EventRegistrationService.Default),
+      Effect.provide(serviceLayer),
+    ),
+  );
+
+const createRegistrationRequestContext = ({
+  fixture,
+  permissions = [],
+  userId = fixture.userId,
+}: {
+  fixture: Fixture;
+  permissions?: RpcRequestContextShape['permissions'];
+  userId?: string;
+}): RpcRequestContextShape => ({
+  authData: {},
+  authenticated: true,
+  permissions,
+  tenant: {
+    currency: 'EUR',
+    defaultLocation: undefined,
+    discountProviders: {
+      esnCard: {
+        config: {},
+        status: 'disabled',
+      },
+    },
+    domain: tenantDomainForFixture(fixture),
+    emailSenderEmail: undefined,
+    emailSenderName: undefined,
+    faviconUrl: undefined,
+    id: fixture.tenantId,
+    legalNoticeText: undefined,
+    legalNoticeUrl: undefined,
+    logoUrl: undefined,
+    maxActiveRegistrationsPerUser: 0,
+    name: 'Concurrency test',
+    receiptSettings: {
+      allowOther: false,
+      receiptCountries: ['DE'],
+    },
+    seoDescription: undefined,
+    seoTitle: undefined,
+    stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
+    termsText: undefined,
+    termsUrl: undefined,
+    theme: 'evorto',
+    timezone: 'Europe/Berlin',
+  },
+  user: {
+    auth0Id: `auth0|${userId}`,
+    communicationEmail: `${userId}@example.com`,
+    email: `${userId}@example.com`,
+    firstName: 'Concurrent',
+    iban: undefined,
+    id: userId,
+    lastName: 'Tester',
+    paypalEmail: undefined,
+    permissions,
+    roleIds: [],
+  },
+  userAssigned: true,
+});
+
 const runCancellation = ({
   expectedPaymentPending = false,
   fixture,
@@ -327,60 +549,7 @@ const runCancellation = ({
   fixture: Fixture;
   serviceLayer: ReturnType<typeof makeServiceLayer>;
 }) => {
-  const permissions = [] as const;
-  const requestContext = {
-    authData: {},
-    authenticated: true,
-    permissions,
-    tenant: {
-      currency: 'EUR',
-      defaultLocation: undefined,
-      discountProviders: {
-        esnCard: {
-          config: {},
-          status: 'disabled',
-        },
-      },
-      domain: tenantDomainForFixture(fixture),
-      emailSenderEmail: undefined,
-      emailSenderName: undefined,
-      faviconUrl: undefined,
-      id: fixture.tenantId,
-      legalNoticeText: undefined,
-      legalNoticeUrl: undefined,
-      locale: 'en-GB',
-      logoUrl: undefined,
-      maxActiveRegistrationsPerUser: 0,
-      name: 'Concurrency test',
-      privacyPolicyText: undefined,
-      privacyPolicyUrl: undefined,
-      receiptSettings: {
-        allowOther: false,
-        receiptCountries: ['DE'],
-      },
-      seoDescription: undefined,
-      seoTitle: undefined,
-      stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
-      termsText: undefined,
-      termsUrl: undefined,
-      theme: 'evorto',
-      timezone: 'Europe/Berlin',
-    },
-    user: {
-      attributes: [],
-      auth0Id: `auth0|${fixture.userId}`,
-      communicationEmail: undefined,
-      email: `${fixture.userId}@example.com`,
-      firstName: 'Concurrent',
-      iban: undefined,
-      id: fixture.userId,
-      lastName: 'Tester',
-      paypalEmail: undefined,
-      permissions,
-      roleIds: [],
-    },
-    userAssigned: true,
-  } satisfies RpcRequestContextShape;
+  const requestContext = createRegistrationRequestContext({ fixture });
 
   return Effect.runPromise(
     eventRegistrationHandlers['events.cancelRegistration'](
@@ -406,6 +575,44 @@ const runCancellation = ({
   );
 };
 
+const runCheckIn = ({
+  fixture,
+  guestCheckInCount,
+  serviceLayer,
+}: {
+  fixture: Fixture;
+  guestCheckInCount: number;
+  serviceLayer: ReturnType<typeof makeServiceLayer>;
+}) => {
+  const requestContext = createRegistrationRequestContext({
+    fixture,
+    permissions: ['events:organizeAll'],
+    userId: makeId('scanner', fixture.tenantId),
+  });
+
+  return Effect.runPromise(
+    eventRegistrationHandlers['events.checkInRegistration'](
+      {
+        guestCheckInCount,
+        registrationId: fixture.registrationId,
+      },
+      { headers: Headers.empty },
+    ).pipe(
+      Effect.match({
+        onFailure: (error) => ({ error, status: 'failure' as const }),
+        onSuccess: (value) => ({ status: 'success' as const, value }),
+      }),
+      Effect.provide(
+        Layer.mergeAll(
+          serviceLayer,
+          RpcAccess.Default,
+          Layer.succeed(RpcRequestContext, requestContext),
+        ),
+      ),
+    ),
+  );
+};
+
 const approvalInput = (fixture: Fixture): ApprovalInput => ({
   executiveUserId: fixture.userId,
   expectedEventId: fixture.eventId,
@@ -418,6 +625,7 @@ const approvalInput = (fixture: Fixture): ApprovalInput => ({
     id: fixture.tenantId,
     name: 'Concurrency test',
     stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
+    timezone: 'Europe/Berlin',
   },
 });
 
@@ -434,6 +642,7 @@ const directRegistrationInput = (fixture: Fixture): RegistrationInput => ({
     stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
   },
   user: {
+    communicationEmail: `${fixture.userId}@example.com`,
     email: `${fixture.userId}@example.com`,
     id: fixture.userId,
     roleIds: [],
@@ -503,6 +712,8 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     end: new Date(now + 8 * 24 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
+    reviewedAt: new Date(now),
+    reviewedBy: userId,
     start: new Date(now + 7 * 24 * 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -543,6 +754,8 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: 1000,
+    discountAmount: 0,
     eventId,
     id: registrationId,
     registrationOptionId: optionId,
@@ -625,7 +838,85 @@ const prepareDirectRegistrationFixture = async (
   return fixture;
 };
 
+const seedWaitlistRegistration = async (
+  database: TestDatabase,
+  fixture: Fixture,
+) => {
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+  const userId = makeId('wait-user', suffix);
+  const registrationId = makeId('wait-reg', suffix);
+  const communicationEmail = `waitlist-${suffix}@example.com`;
+  await database.insert(users).values({
+    auth0Id: `auth0|waitlist-${suffix}`,
+    communicationEmail,
+    email: communicationEmail,
+    firstName: 'Waiting',
+    id: userId,
+    lastName: 'Member',
+  });
+  await database.insert(usersToTenants).values({
+    id: makeId('wait-member', suffix),
+    tenantId: fixture.tenantId,
+    userId,
+  });
+  await database.insert(eventRegistrations).values({
+    eventId: fixture.eventId,
+    id: registrationId,
+    registrationOptionId: fixture.optionId,
+    status: 'WAITLIST',
+    tenantId: fixture.tenantId,
+    userId,
+  });
+  await database
+    .update(eventRegistrationOptions)
+    .set({ waitlistSpots: 1 })
+    .where(eq(eventRegistrationOptions.id, fixture.optionId));
+  return { communicationEmail, registrationId };
+};
+
+const prepareCheckInFixture = async (
+  database: TestDatabase,
+  { guestCount }: { guestCount: number },
+): Promise<Fixture> => {
+  const fixture = await seedFixture(database);
+  const now = Date.now();
+  await database
+    .update(eventInstances)
+    .set({
+      end: new Date(now + 2 * 60 * 60 * 1000),
+      start: new Date(now + 30 * 60 * 1000),
+    })
+    .where(eq(eventInstances.id, fixture.eventId));
+  await database
+    .update(eventRegistrations)
+    .set({
+      checkedInGuestCount: 0,
+      checkInTime: null,
+      guestCount,
+      status: 'CONFIRMED',
+    })
+    .where(eq(eventRegistrations.id, fixture.registrationId));
+  await database
+    .update(eventRegistrationOptions)
+    .set({
+      checkedInSpots: 0,
+      confirmedSpots: guestCount + 1,
+    })
+    .where(eq(eventRegistrationOptions.id, fixture.optionId));
+  return fixture;
+};
+
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
+  const tenantMemberships = await database
+    .select({ userId: usersToTenants.userId })
+    .from(usersToTenants)
+    .where(eq(usersToTenants.tenantId, fixture.tenantId));
+  const tenantUserIds = [
+    fixture.userId,
+    ...tenantMemberships
+      .map(({ userId }) => userId)
+      .filter((userId) => userId !== fixture.userId),
+  ];
   await database
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
@@ -638,6 +929,17 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database
     .delete(registrationAcquisitions)
     .where(eq(registrationAcquisitions.tenantId, fixture.tenantId));
+  await database
+    .delete(eventRegistrationAddonFulfillmentAllocations)
+    .where(
+      eq(
+        eventRegistrationAddonFulfillmentAllocations.tenantId,
+        fixture.tenantId,
+      ),
+    );
+  await database
+    .delete(eventRegistrationAddonPurchaseLots)
+    .where(eq(eventRegistrationAddonPurchaseLots.tenantId, fixture.tenantId));
   await database
     .delete(transactions)
     .where(eq(transactions.tenantId, fixture.tenantId));
@@ -665,13 +967,8 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
     .where(eq(eventTemplateCategories.id, fixture.categoryId));
   await database
     .delete(usersToTenants)
-    .where(
-      and(
-        eq(usersToTenants.tenantId, fixture.tenantId),
-        eq(usersToTenants.userId, fixture.userId),
-      ),
-    );
-  await database.delete(users).where(eq(users.id, fixture.userId));
+    .where(eq(usersToTenants.tenantId, fixture.tenantId));
+  await database.delete(users).where(inArray(users.id, tenantUserIds));
   await database
     .delete(tenantStripeTaxRates)
     .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
@@ -814,8 +1111,9 @@ describe('database registration concurrency invariants', () => {
         pool.query(
           `
             INSERT INTO event_registrations
-              (id, "tenantId", "eventId", "registrationOptionId", status, "userId")
-            VALUES ($1, $2, $3, $4, 'PENDING', $5)
+              (id, "tenantId", "eventId", "registrationOptionId", status, "userId",
+               base_price_at_registration, discount_amount)
+            VALUES ($1, $2, $3, $4, 'PENDING', $5, 1000, 0)
           `,
           [
             makeId('forged-reg', suffix),
@@ -843,6 +1141,7 @@ describe('database registration concurrency invariants', () => {
     await database.insert(transactions).values({
       amount: 1000,
       currency: 'EUR',
+      eventId: fixture.eventId,
       eventRegistrationId: fixture.registrationId,
       id: makeId('claim', randomUUID().replaceAll('-', '').slice(0, 8)),
       method: 'stripe',
@@ -863,12 +1162,13 @@ describe('database registration concurrency invariants', () => {
         pool.query(
           `
             INSERT INTO transactions
-              (id, "tenantId", amount, currency, "eventRegistrationId", method, status, type)
-            VALUES ($1, $2, 1000, 'EUR', $3, 'stripe', 'pending', 'registration')
+              (id, "tenantId", amount, currency, "eventId", "eventRegistrationId", method, status, type)
+            VALUES ($1, $2, 1000, 'EUR', $3, $4, 'stripe', 'pending', 'registration')
           `,
           [
             makeId('forged-claim', suffix),
             forgedTenantId,
+            fixture.eventId,
             fixture.registrationId,
           ],
         ),
@@ -927,7 +1227,7 @@ describe('database registration concurrency invariants', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'User is already registered for this event',
+            message: 'This person is already signed up for this event.',
           }),
         }),
       ]);
@@ -949,6 +1249,145 @@ describe('database registration concurrency invariants', () => {
         await membershipLock.query('ROLLBACK').catch(() => null);
       }
       membershipLock.release();
+    }
+  }, 30_000);
+
+  it('rejects check-in when cancellation wins the registration lock', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 0 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const registrationLock = await withRowLock(pool, async (client) => {
+      await client.query(
+        `
+          SELECT id
+          FROM event_registrations
+          WHERE id = $1
+          FOR UPDATE
+        `,
+        [fixture.registrationId],
+      );
+    });
+
+    try {
+      const checkIn = runCheckIn({
+        fixture,
+        guestCheckInCount: 0,
+        serviceLayer,
+      });
+
+      await waitForBlockedQueries(pool, 'event_registrations', 1);
+      await registrationLock.query(
+        `
+          UPDATE event_registrations
+          SET status = 'CANCELLED'
+          WHERE id = $1
+        `,
+        [fixture.registrationId],
+      );
+      await registrationLock.query('COMMIT');
+
+      expect(await checkIn).toEqual(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            _tag: 'EventRegistrationConflictError',
+            message: 'This ticket is not ready for check-in.',
+          }),
+          status: 'failure',
+        }),
+      );
+
+      const state = await readFixtureState(database, fixture);
+      expect(state.registration).toEqual(
+        expect.objectContaining({
+          checkInTime: null,
+          status: 'CANCELLED',
+        }),
+      );
+      expect(state.option?.checkedInSpots).toBe(0);
+      expect(fakeHttpClient.createRequests).toHaveLength(0);
+    } finally {
+      if (!registrationLock.released) {
+        await registrationLock.query('ROLLBACK').catch(() => null);
+      }
+      registrationLock.release();
+    }
+  }, 30_000);
+
+  it('serializes competing guest check-ins without overcounting', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 1 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const registrationLock = await withRowLock(pool, async (client) => {
+      await client.query(
+        `
+          SELECT id
+          FROM event_registrations
+          WHERE id = $1
+          FOR UPDATE
+        `,
+        [fixture.registrationId],
+      );
+    });
+
+    try {
+      const first = runCheckIn({
+        fixture,
+        guestCheckInCount: 1,
+        serviceLayer,
+      });
+      const second = runCheckIn({
+        fixture,
+        guestCheckInCount: 1,
+        serviceLayer,
+      });
+
+      await waitForBlockedQueries(pool, 'event_registrations', 2);
+      await registrationLock.query('COMMIT');
+
+      const outcomes = await Promise.all([first, second]);
+      const successfulOutcomes = outcomes.filter(
+        (outcome) => outcome.status === 'success',
+      );
+      expect(successfulOutcomes).toHaveLength(1);
+      expect(
+        outcomes.filter((outcome) => outcome.status === 'failure'),
+      ).toEqual([
+        expect.objectContaining({
+          error: expect.objectContaining({
+            _tag: 'EventRegistrationConflictError',
+            message: 'Enter no more than 0 additional guests.',
+          }),
+        }),
+      ]);
+
+      const successfulOutcome = successfulOutcomes[0];
+      if (!successfulOutcome || successfulOutcome.status !== 'success') {
+        throw new Error('Expected one successful guest check-in');
+      }
+      const state = await readFixtureState(database, fixture);
+      expect(state.registration?.checkedInGuestCount).toBe(1);
+      expect(state.registration?.checkInTime).toBeInstanceOf(Date);
+      expect(state.option?.checkedInSpots).toBe(2);
+      expect(successfulOutcome.value).toEqual({
+        alreadyCheckedIn: false,
+        checkInTime: state.registration?.checkInTime?.toISOString(),
+      });
+      expect(fakeHttpClient.createRequests).toHaveLength(0);
+    } finally {
+      if (!registrationLock.released) {
+        await registrationLock.query('ROLLBACK').catch(() => null);
+      }
+      registrationLock.release();
     }
   }, 30_000);
 
@@ -996,10 +1435,11 @@ describe('database registration concurrency invariants', () => {
         `
           /* inverse-user-lock-regression */
           INSERT INTO event_registrations
-            (id, "tenantId", "eventId", "registrationOptionId", status, "userId")
+            (id, "tenantId", "eventId", "registrationOptionId", status, "userId",
+             base_price_at_registration, discount_amount)
           VALUES
-            ($1, $2, $3, $4, 'PENDING', $5),
-            ($6, $2, $3, $4, 'WAITLIST', $7)
+            ($1, $2, $3, $4, 'PENDING', $5, 1000, 0),
+            ($6, $2, $3, $4, 'WAITLIST', $7, NULL, NULL)
         `,
         [
           sourceRegistrationId,
@@ -1079,6 +1519,100 @@ describe('paid manual approval concurrency', () => {
   afterAll(async () => {
     await pool.end();
   });
+
+  it('keeps an included-only priced add-on out of manual approval Checkout lines', async () => {
+    const fixture = await seedFixture(database);
+    fixtures.push(fixture);
+    const addOnPrice = 500;
+    await database
+      .delete(eventRegistrationAddonPurchaseLots)
+      .where(
+        eq(
+          eventRegistrationAddonPurchaseLots.registrationId,
+          fixture.registrationId,
+        ),
+      );
+    await database
+      .update(eventAddons)
+      .set({
+        isPaid: true,
+        price: addOnPrice,
+        stripeTaxRateId: fixture.taxRateId,
+      })
+      .where(eq(eventAddons.id, fixture.addOnId));
+    await database
+      .update(eventRegistrationAddonPurchases)
+      .set({
+        purchasedQuantity: 0,
+        quantity: 1,
+        unitPrice: addOnPrice,
+      })
+      .where(
+        eq(
+          eventRegistrationAddonPurchases.registrationId,
+          fixture.registrationId,
+        ),
+      );
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    expect(await runApproval(approvalInput(fixture), serviceLayer)).toEqual({
+      status: 'success',
+      value: { status: 'paymentPending' },
+    });
+    expect(fakeHttpClient.createRequests).toHaveLength(1);
+
+    const state = await readFixtureState(database, fixture);
+    const claim = state.claims[0];
+    if (!claim?.stripeCheckoutRequest) {
+      throw new Error('Expected one pending registration Checkout');
+    }
+    expect(claim).toEqual(
+      expect.objectContaining({
+        amount: 1000,
+        status: 'pending',
+      }),
+    );
+    expect(claim.stripeCheckoutRequest.lineItems).toEqual([
+      {
+        name: 'Ticket for Concurrency fixture',
+        quantity: 1,
+        taxRateId: fixture.taxRateId,
+        unitAmount: 1000,
+      },
+    ]);
+    expect(
+      await database.query.eventRegistrationAddonPurchases.findMany({
+        where: {
+          registrationId: fixture.registrationId,
+          tenantId: fixture.tenantId,
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        includedQuantity: 1,
+        purchasedQuantity: 0,
+        quantity: 1,
+        unitPrice: addOnPrice,
+      }),
+    ]);
+
+    const checkoutRequest = fakeHttpClient.createRequests[0];
+    if (!checkoutRequest) {
+      throw new Error('Expected one Stripe Checkout request');
+    }
+    const checkoutForm = new URLSearchParams(checkoutRequest.requestData);
+    expect(
+      [...checkoutForm.keys()].filter((key) =>
+        key.endsWith('[price_data][unit_amount]'),
+      ),
+    ).toHaveLength(1);
+    expect(checkoutForm.get('line_items[1][quantity]')).toBeNull();
+  }, 30_000);
 
   it('shares one durable claim, reservation, email, and Stripe session across simultaneous approvals', async () => {
     const fixture = await seedFixture(database);
@@ -1166,7 +1700,7 @@ describe('paid manual approval concurrency', () => {
         error: expect.objectContaining({
           _tag: 'EventRegistrationInternalError',
           message:
-            'Payment setup is still pending. Retry approval or cancel the registration.',
+            'Payment could not be started. No payment was taken. Reopen the sign-up request and try again, or cancel it.',
         }),
         status: 'failure',
       }),
@@ -1248,7 +1782,7 @@ describe('paid manual approval concurrency', () => {
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
             message:
-              'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+              'The sign-up or payment changed after you confirmed. Nothing was cancelled or refunded, and no places were released. Reopen the sign-up and review its current details before trying again.',
           }),
           status: 'failure',
         }),
@@ -1353,7 +1887,7 @@ describe('direct paid registration concurrency', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'User is already registered for this event',
+            message: 'This person is already signed up for this event.',
           }),
           status: 'failure',
         }),
@@ -1418,7 +1952,7 @@ describe('direct paid registration concurrency', () => {
         error: expect.objectContaining({
           _tag: 'EventRegistrationInternalError',
           message:
-            'Payment setup is still pending. Retry registration or cancel it.',
+            'Payment could not be started. No payment was taken. Reopen the ticket and try again, or cancel it.',
         }),
         status: 'failure',
       }),
@@ -1436,9 +1970,22 @@ describe('direct paid registration concurrency', () => {
     expect(stateAfterFailure.addOn?.totalAvailableQuantity).toBe(3);
     expect(stateAfterFailure.purchases).toHaveLength(1);
 
-    expect(await runRegistration(input, serviceLayer)).toEqual({
-      status: 'success',
-    });
+    const pendingRegistration = stateAfterFailure.registrations[0];
+    if (!pendingRegistration) {
+      throw new Error(
+        'Expected one pending registration after failed Checkout',
+      );
+    }
+    expect(
+      await runRegistrationCheckoutRetry(
+        {
+          registrationId: pendingRegistration.id,
+          tenantId: fixture.tenantId,
+          userId: fixture.userId,
+        },
+        serviceLayer,
+      ),
+    ).toEqual({ status: 'success' });
     assertEquivalentStripeRequests(fakeHttpClient.createRequests);
     assertStripeRequestUsesTaxRate(
       fakeHttpClient.createRequests[0],
@@ -1459,5 +2006,766 @@ describe('direct paid registration concurrency', () => {
     expect(finalState.option?.reservedSpots).toBe(1);
     expect(finalState.addOn?.totalAvailableQuantity).toBe(3);
     expect(finalState.purchases).toEqual(stateAfterFailure.purchases);
+  }, 30_000);
+
+  it('keeps an included-only priced add-on out of direct Checkout lines', async () => {
+    const fixture = await prepareDirectRegistrationFixture(database);
+    fixtures.push(fixture);
+    const addOnPrice = 500;
+    await database
+      .update(eventAddons)
+      .set({
+        isPaid: true,
+        price: addOnPrice,
+        stripeTaxRateId: fixture.taxRateId,
+      })
+      .where(eq(eventAddons.id, fixture.addOnId));
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    expect(
+      await runRegistration(
+        { ...directRegistrationInput(fixture), addOns: [] },
+        serviceLayer,
+      ),
+    ).toEqual({ status: 'success' });
+    expect(fakeHttpClient.createRequests).toHaveLength(1);
+
+    const state = await readDirectFixtureState(database, fixture);
+    const registration = state.registrations[0];
+    const claim = state.claims[0];
+    if (!registration || !claim?.stripeCheckoutRequest) {
+      throw new Error('Expected one pending registration Checkout');
+    }
+    expect(claim).toEqual(
+      expect.objectContaining({
+        amount: 1000,
+        eventRegistrationId: registration.id,
+        status: 'pending',
+      }),
+    );
+    expect(claim.stripeCheckoutRequest.lineItems).toEqual([
+      {
+        name: 'Ticket for Concurrency fixture',
+        quantity: 1,
+        taxRateId: fixture.taxRateId,
+        unitAmount: 1000,
+      },
+    ]);
+    expect(state.purchases).toEqual([
+      expect.objectContaining({
+        includedQuantity: 1,
+        purchasedQuantity: 0,
+        quantity: 1,
+        registrationId: registration.id,
+        unitPrice: addOnPrice,
+      }),
+    ]);
+    expect(
+      await database.query.eventRegistrationAddonPurchaseLots.findMany({
+        where: {
+          registrationId: registration.id,
+          tenantId: fixture.tenantId,
+        },
+      }),
+    ).toEqual([]);
+
+    const checkoutRequest = fakeHttpClient.createRequests[0];
+    if (!checkoutRequest) {
+      throw new Error('Expected one Stripe Checkout request');
+    }
+    const checkoutForm = new URLSearchParams(checkoutRequest.requestData);
+    expect(
+      [...checkoutForm.keys()].filter((key) =>
+        key.endsWith('[price_data][unit_amount]'),
+      ),
+    ).toHaveLength(1);
+    expect(checkoutForm.get('line_items[1][quantity]')).toBeNull();
+  }, 30_000);
+
+  it('settles one paid initial Checkout across the registration and its paid add-on', async () => {
+    const fixture = await prepareDirectRegistrationFixture(database);
+    fixtures.push(fixture);
+    const addOnPrice = 500;
+    await database
+      .update(eventAddons)
+      .set({
+        isPaid: true,
+        price: addOnPrice,
+        stripeTaxRateId: fixture.taxRateId,
+      })
+      .where(eq(eventAddons.id, fixture.addOnId));
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    expect(
+      await runRegistration(directRegistrationInput(fixture), serviceLayer),
+    ).toEqual({ status: 'success' });
+    expect(fakeHttpClient.createRequests).toHaveLength(1);
+    expect(fakeHttpClient.createdSessionIds).toHaveLength(1);
+
+    const pendingState = await readDirectFixtureState(database, fixture);
+    expect(pendingState.registrations).toHaveLength(1);
+    expect(pendingState.claims).toHaveLength(1);
+    expect(pendingState.purchases).toHaveLength(1);
+    const registration = pendingState.registrations[0];
+    const claim = pendingState.claims[0];
+    const purchase = pendingState.purchases[0];
+    const purchaseLot =
+      await database.query.eventRegistrationAddonPurchaseLots.findFirst({
+        where: {
+          registrationId: registration?.id,
+          tenantId: fixture.tenantId,
+        },
+      });
+    if (
+      !registration ||
+      !claim ||
+      !purchase ||
+      !purchaseLot ||
+      claim.appFee === null ||
+      !claim.stripeCheckoutRequest ||
+      !claim.stripeCheckoutSessionId ||
+      !claim.stripePaymentIntentId
+    ) {
+      throw new Error('Expected one complete pending registration Checkout');
+    }
+
+    expect(claim).toEqual(
+      expect.objectContaining({
+        amount: 1000 + addOnPrice,
+        eventRegistrationId: registration.id,
+        status: 'pending',
+      }),
+    );
+    expect(claim.stripeCheckoutRequest.lineItems).toEqual([
+      {
+        name: 'Ticket for Concurrency fixture',
+        quantity: 1,
+        taxRateId: fixture.taxRateId,
+        unitAmount: 1000,
+      },
+      {
+        addonId: fixture.addOnId,
+        allocationKey: `addon-lot:${purchaseLot.id}`,
+        kind: 'addon',
+        name: 'Concurrency add-on add-on for Concurrency fixture',
+        quantity: 1,
+        taxRateId: fixture.taxRateId,
+        unitAmount: addOnPrice,
+      },
+    ]);
+    expect(purchase).toEqual(
+      expect.objectContaining({
+        purchasedQuantity: 1,
+        registrationId: registration.id,
+        unitPrice: addOnPrice,
+      }),
+    );
+    expect(purchaseLot).toEqual(
+      expect.objectContaining({
+        baseAmount: addOnPrice,
+        grossAmount: null,
+        paymentAllocationFinalizedAt: null,
+        sourceLineKey: `addon-lot:${purchaseLot.id}`,
+        sourceTransactionId: claim.id,
+      }),
+    );
+
+    const checkoutRequest = fakeHttpClient.createRequests[0];
+    if (!checkoutRequest) {
+      throw new Error('Expected one Stripe Checkout request');
+    }
+    const checkoutForm = new URLSearchParams(checkoutRequest.requestData);
+    expect(
+      [...checkoutForm.keys()].filter((key) =>
+        key.endsWith('[price_data][unit_amount]'),
+      ),
+    ).toHaveLength(2);
+    expect(
+      checkoutForm.get('line_items[0][price_data][product_data][name]'),
+    ).toBe('Ticket for Concurrency fixture');
+    expect(checkoutForm.get('line_items[0][price_data][unit_amount]')).toBe(
+      '1000',
+    );
+    expect(
+      checkoutForm.get('line_items[1][price_data][product_data][name]'),
+    ).toBe('Concurrency add-on add-on for Concurrency fixture');
+    expect(checkoutForm.get('line_items[1][price_data][unit_amount]')).toBe(
+      String(addOnPrice),
+    );
+
+    const stripeChargeId = `ch_${claim.id}`;
+    fakeHttpClient.prepareCharge({
+      amount: claim.amount,
+      applicationFeeAmount: claim.appFee,
+      chargeId: stripeChargeId,
+      currency: claim.currency,
+      paymentIntentId: claim.stripePaymentIntentId,
+      stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
+      stripeFeeAmount: 47,
+    });
+    expect(
+      await Effect.runPromise(
+        completePaidRegistrationCheckout(
+          {
+            registrationId: registration.id,
+            stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
+            stripeCheckoutSessionId: claim.stripeCheckoutSessionId,
+            tenantId: fixture.tenantId,
+            transactionId: claim.id,
+          },
+          completedRegistrationCheckoutSession({
+            amount: claim.amount,
+            chargeId: stripeChargeId,
+            currency: claim.currency,
+            paymentIntentId: claim.stripePaymentIntentId,
+            registrationId: registration.id,
+            sessionId: claim.stripeCheckoutSessionId,
+            tenantId: fixture.tenantId,
+            transactionId: claim.id,
+          }),
+        ).pipe(Effect.provide(serviceLayer)),
+      ),
+    ).toBe('finalized');
+    expect(fakeHttpClient.createRequests).toHaveLength(1);
+    expect(fakeHttpClient.retrievedChargeIds).toEqual([stripeChargeId]);
+
+    const [completedState, settledLot, acquisitions, acquisitionPayments] =
+      await Promise.all([
+        readDirectFixtureState(database, fixture),
+        database.query.eventRegistrationAddonPurchaseLots.findFirst({
+          where: {
+            id: purchaseLot.id,
+            tenantId: fixture.tenantId,
+          },
+        }),
+        database.query.registrationAcquisitions.findMany({
+          where: {
+            registrationId: registration.id,
+            tenantId: fixture.tenantId,
+          },
+        }),
+        database.query.registrationAcquisitionPayments.findMany({
+          where: {
+            registrationId: registration.id,
+            tenantId: fixture.tenantId,
+          },
+        }),
+      ]);
+    const acquisitionComponents =
+      await database.query.registrationAcquisitionComponents.findMany({
+        where: {
+          registrationId: registration.id,
+          tenantId: fixture.tenantId,
+        },
+      });
+
+    expect(completedState.registrations).toEqual([
+      expect.objectContaining({ id: registration.id, status: 'CONFIRMED' }),
+    ]);
+    expect(completedState.claims).toEqual([
+      expect.objectContaining({
+        id: claim.id,
+        status: 'successful',
+        stripeChargeId,
+      }),
+    ]);
+    expect(completedState.option).toEqual(
+      expect.objectContaining({ confirmedSpots: 1, reservedSpots: 0 }),
+    );
+    expect(acquisitions).toEqual([
+      expect.objectContaining({
+        kind: 'initial',
+        ownerUserId: fixture.userId,
+        registrationId: registration.id,
+        spotCount: 1,
+      }),
+    ]);
+    expect(acquisitionPayments).toEqual([
+      expect.objectContaining({
+        acquisitionId: acquisitions[0]?.id,
+        transactionId: claim.id,
+      }),
+    ]);
+    expect(acquisitionComponents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          allocationKey: `registration-initial:${registration.id}`,
+          baseAmount: 1000,
+          grossAmount: 1000,
+          kind: 'registration',
+        }),
+        expect.objectContaining({
+          allocationKey: `addon-lot:${purchaseLot.id}`,
+          baseAmount: addOnPrice,
+          grossAmount: addOnPrice,
+          kind: 'addon_lot',
+          purchaseId: purchase.id,
+          purchaseLotId: purchaseLot.id,
+        }),
+      ]),
+    );
+    expect(acquisitionComponents).toHaveLength(2);
+    expect(
+      acquisitionComponents.reduce(
+        (total, component) => total + component.grossAmount,
+        0,
+      ),
+    ).toBe(claim.amount);
+    expect(
+      new Set(
+        acquisitionComponents.map(
+          ({ acquisitionPaymentId }) => acquisitionPaymentId,
+        ),
+      ),
+    ).toEqual(new Set([acquisitionPayments[0]?.id]));
+    expect(settledLot).toEqual(
+      expect.objectContaining({
+        baseAmount: addOnPrice,
+        grossAmount: addOnPrice,
+        paymentAllocationFinalizedAt: expect.any(Date),
+        sourceTransactionId: claim.id,
+      }),
+    );
+  }, 30_000);
+
+  it('rolls back paid completion when the reserved-capacity counter is too small', async () => {
+    const fixture = await prepareDirectRegistrationFixture(database);
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    expect(
+      await runRegistration(directRegistrationInput(fixture), serviceLayer),
+    ).toEqual({ status: 'success' });
+
+    const pendingState = await readDirectFixtureState(database, fixture);
+    const registration = pendingState.registrations[0];
+    const claim = pendingState.claims[0];
+    if (
+      !registration ||
+      !claim ||
+      claim.appFee === null ||
+      !claim.stripeAccountId ||
+      !claim.stripeCheckoutSessionId ||
+      !claim.stripePaymentIntentId
+    ) {
+      throw new Error('Expected one complete pending registration Checkout');
+    }
+    expect(pendingState.option).toEqual(
+      expect.objectContaining({ confirmedSpots: 0, reservedSpots: 1 }),
+    );
+    await database
+      .update(eventRegistrationOptions)
+      .set({ reservedSpots: 0 })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+
+    const stripeChargeId = `ch_${claim.id}`;
+    fakeHttpClient.prepareCharge({
+      amount: claim.amount,
+      applicationFeeAmount: claim.appFee,
+      chargeId: stripeChargeId,
+      currency: claim.currency,
+      paymentIntentId: claim.stripePaymentIntentId,
+      stripeAccountId: claim.stripeAccountId,
+      stripeFeeAmount: 47,
+    });
+    const completionError = await Effect.runPromise(
+      completePaidRegistrationCheckout(
+        {
+          registrationId: registration.id,
+          stripeAccountId: claim.stripeAccountId,
+          stripeCheckoutSessionId: claim.stripeCheckoutSessionId,
+          tenantId: fixture.tenantId,
+          transactionId: claim.id,
+        },
+        completedRegistrationCheckoutSession({
+          amount: claim.amount,
+          chargeId: stripeChargeId,
+          currency: claim.currency,
+          paymentIntentId: claim.stripePaymentIntentId,
+          registrationId: registration.id,
+          sessionId: claim.stripeCheckoutSessionId,
+          tenantId: fixture.tenantId,
+          transactionId: claim.id,
+        }),
+      ).pipe(Effect.flip, Effect.provide(serviceLayer)),
+    );
+
+    expect(completionError.kind).toBe('stateConflict');
+    expect(completionError.message).toBe(
+      'Paid registration reserved capacity could not be confirmed',
+    );
+    const [failedState, refundClaims, acquisitions, emails] = await Promise.all(
+      [
+        readDirectFixtureState(database, fixture),
+        database.query.transactions.findMany({
+          where: {
+            sourceTransactionId: claim.id,
+            tenantId: fixture.tenantId,
+            type: 'refund',
+          },
+        }),
+        database.query.registrationAcquisitions.findMany({
+          where: {
+            registrationId: registration.id,
+            tenantId: fixture.tenantId,
+          },
+        }),
+        database.query.emailOutbox.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+      ],
+    );
+    expect(failedState.registrations).toEqual([
+      expect.objectContaining({ id: registration.id, status: 'PENDING' }),
+    ]);
+    expect(failedState.claims).toEqual([
+      expect.objectContaining({ id: claim.id, status: 'pending' }),
+    ]);
+    expect(failedState.option).toEqual(
+      expect.objectContaining({ confirmedSpots: 0, reservedSpots: 0 }),
+    );
+    expect(failedState.addOn?.totalAvailableQuantity).toBe(3);
+    expect(refundClaims).toEqual([]);
+    expect(acquisitions).toEqual([]);
+    expect(emails).toEqual([]);
+  }, 30_000);
+
+  it('compensates a paid registration exactly once when tenant membership is lost during Checkout', async () => {
+    const fixture = await prepareDirectRegistrationFixture(database);
+    fixtures.push(fixture);
+    await database
+      .update(eventRegistrationOptions)
+      .set({ spots: 1 })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    expect(
+      await runRegistration(directRegistrationInput(fixture), serviceLayer),
+    ).toEqual({ status: 'success' });
+
+    const pendingState = await readDirectFixtureState(database, fixture);
+    expect(pendingState.registrations).toHaveLength(1);
+    expect(pendingState.claims).toHaveLength(1);
+    const registration = pendingState.registrations[0];
+    const claim = pendingState.claims[0];
+    if (
+      !registration ||
+      !claim ||
+      claim.appFee === null ||
+      !claim.stripeAccountId ||
+      !claim.stripeCheckoutSessionId ||
+      !claim.stripePaymentIntentId
+    ) {
+      throw new Error('Expected one complete pending registration Checkout');
+    }
+    expect(pendingState.option).toEqual(
+      expect.objectContaining({ confirmedSpots: 0, reservedSpots: 1 }),
+    );
+    expect(pendingState.addOn?.totalAvailableQuantity).toBe(3);
+    expect(
+      await database.query.emailOutbox.findMany({
+        where: { tenantId: fixture.tenantId },
+      }),
+    ).toEqual([]);
+    const waitlistRegistration = await seedWaitlistRegistration(
+      database,
+      fixture,
+    );
+
+    expect(
+      await database
+        .delete(usersToTenants)
+        .where(
+          and(
+            eq(usersToTenants.tenantId, fixture.tenantId),
+            eq(usersToTenants.userId, fixture.userId),
+          ),
+        )
+        .returning({ id: usersToTenants.id }),
+    ).toHaveLength(1);
+
+    const stripeChargeId = `ch_${claim.id}`;
+    fakeHttpClient.prepareCharge({
+      amount: claim.amount,
+      applicationFeeAmount: claim.appFee,
+      chargeId: stripeChargeId,
+      currency: claim.currency,
+      paymentIntentId: claim.stripePaymentIntentId,
+      stripeAccountId: claim.stripeAccountId,
+      stripeFeeAmount: 47,
+    });
+    const completionIdentity = {
+      registrationId: registration.id,
+      stripeAccountId: claim.stripeAccountId,
+      stripeCheckoutSessionId: claim.stripeCheckoutSessionId,
+      tenantId: fixture.tenantId,
+      transactionId: claim.id,
+    };
+    const completedSession = completedRegistrationCheckoutSession({
+      amount: claim.amount,
+      chargeId: stripeChargeId,
+      currency: claim.currency,
+      paymentIntentId: claim.stripePaymentIntentId,
+      registrationId: registration.id,
+      sessionId: claim.stripeCheckoutSessionId,
+      tenantId: fixture.tenantId,
+      transactionId: claim.id,
+    });
+    const completeCheckout = () =>
+      Effect.runPromise(
+        completePaidRegistrationCheckout(
+          completionIdentity,
+          completedSession,
+        ).pipe(Effect.provide(serviceLayer)),
+      );
+
+    expect(await completeCheckout()).toBe('compensationQueued');
+    expect(await completeCheckout()).toBe('alreadyFinalized');
+
+    const [compensatedState, refundClaims, acquisitions, emails] =
+      await Promise.all([
+        readDirectFixtureState(database, fixture),
+        database.query.transactions.findMany({
+          where: {
+            sourceTransactionId: claim.id,
+            tenantId: fixture.tenantId,
+            type: 'refund',
+          },
+        }),
+        database.query.registrationAcquisitions.findMany({
+          where: {
+            registrationId: registration.id,
+            tenantId: fixture.tenantId,
+          },
+        }),
+        database.query.emailOutbox.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+      ]);
+
+    expect(compensatedState.registrations).toEqual([
+      expect.objectContaining({
+        id: registration.id,
+        status: 'CANCELLED',
+      }),
+    ]);
+    expect(compensatedState.claims).toEqual([
+      expect.objectContaining({
+        appFee: claim.appFee,
+        id: claim.id,
+        status: 'successful',
+        stripeAccountId: claim.stripeAccountId,
+        stripeChargeId,
+        targetUserId: fixture.userId,
+      }),
+    ]);
+    expect(compensatedState.option).toEqual(
+      expect.objectContaining({
+        confirmedSpots: 0,
+        reservedSpots: 0,
+        waitlistSpots: 1,
+      }),
+    );
+    expect(compensatedState.addOn?.totalAvailableQuantity).toBe(5);
+    expect(refundClaims).toEqual([
+      expect.objectContaining({
+        amount: -claim.amount,
+        currency: claim.currency,
+        eventId: fixture.eventId,
+        eventRegistrationId: registration.id,
+        manuallyCreated: false,
+        method: 'stripe',
+        refundOperationKey: `registration-eligibility-compensation:${claim.id}`,
+        sourceTransactionId: claim.id,
+        status: 'pending',
+        stripeAccountId: claim.stripeAccountId,
+        stripeRefundApplicationFee: true,
+        targetUserId: fixture.userId,
+        type: 'refund',
+      }),
+    ]);
+    expect(acquisitions).toEqual([]);
+    expect(emails).toHaveLength(2);
+    expect(emails).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          idempotencyKey: `registration-cancelled/${fixture.tenantId}/${registration.id}`,
+          kind: 'registrationCancelled',
+          text: expect.stringContaining(
+            'A refund to your original payment method is in progress.',
+          ),
+          toEmail: `${fixture.userId.replace('user-', '')}@example.com`,
+        }),
+        expect.objectContaining({
+          idempotencyKey: `waitlist-spot-available/${fixture.tenantId}/${waitlistRegistration.registrationId}/eligibility-compensation-${registration.id}`,
+          kind: 'waitlistSpotAvailable',
+          text: expect.stringContaining(
+            'A place may now be available for Concurrency fixture',
+          ),
+          toEmail: waitlistRegistration.communicationEmail,
+        }),
+      ]),
+    );
+    expect(emails.some(({ kind }) => kind === 'registrationConfirmed')).toBe(
+      false,
+    );
+  }, 30_000);
+
+  it('compensates when the event is withdrawn without notifying the waitlist', async () => {
+    const fixture = await prepareDirectRegistrationFixture(database);
+    fixtures.push(fixture);
+    await database
+      .update(eventRegistrationOptions)
+      .set({ spots: 1 })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    expect(
+      await runRegistration(directRegistrationInput(fixture), serviceLayer),
+    ).toEqual({ status: 'success' });
+    const pendingState = await readDirectFixtureState(database, fixture);
+    const registration = pendingState.registrations[0];
+    const claim = pendingState.claims[0];
+    if (
+      !registration ||
+      !claim ||
+      claim.appFee === null ||
+      !claim.stripeAccountId ||
+      !claim.stripeCheckoutSessionId ||
+      !claim.stripePaymentIntentId
+    ) {
+      throw new Error('Expected one complete pending registration Checkout');
+    }
+    const waitlistRegistration = await seedWaitlistRegistration(
+      database,
+      fixture,
+    );
+    await database
+      .update(eventInstances)
+      .set({
+        reviewedAt: null,
+        reviewedBy: null,
+        status: 'DRAFT',
+        statusComment: null,
+      })
+      .where(eq(eventInstances.id, fixture.eventId));
+
+    const stripeChargeId = `ch_${claim.id}`;
+    fakeHttpClient.prepareCharge({
+      amount: claim.amount,
+      applicationFeeAmount: claim.appFee,
+      chargeId: stripeChargeId,
+      currency: claim.currency,
+      paymentIntentId: claim.stripePaymentIntentId,
+      stripeAccountId: claim.stripeAccountId,
+      stripeFeeAmount: 47,
+    });
+    expect(
+      await Effect.runPromise(
+        completePaidRegistrationCheckout(
+          {
+            registrationId: registration.id,
+            stripeAccountId: claim.stripeAccountId,
+            stripeCheckoutSessionId: claim.stripeCheckoutSessionId,
+            tenantId: fixture.tenantId,
+            transactionId: claim.id,
+          },
+          completedRegistrationCheckoutSession({
+            amount: claim.amount,
+            chargeId: stripeChargeId,
+            currency: claim.currency,
+            paymentIntentId: claim.stripePaymentIntentId,
+            registrationId: registration.id,
+            sessionId: claim.stripeCheckoutSessionId,
+            tenantId: fixture.tenantId,
+            transactionId: claim.id,
+          }),
+        ).pipe(Effect.provide(serviceLayer)),
+      ),
+    ).toBe('compensationQueued');
+
+    const [compensatedState, refundClaims, emails, waitlistState] =
+      await Promise.all([
+        readDirectFixtureState(database, fixture),
+        database.query.transactions.findMany({
+          where: {
+            sourceTransactionId: claim.id,
+            tenantId: fixture.tenantId,
+            type: 'refund',
+          },
+        }),
+        database.query.emailOutbox.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+        database.query.eventRegistrations.findFirst({
+          where: {
+            id: waitlistRegistration.registrationId,
+            tenantId: fixture.tenantId,
+          },
+        }),
+      ]);
+    expect(compensatedState.registrations).toEqual([
+      expect.objectContaining({ id: registration.id, status: 'CANCELLED' }),
+    ]);
+    expect(waitlistState).toEqual(
+      expect.objectContaining({
+        id: waitlistRegistration.registrationId,
+        status: 'WAITLIST',
+      }),
+    );
+    expect(compensatedState.option).toEqual(
+      expect.objectContaining({
+        confirmedSpots: 0,
+        reservedSpots: 0,
+        waitlistSpots: 1,
+      }),
+    );
+    expect(compensatedState.addOn?.totalAvailableQuantity).toBe(5);
+    expect(refundClaims).toEqual([
+      expect.objectContaining({
+        amount: -claim.amount,
+        refundOperationKey: `registration-eligibility-compensation:${claim.id}`,
+        sourceTransactionId: claim.id,
+        status: 'pending',
+        stripeRefundApplicationFee: true,
+      }),
+    ]);
+    expect(emails).toEqual([
+      expect.objectContaining({
+        idempotencyKey: `registration-cancelled/${fixture.tenantId}/${registration.id}`,
+        kind: 'registrationCancelled',
+        text: expect.stringContaining(
+          'the event or your access to it changed after you paid',
+        ),
+      }),
+    ]);
+    expect(emails.some(({ kind }) => kind === 'waitlistSpotAvailable')).toBe(
+      false,
+    );
   }, 30_000);
 });

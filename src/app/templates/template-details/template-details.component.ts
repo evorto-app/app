@@ -33,7 +33,7 @@ export const templateAddonPurchaseTiming = (
   addOn: TemplateFindOneRecord['addOns'][number],
 ): string => {
   return addOn.allowPurchaseDuringRegistration
-    ? 'During registration'
+    ? 'During sign-up'
     : 'Unavailable';
 };
 
@@ -43,7 +43,12 @@ export const templateRegistrationOptionTitle = (
 ): string =>
   template.registrationOptions.find(
     (option) => option.id === registrationOptionId,
-  )?.title ?? 'Broken registration option configuration';
+  )?.title ?? 'Sign-up choice unavailable';
+
+export const templateDetailsErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The template could not be loaded. Try again.', [
+    'TemplateSimpleNotFoundError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -78,10 +83,10 @@ export class TemplateDetailsComponent {
     this.rpc.taxRates.listActive.queryOptions(),
   );
   protected readonly taxRateById = computed(() => {
-    const rates = this.taxRatesQuery.isSuccess()
-      ? this.taxRatesQuery.data()
-      : [];
-    return Object.fromEntries(rates.map((r) => [r.stripeTaxRateId, r]));
+    if (!this.taxRatesQuery.isSuccess()) return null;
+    return Object.fromEntries(
+      this.taxRatesQuery.data().map((rate) => [rate.stripeTaxRateId, rate]),
+    );
   });
   protected readonly templateAddonPurchaseTiming = templateAddonPurchaseTiming;
 
@@ -92,11 +97,11 @@ export class TemplateDetailsComponent {
   );
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+    return templateDetailsErrorMessage(error);
   }
 
   protected findRateByStripeId(id: null | string | undefined) {
     const map = this.taxRateById();
-    return id ? map[id] : undefined;
+    return map && id ? map[id] : undefined;
   }
 }

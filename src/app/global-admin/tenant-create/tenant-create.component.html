@@ -18,31 +18,25 @@
     </mat-form-field>
 
     <mat-form-field>
-      <mat-label>Primary domain</mat-label>
+      <mat-label>Website address</mat-label>
       <input
         matInput
         [formField]="tenantForm.domain"
         placeholder="section.example.org"
       />
-      <mat-hint>Public links and payment returns use this domain.</mat-hint>
+      <mat-hint
+        >Public links and payment confirmations use this address.</mat-hint
+      >
     </mat-form-field>
 
-    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+    <div class="grid grid-cols-1 gap-3">
       <mat-form-field>
         <mat-label>Theme</mat-label>
         <mat-select [formField]="tenantForm.theme">
           <mat-option value="evorto">Default theme</mat-option>
+          <mat-option value="classic">Classic Evorto theme</mat-option>
           <mat-option value="esn">ESN theme</mat-option>
         </mat-select>
-      </mat-form-field>
-
-      <mat-form-field>
-        <mat-label>Stripe account ID</mat-label>
-        <input
-          matInput
-          [formField]="tenantForm.stripeAccountId"
-          placeholder="acct_..."
-        />
       </mat-form-field>
     </div>
 
@@ -57,10 +51,12 @@
       </mat-form-field>
 
       <mat-form-field>
-        <mat-label>Timezone</mat-label>
+        <mat-label>Time zone</mat-label>
         <mat-select [formField]="tenantForm.timezone">
-          @for (timezone of timezoneOptions; track timezone) {
-            <mat-option [value]="timezone">{{ timezone }}</mat-option>
+          @for (timezone of timezoneOptions; track timezone.value) {
+            <mat-option [value]="timezone.value">
+              {{ timezone.label }}
+            </mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -69,8 +65,8 @@
     <fieldset class="border-outline-variant grid gap-3 border-t pt-4">
       <legend class="title-medium mb-2">Initial privacy policy</legend>
       <p class="body-medium text-on-surface-variant">
-        Add policy text or an HTTP or HTTPS policy URL so the first organization
-        member can complete onboarding.
+        Add the policy text or its web address so the first organization member
+        can finish joining the organization.
       </p>
       <mat-form-field>
         <mat-label>Privacy policy text</mat-label>
@@ -81,7 +77,7 @@
         ></textarea>
       </mat-form-field>
       <mat-form-field>
-        <mat-label>Privacy policy URL</mat-label>
+        <mat-label>Privacy policy web address</mat-label>
         <input
           matInput
           type="url"
@@ -92,7 +88,7 @@
     </fieldset>
 
     <mat-form-field>
-      <mat-label>Reason for platform change</mat-label>
+      <mat-label>Reason for this change</mat-label>
       <textarea matInput rows="3" [formField]="tenantForm.reason"></textarea>
       <mat-hint>
         Required. This explanation is saved in the organization's change

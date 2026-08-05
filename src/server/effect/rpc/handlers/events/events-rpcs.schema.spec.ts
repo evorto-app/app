@@ -1,16 +1,29 @@
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
   EventGraphAddonInput,
   EventGraphEditRecord,
-  EventGraphRegistrationOptionInput,
+  EventGraphQuestionInput,
   EventReviewStatus,
   EventsApproveRegistrationResult,
   EventsCancelEventRegistration,
   EventsCancellableRegistrationStatus,
   EventsCancelRegistration,
   EventsCreateRegistrationOptionInput,
+  EventsEventListInput,
+  EventsEventListRecord,
   EventsFindOneAddon,
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
@@ -26,6 +39,86 @@ import {
   EventsTransferEventRegistration,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { EventLocation } from '../../../../../types/location';
+
+describe('events RPC list input schema', () => {
+  it('accepts only bounded integer pages and canonical UTC timestamps', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsEventListInput)({
+        limit: 100,
+        offset: 0,
+        startAfter: '2026-07-15T14:30:00.000Z',
+        status: ['APPROVED'],
+        userId: 'untrusted-client-user',
+      }),
+    ).toEqual({
+      limit: 100,
+      offset: 0,
+      startAfter: '2026-07-15T14:30:00.000Z',
+      status: ['APPROVED'],
+    });
+
+    for (const input of [
+      { limit: 0, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 101, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10.5, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: -1, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: 0.5, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: 0, startAfter: 'not-a-timestamp' },
+      {
+        limit: 10,
+        offset: 0,
+        startAfter: '2026-07-15T16:30:00.000+02:00',
+      },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListInput)({
+          status: ['APPROVED'],
+          ...input,
+        }),
+      ).toThrow();
+    }
+  });
+});
+
+describe('events RPC list record schema', () => {
+  const record = {
+    announcementRoleCount: 0,
+    hasRegistrationOptions: true,
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: 'event-1',
+    start: '2026-07-15T14:30:00.000Z',
+    status: 'APPROVED',
+    title: 'Example event',
+  };
+
+  it('accepts absence and every explicit participant sign-up state', () => {
+    for (const userSignUpState of [
+      null,
+      'approvalPending',
+      'confirmed',
+      'paymentRequired',
+      'waitlisted',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListRecord)({
+          ...record,
+          userSignUpState,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('rejects the former boolean and unknown sign-up states', () => {
+    for (const userSignUpState of [true, false, 'unknown']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListRecord)({
+          ...record,
+          userSignUpState,
+        }),
+      ).toThrow();
+    }
+  });
+});
 
 describe('events RPC location schema', () => {
   it('accepts a structured Google event location', () => {
@@ -217,6 +310,7 @@ describe('events RPC registration status schema', () => {
       nextPurchaseUnitPrice: 500,
       nextPurchaseUnitTaxAmount: 95,
       optionalPurchaseQuantity: 3,
+      pendingCheckoutExpired: false,
       pendingCheckoutExpiresAt: '2026-08-01T17:00:00.000Z',
       pendingCheckoutUrl: null,
       pendingOperationKey: 'purchase-addon-1',
@@ -467,11 +561,19 @@ describe('events RPC registration option schema', () => {
     title: 'Participant',
   };
 
-  it('defaults event option policy overrides to tenant inheritance', () => {
-    expect(
+  it('requires explicit event option policy inheritance values', () => {
+    expect(() =>
       Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)(
         writableRegistrationOption,
       ),
+    ).toThrow();
+    expect(
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)({
+        ...writableRegistrationOption,
+        cancellationDeadlineHoursBeforeStart: null,
+        refundFeesOnCancellation: null,
+        transferDeadlineHoursBeforeStart: null,
+      }),
     ).toMatchObject({
       cancellationDeadlineHoursBeforeStart: null,
       refundFeesOnCancellation: null,
@@ -496,73 +598,91 @@ describe('events RPC registration option schema', () => {
     ).toThrow();
   });
 
-  it('carries inclusive tax-rate label details for paid event cards', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(EventsFindOneRegistrationOption)({
-        appliedDiscountType: null,
-        checkedInSpots: 0,
-        closeRegistrationTime: '2026-09-20T12:00:00.000Z',
-        confirmedSpots: 0,
-        description: null,
-        discountApplied: false,
-        effectivePrice: 2500,
-        esnCardDiscountedPrice: null,
-        eventId: 'event-1',
-        id: 'option-1',
-        isPaid: true,
-        openRegistrationTime: '2026-09-10T12:00:00.000Z',
-        organizingRegistration: false,
-        price: 2500,
-        questions: [
-          {
-            description: 'Tell us about your experience.',
-            id: 'question-1',
-            required: true,
-            sortOrder: 0,
-            title: 'Experience',
-          },
-        ],
-        registeredDescription: null,
-        registrationMode: 'fcfs',
-        reservedSpots: 0,
-        roleIds: ['role-1'],
-        spots: 10,
-        stripeTaxRateId: 'txr_vat_19',
-        taxRateDisplayName: 'VAT',
-        taxRatePercentage: '19',
-        title: 'Participant',
-      }),
-    ).not.toThrow();
+  it('carries public tax labels without private option configuration', () => {
+    const option = Schema.decodeUnknownSync(EventsFindOneRegistrationOption)({
+      appliedDiscountType: null,
+      checkedInSpots: 0,
+      closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+      confirmedSpots: 0,
+      description: null,
+      discountApplied: false,
+      effectivePrice: 2500,
+      esnCardDiscountedPrice: null,
+      eventId: 'event-1',
+      id: 'option-1',
+      isPaid: true,
+      openRegistrationTime: '2026-09-10T12:00:00.000Z',
+      organizingRegistration: false,
+      price: 2500,
+      questions: [
+        {
+          description: 'Tell us about your experience.',
+          id: 'question-1',
+          required: true,
+          sortOrder: 0,
+          title: 'Experience',
+        },
+      ],
+      registeredDescription: null,
+      registrationMode: 'fcfs',
+      reservedSpots: 0,
+      roleIds: ['role-1'],
+      spots: 10,
+      stripeTaxRateId: 'txr_vat_19',
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+      title: 'Participant',
+    });
+
+    expect(option).toMatchObject({
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+    });
+    expect(option).not.toHaveProperty('checkedInSpots');
+    expect(option).not.toHaveProperty('registeredDescription');
+    expect(option).not.toHaveProperty('roleIds');
+    expect(option).not.toHaveProperty('stripeTaxRateId');
   });
 });
 
 describe('events RPC add-on schema', () => {
-  it('carries copied event add-ons with registration option attachments', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(EventsFindOneAddon)({
-        allowMultiple: true,
-        allowPurchaseBeforeEvent: true,
-        allowPurchaseDuringEvent: false,
-        allowPurchaseDuringRegistration: true,
-        description: 'Includes equipment rental.',
-        id: 'addon-1',
-        isPaid: true,
-        maxQuantityPerUser: 2,
-        price: 1500,
-        registrationOptions: [
-          {
-            includedQuantity: 1,
-            optionalPurchaseQuantity: 1,
-            registrationOptionId: 'option-1',
-          },
-        ],
-        stripeTaxRateId: 'txr_vat_19',
-        taxRateDisplayName: 'VAT',
-        taxRatePercentage: '19',
-        title: 'Equipment rental',
-        totalAvailableQuantity: 20,
-      }),
-    ).not.toThrow();
+  it('carries public add-on details without the Stripe provider identifier', () => {
+    const addOn = Schema.decodeUnknownSync(EventsFindOneAddon)({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: 'Includes equipment rental.',
+      id: 'addon-1',
+      isPaid: true,
+      maxQuantityPerUser: 2,
+      price: 1500,
+      registrationOptions: [
+        {
+          includedQuantity: 1,
+          optionalPurchaseQuantity: 1,
+          registrationOptionId: 'option-1',
+        },
+      ],
+      stripeTaxRateId: 'txr_vat_19',
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+      title: 'Equipment rental',
+      totalAvailableQuantity: 20,
+    });
+
+    expect(addOn).toMatchObject({
+      registrationOptions: [
+        {
+          includedQuantity: 1,
+          optionalPurchaseQuantity: 1,
+          registrationOptionId: 'option-1',
+        },
+      ],
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+    });
+    expect(addOn).not.toHaveProperty('stripeTaxRateId');
   });
 });
 
@@ -629,26 +749,12 @@ describe('events RPC editable graph schema', () => {
             title: 'Dietary requirements',
           },
         ],
-        registrationOptions: [
-          {
-            ...writableOption,
-            registrationMode: 'random',
-          },
-        ],
+        registrationOptions: [writableOption],
         simpleModeEnabled: false,
         start: '2026-09-20T12:00:00.000Z',
         title: 'Event',
       }),
     ).not.toThrow();
-  });
-
-  it('keeps legacy random readable but rejects it in graph writes', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)({
-        ...writableOption,
-        registrationMode: 'random',
-      }),
-    ).toThrow();
   });
 
   it('accepts distinct included and optional quantities per option mapping', () => {
@@ -717,5 +823,130 @@ describe('events RPC registration question answer schema', () => {
         registrationOptionId: 'option-1',
       }),
     ).not.toThrow();
+  });
+
+  it('bounds question counts and question/answer text', () => {
+    const question = {
+      description: 'd'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+      key: 'question-1',
+      registrationOptionKey: 'option-1',
+      required: false,
+      sortOrder: 0,
+      title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+    };
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphQuestionInput)(question),
+    ).not.toThrow();
+    for (const invalidQuestion of [
+      {
+        ...question,
+        title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH + 1),
+      },
+      {
+        ...question,
+        description: 'd'.repeat(
+          MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH + 1,
+        ),
+      },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventGraphQuestionInput)(invalidQuestion),
+      ).toThrow();
+    }
+
+    const basePayload = {
+      eventId: 'event-1',
+      guestCount: 0,
+      registrationOptionId: 'option-1',
+    };
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...basePayload,
+        answers: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS + 1 },
+          (_, index) => ({
+            answer: 'Answer',
+            questionId: `question-${index}`,
+          }),
+        ),
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...basePayload,
+        answers: [
+          {
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1),
+            questionId: 'question-1',
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
+  it('accepts registration quantity caps and rejects cap plus one', () => {
+    const payload = {
+      addOns: [
+        {
+          addOnId: 'addon-1',
+          quantity: MAX_REGISTRATION_ADDON_QUANTITY,
+        },
+      ],
+      eventId: 'event-1',
+      guestCount: MAX_REGISTRATION_GUESTS,
+      registrationOptionId: 'option-1',
+    };
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)(payload),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...payload,
+        guestCount: MAX_REGISTRATION_GUESTS + 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...payload,
+        addOns: [
+          {
+            addOnId: 'addon-1',
+            quantity: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...payload,
+        addOns: Array.from(
+          { length: MAX_EVENT_ADDON_TYPES + 1 },
+          (_, index) => ({
+            addOnId: `addon-${index}`,
+            quantity: 1,
+          }),
+        ),
+      }),
+    ).toThrow();
+  });
+
+  it('bounds post-registration add-on purchase quantities', () => {
+    const payload = {
+      addOnId: 'addon-1',
+      operationKey: 'purchase-addon-1',
+      quantity: MAX_REGISTRATION_ADDON_QUANTITY,
+      registrationId: 'registration-1',
+    };
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonPayload)(payload),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonPayload)({
+        ...payload,
+        quantity: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+      }),
+    ).toThrow();
   });
 });

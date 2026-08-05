@@ -2,7 +2,14 @@
 .angular
 node_modules
 e2e
+tests
 playwright.config.ts
+.e2e-runtime.json
+.playwright-cli
+coverage
+playwright-report
+test-results
+repos
 .env*
 **/.terraform
 **/*.tfstate

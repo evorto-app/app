@@ -2,27 +2,10 @@ FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703
 
 FROM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS base
 
-USER root
-RUN apt-get update \
-    && apt-get upgrade --yes --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
-# Canvas dependencies removed - not currently used in production
-# RUN apk add --no-cache \
-#     build-base \
-#     cairo-dev \
-#     jpeg-dev \
-#     pango-dev \
-#     musl-dev \
-#     giflib-dev \
-#     pixman-dev \
-#     pangomm-dev \
-#     libjpeg-turbo-dev \
-#     freetype-dev
-
-# RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER bun
 WORKDIR /app
+
+FROM gcr.io/distroless/base-nossl-debian13:nonroot@sha256:86554c46a420d507ff2d678fd261ab8691fba4875a20302f38a49e684b42a33f AS distroless-runtime
 
 FROM base AS dependencies
 USER root
@@ -67,11 +50,17 @@ RUN rm -rf node_modules/@neondatabase \
     && find node_modules -type f -name '*.map' -delete \
     && test -z "$(find node_modules -type f -name '*.map' -print -quit)"
 
-FROM base AS production
+FROM distroless-runtime AS production
 
+WORKDIR /app
+ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+
+COPY --from=base /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=runtime-dependencies /app/node_modules ./node_modules
 COPY --from=runtime-artifacts /app/dist ./dist
 COPY --from=runtime-artifacts /app/ops/drizzle.config.mjs ./ops/drizzle.config.mjs
 COPY --from=runtime-artifacts /app/node_modules/drizzle-kit/bin.cjs ./ops/drizzle-kit.cjs
 
-CMD ["bun", "dist/evorto/server/server.mjs"]
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/bun"]
+CMD ["dist/evorto/server/server.mjs"]

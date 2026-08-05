@@ -6,11 +6,11 @@ import { createNodePgPoolConfig } from '@db/pg-connection-config';
 import { relations } from '@db/relations';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Option } from 'effect';
-import fs from 'node:fs';
 import { DateTime } from 'luxon';
 import path from 'node:path';
 import { Pool } from 'pg';
 
+import { readOptionalE2eRuntimeState } from '../../../helpers/testing/e2e-runtime-state';
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
 import { formatConfigError } from '../../../src/server/config/config-error';
@@ -163,17 +163,15 @@ export const test = base.extend<BaseFixtures>({
     }, fixedNow);
 
     if (tenantDomain) {
-      try {
-        await page.context().addCookies([
-          {
-            domain: 'localhost',
-            expires: -1,
-            name: 'evorto-tenant',
-            path: '/',
-            value: tenantDomain,
-          },
-        ]);
-      } catch {}
+      await page.context().addCookies([
+        {
+          domain: 'localhost',
+          expires: -1,
+          name: 'evorto-tenant',
+          path: '/',
+          value: tenantDomain,
+        },
+      ]);
     }
     page.on('pageerror', (error) => {
       const url = page.url();
@@ -231,15 +229,13 @@ export const test = base.extend<BaseFixtures>({
     { auto: true },
   ],
   tenantDomain: async ({}, use) => {
-    try {
-      const runtimePath = path.resolve('.e2e-runtime.json');
-      if (fs.existsSync(runtimePath)) {
-        const raw = fs.readFileSync(runtimePath, 'utf8');
-        const data = JSON.parse(raw) as { tenantDomain?: string };
-        await use(data.tenantDomain);
-        return;
-      }
-    } catch {}
+    const runtime = readOptionalE2eRuntimeState(
+      path.resolve('.e2e-runtime.json'),
+    );
+    if (runtime) {
+      await use(runtime.tenantDomain);
+      return;
+    }
     await use(Option.getOrUndefined(environment.TENANT_DOMAIN));
   },
   testClock: [

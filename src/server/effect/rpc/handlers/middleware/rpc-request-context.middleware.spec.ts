@@ -1,113 +1,87 @@
 import { describe, expect, it } from '@effect/vitest';
+import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 
 import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../../rpc-context-headers';
-import { decodeRpcRequestContextFromHeaders } from './rpc-request-context.middleware.live';
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from '../../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import { rpcRequestContextMiddlewareLive } from './rpc-request-context.middleware.live';
+
+const trustedContext = {
+  authData: {
+    email: 'alice@example.com',
+    sub: 'auth0|alice',
+  },
+  authenticated: true,
+  permissions: ['users:viewAll'],
+  platformAuthority: null,
+  tenant: {
+    currency: 'EUR',
+    domain: 'tenant.example.com',
+    id: 'tenant-1',
+    name: 'Trusted tenant',
+    theme: 'evorto',
+    timezone: 'Europe/Berlin',
+  },
+  user: null,
+  userAssigned: false,
+} satisfies RpcRequestContextShape;
 
 describe('rpc-request-context.middleware', () => {
-  it('decodes rpc request context headers', () => {
-    const headers = Headers.fromInput({
-      [RPC_CONTEXT_HEADERS.AUTH_DATA]: encodeRpcContextHeaderJson({
-        email: 'alice@example.com',
-        sub: 'auth0|abc',
-      }),
-      [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-      [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-        'users:viewAll',
-      ]),
-      [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]: encodeRpcContextHeaderJson({
-        actorEmail: 'platform@example.org',
-        actorId: 'auth0|platform-admin',
-        kind: 'platformAdministrator',
-      }),
-      [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
-        currency: 'EUR',
-        defaultLocation: null,
-        discountProviders: null,
-        domain: 'example.org',
-        id: 'tenant-1',
-        locale: 'en',
-        name: 'Example Tenant',
-        receiptSettings: null,
-        stripeAccountId: null,
-        theme: 'evorto',
-        timezone: 'Europe/Prague',
-      }),
-      [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson({
-        attributes: [],
-        auth0Id: 'auth0|abc',
-        email: 'alice@example.com',
-        firstName: 'Alice',
-        iban: null,
-        id: 'user-1',
-        lastName: 'Example',
-        paypalEmail: null,
-        permissions: ['users:viewAll'],
-        roleIds: ['role-1'],
-      }),
-      [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'true',
-    });
+  it.effect('defects when the trusted request context is absent', () =>
+    Effect.gen(function* () {
+      const middleware = yield* RpcRequestContextMiddleware;
+      const exit = yield* middleware(Effect.void, {
+        client: undefined,
+        headers: Headers.empty,
+        payload: undefined,
+        requestId: 1,
+        rpc: undefined,
+      } as never).pipe(Effect.exit);
 
-    const decoded = decodeRpcRequestContextFromHeaders(headers);
+      expect(exit._tag).toBe('Failure');
+      if (exit._tag === 'Failure') {
+        const reason = exit.cause.reasons[0];
+        expect(reason?._tag).toBe('Die');
+        expect(
+          reason?._tag === 'Die' && reason.defect instanceof Error
+            ? reason.defect.message
+            : undefined,
+        ).toBe('RpcRequestContext missing at RPC boundary');
+      }
+    }).pipe(Effect.provide(rpcRequestContextMiddlewareLive)),
+  );
 
-    expect(decoded.authenticated).toBe(true);
-    expect(decoded.userAssigned).toBe(true);
-    expect(decoded.tenant.id).toBe('tenant-1');
-    expect(decoded.user?.id).toBe('user-1');
-    expect(decoded.permissions).toEqual(['users:viewAll']);
-    expect(decoded.platformAuthority).toEqual(
-      expect.objectContaining({
-        actorId: 'auth0|platform-admin',
-        kind: 'platformAdministrator',
-      }),
-    );
-    expect(decoded.authData.sub).toBe('auth0|abc');
-  });
+  it.effect(
+    'uses the provided typed context and ignores hostile external context headers',
+    () =>
+      Effect.gen(function* () {
+        let observedContext: RpcRequestContextShape | undefined;
+        const middleware = yield* RpcRequestContextMiddleware;
+        const handler = Effect.gen(function* () {
+          observedContext = yield* RpcRequestContext;
+          return yield* Effect.die('stop after observing request context');
+        });
+        const exit = yield* middleware(handler, {
+          client: undefined,
+          headers: Headers.fromInput({
+            'x-evorto-authenticated': 'false',
+            'x-evorto-permissions': 'eyJnbG9iYWxBZG1pbjoqIjoidHJ1c3QgbWUifQ==',
+            'x-evorto-tenant':
+              'eyJpZCI6ImF0dGFja2VyLXRlbmFudCIsIm5hbWUiOiJBdHRhY2tlciJ9',
+          }),
+          payload: undefined,
+          requestId: 1,
+          rpc: undefined,
+        } as never).pipe(Effect.exit);
 
-  it('decodes user context after undefined optional fields are omitted from JSON headers', () => {
-    const headers = Headers.fromInput({
-      [RPC_CONTEXT_HEADERS.AUTH_DATA]: encodeRpcContextHeaderJson({
-        email: 'alice@example.com',
-        sub: 'auth0|abc',
-      }),
-      [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-      [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-        'users:viewAll',
-      ]),
-      [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]:
-        encodeRpcContextHeaderJson(null),
-      [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
-        currency: 'EUR',
-        domain: 'example.org',
-        id: 'tenant-1',
-        locale: 'en',
-        name: 'Example Tenant',
-        stripeAccountId: null,
-        theme: 'evorto',
-        timezone: 'Europe/Prague',
-      }),
-      [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson({
-        attributes: [],
-        auth0Id: 'auth0|abc',
-        email: 'alice@example.com',
-        firstName: 'Alice',
-        id: 'user-1',
-        lastName: 'Example',
-        permissions: ['users:viewAll'],
-        roleIds: ['role-1'],
-      }),
-      [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'true',
-    });
-
-    const decoded = decodeRpcRequestContextFromHeaders(headers);
-
-    expect(decoded.user).toMatchObject({
-      iban: undefined,
-      id: 'user-1',
-      paypalEmail: undefined,
-    });
-  });
+        expect(exit._tag).toBe('Failure');
+        expect(observedContext).toBe(trustedContext);
+      }).pipe(
+        Effect.provide(rpcRequestContextMiddlewareLive),
+        Effect.provide(Layer.succeed(RpcRequestContext, trustedContext)),
+      ),
+  );
 });

@@ -1,3 +1,12 @@
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { registrationSpotCount } from '@shared/registration-spots';
 import {
   resolveTenantDiscountProviders,
@@ -23,15 +32,14 @@ import {
   type RegistrationCheckoutLineItemSnapshot,
   type RegistrationCheckoutSnapshot,
   RegistrationCheckoutSnapshotSchema,
+  registrationTransfers,
   tenantStripeTaxRates,
   transactions,
   userDiscountCards,
-  usersToTenants,
 } from '../../../../../db/schema';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
 import { getServerNow } from '../../../../clock';
-import { formatConfigError } from '../../../../config/config-error';
 import { serverConfig } from '../../../../config/server-config';
 import {
   buildCheckoutSessionExpiresAt,
@@ -43,17 +51,27 @@ import {
   enqueueManualApprovalEmail,
   enqueueRegistrationConfirmedEmail,
 } from '../../../../notifications/email-delivery';
+import {
+  isPersistableNonNegativeInteger,
+  maximumPersistedPaymentAmount,
+} from '../../../../payments/payment-amount';
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
 import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
 } from '../../../../registrations/registration-acquisition-write';
 import { registrationCheckoutInitialReconcileAt } from '../../../../registrations/registration-checkout-completion';
+import { registrationCheckoutHasTooManyLines } from '../../../../registrations/registration-checkout-lines';
+import {
+  isUserEligibleForRegistrationOption,
+  lockCurrentRegistrationEligibility,
+} from '../../../../registrations/registration-eligibility';
 import { StripeClient } from '../../../../stripe-client';
 import {
   tenantOutboundRootUrl,
   tenantOutboundUrl,
 } from '../../../../tenant-outbound-url';
+import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import {
   ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
   isUniqueConstraintViolation,
@@ -71,15 +89,42 @@ const databaseEffect = <A>(
   // callers get deterministic domain errors instead of partial success.
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
+const mapEventRegistrationInternalError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, EventRegistrationInternalError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logError(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => new EventRegistrationInternalError({ message })),
+    );
+
+const failEventRegistrationInternalError = (
+  operation: string,
+  message: string,
+  error: unknown,
+) =>
+  Effect.logError(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(
+      Effect.fail(new EventRegistrationInternalError({ message })),
+    ),
+  );
+
 const registrationServiceNow = (pinnedNowIso?: string) =>
   Effect.try({
-    catch: (cause) =>
-      new EventRegistrationInternalError({
-        cause,
-        message: 'Invalid E2E_NOW_ISO server clock value',
-      }),
+    catch: (cause) => cause,
     try: () => getServerNow(pinnedNowIso).toJSDate(),
-  });
+  }).pipe(
+    mapEventRegistrationInternalError(
+      'eventRegistration.clock',
+      'The current time could not be checked. No sign-up was changed. Try again.',
+    ),
+  );
 
 export const isDefinitiveCheckoutSessionCreateFailure = (
   error: unknown,
@@ -101,11 +146,7 @@ const expireCheckoutSession = (sessionId: string, stripeAccount: string) =>
   Effect.gen(function* () {
     const stripe = yield* StripeClient;
     const expiredSession = yield* Effect.tryPromise({
-      catch: (cause) =>
-        new EventRegistrationInternalError({
-          cause,
-          message: 'Failed to expire unbound stripe checkout session',
-        }),
+      catch: (cause) => cause,
       try: () =>
         Promise.race([
           stripe.checkout.sessions.expire(sessionId, undefined, {
@@ -118,11 +159,17 @@ const expireCheckoutSession = (sessionId: string, stripeAccount: string) =>
             );
           }),
         ]),
-    });
+    }).pipe(
+      mapEventRegistrationInternalError(
+        'eventRegistration.checkout.expireUnbound',
+        'The unfinished payment could not be closed. No payment was taken. Reopen the ticket and review its current payment status.',
+      ),
+    );
     if (expiredSession.status !== 'expired') {
       return yield* Effect.fail(
         new EventRegistrationInternalError({
-          message: 'Failed to expire unbound stripe checkout session',
+          message:
+            'The unfinished payment could not be closed. No payment was taken. Reopen the ticket and review its current payment status.',
         }),
       );
     }
@@ -152,16 +199,6 @@ const noDiscountResolution = (basePrice: number): DiscountResolution => ({
   discountAmount: null,
   effectivePrice: basePrice,
 });
-
-export const isUserEligibleForRegistrationOption = ({
-  optionRoleIds,
-  userRoleIds,
-}: {
-  optionRoleIds: readonly string[];
-  userRoleIds: readonly string[];
-}): boolean =>
-  optionRoleIds.length === 0 ||
-  optionRoleIds.some((roleId) => userRoleIds.includes(roleId));
 
 const resolveDiscount = ({
   basePrice,
@@ -236,6 +273,7 @@ export interface ApproveManualRegistrationArguments {
     | 'id'
     | 'name'
     | 'stripeAccountId'
+    | 'timezone'
   >;
 }
 
@@ -296,8 +334,9 @@ export const decodeRegistrationCheckoutSnapshot = Effect.fn(
   'EventRegistrationService.decodeRegistrationCheckoutSnapshot',
 )((snapshot: unknown, message: string) =>
   Schema.decodeUnknownEffect(RegistrationCheckoutSnapshotSchema)(snapshot).pipe(
-    Effect.mapError(
-      (cause) => new EventRegistrationInternalError({ cause, message }),
+    mapEventRegistrationInternalError(
+      'eventRegistration.checkoutSnapshot.decode',
+      message,
     ),
   ),
 );
@@ -328,11 +367,13 @@ const resumeDirectRegistrationCheckout = Effect.fn(
 )(function* ({
   eventId,
   paymentClaim,
+  recheckEligibilityBeforeCreating = false,
   registrationId,
   tenantId,
 }: {
   eventId: string;
   paymentClaim: RegistrationPaymentClaim;
+  recheckEligibilityBeforeCreating?: boolean;
   registrationId: string;
   tenantId: string;
 }) {
@@ -394,7 +435,8 @@ const resumeDirectRegistrationCheckout = Effect.fn(
     if (!claimStillActive) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Registration is no longer awaiting payment',
+          message:
+            'This ticket is no longer waiting for payment. No payment was taken. Reopen the ticket and review its current payment status.',
         }),
       );
     }
@@ -404,211 +446,257 @@ const resumeDirectRegistrationCheckout = Effect.fn(
     return yield* Effect.fail(
       new EventRegistrationInternalError({
         message:
-          'Registration payment setup cannot be resumed; cancel the registration and register again',
+          'Payment cannot continue for this ticket. No payment was taken. Cancel the ticket, then sign up again.',
       }),
     );
   }
   const checkoutRequestSnapshot = yield* decodeRegistrationCheckoutSnapshot(
     paymentClaim.stripeCheckoutRequest,
-    'Registration payment setup cannot be resumed; cancel the registration and register again',
+    'Payment cannot continue for this ticket. No payment was taken. Cancel the ticket, then sign up again.',
   );
   const stripeAccount = paymentClaim.stripeAccountId;
   if (!stripeAccount) {
     return yield* Effect.fail(
       new EventRegistrationInternalError({
-        message: 'Stripe account not found',
+        message:
+          'Online payments are not ready for this organization. No payment was taken. Contact an administrator.',
       }),
     );
   }
 
   const releaseDirectCheckoutClaim = Effect.fn(
     'EventRegistrationService.resumeDirectRegistrationCheckout.releaseClaim',
-  )((expectedStripeCheckoutSessionId: null | string) =>
-    Database.use((database) =>
-      database
-        .transaction((tx) =>
-          Effect.gen(function* () {
-            const lockedRegistrations = yield* tx
-              .select({
-                guestCount: eventRegistrations.guestCount,
-                registrationOptionId: eventRegistrations.registrationOptionId,
-                status: eventRegistrations.status,
-              })
-              .from(eventRegistrations)
-              .where(
-                and(
-                  eq(eventRegistrations.id, registrationId),
-                  eq(eventRegistrations.tenantId, tenantId),
-                  eq(eventRegistrations.eventId, eventId),
-                ),
-              )
-              .for('update');
-            const lockedRegistration = lockedRegistrations[0];
-            const lockedClaims = yield* tx
-              .select({
-                method: transactions.method,
-                status: transactions.status,
-                stripeCheckoutCancellationRequestedAt:
-                  transactions.stripeCheckoutCancellationRequestedAt,
-                stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
-                type: transactions.type,
-              })
-              .from(transactions)
-              .where(
-                and(
-                  eq(transactions.id, paymentClaim.id),
-                  eq(transactions.tenantId, tenantId),
-                  eq(transactions.eventRegistrationId, registrationId),
-                ),
-              )
-              .for('update');
-            const lockedClaim = lockedClaims[0];
-            if (
-              lockedRegistration?.status === 'CANCELLED' &&
-              lockedClaim?.status === 'cancelled'
-            ) {
-              return;
-            }
-            if (
-              lockedRegistration?.status !== 'PENDING' ||
-              lockedClaim?.method !== 'stripe' ||
-              lockedClaim.status !== 'pending' ||
-              lockedClaim.stripeCheckoutCancellationRequestedAt !== null ||
-              (lockedClaim.stripeCheckoutSessionId !== null &&
-                lockedClaim.stripeCheckoutSessionId !==
-                  expectedStripeCheckoutSessionId) ||
-              lockedClaim.type !== 'registration'
-            ) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Failed to release direct checkout claim',
-                }),
-              );
-            }
-
-            const lockedAddonPurchases = yield* tx
-              .select({
-                addonId: eventRegistrationAddonPurchases.addonId,
-                quantity: eventRegistrationAddonPurchases.quantity,
-              })
-              .from(eventRegistrationAddonPurchases)
-              .where(
-                eq(
-                  eventRegistrationAddonPurchases.registrationId,
-                  registrationId,
-                ),
-              )
-              .for('update');
-            const orderedAddonPurchases =
-              orderRegistrationAddonPurchases(lockedAddonPurchases);
-
-            const cancelledClaims = yield* tx
-              .update(transactions)
-              .set({ status: 'cancelled' })
-              .where(
-                and(
-                  eq(transactions.id, paymentClaim.id),
-                  eq(transactions.tenantId, tenantId),
-                  eq(transactions.eventRegistrationId, registrationId),
-                  eq(transactions.method, 'stripe'),
-                  eq(transactions.status, 'pending'),
-                  eq(transactions.type, 'registration'),
-                  isNull(transactions.stripeCheckoutCancellationRequestedAt),
-                  expectedStripeCheckoutSessionId === null
-                    ? isNull(transactions.stripeCheckoutSessionId)
-                    : or(
-                        isNull(transactions.stripeCheckoutSessionId),
-                        eq(
-                          transactions.stripeCheckoutSessionId,
-                          expectedStripeCheckoutSessionId,
-                        ),
-                      ),
-                ),
-              )
-              .returning({ id: transactions.id });
-            const cancelledRegistrations = yield* tx
-              .update(eventRegistrations)
-              .set({ status: 'CANCELLED' })
-              .where(
-                and(
-                  eq(eventRegistrations.id, registrationId),
-                  eq(eventRegistrations.tenantId, tenantId),
-                  eq(eventRegistrations.status, 'PENDING'),
-                ),
-              )
-              .returning({ id: eventRegistrations.id });
-            if (
-              cancelledClaims.length !== 1 ||
-              cancelledRegistrations.length !== 1
-            ) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Failed to release direct checkout claim',
-                }),
-              );
-            }
-
-            const requestedSpotCount = registrationSpotCount(
-              lockedRegistration.guestCount,
-            );
-            const releasedOptions = yield* tx
-              .update(eventRegistrationOptions)
-              .set({
-                reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
-              })
-              .where(
-                and(
-                  eq(
-                    eventRegistrationOptions.id,
-                    lockedRegistration.registrationOptionId,
-                  ),
-                  eq(eventRegistrationOptions.eventId, eventId),
-                  sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
-                ),
-              )
-              .returning({ id: eventRegistrationOptions.id });
-            if (releasedOptions.length !== 1) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Failed to release registration capacity',
-                }),
-              );
-            }
-
-            for (const addOnPurchase of orderedAddonPurchases) {
-              const releasedAddOns = yield* tx
-                .update(eventAddons)
-                .set({
-                  totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+  )(
+    (
+      expectedStripeCheckoutSessionId: null | string,
+      releaseOnlyWhenIneligible = false,
+    ) =>
+      Database.use((database) =>
+        database
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const lockedRegistrations = yield* tx
+                .select({
+                  guestCount: eventRegistrations.guestCount,
+                  registrationOptionId: eventRegistrations.registrationOptionId,
+                  status: eventRegistrations.status,
+                  userId: eventRegistrations.userId,
                 })
+                .from(eventRegistrations)
                 .where(
                   and(
-                    eq(eventAddons.id, addOnPurchase.addonId),
-                    eq(eventAddons.eventId, eventId),
+                    eq(eventRegistrations.id, registrationId),
+                    eq(eventRegistrations.tenantId, tenantId),
+                    eq(eventRegistrations.eventId, eventId),
                   ),
                 )
-                .returning({ id: eventAddons.id });
-              if (releasedAddOns.length !== 1) {
+                .for('update');
+              const lockedRegistration = lockedRegistrations[0];
+              const lockedClaims = yield* tx
+                .select({
+                  method: transactions.method,
+                  status: transactions.status,
+                  stripeCheckoutCancellationRequestedAt:
+                    transactions.stripeCheckoutCancellationRequestedAt,
+                  stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
+                  type: transactions.type,
+                })
+                .from(transactions)
+                .where(
+                  and(
+                    eq(transactions.id, paymentClaim.id),
+                    eq(transactions.tenantId, tenantId),
+                    eq(transactions.eventRegistrationId, registrationId),
+                  ),
+                )
+                .for('update');
+              const lockedClaim = lockedClaims[0];
+              if (
+                lockedRegistration?.status === 'CANCELLED' &&
+                lockedClaim?.status === 'cancelled'
+              ) {
+                return 'alreadyUnavailable' as const;
+              }
+              if (
+                lockedRegistration?.status !== 'PENDING' ||
+                lockedClaim?.method !== 'stripe' ||
+                lockedClaim.status !== 'pending' ||
+                lockedClaim.stripeCheckoutCancellationRequestedAt !== null ||
+                (lockedClaim.stripeCheckoutSessionId !== null &&
+                  lockedClaim.stripeCheckoutSessionId !==
+                    expectedStripeCheckoutSessionId) ||
+                lockedClaim.type !== 'registration'
+              ) {
                 return yield* Effect.fail(
                   new EventRegistrationInternalError({
-                    message: 'Failed to release registration add-on stock',
+                    message:
+                      'Payment could not be prepared safely. The ticket and its reserved places were not changed. Contact an Evorto administrator.',
                   }),
                 );
               }
-            }
-          }),
-        )
-        .pipe(
-          Effect.catch((error) =>
-            error instanceof EventRegistrationInternalError
-              ? Effect.fail(error)
-              : Effect.die(error),
+
+              if (releaseOnlyWhenIneligible) {
+                const currentEligibility =
+                  yield* lockCurrentRegistrationEligibility(tx, {
+                    eventId,
+                    registrationOptionId:
+                      lockedRegistration.registrationOptionId,
+                    tenantId,
+                    userId: lockedRegistration.userId,
+                  });
+                if (
+                  currentEligibility._tag === 'Current' &&
+                  currentEligibility.eventStatus === 'APPROVED' &&
+                  isUserEligibleForRegistrationOption({
+                    optionRoleIds: currentEligibility.roleIds,
+                    userRoleIds: currentEligibility.userRoleIds,
+                  })
+                ) {
+                  return 'stillEligible' as const;
+                }
+              }
+
+              const lockedAddonPurchases = yield* tx
+                .select({
+                  addonId: eventRegistrationAddonPurchases.addonId,
+                  quantity: eventRegistrationAddonPurchases.quantity,
+                })
+                .from(eventRegistrationAddonPurchases)
+                .where(
+                  eq(
+                    eventRegistrationAddonPurchases.registrationId,
+                    registrationId,
+                  ),
+                )
+                .for('update');
+              const orderedAddonPurchases =
+                orderRegistrationAddonPurchases(lockedAddonPurchases);
+
+              const cancelledClaims = yield* tx
+                .update(transactions)
+                .set({ status: 'cancelled' })
+                .where(
+                  and(
+                    eq(transactions.id, paymentClaim.id),
+                    eq(transactions.tenantId, tenantId),
+                    eq(transactions.eventRegistrationId, registrationId),
+                    eq(transactions.method, 'stripe'),
+                    eq(transactions.status, 'pending'),
+                    eq(transactions.type, 'registration'),
+                    isNull(transactions.stripeCheckoutCancellationRequestedAt),
+                    expectedStripeCheckoutSessionId === null
+                      ? isNull(transactions.stripeCheckoutSessionId)
+                      : or(
+                          isNull(transactions.stripeCheckoutSessionId),
+                          eq(
+                            transactions.stripeCheckoutSessionId,
+                            expectedStripeCheckoutSessionId,
+                          ),
+                        ),
+                  ),
+                )
+                .returning({ id: transactions.id });
+              const cancelledRegistrations = yield* tx
+                .update(eventRegistrations)
+                .set({ status: 'CANCELLED' })
+                .where(
+                  and(
+                    eq(eventRegistrations.id, registrationId),
+                    eq(eventRegistrations.tenantId, tenantId),
+                    eq(eventRegistrations.status, 'PENDING'),
+                  ),
+                )
+                .returning({ id: eventRegistrations.id });
+              if (
+                cancelledClaims.length !== 1 ||
+                cancelledRegistrations.length !== 1
+              ) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'Payment could not be prepared safely. The ticket and its reserved places were not changed. Contact an Evorto administrator.',
+                  }),
+                );
+              }
+
+              const requestedSpotCount = registrationSpotCount(
+                lockedRegistration.guestCount,
+              );
+              const releasedOptions = yield* tx
+                .update(eventRegistrationOptions)
+                .set({
+                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
+                })
+                .where(
+                  and(
+                    eq(
+                      eventRegistrationOptions.id,
+                      lockedRegistration.registrationOptionId,
+                    ),
+                    eq(eventRegistrationOptions.eventId, eventId),
+                    sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
+                  ),
+                )
+                .returning({ id: eventRegistrationOptions.id });
+              if (releasedOptions.length !== 1) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'Payment could not be prepared safely. The ticket and its reserved places were not changed. Contact an Evorto administrator.',
+                  }),
+                );
+              }
+
+              for (const addOnPurchase of orderedAddonPurchases) {
+                const releasedAddOns = yield* tx
+                  .update(eventAddons)
+                  .set({
+                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                  })
+                  .where(
+                    and(
+                      eq(eventAddons.id, addOnPurchase.addonId),
+                      eq(eventAddons.eventId, eventId),
+                    ),
+                  )
+                  .returning({ id: eventAddons.id });
+                if (releasedAddOns.length !== 1) {
+                  return yield* Effect.fail(
+                    new EventRegistrationInternalError({
+                      message:
+                        'Payment could not be prepared safely. The ticket and its add-ons were not changed. Contact an Evorto administrator.',
+                    }),
+                  );
+                }
+              }
+              return 'released' as const;
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof EventRegistrationInternalError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
           ),
-        ),
-    ),
+      ),
   );
 
-  const createSessionEffect = createHostedCheckoutSession(
+  if (recheckEligibilityBeforeCreating) {
+    const eligibilityPrecheck = yield* releaseDirectCheckoutClaim(null, true);
+    if (eligibilityPrecheck !== 'stillEligible') {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message:
+            eligibilityPrecheck === 'released'
+              ? 'You no longer qualify for this sign-up choice. The sign-up was cancelled and you were not charged.'
+              : 'Payment cannot be started for this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
+        }),
+      );
+    }
+  }
+
+  const session = yield* createHostedCheckoutSession(
     buildRegistrationCheckoutParameters({
       appFee: paymentClaim.appFee,
       currency: paymentClaim.currency,
@@ -625,27 +713,21 @@ const resumeDirectRegistrationCheckout = Effect.fn(
       stripeAccount,
     },
   ).pipe(
-    Effect.mapError(
-      (cause) =>
-        new EventRegistrationInternalError({
-          cause,
-          message:
-            'Payment setup is still pending. Retry registration or cancel it.',
-        }),
-    ),
-  );
-  const session = yield* createSessionEffect.pipe(
-    Effect.catch((error) =>
-      isDefinitiveCheckoutSessionCreateFailure(error.cause)
-        ? releaseDirectCheckoutClaim(null).pipe(
-            Effect.andThen(Effect.fail(error)),
-          )
-        : Effect.fail(error),
-    ),
+    Effect.catch((error) => {
+      const publicFailure = failEventRegistrationInternalError(
+        'eventRegistration.checkout.create',
+        'Payment could not be started. No payment was taken. Reopen the ticket and try again, or cancel it.',
+        error,
+      );
+      return isDefinitiveCheckoutSessionCreateFailure(error)
+        ? releaseDirectCheckoutClaim(null).pipe(Effect.andThen(publicFailure))
+        : publicFailure;
+    }),
   );
   if (!session.url) {
     const missingUrlError = new EventRegistrationInternalError({
-      message: 'Stripe checkout session did not provide a payment URL',
+      message:
+        'Payment could not be started because no payment page was available. No payment was taken. Reopen the ticket and try again, or cancel it.',
     });
     return yield* expireCheckoutSession(session.id, stripeAccount).pipe(
       Effect.andThen(releaseDirectCheckoutClaim(session.id)),
@@ -768,7 +850,7 @@ const resumeDirectRegistrationCheckout = Effect.fn(
             return yield* Effect.fail(
               new EventRegistrationInternalError({
                 message:
-                  'Registration payment claim is bound to another checkout session',
+                  'This ticket already has another payment in progress. No new payment was started. Reopen the ticket and use its current payment link.',
               }),
             );
           }
@@ -808,7 +890,8 @@ const resumeDirectRegistrationCheckout = Effect.fn(
           if (boundClaims.length !== 1) {
             return yield* Effect.fail(
               new EventRegistrationInternalError({
-                message: 'Failed to bind stripe checkout session',
+                message:
+                  'Payment could not be attached to this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
               }),
             );
           }
@@ -819,11 +902,10 @@ const resumeDirectRegistrationCheckout = Effect.fn(
         Effect.catch((error) =>
           error instanceof EventRegistrationInternalError
             ? Effect.fail(error)
-            : Effect.fail(
-                new EventRegistrationInternalError({
-                  cause: error,
-                  message: 'Failed to persist registration checkout',
-                }),
+            : failEventRegistrationInternalError(
+                'eventRegistration.checkout.persist',
+                'Payment could not be saved. No payment was taken. Reopen the ticket and review its current payment status.',
+                error,
               ),
         ),
       ),
@@ -874,18 +956,15 @@ const resumeDirectRegistrationCheckout = Effect.fn(
 
   if (bindingResult._tag === 'RegistrationUnavailable') {
     yield* expireCheckoutSession(session.id, stripeAccount).pipe(
-      Effect.mapError(
-        (cause) =>
-          new EventRegistrationInternalError({
-            cause,
-            message:
-              'Registration was cancelled, but its checkout session could not be expired',
-          }),
+      mapEventRegistrationInternalError(
+        'eventRegistration.checkout.expireCancelled',
+        'The ticket was cancelled, but its payment page could not be closed. No payment was taken. Reopen the ticket and review its current payment status.',
       ),
     );
     return yield* Effect.fail(
       new EventRegistrationConflictError({
-        message: 'Registration is no longer awaiting payment',
+        message:
+          'This ticket is no longer waiting for payment. No payment was taken. Reopen the ticket and review its current payment status.',
       }),
     );
   }
@@ -895,8 +974,7 @@ interface JoinWaitlistArguments {
   answers?: readonly RegistrationQuestionAnswerInput[] | undefined;
   eventId: string;
   registrationOptionId: string;
-  tenant: Partial<Pick<Tenant, 'maxActiveRegistrationsPerUser'>> &
-    Pick<Tenant, 'id'>;
+  tenant: Pick<Tenant, 'id'>;
   user: Pick<User, 'id' | 'roleIds'>;
 }
 
@@ -916,8 +994,7 @@ interface RegisterForEventArguments {
     >
   > &
     Pick<Tenant, 'currency' | 'domain' | 'id' | 'stripeAccountId'>;
-  user: Partial<Pick<User, 'communicationEmail'>> &
-    Pick<User, 'email' | 'id' | 'roleIds'>;
+  user: Pick<User, 'communicationEmail' | 'email' | 'id' | 'roleIds'>;
 }
 
 interface RegistrationAddonInput {
@@ -941,6 +1018,108 @@ interface RegistrationAddonRecord {
   totalAvailableQuantity: number;
 }
 
+interface RegistrationCheckoutAddonAmountInput {
+  readonly key: string;
+  readonly quantity: number;
+  readonly unitPrice: number;
+}
+
+const maximumPersistedPaymentAmountBigInt = BigInt(
+  maximumPersistedPaymentAmount,
+);
+
+export const registrationCheckoutPriceBreakdown = Effect.fn(
+  'EventRegistration.registrationCheckoutPriceBreakdown',
+)(function* ({
+  addOns,
+  effectivePrice,
+  guestCount,
+  guestUnitPrice,
+}: {
+  readonly addOns: readonly RegistrationCheckoutAddonAmountInput[];
+  readonly effectivePrice: number;
+  readonly guestCount: number;
+  readonly guestUnitPrice: number;
+}) {
+  if (
+    !isPersistableNonNegativeInteger(effectivePrice) ||
+    !isPersistableNonNegativeInteger(guestCount) ||
+    !isPersistableNonNegativeInteger(guestUnitPrice)
+  ) {
+    return yield* Effect.fail(
+      new EventRegistrationConflictError({
+        message:
+          'The price for this sign-up is not valid. Review your choices and try again.',
+      }),
+    );
+  }
+
+  const registrationBaseAmount =
+    BigInt(effectivePrice) + BigInt(guestCount) * BigInt(guestUnitPrice);
+  if (registrationBaseAmount > maximumPersistedPaymentAmountBigInt) {
+    return yield* Effect.fail(
+      new EventRegistrationConflictError({
+        message:
+          'The sign-up price is too high to pay online. Contact the organizer.',
+      }),
+    );
+  }
+
+  let selectedAddonTotalPrice = 0n;
+  const addOnBaseAmounts = new Map<string, number>();
+  for (const addOn of addOns) {
+    if (
+      addOnBaseAmounts.has(addOn.key) ||
+      !isPersistableNonNegativeInteger(addOn.quantity) ||
+      !isPersistableNonNegativeInteger(addOn.unitPrice)
+    ) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message:
+            'One selected add-on has an invalid price. Review your add-ons and try again.',
+        }),
+      );
+    }
+
+    const baseAmount = BigInt(addOn.quantity) * BigInt(addOn.unitPrice);
+    if (baseAmount > maximumPersistedPaymentAmountBigInt) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message:
+            'One selected add-on costs too much to pay online. Contact the organizer.',
+        }),
+      );
+    }
+    selectedAddonTotalPrice += baseAmount;
+    if (selectedAddonTotalPrice > maximumPersistedPaymentAmountBigInt) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message:
+            'The selected add-ons cost too much to pay online. Contact the organizer.',
+        }),
+      );
+    }
+    addOnBaseAmounts.set(addOn.key, Number(baseAmount));
+  }
+
+  const totalPrice = registrationBaseAmount + selectedAddonTotalPrice;
+  if (totalPrice > maximumPersistedPaymentAmountBigInt) {
+    return yield* Effect.fail(
+      new EventRegistrationConflictError({
+        message:
+          'The total price is too high to pay online. Contact the organizer.',
+      }),
+    );
+  }
+
+  return {
+    addOnBaseAmounts,
+    registrationBaseAmount: Number(registrationBaseAmount),
+    selectedAddonTotalPrice: Number(selectedAddonTotalPrice),
+    totalPrice: Number(totalPrice),
+  };
+});
+
 interface RegistrationTaxConfigurationAddonExpectation {
   readonly addOnId: string;
   readonly requiresTaxRate: boolean;
@@ -954,10 +1133,16 @@ interface RegistrationTaxRateSnapshot {
   readonly stripeTaxRateId: string;
 }
 
+interface RetryRegistrationCheckoutArguments {
+  registrationId: string;
+  tenantId: string;
+  userId: string;
+}
+
 const registrationTaxConfigurationChanged = () =>
   new EventRegistrationConflictError({
     message:
-      'Registration tax configuration changed before the payment terms could be reserved',
+      'The tax details changed before payment began. Review the current price and try again.',
   });
 
 /**
@@ -1122,8 +1307,24 @@ export const validateRegistrationQuestionAnswers = ({
   answers: readonly RegistrationQuestionAnswerInput[] | undefined;
   questions: readonly RegistrationQuestionRecord[];
 }): readonly { answer: string; questionId: string }[] => {
+  if ((answers?.length ?? 0) > MAX_REGISTRATION_QUESTIONS) {
+    throw new EventRegistrationConflictError({
+      message: `You can answer up to ${MAX_REGISTRATION_QUESTIONS} sign-up questions`,
+    });
+  }
+
   const normalizedAnswers = new Map<string, string>();
   for (const answer of answers ?? []) {
+    if (normalizedAnswers.has(answer.questionId)) {
+      throw new EventRegistrationConflictError({
+        message: 'Answer each sign-up question only once',
+      });
+    }
+    if (answer.answer.length > MAX_REGISTRATION_ANSWER_LENGTH) {
+      throw new EventRegistrationConflictError({
+        message: `Each answer must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer`,
+      });
+    }
     normalizedAnswers.set(answer.questionId, answer.answer.trim());
   }
 
@@ -1131,7 +1332,8 @@ export const validateRegistrationQuestionAnswers = ({
   for (const questionId of normalizedAnswers.keys()) {
     if (!questionIds.has(questionId)) {
       throw new EventRegistrationConflictError({
-        message: 'Registration question does not belong to this option',
+        message:
+          'The sign-up questions changed. No sign-up was created. Reopen the event and review the current questions before signing up again.',
       });
     }
   }
@@ -1139,7 +1341,7 @@ export const validateRegistrationQuestionAnswers = ({
   for (const question of questions) {
     if (question.required && !normalizedAnswers.get(question.id)) {
       throw new EventRegistrationConflictError({
-        message: 'Required registration question is missing',
+        message: 'Answer every required sign-up question',
       });
     }
   }
@@ -1162,15 +1364,25 @@ export const validateRegistrationAddons = ({
   fulfilledQuantity: number;
   selectedQuantity: number;
 })[] => {
+  if ((addOns?.length ?? 0) > MAX_EVENT_ADDON_TYPES) {
+    throw new EventRegistrationConflictError({
+      message: `Choose no more than ${MAX_EVENT_ADDON_TYPES} different add-ons`,
+    });
+  }
+
   const availableAddOnById = new Map(
     availableAddOns.map((addOn) => [addOn.addOnId, addOn]),
   );
   const selectedAddOns = new Map<string, number>();
 
   for (const addOn of addOns ?? []) {
-    if (!Number.isInteger(addOn.quantity) || addOn.quantity < 0) {
+    if (
+      !Number.isInteger(addOn.quantity) ||
+      addOn.quantity < 0 ||
+      addOn.quantity > MAX_REGISTRATION_ADDON_QUANTITY
+    ) {
       throw new EventRegistrationConflictError({
-        message: 'Add-on quantity must be a non-negative integer',
+        message: `Choose between 0 and ${MAX_REGISTRATION_ADDON_QUANTITY} of each add-on`,
       });
     }
     if (addOn.quantity === 0) {
@@ -1185,7 +1397,8 @@ export const validateRegistrationAddons = ({
   for (const selectedAddOnId of selectedAddOns.keys()) {
     if (!availableAddOnById.has(selectedAddOnId)) {
       throw new EventRegistrationConflictError({
-        message: 'Add-on is not available for this registration option',
+        message:
+          'This add-on is not available with the selected sign-up choice',
       });
     }
   }
@@ -1204,29 +1417,35 @@ export const validateRegistrationAddons = ({
         !availableAddOn.allowPurchaseDuringRegistration
       ) {
         throw new EventRegistrationConflictError({
-          message: 'Add-on is not available during registration',
+          message: 'This add-on cannot be selected during sign-up',
         });
       }
       if (!availableAddOn.allowMultiple && selectedQuantity > 1) {
         throw new EventRegistrationConflictError({
-          message: 'Add-on can only be selected once',
+          message: 'Select each add-on only once',
         });
       }
       if (selectedQuantity > availableAddOn.maxQuantityPerUser) {
         throw new EventRegistrationConflictError({
-          message: 'Add-on quantity exceeds the per-user limit',
+          message: 'You have reached the limit for this add-on',
         });
       }
       if (selectedQuantity > availableAddOn.optionalPurchaseQuantity) {
         throw new EventRegistrationConflictError({
-          message: 'Add-on quantity exceeds this registration option limit',
+          message:
+            'This sign-up choice does not allow that many of this add-on',
         });
       }
       const fulfilledQuantity =
         availableAddOn.includedQuantity + selectedQuantity;
+      if (fulfilledQuantity > MAX_REGISTRATION_ADDON_QUANTITY) {
+        throw new EventRegistrationConflictError({
+          message: `Choose no more than ${MAX_REGISTRATION_ADDON_QUANTITY} of the same add-on`,
+        });
+      }
       if (fulfilledQuantity > availableAddOn.totalAvailableQuantity) {
         throw new EventRegistrationConflictError({
-          message: 'Add-on quantity is no longer available',
+          message: 'There are not enough of this add-on left',
         });
       }
 
@@ -1262,11 +1481,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const serverEnvironment = yield* serverConfig
           .parse(configProvider)
           .pipe(
-            Effect.mapError(
-              (error) =>
-                new EventRegistrationInternalError({
-                  message: `Invalid server configuration:\n${formatConfigError(error)}`,
-                }),
+            mapEventRegistrationInternalError(
+              'eventRegistration.approval.serverConfig',
+              'Sign-up approval is unavailable because Evorto is not ready. No change was made. Contact an Evorto administrator.',
             ),
           );
         const pinnedNowIso = Option.getOrUndefined(
@@ -1274,12 +1491,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         );
         const now = yield* registrationServiceNow(pinnedNowIso);
         yield* tenantOutboundRootUrl(tenant).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventRegistrationInternalError({
-                cause,
-                message: 'Invalid tenant domain configuration',
-              }),
+          mapEventRegistrationInternalError(
+            'eventRegistration.tenantUrl.validate',
+            'The event link could not be prepared. No sign-up was changed. Contact an organizer.',
           ),
         );
 
@@ -1354,7 +1568,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         if (!registration) {
           return yield* Effect.fail(
             new EventRegistrationNotFoundError({
-              message: 'Registration not found',
+              message:
+                'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
             }),
           );
         }
@@ -1365,7 +1580,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         ) {
           return yield* Effect.fail(
             new EventRegistrationInternalError({
-              message: 'Registration relation missing',
+              message:
+                'The ticket details are unavailable, so the sign-up request was not approved. Contact an Evorto administrator.',
             }),
           );
         }
@@ -1375,7 +1591,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         ) {
           return yield* Effect.fail(
             new EventRegistrationNotFoundError({
-              message: 'Registration not found',
+              message:
+                'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
             }),
           );
         }
@@ -1384,7 +1601,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         if (registration.event.status !== 'APPROVED') {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Event is not open for registration approval',
+              message:
+                'Sign-up requests cannot be approved while this event is closed.',
             }),
           );
         }
@@ -1395,7 +1613,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           return yield* Effect.fail(
             new EventRegistrationConflictError({
               message:
-                'Only pending manual approval registrations can be approved',
+                'This sign-up request changed before it could be approved. No approval or payment was started. Reopen the event and review the current request.',
             }),
           );
         }
@@ -1403,13 +1621,23 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const orderedAddonPurchases = orderRegistrationAddonPurchases(
           registration.addonPurchases,
         );
+        if (
+          registration.guestCount > MAX_REGISTRATION_GUESTS ||
+          orderedAddonPurchases.some(
+            (purchase) =>
+              purchase.quantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+              purchase.purchasedQuantity > MAX_REGISTRATION_ADDON_QUANTITY,
+          )
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'This sign-up includes too many items for one online payment. Reduce the guest or add-on quantities and try again.',
+            }),
+          );
+        }
         const registeredSpotCount = registrationSpotCount(
           registration.guestCount,
-        );
-        const selectedAddonTotalPrice = orderedAddonPurchases.reduce(
-          (total, purchase) =>
-            total + purchase.unitPrice * purchase.purchasedQuantity,
-          0,
         );
         const selectedTaxRateId =
           registrationOption.stripeTaxRateId ?? undefined;
@@ -1440,7 +1668,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           return yield* Effect.fail(
             new EventRegistrationConflictError({
               message:
-                'Registration tax configuration is unavailable for the connected Stripe account',
+                'The saved tax details for this sign-up are no longer available. Ask an administrator to choose a current tax rate.',
             }),
           );
         }
@@ -1450,7 +1678,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           if (!purchase.addOn) {
             return yield* Effect.fail(
               new EventRegistrationInternalError({
-                message: 'Registration add-on relation missing',
+                message:
+                  'The add-on details are unavailable, so the sign-up request was not approved. Contact an Evorto administrator.',
               }),
             );
           }
@@ -1520,41 +1749,43 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           discountAmount,
           effectivePrice,
         } = discountResolution;
-        const effectiveTotalPrice =
-          effectivePrice +
-          basePrice * registration.guestCount +
-          selectedAddonTotalPrice;
+        const checkoutPriceBreakdown =
+          yield* registrationCheckoutPriceBreakdown({
+            addOns: orderedAddonPurchases.map((purchase) => ({
+              key: purchase.id,
+              quantity: purchase.purchasedQuantity,
+              unitPrice: purchase.unitPrice,
+            })),
+            effectivePrice,
+            guestCount: registration.guestCount,
+            guestUnitPrice: basePrice,
+          });
+        const effectiveTotalPrice = checkoutPriceBreakdown.totalPrice;
         const requiresCheckout = effectiveTotalPrice > 0;
         const appFee = Math.round(effectiveTotalPrice * 0.035);
         const eventUrl = yield* tenantOutboundUrl(
           tenant,
           `/events/${encodeURIComponent(eventId)}`,
         ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventRegistrationInternalError({
-                cause,
-                message:
-                  'Tenant event URL is invalid for registration approval',
-              }),
+          mapEventRegistrationInternalError(
+            'eventRegistration.approval.eventUrl',
+            'The event link could not be prepared, so the sign-up request was not approved. Contact an organizer.',
           ),
         );
-        const notificationEmail =
-          registration.user.communicationEmail?.trim() ||
-          registration.user.email;
+        const notificationEmail = registration.user.communicationEmail;
         const checkoutExpiresAt = buildCheckoutSessionExpiresAt(24 * 60, {
           pinnedNowIso,
         });
         const checkoutLineItems: RegistrationCheckoutLineItemSnapshot[] = [];
         if (effectivePrice > 0) {
           checkoutLineItems.push({
-            name: `Registration fee for ${registration.event.title}`,
+            name: `Ticket for ${registration.event.title}`,
             quantity: 1,
             ...(selectedTaxRateId && { taxRateId: selectedTaxRateId }),
             unitAmount: effectivePrice,
           });
         }
-        if (registration.guestCount > 0) {
+        if (registration.guestCount > 0 && basePrice > 0) {
           if (
             effectivePrice === registrationOption.price &&
             checkoutLineItems.length === 1
@@ -1565,15 +1796,19 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             };
           } else {
             checkoutLineItems.push({
-              name: `Guest registration fee for ${registration.event.title}`,
+              name: `Guest ticket for ${registration.event.title}`,
               quantity: registration.guestCount,
               ...(selectedTaxRateId && { taxRateId: selectedTaxRateId }),
-              unitAmount: registrationOption.price,
+              unitAmount: basePrice,
             });
           }
         }
         for (const addOnPurchase of registration.addonPurchases) {
-          if (addOnPurchase.unitPrice <= 0 || !addOnPurchase.addOn) {
+          if (
+            addOnPurchase.unitPrice <= 0 ||
+            addOnPurchase.purchasedQuantity <= 0 ||
+            !addOnPurchase.addOn
+          ) {
             continue;
           }
           checkoutLineItems.push({
@@ -1587,6 +1822,21 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
             unitAmount: addOnPurchase.unitPrice,
           });
+        }
+        if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'This sign-up includes too many different charges for one payment. Reduce the selected add-ons and try again.',
+            }),
+          );
+        }
+        if (orderedAddonPurchases.length > MAX_EVENT_ADDON_TYPES) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: `Choose no more than ${MAX_EVENT_ADDON_TYPES} different add-ons`,
+            }),
+          );
         }
         const checkoutRequest = {
           customerEmail: registration.user.email,
@@ -1632,7 +1882,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 if (!lockedRegistration) {
                   return yield* Effect.fail(
                     new EventRegistrationNotFoundError({
-                      message: 'Registration not found',
+                      message:
+                        'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
                     }),
                   );
                 }
@@ -1640,7 +1891,53 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   return yield* Effect.fail(
                     new EventRegistrationConflictError({
                       message:
-                        'Only pending manual approval registrations can be approved',
+                        'This sign-up request changed before it could be approved. No approval or payment was started. Reopen the event and review the current request.',
+                    }),
+                  );
+                }
+
+                const lockedEligibility =
+                  yield* lockCurrentRegistrationEligibility(tx, {
+                    eventId,
+                    registrationOptionId: registration.registrationOptionId,
+                    tenantId: tenant.id,
+                    userId: registration.userId,
+                  });
+                if (lockedEligibility._tag === 'NotMember') {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'The applicant is no longer a member of this organization.',
+                    }),
+                  );
+                }
+                if (lockedEligibility._tag === 'Unavailable') {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'The selected sign-up choice is no longer available.',
+                    }),
+                  );
+                }
+                if (lockedEligibility.eventStatus !== 'APPROVED') {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'Sign-up requests cannot be approved while this event is closed.',
+                    }),
+                  );
+                }
+                if (
+                  lockedEligibility.registrationMode !== 'application' ||
+                  !isUserEligibleForRegistrationOption({
+                    optionRoleIds: lockedEligibility.roleIds,
+                    userRoleIds: lockedEligibility.userRoleIds,
+                  })
+                ) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'The applicant no longer qualifies for the selected sign-up choice.',
                     }),
                   );
                 }
@@ -1659,11 +1956,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   return yield* Effect.fail(
                     requiresCheckout
                       ? new EventRegistrationInternalError({
-                          message: 'Stripe account not found',
+                          message:
+                            'Online payments are not ready for this organization. No payment was taken. Contact an administrator.',
                         })
                       : new EventRegistrationConflictError({
                           message:
-                            'Registration tax configuration is unavailable because Stripe is not connected',
+                            'Online payments are not ready for this organization. Ask an administrator to finish payment setup.',
                         }),
                   );
                 }
@@ -1731,7 +2029,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     .values({
                       amount: effectiveTotalPrice,
                       appFee,
-                      comment: `Registration approval for event ${registration.event.title} ${registration.eventId}`,
+                      comment: `Approved ticket for ${registration.event.title}`,
                       currency: tenant.currency,
                       eventId: registration.eventId,
                       eventRegistrationId: registration.id,
@@ -1771,7 +2069,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     }
                     return yield* Effect.fail(
                       new EventRegistrationInternalError({
-                        message: 'Failed to create registration payment claim',
+                        message:
+                          'Payment could not be prepared. No payment was taken. Reopen the sign-up request and review it again.',
                       }),
                     );
                   }
@@ -1825,7 +2124,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 if (updatedOptions.length === 0) {
                   return yield* Effect.fail(
                     new EventRegistrationConflictError({
-                      message: 'Registration option has no available spots',
+                      message: 'The selected sign-up choice is full.',
                     }),
                   );
                 }
@@ -1847,7 +2146,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   if (updatedAddOns.length === 0) {
                     return yield* Effect.fail(
                       new EventRegistrationConflictError({
-                        message: 'Add-on quantity is no longer available',
+                        message: 'There are not enough of this add-on left.',
                       }),
                     );
                   }
@@ -1859,7 +2158,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     appliedDiscountedPrice,
                     appliedDiscountType,
                     basePriceAtRegistration: basePrice,
-                    discountAmount,
+                    discountAmount: discountAmount ?? 0,
                     status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
                     ...(selectedTaxRateId && {
                       stripeTaxRateId: selectedTaxRateId,
@@ -1879,7 +2178,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 if (updatedRegistrations.length === 0) {
                   return yield* Effect.fail(
                     new EventRegistrationNotFoundError({
-                      message: 'Registration not found',
+                      message:
+                        'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
                     }),
                   );
                 }
@@ -1921,7 +2221,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     return yield* Effect.fail(
                       new EventRegistrationInternalError({
                         message:
-                          'Approved registration add-on acquisition terms are incomplete',
+                          'The add-on payment details are incomplete, so the sign-up request was not approved. Contact an Evorto administrator.',
                       }),
                     );
                   }
@@ -1930,7 +2230,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                       {
                         allocationKey: `registration-initial:${registration.id}`,
                         baseAmount:
-                          effectivePrice + basePrice * registration.guestCount,
+                          checkoutPriceBreakdown.registrationBaseAmount,
                         id: `registration:${registration.id}`,
                         kind: 'registration',
                         quantity: registeredSpotCount,
@@ -1959,7 +2259,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     return yield* Effect.fail(
                       new EventRegistrationInternalError({
                         message:
-                          'Approved free registration acquisition terms are not zero-value',
+                          'The price details are not valid, so the sign-up request was not approved. Contact an Evorto administrator.',
                       }),
                     );
                   }
@@ -1975,13 +2275,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     spotCount: registeredSpotCount,
                     tenantId: tenant.id,
                   }).pipe(
-                    Effect.mapError(
-                      (cause) =>
-                        new EventRegistrationInternalError({
-                          cause,
-                          message:
-                            'Approved registration acquisition could not be persisted',
-                        }),
+                    mapEventRegistrationInternalError(
+                      'eventRegistration.approval.persistAcquisition',
+                      'The payment details could not be saved, so the sign-up request was not approved. Contact an Evorto administrator.',
                     ),
                   );
                   yield* enqueueManualApprovalEmail(tx, {
@@ -2005,7 +2301,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 if (!paymentClaim) {
                   return yield* Effect.fail(
                     new EventRegistrationInternalError({
-                      message: 'Registration payment claim is missing',
+                      message:
+                        'The payment details are unavailable, so approval could not continue. No payment was taken. Reopen the sign-up request and review it again.',
                     }),
                   );
                 }
@@ -2025,11 +2322,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 error instanceof EventRegistrationInternalError ||
                 error instanceof EventRegistrationNotFoundError
                   ? Effect.fail(error)
-                  : Effect.fail(
-                      new EventRegistrationInternalError({
-                        cause: error,
-                        message: 'Failed to claim registration approval',
-                      }),
+                  : failEventRegistrationInternalError(
+                      'eventRegistration.approval.claim',
+                      'The sign-up request could not be approved. Nothing was changed. Reopen the request and review it again.',
+                      error,
                     ),
               ),
             ),
@@ -2061,20 +2357,21 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           return yield* Effect.fail(
             new EventRegistrationInternalError({
               message:
-                'Registration payment setup cannot be resumed; cancel the registration and apply again',
+                'Payment cannot continue for this ticket. No payment was taken. Cancel the ticket, then submit a new sign-up request.',
             }),
           );
         }
         const checkoutRequestSnapshot =
           yield* decodeRegistrationCheckoutSnapshot(
             paymentClaim.stripeCheckoutRequest,
-            'Registration payment setup cannot be resumed; cancel the registration and apply again',
+            'Payment cannot continue for this ticket. No payment was taken. Cancel the ticket, then submit a new sign-up request.',
           );
         const stripeAccount = paymentClaim.stripeAccountId;
         if (!stripeAccount) {
           return yield* Effect.fail(
             new EventRegistrationInternalError({
-              message: 'Stripe account not found',
+              message:
+                'Online payments are not ready for this organization. No payment was taken. Contact an administrator.',
             }),
           );
         }
@@ -2135,7 +2432,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   ) {
                     return yield* Effect.fail(
                       new EventRegistrationInternalError({
-                        message: 'Failed to release checkout claim',
+                        message:
+                          'Payment could not be prepared safely. The ticket and its reserved places were not changed. Contact an Evorto administrator.',
                       }),
                     );
                   }
@@ -2161,7 +2459,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   if (cancelledClaims.length !== 1) {
                     return yield* Effect.fail(
                       new EventRegistrationInternalError({
-                        message: 'Failed to release checkout claim',
+                        message:
+                          'Payment could not be prepared safely. The ticket and its reserved places were not changed. Contact an Evorto administrator.',
                       }),
                     );
                   }
@@ -2182,7 +2481,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   if (releasedOptions.length !== 1) {
                     return yield* Effect.fail(
                       new EventRegistrationInternalError({
-                        message: 'Failed to release registration capacity',
+                        message:
+                          'Payment could not be prepared safely. The ticket and its reserved places were not changed. Contact an Evorto administrator.',
                       }),
                     );
                   }
@@ -2204,7 +2504,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                       return yield* Effect.fail(
                         new EventRegistrationInternalError({
                           message:
-                            'Failed to release registration add-on stock',
+                            'Payment could not be prepared safely. The ticket and its add-ons were not changed. Contact an Evorto administrator.',
                         }),
                       );
                     }
@@ -2244,7 +2544,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           ),
         );
 
-        const createSessionEffect = createHostedCheckoutSession(
+        const session = yield* createHostedCheckoutSession(
           buildRegistrationCheckoutParameters({
             appFee: paymentClaim.appFee,
             currency: paymentClaim.currency,
@@ -2261,25 +2561,21 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             stripeAccount,
           },
         ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventRegistrationInternalError({
-                cause,
-                message:
-                  'Payment setup is still pending. Retry approval or cancel the registration.',
-              }),
-          ),
-        );
-        const session = yield* createSessionEffect.pipe(
-          Effect.catch((error) =>
-            isDefinitiveCheckoutSessionCreateFailure(error.cause)
-              ? releaseApprovalClaim().pipe(Effect.andThen(Effect.fail(error)))
-              : Effect.fail(error),
-          ),
+          Effect.catch((error) => {
+            const publicFailure = failEventRegistrationInternalError(
+              'eventRegistration.approval.checkout.create',
+              'Payment could not be started. No payment was taken. Reopen the sign-up request and try again, or cancel it.',
+              error,
+            );
+            return isDefinitiveCheckoutSessionCreateFailure(error)
+              ? releaseApprovalClaim().pipe(Effect.andThen(publicFailure))
+              : publicFailure;
+          }),
         );
         if (!session.url) {
           const missingUrlError = new EventRegistrationInternalError({
-            message: 'Stripe checkout session did not provide a payment URL',
+            message:
+              'Payment could not be started because no payment page was available. No payment was taken. Reopen the sign-up request and try again, or cancel it.',
           });
           return yield* expireCheckoutSession(session.id, stripeAccount).pipe(
             Effect.andThen(releaseApprovalClaim()),
@@ -2421,7 +2717,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   return yield* Effect.fail(
                     new EventRegistrationInternalError({
                       message:
-                        'Registration payment claim is bound to another checkout session',
+                        'This ticket already has another payment in progress. No new payment was started. Reopen the ticket and use its current payment link.',
                     }),
                   );
                 }
@@ -2463,7 +2759,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 if (boundClaims.length !== 1) {
                   return yield* Effect.fail(
                     new EventRegistrationInternalError({
-                      message: 'Failed to bind stripe checkout session',
+                      message:
+                        'Payment could not be attached to this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
                     }),
                   );
                 }
@@ -2486,11 +2783,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               Effect.catch((error) =>
                 error instanceof EventRegistrationInternalError
                   ? Effect.fail(error)
-                  : Effect.fail(
-                      new EventRegistrationInternalError({
-                        cause: error,
-                        message: 'Failed to persist registration checkout',
-                      }),
+                  : failEventRegistrationInternalError(
+                      'eventRegistration.approval.checkout.persist',
+                      'Payment could not be saved. No payment was taken. Reopen the ticket and review its current payment status.',
+                      error,
                     ),
               ),
             ),
@@ -2541,18 +2837,15 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
         if (bindingResult._tag === 'RegistrationUnavailable') {
           yield* expireCheckoutSession(session.id, stripeAccount).pipe(
-            Effect.mapError(
-              (cause) =>
-                new EventRegistrationInternalError({
-                  cause,
-                  message:
-                    'Registration was cancelled, but its checkout session could not be expired',
-                }),
+            mapEventRegistrationInternalError(
+              'eventRegistration.approval.checkout.expireCancelled',
+              'The ticket was cancelled, but its payment page could not be closed. No payment was taken. Reopen the ticket and review its current payment status.',
             ),
           );
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Registration is no longer awaiting payment',
+              message:
+                'This ticket is no longer waiting for payment. No payment was taken. Reopen the ticket and review its current payment status.',
             }),
           );
         }
@@ -2575,11 +2868,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const serverEnvironment = yield* serverConfig
           .parse(configProvider)
           .pipe(
-            Effect.mapError(
-              (error) =>
-                new EventRegistrationInternalError({
-                  message: `Invalid server configuration:\n${formatConfigError(error)}`,
-                }),
+            mapEventRegistrationInternalError(
+              'eventRegistration.create.serverConfig',
+              'Sign-up is unavailable because Evorto is not ready. No change was made. Contact an Evorto administrator.',
             ),
           );
         const pinnedNowIso = Option.getOrUndefined(
@@ -2589,19 +2880,20 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           tenant,
           `/events/${encodeURIComponent(eventId)}`,
         ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventRegistrationInternalError({
-                cause,
-                message: 'Invalid tenant domain configuration',
-              }),
+          mapEventRegistrationInternalError(
+            'eventRegistration.create.eventUrl',
+            'The event link could not be prepared. No sign-up was created. Contact an organizer.',
           ),
         );
         const now = yield* registrationServiceNow(pinnedNowIso);
-        if (!Number.isInteger(guestCount) || guestCount < 0) {
+        if (
+          !Number.isInteger(guestCount) ||
+          guestCount < 0 ||
+          guestCount > MAX_REGISTRATION_GUESTS
+        ) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Guest count must be a non-negative integer',
+              message: `Choose between 0 and ${MAX_REGISTRATION_GUESTS} guests`,
             }),
           );
         }
@@ -2612,8 +2904,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           database.query.eventRegistrations.findFirst({
             columns: {
               id: true,
-              registrationOptionId: true,
-              status: true,
             },
             where: {
               eventId,
@@ -2624,41 +2914,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           }),
         );
         if (existingRegistration) {
-          if (
-            existingRegistration.status === 'PENDING' &&
-            existingRegistration.registrationOptionId === registrationOptionId
-          ) {
-            const existingClaims = yield* databaseEffect((database) =>
-              database
-                .select(registrationPaymentClaimSelection)
-                .from(transactions)
-                .where(
-                  and(
-                    eq(
-                      transactions.eventRegistrationId,
-                      existingRegistration.id,
-                    ),
-                    eq(transactions.method, 'stripe'),
-                    eq(transactions.status, 'pending'),
-                    eq(transactions.tenantId, tenant.id),
-                    eq(transactions.type, 'registration'),
-                  ),
-                ),
-            );
-            const existingClaim = existingClaims[0];
-            if (existingClaim) {
-              yield* resumeDirectRegistrationCheckout({
-                eventId,
-                paymentClaim: existingClaim,
-                registrationId: existingRegistration.id,
-                tenantId: tenant.id,
-              });
-              return;
-            }
-          }
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'User is already registered for this event',
+              message: 'This person is already signed up for this event.',
             }),
           );
         }
@@ -2702,28 +2960,29 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         if (!registrationOption) {
           return yield* Effect.fail(
             new EventRegistrationNotFoundError({
-              message: 'Registration option not found',
+              message: 'The selected sign-up choice is no longer available.',
             }),
           );
         }
         if (!registrationOption.event) {
           return yield* Effect.fail(
             new EventRegistrationInternalError({
-              message: 'Registration option event relation missing',
+              message:
+                'The event details are unavailable, so no sign-up was created. Contact an organizer.',
             }),
           );
         }
         if (registrationOption.event.tenantId !== tenant.id) {
           return yield* Effect.fail(
             new EventRegistrationNotFoundError({
-              message: 'Registration option not found',
+              message: 'The selected sign-up choice is no longer available.',
             }),
           );
         }
         if (registrationOption.event.status !== 'APPROVED') {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Event is not open for registration',
+              message: 'This event is not accepting sign-ups.',
             }),
           );
         }
@@ -2733,7 +2992,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         ) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Registration is not open',
+              message: 'Sign-up is not open right now.',
             }),
           );
         }
@@ -2745,23 +3004,18 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         ) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'User is not eligible for this registration option',
+              message:
+                'This person does not qualify for the selected sign-up choice.',
             }),
           );
         }
         const manualApproval =
           registrationOption.registrationMode === 'application';
-        if (registrationOption.registrationMode !== 'fcfs' && !manualApproval) {
-          return yield* Effect.fail(
-            new EventRegistrationConflictError({
-              message: 'Registration option mode is not supported',
-            }),
-          );
-        }
         if (registrationOption.organizingRegistration && guestCount > 0) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Guest spots are only available for participant options',
+              message:
+                'Guests can only be added with an attendee sign-up choice.',
             }),
           );
         }
@@ -2774,7 +3028,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         ) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Registration option has no available spots',
+              message: 'The selected sign-up choice is full.',
             }),
           );
         }
@@ -2859,26 +3113,20 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           return yield* Effect.fail(
             new EventRegistrationConflictError({
               message:
-                'Add-on tax configuration is unavailable for the connected Stripe account',
+                'The saved tax details for one selected add-on are no longer available. Ask an administrator to choose a current tax rate.',
             }),
           );
         }
-        const addOnPurchasePlans = selectedAddOns.map((addOn) => ({
-          addOn,
-          purchaseId: createId(),
-          ...(addOn.selectedQuantity > 0 && { purchaseLotId: createId() }),
-        }));
         const addOnTaxExpectations = selectedAddOns.map((addOn) => ({
           addOnId: addOn.addOnId,
           requiresTaxRate: addOn.price > 0 && addOn.selectedQuantity > 0,
           stripeTaxRateId: addOn.stripeTaxRateId,
         }));
-        const selectedAddonTotalPrice = selectedAddOns.reduce(
-          (total, addOn) => total + addOn.price * addOn.selectedQuantity,
-          0,
-        );
         const mayRequireCheckout =
-          registrationOption.isPaid || selectedAddonTotalPrice > 0;
+          registrationOption.isPaid ||
+          selectedAddOns.some(
+            (addOn) => addOn.price > 0 && addOn.selectedQuantity > 0,
+          );
 
         // Phase 2: create registration row. Manual approval applications stay
         // pending without consuming spots until an organizer approves them.
@@ -2913,7 +3161,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           return yield* Effect.fail(
             new EventRegistrationConflictError({
               message:
-                'Registration tax configuration is unavailable for the connected Stripe account',
+                'The saved tax details for this sign-up are no longer available. Ask an administrator to choose a current tax rate.',
             }),
           );
         }
@@ -2977,10 +3225,43 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           discountAmount,
           effectivePrice,
         } = discountResolution;
-        const effectiveTotalPrice =
-          effectivePrice +
-          registrationOption.price * guestCount +
-          selectedAddonTotalPrice;
+        const checkoutPriceBreakdown =
+          yield* registrationCheckoutPriceBreakdown({
+            addOns: selectedAddOns.map((addOn) => ({
+              key: addOn.addOnId,
+              quantity: addOn.selectedQuantity,
+              unitPrice: addOn.price,
+            })),
+            effectivePrice,
+            guestCount,
+            guestUnitPrice: basePrice,
+          });
+        const effectiveTotalPrice = checkoutPriceBreakdown.totalPrice;
+        const addOnPurchasePlans = yield* Effect.all(
+          selectedAddOns.map((addOn) =>
+            Effect.gen(function* () {
+              const baseAmount = checkoutPriceBreakdown.addOnBaseAmounts.get(
+                addOn.addOnId,
+              );
+              if (baseAmount === undefined) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'An add-on price could not be checked, so no sign-up was created. Review the selected add-ons or contact an organizer.',
+                  }),
+                );
+              }
+              return {
+                addOn,
+                baseAmount,
+                purchaseId: createId(),
+                ...(addOn.selectedQuantity > 0 && {
+                  purchaseLotId: createId(),
+                }),
+              };
+            }),
+          ),
+        );
         const requiresCheckout =
           !manualApproval && mayRequireCheckout && effectiveTotalPrice > 0;
 
@@ -3000,7 +3281,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           if (!tenant.stripeAccountId) {
             return yield* Effect.fail(
               new EventRegistrationInternalError({
-                message: 'Stripe account not found',
+                message:
+                  'Online payments are not ready for this organization. No payment was taken. Contact an administrator.',
               }),
             );
           }
@@ -3008,13 +3290,13 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           const checkoutLineItems: RegistrationCheckoutLineItemSnapshot[] = [];
           if (effectivePrice > 0) {
             checkoutLineItems.push({
-              name: `Registration fee for ${registrationOption.event.title}`,
+              name: `Ticket for ${registrationOption.event.title}`,
               quantity: 1,
               ...(selectedTaxRateId && { taxRateId: selectedTaxRateId }),
               unitAmount: effectivePrice,
             });
           }
-          if (guestCount > 0) {
+          if (guestCount > 0 && basePrice > 0) {
             if (
               effectivePrice === registrationOption.price &&
               checkoutLineItems.length === 1
@@ -3025,15 +3307,15 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               };
             } else {
               checkoutLineItems.push({
-                name: `Guest registration fee for ${registrationOption.event.title}`,
+                name: `Guest ticket for ${registrationOption.event.title}`,
                 quantity: guestCount,
                 ...(selectedTaxRateId && { taxRateId: selectedTaxRateId }),
-                unitAmount: registrationOption.price,
+                unitAmount: basePrice,
               });
             }
           }
           for (const { addOn, purchaseLotId } of addOnPurchasePlans) {
-            if (addOn.price <= 0) {
+            if (addOn.price <= 0 || addOn.selectedQuantity <= 0) {
               continue;
             }
             checkoutLineItems.push({
@@ -3048,6 +3330,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               unitAmount: addOn.price,
             });
           }
+          if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message:
+                  'This sign-up includes too many different charges for one payment. Reduce the selected add-ons and try again.',
+              }),
+            );
+          }
           directCheckout = {
             appFee: Math.round(effectiveTotalPrice * 0.035),
             request: {
@@ -3056,7 +3346,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               eventUrl,
               expiresAt: buildCheckoutSessionExpiresAt(30, { pinnedNowIso }),
               lineItems: checkoutLineItems,
-              notificationEmail: user.email,
+              notificationEmail: user.communicationEmail,
             },
             transactionId: createId(),
           };
@@ -3066,20 +3356,69 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           database
             .transaction((tx) =>
               Effect.gen(function* () {
-                const lockedMemberships = yield* tx
-                  .select({ id: usersToTenants.id })
-                  .from(usersToTenants)
-                  .where(
-                    and(
-                      eq(usersToTenants.tenantId, tenant.id),
-                      eq(usersToTenants.userId, user.id),
-                    ),
-                  )
-                  .for('update');
-                if (lockedMemberships.length !== 1) {
+                const lockedEligibility =
+                  yield* lockCurrentRegistrationEligibility(tx, {
+                    eventId,
+                    registrationOptionId: registrationOption.id,
+                    tenantId: tenant.id,
+                    userId: user.id,
+                  });
+                if (lockedEligibility._tag === 'NotMember') {
                   return yield* Effect.fail(
                     new EventRegistrationNotFoundError({
-                      message: 'Tenant membership not found',
+                      message:
+                        'Your organization membership could not be found.',
+                    }),
+                  );
+                }
+                if (lockedEligibility._tag === 'Unavailable') {
+                  return yield* Effect.fail(
+                    new EventRegistrationNotFoundError({
+                      message:
+                        'The selected sign-up choice is no longer available.',
+                    }),
+                  );
+                }
+                if (lockedEligibility.eventStatus !== 'APPROVED') {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message: 'This event is not accepting sign-ups.',
+                    }),
+                  );
+                }
+                if (
+                  now < lockedEligibility.openRegistrationTime ||
+                  now > lockedEligibility.closeRegistrationTime
+                ) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message: 'Sign-up is not open right now.',
+                    }),
+                  );
+                }
+                if (
+                  !isUserEligibleForRegistrationOption({
+                    optionRoleIds: lockedEligibility.roleIds,
+                    userRoleIds: lockedEligibility.userRoleIds,
+                  })
+                ) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'This person does not qualify for the selected sign-up choice.',
+                    }),
+                  );
+                }
+                if (
+                  lockedEligibility.registrationMode !==
+                    registrationOption.registrationMode ||
+                  lockedEligibility.organizingRegistration !==
+                    registrationOption.organizingRegistration
+                ) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message:
+                        'The selected sign-up choice changed. Review it and try again.',
                     }),
                   );
                 }
@@ -3098,11 +3437,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   return yield* Effect.fail(
                     directCheckout
                       ? new EventRegistrationInternalError({
-                          message: 'Stripe account not found',
+                          message:
+                            'Online payments are not ready for this organization. No payment was taken. Contact an administrator.',
                         })
                       : new EventRegistrationConflictError({
                           message:
-                            'Registration tax configuration is unavailable because Stripe is not connected',
+                            'Online payments are not ready for this organization. Ask an administrator to finish payment setup.',
                         }),
                   );
                 }
@@ -3155,7 +3495,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                       and(
                         eq(eventRegistrations.tenantId, tenant.id),
                         eq(eventRegistrations.userId, user.id),
-                        sql`${eventRegistrations.status} <> 'CANCELLED'`,
+                        inArray(eventRegistrations.status, [
+                          'PENDING',
+                          'CONFIRMED',
+                        ]),
                         sql`${eventInstances.start} > ${now}`,
                       ),
                     )
@@ -3197,13 +3540,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 const createdRegistrations = yield* tx
                   .insert(eventRegistrations)
                   .values({
-                    ...(!manualApproval &&
-                      mayRequireCheckout && {
-                        appliedDiscountedPrice,
-                        appliedDiscountType,
-                        basePriceAtRegistration: basePrice,
-                        discountAmount,
-                      }),
+                    ...(!manualApproval && {
+                      appliedDiscountedPrice,
+                      appliedDiscountType,
+                      basePriceAtRegistration: basePrice,
+                      discountAmount: discountAmount ?? 0,
+                    }),
                     eventId,
                     guestCount,
                     registrationOptionId: registrationOption.id,
@@ -3227,23 +3569,61 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 if (!userRegistration) {
                   return yield* Effect.fail(
                     new EventRegistrationConflictError({
-                      message: 'User is already registered for this event',
+                      message:
+                        'This person is already signed up for this event.',
                     }),
                   );
+                }
+
+                let paymentClaim: RegistrationPaymentClaim | undefined;
+                if (directCheckout) {
+                  const insertedClaims = yield* tx
+                    .insert(transactions)
+                    .values({
+                      amount: effectiveTotalPrice,
+                      appFee: directCheckout.appFee,
+                      comment: `Ticket for ${registrationOption.event.title}`,
+                      currency: tenant.currency,
+                      eventId: registrationOption.eventId,
+                      eventRegistrationId: userRegistration.id,
+                      executiveUserId: user.id,
+                      id: directCheckout.transactionId,
+                      method: 'stripe',
+                      status: 'pending',
+                      stripeAccountId: lockedStripeAccount,
+                      stripeCheckoutRequest: directCheckout.request,
+                      targetUserId: user.id,
+                      tenantId: tenant.id,
+                      type: 'registration',
+                    })
+                    .returning(registrationPaymentClaimSelection);
+                  paymentClaim = insertedClaims[0];
+                  if (!paymentClaim) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message:
+                          'Payment could not be prepared. No payment was taken. Reopen the event and review your sign-up choices.',
+                      }),
+                    );
+                  }
                 }
 
                 if (answerInserts.length > 0) {
                   yield* tx.insert(eventRegistrationQuestionAnswers).values(
                     answerInserts.map((answer) => ({
                       answer: answer.answer,
+                      eventId,
                       questionId: answer.questionId,
                       registrationId: userRegistration.id,
+                      registrationOptionId: registrationOption.id,
+                      tenantId: tenant.id,
                     })),
                   );
                 }
 
                 for (const {
                   addOn,
+                  baseAmount,
                   purchaseId,
                   purchaseLotId,
                 } of addOnPurchasePlans) {
@@ -3269,7 +3649,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     if (updatedAddOns.length === 0) {
                       return yield* Effect.fail(
                         new EventRegistrationConflictError({
-                          message: 'Add-on quantity is no longer available',
+                          message: 'There are not enough of this add-on left.',
                         }),
                       );
                     }
@@ -3305,7 +3685,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                           stripeFeeAmount: 0,
                           taxAmount: 0,
                         }),
-                        baseAmount: addOn.price * addOn.selectedQuantity,
+                        baseAmount,
                         currency: tenant.currency,
                         eventId,
                         id: purchaseLotId,
@@ -3332,7 +3712,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     terms: [
                       {
                         allocationKey: `registration-initial:${userRegistration.id}`,
-                        baseAmount: effectivePrice + basePrice * guestCount,
+                        baseAmount:
+                          checkoutPriceBreakdown.registrationBaseAmount,
                         id: `registration:${userRegistration.id}`,
                         kind: 'registration',
                         quantity: requestedSpotCount,
@@ -3344,13 +3725,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                           lockedSelectedTaxRate?.percentage ?? null,
                       },
                       ...addOnPurchasePlans.flatMap(
-                        ({ addOn, purchaseId, purchaseLotId }) =>
+                        ({ addOn, baseAmount, purchaseId, purchaseLotId }) =>
                           purchaseLotId
                             ? [
                                 {
                                   allocationKey: `addon-lot:${purchaseLotId}`,
-                                  baseAmount:
-                                    addOn.price * addOn.selectedQuantity,
+                                  baseAmount,
                                   id: `addon-lot:${purchaseLotId}`,
                                   kind: 'addon_lot' as const,
                                   purchaseId,
@@ -3384,7 +3764,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     return yield* Effect.fail(
                       new EventRegistrationInternalError({
                         message:
-                          'Direct free registration acquisition terms are not zero-value',
+                          'The price details are not valid, so no sign-up was created. Contact an Evorto administrator.',
                       }),
                     );
                   }
@@ -3400,13 +3780,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     spotCount: requestedSpotCount,
                     tenantId: tenant.id,
                   }).pipe(
-                    Effect.mapError(
-                      (cause) =>
-                        new EventRegistrationInternalError({
-                          cause,
-                          message:
-                            'Direct registration acquisition could not be persisted',
-                        }),
+                    mapEventRegistrationInternalError(
+                      'eventRegistration.create.persistAcquisition',
+                      'The payment details could not be saved, so no sign-up was created. No payment was taken. Reopen the event and try again.',
                     ),
                   );
                 }
@@ -3432,58 +3808,17 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     return yield* Effect.fail(
                       new EventRegistrationInternalError({
                         message:
-                          'Tenant not found for registration confirmation email',
+                          'The organization details are unavailable, so no sign-up was created. Contact an Evorto administrator.',
                       }),
                     );
                   }
-                  const communicationEmail =
-                    user.communicationEmail === undefined
-                      ? (yield* tx.query.users.findFirst({
-                          columns: {
-                            communicationEmail: true,
-                          },
-                          where: { id: user.id },
-                        }))?.communicationEmail
-                      : user.communicationEmail;
                   yield* enqueueRegistrationConfirmedEmail(tx, {
                     eventTitle: registrationOption.event.title,
                     registrationId: userRegistration.id,
                     tenant: emailTenant,
                     ticketUrl: directConfirmationTicketUrl,
-                    to: communicationEmail?.trim() || user.email,
+                    to: user.communicationEmail,
                   });
-                }
-
-                let paymentClaim: RegistrationPaymentClaim | undefined;
-                if (directCheckout) {
-                  const insertedClaims = yield* tx
-                    .insert(transactions)
-                    .values({
-                      amount: effectiveTotalPrice,
-                      appFee: directCheckout.appFee,
-                      comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
-                      currency: tenant.currency,
-                      eventId: registrationOption.eventId,
-                      eventRegistrationId: userRegistration.id,
-                      executiveUserId: user.id,
-                      id: directCheckout.transactionId,
-                      method: 'stripe',
-                      status: 'pending',
-                      stripeAccountId: lockedStripeAccount,
-                      stripeCheckoutRequest: directCheckout.request,
-                      targetUserId: user.id,
-                      tenantId: tenant.id,
-                      type: 'registration',
-                    })
-                    .returning(registrationPaymentClaimSelection);
-                  paymentClaim = insertedClaims[0];
-                  if (!paymentClaim) {
-                    return yield* Effect.fail(
-                      new EventRegistrationInternalError({
-                        message: 'Failed to create registration payment claim',
-                      }),
-                    );
-                  }
                 }
 
                 return {
@@ -3516,21 +3851,22 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         if (reservationResult._tag === 'AlreadyRegistered') {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'User is already registered for this event',
+              message: 'This person is already signed up for this event.',
             }),
           );
         }
         if (reservationResult._tag === 'CapacityFull') {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Registration option has no available spots',
+              message: 'The selected sign-up choice is full.',
             }),
           );
         }
         if (reservationResult._tag === 'TenantLimitReached') {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Active registration limit reached',
+              message:
+                'This organization has reached its limit for current sign-ups. Contact an administrator.',
             }),
           );
         }
@@ -3542,6 +3878,80 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           paymentClaim: reservationResult.paymentClaim,
           registrationId: reservationResult.registrationId,
           tenantId: tenant.id,
+        });
+      });
+
+      const retryRegistrationCheckout = Effect.fn(
+        'EventRegistrationService.retryRegistrationCheckout',
+      )(function* ({
+        registrationId,
+        tenantId,
+        userId,
+      }: RetryRegistrationCheckoutArguments) {
+        const registration = yield* databaseEffect((database) =>
+          database.query.eventRegistrations.findFirst({
+            columns: {
+              eventId: true,
+              id: true,
+            },
+            where: {
+              id: registrationId,
+              status: 'PENDING',
+              tenantId,
+              userId,
+            },
+          }),
+        );
+        if (!registration) {
+          return yield* Effect.fail(
+            new EventRegistrationNotFoundError({
+              message:
+                'This ticket is no longer waiting for payment. No payment was taken. Reopen the ticket and review its current payment status.',
+            }),
+          );
+        }
+
+        const paymentClaims = yield* databaseEffect((database) =>
+          database
+            .select(registrationPaymentClaimSelection)
+            .from(transactions)
+            .leftJoin(
+              registrationTransfers,
+              and(
+                eq(
+                  registrationTransfers.recipientCheckoutTransactionId,
+                  transactions.id,
+                ),
+                eq(registrationTransfers.tenantId, transactions.tenantId),
+              ),
+            )
+            .where(
+              and(
+                eq(transactions.eventRegistrationId, registration.id),
+                eq(transactions.method, 'stripe'),
+                eq(transactions.status, 'pending'),
+                eq(transactions.tenantId, tenantId),
+                eq(transactions.type, 'registration'),
+                isNull(transactions.stripeCheckoutCancellationRequestedAt),
+                isNull(registrationTransfers.id),
+              ),
+            ),
+        );
+        if (paymentClaims.length !== 1) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'Payment cannot be started for this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
+            }),
+          );
+        }
+
+        return yield* resumeDirectRegistrationCheckout({
+          eventId: registration.eventId,
+          paymentClaim: paymentClaims[0],
+          recheckEligibilityBeforeCreating: true,
+          registrationId: registration.id,
+          tenantId,
         });
       });
 
@@ -3557,11 +3967,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           const serverEnvironment = yield* serverConfig
             .parse(configProvider)
             .pipe(
-              Effect.mapError(
-                (error) =>
-                  new EventRegistrationInternalError({
-                    message: `Invalid server configuration:\n${formatConfigError(error)}`,
-                  }),
+              mapEventRegistrationInternalError(
+                'eventRegistration.waitlist.serverConfig',
+                'The waitlist is unavailable because Evorto is not ready. No change was made. Contact an Evorto administrator.',
               ),
             );
           const pinnedNowIso = Option.getOrUndefined(
@@ -3585,7 +3993,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           if (existingRegistration) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'User is already registered for this event',
+                message: 'This person is already signed up for this event.',
               }),
             );
           }
@@ -3624,28 +4032,29 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           if (!registrationOption) {
             return yield* Effect.fail(
               new EventRegistrationNotFoundError({
-                message: 'Registration option not found',
+                message: 'The selected sign-up choice is no longer available.',
               }),
             );
           }
           if (!registrationOption.event) {
             return yield* Effect.fail(
               new EventRegistrationInternalError({
-                message: 'Registration option event relation missing',
+                message:
+                  'The event details are unavailable, so no sign-up was created. Contact an organizer.',
               }),
             );
           }
           if (registrationOption.event.tenantId !== tenant.id) {
             return yield* Effect.fail(
               new EventRegistrationNotFoundError({
-                message: 'Registration option not found',
+                message: 'The selected sign-up choice is no longer available.',
               }),
             );
           }
           if (registrationOption.event.status !== 'APPROVED') {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'Event is not open for registration',
+                message: 'This event is not accepting sign-ups.',
               }),
             );
           }
@@ -3655,7 +4064,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           ) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'Registration is not open',
+                message: 'Sign-up is not open right now.',
               }),
             );
           }
@@ -3667,21 +4076,23 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           ) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'User is not eligible for this registration option',
+                message:
+                  'This person does not qualify for the selected sign-up choice.',
               }),
             );
           }
           if (registrationOption.organizingRegistration) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'Waitlist is only available for participant options',
+                message:
+                  'The waitlist is only available for attendee sign-up choices.',
               }),
             );
           }
           if (registrationOption.registrationMode !== 'fcfs') {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'Registration option mode is not available yet',
+                message: 'A waitlist is not available for this sign-up choice.',
               }),
             );
           }
@@ -3692,7 +4103,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           ) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'Registration option still has available spots',
+                message:
+                  'The selected sign-up choice still has places available. Sign up directly instead.',
               }),
             );
           }
@@ -3710,28 +4122,70 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             database
               .transaction((tx) =>
                 Effect.gen(function* () {
-                  const lockedMemberships = yield* tx
-                    .select({ id: usersToTenants.id })
-                    .from(usersToTenants)
-                    .where(
-                      and(
-                        eq(usersToTenants.tenantId, tenant.id),
-                        eq(usersToTenants.userId, user.id),
-                      ),
-                    )
-                    .for('update');
-                  if (lockedMemberships.length !== 1) {
+                  const lockedEligibility =
+                    yield* lockCurrentRegistrationEligibility(tx, {
+                      eventId,
+                      registrationOptionId: registrationOption.id,
+                      tenantId: tenant.id,
+                      userId: user.id,
+                    });
+                  if (lockedEligibility._tag === 'NotMember') {
                     return yield* Effect.fail(
                       new EventRegistrationNotFoundError({
-                        message: 'Tenant membership not found',
+                        message:
+                          'Your organization membership could not be found.',
                       }),
                     );
                   }
-
-                  const activeRegistrationLimit = Math.max(
-                    0,
-                    Math.trunc(tenant.maxActiveRegistrationsPerUser ?? 0),
-                  );
+                  if (lockedEligibility._tag === 'Unavailable') {
+                    return yield* Effect.fail(
+                      new EventRegistrationNotFoundError({
+                        message:
+                          'The selected sign-up choice is no longer available.',
+                      }),
+                    );
+                  }
+                  if (lockedEligibility.eventStatus !== 'APPROVED') {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message: 'This event is not accepting sign-ups.',
+                      }),
+                    );
+                  }
+                  if (
+                    now < lockedEligibility.openRegistrationTime ||
+                    now > lockedEligibility.closeRegistrationTime
+                  ) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message: 'Sign-up is not open right now.',
+                      }),
+                    );
+                  }
+                  if (
+                    !isUserEligibleForRegistrationOption({
+                      optionRoleIds: lockedEligibility.roleIds,
+                      userRoleIds: lockedEligibility.userRoleIds,
+                    })
+                  ) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message:
+                          'This person does not qualify for the selected sign-up choice.',
+                      }),
+                    );
+                  }
+                  if (
+                    lockedEligibility.organizingRegistration ||
+                    lockedEligibility.registrationMode !== 'fcfs'
+                  ) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message:
+                          'The waitlist is no longer available for the selected sign-up choice.',
+                      }),
+                    );
+                  }
 
                   const activeRegistrations =
                     yield* tx.query.eventRegistrations.findMany({
@@ -3747,31 +4201,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     });
                   if (activeRegistrations.length > 0) {
                     return { _tag: 'AlreadyRegistered' } as const;
-                  }
-
-                  if (activeRegistrationLimit > 0) {
-                    const activeFutureRegistrations = yield* tx
-                      .select({ id: eventRegistrations.id })
-                      .from(eventRegistrations)
-                      .innerJoin(
-                        eventInstances,
-                        eq(eventInstances.id, eventRegistrations.eventId),
-                      )
-                      .where(
-                        and(
-                          eq(eventRegistrations.tenantId, tenant.id),
-                          eq(eventRegistrations.userId, user.id),
-                          sql`${eventRegistrations.status} <> 'CANCELLED'`,
-                          sql`${eventInstances.start} > ${now}`,
-                        ),
-                      )
-                      .limit(activeRegistrationLimit);
-                    if (
-                      activeFutureRegistrations.length >=
-                      activeRegistrationLimit
-                    ) {
-                      return { _tag: 'TenantLimitReached' } as const;
-                    }
                   }
 
                   const updatedOptions = yield* tx
@@ -3813,8 +4242,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     yield* tx.insert(eventRegistrationQuestionAnswers).values(
                       answerInserts.map((answer) => ({
                         answer: answer.answer,
+                        eventId,
                         questionId: answer.questionId,
                         registrationId: createdRegistrations[0].id,
+                        registrationOptionId: registrationOption.id,
+                        tenantId: tenant.id,
                       })),
                     );
                   }
@@ -3846,21 +4278,15 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           if (waitlistResult._tag === 'AlreadyRegistered') {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'User is already registered for this event',
+                message: 'This person is already signed up for this event.',
               }),
             );
           }
           if (waitlistResult._tag === 'CapacityAvailable') {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
-                message: 'Registration option still has available spots',
-              }),
-            );
-          }
-          if (waitlistResult._tag === 'TenantLimitReached') {
-            return yield* Effect.fail(
-              new EventRegistrationConflictError({
-                message: 'Active registration limit reached',
+                message:
+                  'The selected sign-up choice still has places available. Sign up directly instead.',
               }),
             );
           }
@@ -3871,6 +4297,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         approveManualRegistration,
         joinWaitlist,
         registerForEvent,
+        retryRegistrationCheckout,
       } as const;
     }),
   },
@@ -3892,4 +4319,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
   static readonly registerForEvent = (input: RegisterForEventArguments) =>
     EventRegistrationService.use((service) => service.registerForEvent(input));
+
+  static readonly retryRegistrationCheckout = (
+    input: RetryRegistrationCheckoutArguments,
+  ) =>
+    EventRegistrationService.use((service) =>
+      service.retryRegistrationCheckout(input),
+    );
 }

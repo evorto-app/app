@@ -6,10 +6,7 @@ import {
   addConsumedFinanceReceiptUpload,
 } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
-import {
-  adminStateFile,
-  usersToAuthenticate,
-} from '../../../helpers/user-data';
+import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -24,43 +21,32 @@ test('Review and reimburse receipts @finance', async ({
   seeded,
   tenant,
 }, testInfo) => {
-  const organizerUser = usersToAuthenticate.find(
-    (user) => user.roles === 'organizer',
-  );
-  if (!organizerUser) {
-    throw new Error('Expected seeded organizer user for receipt docs');
-  }
-
-  const originalOrganizer = await database.query.users.findFirst({
-    where: { id: organizerUser.id },
-  });
-  if (!originalOrganizer) {
-    throw new Error('Expected organizer user record for receipt docs');
-  }
-
   const eventId = seeded.scenario.events.past.eventId;
+  const reimbursementUserId = getId();
   const receiptId = getId();
-  const receiptFileName = `receipt-review-doc-${seedDate.getTime()}.pdf`;
+  const receiptFileName = 'event-supplies.pdf';
   const missingEvidenceReceiptId = getId();
-  const missingEvidenceFileName = `receipt-missing-evidence-doc-${seedDate.getTime()}.pdf`;
-  const organizerCommunicationEmail = `delivered+receipt-doc-${receiptId}@notifications.example.test`;
+  const missingEvidenceFileName = 'cafe-receipt.pdf';
+  const organizerCommunicationEmail = 'alex.organizer@example.org';
   const approvalNotificationIdempotencyKey = `receipt-reviewed/${tenant.id}/${receiptId}/approved`;
   const rejectionNotificationIdempotencyKey = `receipt-reviewed/${tenant.id}/${missingEvidenceReceiptId}/rejected`;
   const missingEvidenceRejectionReason =
-    'The uploaded receipt evidence is unavailable.';
+    'The uploaded receipt file is unavailable.';
   let receiptUploadId: string | undefined;
   let missingEvidenceUploadId: string | undefined;
   let refundTransactionId: string | undefined;
 
   try {
-    await database
-      .update(schema.users)
-      .set({
-        communicationEmail: organizerCommunicationEmail,
-        iban: 'DE00123456781234567890',
-        paypalEmail: 'organizer-refunds@example.com',
-      })
-      .where(eq(schema.users.id, organizerUser.id));
+    await database.insert(schema.users).values({
+      auth0Id: `test|receipt-doc-${reimbursementUserId}`,
+      communicationEmail: organizerCommunicationEmail,
+      email: 'casey.receipts@example.org',
+      firstName: 'Event',
+      iban: 'DE89370400440532013000',
+      id: reimbursementUserId,
+      lastName: 'Organizer',
+      paypalEmail: 'organizer-refunds@example.com',
+    });
 
     const receiptUpload = await addAvailableConsumedFinanceReceiptUpload(
       database,
@@ -70,7 +56,7 @@ test('Review and reimburse receipts @finance', async ({
         mimeType: 'application/pdf',
         sourceFilePath: path.resolve('tests/fixtures/sample-receipt.pdf'),
         tenantId: tenant.id,
-        uploadedByUserId: organizerUser.id,
+        uploadedByUserId: reimbursementUserId,
       },
     );
     receiptUploadId = receiptUpload.id;
@@ -80,14 +66,12 @@ test('Review and reimburse receipts @finance', async ({
       mimeType: 'application/pdf',
       sizeBytes: 1024,
       tenantId: tenant.id,
-      uploadedByUserId: organizerUser.id,
+      uploadedByUserId: reimbursementUserId,
     });
     await database.insert(schema.financeReceipts).values([
       {
         alcoholAmount: 150,
         attachmentFileName: receiptFileName,
-        attachmentMimeType: 'application/pdf',
-        attachmentSizeBytes: receiptUpload.sizeBytes,
         attachmentUploadId: receiptUploadId,
         currency: tenant.currency,
         depositAmount: 150,
@@ -96,9 +80,11 @@ test('Review and reimburse receipts @finance', async ({
         hasDeposit: true,
         id: receiptId,
         purchaseCountry: 'DE',
-        receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2),
+        receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24 * 2)
+          .toISOString()
+          .slice(0, 10),
         status: 'submitted',
-        submittedByUserId: organizerUser.id,
+        submittedByUserId: reimbursementUserId,
         taxAmount: 0,
         tenantId: tenant.id,
         totalAmount: 1450,
@@ -106,8 +92,6 @@ test('Review and reimburse receipts @finance', async ({
       {
         alcoholAmount: 0,
         attachmentFileName: missingEvidenceFileName,
-        attachmentMimeType: 'application/pdf',
-        attachmentSizeBytes: 1024,
         attachmentUploadId: missingEvidenceUploadId,
         currency: tenant.currency,
         depositAmount: 0,
@@ -116,9 +100,11 @@ test('Review and reimburse receipts @finance', async ({
         hasDeposit: false,
         id: missingEvidenceReceiptId,
         purchaseCountry: 'DE',
-        receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24),
+        receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24)
+          .toISOString()
+          .slice(0, 10),
         status: 'submitted',
-        submittedByUserId: organizerUser.id,
+        submittedByUserId: reimbursementUserId,
         taxAmount: 100,
         tenantId: tenant.id,
         totalAmount: 1000,
@@ -128,25 +114,24 @@ test('Review and reimburse receipts @finance', async ({
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
-# Review and reimburse receipts
 
 Use this guide when you review submitted event receipts and record reimbursements for your current organization.
 
-{% callout type="note" title="Account and permission requirements" %}
-You must be signed in to the organization that owns the receipt. Role names are defined by each organization; the account needs **Approve receipts** access to approve or reject a receipt and **Record receipt reimbursements** access to record the later reimbursement. One account may hold both permissions, or the two steps may be handled by different finance users.
+{% callout type="note" title="Who can do this" %}
+You must be signed in to the organization that owns the receipt. Role names are defined by each organization; you need **Approve receipts** access to approve or reject a receipt and **Record receipt reimbursements** access to record the later reimbursement. One person may have access to both, or two finance team members may handle the separate steps.
 {% /callout %}
 
 Before you begin:
 
 - An event organizer must already have submitted the receipt for an event in this organization.
-- The uploaded receipt image or PDF must still be available for review.
-- The submitter needs an IBAN or PayPal address in their profile before a finance user can record the matching payout method.
-- Approval or rejection schedules an email to the submitter. Delivery may take a short time.
+- The uploaded receipt must still be available for review.
+- The submitter needs an IBAN or PayPal address in their profile before a finance team member can record how they were paid.
+- After you save an approval or rejection, Evorto tries to email the submitter. Delivery may take time or fail.
 - Evorto records the reimbursement only after you transfer the money outside Evorto by the selected bank or PayPal method. It does not send that money.
 
 The receipt keeps the currency recorded at submission even if the organization default changes later.
 
-## Open the approval queue
+## Open receipts awaiting approval
 
 From the main navigation, select **Finances**, then **Receipt approvals**.
 `,
@@ -167,14 +152,14 @@ From the main navigation, select **Finances**, then **Receipt approvals**.
       testInfo,
       page.locator('app-receipt-approval-list'),
       page,
-      'Receipt approval queue',
+      'Receipts awaiting approval',
     );
 
     await testInfo.attach('markdown', {
       body: `
 ## Review the submitted receipt
 
-Open a receipt from the approval queue to inspect the attachment metadata, submitted amounts, country, alcohol/deposit flags, and the manual submitter-notification notice.
+Open a receipt from the list to review the uploaded file, submitted amounts, country, alcohol or deposit details, and the notice about emailing the submitter.
 `,
     });
 
@@ -195,7 +180,7 @@ Open a receipt from the approval queue to inspect the attachment metadata, submi
     await page.getByRole('button', { name: 'Approve' }).click();
     await expect(
       page.getByText(
-        'Receipt approved and the submitter notification was queued.',
+        'Receipt approved. Evorto will now try to email the submitter.',
       ),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
@@ -228,11 +213,11 @@ Open a receipt from the approval queue to inspect the attachment metadata, submi
 
     await testInfo.attach('markdown', {
       body: `
-The success message confirms that the review was saved and the submitter will be notified. The receipt now has **approved** status and records the reviewer. Email delivery may take a short time.
+The success message confirms that the review was saved. The receipt now shows **Approved** and the reviewer's name; Evorto then attempts to email the submitter.
 
-## Recover when the evidence is missing
+## When the uploaded file is missing
 
-The approval queue may list a receipt whose uploaded file is no longer available. Open that receipt from the same queue. Evorto disables approval, keeps rejection available, and requires a rejection reason. This review screen cannot replace the missing file, so reject the receipt and explain what the submitter needs to correct.
+The list may include a receipt whose uploaded file is no longer available. Open that receipt from the same list. Evorto disables approval, keeps rejection available, and requires a rejection reason. This page cannot replace the missing file. Reject the receipt and tell the submitter that the uploaded file is unavailable and that they need to submit a new receipt with a readable file attached.
 `,
     });
 
@@ -245,7 +230,7 @@ The approval queue may list a receipt whose uploaded file is no longer available
     await expect(
       page.getByRole('alert').filter({
         hasText:
-          'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+          'The uploaded receipt file is unavailable. You cannot approve the receipt until the file can be checked, but you can still reject it.',
       }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
@@ -255,7 +240,7 @@ The approval queue may list a receipt whose uploaded file is no longer available
       testInfo,
       page.locator('app-receipt-approval-detail'),
       page,
-      'Missing receipt evidence recovery',
+      'Receipt file unavailable during review',
     );
     await page
       .getByLabel('Reason shown to the submitter')
@@ -264,7 +249,7 @@ The approval queue may list a receipt whose uploaded file is no longer available
     await rejectButton.click();
     await expect(
       page.getByText(
-        'Receipt rejected and the submitter notification was queued.',
+        'Receipt rejected. Evorto will now try to email the submitter.',
       ),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
@@ -320,14 +305,14 @@ After approval, return to **Finances** and open **Receipt reimbursements**. The 
       testInfo,
       page.locator('app-receipt-refund-list'),
       page,
-      'Receipt reimbursement queue',
+      'Receipts awaiting reimbursement',
     );
 
     const reimbursementSection = page.locator('section', {
       has: page.getByText(receiptFileName),
     });
     await expect(
-      reimbursementSection.getByText('IBAN: DE00123456781234567890'),
+      reimbursementSection.getByText('IBAN: DE89370400440532013000'),
     ).toBeVisible();
     await expect(
       reimbursementSection.getByText('PayPal: organizer-refunds@example.com'),
@@ -341,9 +326,23 @@ After approval, return to **Finances** and open **Receipt reimbursements**. The 
     await reimbursementSection
       .getByRole('button', { name: 'Record reimbursement' })
       .click();
+    const confirmationDialog = page.getByRole('dialog', {
+      name: 'Record reimbursement?',
+    });
+    await expect(confirmationDialog).toBeVisible();
     await expect(
-      page.getByText('Reimbursement transaction recorded'),
+      confirmationDialog.getByText('Bank transfer · DE89370400440532013000'),
     ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      confirmationDialog,
+      page,
+      'Confirm receipt reimbursement',
+    );
+    await confirmationDialog
+      .getByRole('button', { name: 'Record reimbursement' })
+      .click();
+    await expect(page.getByText('Reimbursement recorded')).toBeVisible();
 
     await expect
       .poll(() =>
@@ -376,20 +375,10 @@ After approval, return to **Finances** and open **Receipt reimbursements**. The 
 
     await testInfo.attach('markdown', {
       body: `
-Recording reimbursement updates the receipt to **Reimbursed** and creates a successful manual refund transaction in Evorto using the receipt's recorded currency. The actual bank or PayPal transfer remains an external finance action.
+Recording reimbursement updates the receipt to **Reimbursed**. This confirms that the bank or PayPal transfer was completed outside Evorto; Evorto does not send the money.
 `,
     });
   } finally {
-    await database
-      .update(schema.users)
-      .set({
-        communicationEmail: originalOrganizer.communicationEmail,
-        firstName: originalOrganizer.firstName,
-        iban: originalOrganizer.iban,
-        lastName: originalOrganizer.lastName,
-        paypalEmail: originalOrganizer.paypalEmail,
-      })
-      .where(eq(schema.users.id, organizerUser.id));
     await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, receiptId));
@@ -419,5 +408,8 @@ Recording reimbursement updates the receipt to **Reimbursed** and creates a succ
           rejectionNotificationIdempotencyKey,
         ]),
       );
+    await database
+      .delete(schema.users)
+      .where(eq(schema.users.id, reimbursementUserId));
   }
 });

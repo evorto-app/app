@@ -2,9 +2,21 @@ import type { TestCase, TestResult } from '@playwright/test/reporter';
 import * as crypto from 'node:crypto';
 import path from 'node:path';
 
+import { generatedGuideLevelOneHeadingViolations } from '../../../../helpers/testing/generated-docs-language';
+import {
+  ALL_PERMISSIONS,
+  permissionLabel,
+} from '../../../../src/shared/permissions/permissions';
 import { writeFile } from './shared';
 
 export type ResultAttachment = TestResult['attachments'][number];
+
+const documentationPermissionLabels = new Map(
+  ALL_PERMISSIONS.map((permission) => [
+    permission,
+    permissionLabel(permission),
+  ]),
+);
 
 const readAttachmentBody = (
   attachment: ResultAttachment,
@@ -20,16 +32,23 @@ const readAttachmentBody = (
 
 const parseMarkdownAttachment = (markdown: string) => {
   const fmMatch = markdown.match(/^---[\s\S]*?---\s*/);
-  if (!fmMatch)
-    return { body: markdown, frontMatterPermissions: [] as string[] };
+  const body = fmMatch ? markdown.slice(fmMatch[0].length) : markdown;
+
+  if (generatedGuideLevelOneHeadingViolations(body).length > 0) {
+    throw new Error(
+      'Generated documentation owns the page title; documentation source must not add another level-one heading.',
+    );
+  }
+
+  if (!fmMatch) return { body, frontMatterPermissions: [] as string[] };
 
   const frontMatterPermissions = fmMatch[0]
     .split(/\r?\n/)
-    .map((line) => line.match(/^\s*-\s*(.+)$/)?.[1])
+    .map((line) => line.match(/^\s*-\s+(.+)$/)?.[1])
     .filter((line): line is string => Boolean(line));
 
   return {
-    body: markdown.slice(fmMatch[0].length),
+    body,
     frontMatterPermissions,
   };
 };
@@ -58,8 +77,16 @@ const appendPermissionsCallout = (
 ) => {
   if (!permissionsLines.length) return;
   sectionContent.push(
-    '{% callout type="note" title="User permissions" %}',
-    ...permissionsLines.map((permission) => `- ${permission}`),
+    '{% callout type="note" title="Who can do this" %}',
+    ...permissionsLines.map((permission) => {
+      const label = documentationPermissionLabels.get(permission);
+      if (!label) {
+        throw new Error(
+          `Unknown permission in generated documentation: ${permission}`,
+        );
+      }
+      return `- ${label}`;
+    }),
     '{% /callout %}',
     '',
   );

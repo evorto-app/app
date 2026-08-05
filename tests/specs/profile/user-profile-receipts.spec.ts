@@ -41,15 +41,17 @@ test('profile receipts show submitted receipt status and event context', async (
       uploadedByUserId: regularUser.id,
     });
     await database.insert(schema.financeReceipts).values({
+      alcoholAmount: 0,
       attachmentFileName: receiptFileName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 2048,
       attachmentUploadId: receiptUploadId,
       currency: seeded.tenant.currency,
+      depositAmount: 0,
       eventId,
+      hasAlcohol: false,
+      hasDeposit: false,
       id: receiptId,
       purchaseCountry: 'DE',
-      receiptDate: seedDate,
+      receiptDate: seedDate.toISOString().slice(0, 10),
       status: 'submitted',
       submittedByUserId: regularUser.id,
       taxAmount: 300,
@@ -57,9 +59,9 @@ test('profile receipts show submitted receipt status and event context', async (
       totalAmount: 1875,
     });
 
-    await page.goto('/profile#receipts');
+    await page.goto('/profile/receipts');
     await expect(
-      page.getByRole('heading', { name: 'Submitted receipts' }),
+      page.getByRole('heading', { name: 'Your receipts' }),
     ).toBeVisible();
 
     const receiptCard = page.locator('article').filter({

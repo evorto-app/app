@@ -19,7 +19,7 @@
       >
         <div class="flex flex-row items-center gap-4">
           <fa-duotone-icon [icon]="faUsers" size="xl" />
-          <h2 class="title-medium">Users</h2>
+          <h2 class="title-medium">Members</h2>
         </div>
       </a>
       <a
@@ -30,7 +30,7 @@
       >
         <div class="flex flex-row items-center gap-4">
           <fa-duotone-icon [icon]="faFolderUser" size="xl" />
-          <h2 class="title-medium">User roles</h2>
+          <h2 class="title-medium">Member roles</h2>
         </div>
       </a>
       <a
@@ -38,10 +38,55 @@
         routerLink="settings"
         class="bg-surface text-on-surface rounded-2xl p-4"
         routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+        [routerLinkActiveOptions]="{ exact: true }"
       >
         <div class="flex flex-row items-center gap-4">
           <fa-duotone-icon [icon]="faGlobe" size="xl" />
-          <h2 class="title-medium">General settings</h2>
+          <h2 class="title-medium">Organization settings</h2>
+        </div>
+      </a>
+      <a
+        *appIfPermission="'admin:changeSettings'"
+        routerLink="settings/registration"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      >
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon [icon]="faCalendarClock" size="xl" />
+          <h2 class="title-medium">Sign-up rules</h2>
+        </div>
+      </a>
+      <a
+        *appIfPermission="'admin:changeSettings'"
+        routerLink="settings/appearance"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      >
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon [icon]="faPalette" size="xl" />
+          <h2 class="title-medium">Appearance</h2>
+        </div>
+      </a>
+      <a
+        *appIfPermission="'admin:changeSettings'"
+        routerLink="settings/legal"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      >
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon [icon]="faScaleBalanced" size="xl" />
+          <h2 class="title-medium">Legal pages</h2>
+        </div>
+      </a>
+      <a
+        *appIfPermission="'admin:managePayments'"
+        routerLink="settings/payments"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      >
+        <div class="flex flex-row items-center gap-4">
+          <fa-duotone-icon [icon]="faCreditCard" size="xl" />
+          <h2 class="title-medium">Payments</h2>
         </div>
       </a>
       <a
@@ -52,7 +97,7 @@
       >
         <div class="flex flex-row items-center gap-4">
           <fa-duotone-icon [icon]="faClipboardQuestion" size="xl" />
-          <h2 class="title-medium">Member onboarding</h2>
+          <h2 class="title-medium">New member setup</h2>
         </div>
       </a>
       <a
@@ -63,7 +108,7 @@
       >
         <div class="flex flex-row items-center gap-4">
           <fa-duotone-icon [icon]="faReceipt" size="xl" />
-          <h2 class="title-medium">Tax Rates</h2>
+          <h2 class="title-medium">Tax rates</h2>
         </div>
       </a>
       <a
@@ -74,12 +119,16 @@
       >
         <div class="flex flex-row items-center gap-4">
           <fa-duotone-icon [icon]="faCalendarCheck" size="xl" />
-          <h2 class="title-medium">Event Reviews</h2>
+          <h2 class="title-medium">Event reviews</h2>
           @if (pendingReviewsCount() > 0) {
             <span
               class="bg-warning text-on-warning ml-auto rounded-full px-2 py-1 text-xs"
             >
               {{ pendingReviewsCount() }}
+            </span>
+          } @else if (pendingReviewsQuery.isError()) {
+            <span class="text-error ml-auto text-xs" role="status">
+              Count unavailable
             </span>
           }
         </div>

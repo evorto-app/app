@@ -1,4 +1,5 @@
 export {
+  EventCheckInUnavailableError,
   EventRegistrationConflictError,
   type EventRegistrationError,
   EventRegistrationInternalError,

@@ -3,9 +3,41 @@ import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  eventEditQueryErrorMessage,
+  eventEditSaveErrorMessage,
   eventEditSubmitDisabled,
   eventOptionRemovalBlockReason,
 } from './event-edit';
+
+describe('event edit error messages', () => {
+  it('shows event conflicts and form corrections', () => {
+    expect(
+      eventEditQueryErrorMessage({
+        _tag: 'EventConflictError',
+        message: 'This event cannot be edited in its current status.',
+      }),
+    ).toBe('This event cannot be edited in its current status.');
+    expect(
+      eventEditSaveErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Choose an event end time after its start time.',
+      }),
+    ).toBe('Choose an event end time after its start time.');
+  });
+
+  it('keeps internal and access failures behind plain copy', () => {
+    const internalError = {
+      _tag: 'RpcInternalServerError',
+      message: 'database failed',
+    };
+    expect(eventEditQueryErrorMessage(internalError)).toBe(
+      'The event could not be loaded. Try again.',
+    );
+    expect(eventEditSaveErrorMessage(internalError)).toBe(
+      'The event could not be saved. Try again.',
+    );
+  });
+});
 
 describe('eventEditSubmitDisabled', () => {
   it('blocks event edit submits while invalid, submitting, or awaiting the mutation', () => {
@@ -16,6 +48,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(false);
     expect(
@@ -25,6 +59,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
     expect(
@@ -34,6 +70,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: true,
         graphReadOnly: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
     expect(
@@ -43,6 +81,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: false,
         mutationPending: true,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
     expect(
@@ -52,6 +92,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: true,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
   });
@@ -64,6 +106,8 @@ describe('eventEditSubmitDisabled', () => {
         formSubmitting: false,
         graphReadOnly: false,
         mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: true,
       }),
     ).toBe(true);
 
@@ -73,6 +117,55 @@ describe('eventEditSubmitDisabled', () => {
     );
     expect(template).toContain('Discount settings could not be loaded.');
     expect(template).toContain('discountProvidersQuery.refetch()');
+  });
+
+  it('blocks event edit submits until tax rates resolve successfully', () => {
+    expect(
+      eventEditSubmitDisabled({
+        discountProvidersReady: true,
+        formInvalid: false,
+        formSubmitting: false,
+        graphReadOnly: false,
+        mutationPending: false,
+        paidGraphBlocked: false,
+        taxRatesReady: false,
+      }),
+    ).toBe(true);
+
+    const template = readFileSync(
+      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
+      'utf8',
+    );
+    expect(template).toContain('Tax rates could not be loaded.');
+    expect(template).toContain('taxRatesQuery.refetch()');
+  });
+
+  it('blocks paid graphs while Stripe is disconnected without resetting them', () => {
+    expect(
+      eventEditSubmitDisabled({
+        discountProvidersReady: true,
+        formInvalid: false,
+        formSubmitting: false,
+        graphReadOnly: false,
+        mutationPending: false,
+        paidGraphBlocked: true,
+        taxRatesReady: true,
+      }),
+    ).toBe(true);
+
+    const source = readFileSync(
+      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.ts'),
+      'utf8',
+    );
+    const template = readFileSync(
+      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
+      'utf8',
+    );
+    expect(source).toContain('paymentsConfigured');
+    expect(source).not.toContain('stripeAccountId');
+    expect(source).not.toContain('resetEventGraphPayments');
+    expect(template).toContain('They remain unchanged');
+    expect(template).toContain('cannot save changes until');
   });
 });
 
@@ -114,9 +207,40 @@ describe('event edit currency inputs', () => {
     );
 
     expect(template).toContain(
-      'No add-ons yet. Add one to offer extras with registration.',
+      'No add-ons yet. Add one to offer extras during sign-up.',
     );
     expect(template).not.toContain('Add-ons are disabled for this event.');
+  });
+
+  it('renders the shared add-on quantity and type limits', () => {
+    const schemaSource = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/events/event-edit/event-graph-form.schema.ts',
+      ),
+      'utf8',
+    );
+    const parentTemplate = readFileSync(
+      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
+      'utf8',
+    );
+    const addOnTemplate = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/events/event-edit/event-addon-editor.html',
+      ),
+      'utf8',
+    );
+
+    expect(schemaSource).toContain(
+      'max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY',
+    );
+    expect(addOnTemplate).toContain(
+      'At most {{ maxRegistrationAddonQuantity }} items per sign-up.',
+    );
+    expect(parentTemplate).toContain(
+      '[disabled]="eventModel().addOns.length >= maxEventAddonTypes"',
+    );
   });
 });
 

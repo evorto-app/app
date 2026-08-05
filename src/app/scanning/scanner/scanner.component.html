@@ -4,64 +4,155 @@
 </div>
 <div
   class="bg-surface text-on-surface rounded-lg p-4"
-  [attr.aria-busy]="cameraStarting()"
+  [attr.aria-busy]="scannerAccessChecking() || cameraStarting()"
 >
-  <p class="text-on-surface-variant mb-4">
-    Allow camera access, then hold the attendee's ticket QR code inside the
-    frame. If this device cannot use the camera, scan the ticket with a phone.
-  </p>
   <video
     #videoElement
     aria-label="Camera preview for ticket scanning"
     class="bg-surface-container-highest mx-auto aspect-video w-full max-w-4xl rounded object-cover"
+    [hidden]="!scannerAccessGranted()"
   ></video>
-  @if (cameraStarting()) {
+  @if (scannerAccessChecking()) {
     <div
       class="bg-surface-container text-on-surface mt-2 rounded p-2"
       aria-live="polite"
       role="status"
     >
-      Starting camera ...
+      Checking scanner access…
     </div>
-  }
-  @if (cameraReady() && !cameraErrorMessage()) {
+  } @else if (scannerAccessQuery.isError()) {
     <div
-      class="bg-surface-container text-on-surface mt-2 rounded p-2"
-      aria-live="polite"
-      role="status"
-    >
-      Camera ready. Hold the attendee's ticket QR code inside the frame.
-    </div>
-  }
-  @if (ticketFeedbackMessage()) {
-    <div
-      class="bg-tertiary-container text-on-tertiary-container mt-2 rounded p-2"
-      aria-live="polite"
-      role="status"
-    >
-      <p class="title-small">Not an Evorto ticket</p>
-      <p>{{ ticketFeedbackMessage() }}</p>
-    </div>
-  }
-  @if (cameraErrorMessage()) {
-    <div
-      class="bg-error text-on-error mt-2 rounded p-2"
-      aria-live="assertive"
+      class="bg-error-container text-on-error-container mt-2 rounded p-3"
       role="alert"
     >
-      <p class="title-small">Camera unavailable</p>
+      <p class="title-small">Scanner access could not be checked</p>
       <p>
-        {{ cameraErrorMessage() }}
+        The camera stayed off because access could not be checked. Select Try
+        checking access again.
       </p>
       <button
         mat-stroked-button
         type="button"
         class="mt-2"
-        (click)="retryCamera()"
-        [disabled]="cameraStarting()"
+        [disabled]="scannerAccessQuery.isFetching()"
+        (click)="retryScannerAccess()"
       >
-        Try camera again
+        {{
+          scannerAccessQuery.isFetching()
+            ? "Checking access…"
+            : "Try checking access again"
+        }}
       </button>
     </div>
+  } @else if (scannerAccessQuery.data() === false) {
+    <div
+      class="bg-error-container text-on-error-container mt-2 rounded p-3"
+      role="alert"
+    >
+      <p class="title-small">Scanner unavailable</p>
+      <p>
+        You cannot check in attendees for this event. Ask an event organizer or
+        an administrator for access.
+      </p>
+    </div>
+  } @else if (scannerAccessGranted()) {
+    <p class="text-on-surface-variant mt-4">
+      Allow camera access, then hold the attendee's ticket QR code inside the
+      frame. If this device cannot use the camera, scan the ticket with a phone.
+    </p>
+    @if (cameraStarting()) {
+      <div
+        class="bg-surface-container text-on-surface mt-2 rounded p-2"
+        aria-live="polite"
+        role="status"
+      >
+        Starting camera…
+      </div>
+    }
+    @if (cameraReady() && !cameraErrorMessage()) {
+      <div
+        class="bg-surface-container text-on-surface mt-2 rounded p-2"
+        aria-live="polite"
+        role="status"
+      >
+        Camera ready. Hold the attendee's ticket QR code inside the frame.
+      </div>
+    }
+    @if (navigationPending()) {
+      <div
+        class="bg-surface-container text-on-surface mt-2 rounded p-2"
+        aria-live="polite"
+        role="status"
+      >
+        Opening ticket…
+      </div>
+    }
+    @if (ticketFeedbackMessage()) {
+      <div
+        class="bg-tertiary-container text-on-tertiary-container mt-2 rounded p-3"
+        aria-live="polite"
+        role="status"
+      >
+        <p class="title-small">Not an Evorto ticket</p>
+        <p>{{ ticketFeedbackMessage() }}</p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="mt-2"
+          [disabled]="cameraStarting()"
+          (click)="scanAnotherTicket()"
+        >
+          Scan another code
+        </button>
+      </div>
+    }
+    @if (navigationErrorMessage()) {
+      <div
+        class="bg-error-container text-on-error-container mt-2 rounded p-3"
+        role="alert"
+      >
+        <p class="title-small">Ticket did not open</p>
+        <p>{{ navigationErrorMessage() }}</p>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="navigationPending()"
+            (click)="retryNavigation()"
+          >
+            Try opening ticket again
+          </button>
+          <button
+            mat-button
+            type="button"
+            [disabled]="cameraStarting() || navigationPending()"
+            (click)="scanAnotherTicket()"
+          >
+            Scan a different ticket
+          </button>
+        </div>
+      </div>
+    }
+    @if (cameraErrorMessage()) {
+      <div
+        class="bg-error text-on-error mt-2 rounded p-3"
+        aria-live="assertive"
+        role="alert"
+      >
+        <p class="title-small">Camera unavailable</p>
+        <p>
+          {{ cameraErrorMessage() }}
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="mt-2"
+          (click)="retryCamera()"
+          [disabled]="cameraStarting()"
+        >
+          Try camera again
+        </button>
+      </div>
+    }
   }
 </div>

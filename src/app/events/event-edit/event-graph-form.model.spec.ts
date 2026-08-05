@@ -7,8 +7,6 @@ import {
   advancedEventGraphWarnings,
   eventGraphFormToPayload,
   eventGraphRecordToFormModel,
-  legacyRandomEventEditMessage,
-  resetEventGraphPayments,
   simpleEventGraphIssue,
 } from './event-graph-form.model';
 
@@ -131,66 +129,6 @@ describe('event graph form mapping', () => {
     });
   });
 
-  it('blocks unavailable random allocation without coercing it', () => {
-    const source = eventGraph();
-    const result = eventGraphRecordToFormModel(
-      {
-        ...source,
-        registrationOptions: source.registrationOptions.map((option, index) =>
-          index === 1 ? { ...option, registrationMode: 'random' } : option,
-        ),
-      },
-      DEFAULT_TENANT_TIMEZONE,
-    );
-    expect(legacyRandomEventEditMessage).toBe(
-      'Random allocation is unavailable. An authorized event editor must choose First come, first served or Manual approval before anyone can edit this registration setup.',
-    );
-    expect(result).toEqual({ error: legacyRandomEventEditMessage });
-  });
-
-  it('clears event payment fields without changing graph configuration', () => {
-    const loadResult = eventGraphRecordToFormModel(
-      eventGraph(),
-      DEFAULT_TENANT_TIMEZONE,
-    );
-    if (!('model' in loadResult)) throw new Error('Expected writable graph');
-    const source = {
-      ...loadResult.model,
-      addOns: loadResult.model.addOns.map((addOn) => ({
-        ...addOn,
-        isPaid: true,
-        price: 500,
-        stripeTaxRateId: 'txr_addon',
-      })),
-      registrationOptions: loadResult.model.registrationOptions.map(
-        (option) => ({
-          ...option,
-          esnCardDiscountedPrice: 750,
-          isPaid: true,
-          price: 1000,
-          stripeTaxRateId: 'txr_option',
-        }),
-      ),
-    };
-
-    const reset = resetEventGraphPayments(source);
-
-    expect(reset.registrationOptions[0]).toMatchObject({
-      esnCardDiscountedPrice: '',
-      isPaid: false,
-      price: 0,
-      roleIds: source.registrationOptions[0]?.roleIds,
-      stripeTaxRateId: null,
-    });
-    expect(reset.addOns[0]).toMatchObject({
-      isPaid: false,
-      price: 0,
-      registrationOptions: source.addOns[0]?.registrationOptions,
-      stripeTaxRateId: null,
-      title: source.addOns[0]?.title,
-    });
-  });
-
   it('enforces simple compatibility while advanced category gaps remain warnings', () => {
     const options = [
       { organizingRegistration: true },
@@ -201,14 +139,49 @@ describe('event graph form mapping', () => {
       simpleEventGraphIssue([...options, { organizingRegistration: false }]),
     ).toContain('exactly one');
     expect(advancedEventGraphWarnings([])).toEqual([
-      'No organizing registration option is configured.',
-      'No non-organizing registration option is configured.',
+      'No organizer sign-up choice has been added.',
+      'No attendee sign-up choice has been added.',
     ]);
     expect(
       advancedEventGraphWarnings([
         { organizingRegistration: true },
         { organizingRegistration: true },
       ]),
-    ).toEqual(['No non-organizing registration option is configured.']);
+    ).toEqual(['No attendee sign-up choice has been added.']);
+  });
+
+  it('describes broken registration details without implementation terminology', () => {
+    const source = eventGraph();
+    const [question] = source.questions;
+    if (!question) throw new Error('Expected the question fixture');
+
+    expect(
+      eventGraphRecordToFormModel(
+        {
+          ...source,
+          questions: [{ ...question, registrationOptionId: 'missing-option' }],
+        },
+        DEFAULT_TENANT_TIMEZONE,
+      ),
+    ).toEqual({
+      error:
+        'This event has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Use Back to event, then contact Evorto support and include the event name.',
+    });
+
+    expect(
+      eventGraphRecordToFormModel(
+        {
+          ...source,
+          registrationOptions: source.registrationOptions.map((option) => ({
+            ...option,
+            organizingRegistration: true,
+          })),
+        },
+        DEFAULT_TENANT_TIMEZONE,
+      ),
+    ).toEqual({
+      error:
+        'This event has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Use Back to event, then contact Evorto support and include the event name.',
+    });
   });
 });

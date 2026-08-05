@@ -14,16 +14,26 @@ This directory contains the active Playwright suite.
 Each product-facing documentation journey should be understandable without
 prior Evorto knowledge. Include:
 
-1. the intended user and exact account, tenant, permission, and external-service prerequisites;
+1. the intended reader and exact account, organization, permission, and external-service prerequisites;
 2. a click-by-click path starting from normal application navigation;
 3. an explanation of choices before the user commits a write or payment;
-4. the visible completion state plus a persisted, payment, or notification readback where applicable;
-5. critical denial, recovery, retry, timing, and tenant-boundary behavior;
+4. the visible completion state and any payment or message confirmation the reader should expect;
+5. critical denial, recovery, retry, timing, and organization-boundary behavior;
 6. explicit unsupported or deferred behavior so the guide does not promise an unavailable feature;
 7. accessible screenshots where they clarify a real decision or result, backed by behavior assertions rather than screenshots alone.
 
+Use plain product language throughout the published text, guide titles, callouts,
+and screenshot captions. Do not publish implementation names, protocols,
+identifiers, storage or delivery mechanics, database checks, fixture details, or
+test evidence. Keep those details in executable setup and assertions. Name an
+external service only where the reader sees or uses it.
+
+The documentation reporter owns each page title and writes the page's single
+level-one heading. Authored Markdown must start at `##` or a lower heading
+level; adding a `#` heading in a documentation source is an error.
+
 When a complete workflow cannot yet be documented because the product behavior
-does not exist, keep that absence in `APPLICATION_COMPLIANCE_AUDIT.md`; do not
+does not exist, keep that absence in `APPLICATION_REVIEW_QUEUE.md`; do not
 replace it with aspirational documentation.
 
 ## Fixture Contract
@@ -73,9 +83,12 @@ replace it with aspirational documentation.
   the recipient's current discounts, with one exact refund per original Stripe
   source. The recipient payment is recalculated independently from those source
   refunds, and source-user discounts do not transfer. Only a wholly free bundle
-  with no refund may complete database-only. Immediate direct reassignment is
-  also limited to options without participant questions; otherwise the private
-  recipient claim must collect and replace the recipient-owned answers.
+  with no refund may complete database-only. Participant self-service always
+  uses the private offer-and-claim path; there is no participant direct
+  reassignment RPC. The separate organizer direct reassignment is limited to
+  free, no-refund options without participant questions. Otherwise the current
+  owner creates the private offer and the recipient claim collects and replaces
+  the recipient-owned answers.
 - `docs/events/registration-transfer.doc.ts` generates the participant-facing
   walkthrough for creating and claiming a private transfer offer by link or manual code. Its paid
   journey captures the pending Checkout, confirmed/refund-processing,
@@ -175,6 +188,14 @@ bun run test:e2e -- --headed --workers 1
 bun run lint
 ```
 
+In a linked worktree, the integration, live ESNcard, release-certification, and
+documentation-publication commands fill only missing Google Maps and ESNcard
+test values from the primary checkout's `.env`. Values already set for the
+current command win, and database, Auth0, Stripe, ports, and all other settings
+remain worktree-local. If neither location supplies a required value, the
+normal preflight still stops with its name; no test is skipped and no substitute
+value is invented.
+
 ## PostgreSQL Integration Suite
 
 `bun run test:integration:postgres` owns every `*.postgres.spec.ts` test. It
@@ -198,7 +219,10 @@ Remote targets are rejected. `bun run test:integration:postgres:local` loads the
 generated worktree-local loopback URL and still requires
 `POSTGRES_INTEGRATION_DISPOSABLE=true`. Never point this command at a default,
 production, shared, or otherwise persistent database. Connection URLs and
-credentials must not be printed or committed.
+credentials must not be printed or committed. An intentional local `db:reset`
+or Docker `db-setup` creates the fixed integration database when it is absent;
+PostgreSQL container startup does not depend on a host-mounted initialization
+file.
 
 ## Docker Runtime
 
@@ -308,7 +332,9 @@ credentials must not be printed or committed.
   intentionally excluded; run their canonical non-UI commands instead.
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is the Auth0 Management and required Google Maps portion of the
-  provider gate and requires their approved local credentials.
+  provider gate and requires their approved local credentials. A linked
+  worktree can reuse a missing Google Maps test value from the primary checkout
+  without importing the primary checkout's database or other settings.
 - `bun run test:e2e:live-esncard` runs only the live esncard.org active-card
   add/refresh/remove and expired-card status paths. It selects both the
   `local-chrome-live-esncard` functional project and the `docs-live-esncard`
@@ -318,7 +344,10 @@ credentials must not be printed or committed.
   `@needs-live-esncard`. It runs the fail-closed live-provider runtime preflight
   first; a missing `E2E_LIVE_ESN_CARD_IDENTIFIER` or
   `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` is an error, not a skipped test. This
-  focused command does not run the provider-error unit check;
+  check uses missing approved local identifiers from the primary checkout when
+  the command runs in a linked worktree. It never prints them or copies any
+  unrelated setting. The focused command does not run the provider-error unit
+  check;
   use `bun run test:e2e:live-esncard:release` for the ESNcard provider portion.
   Complete local provider certification requires both
   `bun run test:e2e:integration` and
@@ -362,10 +391,13 @@ credentials must not be printed or committed.
 - Use `bun run test:e2e:docs:publish` only when you intentionally want to update
   the generated guide catalog in the tracked Evorto Pages documentation app.
   Set `EVORTO_PAGES_ROOT` to an absolute path containing
-  `apps/documentation-page` and `tools/docs/sync-generated-docs.mjs`; the
-  command does not assume a developer-specific checkout. Publishing requires
+  `apps/marketing/src/content/generated-docs`, `apps/marketing/public/docs`,
+  and `tools/docs/sync-generated-docs.mjs`; the command does not assume a
+  developer-specific checkout. Publishing requires
   the complete Auth0 Management, Google Maps, active ESNcard, and permanently
-  expired ESNcard credential set. It generates `docs-baseline`,
+  expired ESNcard credential set. Linked worktrees reuse only missing provider
+  test values from the primary checkout and keep their own runtime and database
+  configuration. It generates `docs-baseline`,
   `docs-integration`, and `docs-live-esncard` together into ignored staging,
   maps every guide into the consumer's fixed 13-guide lifecycle catalog, and
   emits `docs-tests.bundle/v1alpha1` plus the hashed output manifest. Any new,

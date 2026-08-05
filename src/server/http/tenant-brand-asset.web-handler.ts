@@ -3,7 +3,10 @@ import type { AdminTenantBrandAssetKind } from '@shared/rpc-contracts/app-rpcs/a
 import { RpcInternalServerError } from '@shared/errors/rpc-errors';
 import { Effect } from 'effect';
 
-import { ObjectStorage } from '../integrations/object-storage';
+import {
+  ObjectStorage,
+  ObjectStorageNotFoundError,
+} from '../integrations/object-storage';
 import {
   tenantBrandAssetContentTypeFromFileName,
   tenantBrandAssetStorageKey,
@@ -11,17 +14,6 @@ import {
 
 const response = (body: BodyInit, status: number) =>
   new Response(body, { status });
-
-const isObjectNotFoundError = (error: unknown): boolean => {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  if (/not found|no such key|404/i.test(error.message)) {
-    return true;
-  }
-
-  return isObjectNotFoundError(error.cause);
-};
 
 const isTenantBrandAssetKind = (
   value: string,
@@ -35,13 +27,13 @@ export const handleTenantBrandAssetWebRequest = (input: {
 }) =>
   Effect.gen(function* () {
     if (!input.tenantId.trim() || !isTenantBrandAssetKind(input.kind)) {
-      return response('Asset not found', 404);
+      return response('Image not found', 404);
     }
 
     const fileName = input.fileName.trim();
     const contentType = tenantBrandAssetContentTypeFromFileName(fileName);
     if (!fileName || !contentType) {
-      return response('Asset not found', 404);
+      return response('Image not found', 404);
     }
 
     const storageKey = tenantBrandAssetStorageKey({
@@ -50,17 +42,19 @@ export const handleTenantBrandAssetWebRequest = (input: {
       tenantId: input.tenantId,
     });
     const body = yield* ObjectStorage.get(storageKey).pipe(
-      Effect.catchIf(isObjectNotFoundError, () => Effect.succeed(null)),
+      Effect.catchIf(
+        (error) => error instanceof ObjectStorageNotFoundError,
+        () => Effect.succeed(null),
+      ),
       Effect.mapError(
-        (cause) =>
+        () =>
           new RpcInternalServerError({
-            cause,
-            message: 'Failed to load tenant brand asset',
+            message: 'The organization image could not be loaded. Try again.',
           }),
       ),
     );
     if (!body) {
-      return response('Asset not found', 404);
+      return response('Image not found', 404);
     }
 
     return new Response(body, {

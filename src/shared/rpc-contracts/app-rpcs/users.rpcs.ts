@@ -1,6 +1,13 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { notificationEmailPattern } from '@shared/notification-email';
-import { literalUnion, positiveNumber } from '@shared/schema-utilities';
+import { IbanInput } from '@shared/iban';
+import { EmailAddressInput } from '@shared/notification-email';
+import {
+  literalUnion,
+  nonNegativeNumber,
+  PageLimit,
+  PageOffset,
+  positiveNumber,
+} from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -11,11 +18,8 @@ import {
   UserRpcError,
   UsersAssignRolesError,
   UsersFindManyError,
+  UsersUpdateProfileError,
 } from './users.errors';
-
-const NotificationEmail = Schema.NonEmptyString.check(
-  Schema.isPattern(notificationEmailPattern),
-);
 
 export const UsersAuthData = Schema.Struct({
   email: Schema.optional(Schema.NullOr(Schema.String)),
@@ -42,8 +46,8 @@ export const UsersCanUseScanner = asRpcQuery(
 );
 
 export const UsersFindManyInput = Schema.Struct({
-  limit: Schema.optional(Schema.Number),
-  offset: Schema.optional(Schema.Number),
+  limit: Schema.optional(PageLimit),
+  offset: Schema.optional(PageOffset),
   search: Schema.optional(Schema.NonEmptyString),
 });
 
@@ -117,11 +121,11 @@ export const UsersSetHomeTenant = asRpcMutation(
 );
 
 export const UsersUpdateProfileInput = Schema.Struct({
-  communicationEmail: NotificationEmail,
+  communicationEmail: EmailAddressInput,
   firstName: Schema.NonEmptyString,
-  iban: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  iban: Schema.optional(Schema.NullOr(IbanInput)),
   lastName: Schema.NonEmptyString,
-  paypalEmail: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  paypalEmail: Schema.optional(Schema.NullOr(EmailAddressInput)),
 });
 
 export type UsersUpdateProfileInput = Schema.Schema.Type<
@@ -130,7 +134,7 @@ export type UsersUpdateProfileInput = Schema.Schema.Type<
 
 export const UsersUpdateProfile = asRpcMutation(
   Rpc.make('users.updateProfile', {
-    error: UserRpcError,
+    error: UsersUpdateProfileError,
     payload: UsersUpdateProfileInput,
     success: Schema.Void,
   }),
@@ -139,10 +143,15 @@ export const UsersUpdateProfile = asRpcMutation(
 export const UsersEventSummaryRecord = Schema.Struct({
   addonPurchases: Schema.Array(
     Schema.Struct({
-      quantity: Schema.Number,
+      currency: Tenant.fields.currency,
+      purchasedQuantity: nonNegativeNumber.check(Schema.isInt()),
+      quantity: nonNegativeNumber.check(Schema.isInt()),
       title: Schema.NonEmptyString,
-      unitPrice: Schema.Number,
+      unitPrice: nonNegativeNumber.check(Schema.isInt()),
     }),
+  ),
+  cancellationReason: Schema.NullOr(
+    Schema.Literal('eligibilityChangedAfterPayment'),
   ),
   checkInTime: Schema.NullOr(Schema.String),
   checkoutUrl: Schema.NullOr(Schema.String),

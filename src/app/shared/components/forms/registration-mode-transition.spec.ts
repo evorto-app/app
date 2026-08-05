@@ -29,7 +29,7 @@ describe('persistedAdvancedToSimpleModeIssue', () => {
     ).toBeNull();
   });
 
-  it('requires compatible advanced changes to be saved and reopened first', () => {
+  it('requires compatible advanced changes to be saved first', () => {
     expect(
       persistedAdvancedToSimpleModeIssue(
         {
@@ -42,8 +42,11 @@ describe('persistedAdvancedToSimpleModeIssue', () => {
         simpleShapedOptions,
       ),
     ).toBe(persistedAdvancedToSimpleModeBlockMessage);
-    expect(persistedAdvancedToSimpleModeBlockMessage).toContain(
-      'reopen this editor',
+    expect(persistedAdvancedToSimpleModeBlockMessage).toBe(
+      'Save these changes first. Nothing has been changed.',
+    );
+    expect(persistedAdvancedToSimpleModeBlockMessage).not.toMatch(
+      /ID|persisted|mode/,
     );
   });
 

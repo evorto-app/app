@@ -1,13 +1,28 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { EventCheckInTimingIssue } from '@shared/event-check-in';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { nonNegativeNumber } from '@shared/schema-utilities';
-import { Effect, Schema } from 'effect';
+import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant, TenantTimezone } from '../../../types/custom/tenant';
 import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
-import { EventReviewStatus, EventsRegistrationStatus } from './events.rpcs';
+import { EventCheckInUnavailableError } from './events.errors';
+import {
+  EventReviewStatus,
+  EventsCancellableRegistrationStatus,
+  EventsRegistrationStatus,
+} from './events.rpcs';
 import { IconRecord } from './icons.rpcs';
 import {
   PlatformOperationRpcError,
@@ -17,18 +32,30 @@ import {
 import {
   TemplateGraphInput,
   TemplateGraphRecord,
-  TemplateWritableRegistrationMode,
+  TemplateRegistrationMode,
 } from './templates.rpcs';
 
 const nonNegativeInteger = nonNegativeNumber.check(Schema.isInt());
+const registrationAddonQuantity = nonNegativeInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
+);
+const registrationQuestionDescription = Schema.NullOr(
+  Schema.String.check(
+    Schema.isMaxLength(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+  ),
+);
+const registrationQuestionTitle = Schema.NonEmptyString.check(
+  Schema.isMaxLength(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+);
 
 export const PlatformEventListRecord = Schema.Struct({
+  announcementRoleCount: nonNegativeInteger,
   end: Schema.NonEmptyString,
+  hasRegistrationOptions: Schema.Boolean,
   id: Schema.NonEmptyString,
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 export type PlatformEventListRecord = Schema.Schema.Type<
@@ -49,7 +76,7 @@ export const PlatformEventRegistrationOptionRecord = Schema.Struct({
   price: nonNegativeInteger,
   refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: Schema.Literals(['application', 'fcfs', 'random']),
+  registrationMode: TemplateRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: nonNegativeInteger,
   stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
@@ -59,12 +86,12 @@ export const PlatformEventRegistrationOptionRecord = Schema.Struct({
 
 export const PlatformEventWritableRegistrationOptionInput = Schema.Struct({
   ...PlatformEventRegistrationOptionRecord.fields,
-  registrationMode: TemplateWritableRegistrationMode,
+  registrationMode: TemplateRegistrationMode,
 });
 
 export const PlatformEventAddonRegistrationOptionRecord = Schema.Struct({
-  includedQuantity: nonNegativeInteger,
-  optionalPurchaseQuantity: nonNegativeInteger,
+  includedQuantity: registrationAddonQuantity,
+  optionalPurchaseQuantity: registrationAddonQuantity,
   registrationOptionId: Schema.NonEmptyString,
 });
 
@@ -79,6 +106,7 @@ export const PlatformEventAddonRecord = Schema.Struct({
   maxQuantityPerUser: Schema.Number.check(
     Schema.isInt(),
     Schema.isGreaterThan(0),
+    Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
   ),
   price: nonNegativeInteger,
   registrationOptions: Schema.Array(PlatformEventAddonRegistrationOptionRecord),
@@ -88,16 +116,17 @@ export const PlatformEventAddonRecord = Schema.Struct({
 });
 
 export const PlatformEventQuestionRecord = Schema.Struct({
-  description: Schema.NullOr(Schema.String),
+  description: registrationQuestionDescription,
   id: Schema.NonEmptyString,
   registrationOptionId: Schema.NonEmptyString,
   required: Schema.Boolean,
   sortOrder: nonNegativeInteger,
-  title: Schema.NonEmptyString,
+  title: registrationQuestionTitle,
 });
 
 export const PlatformEventDetailRecord = Schema.Struct({
   addOns: Schema.Array(PlatformEventAddonRecord),
+  announcementRoleIds: Schema.Array(Schema.NonEmptyString),
   creator: Schema.Struct({
     email: Schema.String,
     firstName: Schema.String,
@@ -118,7 +147,6 @@ export const PlatformEventDetailRecord = Schema.Struct({
   status: EventReviewStatus,
   statusComment: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 export type PlatformEventDetailRecord = Schema.Schema.Type<
@@ -220,7 +248,7 @@ export const PlatformEventsUpdateInput = Schema.Struct({
       ...PlatformEventAddonRecord.fields,
       id: Schema.optional(Schema.NonEmptyString),
     }),
-  ),
+  ).check(Schema.isMaxLength(MAX_EVENT_ADDON_TYPES)),
   description: Schema.NonEmptyString,
   end: Schema.NonEmptyString,
   icon: iconSchema,
@@ -230,7 +258,7 @@ export const PlatformEventsUpdateInput = Schema.Struct({
       ...PlatformEventQuestionRecord.fields,
       id: Schema.optional(Schema.NonEmptyString),
     }),
-  ),
+  ).check(Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS)),
   registrationOptions: Schema.Array(
     PlatformEventWritableRegistrationOptionInput,
   ),
@@ -276,19 +304,19 @@ export const PlatformEventsReview = asRpcMutation(
   }),
 );
 
-export const PlatformEventsUpdateListingInput = Schema.Struct({
+export const PlatformEventsUpdateAnnouncementDiscoveryInput = Schema.Struct({
   ...PlatformEventMutationTarget.fields,
-  unlisted: Schema.Boolean,
+  announcementRoleIds: Schema.Array(Schema.NonEmptyString),
 });
 
-export type PlatformEventsUpdateListingInput = Schema.Schema.Type<
-  typeof PlatformEventsUpdateListingInput
+export type PlatformEventsUpdateAnnouncementDiscoveryInput = Schema.Schema.Type<
+  typeof PlatformEventsUpdateAnnouncementDiscoveryInput
 >;
 
-export const PlatformEventsUpdateListing = asRpcMutation(
-  Rpc.make('platform.events.updateListing', {
+export const PlatformEventsUpdateAnnouncementDiscovery = asRpcMutation(
+  Rpc.make('platform.events.updateAnnouncementDiscovery', {
     error: PlatformOperationRpcError,
-    payload: PlatformEventsUpdateListingInput,
+    payload: PlatformEventsUpdateAnnouncementDiscoveryInput,
     success: PlatformEventDetailRecord,
   }),
 );
@@ -410,12 +438,12 @@ export const PlatformRegistrationDetailRecord = Schema.Struct({
     }),
   }),
   checkedInGuestCount: nonNegativeInteger,
-  checkInTimingIssue: Schema.Boolean,
+  checkInTimingIssue: Schema.NullOr(EventCheckInTimingIssue),
   currency: Tenant.fields.currency,
   guestCount: nonNegativeInteger,
   manualApprovalAvailable: Schema.Boolean,
   paymentPending: Schema.Boolean,
-  registrationMode: Schema.Literals(['application', 'fcfs', 'random']),
+  registrationMode: TemplateRegistrationMode,
   registrationStatusIssue: Schema.Boolean,
   remainingGuestCount: nonNegativeInteger,
 });
@@ -423,29 +451,6 @@ export const PlatformRegistrationDetailRecord = Schema.Struct({
 export type PlatformRegistrationDetailRecord = Schema.Schema.Type<
   typeof PlatformRegistrationDetailRecord
 >;
-
-export const PlatformRegistrationPageLimit = nonNegativeNumber
-  .check(Schema.isInt(), Schema.isLessThanOrEqualTo(100))
-  .pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(100)));
-
-export const PlatformRegistrationPageOffset = nonNegativeNumber
-  .check(Schema.isInt())
-  .pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(0)));
-
-export const PlatformRegistrationsListInput = Schema.Struct({
-  ...PlatformTenantTarget.fields,
-  eventId: Schema.optional(Schema.NonEmptyString),
-  limit: PlatformRegistrationPageLimit,
-  offset: PlatformRegistrationPageOffset,
-});
-
-export const PlatformRegistrationsList = asRpcQuery(
-  Rpc.make('platform.registrations.list', {
-    error: PlatformOperationRpcError,
-    payload: PlatformRegistrationsListInput,
-    success: Schema.Array(PlatformRegistrationListRecord),
-  }),
-);
 
 export const PlatformRegistrationsFindOne = asRpcQuery(
   Rpc.make('platform.registrations.findOne', {
@@ -468,9 +473,17 @@ export type PlatformRegistrationsCheckInInput = Schema.Schema.Type<
   typeof PlatformRegistrationsCheckInInput
 >;
 
+export const PlatformRegistrationsCheckInError = Schema.Union([
+  EventCheckInUnavailableError,
+  PlatformOperationRpcError,
+]);
+export type PlatformRegistrationsCheckInError = Schema.Schema.Type<
+  typeof PlatformRegistrationsCheckInError
+>;
+
 export const PlatformRegistrationsCheckIn = asRpcMutation(
   Rpc.make('platform.registrations.checkIn', {
-    error: PlatformOperationRpcError,
+    error: PlatformRegistrationsCheckInError,
     payload: PlatformRegistrationsCheckInInput,
     success: PlatformRegistrationDetailRecord,
   }),
@@ -495,6 +508,8 @@ export const PlatformRegistrationsApprove = asRpcMutation(
 
 export const PlatformRegistrationsCancelInput = Schema.Struct({
   ...PlatformTenantMutationContext.fields,
+  expectedPaymentPending: Schema.Boolean,
+  expectedStatus: EventsCancellableRegistrationStatus,
   registrationId: Schema.NonEmptyString,
 });
 
@@ -518,12 +533,11 @@ export class PlatformEventsRpcs extends RpcGroup.make(
   PlatformEventsReview,
   PlatformEventsSubmitForReview,
   PlatformEventsUpdate,
-  PlatformEventsUpdateListing,
+  PlatformEventsUpdateAnnouncementDiscovery,
   PlatformRegistrationsApprove,
   PlatformRegistrationsCancel,
   PlatformRegistrationsCheckIn,
   PlatformRegistrationsFindOne,
-  PlatformRegistrationsList,
   PlatformTemplatesCreate,
   PlatformTemplatesFindOne,
   PlatformTemplatesFormOptions,

@@ -1,26 +1,25 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 import type { DatabaseClient } from './database.layer';
-
-import * as schema from './schema';
 
 const buildPreparedStatements = (database: DatabaseClient) => ({
   getTenantByDomain: database.query.tenants
     .findFirst({
       where: { domain: sql.placeholder('domain') },
+      with: {
+        privacyPolicyVersions: {
+          columns: {
+            privacyPolicyText: true,
+            privacyPolicyUrl: true,
+          },
+          limit: 1,
+          orderBy: {
+            version: 'desc',
+          },
+        },
+      },
     })
     .prepare('getTenantByDomain'),
-  getUserAttributesByTenantAndUser: database
-    .select()
-    .from(schema.userAttributes)
-    .where(
-      and(
-        eq(schema.userAttributes.tenantId, sql.placeholder('tenantId')),
-        eq(schema.userAttributes.userId, sql.placeholder('userId')),
-      ),
-    )
-    .limit(1)
-    .prepare('getUserAttributesByTenantAndUser'),
   getUserByAuth0IdAndTenant: database.query.users
     .findFirst({
       where: { auth0Id: sql.placeholder('auth0Id') },

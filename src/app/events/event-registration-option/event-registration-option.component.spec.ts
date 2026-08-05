@@ -1,3 +1,7 @@
+import {
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -12,7 +16,9 @@ import {
   registrationOptionAvailability,
   registrationOptionAvailableSpots,
   registrationOptionCanJoinWaitlist,
+  registrationOptionErrorMessage,
   registrationOptionIsFull,
+  registrationOptionMaxGuestCount,
   registrationOptionSelectedTotalPrice,
   registrationOptionWriteActionDisabled,
   registrationQuestionAnswerPayload,
@@ -22,33 +28,27 @@ import {
 const readSource = (sourcePath: string): string =>
   readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
-describe('unsupported registration mode template', () => {
-  it('shows the warning before add-ons, questions, authentication, or write controls', () => {
-    const template = readSource(
-      'src/app/events/event-registration-option/event-registration-option.component.html',
-    );
-    const guardIndex = template.indexOf('@if (!registrationModeSupported())');
-    const supportedModeBranchIndex = template.indexOf('} @else {', guardIndex);
-
-    expect(guardIndex).toBeGreaterThan(-1);
-    expect(template.lastIndexOf('@if (!registrationModeSupported())')).toBe(
-      guardIndex,
-    );
-    expect(supportedModeBranchIndex).toBeGreaterThan(guardIndex);
-
-    for (const editableMarker of [
-      '@if (addOns().length',
-      '@if (registrationOption().questions.length',
-      '@if (authenticationQuery.isPending())',
-      '<input',
-      '<textarea',
-      '<button',
-      'href="/forward-login',
-    ]) {
-      expect(template.indexOf(editableMarker)).toBeGreaterThan(
-        supportedModeBranchIndex,
-      );
-    }
+describe('registration option error messages', () => {
+  it('shows a registration conflict without exposing internal failures', () => {
+    const fallback = 'Sign-up could not be completed. Try again.';
+    expect(
+      registrationOptionErrorMessage(
+        {
+          _tag: 'EventRegistrationConflictError',
+          message: 'This sign-up choice is full.',
+        },
+        fallback,
+      ),
+    ).toBe('This sign-up choice is full.');
+    expect(
+      registrationOptionErrorMessage(
+        {
+          _tag: 'EventRegistrationInternalError',
+          message: 'database failed',
+        },
+        fallback,
+      ),
+    ).toBe(fallback);
   });
 });
 
@@ -57,13 +57,33 @@ describe('guest selection template', () => {
     const template = readSource(
       'src/app/events/event-registration-option/event-registration-option.component.html',
     );
+    const normalizedTemplate = template.replaceAll(/\s+/g, ' ');
 
-    expect(template).toContain(
+    expect(normalizedTemplate).toContain(
       'Guests do not need separate accounts. Each guest uses one',
     );
-    expect(template).toContain('available spot and shares your registration.');
+    expect(normalizedTemplate).toContain(
+      'available place and shares your ticket.',
+    );
     expect(template).toContain('subscriptSizing="dynamic"');
-    expect(template).toContain('selectedSpotCount() === 1 ? "spot" : "spots"');
+    expect(template).toContain('[max]="maxGuestCount()"');
+    expect(template).toContain('Choose up to {{ maxGuestCount() }} guests.');
+    expect(template).toContain(
+      'selectedSpotCount() === 1 ? "place" : "places"',
+    );
+  });
+});
+
+describe('sign-in check recovery', () => {
+  it('keeps the sign-up unchanged and offers a local check action', () => {
+    const template = readSource(
+      'src/app/events/event-registration-option/event-registration-option.component.html',
+    );
+
+    expect(template).toContain('Your sign-up was not sent.');
+    expect(template).toContain('(click)="authenticationQuery.refetch()"');
+    expect(template).toContain('"Check again"');
+    expect(template).not.toContain('reload the page');
   });
 });
 
@@ -73,7 +93,7 @@ describe('registration add-on template', () => {
       'src/app/events/event-registration-option/event-registration-option.component.html',
     );
 
-    expect(template).toContain('Included in registration price');
+    expect(template).toContain('Included in the ticket price');
     expect(template).toContain('per extra item');
     expect(template).toContain('@else if (soldOut)');
     expect(template).toContain('addonSoldOutLabel(includedQuantity)');
@@ -84,17 +104,17 @@ describe('registration add-on template', () => {
 });
 
 describe('registrationOptionAudienceCopy', () => {
-  it('keeps participant options on registration copy', () => {
+  it('uses sign-up wording for attendee choices', () => {
     expect(
       registrationOptionAudienceCopy({
         organizingRegistration: false,
         registrationMode: 'fcfs',
       }),
     ).toEqual({
-      actionSuffix: 'register',
-      helperText: 'Use this option when you are attending the event.',
-      label: 'Participant option',
-      primaryAction: 'Register',
+      actionSuffix: 'sign up',
+      helperText: 'Use this choice when you are attending the event.',
+      label: 'Attendee choice',
+      primaryAction: 'Sign up',
     });
   });
 
@@ -106,8 +126,8 @@ describe('registrationOptionAudienceCopy', () => {
       }),
     ).toEqual({
       actionSuffix: 'sign up as organizer/helper',
-      helperText: 'Use this option when you are helping run the event.',
-      label: 'Organizer/helper option',
+      helperText: 'Use this choice when you are helping run the event.',
+      label: 'Organizer/helper choice',
       primaryAction: 'Sign up as organizer/helper',
     });
   });
@@ -121,8 +141,8 @@ describe('registrationOptionAudienceCopy', () => {
     ).toEqual({
       actionSuffix: 'apply',
       helperText:
-        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
-      label: 'Manual approval option',
+        'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
+      label: 'Organizer approval required',
       primaryAction: 'Apply for approval',
     });
   });
@@ -136,7 +156,7 @@ describe('registrationOptionAudienceCopy', () => {
     ).toEqual({
       actionSuffix: 'apply as organizer/helper',
       helperText:
-        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
       label: 'Organizer/helper application',
       primaryAction: 'Apply as organizer/helper',
     });
@@ -190,18 +210,16 @@ describe('registrationOptionCanJoinWaitlist', () => {
     ).toBe(false);
   });
 
-  it('does not offer waitlists for stored unsupported participant modes', () => {
-    for (const registrationMode of ['application', 'random'] as const) {
-      expect(
-        registrationOptionCanJoinWaitlist({
-          confirmedSpots: 8,
-          organizingRegistration: false,
-          registrationMode,
-          reservedSpots: 2,
-          spots: 10,
-        }),
-      ).toBe(false);
-    }
+  it('does not offer waitlists for manual-approval participant options', () => {
+    expect(
+      registrationOptionCanJoinWaitlist({
+        confirmedSpots: 8,
+        organizingRegistration: false,
+        registrationMode: 'application',
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(false);
   });
 
   it('keeps normal registration primary while spots remain', () => {
@@ -236,6 +254,38 @@ describe('registrationOptionAvailableSpots', () => {
         spots: 10,
       }),
     ).toBe(0);
+  });
+});
+
+describe('registrationOptionMaxGuestCount', () => {
+  it('accepts the guest cap and does not grow when capacity exceeds it', () => {
+    const option = {
+      confirmedSpots: 0,
+      organizingRegistration: false,
+      reservedSpots: 0,
+      spots: MAX_REGISTRATION_GUESTS + 1,
+    };
+
+    expect(registrationOptionMaxGuestCount(option)).toBe(
+      MAX_REGISTRATION_GUESTS,
+    );
+    expect(
+      registrationOptionMaxGuestCount({
+        ...option,
+        spots: MAX_REGISTRATION_GUESTS + 2,
+      }),
+    ).toBe(MAX_REGISTRATION_GUESTS);
+  });
+
+  it('uses the remaining capacity below the product cap', () => {
+    expect(
+      registrationOptionMaxGuestCount({
+        confirmedSpots: 4,
+        organizingRegistration: false,
+        reservedSpots: 1,
+        spots: 8,
+      }),
+    ).toBe(2);
   });
 });
 
@@ -393,6 +443,26 @@ describe('registration add-on selections', () => {
         'option-1',
       ),
     ).toBe(2);
+  });
+
+  it('keeps included and optional units within the registration add-on cap', () => {
+    expect(
+      registrationAddonMaxSelectableQuantity(
+        {
+          allowPurchaseDuringRegistration: true,
+          maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+          registrationOptions: [
+            {
+              includedQuantity: 4,
+              optionalPurchaseQuantity: MAX_REGISTRATION_ADDON_QUANTITY,
+              registrationOptionId: 'option-1',
+            },
+          ],
+          totalAvailableQuantity: 100,
+        },
+        'option-1',
+      ),
+    ).toBe(MAX_REGISTRATION_ADDON_QUANTITY - 4);
   });
 
   it('does not count included add-ons against the optional per-user limit', () => {

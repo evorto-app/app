@@ -19,27 +19,26 @@
           <fa-duotone-icon [icon]="faArrowLeft" />
         </a>
         <div class="grow"></div>
-        <button
-          title="menu"
-          *appIfAnyPermission="['events:changeListing']"
-          mat-icon-button
-          [matMenuTriggerFor]="menu"
-          [disabled]="!controlsInteractive() || !eventQuery.isSuccess()"
-          aria-label="Open event actions"
-        >
-          <fa-duotone-icon [icon]="faEllipsisVertical" />
-        </button>
-        <mat-menu #menu="matMenu">
-          <button mat-menu-item (click)="updateVisibility()">
-            Update listing
+        @if (
+          eventQuery.isSuccess() && !eventQuery.data().hasRegistrationOptions
+        ) {
+          <button
+            title="Choose who can find this announcement"
+            *appIfAnyPermission="['events:changeAnnouncementDiscovery']"
+            mat-icon-button
+            [disabled]="!controlsInteractive()"
+            aria-label="Choose who can find this announcement"
+            (click)="updateAnnouncementDiscovery()"
+          >
+            <fa-duotone-icon [icon]="faUsers" />
           </button>
-        </mat-menu>
+        }
       </div>
       <h1 class="display-small">
         @if (eventQuery.isSuccess()) {
           {{ eventQuery.data().title }}
         } @else if (eventQuery.isPending()) {
-          Loading event ...
+          Loading event…
         } @else {
           Event unavailable
         }
@@ -67,6 +66,67 @@
         may not apply.
       </div>
     }
+    @if (eventQuery.isSuccess() && selfQuery.isError()) {
+      <div
+        class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
+        role="alert"
+      >
+        <p>
+          Your account could not be checked. Organizer access and discount-card
+          guidance are unavailable.
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="selfQuery.isFetching()"
+          (click)="selfQuery.refetch()"
+        >
+          {{ selfQuery.isFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
+    }
+    @if (
+      eventQuery.isSuccess() && isAuthenticated() && canOrganizeQuery.isError()
+    ) {
+      <div
+        class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
+        role="alert"
+      >
+        <p>Organizer access could not be checked.</p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="canOrganizeQuery.isFetching()"
+          (click)="canOrganizeQuery.refetch()"
+        >
+          {{ canOrganizeQuery.isFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
+    }
+    @if (
+      eventQuery.isSuccess() &&
+      isAuthenticated() &&
+      discountCardsRequired() &&
+      myCardsQuery.isError()
+    ) {
+      <div
+        class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
+        role="alert"
+      >
+        <p>
+          Your discount card could not be checked. Discount guidance is
+          unavailable.
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="myCardsQuery.isFetching()"
+          (click)="myCardsQuery.refetch()"
+        >
+          {{ myCardsQuery.isFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
+    }
     @if (eventQuery.isSuccess()) {
       @if (canOrganize()) {
         <a routerLink="organize" matButton="filled">Organize this event</a>
@@ -87,18 +147,36 @@
             />
             @if (!canEdit() && eventQuery.data().status !== "APPROVED") {
               <span class="text-on-surface-variant text-sm">
-                (Event is locked for editing)
+                @if (eventQuery.data().status === "PENDING_REVIEW") {
+                  Editing is unavailable while this event is under review.
+                } @else {
+                  You can view this draft, but you cannot edit it.
+                }
               </span>
             }
           </div>
-          @if (eventQuery.data().unlisted) {
-            <div
-              class="bg-secondary-container text-on-secondary-container rounded px-3 py-2 body-small"
-            >
-              Unlisted: hidden from event lists, but eligible people with the
-              direct link can still open it.
-            </div>
-          }
+          <div
+            class="bg-secondary-container text-on-secondary-container rounded px-3 py-2 body-small"
+          >
+            <span class="font-medium">
+              {{
+                eventDiscoveryLabel({
+                  announcementRoleCount:
+                    eventQuery.data().announcementRoleCount,
+                  hasRegistrationOptions:
+                    eventQuery.data().hasRegistrationOptions,
+                })
+              }}
+            </span>
+            —
+            {{
+              eventDiscoveryDescription({
+                announcementRoleCount: eventQuery.data().announcementRoleCount,
+                hasRegistrationOptions:
+                  eventQuery.data().hasRegistrationOptions,
+              })
+            }}
+          </div>
 
           <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
             @if (canReview() && eventQuery.data().status === "PENDING_REVIEW") {
@@ -149,7 +227,7 @@
                   })
                 "
               >
-                Submit for Review
+                Submit for review
               </button>
             }
           </div>
@@ -160,7 +238,7 @@
   <div class="flex flex-col gap-4">
     @if (eventQuery.isPending()) {
       <div class="bg-surface text-on-surface rounded-2xl p-4">
-        <h2 class="title-medium">Loading event ...</h2>
+        <h2 class="title-medium">Loading event…</h2>
       </div>
     } @else if (eventQuery.isError()) {
       <div
@@ -170,8 +248,7 @@
         <div>
           <h2 class="title-medium">Event could not be loaded</h2>
           <p class="body-medium mt-1">
-            The event details are temporarily unavailable. Check your connection
-            and try again.
+            No event details or sign-up actions are shown. Select Try again.
           </p>
         </div>
         <button
@@ -180,7 +257,7 @@
           [disabled]="eventQuery.isFetching()"
           (click)="eventQuery.refetch()"
         >
-          {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+          {{ eventQuery.isFetching() ? "Trying again…" : "Try again" }}
         </button>
       </div>
     } @else if (eventQuery.isSuccess()) {
@@ -222,23 +299,21 @@
                   </div>
                   <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                     <div>
-                      <dt class="text-on-surface-variant">
-                        Available quantity
-                      </dt>
+                      <dt class="text-on-surface-variant">Items available</dt>
                       <dd>{{ addOn.totalAvailableQuantity }}</dd>
                     </div>
                     <div>
-                      <dt class="text-on-surface-variant">Max per user</dt>
+                      <dt class="text-on-surface-variant">
+                        Maximum per person
+                      </dt>
                       <dd>{{ addOn.maxQuantityPerUser }}</dd>
                     </div>
                     <div>
-                      <dt class="text-on-surface-variant">Purchase timing</dt>
+                      <dt class="text-on-surface-variant">Available</dt>
                       <dd>{{ eventAddonPurchaseTiming(addOn) }}</dd>
                     </div>
                     <div>
-                      <dt class="text-on-surface-variant">
-                        Registration options
-                      </dt>
+                      <dt class="text-on-surface-variant">Sign-up choices</dt>
                       <dd>
                         @for (
                           option of addOn.registrationOptions;
@@ -267,10 +342,10 @@
         }
 
         <section class="flex flex-col gap-4">
-          <h2 class="headline-small">Registration</h2>
+          <h2 class="headline-small">Your sign-up</h2>
           @if (registrationStatusQuery.isPending()) {
             <div class="bg-surface text-on-surface rounded-2xl p-4">
-              <h3 class="title-small">Loading registration status…</h3>
+              <h3 class="title-small">Loading your sign-up…</h3>
             </div>
           } @else if (registrationStatusQuery.isError()) {
             <div
@@ -278,13 +353,11 @@
               class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
             >
               <div>
-                <h3 class="title-small">
-                  Registration actions are temporarily unavailable
-                </h3>
+                <h3 class="title-small">Sign-up details could not be loaded</h3>
                 <p class="body-medium mt-1">
-                  You can still review the event details. Try loading your
-                  registration status again to register or manage an existing
-                  registration.
+                  No sign-up action is available until these details load. You
+                  can still review the event. Select Try again to check once
+                  more.
                 </p>
               </div>
               <button
@@ -295,19 +368,16 @@
               >
                 {{
                   registrationStatusQuery.isFetching()
-                    ? "Retrying…"
+                    ? "Trying again…"
                     : "Try again"
                 }}
               </button>
             </div>
           } @else if (registrationStatusQuery.isSuccess()) {
             @if (registrationStatusQuery.data().outgoingTransfers.length > 0) {
-              <section
-                aria-label="Transferred registrations"
-                class="grid gap-3"
-              >
+              <section aria-label="Transferred tickets" class="grid gap-3">
                 <div>
-                  <h3 class="title-medium">Transferred registrations</h3>
+                  <h3 class="title-medium">Transferred tickets</h3>
                   <p class="body-medium text-on-surface-variant mt-1">
                     These are transfers you previously sent. Review their refund
                     history here. If a ticket later returned to you, its current
@@ -395,7 +465,7 @@
                             Organizer/helper opportunities
                           </p>
                           <p class="body-medium text-on-surface-variant">
-                            Confirmed organizer/helper registrations grant event
+                            A confirmed organizer/helper place grants event
                             management access. Applications require approval and
                             any required payment first.
                           </p>
@@ -423,12 +493,12 @@
                       registrationOptionGroups().participantOptions.length > 0
                     ) {
                       <section
-                        aria-label="Participant registration options"
+                        aria-label="Sign-up choices for attendees"
                         class="grid gap-4"
                       >
                         <div class="grid gap-1">
                           <p class="title-medium">
-                            Participant registration options
+                            Sign-up choices for attendees
                           </p>
                           <p class="body-medium text-on-surface-variant">
                             Choose how you want to attend this event.
@@ -457,20 +527,33 @@
                 }
                 @case ("hiddenByEligibility") {
                   <div class="bg-surface text-on-surface rounded-2xl p-4">
-                    <h3 class="title-small">Registration unavailable</h3>
+                    <h3 class="title-small">Sign-up unavailable</h3>
                     <p class="body-medium text-on-surface-variant mt-2">
-                      This event is visible from the direct link, but your
-                      account is not eligible for the available registration
-                      options.
+                      You can view this event, but none of its sign-up choices
+                      are available to you.
                     </p>
+                  </div>
+                }
+                @case ("requiresSignIn") {
+                  <div class="bg-surface text-on-surface rounded-2xl p-4">
+                    <h3 class="title-small">Sign in to see sign-up choices</h3>
+                    <p class="body-medium text-on-surface-variant mt-2">
+                      Sign in to see which sign-up choices are available to you.
+                    </p>
+                    <a
+                      class="mt-3"
+                      href="/forward-login?redirectUrl=/events/{{ eventId() }}"
+                      mat-flat-button
+                    >
+                      Sign in now
+                    </a>
                   </div>
                 }
                 @case ("none") {
                   <div class="bg-surface text-on-surface rounded-2xl p-4">
-                    <h3 class="title-small">No registration options</h3>
+                    <h3 class="title-small">Information only</h3>
                     <p class="body-medium text-on-surface-variant mt-2">
-                      This event does not currently offer registration through
-                      the app.
+                      This event does not have sign-up choices.
                     </p>
                   </div>
                 }

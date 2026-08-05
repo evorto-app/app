@@ -11,25 +11,28 @@ import { getId } from './get-id';
 import { usersToAuthenticate } from './user-data';
 
 const length = 4;
+const seedPrivacyPolicyText =
+  'This organization uses your profile information to manage membership and event participation.';
 
 export const createId = init({ length });
 
+export type CreateSeedTenantInput = Partial<
+  InferInsertModel<typeof schema.tenants>
+> &
+  Pick<InferInsertModel<typeof schema.tenants>, 'currency' | 'domain' | 'name'>;
+
 export const createTenant = async (
   database: NodePgDatabase<typeof relations>,
-  tenantData?: Partial<InferInsertModel<typeof schema.tenants>>,
+  tenantData: CreateSeedTenantInput,
 ) => {
   const t0 = Date.now();
-  const domain = normalizeTenantDomain(tenantData?.domain ?? createId());
+  const domain = normalizeTenantDomain(tenantData.domain);
   const tenant = await database
     .insert(tenants)
     .values({
       ...tenantData,
       domain,
       id: getId(),
-      name: tenantData?.name ?? 'ESN Murnau',
-      privacyPolicyText:
-        tenantData?.privacyPolicyText ??
-        'Development and test tenant privacy policy. Seeded data must not be used as production legal text.',
     })
     .returning();
   consola.success(
@@ -59,8 +62,8 @@ export const createTenant = async (
   const policyVersions = await database
     .insert(schema.tenantPrivacyPolicyVersions)
     .values({
-      privacyPolicyText: tenant[0].privacyPolicyText,
-      privacyPolicyUrl: tenant[0].privacyPolicyUrl,
+      privacyPolicyText: seedPrivacyPolicyText,
+      privacyPolicyUrl: null,
       tenantId: tenant[0].id,
       version: 1,
     })

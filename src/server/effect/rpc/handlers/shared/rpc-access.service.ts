@@ -40,7 +40,7 @@ const rpcAccessEffect = Effect.sync(() => {
             ? Effect.void
             : Effect.fail(
                 new RpcUnauthorizedError({
-                  message: 'Authentication required',
+                  message: 'Sign in to continue.',
                 }),
               ),
         ),
@@ -56,7 +56,7 @@ const rpcAccessEffect = Effect.sync(() => {
         if (!context.authenticated) {
           return yield* Effect.fail(
             new RpcUnauthorizedError({
-              message: 'Authentication required',
+              message: 'Sign in to continue.',
             }),
           );
         }
@@ -75,9 +75,12 @@ const rpcAccessEffect = Effect.sync(() => {
           !includesPermission(permission, context.permissions) &&
           !hasPlatformCapability
         ) {
+          yield* Effect.logWarning('RPC permission denied').pipe(
+            Effect.annotateLogs({ permission }),
+          );
           return yield* Effect.fail(
             new RpcForbiddenError({
-              message: 'Missing required permission',
+              message: 'You do not have permission to do this.',
               permission,
             }),
           );
@@ -93,7 +96,7 @@ const rpcAccessEffect = Effect.sync(() => {
             ? Effect.succeed(context.user)
             : Effect.fail(
                 new RpcUnauthorizedError({
-                  message: 'Authenticated user required',
+                  message: 'Sign in with an organization account to continue.',
                 }),
               ),
         ),

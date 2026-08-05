@@ -16,9 +16,11 @@ import {
 } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 import { fillScannerGuestCheckInCount } from '../../support/utils/scanner-result-page';
 
 test.use({ storageState: adminStateFile });
+test.setTimeout(180_000);
 
 const eventOptionEditorByTitle = async (
   page: Page,
@@ -27,7 +29,7 @@ const eventOptionEditorByTitle = async (
   const editors = page.locator('app-event-registration-option-editor');
   const titleInputs = editors.getByRole('textbox', {
     exact: true,
-    name: 'Option name',
+    name: 'Sign-up choice name',
   });
   let matchingIndex = -1;
 
@@ -61,6 +63,7 @@ test('Create and manage events', async ({
   page,
   roles,
   seeded,
+  testClock,
 }, testInfo) => {
   const target = events.find(
     (event) => event.id === seeded.scenario.events.freeOpen.eventId,
@@ -87,10 +90,8 @@ test('Create and manage events', async ({
 Use an account that can create events and manage all events.
 {% /callout %}
 
-# Event Management
 
-The event management feature allows you to create, edit, and manage events in the application. This includes setting up registration options, managing attendees, and controlling event visibility.
-The current management surface is intentionally focused: event details, registration options, review/listing actions, organizer participant overview, and event receipts.
+From **Events**, you can create and edit events, set up sign-up choices, manage attendees, publish events, and review event receipts.
 
 ## Event List
 
@@ -102,11 +103,12 @@ Start by navigating to the **Events** section from the main menu to see a list o
   await expect(
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
   ).toBeVisible();
+  await expect(page.locator('app-event-list nav a').first()).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
     page,
-    'Event list page',
+    'Published and draft events with dates and publishing stages',
   );
 
   await testInfo.attach('markdown', {
@@ -116,16 +118,16 @@ The event list shows all events with their basic information:
 - Event title
 - Date and time
 - Location
-- Status (draft, pending review, or published)
-- Listing state (listed or unlisted)
+- Whether it is a draft, awaiting review, or published
+- Who can find the event after it is published
 `,
   });
 
   await testInfo.attach('markdown', {
     body: `
-## Creating a New Event
+## Create a new event
 
-To create a new event, click the **Create Event** link on the event list page. This will take you to the templates page where you can select a template for your new event.
+To create a new event, select **Create Event** on the event list page. This opens the templates page, where you can choose the structure for your new event.
 `,
   });
 
@@ -137,7 +139,7 @@ To create a new event, click the **Create Event** link on the event list page. T
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
     page,
-    'Templates page',
+    'Choose a template for the new event',
   );
 
   await testInfo.attach('markdown', {
@@ -150,7 +152,7 @@ Once you've selected a template, you'll be able to customize it with your event 
 - Event description
 - Date and time
 - Location
-- Registration options
+- Sign-up choices
 
 After selecting a template and customizing your event, you can create it and proceed to the event details page.
 `,
@@ -173,66 +175,65 @@ After selecting a template and customizing your event, you can create it and pro
     body: `
 ## Event Details
 
-After creating an event, you'll be taken to the event details page. This page shows the event title, description, registration section, review status, and organizer actions that are available to your account.
+After creating an event, Evorto opens its details page. It shows the event title, description, sign-up choices, publishing stage, and the organizer actions available to you.
 `,
   });
 
   // Use a more specific selector that's guaranteed to be on the page
+  await waitForRegistrationPage(page);
   await takeScreenshot(
     testInfo,
     page.locator(`h1:has-text("${target.title}")`).first(),
     page,
-    'Event details page',
+    'New event details and available organizer actions',
   );
 
   await testInfo.attach('markdown', {
     body: `
-The event details page has several sections:
+The event details page shows the information and actions you need:
 
-- **Basic Information**: Title, description, date, location
-- **Registration**: Available registration options or your active registration
-- **Review and listing actions**: Status, submit/review actions, edit link, and listing controls when your account has access
-- **Organize this event**: A link to the organizer surface when you are allowed to organize the event
-
-Let's look at each section in detail.
+- The top of the page shows the title, description, date, and location.
+- **Your sign-up** shows available choices or your active ticket.
+- The publishing status shows what happens next and offers review or editing actions when they are available.
+- **Organize this event** opens organizer tools when you are allowed to run the event.
 `,
   });
 
   await testInfo.attach('markdown', {
     body: `
-## Registration Options
+## Sign-up choices
 
-Registration options determine how people can sign up for your event. Templates can create one or more registration options that are then shown on the event details page.
-Reusable add-ons copied from the template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached registration options.
+Sign-up choices determine how people can join your event. Templates can create one or more choices that are then shown on the event details page.
+Reusable add-ons copied from the template are shown separately with their price, when they can be bought, quantity limits, and the choices that can use them.
 
-Each draft event has its own registration configuration, independent of the template. **Simple** mode keeps exactly one organizing and one non-organizing option. **Advanced** mode supports any number of named options and lets you choose which registration options can use each reusable add-on, with separate included and optional quantities. Missing organizer or participant categories are warnings, not save blockers.
+Each draft event has its own sign-up setup, independent of the template. **Simple** keeps exactly one organizer choice and one attendee choice. **Advanced** supports any number of named choices and lets you choose which ones can use each reusable add-on, with separate included and optional quantities. The editor warns you when organizer or attendee choices are missing, but still lets you save.
 
-Every mode change asks for confirmation. Before returning an advanced event to simple mode, save the advanced setup with exactly one option of each kind, reopen the editor, and then confirm the separate mode change. Existing saved options and hidden add-ons are preserved.
+Changing between **Simple** and **Advanced** asks for confirmation. Before returning an advanced event to simple setup, save it with exactly one choice of each kind, reopen the editor, and then confirm the setup change. Existing choices and hidden add-ons stay saved.
 
-When editing a draft event, registration options can include:
+Each sign-up choice can include:
 
-- Option title
+- Choice name
 - Price (free or paid)
-- Registration period (when registration opens and closes)
-- Maximum number of registrations
-- Required roles (if the option is restricted to certain user roles)
-- Organizer/helper distinction
+- When sign-up opens and closes
+- Number of places
+- Who can use the choice
+- Whether the choice is for attendees or organizers/helpers
 
-Configure the options according to your event's needs and click **Save Changes**.
+Set up the choices for your event and select **Save changes**.
 
-Note: The event created from the template already has registration options configured.
+Review the choices copied from the template and adjust them for this event.
 `,
   });
 
-  // Take a screenshot of the existing registration options section
+  // Take a screenshot of the existing registration section.
   await expect(
-    page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
+    page.getByRole('heading', { level: 2, name: 'Your sign-up' }).first(),
   ).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
+    page.getByRole('heading', { level: 2, name: 'Your sign-up' }).first(),
     page,
-    'Registration options section',
+    'Sign-up choices on the event page',
   );
 
   const draftEvent = events.find(
@@ -272,16 +273,16 @@ Note: The event created from the template already has registration options confi
   await expect(page.getByTestId('event-mode-advanced')).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByLabel('Registration configuration mode'),
+    page.getByLabel('Sign-up setup'),
     page,
-    'Event registration configuration modes',
+    'Simple and advanced sign-up setup',
   );
   const registrationOptionEditors = page.locator(
     'app-event-registration-option-editor',
   );
   const registrationOptionTitleInputs = registrationOptionEditors.getByRole(
     'textbox',
-    { exact: true, name: 'Option name' },
+    { exact: true, name: 'Sign-up choice name' },
   );
   let registrationOptionEditorIndex = -1;
   await expect
@@ -315,8 +316,8 @@ Note: The event created from the template already has registration options confi
       name: `Remove ${selectedRole.name}`,
     }),
   ).toBeVisible({ timeout: 15_000 });
-  const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
-  const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
+  const roleInput = registrationOptionEditor.getByPlaceholder('Add role…');
+  const roleListbox = page.getByRole('listbox', { name: 'Selected roles' });
   const selectedRoleOption = roleListbox.getByRole('option', {
     exact: true,
     name: selectedRole.name,
@@ -349,30 +350,31 @@ Note: The event created from the template already has registration options confi
 
   await testInfo.attach('markdown', {
     body: `
-Already selected roles are hidden from suggestions so the same eligibility role cannot be added twice.
+Already selected roles are not offered again.
 `,
   });
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { name: draftEvent.title }).first(),
     page,
-    'Event edit role picker duplicate prevention',
+    'Choose which roles can use a sign-up choice',
   );
 
   const editableEventId = getId();
   const editableParticipantOptionId = getId();
-  const initialEditableTitle = `Disposable draft ${getId().slice(0, 6)}`;
+  const initialEditableTitle = 'Volunteer planning session';
   const savedEditableTitle = `${initialEditableTitle} updated`;
   const savedEditableDescription =
     'Meet beside the information desk fifteen minutes before departure.';
-  const initialParticipantOptionTitle = 'Disposable participants';
-  const savedParticipantOptionTitle = 'Participants with manual approval';
+  const initialParticipantOptionTitle = 'Planning attendees';
+  const savedParticipantOptionTitle = 'Attendees with manual approval';
+  const savedParticipantSpots = 30;
   const editableStart = DateTime.now().plus({ days: 28 }).startOf('hour');
   const editableEnd = editableStart.plus({ hours: 3 });
 
   await database.insert(eventInstances).values({
     creatorId: sourceEvent.creatorId,
-    description: '<p>Disposable event before editing.</p>',
+    description: '<p>Meet at the information desk before departure.</p>',
     end: editableEnd.toJSDate(),
     icon: sourceEvent.icon,
     id: editableEventId,
@@ -382,14 +384,13 @@ Already selected roles are hidden from suggestions so the same eligibility role 
     templateId: sourceEvent.templateId,
     tenantId: target.tenantId,
     title: initialEditableTitle,
-    unlisted: true,
   });
 
   try {
     await database.insert(eventRegistrationOptions).values([
       {
         closeRegistrationTime: editableStart.minus({ hours: 1 }).toJSDate(),
-        description: 'Help run this disposable event.',
+        description: 'Help run the planning session.',
         eventId: editableEventId,
         isPaid: false,
         openRegistrationTime: editableStart.minus({ days: 7 }).toJSDate(),
@@ -399,18 +400,18 @@ Already selected roles are hidden from suggestions so the same eligibility role 
         registrationMode: 'fcfs',
         roleIds: [],
         spots: 4,
-        title: 'Disposable organizers',
+        title: 'Planning helpers',
       },
       {
         closeRegistrationTime: editableStart.minus({ hours: 1 }).toJSDate(),
-        description: 'Join this disposable event.',
+        description: 'Join the planning session.',
         eventId: editableEventId,
         id: editableParticipantOptionId,
         isPaid: false,
         openRegistrationTime: editableStart.minus({ days: 7 }).toJSDate(),
         organizingRegistration: false,
         price: 0,
-        registeredDescription: 'Participant place confirmed.',
+        registeredDescription: 'Attendee place confirmed.',
         registrationMode: 'fcfs',
         roleIds: [],
         spots: 20,
@@ -436,9 +437,9 @@ Already selected roles are hidden from suggestions so the same eligibility role 
       body: `
 ## Edit an existing draft event
 
-Only **Draft** events can be changed with the normal event editor. Open the draft from **Events**, then select **Edit Event**. Pending-review and published events deliberately do not offer this action.
+Only **Draft** events can be changed. Open the draft from **Events**, then select **Edit Event**. Pending-review and published events deliberately do not offer this action.
 
-This walkthrough uses a disposable draft so every saved field can be read back without changing a shared event. It updates both general information and the event-owned registration configuration.
+Open a draft to change its general details and sign-up setup.
 `,
     });
 
@@ -479,12 +480,12 @@ This walkthrough uses a disposable draft so every saved field can be read back w
       .filter({
         has: page.getByRole('heading', {
           exact: true,
-          name: 'Change registration configuration?',
+          name: 'Change sign-up setup?',
         }),
       })
       .last();
     await expect(modeDialog).toContainText(
-      'Advanced mode keeps both current options',
+      'Advanced setup keeps both current choices',
     );
     await expect(modeDialog).toContainText(
       'This change remains reversible until you save',
@@ -493,11 +494,11 @@ This walkthrough uses a disposable draft so every saved field can be read back w
       testInfo,
       modeDialog,
       page,
-      'Confirm a draft event registration mode change',
+      'Confirm a change to the draft event sign-up setup',
     );
 
     await modeDialog
-      .getByRole('button', { exact: true, name: 'Keep current mode' })
+      .getByRole('button', { exact: true, name: 'Keep current setup' })
       .click();
     await expect(modeDialog).toBeHidden();
     await expect(simpleModeButton).toHaveAttribute('aria-pressed', 'true');
@@ -505,19 +506,19 @@ This walkthrough uses a disposable draft so every saved field can be read back w
 
     await testInfo.attach('markdown', {
       body: `
-### Choose simple or advanced registration configuration
+### Choose simple or advanced sign-up setup
 
-- **Simple** keeps exactly one organizer/helper option and one participant option. Use it when those two choices are enough.
-- **Advanced** keeps the existing options but allows any number of named options and exposes add-ons.
+- **Simple** keeps exactly one organizer/helper choice and one attendee choice. Use it when those two choices are enough.
+- **Advanced** keeps the existing choices but allows any number of named choices and shows add-ons.
 
-Selecting a mode first opens a confirmation. Choose **Keep current mode** if you clicked by mistake or need to review the form; this closes the dialog without changing the mode or discarding the other unsaved fields. To return an advanced event to simple later, first reduce and save the advanced setup so it has exactly one organizer/helper and one participant option. Reopen the editor and confirm the separate mode change. Evorto does not silently delete extra options, questions, add-ons, or the registration options chosen for each add-on.
+Selecting a setup first asks for confirmation. Choose **Keep current setup** if you selected it by mistake or need to check your entries; this closes the dialog without changing the setup or discarding other changes you have not saved. To return an advanced event to simple setup later, first reduce and save it so it has exactly one organizer/helper choice and one attendee choice. Reopen the editor and confirm the separate setup change. Evorto does not silently delete extra choices, questions, add-ons, or the choices selected for each add-on.
 `,
     });
 
     await advancedModeButton.click();
     await expect(modeDialog).toBeVisible();
     await modeDialog
-      .getByRole('button', { exact: true, name: 'Use advanced mode' })
+      .getByRole('button', { exact: true, name: 'Use advanced setup' })
       .click();
     await expect(advancedModeButton).toHaveAttribute('aria-pressed', 'true');
 
@@ -526,10 +527,12 @@ Selecting a mode first opens a confirmation. Choose **Keep current mode** if you
       initialParticipantOptionTitle,
     );
     await participantEditor
-      .getByLabel('Option name')
+      .getByLabel('Sign-up choice name')
       .fill(savedParticipantOptionTitle);
-    await participantEditor.getByLabel('Capacity').fill('37');
-    await participantEditor.getByLabel('Registration mode').click();
+    await participantEditor
+      .getByLabel('Number of places')
+      .fill(savedParticipantSpots.toString());
+    await participantEditor.getByLabel('How sign-ups are confirmed').click();
     await page
       .getByRole('option', { exact: true, name: 'Manual approval' })
       .click();
@@ -537,16 +540,16 @@ Selecting a mode first opens a confirmation. Choose **Keep current mode** if you
       testInfo,
       participantEditor,
       page,
-      'Edited draft event registration option',
+      'Edited draft event sign-up choice',
     );
 
     await testInfo.attach('markdown', {
       body: `
 ### Update the draft and save it
 
-Change the general event fields you need, such as **Event title** and **Description**. Registration configuration is saved with the same form. In this example, the participant option receives a clearer name, capacity **37**, and **Manual approval** mode.
+Change the general event fields you need, such as **Event title** and **Description**. The sign-up setup is saved with the same form. Set the choice name, number of places, and approval method for the event you are planning.
 
-Select **Save changes** once. A successful save returns to the event details page. If an error remains on the editor, the event has not been confirmed as updated: read the validation or error message, correct the problem, and select **Save changes** again. Do not assume an unsaved mode or registration change is live merely because it is visible in the form.
+Select **Save changes** once. A successful save returns to the event details page. If an error remains on the editor, the event has not been updated: read the message, correct the problem, and select **Save changes** again. Changes are not saved just because they appear in the form.
 `,
     });
 
@@ -580,7 +583,7 @@ Select **Save changes** once. A successful save returns to the event details pag
     expect(persistedEvent?.description).toContain(savedEditableDescription);
     expect(persistedEvent?.simpleModeEnabled).toBe(false);
     expect(persistedParticipantOption?.title).toBe(savedParticipantOptionTitle);
-    expect(persistedParticipantOption?.spots).toBe(37);
+    expect(persistedParticipantOption?.spots).toBe(savedParticipantSpots);
     expect(persistedParticipantOption?.registrationMode).toBe('application');
 
     await page.getByRole('link', { exact: true, name: 'Edit Event' }).click();
@@ -594,24 +597,24 @@ Select **Save changes** once. A successful save returns to the event details pag
       page,
       savedParticipantOptionTitle,
     );
-    await expect(reloadedParticipantEditor.getByLabel('Capacity')).toHaveValue(
-      '37',
-    );
     await expect(
-      reloadedParticipantEditor.getByLabel('Registration mode'),
+      reloadedParticipantEditor.getByLabel('Number of places'),
+    ).toHaveValue(savedParticipantSpots.toString());
+    await expect(
+      reloadedParticipantEditor.getByLabel('How sign-ups are confirmed'),
     ).toContainText('Manual approval');
     await takeScreenshot(
       testInfo,
       page.locator('app-event-edit'),
       page,
-      'Reloaded draft event with saved changes',
+      'Saved draft event with updated details',
     );
 
     await testInfo.attach('markdown', {
       body: `
 ### Confirm the saved result
 
-Reload the event details page and check the new title and description. Open **Edit Event** again and verify that **Advanced**, the option name, capacity, and **Manual approval** selection are still present. This confirms that the saved event differs from any unsaved changes still in the browser.
+After saving, the event details page shows the new title and description. Open **Edit Event** again to review the saved setup. Anything left unsaved in the form is not applied.
 `,
     });
   } finally {
@@ -625,22 +628,24 @@ Reload the event details page and check the new title and description. Open **Ed
 
   await testInfo.attach('markdown', {
     body: `
-## Event Status and Visibility
+## Publishing and who can find an event
 
-You can control how your event appears in the app with event status and listing visibility.
+An event appears to members only after it is published. Who can find it is based on its current sign-up choices.
 
-Event status values:
+The publishing labels show what happens next:
 
-- **Draft**
-- **Pending Review**
-- **Published**
+- **Draft** means the event is still being prepared.
+- **Pending Review** means it is waiting for an administrator.
+- **Published** means the event is ready for members to find.
 
 When a reviewer requests changes, the event returns to **Draft** and the
 review feedback remains visible on its details page.
 
-Listing visibility can be updated from the event actions menu.
+Sign-up events have no separate choice for who can find them. Signed-in members see an event when at least one sign-up choice is available to one of their roles. Before signing in, visitors may see events open to new members, but they must sign in before signing up. If a choice is no longer available before someone signs up, Evorto shows **Sign-up unavailable** and explains why. A signed-in member who follows a shared link without an available choice sees the same explanation.
 
-For a full walkthrough of the review and approval lifecycle, see the dedicated Event Approval guide.
+Announcements without sign-up choices use a separate setting. **Choose who can find this announcement** selects the organization roles that should see it in **Events**. Without a selected role, it opens only from a shared link. This choice does not change anyone's role or access, or send a message. Announcements do not appear before sign-in.
+
+For the full review and approval steps, see [Review and publish an event](/docs/review-and-publish-an-event).
 `,
   });
 
@@ -648,37 +653,39 @@ For a full walkthrough of the review and approval lifecycle, see the dedicated E
   const statusChip = page.getByText(/Draft|Pending Review|Published/i).first();
   try {
     await statusChip.waitFor({ state: 'visible', timeout: 2000 });
-    await takeScreenshot(testInfo, statusChip, page, 'Event status section');
+    await takeScreenshot(
+      testInfo,
+      statusChip,
+      page,
+      'Published event status and next actions',
+    );
   } catch {
-    await testInfo.attach('markdown', {
-      body: `
-_Note: Event status is not displayed in this view in the current build._
-`,
-    });
+    // This view does not always show a separate publishing label.
   }
 
   await testInfo.attach('markdown', {
     body: `
 ## Organizer View
 
-Once people start registering for your event, organizers can open the **Organize this event** view from the event details page.
+Once people start signing up for your event, organizers can open the **Organize this event** view from the event details page.
 
 The organizer view currently includes:
 
-- Event capacity overview
+- Available places overview
 - Checked-in count
-- Participants grouped by registration option
+- Attendees grouped by sign-up choice
 - ESNcard discount markers where applicable
-- Registration-time add-ons purchased by each participant
+- Add-ons bought by each attendee while signing up
 - Event receipt submission and receipt list
 
-Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scan**. The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
+Organizers check in attendees with the QR scanner. Attendees open their ticket QR code after their place is confirmed, and organizers scan it from **Scanner**. The result shows the attendee, event, sign-up choice, ESNcard discount when applicable, guest progress, and clear warnings when a ticket cannot be checked in.
 
-Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows a future-event warning before that window opens. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
-Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments. Event registration and add-on payments are Stripe-only; without a connected Stripe account for the organization, registration options and add-ons must remain free.
-Organizers can transfer a participant registration directly to another eligible organization member only when the entire fixed bundle is free, requires no refund, and has no participant questions. When participant questions exist, the organizer creates a private transfer offer instead so the recipient can confirm current eligibility and provide their own current answers before ownership changes. Paid registrations also use the private transfer flow so the recipient can review the fixed bundle and pay the current base prices with only their own current discounts. Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged. Existing check-in or add-on redemption does not erase that history or let the recipient omit fulfilled items. The previous owner receives exact refunds for every original Stripe payment; the organizer overview intentionally does not directly reassign a paid ticket.
+Event organizers and members allowed to manage all events can check people in during the event's check-in period. The scanner explains when the event is still too far away. Confirming check-in updates the count shown on the organizer overview. When a ticket includes guests, the organizer chooses how many arrived with the attendee, and the count increases by the attendee plus those guests.
+Organizers can also cancel an attendee's confirmed ticket from the organizer overview before check-in. This releases the place and starts any refund shown in the confirmation.
 
-It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning. Participant cancellation and private free or paid transfer are covered in the dedicated Registration Cancellation and Registration Transfer guides.
+Attendee transfers always use a private offer from the current owner to one intended recipient. The recipient reviews the ticket, answers the current questions, and accepts it. A free transfer with no questions completes immediately after acceptance. When payment is required, the recipient pays before the ticket moves and Evorto then starts the previous owner's refund. Organizers can move the ticket directly only when the whole ticket is free, no refund is needed, and there are no attendee questions. Guest and add-on quantities cannot be changed. Existing attendee and guest check-ins and the history of handed-out add-ons move unchanged with the ticket.
+
+It does not currently include downloading attendee lists, sending messages to attendees, or checking people in without scanning a QR code. See [Cancel a ticket](/docs/cancel-a-ticket) for attendee cancellation and [Transfer your ticket privately](/docs/transfer-your-ticket-privately) for private free or paid transfers.
 `,
   });
 
@@ -712,7 +719,7 @@ It does not currently include attendee export, attendee messaging, or manual che
   await page.route('**/rpc/**', failOrganizerPageDataOnce);
   await page.goto(`/events/${target.id}/organize`);
   const organizerLoadAlert = page.getByRole('alert').filter({
-    hasText: 'Participant data could not be loaded',
+    hasText: 'Attendees could not be loaded',
   });
   const receiptLoadAlert = page.getByRole('alert').filter({
     hasText: 'Receipts could not be loaded',
@@ -723,15 +730,15 @@ It does not currently include attendee export, attendee messaging, or manual che
   expect(organizerOverviewFailureCount).toBe(1);
   expect(receiptFailureCount).toBe(1);
   await expect(organizerLoadAlert).toContainText(
-    'Participant data could not be loaded',
+    'Attendees could not be loaded',
   );
   await expect(organizerLoadAlert).toContainText(
-    'Do not treat the missing counts as zero or as current event data.',
+    'No current sign-up counts or attendee actions are shown. Select Try again.',
   );
-  await expect(page.getByText('Registered', { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole('button', { name: 'Cancel registration' }),
-  ).toHaveCount(0);
+  await expect(page.getByText('Signed up', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cancel ticket' })).toHaveCount(
+    0,
+  );
   await expect(addReceiptButton).toBeDisabled();
   await expect(
     page.getByText('Receipt history must load before a receipt can be added.'),
@@ -740,21 +747,20 @@ It does not currently include attendee export, attendee messaging, or manual che
     testInfo,
     page.locator('app-event-organize'),
     page,
-    'Organizer overview explains unavailable participant data',
+    'Attendees could not be loaded',
   );
 
   await testInfo.attach('markdown', {
     body: `
-### Recover when participant data does not load
+### When attendees do not load
 
-If the organizer overview request fails, Evorto hides every registration count and participant action. The warning explicitly says that missing counts are **not zero** and must not be treated as current event data.
+If attendees cannot be loaded, Evorto hides every sign-up count and attendee action. Missing counts are **not zero** and must not be treated as up-to-date event information.
 
-1. Do not cancel, transfer, or approve a registration based on an empty-looking page.
-2. Check that your network connection is available.
-3. Select **Try again** in the warning.
-4. Wait for the **Overview** and **Participant registrations** sections to return before continuing.
+1. Do not cancel, transfer, or approve a ticket based on an empty-looking page.
+2. Select **Try again** in the warning.
+3. Wait for the **Overview** and **Attendee sign-ups** sections to return before continuing.
 
-Receipt history has its own warning and **Try again** action. A receipt-loading warning means existing receipts may still be present; it is not a verified empty list. **Add receipt** stays unavailable until that history loads, preventing a duplicate submission based on incomplete information.
+Receipt history has its own warning and **Try again** action. Until the history loads, Evorto cannot tell you whether receipts have already been submitted and keeps **Add receipt** unavailable. Select **Try again**, and wait for either the receipt list or **No receipts submitted for this event yet** before adding one.
 `,
   });
 
@@ -767,7 +773,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     page.getByTestId('event-organize-registered-stat'),
   ).toBeVisible();
   await expect(receiptLoadAlert).toContainText(
-    'Existing receipt records may still be present.',
+    'No receipts are shown. Select Try again.',
   );
   const verifiedNoReceipts = page.getByText(
     'No receipts submitted for this event yet.',
@@ -787,6 +793,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     .where(
       and(
         eq(eventRegistrationOptions.eventId, scannerEventId),
+        eq(eventRegistrationOptions.isPaid, false),
         eq(eventRegistrationOptions.organizingRegistration, false),
       ),
     )
@@ -796,7 +803,40 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       'Expected seeded participant option for scanner documentation',
     );
   }
+  if (scannerRegistrationOption.stripeTaxRateId !== null) {
+    throw new Error(
+      'Expected seeded free scanner registration option without a Stripe tax rate',
+    );
+  }
+  const [scannerEventTiming] = await database
+    .select({
+      end: eventInstances.end,
+      start: eventInstances.start,
+    })
+    .from(eventInstances)
+    .where(
+      and(
+        eq(eventInstances.id, scannerEventId),
+        eq(eventInstances.tenantId, seeded.tenant.id),
+      ),
+    )
+    .limit(1);
+  if (!scannerEventTiming) {
+    throw new Error('Expected seeded event timing for scanner documentation');
+  }
   const initialCheckedInSpots = scannerRegistrationOption.checkedInSpots;
+  const initialConfirmedSpots = scannerRegistrationOption.confirmedSpots;
+  const scannerRegistrationSpotCount = 3;
+  const scannerConfirmedSpots =
+    initialConfirmedSpots + scannerRegistrationSpotCount;
+  if (
+    scannerConfirmedSpots + scannerRegistrationOption.reservedSpots >
+    scannerRegistrationOption.spots
+  ) {
+    throw new Error(
+      'Expected enough seeded participant capacity for scanner documentation',
+    );
+  }
   const scannerUser = usersToAuthenticate.find(
     (user) => user.stateFile === emptyStateFile,
   );
@@ -804,25 +844,82 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     throw new Error('Expected regular user fixture for scanner documentation');
   }
   const scannerRegistrationId = getId();
+  const scannerNow = testClock.toJSDate();
 
   try {
-    await database.insert(eventRegistrations).values({
-      checkedInGuestCount: 0,
-      eventId: scannerEventId,
-      guestCount: 2,
-      id: scannerRegistrationId,
-      registrationOptionId: scannerRegistrationOption.id,
-      status: 'CONFIRMED',
-      tenantId: seeded.tenant.id,
-      userId: scannerUser.id,
+    const openedScannerEvents = await database
+      .update(eventInstances)
+      .set({
+        end: new Date(scannerNow.getTime() + 30 * 60 * 1000),
+        start: new Date(scannerNow.getTime() - 30 * 60 * 1000),
+      })
+      .where(
+        and(
+          eq(eventInstances.id, scannerEventId),
+          eq(eventInstances.tenantId, seeded.tenant.id),
+        ),
+      )
+      .returning({ id: eventInstances.id });
+    if (openedScannerEvents.length !== 1) {
+      throw new Error(
+        'Expected to open the seeded event check-in window for scanner documentation',
+      );
+    }
+
+    await database.transaction(async (transaction) => {
+      const updatedOptions = await transaction
+        .update(eventRegistrationOptions)
+        .set({
+          checkedInSpots: initialCheckedInSpots,
+          confirmedSpots: scannerConfirmedSpots,
+        })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, scannerEventId),
+            eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+            eq(eventRegistrationOptions.checkedInSpots, initialCheckedInSpots),
+            eq(eventRegistrationOptions.confirmedSpots, initialConfirmedSpots),
+          ),
+        )
+        .returning({ id: eventRegistrationOptions.id });
+      if (updatedOptions.length !== 1) {
+        throw new Error(
+          'Seeded participant counters changed before scanner documentation setup',
+        );
+      }
+
+      await transaction.insert(eventRegistrations).values({
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: scannerRegistrationOption.price,
+        checkedInGuestCount: 0,
+        discountAmount: 0,
+        eventId: scannerEventId,
+        guestCount: 2,
+        id: scannerRegistrationId,
+        registrationOptionId: scannerRegistrationOption.id,
+        status: 'CONFIRMED',
+        stripeTaxRateId: null,
+        taxRateDisplayName: null,
+        taxRateInclusive: null,
+        taxRatePercentage: null,
+        tenantId: seeded.tenant.id,
+        userId: scannerUser.id,
+      });
     });
 
     await page.goto(`/scan/registration/${scannerRegistrationId}`);
     await expect(
-      page.getByRole('heading', { name: 'Registration scanned' }),
+      page.getByRole('heading', { name: 'Ticket scanned' }),
     ).toBeVisible();
     await expect(page.getByText('Includes 2 guests.')).toBeVisible();
     await expect(page.getByText('0 checked in, 2 remaining.')).toBeVisible();
+    await expect(
+      page.getByText('Check-in closed', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText('Check-in not open', { exact: true }),
+    ).toHaveCount(0);
     const confirmScannerCheckIn = await fillScannerGuestCheckInCount(page, {
       guestCount: 2,
       includeAttendee: true,
@@ -831,10 +928,10 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       testInfo,
       page.locator('app-handle-registration'),
       page,
-      'Scanned registration with guest check-in',
+      'Scanned ticket with guest check-in',
     );
     await confirmScannerCheckIn.click();
-    await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect(page.getByText('Check-in complete')).toBeVisible();
     await expect
       .poll(async () => {
         const registration = await database.query.eventRegistrations.findFirst({
@@ -847,6 +944,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
         const option = await database.query.eventRegistrationOptions.findFirst({
           columns: {
             checkedInSpots: true,
+            confirmedSpots: true,
           },
           where: { id: scannerRegistrationOption.id },
         });
@@ -855,12 +953,14 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
           checkedIn: registration?.checkInTime !== null,
           checkedInGuestCount: registration?.checkedInGuestCount,
           checkedInSpots: option?.checkedInSpots,
+          confirmedSpots: option?.confirmedSpots,
         };
       })
       .toEqual({
         checkedIn: true,
         checkedInGuestCount: 2,
         checkedInSpots: initialCheckedInSpots + 3,
+        confirmedSpots: scannerConfirmedSpots,
       });
     await page.goto(`/events/${scannerEventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
@@ -876,11 +976,26 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       .set({ checkedInSpots: initialCheckedInSpots })
       .where(
         and(
+          eq(eventRegistrationOptions.eventId, scannerEventId),
           eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
-          eq(
-            eventRegistrationOptions.checkedInSpots,
-            initialCheckedInSpots + 3,
-          ),
+        ),
+      );
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: initialConfirmedSpots })
+      .where(
+        and(
+          eq(eventRegistrationOptions.eventId, scannerEventId),
+          eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+        ),
+      );
+    await database
+      .update(eventInstances)
+      .set(scannerEventTiming)
+      .where(
+        and(
+          eq(eventInstances.id, scannerEventId),
+          eq(eventInstances.tenantId, seeded.tenant.id),
         ),
       );
   }
@@ -891,14 +1006,12 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
 ## Event Editing
 
 Draft events can be edited from the event details page when your account has access. An event returned by a reviewer is a draft, with the review feedback shown on the details page.
-The edit form covers the same event details and registration setup used during event creation. Simple and advanced modes require confirmation; advanced setups may omit either option kind with a warning, and add-ons hidden by simple mode remain saved. Reducing an advanced setup and switching to simple are deliberately separate saves so no option is silently deleted or replaced.
-Pending-review and published events are locked from normal editing.
+The edit form covers the same event details and sign-up setup used during event creation. Changing between simple and advanced setup requires confirmation. Advanced setup may omit organizer or attendee choices with a warning, and add-ons hidden by simple setup remain saved. Reducing an advanced setup and switching to simple are separate saves so no choice is silently deleted or replaced.
+Events waiting for review and published events cannot be edited here.
 
-## Current Scope
+## Where to find related settings
 
-There is no general event settings tab in the current event UI.
-Template categories are managed from the templates area, not from individual events.
-Featured images, event tags, custom confirmation messages, notification settings, external integrations, and event deletion are not part of the current event management surface.
+Manage template categories from **Templates**, rather than from an individual event. Use the event details and editing pages for the event information and sign-up setup described above.
 `,
   });
 });

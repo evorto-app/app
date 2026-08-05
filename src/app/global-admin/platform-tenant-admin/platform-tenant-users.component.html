@@ -4,7 +4,7 @@
 />
 
 <mat-form-field class="mb-4 w-full max-w-xl">
-  <mat-label>Search users</mat-label>
+  <mat-label>Search members</mat-label>
   <input
     #searchInput
     matInput
@@ -33,16 +33,16 @@
       [disabled]="rolesQuery.isFetching()"
       (click)="rolesQuery.refetch()"
     >
-      {{ rolesQuery.isFetching() ? "Retrying..." : "Try again" }}
+      {{ rolesQuery.isFetching() ? "Trying again…" : "Try again" }}
     </button>
   </section>
 }
 
 @if (usersQuery.isPending()) {
-  <p role="status" aria-live="polite" class="body-medium">Loading users...</p>
+  <p role="status" aria-live="polite" class="body-medium">Loading members…</p>
 } @else if (usersQuery.isError()) {
   <div role="alert" class="bg-error-container text-on-error-container p-4">
-    <p class="body-medium">Users could not be loaded.</p>
+    <p class="body-medium">Members could not be loaded.</p>
     <button mat-stroked-button type="button" (click)="usersQuery.refetch()">
       Try again
     </button>
@@ -124,7 +124,7 @@
       </mat-select>
     </mat-form-field>
     <mat-form-field class="w-full">
-      <mat-label>Operational reason</mat-label>
+      <mat-label>Reason for this change</mat-label>
       <textarea
         matInput
         rows="3"
@@ -148,7 +148,7 @@
           assignRolesMutation.isPending()
         "
       >
-        {{ assignRolesMutation.isPending() ? "Saving..." : "Save roles" }}
+        {{ assignRolesMutation.isPending() ? "Saving…" : "Save roles" }}
       </button>
     </div>
   </form>

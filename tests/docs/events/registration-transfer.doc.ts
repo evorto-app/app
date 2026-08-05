@@ -1,6 +1,6 @@
 import { createId } from '@db/create-id';
 import * as schema from '@db/schema';
-import { TENANT_FORMATTING_LOCALE } from '@types/custom/tenant';
+import { TENANT_FORMATTING_LOCALE } from '../../../src/types/custom/tenant';
 import { and, eq, inArray, like } from 'drizzle-orm';
 
 import {
@@ -15,6 +15,7 @@ import { openAuthenticatedTestPage } from '../../support/utils/authenticated-tes
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { seedPaidRegistrationTransferScenario } from '../../support/utils/paid-registration-transfer-scenario';
+import { openRegistrationTransferClaim } from '../../support/utils/registration-transfer-claim-page';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -22,7 +23,7 @@ test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 // user row locks. Keep each guide independent, but avoid cross-guide deadlocks.
 test.describe.configure({ mode: 'default' });
 
-test('Transfer a registration with a private offer', async ({
+test('Transfer your ticket privately', async ({
   browser,
   database,
   page,
@@ -31,7 +32,7 @@ test('Transfer a registration with a private offer', async ({
   testClock,
 }, testInfo) => {
   // This documentation journey uses two browser contexts, captures several
-  // screenshots, and proves both invalid-code recovery and a completed claim.
+  // screenshots, and proves both invalid-code recovery and a completed transfer.
   test.slow();
 
   const source = usersToAuthenticate.find((user) => user.roles === 'user');
@@ -54,16 +55,17 @@ test('Transfer a registration with a private offer', async ({
 
   await database.insert(schema.eventInstances).values({
     creatorId: source.id,
-    description: 'A documented registration transfer.',
+    description: 'A place at the community dinner.',
     end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
+    reviewedAt: testClock.toJSDate(),
+    reviewedBy: recipient.id,
     start: startsAt,
     status: 'APPROVED',
     templateId: template.id,
     tenantId: tenant.id,
-    title: 'Registration transfer guide',
-    unlisted: true,
+    title: 'Community dinner',
   });
   await database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,
@@ -74,11 +76,11 @@ test('Transfer a registration with a private offer', async ({
     openRegistrationTime: eventWindow.openRegistrationTime,
     organizingRegistration: false,
     price: 0,
-    registeredDescription: 'Your transferred registration is confirmed.',
+    registeredDescription: 'Your transferred ticket is confirmed.',
     registrationMode: 'fcfs',
     roleIds: [],
     spots: 10,
-    title: 'Participant',
+    title: 'Attendee sign-up',
     transferDeadlineHoursBeforeStart: 0,
   });
   await database.insert(schema.eventRegistrationQuestions).values({
@@ -90,7 +92,10 @@ test('Transfer a registration with a private offer', async ({
     title: 'What should the organizer know?',
   });
   await database.insert(schema.eventRegistrations).values({
+    appliedDiscountedPrice: null,
+    appliedDiscountType: null,
     basePriceAtRegistration: 0,
+    discountAmount: 0,
     eventId,
     id: sourceRegistrationId,
     registrationOptionId: optionId,
@@ -100,9 +105,12 @@ test('Transfer a registration with a private offer', async ({
   });
   await database.insert(schema.eventRegistrationQuestionAnswers).values({
     answer: 'The previous owner entered this answer.',
+    eventId,
     id: createId(),
     questionId,
     registrationId: sourceRegistrationId,
+    registrationOptionId: optionId,
+    tenantId: tenant.id,
   });
   await database.insert(schema.registrationAcquisitions).values({
     acquiredAt: new Date(),
@@ -138,32 +146,30 @@ test('Transfer a registration with a private offer', async ({
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Before you start" %}
-This guide uses two signed-in participant accounts that belong to the same organization:
+The current ticket owner creates the private transfer. The intended recipient must belong to the same organization and have a current role that allows the sign-up choice.
 
-- the current ticket owner, who has a confirmed registration; and
-- a different intended recipient, whose current organization roles are eligible for the registration option.
+Attendee transfers always use this private offer and code. An organizer can move the ticket directly only when it is entirely free, needs no refund, and has no sign-up questions.
 
-Neither account needs organizer or administrator access for this participant transfer. A paid transfer requires the organization's connected Stripe account because paid event registrations and add-ons are Stripe-only. The registration and every included, free, and purchased add-on form one inseparable bundle; Evorto refunds the exact remaining refundable amount from each original Stripe payment after accounting for prior successful refunds. Platform-administrator access is needed only if one of those refunds later requires recovery.
+Neither person needs organizer or administrator access. Everything on the ticket transfers together, including guests and add-ons. For a paid transfer, the recipient pays the current price and Evorto starts any refund shown for the previous owner. Follow the refund status in Evorto and contact the event organizer if it needs attention.
 
-Only a confirmed registration within the configured transfer deadline can be offered. Existing attendee/guest check-in and add-on fulfillment history remain part of the fixed bundle and move unchanged.
+Only a confirmed ticket can be offered before its transfer deadline. Existing attendee and guest check-ins and all handed-out add-ons move unchanged with the ticket.
 
-The private link and manual code grant access to the transfer offer. Share one of them privately with exactly one intended recipient.
+Share the private transfer code with exactly one intended recipient. The code is not included in the transfer page's web address.
 {% /callout %}
 
-# Transfer a registration
 
-The previous owner's answers and discounts do not transfer. Evorto checks the recipient's current role eligibility, asks the current questions, prices the fixed bundle from current base prices, and applies only the recipient's current eligible discounts. Guest quantity, every included/free/purchased add-on quantity, check-in state, and fulfillment history transfer unchanged; the recipient cannot omit or re-quantity them.
+The previous owner's answers and discounts do not transfer. The recipient answers the current questions and sees the current price with only their own discounts. Guest and add-on quantities cannot be changed. Existing attendee and guest check-ins and the history of handed-out add-ons also move unchanged with the ticket.
 
-## Create a private offer
+## Create a private code
 
-Open the event while signed in as the current registration owner. Under the confirmed ticket, select **Create transfer link**.
+Open the event while signed in as the current ticket owner. Under the confirmed ticket, select **Create transfer code**.
 `,
     });
 
     await page.goto(`/events/${eventId}`);
     await waitForRegistrationPage(page);
     const createButton = page.getByRole('button', {
-      name: 'Create transfer link',
+      name: 'Create transfer code',
     });
     await expect(createButton).toBeVisible();
     // SSR exposes the action before Angular attaches its click listener.
@@ -173,18 +179,18 @@ Open the event while signed in as the current registration owner. Under the conf
       testInfo,
       page.locator('app-event-active-registration'),
       page,
-      'Create a private transfer offer from the confirmed ticket',
+      'Confirmed ticket with the Create transfer code action',
     );
     await createButton.click();
     const dialog = page.getByRole('dialog');
     await expect(
-      dialog.getByRole('heading', { name: 'Private transfer link created' }),
+      dialog.getByRole('heading', { name: 'Private transfer ready' }),
     ).toBeVisible();
     await takeScreenshot(
       testInfo,
       dialog,
       page,
-      'Copy the private link or manual claim code',
+      'Private transfer code and sharing actions',
     );
     await dialog.getByRole('button', { name: 'Done' }).click();
     const firstOffer = await database.query.registrationTransfers.findFirst({
@@ -200,12 +206,12 @@ Open the event while signed in as the current registration owner. Under the conf
 
     await testInfo.attach('markdown', {
       body: `
-## Cancel an offer before it is claimed
+## Cancel a transfer before it is accepted
 
-While an offer is open, the current owner's ticket remains confirmed and the event page shows **Cancel transfer offer**. Select it if the private link or code was sent to the wrong person or should no longer be usable. Cancelling the offer invalidates its private link and manual code; it does not cancel or transfer the registration.
+While a transfer is open, the current owner's ticket remains confirmed and the event page shows **Cancel private transfer**. Select it if the private code was sent to the wrong person or should no longer be usable. Cancelling the transfer makes its code unusable; it does not cancel or move the ticket.
 `,
     });
-    await page.getByRole('button', { name: 'Cancel transfer offer' }).click();
+    await page.getByRole('button', { name: 'Cancel private transfer' }).click();
     await expect(createButton).toBeVisible();
     await expect
       .poll(async () => {
@@ -227,24 +233,24 @@ While an offer is open, the current owner's ticket remains confirmed and the eve
       testInfo,
       page.locator('app-event-active-registration'),
       page,
-      'Confirmed ticket after cancelling the private offer',
+      'Ticket stays with its owner after cancelling the offer',
     );
 
     await createButton.click();
     await expect(
-      dialog.getByRole('heading', { name: 'Private transfer link created' }),
+      dialog.getByRole('heading', { name: 'Private transfer ready' }),
     ).toBeVisible();
-    const claimCode = await dialog.getByLabel('Manual claim code').inputValue();
+    const transferCode = await dialog.getByLabel('Transfer code').inputValue();
 
     await testInfo.attach('markdown', {
       body: `
-The registration stays confirmed under the current owner's ownership while the offer is open. If the recipient starts a paid claim, ownership still does not change while Stripe Checkout is pending. The current owner can cancel the offer before the handoff completes.
+The ticket stays with the current owner while the offer is open. If payment is required, it does not move until payment succeeds. The current owner can cancel the offer before the ticket moves to the new attendee.
 
 ## Review as the recipient
 
-Sign in to the intended recipient's account in the same organization, open **Profile**, and select **Claim transfer**. Paste the complete manual code, including its hyphens, and select **Review transfer**. You can use the private link instead when the sender shared it. If Evorto says the transfer could not be opened, select **Enter another code**, check that the complete current code was copied, and ask the sender for a new code if they cancelled or replaced the offer.
+The intended recipient signs in, opens **Profile**, and selects **Use transfer code**. Paste the complete code, including its hyphens, and select **Review transfer**. If Evorto says the transfer could not be opened, select **Enter another code**, check that the complete current code was copied, and ask the sender for a new code if they cancelled or replaced the offer.
 
-Review the event, registration option, expiry, current price, current questions, fixed guest quantity, every add-on quantity, and existing check-in/fulfillment history. These bundle contents are read-only. Previous answers do not transfer: answer every currently required question for the recipient, then select **Claim registration** only when the current details are correct.
+Review the event, sign-up choice, expiry, current price, current questions, guests, add-ons, check-ins, and handed-out items. Guest and add-on quantities cannot be changed during the transfer. Existing check-ins and the handout history also stay with the ticket. Previous answers do not transfer, so answer every currently required question before selecting **Accept ticket**.
 `,
     });
 
@@ -260,14 +266,14 @@ Review the event, registration option, expiry, current price, current questions,
       .getByRole('link', { exact: true, name: 'Profile' })
       .click();
     await recipientPage.page
-      .getByRole('link', { exact: true, name: 'Claim transfer' })
+      .getByRole('link', { exact: true, name: 'Use transfer code' })
       .click();
     await expect(
       recipientPage.page.getByRole('heading', {
-        name: 'Enter a private claim code',
+        name: 'Enter a private transfer code',
       }),
     ).toBeVisible();
-    const claimCodeInput = recipientPage.page.getByLabel('Claim code');
+    const transferCodeInput = recipientPage.page.getByLabel('Transfer code');
     const reviewTransfer = recipientPage.page.getByRole('button', {
       name: 'Review transfer',
     });
@@ -277,7 +283,7 @@ Review the event, registration option, expiry, current price, current questions,
     await expect(transferCodeForm).not.toHaveAttribute('jsaction', /submit/, {
       timeout: 20_000,
     });
-    await claimCodeInput.fill('NOT-A-VALID-TRANSFER-CODE');
+    await transferCodeInput.fill('0000-0000-0000-0000-0000-0000-0000-0000');
     await expect(reviewTransfer).toBeEnabled();
     await reviewTransfer.click();
     const invalidCodeAlert = recipientPage.page.getByRole('alert');
@@ -290,46 +296,44 @@ Review the event, registration option, expiry, current price, current questions,
       'Check the complete code and try again',
     );
     await invalidCodeAlert
-      .getByRole('link', { name: 'Enter another code' })
+      .getByRole('button', { name: 'Enter another code' })
       .click();
     await expect(
       recipientPage.page.getByRole('heading', {
-        name: 'Enter a private claim code',
+        name: 'Enter a private transfer code',
       }),
     ).toBeVisible();
     await expect(transferCodeForm).not.toHaveAttribute('jsaction', /submit/, {
       timeout: 20_000,
     });
-    await recipientPage.page.getByLabel('Claim code').fill(claimCode);
+    await recipientPage.page.getByLabel('Transfer code').fill(transferCode);
     await expect(reviewTransfer).toBeEnabled();
     await reviewTransfer.click();
-    const claimHeading = recipientPage.page.getByRole('heading', {
-      name: 'Review before you claim',
+    const transferReviewHeading = recipientPage.page.getByRole('heading', {
+      name: 'Review ticket transfer',
     });
-    await expect(claimHeading).toBeVisible();
+    await expect(transferReviewHeading).toBeVisible();
     await takeScreenshot(
       testInfo,
       recipientPage.page.locator('main'),
       recipientPage.page,
-      'Review current transfer terms before claiming',
+      'Recipient reviews the ticket contents before accepting',
     );
-    const claimRegistration = recipientPage.page.getByRole('button', {
-      name: 'Claim registration',
+    const acceptTicket = recipientPage.page.getByRole('button', {
+      name: 'Accept ticket',
     });
-    const claimRegistrationForm = recipientPage.page.locator('form').filter({
-      has: claimRegistration,
+    const acceptTicketForm = recipientPage.page.locator('form').filter({
+      has: acceptTicket,
     });
-    await expect(claimRegistrationForm).not.toHaveAttribute(
-      'jsaction',
-      /submit/,
-      { timeout: 20_000 },
-    );
-    await expect(claimRegistration).toBeDisabled();
+    await expect(acceptTicketForm).not.toHaveAttribute('jsaction', /submit/, {
+      timeout: 20_000,
+    });
+    await expect(acceptTicket).toBeDisabled();
     await recipientPage.page
       .getByLabel('What should the organizer know?')
       .fill(recipientAnswer);
-    await expect(claimRegistration).toBeEnabled();
-    await claimRegistration.click();
+    await expect(acceptTicket).toBeEnabled();
+    await acceptTicket.click();
     await expect(
       recipientPage.page.getByRole('heading', { name: 'Transfer complete' }),
     ).toBeVisible();
@@ -337,7 +341,7 @@ Review the event, registration option, expiry, current price, current questions,
       testInfo,
       recipientPage.page.locator('main'),
       recipientPage.page,
-      'Confirmed registration after ownership moves to the recipient',
+      'Recipient receives the confirmed ticket',
     );
 
     const transferredRegistration =
@@ -382,7 +386,6 @@ Review the event, registration option, expiry, current price, current questions,
         },
       }),
     ).toMatchObject({
-      recipientRegistrationId: sourceRegistrationId,
       recipientUserId: recipient.id,
       status: 'completed',
     });
@@ -429,18 +432,18 @@ Review the event, registration option, expiry, current price, current questions,
 
     await testInfo.attach('markdown', {
       body: `
-The transfer keeps the same confirmed ticket and occupied capacity, moves ownership to the recipient, and notifies both people.
+The transfer gives the same confirmed ticket to the recipient. Evorto tries to notify both people. If either message does not arrive, the event and transfer pages still show who owns the ticket and what happens next.
 
 ## What paid transfers add
 
-For a paid transfer, **Claim registration** opens Stripe Checkout on the organization's connected account and includes the platform application fee. The recipient's payment is recalculated independently from the previous owner's refunds. After payment succeeds, the complete bundle moves to the recipient and Evorto refunds the exact remaining refundable amount from each original Stripe payment after accounting for prior successful refunds. When the bundle is free and no refund is needed, the transfer completes immediately without Stripe.
+For a paid transfer, **Accept ticket** opens the payment page. The recipient pays the current price, using only their own current discounts. After payment succeeds, everything on the ticket moves to the recipient and Evorto starts the previous owner's refund. A free transfer completes immediately when no refund is needed.
 
-- **Transfer complete — refund processing** means the recipient owns the ticket and one or more refunds to the previous owner are still being processed.
-- **Transfer complete — refund needs attention** still means the recipient owns the ticket. A platform administrator must retry the failed refund; the participant must not pay or claim again.
-- If the previous owner's ticket becomes ineligible or the fixed bundle otherwise changes after the recipient pays but before the transfer completes, Evorto leaves ownership unchanged and starts a full recipient refund including the platform fee. Check-in and fulfillment activity remain part of the bundle history. **Transfer stopped — refund processing** and **Transfer stopped — refund needs attention** mean the recipient does not own the ticket and must not pay or claim again.
-- If Checkout expires or the offer is cancelled before payment, the pending payment is released and the current owner keeps the confirmed ticket.
+- **Transfer complete — refund in progress** means the recipient owns the ticket and one or more refunds to the previous owner are still being processed.
+- **Transfer complete — refund needs attention** still means the recipient owns the ticket. An Evorto administrator must review the failed refund; the attendee must not pay or try the transfer again.
+- If the ticket can no longer be transferred after the recipient pays, the current owner keeps it and Evorto starts a full refund for the recipient. **Transfer stopped — refund in progress** and **Transfer stopped — refund needs attention** mean the recipient does not own the ticket and must not pay or try the transfer again.
+- If the payment expires or the offer is cancelled before payment, the current owner keeps the confirmed ticket.
 
-Continue with [Complete a paid transfer and retry a failed refund](/docs/complete-a-paid-transfer-and-retry-a-failed-refund) for the paid Checkout and refund-recovery states.
+Continue with [Finish a paid transfer and resolve a refund problem](/docs/finish-a-paid-transfer-and-resolve-a-refund-problem) for payment and refund help.
 `,
     });
   } finally {
@@ -511,7 +514,7 @@ Continue with [Complete a paid transfer and retry a failed refund](/docs/complet
   }
 });
 
-test('Complete a paid transfer and retry a failed refund', async ({
+test('Finish a paid transfer and resolve a refund problem', async ({
   browser,
   database,
   page,
@@ -528,7 +531,8 @@ test('Complete a paid transfer and retry a failed refund', async ({
     throw new Error('Expected documented paid-transfer users and template');
   }
   const operatorRecoveryReason =
-    'Retry one failed previous-owner refund after operator review.';
+    'Reviewed the failed previous-owner refund before trying again.';
+  const paidTransferEventTitle = 'Summer workshop transfer';
 
   const scenario = await seedPaidRegistrationTransferScenario({
     database,
@@ -536,7 +540,7 @@ test('Complete a paid transfer and retry a failed refund', async ({
     source,
     templateId: template.id,
     tenant,
-    title: 'Paid transfer refund guide',
+    title: paidTransferEventTitle,
   });
   const registrationBefore = await database.query.eventRegistrations.findFirst({
     columns: {
@@ -817,17 +821,16 @@ test('Complete a paid transfer and retry a failed refund', async ({
   try {
     await testInfo.attach('markdown', {
       body: `
-# Complete a paid transfer and retry a failed refund
 
 {% callout type="note" title="Before you start" %}
-This guide continues after a current ticket owner has created a Stripe-paid private transfer and the intended recipient, signed in to the same organization with an eligible account, has started the claim. The organization's connected Stripe account must be available. This example starts with a historical discount for the previous owner, one original registration payment, and one purchased-add-on payment that was already partially refunded. The recipient has no current eligible discount, so the previous owner's discount does not carry over: the recipient payment uses the current base prices. Evorto refunds the remaining amount from each original payment to the previous owner without changing the independently recalculated recipient payment. If you still need to create the private offer, start with [Transfer a registration with a private offer](/docs/transfer-a-registration-with-a-private-offer).
+Use this page after the current ticket owner has created a paid private transfer and the intended recipient has started accepting it. The recipient sees the current price and only their own current discounts. The previous owner's discounts do not carry over. If you still need to create the private offer, start with [Transfer your ticket privately](/docs/transfer-your-ticket-privately).
 {% /callout %}
 
-After a recipient claims a paid registration, Evorto keeps one Stripe Checkout attached to that private offer. The pending paid claim does not transfer ticket ownership yet; the previous owner keeps the same confirmed registration until payment succeeds.
+Starting payment does not move the ticket yet. The previous owner keeps it until payment succeeds.
 
-## Continue the existing Checkout
+## Continue the existing payment
 
-Open the same private claim link. **Payment still required** means the reservation is waiting for payment. Select **Continue payment** to return to the already-created Stripe Checkout; do not start another claim.
+Open the transfer page and enter the same private code. **Payment still required** means the transfer is waiting for payment. Select **Continue payment** to return to the payment page; do not start another transfer.
 `,
     });
 
@@ -839,7 +842,7 @@ Open the same private claim link. **Payment still required** means the reservati
       tenantDomain: tenant.domain,
       testClock,
     });
-    await recipientPage.page.goto(scenario.claimPath);
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Payment still required',
@@ -849,11 +852,11 @@ Open the same private claim link. **Payment still required** means the reservati
       recipientPage.page.getByRole('button', { name: 'Continue payment' }),
     ).toBeVisible();
     const bundleContents = recipientPage.page
-      .getByRole('heading', { name: 'Fixed bundle contents' })
+      .getByRole('heading', { name: 'Ticket and included items' })
       .locator('..')
       .locator('..');
     const registrationCheckInRow = bundleContents
-      .getByText('Registration check-in', { exact: true })
+      .getByText('Attendee check-in', { exact: true })
       .locator('..');
     await expect(registrationCheckInRow).toContainText('Checked in');
     await expect(
@@ -868,17 +871,17 @@ Open the same private claim link. **Payment still required** means the reservati
       .locator('..');
     await expect(paidAddonRow).toContainText('3 total');
     const includedPaidUnits = paidAddonRow
-      .getByText('Included in registration price', { exact: true })
+      .getByText('Included in the ticket price', { exact: true })
       .locator('..');
     await expect(includedPaidUnits.locator('dd')).toHaveText('1');
     const purchasedPaidUnits = paidAddonRow
-      .getByText('Purchased at current unit price', { exact: true })
+      .getByText('Purchased at the current price per item', { exact: true })
       .locator('..');
     await expect(purchasedPaidUnits.locator('dd')).toContainText(
       /2\s*×\s*(?:€\s*)?6[,.]50/,
     );
     await expect(paidAddonRow).toContainText(/Available to use\s*1/);
-    await expect(paidAddonRow).toContainText(/Redeemed\s*1/);
+    await expect(paidAddonRow).toContainText(/Handed out\s*1/);
     await expect(paidAddonRow).toContainText(/Cancelled\s*1/);
     const freeAddonRow = bundleContents
       .getByText('Transfer checklist item', { exact: true })
@@ -886,38 +889,31 @@ Open the same private claim link. **Payment still required** means the reservati
       .locator('..');
     await expect(freeAddonRow).toContainText('2 total');
     const purchasedFreeUnits = freeAddonRow
-      .getByText('Purchased at current unit price', { exact: true })
+      .getByText('Purchased at the current price per item', { exact: true })
       .locator('..');
     await expect(purchasedFreeUnits.locator('dd')).toContainText(
       /2\s*×\s*(?:€\s*)?0[,.]00/,
     );
     await expect(freeAddonRow).toContainText(/Available to use\s*0/);
-    await expect(freeAddonRow).toContainText(/Redeemed\s*1/);
+    await expect(freeAddonRow).toContainText(/Handed out\s*1/);
     await expect(freeAddonRow).toContainText(/Cancelled\s*1/);
     await takeScreenshot(
       testInfo,
       recipientPage.page.locator('main'),
       recipientPage.page,
-      'A paid claim waiting for its existing Stripe Checkout',
+      'Recipient sees the fixed ticket contents while payment is required',
     );
 
     expect(await scenario.completeCheckout()).toBe('finalized');
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
-        name: 'Transfer complete — refund processing',
+        name: 'Transfer complete — refund in progress',
       }),
     ).toBeVisible();
     await expect(
       recipientPage.page.getByRole('button', { name: 'Continue payment' }),
     ).toHaveCount(0);
-    await takeScreenshot(
-      testInfo,
-      recipientPage.page.locator('main'),
-      recipientPage.page,
-      'The recipient is confirmed while previous-owner refunds are processing',
-    );
-
     const transferredRegistration =
       await database.query.eventRegistrations.findFirst({
         columns: {
@@ -1253,9 +1249,6 @@ Open the same private claim link. **Payment still required** means the reservati
           ownershipTransferredAt: true,
           recipientBasePrice: true,
           recipientDiscountAmount: true,
-          recipientRegistrationId: true,
-          recipientSpotCount: true,
-          reservedAdditionalSpots: true,
           sourceRegistrationId: true,
           sourceSpotCount: true,
           status: true,
@@ -1266,9 +1259,6 @@ Open the same private claim link. **Payment still required** means the reservati
       compensationRefundTransactionId: null,
       recipientBasePrice: 2100,
       recipientDiscountAmount: 0,
-      recipientRegistrationId: scenario.sourceRegistrationId,
-      recipientSpotCount: 2,
-      reservedAdditionalSpots: 0,
       sourceRegistrationId: scenario.sourceRegistrationId,
       sourceSpotCount: 2,
       status: 'refund_pending',
@@ -1416,11 +1406,11 @@ Open the same private claim link. **Payment still required** means the reservati
       body: `
 ## Read the result before taking action
 
-**Transfer complete — refund processing** means payment and ticket ownership are final: the same confirmed registration and its full bundle now belong to the recipient, the previous owner no longer owns it, and one or more refunds to the previous owner are still being processed. The recipient must not pay again. The recipient's new Stripe payment remains independent from those exact refunds.
+**Transfer complete — refund in progress** means the recipient owns the ticket and Evorto has started the previous owner's refund. The recipient must not pay again. Check the status in Evorto until it is complete or needs attention.
 
 If any refund fails and needs attention, the recipient still owns the ticket and the other refunds continue independently. The private page changes to **Transfer complete — refund needs attention** so nobody mistakes a refund problem for an incomplete purchase.
 
-The previous owner can reopen the event at any time. **Transferred registrations** shows the exact total refund amount and whether it is processing, needs attention, or completed. This history does not restore ticket ownership or ticket actions.
+The previous owner can reopen the event at any time. **Transferred tickets** shows the refund amount and whether it is in progress, needs attention, or complete. This information does not return the ticket to the previous owner.
 `,
     });
 
@@ -1442,7 +1432,7 @@ The previous owner can reopen the event at any time. **Transferred registrations
     );
     await expect(
       sourceTransferSummary.getByRole('heading', {
-        name: 'Transfer refund is processing',
+        name: 'Transfer refund is in progress',
       }),
     ).toBeVisible();
     await expect(sourceTransferSummary).toContainText(
@@ -1454,7 +1444,7 @@ The previous owner can reopen the event at any time. **Transferred registrations
       testInfo,
       sourceTransferSummary,
       page,
-      'Previous-owner refund processing after ticket ownership moves',
+      'Previous owner sees the refund in progress',
     );
 
     const refundTransactionId = await scenario.failSourceRefund();
@@ -1476,14 +1466,16 @@ The previous owner can reopen the event at any time. **Transferred registrations
     if (!failedRefundEvidence?.stripeRefundId) {
       throw new Error('Expected the failed provider refund identifier');
     }
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
         name: 'Transfer complete — refund needs attention',
       }),
     ).toBeVisible();
     await expect(
-      recipientPage.page.getByText(/do not need to pay or claim again/i),
+      recipientPage.page.getByText(
+        /do not need to pay or try the transfer again/i,
+      ),
     ).toBeVisible();
     await page.reload();
     await waitForRegistrationPage(page);
@@ -1499,20 +1491,13 @@ The previous owner can reopen the event at any time. **Transferred registrations
       'Contact an organizer for an update.',
     );
     await expect(sourceTransferSummary.getByRole('button')).toHaveCount(0);
-    await takeScreenshot(
-      testInfo,
-      recipientPage.page.locator('main'),
-      recipientPage.page,
-      'A completed transfer with a failed previous-owner refund',
-    );
-
     await testInfo.attach('markdown', {
       body: `
-## Operator recovery
+## Resolve a refund problem
 
-A platform administrator opens the affected organization, selects **Review finance**, and then opens **Refund recovery**. Find the failed refund by its event, amount, failed state, and related registration-transfer activity. Select **Review recovery**, enter the required operational reason, and choose **Retry failed refund**.
+An Evorto administrator opens the affected organization, selects **Review finance**, and then opens **Refunds needing attention**. Find the refund by its event and amount. Select **Review refund**, enter the reason for the action, and choose **Try failed refund again**.
 
-Evorto keeps the failed Stripe refund in payment history, starts a new refund attempt for the same amount, and returns the participant page to **Transfer complete — refund processing**. Recovery never creates a second transfer, registration, payment, or refund obligation.
+Evorto tries the refund again for the same amount and returns the recipient's transfer page to **Transfer complete — refund in progress**. It does not create another transfer or ask either attendee to pay again.
 `,
     });
     operatorPage = await openAuthenticatedTestPage({
@@ -1530,7 +1515,7 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
       }),
     ).toBeVisible();
     await operatorPage.page
-      .getByRole('tab', { name: 'Refund recovery' })
+      .getByRole('tab', { name: 'Refunds needing attention' })
       .click();
     const formattedFailedRefundAmount = new Intl.NumberFormat(
       TENANT_FORMATTING_LOCALE,
@@ -1542,20 +1527,16 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
     const platformFinance = operatorPage.page.locator('app-platform-finance');
     const recoveryRow = platformFinance
       .locator('div.border-b')
-      .filter({ hasText: 'Paid transfer refund guide' })
+      .filter({ hasText: paidTransferEventTitle })
       .filter({ hasText: formattedFailedRefundAmount })
-      .filter({ hasText: 'Related to a registration transfer' })
-      .filter({ hasText: 'Stripe marked the previous refund as failed.' });
+      .filter({ hasText: 'Related to a ticket transfer' })
+      .filter({ hasText: 'The previous refund failed.' });
     await expect(recoveryRow).toBeVisible({ timeout: 20_000 });
     await expect(recoveryRow).toHaveCount(1);
-    await expect(recoveryRow).toContainText('Paid transfer refund guide');
+    await expect(recoveryRow).toContainText(paidTransferEventTitle);
     await expect(recoveryRow).toContainText(formattedFailedRefundAmount);
-    await expect(recoveryRow).toContainText(
-      'Related to a registration transfer',
-    );
-    await expect(recoveryRow).toContainText(
-      'Stripe marked the previous refund as failed.',
-    );
+    await expect(recoveryRow).toContainText('Related to a ticket transfer');
+    await expect(recoveryRow).toContainText('The previous refund failed.');
     for (const hiddenIdentifier of [
       scenario.transferId,
       registrationRefundPlan.id,
@@ -1565,10 +1546,10 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
       await expect(platformFinance).not.toContainText(hiddenIdentifier);
     }
     await expect(platformFinance).not.toContainText(rawProviderError);
-    await recoveryRow.getByRole('button', { name: 'Review recovery' }).click();
+    await recoveryRow.getByRole('button', { name: 'Review refund' }).click();
     const refundRecoveryHeading = operatorPage.page.getByRole('heading', {
       level: 2,
-      name: 'Retry failed refund',
+      name: 'Try failed refund again',
     });
     await expect(refundRecoveryHeading).toBeVisible();
     const refundRecoveryForm = refundRecoveryHeading.locator('..');
@@ -1577,20 +1558,18 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
     });
     await expect(
       refundRecoveryForm.getByText('Event', { exact: true }).locator('..'),
-    ).toContainText('Paid transfer refund guide');
+    ).toContainText(paidTransferEventTitle);
     await expect(
       refundRecoveryForm.getByText('Amount', { exact: true }).locator('..'),
     ).toContainText(formattedFailedRefundAmount);
     await expect(
-      refundRecoveryForm
-        .getByText('Safe next step', { exact: true })
-        .locator('..'),
-    ).toContainText('Retry this failed refund');
+      refundRecoveryForm.getByText('Next step', { exact: true }).locator('..'),
+    ).toContainText('Try this refund again');
     await expect(
       refundRecoveryForm
         .getByText('Related activity', { exact: true })
         .locator('..'),
-    ).toContainText('Registration transfer');
+    ).toContainText('Ticket transfer');
     for (const hiddenIdentifier of [
       scenario.transferId,
       registrationRefundPlan.id,
@@ -1601,7 +1580,7 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
     }
     await expect(refundRecoveryForm).not.toContainText(rawProviderError);
     const refundRecoveryReason = refundRecoveryForm.getByLabel(
-      'Operational recovery reason',
+      'Reason for this action',
     );
     await refundRecoveryReason.fill(operatorRecoveryReason);
     await expect(refundRecoveryReason).toHaveValue(operatorRecoveryReason);
@@ -1609,47 +1588,40 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
       testInfo,
       operatorPage.page.locator('app-platform-finance'),
       operatorPage.page,
-      'Review and retry one failed refund',
+      'Review and try a refund again',
     );
     const scheduleNewRefundGeneration = refundRecoveryForm.getByRole('button', {
-      name: 'Retry failed refund',
+      name: 'Try failed refund again',
     });
     await expect(scheduleNewRefundGeneration).toBeEnabled();
     await scheduleNewRefundGeneration.click();
     await expect(
-      operatorPage.page.getByText('Failed refund scheduled for retry', {
+      operatorPage.page.getByText('The refund will be tried again', {
         exact: true,
       }),
     ).toBeVisible({ timeout: 20_000 });
     await expect(
       operatorPage.page.getByRole('heading', {
         level: 2,
-        name: 'Retry failed refund',
+        name: 'Try failed refund again',
       }),
     ).toHaveCount(0);
-    await recipientPage.page.reload();
+    await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
     await expect(
       recipientPage.page.getByRole('heading', {
-        name: 'Transfer complete — refund processing',
+        name: 'Transfer complete — refund in progress',
       }),
     ).toBeVisible();
     await page.reload();
     await waitForRegistrationPage(page);
     await expect(
       sourceTransferSummary.getByRole('heading', {
-        name: 'Transfer refund is processing',
+        name: 'Transfer refund is in progress',
       }),
     ).toBeVisible();
     await expect(sourceTransferSummary).toContainText(
       formattedSourceRefundAmount,
     );
-    await takeScreenshot(
-      testInfo,
-      recipientPage.page.locator('main'),
-      recipientPage.page,
-      'Failed refund scheduled for another attempt',
-    );
-
     const recoveredRefund = await database.query.transactions.findFirst({
       columns: {
         stripeRefundGeneration: true,
@@ -1685,7 +1657,7 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
       body: `
 ## Confirm the previous-owner refund completed
 
-When every original Stripe refund succeeds, the previous owner's event page changes to **Transfer refund completed** and keeps the exact total visible. The ticket still belongs to the recipient, so no transferred-ticket actions return.
+When the refund succeeds, the previous owner's event page changes to **Transfer refund completed** and keeps the total visible. The ticket still belongs to the recipient.
 `,
     });
     await scenario.completeSourceRefunds();
@@ -1715,7 +1687,7 @@ When every original Stripe refund succeeds, the previous owner's event page chan
       testInfo,
       sourceTransferSummary,
       page,
-      'Previous-owner refund completed without restoring ticket actions',
+      'Previous owner sees that the refund is complete',
     );
   } finally {
     await operatorPage?.context.close();

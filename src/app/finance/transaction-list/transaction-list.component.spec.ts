@@ -37,10 +37,17 @@ describe('TransactionListComponent template', () => {
     expect(template.match(/currency: element\.currency/g)).toHaveLength(4);
   });
 
-  it('labels the paginator for transactions rather than users', () => {
+  it('labels the paginator for payments and refunds rather than users', () => {
     expect(transactionListTemplate()).toContain(
-      'aria-label="Select page of transactions"',
+      'aria-label="Select page of payments and refunds"',
     );
+  });
+
+  it('keeps database terminology out of visible payment history copy', () => {
+    const template = transactionListTemplate();
+
+    expect(template).not.toMatch(/>\s*[^<{]*transactions?[^<{]*</iu);
+    expect(template).toContain('Payment history');
   });
 });
 
@@ -49,7 +56,7 @@ describe('transaction labels', () => {
     expect(transactionMethodLabel).toEqual({
       cash: 'Cash',
       paypal: 'PayPal',
-      stripe: 'Stripe',
+      stripe: 'Online payment',
       transfer: 'Bank transfer',
     });
     expect(transactionStatusLabel).toEqual({
@@ -127,14 +134,14 @@ describe('TransactionListComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Transactions could not be loaded',
+        'Payment history could not be loaded',
       );
     });
 
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      'The transaction history is unavailable. Check your connection and try again.',
+      'No payments or refunds are shown. Select Try again.',
     );
 
     const retryButton: HTMLButtonElement | null =
@@ -174,15 +181,16 @@ describe('TransactionListComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       const text = normalizeText(fixture);
-      expect(text).toContain('Stripe');
       expect(text).toContain('Completed');
+      expect(text).toContain('Online payment');
+      expect(text).not.toContain('Stripe');
       expect(text).toContain('Fees:');
-      expect(text).toContain('Platform fee:');
-      expect(text).toContain('Stripe fee:');
+      expect(text).toContain('Evorto fee:');
+      expect(text).toContain('Payment fee:');
     });
   });
 
-  it('explains when no transactions have been recorded', async () => {
+  it('explains when no payments or refunds have been recorded', async () => {
     findTransactions.mockResolvedValue({ data: [], total: 0 });
 
     const fixture = TestBed.createComponent(TransactionListComponent);
@@ -190,7 +198,9 @@ describe('TransactionListComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('No transactions recorded yet');
+      expect(normalizeText(fixture)).toContain(
+        'No payments or refunds recorded yet',
+      );
     });
     expect(fixture.nativeElement.querySelector('table')).toBeNull();
     expect(fixture.nativeElement.querySelector('mat-paginator')).toBeNull();

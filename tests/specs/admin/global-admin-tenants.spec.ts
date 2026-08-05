@@ -11,7 +11,7 @@ test.setTimeout(120_000);
 test.use({ storageState: gaStateFile });
 
 const tenantSearchLabel = 'Search organizations';
-const expectedStripeAccountId =
+const testPaymentAccountId =
   process.env['STRIPE_TEST_ACCOUNT_ID'] ?? 'acct_playwright_list';
 
 const fillTenantSearch = async (page: Page, value: string) => {
@@ -24,16 +24,14 @@ const fillTenantSearch = async (page: Page, value: string) => {
 };
 
 const expectTenantRows = async (page: Page) => {
-  await expect(page.getByText('Primary domain').first()).toBeVisible();
+  await expect(page.getByText('Website address').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
-  await expect(page.getByText('Locale').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
-  await expect(page.getByText('Timezone').first()).toBeVisible();
-  await expect(page.getByText('Stripe account').first()).toBeVisible();
-  await expect(page.getByText('evorto').first()).toBeVisible();
-  await expect(page.getByText('de-DE').first()).toBeVisible();
+  await expect(page.getByText('Time zone').first()).toBeVisible();
+  await expect(page.getByText('Payments').first()).toBeVisible();
+  await expect(page.getByText('Default theme').first()).toBeVisible();
   await expect(page.getByText('EUR').first()).toBeVisible();
-  await expect(page.getByText('Europe/Berlin').first()).toBeVisible();
+  await expect(page.getByText('Berlin time').first()).toBeVisible();
 };
 
 const expectTenantFormScope = async (
@@ -46,35 +44,45 @@ const expectTenantFormScope = async (
   const form = page.locator('form');
 
   await expect(form.getByLabel('Organization name')).toBeVisible();
-  await expect(form.getByLabel('Primary domain')).toBeVisible();
-  await expect(form.getByLabel('Theme')).toBeVisible();
-  await expect(form.getByLabel('Stripe account ID')).toBeVisible();
+  await expect(
+    form.getByRole('textbox', { name: 'Website address', exact: true }),
+  ).toBeVisible();
+  const themeSelect = form.getByLabel('Theme');
+  await expect(themeSelect).toBeVisible();
+  await themeSelect.click();
+  await expect(
+    page.getByRole('option', { name: 'Default theme' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('option', { name: 'Classic Evorto theme' }),
+  ).toBeVisible();
+  await expect(page.getByRole('option', { name: 'ESN theme' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(form.getByLabel('Currency')).toBeVisible();
-  await expect(form.getByLabel('Timezone')).toBeVisible();
+  await expect(form.getByLabel('Time zone')).toBeVisible();
   if (options.expectCreatePlaceholders) {
     await expect(
-      form.getByRole('textbox', { name: 'Primary domain', exact: true }),
+      form.getByRole('textbox', { name: 'Website address', exact: true }),
     ).toBeVisible();
-    await expect(form.getByPlaceholder('acct_...')).toBeVisible();
   }
   await expect(form.getByRole('combobox').first()).toBeVisible();
-  await expect(form.getByLabel('Reason for platform change')).toBeVisible();
+  await expect(form.getByLabel('Reason for this change')).toBeVisible();
   if (options.expectCreatePlaceholders) {
     await expect(form.getByLabel('Privacy policy text')).toBeVisible();
-    await expect(form.getByLabel('Privacy policy URL')).toBeVisible();
+    await expect(form.getByLabel('Privacy policy web address')).toBeVisible();
   }
   if (options.expectPublicUrlMigrationGuidance) {
     await expect(
-      page.getByRole('heading', { name: 'Changing the public domain' }),
+      page.getByRole('heading', { name: 'Changing the website address' }),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Finish pending payments, refunds, and registration transfers before changing this domain.',
+        'Finish pending payments, refunds, and ticket transfers before changing this address.',
       ),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Keep the old domain redirecting here so existing links and QR codes continue to work.',
+        'Links and QR codes that use the old address will stop working.',
       ),
     ).toBeVisible();
   }
@@ -84,11 +92,15 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   database,
   registerDatabaseCleanup,
   page,
+  tenantDomain,
 }) => {
+  if (!tenantDomain) {
+    throw new Error('Expected the seeded organization address');
+  }
   const [originalTenant] = await database
     .select()
     .from(schema.tenants)
-    .where(eq(schema.tenants.domain, 'localhost'))
+    .where(eq(schema.tenants.domain, tenantDomain))
     .limit(1);
   if (!originalTenant) {
     throw new Error('Expected seeded global-admin tenant');
@@ -97,14 +109,18 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   const createdTenantName = 'Created Section';
   const createAuditReason = `E2E tenant creation for ${createdTenantDomain}`;
   const updateAuditReason = `E2E tenant review for ${createdTenantDomain}`;
-  let blockedMigrationTransactionId: string | undefined;
-  let createdTenantId: string | undefined;
+  const cleanupIds: {
+    blockedMigrationTransactionId?: string;
+    createdTenantId?: string;
+  } = {};
 
   registerDatabaseCleanup(async (cleanupDatabase) => {
-    if (blockedMigrationTransactionId) {
+    if (cleanupIds.blockedMigrationTransactionId) {
       await cleanupDatabase
         .delete(schema.transactions)
-        .where(eq(schema.transactions.id, blockedMigrationTransactionId));
+        .where(
+          eq(schema.transactions.id, cleanupIds.blockedMigrationTransactionId),
+        );
     }
     await cleanupDatabase
       .delete(schema.platformAuditEntries)
@@ -114,11 +130,14 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
           updateAuditReason,
         ]),
       );
-    if (createdTenantId) {
+    if (cleanupIds.createdTenantId) {
       await cleanupDatabase
         .delete(schema.tenantPrivacyPolicyVersions)
         .where(
-          eq(schema.tenantPrivacyPolicyVersions.tenantId, createdTenantId),
+          eq(
+            schema.tenantPrivacyPolicyVersions.tenantId,
+            cleanupIds.createdTenantId,
+          ),
         );
     }
     await cleanupDatabase
@@ -129,7 +148,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
       .set({
         currency: originalTenant.currency,
         domain: originalTenant.domain,
-        locale: originalTenant.locale,
         name: originalTenant.name,
         stripeAccountId: originalTenant.stripeAccountId,
         theme: originalTenant.theme,
@@ -153,11 +171,11 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await expect(
     page.getByRole('heading', { name: 'No organizations match this search' }),
   ).toBeVisible();
-  await fillTenantSearch(page, 'localhost');
-  await expect(page.getByText('localhost').first()).toBeVisible();
-  await fillTenantSearch(page, expectedStripeAccountId);
+  await fillTenantSearch(page, originalTenant.domain);
+  await expect(page.getByText(originalTenant.domain).first()).toBeVisible();
+  await fillTenantSearch(page, testPaymentAccountId);
   await expect(
-    page.getByText(`Connected (${expectedStripeAccountId})`).first(),
+    page.getByRole('heading', { name: 'No organizations match this search' }),
   ).toBeVisible();
 
   await page.getByRole('link', { name: 'Create organization' }).click();
@@ -174,19 +192,23 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await page
     .getByLabel('Privacy policy text')
     .fill('Privacy policy for the new section.');
-  await page.getByLabel('Reason for platform change').fill(createAuditReason);
+  await page.getByLabel('Reason for this change').fill(createAuditReason);
   await expect(
     page.getByRole('button', { name: 'Create organization' }),
   ).toBeEnabled();
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(
-    page.getByText('Domain must be a single host name'),
+    page.getByText(
+      'Enter the main website address only, for example section.example.org.',
+    ),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
   await createTenantInputs.nth(1).fill(originalTenant.domain);
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(
-    page.getByText('Organization domain already exists'),
+    page.getByText(
+      'This website address is already used by another organization.',
+    ),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
   await createTenantInputs.nth(1).fill(createdTenantDomain);
@@ -198,6 +220,9 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await expect(
     page.getByRole('heading', { level: 1, name: createdTenantName }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Open organization' }),
+  ).toHaveAttribute('href', `https://${createdTenantDomain}`);
 
   const [createdTenant] = await database
     .select()
@@ -207,12 +232,11 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   if (!createdTenant) {
     throw new Error('Expected global-admin create flow to persist tenant');
   }
-  createdTenantId = createdTenant.id;
+  cleanupIds.createdTenantId = createdTenant.id;
   expect(createdTenant).toEqual(
     expect.objectContaining({
       currency: 'EUR',
       domain: createdTenantDomain,
-      locale: 'de-DE',
       name: createdTenantName,
       stripeAccountId: null,
       theme: 'evorto',
@@ -246,29 +270,33 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     }),
   );
 
-  blockedMigrationTransactionId = getId();
+  cleanupIds.blockedMigrationTransactionId = getId();
   await database.insert(schema.transactions).values({
-    amount: 1000,
+    amount: -1000,
     currency: createdTenant.currency,
-    id: blockedMigrationTransactionId,
+    id: cleanupIds.blockedMigrationTransactionId,
+    manuallyCreated: true,
     method: 'stripe',
     status: 'pending',
+    stripeAccountId: testPaymentAccountId,
     tenantId: createdTenant.id,
-    type: 'registration',
+    type: 'refund',
   });
   await page.getByRole('link', { name: 'Edit organization' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Changing the public domain' }),
+    page.getByRole('heading', { name: 'Changing the website address' }),
   ).toBeVisible();
   const blockedDomain = `blocked-${getId().slice(0, 8)}.example.test`;
-  await page.getByLabel('Primary domain').fill(blockedDomain);
   await page
-    .getByLabel('Reason for platform change')
+    .getByRole('textbox', { name: 'Website address', exact: true })
+    .fill(blockedDomain);
+  await page
+    .getByLabel('Reason for this change')
     .fill('Verify active-link migration protection');
   await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(
     page.getByText(
-      "Organization public URL cannot change while issued links are active. Complete or cancel every pending Stripe Checkout or refund before changing the organization's public URL.",
+      'The website address cannot be changed while payments, refunds, or ticket transfers are unfinished. Finish or cancel them and try again.',
     ),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
@@ -281,11 +309,13 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   );
   await database
     .delete(schema.transactions)
-    .where(eq(schema.transactions.id, blockedMigrationTransactionId));
+    .where(
+      eq(schema.transactions.id, cleanupIds.blockedMigrationTransactionId),
+    );
 
   await page.goto('/global-admin/tenants');
   await expect(page).toHaveURL(/\/global-admin\/tenants$/);
-  await fillTenantSearch(page, 'localhost');
+  await fillTenantSearch(page, originalTenant.domain);
   const reviewTenantHref = `/global-admin/tenants/${originalTenant.id}`;
   const reviewTenantLink = page.locator(`a[href="${reviewTenantHref}"]`, {
     hasText: 'Review organization',
@@ -294,7 +324,9 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await reviewTenantLink.click();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
   await expect(
-    page.getByText("Review this organization's settings and platform tools."),
+    page.getByText(
+      "Review this organization's settings and manage its events, members, roles, and finances.",
+    ),
   ).toBeVisible();
   await expectTenantRows(page);
   await expect(
@@ -314,7 +346,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   });
   const tenantFormInputs = page.locator('form input');
   await expect(tenantFormInputs.first()).toHaveValue(/.+/);
-  await expect(tenantFormInputs.nth(1)).toHaveValue('localhost');
+  await expect(tenantFormInputs.nth(1)).toHaveValue(originalTenant.domain);
   await expect(
     page.getByRole('button', { name: 'Save organization' }),
   ).toBeDisabled();
@@ -322,7 +354,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
 
   const updatedTenantName = `${originalTenant.name} reviewed`;
   await tenantFormInputs.first().fill(updatedTenantName);
-  await page.getByLabel('Reason for platform change').fill(updateAuditReason);
+  await page.getByLabel('Reason for this change').fill(updateAuditReason);
   await expect(
     page.getByRole('button', { name: 'Save organization' }),
   ).toBeEnabled();
@@ -345,7 +377,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     }),
   );
   await page.goto('/global-admin');
-  await page.getByRole('link', { name: 'Platform audit log' }).click();
+  await page.getByRole('link', { name: 'Evorto change history' }).click();
   await expect(page).toHaveURL(/\/global-admin\/audit$/);
   await expect(page.getByText(createAuditReason)).toBeVisible();
   await expect(page.getByText(updateAuditReason)).toBeVisible();

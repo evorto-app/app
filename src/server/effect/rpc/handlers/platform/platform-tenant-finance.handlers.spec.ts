@@ -33,7 +33,6 @@ import {
   platformTenantFinanceHandlers,
   refundRecoveryAuditSnapshot,
   reimbursementAuditSnapshot,
-  resolvePlatformReimbursementCurrency,
   toPlatformFinanceTransactionRecord,
   toRefundRecoveryRecord,
 } from './platform-tenant-finance.handlers';
@@ -51,10 +50,8 @@ const receiptWithSubmitterInput = (
   hasAlcohol: false,
   hasDeposit: false,
   id: 'receipt-1',
-  previewImageUrl: 'https://example.test/receipt.pdf',
   purchaseCountry: 'DE',
   receiptDate: '2026-07-09',
-  receiptEvidenceAvailable: true,
   refundedAt: null,
   refundTransactionId: null,
   rejectionReason: null,
@@ -95,7 +92,6 @@ const targetTenant = Tenant.make({
   id: 'tenant-1',
   legalNoticeText: undefined,
   legalNoticeUrl: undefined,
-  locale: 'de-DE',
   logoUrl: undefined,
   maxActiveRegistrationsPerUser: 0,
   name: 'Target tenant',
@@ -118,12 +114,12 @@ const submittedReceiptEvidence = {
   attachmentFileName: 'receipt.pdf',
   attachmentMimeType: 'application/pdf',
   attachmentStorageKey: 'receipts/tenant-1/event-1/user-1/upload-1-receipt.pdf',
-  attachmentStorageUrl: 'https://storage.example.test/receipt.pdf',
   attachmentUploadConsumedAt: new Date('2026-07-10T08:00:00.000Z'),
   attachmentUploadedAt: new Date('2026-07-10T07:59:00.000Z'),
   attachmentUploadedByUserId: 'user-1',
   attachmentUploadEventId: 'event-1',
   attachmentUploadId: 'upload-1',
+  attachmentUploadStatus: 'consumed' as const,
   attachmentUploadTenantId: 'tenant-1',
   createdAt: new Date('2026-07-10T08:00:00.000Z'),
   currency: 'EUR' as const,
@@ -134,7 +130,7 @@ const submittedReceiptEvidence = {
   id: 'receipt-1',
   previewImageUrl: null,
   purchaseCountry: 'DE',
-  receiptDate: new Date('2026-07-09T00:00:00.000Z'),
+  receiptDate: '2026-07-09',
   refundedAt: null,
   refundTransactionId: null,
   rejectionReason: null,
@@ -156,7 +152,7 @@ const platformTransactionRow = (
 ): PlatformTransactionRow => ({
   amount: -1200,
   appFee: null,
-  comment: 'Registration refund',
+  comment: 'Ticket refund',
   createdAt: new Date('2026-07-10T10:00:00.000Z'),
   currency: 'EUR',
   eventRegistrationId: 'registration-1',
@@ -220,6 +216,8 @@ describe('platform tenant finance handlers', () => {
 
       expect(error).toMatchObject({
         _tag: 'RpcBadRequestError',
+        message:
+          'This refund cannot be tried again. The refund was not started again. Return to Refunds needing attention and review its current status.',
         reason: 'refundRequeueNotAllowed',
       });
     }),
@@ -316,19 +314,34 @@ describe('platform tenant finance handlers', () => {
       '.update(financeReceipts)',
       lockedEvidence,
     );
+    const receiptLink = source.indexOf(
+      'const receiptUrl = yield* tenantOutboundUrl(',
+      receiptUpdate,
+    );
+    const receiptPath = source.indexOf("'/profile/receipts'", receiptLink);
+    const notification = source.indexOf(
+      'enqueueReceiptReviewedEmail(transaction, {',
+      receiptPath,
+    );
 
     expect(approvalCheck).toBeGreaterThan(-1);
     expect(evidenceLoad).toBeGreaterThan(approvalCheck);
     expect(transactionStart).toBeGreaterThan(evidenceLoad);
     expect(lockedEvidence).toBeGreaterThan(transactionStart);
     expect(receiptUpdate).toBeGreaterThan(lockedEvidence);
+    expect(receiptLink).toBeGreaterThan(receiptUpdate);
+    expect(receiptPath).toBeGreaterThan(receiptLink);
+    expect(notification).toBeGreaterThan(receiptPath);
   });
 
   it.effect(
-    'blocks platform approval before mutation when evidence cannot be signed',
+    'returns a typed storage outage before mutating a platform approval',
     () =>
       Effect.gen(function* () {
         const transaction = vi.fn();
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.dieMessage('Approval must not sign a preview URL'),
+        );
         const database = {
           query: {
             tenants: {
@@ -384,21 +397,180 @@ describe('platform tenant finance handlers', () => {
                   Effect.dieMessage('Unexpected receipt upload'),
                 discardPromotedUpload: () =>
                   Effect.dieMessage('Unexpected promoted upload discard'),
-                objectExists: () => Effect.succeed(true),
-                signedPreviewUrl: () =>
+                objectExists: () =>
                   Effect.fail(
                     new ReceiptMediaServiceUnavailableError({
-                      message: 'Receipt storage is unavailable',
+                      message:
+                        'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                     }),
                   ),
+                signedPreviewUrl,
               }),
             ),
           ),
         );
 
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('receiptEvidenceUnavailable');
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(error.message).toBe(
+          'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+        );
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
         expect(transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'does not call receipt storage for platform approval and reimbursement queues',
+    () =>
+      Effect.gen(function* () {
+        const objectExists = vi.fn(() =>
+          Effect.dieMessage('Queue must not check receipt storage'),
+        );
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.dieMessage('Queue must not sign receipt previews'),
+        );
+        const receiptRow = {
+          ...submittedReceiptEvidence,
+          eventStart: new Date('2026-07-20T10:00:00.000Z'),
+          eventTitle: 'Welcome dinner',
+          recipientIban: 'DE89370400440532013000',
+          recipientPaypalEmail: 'participant@example.test',
+          submittedByCommunicationEmail: 'participant@example.test',
+          submittedByEmail: 'participant@example.test',
+          submittedByFirstName: 'Pat',
+          submittedByLastName: 'Example',
+        };
+        const receiptQuery = {
+          from: () => receiptQuery,
+          innerJoin: () => receiptQuery,
+          orderBy: () => Effect.succeed([receiptRow]),
+          where: () => receiptQuery,
+        };
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () => Effect.succeed(targetTenant),
+            },
+          },
+          select: () => receiptQuery,
+        };
+        const layer = Layer.mergeAll(
+          RpcAccess.Default,
+          Layer.succeed(RpcRequestContext, {
+            authData: { sub: platformAuthority.actorId },
+            authenticated: true,
+            permissions: [],
+            platformAuthority,
+            tenant: targetTenant,
+            user: null,
+            userAssigned: false,
+          }),
+          Layer.succeed(Database, database as never),
+          Layer.succeed(ReceiptMediaService, {
+            createUploadPolicy: () =>
+              Effect.dieMessage('Unexpected receipt upload'),
+            discardPromotedUpload: () =>
+              Effect.dieMessage('Unexpected promoted upload discard'),
+            objectExists,
+            signedPreviewUrl,
+          }),
+        );
+
+        const approvalQueue = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.approvalQueue'
+        ]({ targetTenantId: 'tenant-1' }, { headers: {} } as never).pipe(
+          Effect.provide(layer),
+        );
+        const reimbursementQueue = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.reimbursementQueue'
+        ]({ targetTenantId: 'tenant-1' }, { headers: {} } as never).pipe(
+          Effect.provide(layer),
+        );
+
+        expect(approvalQueue.groups).toHaveLength(1);
+        expect(approvalQueue.groups[0]?.receipts[0]).not.toHaveProperty(
+          'previewImageUrl',
+        );
+        expect(reimbursementQueue.groups).toHaveLength(1);
+        expect(reimbursementQueue.groups[0]?.receipts[0]).not.toHaveProperty(
+          'receiptEvidenceAvailable',
+        );
+        expect(objectExists).not.toHaveBeenCalled();
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'propagates a preview signing outage from platform receipt detail',
+    () =>
+      Effect.gen(function* () {
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.fail(
+            new ReceiptMediaServiceUnavailableError({
+              message:
+                'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+            }),
+          ),
+        );
+        const receiptRow = {
+          ...submittedReceiptEvidence,
+          eventStart: new Date('2026-07-20T10:00:00.000Z'),
+          eventTitle: 'Welcome dinner',
+          submittedByCommunicationEmail: 'participant@example.test',
+          submittedByEmail: 'participant@example.test',
+          submittedByFirstName: 'Pat',
+          submittedByLastName: 'Example',
+        };
+        const receiptQuery = {
+          from: () => receiptQuery,
+          innerJoin: () => receiptQuery,
+          limit: () => Effect.succeed([receiptRow]),
+          where: () => receiptQuery,
+        };
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () => Effect.succeed(targetTenant),
+            },
+          },
+          select: () => receiptQuery,
+        };
+        const error = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.approvalDetail'
+        ]({ id: 'receipt-1', targetTenantId: 'tenant-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              RpcAccess.Default,
+              Layer.succeed(RpcRequestContext, {
+                authData: { sub: platformAuthority.actorId },
+                authenticated: true,
+                permissions: [],
+                platformAuthority,
+                tenant: targetTenant,
+                user: null,
+                userAssigned: false,
+              }),
+              Layer.succeed(Database, database as never),
+              Layer.succeed(ReceiptMediaService, {
+                createUploadPolicy: () =>
+                  Effect.dieMessage('Unexpected receipt upload'),
+                discardPromotedUpload: () =>
+                  Effect.dieMessage('Unexpected promoted upload discard'),
+                objectExists: () => Effect.succeed(true),
+                signedPreviewUrl,
+              }),
+            ),
+          ),
+        );
+
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(error.message).toBe(
+          'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+        );
+        expect(signedPreviewUrl).toHaveBeenCalledOnce();
       }),
   );
 
@@ -419,14 +591,18 @@ describe('platform tenant finance handlers', () => {
     }
   });
 
-  it('versions payout details without sending them back in a mutation or audit', () => {
-    const first = payoutDetailsVersion('iban', 'DE89 3704 0044');
-    const sameNormalized = payoutDetailsVersion('iban', ' DE89 3704 0044 ');
-    const changed = payoutDetailsVersion('iban', 'DE89 3704 0045');
+  it('versions exact canonical payout details without normalizing defects', () => {
+    const first = payoutDetailsVersion('iban', 'DE89370400440532013000');
+    const changed = payoutDetailsVersion('iban', 'NL91ABNA0417164300');
 
-    expect(first).toBe(sameNormalized);
     expect(first).not.toBe(changed);
     expect(first).toMatch(/^[a-f\d]{64}$/u);
+    expect(() =>
+      payoutDetailsVersion('iban', ' DE89 3704 0044 0532 0130 00 '),
+    ).toThrow(/non-canonical iban/u);
+    expect(() =>
+      payoutDetailsVersion('paypal', 'Participant@Example.Test'),
+    ).toThrow(/non-canonical paypal/u);
   });
 
   it('allows only a newly submitted receipt to be reviewed', () => {
@@ -445,7 +621,7 @@ describe('platform tenant finance handlers', () => {
         hasAlcohol: false,
         hasDeposit: false,
         purchaseCountry: 'DE',
-        receiptDate: new Date('2026-07-09T00:00:00.000Z'),
+        receiptDate: '2026-07-09',
         rejectionReason: null,
         reviewedAt,
         status: 'approved',
@@ -466,6 +642,9 @@ describe('platform tenant finance handlers', () => {
     });
     expect(transaction.executiveUserId).toBeNull();
     expect(transaction.currency).toBe('CZK');
+    expect(transaction.comment).toBe(
+      'Receipt reimbursement recorded by an Evorto administrator via bank transfer for 1 receipt across 1 event',
+    );
     expect(transaction).not.toHaveProperty('payoutReference');
 
     expect(
@@ -476,9 +655,15 @@ describe('platform tenant finance handlers', () => {
     ).toBeNull();
   });
 
-  it('creates a typed reimbursement audit envelope without payout or participant PII', () => {
+  it('creates a typed reimbursement audit envelope with only masked payout evidence', () => {
+    const payoutFingerprint = payoutDetailsVersion(
+      'paypal',
+      'participant@example.test',
+    );
     const snapshot = reimbursementAuditSnapshot({
       currency: 'EUR',
+      payoutDestinationMasked: 'p•••@e•••.test',
+      payoutFingerprint,
       payoutType: 'paypal',
       receiptIds: ['receipt-1', 'receipt-2'],
       refundedAt: new Date('2026-07-10T10:00:00.000Z'),
@@ -492,6 +677,8 @@ describe('platform tenant finance handlers', () => {
       resourceType: 'receipt',
       state: {
         currency: 'EUR',
+        payoutDestinationMasked: 'p•••@e•••.test',
+        payoutFingerprint,
         payoutType: 'paypal',
         receiptCount: 2,
         receiptIds: ['receipt-1', 'receipt-2'],
@@ -514,24 +701,6 @@ describe('platform tenant finance handlers', () => {
       expect(encoded).not.toContain(forbiddenField);
     }
   });
-
-  it.effect('accepts only one recorded currency per reimbursement batch', () =>
-    Effect.gen(function* () {
-      expect(
-        yield* resolvePlatformReimbursementCurrency([
-          { currency: 'CZK' },
-          { currency: 'CZK' },
-        ]),
-      ).toBe('CZK');
-
-      const error = yield* resolvePlatformReimbursementCurrency([
-        { currency: 'EUR' },
-        { currency: 'AUD' },
-      ]).pipe(Effect.flip);
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('mismatchedReceiptCurrency');
-    }),
-  );
 
   it('audits refund recovery mode and state without error text or Stripe identifiers', () => {
     const snapshot = refundRecoveryAuditSnapshot({
@@ -941,6 +1110,8 @@ describe('platform tenant finance handlers', () => {
       ...receiptWithSubmitterInput('submitted'),
       eventStart: '2026-07-20T10:00:00.000Z',
       eventTitle: 'Welcome event',
+      previewImageUrl: 'https://example.test/receipt.pdf',
+      receiptEvidenceAvailable: true,
     });
 
     expect(

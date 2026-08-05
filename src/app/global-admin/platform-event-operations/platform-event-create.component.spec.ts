@@ -5,6 +5,8 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NotificationService } from '../../core/notification.service';
@@ -125,7 +127,7 @@ describe('PlatformEventCreateComponent', () => {
       fixture.detectChanges();
       expect(loadFormOptions).toHaveBeenCalledTimes(2);
       expect(fixture.nativeElement.textContent).toContain('Event owner');
-      expect(fixture.nativeElement.textContent).toContain('Source template');
+      expect(fixture.nativeElement.textContent).toContain('Event template');
     });
   });
 
@@ -164,8 +166,24 @@ describe('PlatformEventCreateComponent', () => {
     });
 
     const text = fixture.nativeElement.textContent.replaceAll(/\s+/g, ' ');
-    expect(
-      text.match(/Organization time zone: Australia\/Brisbane/g),
-    ).toHaveLength(2);
+    expect(text.match(/Organization time zone: Brisbane time/g)).toHaveLength(
+      2,
+    );
+    expect(text).not.toContain('Australia/Brisbane');
+  });
+
+  it('explains clock-change validation without technical wording', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-event-create.component.ts',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain(
+      "Choose start and end times that exist in the organization's time zone. If the clocks change on that date, choose a different time.",
+    );
+    expect(source).not.toContain('daylight-saving transitions');
   });
 });

@@ -21,7 +21,6 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
@@ -33,7 +32,6 @@ const tenant = {
 };
 
 const createUser = (permissions: readonly Permission[]) => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
   email: 'alice@example.com',
   firstName: 'Alice',
@@ -90,10 +88,9 @@ describe('roleHandlers lookup permissions', () => {
           },
         };
 
-        const result = yield* roleHandlers['roles.findMany'](
-          { search: 'organizer' },
-          { headers: {} } as never,
-        ).pipe(
+        const result = yield* roleHandlers['roles.findMany']({}, {
+          headers: {},
+        } as never).pipe(
           Effect.provide(createContextLayer(['templates:create'], database)),
         );
 
@@ -114,7 +111,7 @@ describe('roleHandlers lookup permissions', () => {
       }),
   );
 
-  it.effect('findMany scopes lookup filters to the current tenant', () =>
+  it.effect('findMany scopes the catalog to the current tenant', () =>
     Effect.gen(function* () {
       let queryInput: unknown;
       const database = {
@@ -128,14 +125,11 @@ describe('roleHandlers lookup permissions', () => {
         },
       };
 
-      yield* roleHandlers['roles.findMany'](
-        {
-          defaultOrganizerRole: true,
-          defaultUserRole: false,
-          search: 'mentor',
-        },
-        { headers: {} } as never,
-      ).pipe(Effect.provide(createContextLayer(['events:create'], database)));
+      yield* roleHandlers['roles.findMany']({}, {
+        headers: {},
+      } as never).pipe(
+        Effect.provide(createContextLayer(['events:create'], database)),
+      );
 
       expect(queryInput).toEqual({
         columns: {
@@ -144,94 +138,39 @@ describe('roleHandlers lookup permissions', () => {
           id: true,
           name: true,
         },
-        limit: 15,
         orderBy: { name: 'asc' },
         where: {
-          defaultOrganizerRole: true,
-          defaultUserRole: false,
-          name: { ilike: '%mentor%' },
           tenantId: tenant.id,
         },
       });
     }),
   );
 
-  it.effect('findOne allows event creators', () =>
-    Effect.gen(function* () {
-      let queryInput: unknown;
-      const database = {
-        query: {
-          roles: {
-            findFirst: (query: unknown) => {
-              queryInput = query;
-              return Effect.succeed({
-                defaultOrganizerRole: false,
-                defaultUserRole: true,
-                id: 'role-1',
-                name: 'Participant',
-              });
+  it.effect(
+    'allows announcement discovery managers to select announcement roles',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            roles: {
+              findMany: () => Effect.succeed([]),
             },
           },
-        },
-      };
+        };
 
-      const result = yield* roleHandlers['roles.findOne']({ id: 'role-1' }, {
-        headers: {},
-      } as never).pipe(
-        Effect.provide(createContextLayer(['events:create'], database)),
-      );
+        const result = yield* roleHandlers['roles.findMany']({}, {
+          headers: {},
+        } as never).pipe(
+          Effect.provide(
+            createContextLayer(
+              ['events:changeAnnouncementDiscovery'],
+              database,
+            ),
+          ),
+        );
 
-      expect(queryInput).toEqual({
-        columns: {
-          defaultOrganizerRole: true,
-          defaultUserRole: true,
-          id: true,
-          name: true,
-        },
-        where: {
-          id: 'role-1',
-          tenantId: tenant.id,
-        },
-      });
-      expect(result).toEqual({
-        defaultOrganizerRole: false,
-        defaultUserRole: true,
-        id: 'role-1',
-        name: 'Participant',
-      });
-    }),
-  );
-
-  it.effect('findOne strips permission-bearing role data from the result', () =>
-    Effect.gen(function* () {
-      const database = {
-        query: {
-          roles: {
-            findFirst: () =>
-              Effect.succeed({
-                defaultOrganizerRole: false,
-                defaultUserRole: true,
-                id: 'role-1',
-                name: 'Participant',
-                permissions: ['admin:manageRoles'],
-              }),
-          },
-        },
-      };
-
-      const result = yield* roleHandlers['roles.findOne']({ id: 'role-1' }, {
-        headers: {},
-      } as never).pipe(
-        Effect.provide(createContextLayer(['events:create'], database)),
-      );
-
-      expect(result).toEqual({
-        defaultOrganizerRole: false,
-        defaultUserRole: true,
-        id: 'role-1',
-        name: 'Participant',
-      });
-    }),
+        expect(result).toEqual([]);
+      }),
   );
 
   it.effect(
@@ -247,28 +186,5 @@ describe('roleHandlers lookup permissions', () => {
 
         expect(error['_tag']).toBe('RpcForbiddenError');
       }),
-  );
-
-  it.effect('findOne fails with a typed not-found error', () =>
-    Effect.gen(function* () {
-      const database = {
-        query: {
-          roles: {
-            findFirst: () => Effect.succeed(),
-          },
-        },
-      };
-
-      const error = yield* roleHandlers['roles.findOne'](
-        { id: 'missing-role' },
-        { headers: {} } as never,
-      ).pipe(
-        Effect.flip,
-        Effect.provide(createContextLayer(['events:create'], database)),
-      );
-
-      expect(error['_tag']).toBe('RoleLookupNotFoundError');
-      expect(error.id).toBe('missing-role');
-    }),
   );
 });

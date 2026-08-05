@@ -1,18 +1,11 @@
-import type { Headers } from 'effect/unstable/http';
-
-import {
-  RpcBadRequestError,
-  RpcForbiddenError,
-  RpcUnauthorizedError,
-} from '@shared/errors/rpc-errors';
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { resolveReceiptCountrySettings } from '@shared/finance/receipt-countries';
 import {
   AdminRoleNotFoundError,
   AdminTenantNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/admin.errors';
-import {
-  resolveTenantReceiptSettings,
-  type TenantDiscountProviders,
-} from '@shared/tenant-config';
+import { RoleNameAlreadyExistsError } from '@shared/rpc-contracts/app-rpcs/role-write.shared';
+import { type TenantDiscountProviders } from '@shared/tenant-config';
 import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -24,31 +17,22 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
-import {
-  includesPermission,
-  partitionTenantRolePermissions,
-  type Permission,
-} from '../../../../shared/permissions/permissions';
-import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { Tenant } from '../../../../types/custom/tenant';
+import { AdminRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
+import { lockTenantStripeAccount } from '../../../payments/pending-stripe-obligations';
 import {
-  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-  stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-  tenantHasPaidEventConfiguration,
-  tenantHasStripeTaxRateConfiguration,
-} from '../../../payments/paid-event-configuration';
+  ensureStripeAccountUnchanged,
+  listStripeTaxRates,
+  loadStripeTaxRatesForImport,
+  requireTenantStripeAccount,
+  stripeTaxRateAccountConflict,
+  type StripeTaxRateSource,
+  toTenantStripeTaxRateValues,
+} from '../../../payments/stripe-tax-rate.service';
 import {
-  lockTenantStripeAccount,
-  tenantHasPendingStripeObligations,
-} from '../../../payments/pending-stripe-obligations';
-import {
-  applyStripeTaxRateAccountRotation,
-  fetchStripeTaxRateAccountRotationTargetRates,
-  planStripeTaxRateAccountRotation,
-  type StripeTaxRateAccountRotationPlan,
-  type StripeTaxRateAccountRotationTargetRate,
-} from '../../../payments/stripe-tax-rate-account-rotation';
+  normalizeRoleWrite,
+  roleNameConflictFromDatabase,
+} from '../../../roles/role-write';
 import {
   ensureTenantRetainsAnotherDefaultUserRole,
   ensureTenantRoleIsUnreferenced,
@@ -60,10 +44,8 @@ import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
 } from '../../../tenant-currency-integrity';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+import { safeServerErrorSummary } from '../../../utils/safe-server-error-summary';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -83,25 +65,63 @@ const databaseBadRequestEffect = <A, R>(
     ),
   );
 
-const databaseRoleEffect = <A, R>(
-  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
-) =>
-  Database.use((database) =>
-    operation(database).pipe(
-      Effect.catch((error) =>
-        error instanceof AdminRoleNotFoundError ||
-        error instanceof RpcBadRequestError
-          ? Effect.fail(error)
-          : Effect.die(error),
+const validateAdminSettings = <A>(input: {
+  readonly operation: string;
+  readonly publicMessage: string;
+  readonly try: () => A;
+}) =>
+  Effect.try({
+    catch: (error) => error,
+    try: input.try,
+  }).pipe(
+    Effect.tapError((error) =>
+      Effect.logWarning('Admin settings validation failed').pipe(
+        Effect.annotateLogs(safeServerErrorSummary(input.operation, error)),
       ),
+    ),
+    Effect.mapError(
+      () => new RpcBadRequestError({ message: input.publicMessage }),
     ),
   );
 
-const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
-  value: string | undefined,
-  schema: S,
-): S['Type'] =>
-  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+type AdminRoleDatabaseError =
+  AdminRoleNotFoundError | RoleNameAlreadyExistsError | RpcBadRequestError;
+
+type AdminRoleDatabaseErrorWithoutConflict =
+  AdminRoleNotFoundError | RpcBadRequestError;
+
+function databaseRoleEffect<A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+): Effect.Effect<A, AdminRoleDatabaseErrorWithoutConflict, Database | R>;
+function databaseRoleEffect<A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+  roleName: string,
+): Effect.Effect<A, AdminRoleDatabaseError, Database | R>;
+function databaseRoleEffect<A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+  roleName?: string,
+): Effect.Effect<A, AdminRoleDatabaseError, Database | R> {
+  return Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch(
+        (error): Effect.Effect<never, AdminRoleDatabaseError, never> => {
+          const nameConflict =
+            roleName === undefined
+              ? undefined
+              : roleNameConflictFromDatabase(error, roleName);
+          if (nameConflict) {
+            return Effect.fail(nameConflict);
+          }
+
+          return error instanceof AdminRoleNotFoundError ||
+            error instanceof RpcBadRequestError
+            ? Effect.fail(error)
+            : Effect.die(error);
+        },
+      ),
+    ),
+  );
+}
 
 const normalizeOptionalUrl = (
   value: string | undefined,
@@ -232,9 +252,6 @@ const normalizeTenantBrandAssets = (
   }),
 });
 
-const normalizeMaxActiveRegistrationsPerUser = (value: number): number =>
-  Math.max(0, Math.trunc(value));
-
 type TenantRuntimeDependentDataDatabase = Pick<DatabaseClient, 'query'>;
 
 const tenantHasRuntimeDependentData = (
@@ -266,11 +283,11 @@ const tenantHasRuntimeDependentData = (
     return !!existingTransaction;
   });
 
-const tenantRuntimeSettingsLockedError = () =>
+const tenantTimezoneSettingsLockedError = () =>
   new RpcBadRequestError({
-    message: 'Tenant currency and timezone settings are locked',
-    reason:
-      'Currency and timezone cannot be changed after event or payment data exists.',
+    message:
+      'Time zone cannot be changed after events or payments have been added. Keep the current time zone to save these settings.',
+    reason: 'timezoneLocked',
   });
 
 const tenantCurrencySettingsLockedError = () =>
@@ -301,95 +318,51 @@ const normalizeHubRoleRecord = (role: {
   };
 };
 
-const normalizeAdminRoleRecord = <
-  Role extends { permissions: readonly Permission[] },
->(
-  role: Role,
-) => ({
-  ...role,
-  permissions: partitionTenantRolePermissions(role.permissions).accepted,
-});
-
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, RpcUnauthorizedError> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-
-const ensurePermission = (
-  headers: Headers.Headers,
-  permission: Permission,
-): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
-  Effect.gen(function* () {
-    yield* ensureAuthenticated(headers);
-    const currentPermissions = decodeHeaderJson(
-      headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
-      ConfigPermissions,
-    );
-
-    if (!includesPermission(permission, currentPermissions)) {
-      return yield* Effect.fail(
-        new RpcForbiddenError({ message: 'Forbidden', permission }),
-      );
-    }
-  });
+const decodeAdminRoleRecord = Schema.decodeUnknownSync(AdminRoleRecord);
 
 export const adminHandlers = {
-  'admin.roles.create': (input, options) =>
+  'admin.roles.create': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const createdRoles = yield* databaseRoleEffect((database) =>
-        database.transaction((transaction) =>
-          Effect.gen(function* () {
-            yield* lockTenantRoleGraph(transaction, tenant.id);
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
+      const normalized = yield* normalizeRoleWrite(input);
+      const createdRoles = yield* databaseRoleEffect(
+        (database) =>
+          database.transaction((transaction) =>
+            Effect.gen(function* () {
+              yield* lockTenantRoleGraph(transaction, tenant.id);
 
-            return yield* transaction
-              .insert(roles)
-              .values({
-                collapseMembersInHup: input.collapseMembersInHup,
-                defaultOrganizerRole: input.defaultOrganizerRole,
-                defaultUserRole: input.defaultUserRole,
-                description: input.description,
-                displayInHub: input.displayInHub,
-                name: input.name,
-                permissions: input.permissions,
-                tenantId: tenant.id,
-              })
-              .returning({
-                collapseMembersInHup: roles.collapseMembersInHup,
-                defaultOrganizerRole: roles.defaultOrganizerRole,
-                defaultUserRole: roles.defaultUserRole,
-                description: roles.description,
-                displayInHub: roles.displayInHub,
-                id: roles.id,
-                name: roles.name,
-                permissions: roles.permissions,
-                sortOrder: roles.sortOrder,
-              });
-          }),
-        ),
+              return yield* transaction
+                .insert(roles)
+                .values({
+                  ...normalized,
+                  tenantId: tenant.id,
+                })
+                .returning({
+                  defaultOrganizerRole: roles.defaultOrganizerRole,
+                  defaultUserRole: roles.defaultUserRole,
+                  description: roles.description,
+                  displayInHub: roles.displayInHub,
+                  id: roles.id,
+                  name: roles.name,
+                  permissions: roles.permissions,
+                  sortOrder: roles.sortOrder,
+                });
+            }),
+          ),
+        normalized.name,
       );
       const createdRole = createdRoles[0];
       if (!createdRole) {
         return yield* Effect.die(new Error('Role insert returned no rows'));
       }
 
-      return normalizeAdminRoleRecord(createdRole);
+      return decodeAdminRoleRecord(createdRole);
     }),
-  'admin.roles.delete': ({ id }, options) =>
+  'admin.roles.delete': ({ id }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       yield* databaseRoleEffect((database) =>
         database.transaction((transaction) =>
           Effect.gen(function* () {
@@ -406,7 +379,7 @@ export const adminHandlers = {
             if (!lockedRole) {
               return yield* new AdminRoleNotFoundError({
                 id,
-                message: 'Role not found',
+                message: 'This role no longer exists. Return to the role list.',
               });
             }
             if (lockedRole.defaultUserRole) {
@@ -431,13 +404,10 @@ export const adminHandlers = {
         ),
       );
     }),
-  'admin.roles.findHubRoles': (_payload, options) =>
+  'admin.roles.findHubRoles': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('internal:viewInternalPages');
+      const { tenant } = yield* RpcAccess.current();
       const hubRoles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: {
@@ -471,17 +441,13 @@ export const adminHandlers = {
 
       return hubRoles.map((role) => normalizeHubRoleRecord(role));
     }),
-  'admin.roles.findMany': (input, options) =>
+  'admin.roles.findMany': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       const tenantRoles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: {
-            collapseMembersInHup: true,
             defaultOrganizerRole: true,
             defaultUserRole: true,
             description: true,
@@ -504,19 +470,15 @@ export const adminHandlers = {
         }),
       );
 
-      return tenantRoles.map((role) => normalizeAdminRoleRecord(role));
+      return tenantRoles.map((role) => decodeAdminRoleRecord(role));
     }),
-  'admin.roles.findOne': ({ id }, options) =>
+  'admin.roles.findOne': ({ id }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       const role = yield* databaseEffect((database) =>
         database.query.roles.findFirst({
           columns: {
-            collapseMembersInHup: true,
             defaultOrganizerRole: true,
             defaultUserRole: true,
             description: true,
@@ -531,23 +493,22 @@ export const adminHandlers = {
       );
       if (!role) {
         return yield* Effect.fail(
-          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          new AdminRoleNotFoundError({
+            id,
+            message: 'This role no longer exists. Return to the role list.',
+          }),
         );
       }
 
-      return normalizeAdminRoleRecord(role);
+      return decodeAdminRoleRecord(role);
     }),
-  'admin.roles.search': ({ search }, options) =>
+  'admin.roles.search': ({ search }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       const matchingRoles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: {
-            collapseMembersInHup: true,
             defaultOrganizerRole: true,
             defaultUserRole: true,
             description: true,
@@ -566,107 +527,84 @@ export const adminHandlers = {
         }),
       );
 
-      return matchingRoles.map((role) => normalizeAdminRoleRecord(role));
+      return matchingRoles.map((role) => decodeAdminRoleRecord(role));
     }),
-  'admin.roles.update': ({ id, ...input }, options) =>
+  'admin.roles.update': ({ id, ...input }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const updatedRoles = yield* databaseRoleEffect((database) =>
-        database.transaction((transaction) =>
-          Effect.gen(function* () {
-            yield* lockTenantRoleGraph(transaction, tenant.id);
-            const lockedRoles = yield* transaction
-              .select({
-                defaultUserRole: roles.defaultUserRole,
-                id: roles.id,
-              })
-              .from(roles)
-              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-              .for('update');
-            const lockedRole = lockedRoles[0];
-            if (!lockedRole) {
-              return yield* new AdminRoleNotFoundError({
-                id,
-                message: 'Role not found',
-              });
-            }
-            if (lockedRole.defaultUserRole && !input.defaultUserRole) {
-              yield* ensureTenantRetainsAnotherDefaultUserRole(
-                transaction,
-                tenant.id,
-                id,
-              );
-            }
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
+      const normalized = yield* normalizeRoleWrite(input);
+      const updatedRoles = yield* databaseRoleEffect(
+        (database) =>
+          database.transaction((transaction) =>
+            Effect.gen(function* () {
+              yield* lockTenantRoleGraph(transaction, tenant.id);
+              const lockedRoles = yield* transaction
+                .select({
+                  defaultUserRole: roles.defaultUserRole,
+                  id: roles.id,
+                })
+                .from(roles)
+                .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+                .for('update');
+              const lockedRole = lockedRoles[0];
+              if (!lockedRole) {
+                return yield* new AdminRoleNotFoundError({
+                  id,
+                  message:
+                    'This role no longer exists. Return to the role list.',
+                });
+              }
+              if (lockedRole.defaultUserRole && !normalized.defaultUserRole) {
+                yield* ensureTenantRetainsAnotherDefaultUserRole(
+                  transaction,
+                  tenant.id,
+                  id,
+                );
+              }
 
-            return yield* transaction
-              .update(roles)
-              .set({
-                collapseMembersInHup: input.collapseMembersInHup,
-                defaultOrganizerRole: input.defaultOrganizerRole,
-                defaultUserRole: input.defaultUserRole,
-                description: input.description,
-                displayInHub: input.displayInHub,
-                name: input.name,
-                permissions: input.permissions,
-              })
-              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-              .returning({
-                collapseMembersInHup: roles.collapseMembersInHup,
-                defaultOrganizerRole: roles.defaultOrganizerRole,
-                defaultUserRole: roles.defaultUserRole,
-                description: roles.description,
-                displayInHub: roles.displayInHub,
-                id: roles.id,
-                name: roles.name,
-                permissions: roles.permissions,
-                sortOrder: roles.sortOrder,
-              });
-          }),
-        ),
+              return yield* transaction
+                .update(roles)
+                .set(normalized)
+                .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+                .returning({
+                  defaultOrganizerRole: roles.defaultOrganizerRole,
+                  defaultUserRole: roles.defaultUserRole,
+                  description: roles.description,
+                  displayInHub: roles.displayInHub,
+                  id: roles.id,
+                  name: roles.name,
+                  permissions: roles.permissions,
+                  sortOrder: roles.sortOrder,
+                });
+            }),
+          ),
+        normalized.name,
       );
       const updatedRole = updatedRoles[0];
       if (!updatedRole) {
         return yield* Effect.fail(
-          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          new AdminRoleNotFoundError({
+            id,
+            message: 'This role no longer exists. Return to the role list.',
+          }),
         );
       }
 
-      return normalizeAdminRoleRecord(updatedRole);
+      return decodeAdminRoleRecord(updatedRole);
     }),
-  'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
+  'admin.tenant.importStripeTaxRates': ({ ids }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:tax');
-      const stripe = yield* StripeClient;
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
+      yield* RpcAccess.ensurePermission('admin:tax');
+      const { tenant } = yield* RpcAccess.current();
+      const stripeAccount = yield* requireTenantStripeAccount(
+        tenant.stripeAccountId ?? null,
       );
-      const stripeAccount = tenant.stripeAccountId;
-      if (!stripeAccount) {
-        return;
-      }
-
-      const stripeRates = yield* Effect.all(
-        ids.map((id) =>
-          Effect.promise(() =>
-            stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
-          ).pipe(
-            Effect.flatMap((stripeRate) =>
-              stripeRate.inclusive
-                ? Effect.succeed(stripeRate)
-                : Effect.fail(
-                    new RpcBadRequestError({
-                      message: 'Stripe tax rate must be inclusive',
-                      reason: 'nonInclusiveTaxRate',
-                    }),
-                  ),
-            ),
-          ),
-        ),
+      const stripe = yield* StripeClient;
+      const { rates: stripeRates } = yield* loadStripeTaxRatesForImport(
+        stripe.taxRates,
+        stripeAccount,
+        ids,
       );
 
       yield* databaseBadRequestEffect((database) =>
@@ -676,16 +614,14 @@ export const adminHandlers = {
               tx,
               tenant.id,
             );
-            if (lockedStripeAccount !== stripeAccount) {
-              return yield* new RpcBadRequestError({
-                message: 'Stripe account changed while tax rates were loading',
-                reason:
-                  'Reload the page and import rates from the current account.',
-              });
-            }
+            yield* ensureStripeAccountUnchanged(
+              stripeAccount,
+              lockedStripeAccount,
+            );
 
-            yield* Effect.all(
-              stripeRates.map((stripeRate) =>
+            yield* Effect.forEach(
+              stripeRates,
+              (stripeRate) =>
                 Effect.gen(function* () {
                   const existingRate =
                     yield* tx.query.tenantStripeTaxRates.findFirst({
@@ -702,32 +638,13 @@ export const adminHandlers = {
                     existingRate &&
                     existingRate.stripeAccountId !== stripeAccount
                   ) {
-                    return yield* new RpcBadRequestError({
-                      message:
-                        'Imported tax-rate metadata belongs to a different Stripe account',
-                      reason:
-                        'Change or disconnect the Stripe account before importing this rate.',
-                    });
+                    return yield* stripeTaxRateAccountConflict();
                   }
 
-                  const values: Omit<
-                    typeof tenantStripeTaxRates.$inferInsert,
-                    'id'
-                  > = {
-                    active: !!stripeRate.active,
-                    country: stripeRate.country ?? null,
-                    displayName: stripeRate.display_name ?? null,
-                    inclusive: !!stripeRate.inclusive,
-                    percentage:
-                      stripeRate.percentage !== null &&
-                      stripeRate.percentage !== undefined
-                        ? String(stripeRate.percentage)
-                        : undefined,
-                    state: stripeRate.state ?? null,
+                  const values = toTenantStripeTaxRateValues(stripeRate, {
                     stripeAccountId: stripeAccount,
-                    stripeTaxRateId: stripeRate.id,
                     tenantId: tenant.id,
-                  };
+                  });
 
                   yield* existingRate
                     ? tx
@@ -736,19 +653,16 @@ export const adminHandlers = {
                         .where(eq(tenantStripeTaxRates.id, existingRate.id))
                     : tx.insert(tenantStripeTaxRates).values(values);
                 }),
-              ),
-            ).pipe(Effect.asVoid);
+              { concurrency: 1, discard: true },
+            );
           }),
         ),
       );
     }),
-  'admin.tenant.listImportedTaxRates': (_payload, options) =>
+  'admin.tenant.listImportedTaxRates': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:tax');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:tax');
+      const { tenant } = yield* RpcAccess.current();
       const stripeAccountId = tenant.stripeAccountId;
       if (!stripeAccountId) {
         return [];
@@ -773,29 +687,19 @@ export const adminHandlers = {
 
       return importedTaxRates;
     }),
-  'admin.tenant.listStripeTaxRates': (_payload, options) =>
+  'admin.tenant.listStripeTaxRates': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:tax');
+      yield* RpcAccess.ensurePermission('admin:tax');
+      const { tenant } = yield* RpcAccess.current();
+      const stripeAccount = yield* requireTenantStripeAccount(
+        tenant.stripeAccountId ?? null,
+      );
       const stripe = yield* StripeClient;
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const stripeAccount = tenant.stripeAccountId;
-      if (!stripeAccount) {
-        return [];
-      }
-
-      const [activeRates, archivedRates] = yield* Effect.promise(() =>
-        Promise.all([
-          stripe.taxRates.list({ active: true, limit: 100 }, { stripeAccount }),
-          stripe.taxRates.list(
-            { active: false, limit: 100 },
-            { stripeAccount },
-          ),
-        ]),
-      );
-      const mapRate = (rate: (typeof activeRates)['data'][number]) => ({
+      const [activeRates, archivedRates] = yield* Effect.all([
+        listStripeTaxRates(stripe.taxRates, stripeAccount, { active: true }),
+        listStripeTaxRates(stripe.taxRates, stripeAccount, { active: false }),
+      ]);
+      const mapRate = (rate: StripeTaxRateSource) => ({
         active: !!rate.active,
         country: rate.country ?? null,
         displayName: rate.display_name ?? null,
@@ -806,25 +710,144 @@ export const adminHandlers = {
       });
 
       return [
-        ...activeRates.data.map((rate) => mapRate(rate)),
-        ...archivedRates.data.map((rate) => mapRate(rate)),
+        ...activeRates.map((rate) => mapRate(rate)),
+        ...archivedRates.map((rate) => mapRate(rate)),
       ];
     }),
-  'admin.tenant.updateSettings': (input, options) =>
+  'admin.tenant.updateAppearanceSettings': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:changeSettings');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const brandAssets = yield* validateAdminSettings({
+        operation: 'admin.settings.appearance.validate',
+        publicMessage:
+          'Choose an uploaded logo or small site icon for this organization, or enter a valid web address.',
+        try: () => normalizeTenantBrandAssets(input, tenant.id),
+      });
+
+      const updatedTenants = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set({
+            ...brandAssets,
+            seoDescription: input.seoDescription?.trim() || null,
+            seoTitle: input.seoTitle?.trim() || null,
+            theme: input.theme,
+          })
+          .where(eq(tenants.id, tenant.id))
+          .returning({ id: tenants.id }),
       );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updateLegalSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const legalLinks = yield* validateAdminSettings({
+        operation: 'admin.settings.legal.validate',
+        publicMessage:
+          'Enter valid web addresses for the legal notice and terms.',
+        try: () => normalizeTenantLegalLinks(input),
+      });
+
+      const updatedTenants = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set(legalLinks)
+          .where(eq(tenants.id, tenant.id))
+          .returning({ id: tenants.id }),
+      );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updateOrganizationSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const updatedTenants = yield* Database.use((database) =>
+        database
+          .transaction((transaction) =>
+            Effect.gen(function* () {
+              const lockedTenantRows = yield* transaction
+                .select({
+                  id: tenants.id,
+                  timezone: tenants.timezone,
+                })
+                .from(tenants)
+                .where(eq(tenants.id, tenant.id))
+                .for('update');
+              const lockedTenant = lockedTenantRows[0];
+              if (!lockedTenant) {
+                return [];
+              }
+
+              if (lockedTenant.timezone !== input.timezone) {
+                const hasDependentData = yield* tenantHasRuntimeDependentData(
+                  transaction,
+                  tenant.id,
+                );
+                if (hasDependentData) {
+                  return yield* Effect.fail(
+                    tenantTimezoneSettingsLockedError(),
+                  );
+                }
+              }
+
+              return yield* transaction
+                .update(tenants)
+                .set({
+                  defaultLocation: input.defaultLocation,
+                  emailSenderEmail: input.emailSenderEmail?.trim() || null,
+                  emailSenderName: input.emailSenderName?.trim() || null,
+                  timezone: input.timezone,
+                })
+                .where(eq(tenants.id, tenant.id))
+                .returning({ id: tenants.id });
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof RpcBadRequestError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
+      );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updatePaymentProviderSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:managePayments');
+      const { tenant } = yield* RpcAccess.current();
       const discountProviders: TenantDiscountProviders = {
         esnCard: {
-          config: yield* Effect.try({
-            catch: (error) =>
-              new RpcBadRequestError({
-                message: 'Invalid ESN card configuration',
-                reason: error instanceof Error ? error.message : String(error),
-              }),
+          config: yield* validateAdminSettings({
+            operation: 'admin.settings.esnCard.validate',
+            publicMessage:
+              'Enter a valid secure web address for buying an ESNcard.',
             try: () =>
               normalizeEsnCardConfig(
                 { buyEsnCardUrl: input.buyEsnCardUrl },
@@ -834,99 +857,6 @@ export const adminHandlers = {
           status: input.esnCardEnabled ? 'enabled' : 'disabled',
         },
       };
-      const legalLinks = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Invalid tenant legal links',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
-        try: () => normalizeTenantLegalLinks(input),
-      });
-      const brandAssets = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Invalid tenant brand assets',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
-        try: () => normalizeTenantBrandAssets(input, tenant.id),
-      });
-      const nextTenant = {
-        ...tenant,
-        ...brandAssets,
-        cancellationDeadlineHoursBeforeStart:
-          input.cancellationDeadlineHoursBeforeStart,
-        currency: input.currency,
-        defaultLocation: input.defaultLocation,
-        discountProviders,
-        emailSenderEmail: input.emailSenderEmail?.trim() || null,
-        emailSenderName: input.emailSenderName?.trim() || null,
-        ...legalLinks,
-        maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
-          input.maxActiveRegistrationsPerUser,
-        ),
-        receiptSettings: resolveTenantReceiptSettings({
-          allowOther: input.allowOther,
-          receiptCountries: input.receiptCountries,
-        }),
-        refundFeesOnCancellation: input.refundFeesOnCancellation,
-        seoDescription: input.seoDescription?.trim() || null,
-        seoTitle: input.seoTitle?.trim() || null,
-        stripeAccountId: input.stripeAccountId?.trim() || null,
-        theme: input.theme,
-        timezone: input.timezone,
-        transferDeadlineHoursBeforeStart:
-          input.transferDeadlineHoursBeforeStart,
-      };
-
-      const validatedTenant = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Updated tenant settings failed validation',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
-        try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
-      });
-
-      const tenantUpdate = {
-        ...brandAssets,
-        cancellationDeadlineHoursBeforeStart:
-          input.cancellationDeadlineHoursBeforeStart,
-        currency: input.currency,
-        defaultLocation: input.defaultLocation,
-        discountProviders,
-        emailSenderEmail: input.emailSenderEmail?.trim() || null,
-        emailSenderName: input.emailSenderName?.trim() || null,
-        ...legalLinks,
-        maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
-          input.maxActiveRegistrationsPerUser,
-        ),
-        receiptSettings: resolveTenantReceiptSettings({
-          allowOther: input.allowOther,
-          receiptCountries: input.receiptCountries,
-        }),
-        refundFeesOnCancellation: input.refundFeesOnCancellation,
-        seoDescription: input.seoDescription?.trim() || null,
-        seoTitle: input.seoTitle?.trim() || null,
-        stripeAccountId: input.stripeAccountId?.trim() || null,
-        theme: input.theme,
-        timezone: input.timezone,
-        transferDeadlineHoursBeforeStart:
-          input.transferDeadlineHoursBeforeStart,
-      };
-      let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
-        [];
-      if (
-        tenant.stripeAccountId &&
-        tenantUpdate.stripeAccountId &&
-        tenant.stripeAccountId !== tenantUpdate.stripeAccountId
-      ) {
-        const stripe = yield* StripeClient;
-        stripeTaxRateRotationTargets =
-          yield* fetchStripeTaxRateAccountRotationTargetRates(
-            stripe,
-            tenantUpdate.stripeAccountId,
-          );
-      }
       const updatedTenants = yield* Database.use((database) =>
         database
           .transaction((tx) =>
@@ -935,8 +865,6 @@ export const adminHandlers = {
                 .select({
                   currency: tenants.currency,
                   id: tenants.id,
-                  stripeAccountId: tenants.stripeAccountId,
-                  timezone: tenants.timezone,
                 })
                 .from(tenants)
                 .where(eq(tenants.id, tenant.id))
@@ -945,58 +873,6 @@ export const adminHandlers = {
               const lockedTenant = lockedTenantRows[0];
               if (!lockedTenant) {
                 return [];
-              }
-
-              let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
-              if (
-                lockedTenant.stripeAccountId !== tenantUpdate.stripeAccountId
-              ) {
-                const hasPendingStripeObligations =
-                  yield* tenantHasPendingStripeObligations(tx, tenant.id);
-                if (hasPendingStripeObligations) {
-                  return yield* new RpcBadRequestError({
-                    message:
-                      'Stripe account cannot change while registration Checkouts or refunds are pending',
-                    reason:
-                      'Complete or cancel every pending Checkout and refund before changing the connected account.',
-                  });
-                }
-
-                if (tenantUpdate.stripeAccountId === null) {
-                  const hasPaidEventConfiguration =
-                    yield* tenantHasPaidEventConfiguration(tx, tenant.id);
-                  if (hasPaidEventConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-                    );
-                  }
-                  const hasStripeTaxRateConfiguration =
-                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
-                  if (hasStripeTaxRateConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                    );
-                  }
-                } else if (lockedTenant.stripeAccountId) {
-                  rotationPlan = yield* planStripeTaxRateAccountRotation(tx, {
-                    sourceStripeAccountId: lockedTenant.stripeAccountId,
-                    targetRates: stripeTaxRateRotationTargets,
-                    targetStripeAccountId: tenantUpdate.stripeAccountId,
-                    tenantId: tenant.id,
-                  });
-                } else {
-                  const hasStripeTaxRateConfiguration =
-                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
-                  if (hasStripeTaxRateConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                    );
-                  }
-                }
-
-                yield* tx
-                  .delete(tenantStripeTaxRates)
-                  .where(eq(tenantStripeTaxRates.tenantId, tenant.id));
               }
 
               if (lockedTenant.currency !== input.currency) {
@@ -1009,28 +885,21 @@ export const adminHandlers = {
                 }
               }
 
-              if (lockedTenant.timezone !== input.timezone) {
-                const hasDependentData = yield* tenantHasRuntimeDependentData(
-                  tx,
-                  tenant.id,
-                );
-                if (hasDependentData) {
-                  return yield* Effect.fail(tenantRuntimeSettingsLockedError());
-                }
-              }
-
               const updatedRows = yield* tx
                 .update(tenants)
-                .set(tenantUpdate)
+                .set({
+                  currency: input.currency,
+                  discountProviders,
+                  receiptSettings: resolveReceiptCountrySettings({
+                    allowOther: input.allowOther,
+                    receiptCountries: input.receiptCountries,
+                  }),
+                  refundFeesOnCancellation: input.refundFeesOnCancellation,
+                })
                 .where(eq(tenants.id, tenant.id))
                 .returning({
                   id: tenants.id,
                 });
-              if (rotationPlan) {
-                // Source metadata was removed with the old account; restore
-                // only the provider-verified target-account matches.
-                yield* applyStripeTaxRateAccountRotation(tx, rotationPlan);
-              }
               return updatedRows;
             }),
           )
@@ -1042,25 +911,47 @@ export const adminHandlers = {
             ),
           ),
       );
-      const updatedTenant = updatedTenants[0];
-      if (!updatedTenant) {
+      if (!updatedTenants[0]) {
         return yield* Effect.fail(
           new AdminTenantNotFoundError({
             id: tenant.id,
-            message: 'Tenant not found or stale',
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
           }),
         );
       }
-
-      return validatedTenant;
     }),
-  'admin.tenant.uploadBrandAsset': (input, options) =>
+  'admin.tenant.updateRegistrationSettings': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:changeSettings');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const updatedTenants = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set({
+            cancellationDeadlineHoursBeforeStart:
+              input.cancellationDeadlineHoursBeforeStart,
+            maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
+            transferDeadlineHoursBeforeStart:
+              input.transferDeadlineHoursBeforeStart,
+          })
+          .where(eq(tenants.id, tenant.id))
+          .returning({ id: tenants.id }),
       );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.uploadBrandAsset': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
 
       return yield* uploadTenantBrandAsset({
         fileBase64: input.fileBase64,

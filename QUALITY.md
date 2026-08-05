@@ -114,7 +114,7 @@ Use Playwright for important user journeys and integration behavior.
 
 High-value Playwright flows include:
 
-- browsing listed events
+- browsing role-eligible published events
 - creating an event from a template
 - configuring participant and organizer signup settings
 - switching simple/advanced registration configuration without mutating existing
@@ -154,6 +154,13 @@ Essential product flows should have generated documentation with screenshots whe
 Documentation generation should happen through explicit docs commands. List or
 discovery commands do not clean or rewrite generated docs output.
 
+Write every generated guide in plain product language. Describe the visible
+choice, result, denial, and safe next action. Do not publish internal component
+names, protocols, identifiers, storage or delivery mechanics, test fixtures,
+database readbacks, or implementation evidence. Name an external service only
+when the reader actually interacts with it. Keep the stronger technical proof
+in the test assertions, not in the guide.
+
 Organize generated docs by feature area, such as:
 
 - events
@@ -169,6 +176,13 @@ Organize generated docs by feature area, such as:
 Persona tags or metadata may be added later.
 
 When a user/admin workflow changes, update the generated documentation scenario as part of the change.
+
+Check-in coverage must exercise both exact window boundaries: one hour before
+event start and two hours after event end. Mutation tests must prove the server
+locks the registration, rereads the owning event in the transaction, and
+returns distinct `notOpen` and `ended` outcomes without writing. Event editing
+coverage must protect every answered-question field and removal through the
+same guard in ordinary and platform mutation paths.
 
 ## Visual and Manual Verification
 
@@ -200,8 +214,19 @@ Use this compact queue when a Codex in-app Browser walkthrough is requested and
 the Browser control transport is healthy. It complements, but does not replace,
 the durable Playwright and generated-documentation coverage.
 
-1. **Anonymous event discovery:** browse the event list and a public event,
-   then open an unlisted event from its direct link.
+1. **Event discovery:** verify that a signed-in member sees an ordinary
+   published event through any eligible registration option and gets the
+   explicit ineligible result from a direct link when no option matches.
+   Verify that an anonymous visitor sees ordinary events only through options
+   available to tenant roles marked as defaults for new members, receives only
+   the public projection, and must sign in before registration. Follow a direct
+   link to a published optionful event that is absent from anonymous discovery
+   and verify an explicit sign-in state without restricted option details or a
+   false optionless message. Separately verify that an optionless announcement
+   appears only to signed-in members holding one of its selected roles, that
+   anonymous visitors do not borrow default roles, that selecting a role neither
+   grants access nor sends a notification, and that an announcement with no
+   roles remains reachable only by direct link.
 2. **Participant registration and profile:** inspect free, paid, waitlist,
    cancellation, ticket, and receipt states.
 3. **Organizer authoring and check-in:** create or edit a template/event,
@@ -329,7 +354,7 @@ Use extra caution when touching:
 - tenant isolation in queries and caches
 - roles and capabilities
 - event review/publishing lifecycle
-- event listing/visibility
+- ordinary event and announcement discovery
 - registration options
 - registration exclusivity
 - capacity limits

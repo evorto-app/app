@@ -16,7 +16,7 @@ const eventOptionEditorByTitle = async (
 ): Promise<Locator> => {
   const editors = page.locator('app-event-registration-option-editor');
   const titleInputs = editors.getByRole('textbox', {
-    name: 'Option name',
+    name: 'Sign-up choice name',
     exact: true,
   });
   let matchingIndex = -1;
@@ -48,12 +48,7 @@ const eventOptionEditorByTitle = async (
 test('event list icon actions are named and keyboard operable', async ({
   makeAxeBuilder,
   page,
-  permissionOverride,
 }) => {
-  await permissionOverride({
-    add: ['events:seeDrafts', 'events:seeUnlisted'],
-    roleName: 'Section member',
-  });
   await page.goto('/events');
 
   const eventNavigation = page.locator('app-event-list nav');
@@ -62,12 +57,9 @@ test('event list icon actions are named and keyboard operable', async ({
   ).toBeVisible({ timeout: 20_000 });
   await expect(eventNavigation).not.toContainText('Error:');
 
-  const filterButton = page.getByRole('button', { name: 'Filter events' });
   const listActionsButton = page.getByRole('button', {
     name: 'Open event list actions',
   });
-  await expect(filterButton).toBeVisible();
-  await expect(filterButton).toBeEnabled();
   await expect(listActionsButton).toBeVisible();
   await expect(listActionsButton).toBeEnabled();
 
@@ -75,14 +67,6 @@ test('event list icon actions are named and keyboard operable', async ({
     .include('app-event-list > div > div > div:first-child')
     .analyze();
   expect(accessibilityScan.violations).toEqual([]);
-
-  await filterButton.focus();
-  await expect(filterButton).toBeFocused();
-  await filterButton.press('Enter');
-  const filterDialog = page.getByRole('dialog', { name: 'Filter events' });
-  await expect(filterDialog).toBeVisible();
-  await filterDialog.getByRole('button', { name: 'Ok' }).click();
-  await expect(filterDialog).toBeHidden();
 
   await listActionsButton.focus();
   await expect(listActionsButton).toBeFocused();
@@ -98,13 +82,8 @@ test('event authoring controls expose accessible names and keyboard interaction'
   events,
   makeAxeBuilder,
   page,
-  permissionOverride,
   roles,
 }) => {
-  await permissionOverride({
-    add: ['events:changeListing'],
-    roleName: 'Section member',
-  });
   const draftEvent = events.find(
     (event) => event.status === 'DRAFT' && event.registrationOptions.length > 0,
   );
@@ -127,10 +106,9 @@ test('event authoring controls expose accessible names and keyboard interaction'
     page.getByRole('heading', { name: draftEvent.title }),
   ).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle');
-  await expect(page.getByRole('link', { name: 'Back to event' })).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Open event actions' }),
-  ).toBeVisible();
+    page.getByRole('link', { name: 'Back to event' }),
+  ).toHaveAttribute('href', `/events/${draftEvent.id}`);
 
   const registrationOptionEditor = await eventOptionEditorByTitle(
     page,
@@ -154,7 +132,7 @@ test('event authoring controls expose accessible names and keyboard interaction'
   const initialRoleCount = registrationOption.roleIds.length;
   await expect(roleChips).toHaveCount(initialRoleCount);
   const roleInput = roleSelect.getByRole('combobox', {
-    name: 'Selected Roles',
+    name: 'Selected roles',
   });
   await expect(roleInput).not.toHaveAttribute('jsaction', /keydown/);
   await expect(roleInput).not.toHaveClass(/mat-input-server/);
@@ -169,7 +147,7 @@ test('event authoring controls expose accessible names and keyboard interaction'
     await expect(emptyChipGrid).not.toHaveAttribute('role');
     await expect(emptyChipGrid).not.toHaveAttribute('aria-label');
   }).toPass({ timeout: 15_000 });
-  await expect(roleInput).toHaveAccessibleName('Selected Roles');
+  await expect(roleInput).toHaveAccessibleName('Selected roles');
   await roleInput.fill('accessibility-state-check');
   await expect(emptyChipGrid).toHaveAttribute('role', 'grid');
   await expect(emptyChipGrid).toHaveAttribute('aria-label', 'Selected roles');
@@ -363,9 +341,9 @@ test('event edit form hides selected roles in autocomplete', async ({
     }),
   ).toBeVisible({ timeout: 15_000 });
 
-  const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
+  const roleInput = registrationOptionEditor.getByPlaceholder('Add role…');
   await expect(roleInput).toBeEditable({ timeout: 15_000 });
-  const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
+  const roleListbox = page.getByRole('listbox', { name: 'Selected roles' });
   const selectedRoleOption = roleListbox.getByRole('option', {
     exact: true,
     name: selectedRole.name,

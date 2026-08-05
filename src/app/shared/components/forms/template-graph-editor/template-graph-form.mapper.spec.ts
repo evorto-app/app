@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   classifyTemplateGraphRecord,
-  legacyRandomTemplateEditMessage,
   templateGraphLocationFormModelToValue,
   templateGraphLocationValueToFormModel,
   templateGraphRecordToFormModel,
@@ -89,7 +88,6 @@ const simpleTemplate = (): TemplateGraphRecord => ({
   ],
   simpleModeEnabled: true,
   title: 'Simple template',
-  unlisted: false,
 });
 
 describe('template graph edit classification', () => {
@@ -164,21 +162,24 @@ describe('template graph edit classification', () => {
     ]);
   });
 
-  it('blocks a legacy random graph before constructing an editable form', () => {
+  it('describes a broken registration setup without storage terminology', () => {
     const source = simpleTemplate();
-    const legacyRandom: TemplateGraphRecord = {
-      ...source,
-      registrationOptions: source.registrationOptions.map((option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-      ),
-    };
+    const [question] = source.questions;
+    if (!question) throw new Error('Expected the question fixture');
 
-    expect(classifyTemplateGraphRecord(legacyRandom)).toEqual({
-      kind: 'legacyRandomBlocked',
-      message: legacyRandomTemplateEditMessage,
-    });
-    expect(templateGraphRecordToFormModel(legacyRandom)).toEqual({
-      error: legacyRandomTemplateEditMessage,
+    expect(
+      templateGraphRecordToFormModel({
+        ...source,
+        questions: [
+          {
+            ...question,
+            registrationOptionId: 'missing-option',
+          },
+        ],
+      }),
+    ).toEqual({
+      error:
+        'This template has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Select Back to template, then contact Evorto support and include the template name.',
     });
   });
 });

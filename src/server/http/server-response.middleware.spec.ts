@@ -1,15 +1,19 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Cause, Effect, Exit, Layer } from 'effect';
+import { Cause, Effect, Exit, Layer, Tracer } from 'effect';
 import {
   HttpRouter,
   HttpServerError,
   HttpServerRequest,
   HttpServerResponse,
 } from 'effect/unstable/http';
+import { readFileSync } from 'node:fs';
 
 import type { DeploymentConfig } from '../config/deployment-config';
 
-import { makeServerResponseMiddleware } from './server-response.middleware';
+import {
+  makeServerResponseMiddleware,
+  safeServerRequestRoute,
+} from './server-response.middleware';
 
 const makeTestHandler = Effect.fn('makeTestHandler')(function* (
   routeLayer: Layer.Layer<never, never, HttpRouter.HttpRouter>,
@@ -31,6 +35,124 @@ const makeTestHandler = Effect.fn('makeTestHandler')(function* (
 });
 
 describe('server response middleware', () => {
+  it('derives safe trace routes without query values', () => {
+    const callbackCode = 'callback-code-sentinel';
+
+    expect(
+      safeServerRequestRoute(
+        'https://tenant.example.com/registration-transfers',
+      ),
+    ).toBe('/registration-transfers');
+    expect(
+      safeServerRequestRoute(
+        `https://tenant.example.com/callback?code=${callbackCode}`,
+      ),
+    ).toBe('/callback');
+  });
+
+  it.effect(
+    'records a sanitized request trace while handlers keep the original URL',
+    () =>
+      Effect.gen(function* () {
+        const callbackCode = 'callback-code-sentinel';
+        let serverSpan: Tracer.NativeSpan | undefined;
+        const tracer = Tracer.make({
+          span(options) {
+            serverSpan = new Tracer.NativeSpan(options);
+            return serverSpan;
+          },
+        });
+        const request = HttpServerRequest.fromWeb(
+          new Request(
+            `https://tenant.example.com/registration-transfers?code=${callbackCode}`,
+            {
+              headers: {
+                host: 'tenant.example.com',
+                'x-forwarded-proto': 'https',
+              },
+            },
+          ),
+        );
+        let routeRequestUrl: string | undefined;
+
+        yield* makeServerResponseMiddleware(
+          HttpServerRequest.HttpServerRequest.pipe(
+            Effect.tap((routeRequest) =>
+              Effect.sync(() => {
+                routeRequestUrl = routeRequest.url;
+              }),
+            ),
+            Effect.as(HttpServerResponse.empty({ status: 204 })),
+          ),
+        ).pipe(
+          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+          Effect.provideService(Tracer.Tracer, tracer),
+        );
+        yield* Effect.yieldNow;
+
+        expect(routeRequestUrl).toContain(callbackCode);
+        expect(serverSpan).toBeDefined();
+        expect(serverSpan?.attributes.get('http.route')).toBe(
+          '/registration-transfers',
+        );
+        expect(serverSpan?.attributes.get('url.path')).toBe(
+          '/registration-transfers',
+        );
+        expect(serverSpan?.attributes.has('url.query')).toBe(false);
+        expect(serverSpan?.attributes.get('url.full')).not.toContain(
+          callbackCode,
+        );
+      }),
+  );
+
+  it('disables Effect raw request logging at every production boundary', () => {
+    const serverSource = readFileSync(
+      new URL('../../server.ts', import.meta.url),
+      'utf8',
+    );
+    const nodeHandlerStart = serverSource.indexOf(
+      'const getRequestHandler = () => {',
+    );
+    const nodeHandlerEnd = serverSource.indexOf(
+      'const requestPathname =',
+      nodeHandlerStart,
+    );
+    const nodeHandlerSource = serverSource.slice(
+      nodeHandlerStart,
+      nodeHandlerEnd,
+    );
+    const bunServerStart = serverSource.indexOf('const bunServeOptions = {');
+    const bunServerEnd = serverSource.indexOf(
+      'return yield* Effect.scoped(',
+      bunServerStart,
+    );
+    const bunServerSource = serverSource.slice(bunServerStart, bunServerEnd);
+
+    expect(nodeHandlerStart).toBeGreaterThanOrEqual(0);
+    expect(nodeHandlerEnd).toBeGreaterThan(nodeHandlerStart);
+    expect(nodeHandlerSource).toContain(
+      'HttpLayerRouter.toWebHandler(\n    handlerAppLayer,\n    { disableLogger: true },\n  )',
+    );
+
+    expect(bunServerStart).toBeGreaterThanOrEqual(0);
+    expect(bunServerEnd).toBeGreaterThan(bunServerStart);
+    expect(bunServerSource).toContain(
+      'const bunServeOptions = {\n    disableLogger: true,\n  } as const;',
+    );
+    expect(bunServerSource).toContain(
+      'HttpLayerRouter.serve(bootstrapRoutesLayer, bunServeOptions)',
+    );
+    expect(bunServerSource).toContain(
+      'HttpLayerRouter.serve(webRoutesLayer, bunServeOptions)',
+    );
+    expect(bunServerSource).toContain(
+      'HttpLayerRouter.serve(\n            configuredWorkerRoutesLayer,\n            bunServeOptions,\n          )',
+    );
+    expect(bunServerSource).toContain(
+      'HttpLayerRouter.serve(opsRoutesLayer, bunServeOptions)',
+    );
+  });
+
   it.effect('returns a sanitized JSON response for a route defect', () =>
     Effect.gen(function* () {
       const defect = new Error('sensitive internal failure');
@@ -44,7 +166,7 @@ describe('server response middleware', () => {
 
       expect(response.status).toBe(500);
       expect(yield* Effect.promise(() => response.json())).toEqual({
-        error: 'Internal Server Error',
+        error: 'Something went wrong.',
       });
       expect(response.headers.get('x-content-type-options')).toBe('nosniff');
       expect(response.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/u);

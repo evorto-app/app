@@ -102,11 +102,11 @@ describe('LocationSelectorDialog', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        'Location search is not configured for this site.',
+        'Location search is unavailable.',
       );
     });
     expect(fixture.nativeElement.textContent).toContain(
-      'Ask a site administrator to enable Google Maps',
+      'Contact Evorto support before choosing a location.',
     );
     expect(fixture.nativeElement.textContent).not.toContain('API key');
     expect(fixture.nativeElement.textContent).not.toContain(
@@ -129,12 +129,15 @@ describe('LocationSelectorDialog', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        'Google Maps is unavailable right now.',
+        "We couldn't search for locations.",
+      );
+      expect(fixture.nativeElement.textContent).toContain(
+        'If the search still fails, contact Evorto support.',
       );
     });
 
     searchEffect = Effect.succeed([]);
-    const retryButton = findButton('Retry location search');
+    const retryButton = findButton('Try location search again');
     retryButton.click();
 
     await vi.waitFor(() => {
@@ -195,7 +198,10 @@ describe('LocationSelectorDialog', () => {
 
     expect(close).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain(
-      'Google Maps could not load this place.',
+      "We couldn't load this location.",
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'If neither works, contact Evorto support.',
     );
 
     const location: GoogleLocationType = {
@@ -206,7 +212,7 @@ describe('LocationSelectorDialog', () => {
       type: 'google',
     };
     placeDetailsEffect = Effect.succeed(location);
-    findButton('Retry location details').click();
+    findButton('Try this location again').click();
 
     await vi.waitFor(() => {
       fixture.detectChanges();

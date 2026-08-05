@@ -1,5 +1,3 @@
-import type { Headers } from 'effect/unstable/http';
-
 import { Context } from 'effect';
 import { RpcMiddleware } from 'effect/unstable/rpc';
 
@@ -9,10 +7,8 @@ import { User } from '../../../types/custom/user';
 import { type Permission } from '../../permissions/permissions';
 import { UsersAuthData } from './users.rpcs';
 
-export type RpcHeaders = Headers.Headers;
-
 export interface RpcRequestContextShape {
-  authData: Record<string, unknown> | UsersAuthData;
+  authData: UsersAuthData;
   authenticated: boolean;
   permissions: readonly Permission[];
   platformAuthority?: null | PlatformAdministratorAuthority;

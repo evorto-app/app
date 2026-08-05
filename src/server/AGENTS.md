@@ -39,8 +39,9 @@
   the whole bundle is free and no refund is required.
 - Google Maps is required production functionality. Cloudflare Images is being
   removed and must not gain new product coupling or release-gate requirements.
-- Keep exhausted email-outbox rows stored and read-only. There is no operator
-  requeue, edit, or recovery action for exhausted mail in the current product.
+- Dispatch each queued email once. Keep explicit provider rejections and
+  delivery-unknown outcomes stored and read-only; never requeue or resend an
+  ambiguous outcome automatically.
 
 ## Logging
 

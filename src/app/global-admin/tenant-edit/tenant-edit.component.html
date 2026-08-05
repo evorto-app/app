@@ -1,5 +1,9 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a [routerLink]="['/global-admin/tenants', tenantId()]" mat-icon-button>
+  <a
+    [routerLink]="['/global-admin/tenants', tenantId()]"
+    mat-icon-button
+    aria-label="Back to organization"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">Edit organization</h1>
@@ -10,12 +14,23 @@
   <div
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
-    <h2 class="title-medium">Loading organization...</h2>
+    <h2 class="title-medium">Loading organization…</h2>
   </div>
 } @else if (tenantQuery.isError()) {
-  <div class="bg-error text-on-error rounded-2xl p-4">
-    <h2 class="title-medium mb-4">There was an error</h2>
-    <p class="body-medium">Error: {{ errorMessage(tenantQuery.error()) }}</p>
+  <div
+    class="bg-error text-on-error grid justify-items-start gap-3 rounded-2xl p-4"
+    role="alert"
+  >
+    <h2 class="title-medium">Organization unavailable</h2>
+    <p class="body-medium">The organization could not be loaded. Try again.</p>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="tenantQuery.isFetching()"
+      (click)="tenantQuery.refetch()"
+    >
+      {{ tenantQuery.isFetching() ? "Trying again…" : "Try again" }}
+    </button>
   </div>
 } @else if (tenantQuery.isSuccess()) {
   @let tenant = tenantQuery.data();
@@ -30,15 +45,14 @@
             <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
             <div class="grid gap-2">
               <h2 class="title-small" id="public-url-migration-title">
-                Changing the public domain
+                Changing the website address
               </h2>
               <p class="body-medium">
-                Finish pending payments, refunds, and registration transfers
-                before changing this domain.
+                Finish pending payments, refunds, and ticket transfers before
+                changing this address.
               </p>
               <p class="body-medium">
-                Keep the old domain redirecting here so existing links and QR
-                codes continue to work.
+                Links and QR codes that use the old address will stop working.
               </p>
             </div>
           </div>
@@ -50,27 +64,21 @@
         </mat-form-field>
 
         <mat-form-field>
-          <mat-label>Primary domain</mat-label>
+          <mat-label>Website address</mat-label>
           <input matInput [formField]="tenantForm.domain" />
-          <mat-hint>Public links and payment returns use this domain.</mat-hint>
+          <mat-hint>
+            Public links and payment confirmations use this address.
+          </mat-hint>
         </mat-form-field>
 
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div class="grid grid-cols-1 gap-3">
           <mat-form-field>
             <mat-label>Theme</mat-label>
             <mat-select [formField]="tenantForm.theme">
               <mat-option value="evorto">Default theme</mat-option>
+              <mat-option value="classic">Classic Evorto theme</mat-option>
               <mat-option value="esn">ESN theme</mat-option>
             </mat-select>
-          </mat-form-field>
-
-          <mat-form-field>
-            <mat-label>Stripe account ID</mat-label>
-            <input matInput [formField]="tenantForm.stripeAccountId" />
-            <mat-hint>
-              Disconnecting requires every event and template option and add-on
-              to be free.
-            </mat-hint>
           </mat-form-field>
         </div>
 
@@ -84,22 +92,24 @@
             </mat-select>
             <mat-hint>
               This is only available before templates, events, receipts, or
-              transactions exist.
+              payments exist.
             </mat-hint>
           </mat-form-field>
 
           <mat-form-field>
-            <mat-label>Timezone</mat-label>
+            <mat-label>Time zone</mat-label>
             <mat-select [formField]="tenantForm.timezone">
-              @for (timezone of timezoneOptions; track timezone) {
-                <mat-option [value]="timezone">{{ timezone }}</mat-option>
+              @for (timezone of timezoneOptions; track timezone.value) {
+                <mat-option [value]="timezone.value">
+                  {{ timezone.label }}
+                </mat-option>
               }
             </mat-select>
           </mat-form-field>
         </div>
 
         <mat-form-field>
-          <mat-label>Reason for platform change</mat-label>
+          <mat-label>Reason for this change</mat-label>
           <textarea
             matInput
             rows="3"
@@ -135,8 +145,7 @@
     <section class="bg-surface text-on-surface rounded-2xl p-4">
       <h2 class="title-medium">Organization not found</h2>
       <p class="body-medium text-on-surface-variant">
-        This organization either does not exist or is no longer available for
-        platform editing.
+        This organization either does not exist or is no longer available.
       </p>
     </section>
   }
@@ -144,8 +153,7 @@
   <section class="bg-surface text-on-surface rounded-2xl p-4">
     <h2 class="title-medium">Organization not found</h2>
     <p class="body-medium text-on-surface-variant">
-      This organization either does not exist or is no longer available for
-      platform editing.
+      This organization either does not exist or is no longer available.
     </p>
   </section>
 }

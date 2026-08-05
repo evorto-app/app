@@ -8,9 +8,8 @@ services:
       POSTGRES_USER: "${POSTGRES_USER:-evorto}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./ops/local-postgres-init.sql:/docker-entrypoint-initdb.d/10-integration-database.sql:ro
     ports:
-      - "${POSTGRES_HOST_PORT:-55432}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"
     healthcheck:
       test:
         [
@@ -52,7 +51,7 @@ services:
       MP_MAX_MESSAGES: "500"
       MP_SEND_API_AUTH_ACCEPT_ANY: "true"
     ports:
-      - "${MAILPIT_HOST_PORT:-8025}:8025"
+      - "127.0.0.1:${MAILPIT_HOST_PORT:-8025}:8025"
     volumes:
       - mailpit-data:/data
 
@@ -64,8 +63,8 @@ services:
       MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
       MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
     ports:
-      - "${MINIO_HOST_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 5s
@@ -141,53 +140,8 @@ services:
       STRIPE_TEST_ACCOUNT_ID:
       STRIPE_WEBHOOK_SECRET:
       STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret
-    command:
-      - /bin/sh
-      - -lc
-      - |
-        mkdir -p /app/logs
-        log_pipe="$(mktemp -u /tmp/evorto-server-log.XXXXXX)"
-        mkfifo "$$log_pipe"
-        tee -a /app/logs/server.log < "$$log_pipe" &
-        tee_pid="$!"
-        server_pid=""
-        finish_tee() {
-          (
-            sleep 2
-            kill -TERM "$$tee_pid" 2>/dev/null || true
-          ) &
-          tee_watchdog_pid="$$!"
-          wait "$$tee_pid" 2>/dev/null || true
-          kill -TERM "$$tee_watchdog_pid" 2>/dev/null || true
-          wait "$$tee_watchdog_pid" 2>/dev/null || true
-        }
-        cleanup_server() {
-          signal="$$1"
-          status="$$2"
-          trap - HUP INT TERM
-          if [ -n "$$server_pid" ]; then
-            kill -"$$signal" "$$server_pid" 2>/dev/null || true
-            wait "$$server_pid" 2>/dev/null || true
-          fi
-          finish_tee
-          rm -f "$$log_pipe"
-          exit "$$status"
-        }
-        trap 'cleanup_server HUP 129' HUP
-        trap 'cleanup_server INT 130' INT
-        trap 'cleanup_server TERM 143' TERM
-        bun dist/evorto/server/server.mjs > "$$log_pipe" 2>&1 &
-        server_pid="$!"
-        set +e
-        wait "$$server_pid"
-        server_status="$?"
-        server_pid=""
-        set -e
-        finish_tee
-        rm -f "$$log_pipe"
-        exit "$$server_status"
     ports:
-      - "${APP_HOST_PORT:-4200}:4200"
+      - "127.0.0.1:${APP_HOST_PORT:-4200}:4200"
     volumes:
       - stripe-webhook:/run/stripe-webhook:ro
 
@@ -228,9 +182,6 @@ services:
       S3_SECRET_ACCESS_KEY: "${MINIO_ROOT_PASSWORD:-minioadmin}"
       STRIPE_API_KEY:
       WORKER_TRIGGER_MODE: poll
-    command:
-      - bun
-      - dist/evorto/server/server.mjs
 
   stripe:
     image: stripe/stripe-cli:v1.41.1@sha256:f1e91acd11134c1589c13f35b315f648e274a19074d9bfd2c2a5e39552eef620

@@ -1,13 +1,12 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { QueryClient } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { PermissionsService } from '../../core/permissions.service';
+import { eventRouteErrorPath } from '../event-rpc-error';
 
 export const eventEditGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
-  const queryClient = inject(QueryClient);
   const rpc = AppRpc.injectClient();
   const permissions = inject(PermissionsService);
   const eventId = route.params['eventId'] as string | undefined;
@@ -17,12 +16,9 @@ export const eventEditGuard: CanActivateFn = async (route) => {
   }
 
   try {
-    const self = await rpc.users.maybeSelf.call();
-    const event = await queryClient.fetchQuery(
-      rpc.events.findOne.queryOptions({ id: eventId }),
-    );
+    const event = await rpc.events.findOne.call({ id: eventId });
     const canEditAll = permissions.hasPermissionSync('events:editAll');
-    const canEdit = canEditAll || self?.id === event.creatorId;
+    const canEdit = canEditAll || event.userIsCreator;
     if (!canEdit) {
       return router.createUrlTree(['/403']);
     }
@@ -32,7 +28,7 @@ export const eventEditGuard: CanActivateFn = async (route) => {
       });
     }
     return true;
-  } catch {
-    return router.createUrlTree(['/404']);
+  } catch (error) {
+    return router.createUrlTree([eventRouteErrorPath(error)]);
   }
 };

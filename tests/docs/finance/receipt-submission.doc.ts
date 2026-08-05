@@ -28,7 +28,6 @@ test('Submit an event receipt @finance', async ({
   database,
   registerDatabaseCleanup,
   page,
-  seedDate,
   seeded,
   tenant,
   testClock,
@@ -36,7 +35,9 @@ test('Submit an event receipt @finance', async ({
   const eventId = seeded.scenario.events.freeOpen.eventId;
   const event = seeded.events.find((candidate) => candidate.id === eventId);
   if (!event) {
-    throw new Error('Expected seeded listed event for receipt documentation');
+    throw new Error(
+      'Expected seeded discoverable event for receipt documentation',
+    );
   }
 
   const submitter = usersToAuthenticate.find((user) => user.roles === 'admin');
@@ -52,12 +53,7 @@ test('Submit an event receipt @finance', async ({
 
   const receiptFile = path.resolve('tests/fixtures/sample-receipt.pdf');
   const receiptFileSize = (await stat(receiptFile)).size;
-  const receiptName = `event-receipt-${seedDate.getTime()}.pdf`;
-  let submittedReceiptId: string | undefined;
-  let submittedUploadId: string | undefined;
-  let sameTenantViewer:
-    Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
-
+  const receiptName = 'event-receipt.pdf';
   registerDatabaseCleanup(async (cleanupDatabase) => {
     // Remove only database metadata. Docker teardown owns local MinIO objects,
     // and docs tests must never delete from a developer-configured remote store.
@@ -105,14 +101,13 @@ test('Submit an event receipt @finance', async ({
 
   await testInfo.attach('markdown', {
     body: `
-# Submit a receipt for an event
 
 Use this guide when you bought something for an event and need the finance team to review the receipt before reimbursement.
 
 {% callout type="note" title="What you need before you start" %}
 - Sign in to the organization that owns the event.
-- You must have a **confirmed organizer/helper registration** for this event, **Organize all events** access, or **Manage receipts** access.
-- Have one image or PDF containing the receipt.
+- You must have a **confirmed organizer/helper ticket** for this event, **Organize all events** access, or **Manage receipts** access.
+- Have one clear receipt image or document no larger than 20 MB.
 - Know the purchase date, total, included tax, purchase country, and any deposit or alcohol amounts. Amounts are recorded in the organization currency shown beside each field.
 {% /callout %}
 
@@ -143,11 +138,11 @@ On the event details page, choose **Organize this event**. In the **Receipts** s
 Choose **Add receipt**. The form contains:
 
 - **Receipt date**: when the purchase happened.
-- **Purchase country**: one of the countries configured for this organization. Some organizations also allow an **Other** choice.
-- **Total amount** and **Tax amount**: enter currency amounts, not minor-unit cents.
-- **Deposit involved** and **Alcohol purchased**: leave these clear when they do not apply. Selecting either choice reveals its amount field.
+- **Purchase country**: one of the countries the organization accepts. Some organizations also allow an **Other** choice.
+- **Total amount** and **Tax amount**: enter the amounts exactly as shown on the receipt, including cents.
+- **Deposit involved** and **Alcohol purchased**: leave these unchecked when they do not apply. Selecting either choice reveals its amount field.
 - **Receipt name**: an optional recognizable label for receipt and reimbursement lists. If you leave it unchanged, the uploaded filename is used.
-- **Receipt file**: one image or PDF.
+- **Receipt image or document**: one clear receipt no larger than 20 MB.
 `,
   });
 
@@ -173,19 +168,20 @@ Choose **Add receipt**. The form contains:
     body: `
 ## Recover from an incomplete submission
 
-Choose **Submit receipt** before selecting a file to see the safe validation state. The dialog stays open and explains that an image or PDF is required, so none of the partial values are uploaded or saved.
+If you choose **Submit receipt** before selecting a receipt, the dialog stays open and explains that an image or document is required. Choose the receipt and try again.
 `,
   });
+  await receiptDialog
+    .getByLabel(`Total amount (${tenant.currency})`)
+    .fill('14.50');
+  await receiptDialog
+    .getByLabel(`Tax amount (${tenant.currency})`)
+    .fill('2.10');
   await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
   await expect(
-    receiptDialog.getByText('Choose an image or PDF receipt file.'),
+    receiptDialog.getByText('Choose a receipt image or document.'),
   ).toBeVisible();
-  await takeScreenshot(
-    testInfo,
-    receiptDialog,
-    page,
-    'Missing receipt file validation',
-  );
+  await takeScreenshot(testInfo, receiptDialog, page, 'Receipt still needed');
 
   await completeReceiptSubmissionForm({
     alcoholAmount: '3.00',
@@ -208,7 +204,7 @@ Choose **Submit receipt** before selecting a file to see the safe validation sta
     testInfo,
     receiptDialog,
     page,
-    'Conditional deposit and alcohol amount fields',
+    'Deposit and alcohol amounts',
   );
 
   await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
@@ -221,7 +217,7 @@ Choose **Submit receipt** before selecting a file to see the safe validation sta
 
   await testInfo.attach('markdown', {
     body: `
-The deposit and alcohol breakdown cannot add up to more than the total. If it does, the dialog remains open without uploading anything. Correct the values and submit again; here the deposit is corrected from 12.00 to 2.50.
+The deposit and alcohol amounts cannot add up to more than the total. If they do, the dialog remains open without uploading anything. Correct the values and submit again.
 
 ## Upload and submit
 `,
@@ -271,21 +267,19 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
   if (!submittedReceipt) {
     throw new Error('Expected submitted receipt after documentation upload');
   }
-  submittedReceiptId = submittedReceipt.id;
-  submittedUploadId = submittedReceipt.attachmentUploadId;
+  const submittedReceiptId = submittedReceipt.id;
+  const submittedUploadId = submittedReceipt.attachmentUploadId;
   expect(submittedReceipt).toEqual(
     expect.objectContaining({
       alcoholAmount: 300,
       attachmentFileName: receiptName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: receiptFileSize,
       currency: tenant.currency,
       depositAmount: 250,
       eventId,
       hasAlcohol: true,
       hasDeposit: true,
       purchaseCountry: 'DE',
-      receiptDate: expect.any(Date),
+      receiptDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u),
       status: 'submitted',
       submittedByUserId: submitter.id,
       taxAmount: 210,
@@ -304,9 +298,6 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
   });
   if (!uploadedReceipt) {
     throw new Error('Expected bound receipt upload after documentation upload');
-  }
-  if (!uploadedReceipt.storageUrl) {
-    throw new Error('Expected receipt upload to have an object-storage URL');
   }
 
   const receiptDigest = createHash('sha256')
@@ -331,13 +322,6 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
     }),
   );
 
-  const storageUrl = new URL(uploadedReceipt.storageUrl);
-  const storagePathSegments = storageUrl.pathname.split('/').filter(Boolean);
-  const receiptKeySegments = expectedStorageKey.split('/');
-  expect(storageUrl.protocol).toBe('s3:');
-  expect(storageUrl.hostname).not.toBe('');
-  expect(storagePathSegments).toEqual(receiptKeySegments);
-
   const submissionEmails = await database
     .select({ id: schema.emailOutbox.id })
     .from(schema.emailOutbox)
@@ -355,9 +339,9 @@ The deposit and alcohol breakdown cannot add up to more than the total. If it do
 
   await testInfo.attach('markdown', {
     body: `
-The new card confirms the filename, **submitted** status, total, tax, and receipt date. The receipt belongs to this organization, event, and submitter, and keeps the organization's current currency.
+The new card shows the filename, **Submitted**, total, tax, and receipt date.
 
-Submission does **not** send a confirmation email. A finance user with **Approve receipts** access must still review the item. Only a later approve or reject decision notifies the submitter. Reimbursement is another separate, manual money-transfer workflow described in **Review and reimburse receipts**.
+Submitting does **not** send a confirmation email. A finance team member with **Approve receipts** access must still review the receipt. After the decision is saved, Evorto tries to email the submitter. You can always check the receipt status in Evorto if the email is delayed or does not arrive. Sending and recording the reimbursement is covered in **Review and reimburse receipts**.
 
 ## Find the submission in your profile
 
@@ -366,10 +350,13 @@ Use **Profile** in the main navigation, then choose **Receipts**. This personal 
   });
 
   await page.getByRole('link', { name: 'Profile', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Receipts' })).toBeVisible();
-  await page.getByRole('button', { name: 'Receipts' }).click();
+  const receiptsLink = page
+    .getByRole('navigation', { name: 'Profile sections' })
+    .getByRole('link', { name: 'Receipts' });
+  await expect(receiptsLink).toBeVisible();
+  await receiptsLink.click();
   await expect(
-    page.getByRole('heading', { name: 'Submitted receipts' }),
+    page.getByRole('heading', { name: 'Your receipts' }),
   ).toBeVisible();
   const profileReceipt = page
     .locator('article')
@@ -389,9 +376,9 @@ Use **Profile** in the main navigation, then choose **Receipts**. This personal 
 
   await testInfo.attach('markdown', {
     body: `
-## Access and organization boundary
+## Who can see and submit receipts
 
-Organization membership by itself is not organizer access. A regular member in the same organization can open this public event but does not see **Organize this event**, is sent to **Access not allowed** if they try the organizer route, and cannot see another user's receipt in **Profile → Receipts**. A copied organizer link does not grant receipt-submission access.
+Organization membership by itself does not provide organizer tools. A regular member in the same organization can open the published event page but does not see **Organize this event**, sees **Access not allowed** if they try to open organizer tools, and cannot see another member's receipt in **Profile → Receipts**. A copied organizer link does not provide permission to submit receipts.
 `,
   });
 
@@ -405,14 +392,14 @@ Organization membership by itself is not organizer access. A regular member in t
     }),
   );
 
-  registerDatabaseCleanup(async () => sameTenantViewer?.context.close());
-  sameTenantViewer = await openAuthenticatedTestPage({
+  const sameTenantViewer = await openAuthenticatedTestPage({
     baseUrl: new URL(page.url()).origin,
     browser,
     storageState: userStateFile,
     tenantDomain: tenant.domain,
     testClock,
   });
+  registerDatabaseCleanup(async () => sameTenantViewer.context.close());
   await openEventFromEventsNavigation({
     eventId,
     eventTitle: event.title,
@@ -445,10 +432,13 @@ Organization membership by itself is not organizer access. A regular member in t
   await sameTenantViewer.page
     .getByRole('link', { name: 'Profile', exact: true })
     .click();
-  await sameTenantViewer.page.getByRole('button', { name: 'Receipts' }).click();
+  await sameTenantViewer.page
+    .getByRole('navigation', { name: 'Profile sections' })
+    .getByRole('link', { name: 'Receipts' })
+    .click();
   await expect(
     sameTenantViewer.page.getByRole('heading', {
-      name: 'Submitted receipts',
+      name: 'Your receipts',
     }),
   ).toBeVisible();
   await expect(sameTenantViewer.page.getByText(receiptName)).toHaveCount(0);

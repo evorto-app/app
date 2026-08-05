@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
 import { eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
 import { createHash, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 
@@ -22,17 +23,27 @@ import {
   transactions,
   users,
 } from '../db/schema';
+import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../shared/rpc-contracts/app-rpcs';
 import { PlatformAdministratorAuthority } from '../types/custom/platform-authority';
 import { globalAdminHandlers } from './effect/rpc/handlers/global-admin.handlers';
-import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from './effect/rpc/rpc-context-headers';
+import { RpcAccess } from './effect/rpc/handlers/shared/rpc-access.service';
 import { lockTenantStripeAccount } from './payments/pending-stripe-obligations';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
+
+interface SeededRegistrationOwner {
+  readonly categoryId: string;
+  readonly eventId: string;
+  readonly optionId: string;
+  readonly registrationId: string;
+  readonly tenantId: string;
+  readonly userId: string;
 }
 
 interface TenantFixture {
@@ -51,6 +62,102 @@ type TestDatabase = NodePgDatabase<typeof relations>;
 const makeId = (prefix: string, suffix: string) =>
   `${prefix}-${suffix}`.slice(0, 20);
 
+const seedRegistrationOwner = async (
+  database: TestDatabase,
+  input: {
+    readonly domain: string;
+    readonly name: string;
+    readonly now: number;
+    readonly price: number;
+    readonly registrationStatus: 'CONFIRMED' | 'PENDING';
+    readonly stripeAccountId: null | string;
+    readonly suffix: string;
+  },
+): Promise<SeededRegistrationOwner> => {
+  const tenantId = makeId('tenant', input.suffix);
+  const userId = makeId('user', input.suffix);
+  const categoryId = makeId('category', input.suffix);
+  const templateId = makeId('template', input.suffix);
+  const eventId = makeId('event', input.suffix);
+  const optionId = makeId('option', input.suffix);
+  const registrationId = makeId('registration', input.suffix);
+
+  await database.insert(tenants).values({
+    domain: input.domain,
+    id: tenantId,
+    name: input.name,
+    stripeAccountId: input.stripeAccountId,
+  });
+  await database.insert(users).values({
+    auth0Id: `auth0|url-race-${input.suffix}`,
+    communicationEmail: `${input.suffix}@example.com`,
+    email: `${input.suffix}@example.com`,
+    firstName: 'URL',
+    id: userId,
+    lastName: 'Race',
+  });
+  await database.insert(eventTemplateCategories).values({
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: categoryId,
+    tenantId,
+    title: input.name,
+  });
+  await database.insert(eventTemplates).values({
+    categoryId,
+    description: `${input.name} fixture`,
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: templateId,
+    tenantId,
+    title: input.name,
+  });
+  await database.insert(eventInstances).values({
+    creatorId: userId,
+    description: `${input.name} event`,
+    end: new Date(input.now + 8 * 24 * 60 * 60 * 1000),
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: eventId,
+    reviewedAt: new Date(input.now),
+    reviewedBy: userId,
+    start: new Date(input.now + 7 * 24 * 60 * 60 * 1000),
+    status: 'APPROVED',
+    templateId,
+    tenantId,
+    title: input.name,
+  });
+  await database.insert(eventRegistrationOptions).values({
+    closeRegistrationTime: new Date(input.now + 6 * 24 * 60 * 60 * 1000),
+    eventId,
+    id: optionId,
+    isPaid: input.price > 0,
+    openRegistrationTime: new Date(input.now - 24 * 60 * 60 * 1000),
+    organizingRegistration: false,
+    price: input.price,
+    registrationMode: 'fcfs',
+    reservedSpots: input.registrationStatus === 'PENDING' ? 1 : 0,
+    spots: 10,
+    title: 'Participant',
+  });
+  await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: input.price,
+    discountAmount: 0,
+    eventId,
+    id: registrationId,
+    registrationOptionId: optionId,
+    status: input.registrationStatus,
+    tenantId,
+    userId,
+  });
+
+  return {
+    categoryId,
+    eventId,
+    optionId,
+    registrationId,
+    tenantId,
+    userId,
+  };
+};
+
 const makeDatabaseServiceLayer = (url: string) =>
   databaseLayer.pipe(
     Layer.provide(
@@ -68,12 +175,49 @@ const platformAuthority = PlatformAdministratorAuthority.make({
   kind: 'platformAdministrator',
 });
 
-const platformHeaders = {
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([]),
-  [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]:
-    encodeRpcContextHeaderJson(platformAuthority),
-};
+const platformHandlerOptions = {
+  headers: Headers.empty,
+} as never;
+
+const createPlatformRequestContext = (tenant: {
+  readonly currency: GlobalAdminTenantWriteInput['currency'];
+  readonly domain: string;
+  readonly id: string;
+  readonly name: string;
+  readonly stripeAccountId: null | string;
+  readonly theme: GlobalAdminTenantWriteInput['theme'];
+  readonly timezone: GlobalAdminTenantWriteInput['timezone'];
+}): RpcRequestContextShape => ({
+  authData: {},
+  authenticated: true,
+  permissions: [],
+  platformAuthority,
+  tenant: {
+    cancellationDeadlineHoursBeforeStart: 0,
+    currency: tenant.currency,
+    discountProviders: {
+      esnCard: {
+        config: {},
+        status: 'disabled',
+      },
+    },
+    domain: tenant.domain,
+    id: tenant.id,
+    maxActiveRegistrationsPerUser: 0,
+    name: tenant.name,
+    receiptSettings: {
+      allowOther: false,
+      receiptCountries: ['NL'],
+    },
+    refundFeesOnCancellation: true,
+    stripeAccountId: tenant.stripeAccountId,
+    theme: tenant.theme,
+    timezone: tenant.timezone,
+    transferDeadlineHoursBeforeStart: 0,
+  },
+  user: null,
+  userAssigned: false,
+});
 
 const waitForBlockedTenantLock = async (pool: Pool) => {
   const deadline = Date.now() + 10_000;
@@ -114,12 +258,11 @@ const runUrlMigration = (
           currency: tenant.currency,
           domain: nextDomain,
           name: tenant.name,
-          stripeAccountId: tenant.stripeAccountId,
           theme: tenant.theme,
           timezone: tenant.timezone,
         },
       },
-      { headers: platformHeaders } as never,
+      platformHandlerOptions,
     ).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
@@ -128,6 +271,15 @@ const runUrlMigration = (
           updatedTenant,
         }),
       }),
+      Effect.provide(
+        Layer.mergeAll(
+          RpcAccess.Default,
+          Layer.succeed(
+            RpcRequestContext,
+            createPlatformRequestContext(tenant),
+          ),
+        ),
+      ),
       Effect.provide(serviceLayer),
     ),
   );
@@ -186,16 +338,19 @@ describe('tenant public URL migration serialization', () => {
 
   it('makes a concurrent URL migration observe and reject a newly committed active transfer offer', async () => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
-    const tenantId = makeId('tenant', suffix);
-    const userId = makeId('user', suffix);
-    const categoryId = makeId('category', suffix);
-    const templateId = makeId('template', suffix);
-    const eventId = makeId('event', suffix);
-    const optionId = makeId('option', suffix);
-    const registrationId = makeId('registration', suffix);
     const transferId = makeId('transfer', suffix);
     const domain = `${suffix}.url-race.example`;
     const now = Date.now();
+    const { categoryId, eventId, optionId, registrationId, tenantId, userId } =
+      await seedRegistrationOwner(database, {
+        domain,
+        name: `URL race ${suffix}`,
+        now,
+        price: 0,
+        registrationStatus: 'CONFIRMED',
+        stripeAccountId: null,
+        suffix,
+      });
     const fixture = {
       categoryId,
       eventId,
@@ -206,66 +361,6 @@ describe('tenant public URL migration serialization', () => {
       userId,
     } satisfies TenantFixture;
     fixtures.push(fixture);
-
-    await database.insert(tenants).values({
-      domain,
-      id: tenantId,
-      name: `URL race ${suffix}`,
-    });
-    await database.insert(users).values({
-      auth0Id: `auth0|url-race-${suffix}`,
-      communicationEmail: `${suffix}@example.com`,
-      email: `${suffix}@example.com`,
-      firstName: 'URL',
-      id: userId,
-      lastName: 'Race',
-    });
-    await database.insert(eventTemplateCategories).values({
-      icon: { iconColor: 0, iconName: 'circle' },
-      id: categoryId,
-      tenantId,
-      title: 'URL migration race',
-    });
-    await database.insert(eventTemplates).values({
-      categoryId,
-      description: 'Tenant URL migration race fixture',
-      icon: { iconColor: 0, iconName: 'circle' },
-      id: templateId,
-      tenantId,
-      title: 'URL migration race',
-    });
-    await database.insert(eventInstances).values({
-      creatorId: userId,
-      description: 'Tenant URL migration race event',
-      end: new Date(now + 8 * 24 * 60 * 60 * 1000),
-      icon: { iconColor: 0, iconName: 'circle' },
-      id: eventId,
-      start: new Date(now + 7 * 24 * 60 * 60 * 1000),
-      status: 'APPROVED',
-      templateId,
-      tenantId,
-      title: 'URL migration race event',
-    });
-    await database.insert(eventRegistrationOptions).values({
-      closeRegistrationTime: new Date(now + 6 * 24 * 60 * 60 * 1000),
-      eventId,
-      id: optionId,
-      isPaid: false,
-      openRegistrationTime: new Date(now - 24 * 60 * 60 * 1000),
-      organizingRegistration: false,
-      price: 0,
-      registrationMode: 'fcfs',
-      spots: 10,
-      title: 'Participant',
-    });
-    await database.insert(eventRegistrations).values({
-      eventId,
-      id: registrationId,
-      registrationOptionId: optionId,
-      status: 'CONFIRMED',
-      tenantId,
-      userId,
-    });
 
     const { promise: releaseOffer, resolve: allowOfferCommit } =
       Promise.withResolvers<undefined>();
@@ -292,9 +387,6 @@ describe('tenant public URL migration serialization', () => {
             yield* tx.insert(registrationTransfers).values({
               claimCodeHash: createHash('sha256')
                 .update(`code-${suffix}`)
-                .digest('hex'),
-              claimTokenHash: createHash('sha256')
-                .update(`token-${suffix}`)
                 .digest('hex'),
               eventId,
               expiresAt: new Date(now + 24 * 60 * 60 * 1000),
@@ -352,16 +444,28 @@ describe('tenant public URL migration serialization', () => {
 
   it('makes a concurrent URL migration observe and reject a newly committed Stripe obligation', async () => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
-    const tenantId = makeId('tenant', suffix);
     const transactionId = makeId('checkout', suffix);
     const domain = `${suffix}.stripe-url-race.example`;
     const stripeAccountId = `acct_${suffix}`;
-    fixtures.push({ tenantId, transactionId });
-    await database.insert(tenants).values({
-      domain,
-      id: tenantId,
-      name: `Stripe URL race ${suffix}`,
-      stripeAccountId,
+    const now = Date.now();
+    const { categoryId, eventId, optionId, registrationId, tenantId, userId } =
+      await seedRegistrationOwner(database, {
+        domain,
+        name: `Stripe URL race ${suffix}`,
+        now,
+        price: 1000,
+        registrationStatus: 'PENDING',
+        stripeAccountId,
+        suffix,
+      });
+    fixtures.push({
+      categoryId,
+      eventId,
+      optionId,
+      registrationId,
+      tenantId,
+      transactionId,
+      userId,
     });
 
     const { promise: releaseCheckout, resolve: allowCheckoutCommit } =
@@ -377,10 +481,14 @@ describe('tenant public URL migration serialization', () => {
             yield* tx.insert(transactions).values({
               amount: 1000,
               currency: 'EUR',
+              eventId,
+              eventRegistrationId: registrationId,
+              executiveUserId: userId,
               id: transactionId,
               method: 'stripe',
               status: 'pending',
               stripeAccountId: lockedAccount,
+              targetUserId: userId,
               tenantId,
               type: 'registration',
             });

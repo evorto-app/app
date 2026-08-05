@@ -1,13 +1,13 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { literalUnion } from '@shared/schema-utilities';
-import { Schema } from 'effect';
+import { CanonicalUtcTimestamp, literalUnion } from '@shared/schema-utilities';
+import { Effect, Schema, SchemaTransformation } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
 import { BadRequestForbiddenOrUnauthorizedRpcError } from '../../errors/rpc-errors';
 import {
-  PlatformAuditSnapshot,
+  PlatformAuditResourceType,
   PlatformTenantAuditAction,
   PlatformTenantAuditSnapshot,
 } from '../../platform-audit';
@@ -37,6 +37,55 @@ export type GlobalAdminTenantUpdateError = Schema.Schema.Type<
   typeof GlobalAdminTenantUpdateError
 >;
 
+export const GlobalAdminPlatformAuditState = Schema.Struct({
+  addOnCount: Schema.optional(Schema.Number),
+  announcementRoleCount: Schema.optional(Schema.Number),
+  attendeeCheckedIn: Schema.optional(Schema.Boolean),
+  checkedInGuestCount: Schema.optional(Schema.Number),
+  currency: Schema.optional(PlatformTenantAuditSnapshot.fields.currency),
+  defaultOrganizerRole: Schema.optional(Schema.Boolean),
+  defaultUserRole: Schema.optional(Schema.Boolean),
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  displayInHub: Schema.optional(Schema.Boolean),
+  domain: Schema.optional(PlatformTenantAuditSnapshot.fields.domain),
+  guestCount: Schema.optional(Schema.Number),
+  locationName: Schema.optional(Schema.NullOr(Schema.String)),
+  name: Schema.optional(PlatformTenantAuditSnapshot.fields.name),
+  paymentsConfigured: Schema.optional(
+    PlatformTenantAuditSnapshot.fields.paymentsConfigured,
+  ),
+  permissions: Schema.optional(Schema.Array(Schema.NonEmptyString)),
+  questionCount: Schema.optional(Schema.Number),
+  receiptCount: Schema.optional(Schema.Number),
+  registrationOptionCount: Schema.optional(Schema.Number),
+  remainingGuestCount: Schema.optional(Schema.Number),
+  roleCount: Schema.optional(Schema.Number),
+  simpleModeEnabled: Schema.optional(Schema.Boolean),
+  sortOrder: Schema.optional(Schema.Number),
+  status: Schema.optional(Schema.NonEmptyString),
+  taxRateAddedCount: Schema.optional(Schema.Number),
+  taxRateCount: Schema.optional(Schema.Number),
+  taxRateUnchangedCount: Schema.optional(Schema.Number),
+  taxRateUpdatedCount: Schema.optional(Schema.Number),
+  theme: Schema.optional(PlatformTenantAuditSnapshot.fields.theme),
+  timezone: Schema.optional(PlatformTenantAuditSnapshot.fields.timezone),
+  title: Schema.optional(Schema.NonEmptyString),
+  transferStatus: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+});
+
+export type GlobalAdminPlatformAuditState = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditState
+>;
+
+export const GlobalAdminPlatformAuditSnapshot = Schema.Struct({
+  resourceType: PlatformAuditResourceType,
+  state: GlobalAdminPlatformAuditState,
+});
+
+export type GlobalAdminPlatformAuditSnapshot = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditSnapshot
+>;
+
 export const GlobalAdminTenantRecord = PlatformTenantAuditSnapshot;
 
 export type GlobalAdminTenantRecord = Schema.Schema.Type<
@@ -51,7 +100,6 @@ export const GlobalAdminTenantWriteInput = Schema.Struct({
   currency: Tenant.fields.currency,
   domain: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
-  stripeAccountId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   theme: Tenant.fields.theme,
   timezone: Tenant.fields.timezone,
 });
@@ -71,7 +119,7 @@ export type GlobalAdminTenantMutationInput = Schema.Schema.Type<
   typeof GlobalAdminTenantMutationInput
 >;
 
-export const GlobalAdminTenantCreateInput = Schema.Struct({
+const GlobalAdminTenantCreatePayload = Schema.Struct({
   ...GlobalAdminTenantMutationInput.fields,
   initialPrivacyPolicy: Schema.Struct({
     privacyPolicyText: Schema.String,
@@ -79,14 +127,40 @@ export const GlobalAdminTenantCreateInput = Schema.Struct({
   }),
 });
 
+export const GlobalAdminTenantCreateInput = Schema.Json.pipe(
+  Schema.decodeTo(
+    GlobalAdminTenantCreatePayload,
+    SchemaTransformation.transformOrFail({
+      decode: (input) =>
+        Schema.decodeUnknownEffect(GlobalAdminTenantCreatePayload)(input, {
+          onExcessProperty: 'error',
+        }).pipe(Effect.mapError((error) => error.issue)),
+      encode: (value) => Effect.succeed(value),
+    }),
+  ),
+);
+
 export type GlobalAdminTenantCreateInput = Schema.Schema.Type<
   typeof GlobalAdminTenantCreateInput
 >;
 
-export const GlobalAdminTenantUpdateInput = Schema.Struct({
+const GlobalAdminTenantUpdatePayload = Schema.Struct({
   id: Schema.NonEmptyString,
   ...GlobalAdminTenantMutationInput.fields,
 });
+
+export const GlobalAdminTenantUpdateInput = Schema.Json.pipe(
+  Schema.decodeTo(
+    GlobalAdminTenantUpdatePayload,
+    SchemaTransformation.transformOrFail({
+      decode: (input) =>
+        Schema.decodeUnknownEffect(GlobalAdminTenantUpdatePayload)(input, {
+          onExcessProperty: 'error',
+        }).pipe(Effect.mapError((error) => error.issue)),
+      encode: (value) => Effect.succeed(value),
+    }),
+  ),
+);
 
 export type GlobalAdminTenantUpdateInput = Schema.Schema.Type<
   typeof GlobalAdminTenantUpdateInput
@@ -95,18 +169,34 @@ export type GlobalAdminTenantUpdateInput = Schema.Schema.Type<
 export const GlobalAdminPlatformAuditRecord = Schema.Struct({
   action: PlatformTenantAuditAction,
   actorEmail: Schema.NullOr(Schema.NonEmptyString),
-  actorId: Schema.NonEmptyString,
-  after: Schema.NullOr(PlatformAuditSnapshot),
-  before: Schema.NullOr(PlatformAuditSnapshot),
+  after: Schema.NullOr(GlobalAdminPlatformAuditSnapshot),
+  before: Schema.NullOr(GlobalAdminPlatformAuditSnapshot),
   createdAt: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
   reason: Schema.NonEmptyString,
-  targetTenantId: Schema.NonEmptyString,
   targetTenantName: Schema.NullOr(Schema.NonEmptyString),
 });
 
 export type GlobalAdminPlatformAuditRecord = Schema.Schema.Type<
   typeof GlobalAdminPlatformAuditRecord
+>;
+
+export const GlobalAdminPlatformAuditCursor = Schema.Struct({
+  createdAt: CanonicalUtcTimestamp,
+  id: Schema.NonEmptyString,
+});
+
+export type GlobalAdminPlatformAuditCursor = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditCursor
+>;
+
+export const GlobalAdminPlatformAuditPage = Schema.Struct({
+  items: Schema.Array(GlobalAdminPlatformAuditRecord),
+  nextCursor: Schema.NullOr(GlobalAdminPlatformAuditCursor),
+});
+
+export type GlobalAdminPlatformAuditPage = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditPage
 >;
 
 export const GlobalAdminEmailOutboxStatus = literalUnion(
@@ -136,42 +226,28 @@ export type GlobalAdminEmailOutboxKind = Schema.Schema.Type<
 >;
 
 export const GlobalAdminEmailOutboxRecord = Schema.Struct({
-  attempts: Schema.Number,
-  createdAt: Schema.NonEmptyString,
-  deliveryUnknownAt: Schema.NullOr(Schema.NonEmptyString),
-  exhaustedAt: Schema.NullOr(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   kind: GlobalAdminEmailOutboxKind,
   lastAttemptAt: Schema.NullOr(Schema.NonEmptyString),
-  lastError: Schema.NullOr(Schema.String),
-  maxAttempts: Schema.Number,
-  nextAttemptAt: Schema.NonEmptyString,
-  provider: Schema.NullOr(literalUnion('fake', 'mailpit', 'tem')),
-  providerMessageId: Schema.NullOr(Schema.NonEmptyString),
   recipient: Schema.NonEmptyString,
-  sentAt: Schema.NullOr(Schema.NonEmptyString),
+  recordIncomplete: Schema.Boolean,
   status: GlobalAdminEmailOutboxStatus,
   subject: Schema.NonEmptyString,
-  suppressedAt: Schema.NullOr(Schema.NonEmptyString),
   tenantDomain: Schema.NonEmptyString,
-  tenantId: Schema.NonEmptyString,
   tenantName: Schema.NonEmptyString,
   tenantTimezone: Tenant.fields.timezone,
-  updatedAt: Schema.NonEmptyString,
 });
 
 export const GlobalAdminEmailOutboxOverview = Schema.Struct({
   items: Schema.Array(GlobalAdminEmailOutboxRecord),
   summary: Schema.Struct({
     deliveryUnknown: Schema.Number,
-    exhausted: Schema.Number,
     failed: Schema.Number,
     queued: Schema.Number,
     sending: Schema.Number,
     sent: Schema.Number,
     staleSending: Schema.Number,
     suppressed: Schema.Number,
-    waitingForRetry: Schema.Number,
   }),
 });
 
@@ -210,8 +286,10 @@ export const GlobalAdminTenantsUpdate = asRpcMutation(
 export const GlobalAdminPlatformAuditFindMany = asRpcQuery(
   Rpc.make('globalAdmin.platformAudit.findMany', {
     error: GlobalAdminRpcError,
-    payload: Schema.Void,
-    success: Schema.Array(GlobalAdminPlatformAuditRecord),
+    payload: Schema.Struct({
+      cursor: Schema.NullOr(GlobalAdminPlatformAuditCursor),
+    }),
+    success: GlobalAdminPlatformAuditPage,
   }),
 );
 

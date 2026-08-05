@@ -3,12 +3,22 @@ import {
   applyEach,
   disabled,
   hidden,
+  max,
+  maxLength,
   min,
   required,
   schema,
   validate,
 } from '@angular/forms/signals';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 
 import type { EventGraphFormModel } from './event-graph-form.model';
 
@@ -30,21 +40,12 @@ const positiveIntegerError = (value: number) =>
       }
     : undefined;
 
-const richTextUploadError = (value: string) =>
-  hasTemporaryRichTextImageSources(value)
-    ? {
-        kind: 'richTextPendingUpload',
-        message: 'Wait for image uploads to finish before saving.',
-      }
-    : undefined;
-
 export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
   required(form.title, { message: 'Enter an event title.' });
   required(form.description, { message: 'Enter an event description.' });
   required(form.icon, { message: 'Choose an event icon.' });
   required(form.start, { message: 'Enter an event start.' });
   required(form.end, { message: 'Enter an event end.' });
-  validate(form.description, ({ value }) => richTextUploadError(value()));
   validate(form.end, ({ value, valueOf }) => {
     const end = value();
     const start = valueOf(form.start);
@@ -67,20 +68,32 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
         }
       : undefined;
   });
+  validate(form.addOns, ({ value }) =>
+    value().length > MAX_EVENT_ADDON_TYPES
+      ? {
+          kind: 'maxLength',
+          message: `An event can have at most ${MAX_EVENT_ADDON_TYPES} add-ons.`,
+        }
+      : undefined,
+  );
+  validate(form.questions, ({ value }) =>
+    value().length > MAX_REGISTRATION_QUESTIONS
+      ? {
+          kind: 'maxLength',
+          message: `An event can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+        }
+      : undefined,
+  );
   hidden(form.addOns, ({ valueOf }) => valueOf(form.simpleModeEnabled));
 
   applyEach(form.registrationOptions, (option) => {
-    required(option.title, { message: 'Enter an option name.' });
+    required(option.title, { message: 'Enter a sign-up choice name.' });
     required(option.openRegistrationTime, {
-      message: 'Enter a registration opening time.',
+      message: 'Choose when sign-up opens.',
     });
     required(option.closeRegistrationTime, {
-      message: 'Enter a registration closing time.',
+      message: 'Choose when sign-up closes.',
     });
-    validate(option.description, ({ value }) => richTextUploadError(value()));
-    validate(option.registeredDescription, ({ value }) =>
-      richTextUploadError(value()),
-    );
     validate(option.closeRegistrationTime, ({ value, valueOf }) => {
       const close = value();
       const open = valueOf(option.openRegistrationTime);
@@ -88,7 +101,7 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
       return close.toMillis() < open.toMillis()
         ? {
             kind: 'registrationDateOrder',
-            message: 'Registration must close after it opens.',
+            message: 'Sign-up must close after it opens.',
           }
         : undefined;
     });
@@ -97,11 +110,13 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
       when: ({ valueOf }) => valueOf(option.isPaid),
     });
     min(option.price, 1, {
-      message: 'Paid registrations must cost at least 0.01.',
+      message: 'A paid choice must cost at least 0.01.',
     });
     validate(option.price, ({ value }) => nonNegativeIntegerError(value()));
-    required(option.spots, { message: 'Enter a capacity.' });
-    min(option.spots, 0, { message: 'Capacity cannot be negative.' });
+    required(option.spots, { message: 'Enter the number of places.' });
+    min(option.spots, 0, {
+      message: 'The number of places cannot be negative.',
+    });
     validate(option.spots, ({ value }) => nonNegativeIntegerError(value()));
     validate(option.cancellationDeadlineHoursBeforeStart, ({ value }) =>
       nonNegativeIntegerError(value()),
@@ -128,7 +143,7 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
       return discountedPrice > valueOf(option.price)
         ? {
             kind: 'discountMaximum',
-            message: 'Discounted price cannot exceed the base price.',
+            message: 'Discounted price cannot exceed the regular price.',
           }
         : undefined;
     });
@@ -136,11 +151,23 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
 
   applyEach(form.questions, (question) => {
     required(question.title, { message: 'Enter a question.' });
-    required(question.registrationOptionKey, {
-      message: 'Choose the registration option that receives this question.',
+    maxLength(question.title, MAX_REGISTRATION_QUESTION_TITLE_LENGTH, {
+      message: `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`,
     });
-    required(question.sortOrder, { message: 'Enter a sort order.' });
-    min(question.sortOrder, 0, { message: 'Sort order cannot be negative.' });
+    maxLength(
+      question.description,
+      MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+      {
+        message: `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
+      },
+    );
+    required(question.registrationOptionKey, {
+      message: 'Choose where this question appears.',
+    });
+    required(question.sortOrder, { message: 'Enter a display order.' });
+    min(question.sortOrder, 0, {
+      message: 'Question order cannot be negative.',
+    });
     validate(question.sortOrder, ({ value }) =>
       nonNegativeIntegerError(value()),
     );
@@ -152,14 +179,14 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
         ? undefined
         : {
             kind: 'unknownRegistrationOption',
-            message: 'Choose an option that still belongs to this event.',
+            message:
+              'Choose a sign-up choice that still belongs to this event.',
           };
     });
   });
 
   applyEach(form.addOns, (addOn) => {
     required(addOn.title, { message: 'Enter an add-on name.' });
-    validate(addOn.description, ({ value }) => richTextUploadError(value()));
     required(addOn.price, {
       message: 'Enter a price.',
       when: ({ valueOf }) => valueOf(addOn.isPaid),
@@ -169,13 +196,16 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
     });
     validate(addOn.price, ({ value }) => nonNegativeIntegerError(value()));
     required(addOn.maxQuantityPerUser, {
-      message: 'Enter a per-user maximum.',
+      message: 'Enter the maximum each person can buy.',
+    });
+    max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY, {
+      message: `Each person can buy at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
     });
     validate(addOn.maxQuantityPerUser, ({ value }) =>
       positiveIntegerError(value()),
     );
     required(addOn.totalAvailableQuantity, {
-      message: 'Enter total stock.',
+      message: 'Enter the total available.',
     });
     validate(addOn.totalAvailableQuantity, ({ value }) =>
       nonNegativeIntegerError(value()),
@@ -190,7 +220,7 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
         ? undefined
         : {
             kind: 'purchaseWindow',
-            message: 'Enable at least one purchase window.',
+            message: 'Choose at least one time when this add-on is available.',
           };
     });
     validate(addOn.registrationOptions, ({ value }) => {
@@ -199,18 +229,18 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
         ? undefined
         : {
             kind: 'duplicateRegistrationOption',
-            message: 'Each registration option can be mapped only once.',
+            message: 'Add each sign-up choice only once.',
           };
     });
     applyEach(addOn.registrationOptions, (mapping) => {
       required(mapping.registrationOptionKey, {
-        message: 'Choose a registration option.',
+        message: 'Choose a sign-up choice.',
       });
       required(mapping.includedQuantity, {
-        message: 'Enter an included quantity.',
+        message: 'Enter how many items are included.',
       });
       required(mapping.optionalPurchaseQuantity, {
-        message: 'Enter an optional quantity.',
+        message: 'Enter how many items people can buy.',
       });
       validate(mapping.registrationOptionKey, ({ value, valueOf }) => {
         const optionKeys = new Set(
@@ -220,7 +250,8 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
           ? undefined
           : {
               kind: 'unknownRegistrationOption',
-              message: 'Choose an option that still belongs to this event.',
+              message:
+                'Choose a sign-up choice that still belongs to this event.',
             };
       });
       validate(mapping.includedQuantity, ({ value, valueOf }) => {
@@ -231,13 +262,20 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
         if (included + optional === 0) {
           return {
             kind: 'emptyMapping',
-            message: 'Include or offer at least one unit.',
+            message: 'Include or offer at least one item.',
+          };
+        }
+        if (included + optional > MAX_REGISTRATION_ADDON_QUANTITY) {
+          return {
+            kind: 'registrationQuantityMaximum',
+            message: `Included and optional items cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
           };
         }
         return included + optional > valueOf(addOn.totalAvailableQuantity)
           ? {
               kind: 'stockMaximum',
-              message: 'Mapped quantity cannot exceed total stock.',
+              message:
+                'The amount offered with this choice cannot exceed the total available.',
             }
           : undefined;
       });
@@ -248,7 +286,8 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
         return optional > valueOf(addOn.maxQuantityPerUser)
           ? {
               kind: 'userMaximum',
-              message: 'Optional quantity cannot exceed the per-user maximum.',
+              message:
+                'The number people can buy cannot exceed the per-person maximum.',
             }
           : undefined;
       });

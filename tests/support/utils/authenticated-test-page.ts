@@ -23,7 +23,6 @@ export const openAuthenticatedTestPage = async ({
   const context = await browser.newContext({
     baseURL: resolvedBaseUrl.origin,
     colorScheme: 'light',
-    ignoreHTTPSErrors: true,
     storageState,
   });
 

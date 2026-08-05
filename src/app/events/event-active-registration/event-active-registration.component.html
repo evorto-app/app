@@ -55,14 +55,28 @@
               class="bg-error-container text-on-error-container rounded-md p-3 @md:col-span-2"
               role="alert"
             >
-              Evorto received an invalid registration payment link and did not
-              open it. Contact an organizer for help.
+              This payment link cannot be used. Contact an organizer for a new
+              link.
             </div>
           } @else {
             <div class="text-warning @md:col-span-2" role="status">
-              Your payment link is being prepared. Refresh this page shortly.
-              Your registration is not confirmed until payment succeeds.
+              Your payment link is not ready yet. Use Try payment again below.
+              Your ticket is not confirmed until payment succeeds.
             </div>
+            @if (!recipientTransferCheckoutPending(registration)) {
+              <button
+                mat-flat-button
+                type="button"
+                [disabled]="retryRegistrationCheckoutMutation.isPending()"
+                (click)="retryRegistrationCheckout(registration)"
+              >
+                {{
+                  retryRegistrationCheckoutMutation.isPending()
+                    ? "Preparing payment…"
+                    : "Try payment again"
+                }}
+              </button>
+            }
           }
         } @else {
           <div class="text-warning @md:col-span-2" role="status">
@@ -71,8 +85,8 @@
         }
       } @else if (registration.status === "WAITLIST") {
         <div class="text-warning @md:col-span-2" role="status">
-          You are currently on the waitlist. We will contact you if a spot
-          becomes available.
+          You are currently on the waitlist. Check this event page for updates;
+          you may also receive an email if a place becomes available.
         </div>
       } @else if (registration.status === "CONFIRMED") {
         <div class="text-success @md:col-span-2" role="status">
@@ -160,7 +174,7 @@
                     </div>
                     @if (addOn.redeemedQuantity > 0) {
                       <div class="contents">
-                        <dt class="text-on-surface-variant">Redeemed</dt>
+                        <dt class="text-on-surface-variant">Handed out</dt>
                         <dd class="text-right">{{ addOn.redeemedQuantity }}</dd>
                       </div>
                     }
@@ -203,20 +217,32 @@
 
                 <div class="grid content-start gap-3">
                   @if (registrationAddonHasCanonicalPendingOrder(addOn)) {
-                    @if (pendingCheckoutUrlInvalid(addOn)) {
+                    @if (addOn.pendingCheckoutExpired) {
+                      <div
+                        class="bg-error-container text-on-error-container grid gap-2 rounded-md p-3"
+                        role="alert"
+                      >
+                        <p class="label-large">The payment window has ended</p>
+                        <p class="body-small">
+                          Evorto has not confirmed payment for
+                          {{ addOn.pendingQuantity }} × {{ addOn.title }} yet.
+                          These items are not on your ticket. Contact an
+                          organizer before trying to buy them again.
+                        </p>
+                      </div>
+                    } @else if (pendingCheckoutUrlInvalid(addOn)) {
                       <div
                         class="bg-error-container text-on-error-container grid gap-2 rounded-md p-3"
                         role="alert"
                       >
                         <p class="label-large">
-                          Payment is pending, but the link is invalid
+                          Payment is pending, but the link is not available
                         </p>
                         <p class="body-small">
                           Payment is pending for {{ addOn.pendingQuantity }} ×
-                          {{ addOn.title }}. Evorto did not open the invalid
-                          payment link. Refresh the status or contact an
-                          organizer. Your ticket updates only after Stripe
-                          confirms payment.
+                          {{ addOn.title }}, but this payment link cannot be
+                          used. The items have not been added to your ticket.
+                          Contact an organizer for a new link.
                         </p>
                       </div>
                     } @else {
@@ -230,13 +256,12 @@
                           Payment is pending for {{ addOn.pendingQuantity }} ×
                           {{ addOn.title }}.
                           @if (addOn.pendingCheckoutExpiresAt) {
-                            Continue the same Stripe checkout before
+                            Continue to payment before
                             {{
                               addOn.pendingCheckoutExpiresAt | date: "medium"
                             }}.
                           }
-                          Your ticket updates only after Stripe confirms
-                          payment.
+                          Your ticket updates only after payment is confirmed.
                         </p>
 
                         @if (
@@ -244,12 +269,12 @@
                           as checkoutUrl
                         ) {
                           <a [href]="checkoutUrl" mat-flat-button>
-                            Continue Stripe checkout
+                            Continue to payment
                           </a>
                         } @else {
                           <p class="body-small">
-                            Your Stripe payment link is still being prepared.
-                            Trying again will not create a duplicate purchase.
+                            No payment page is available yet. Use Try again
+                            below. The same items and quantity will be kept.
                           </p>
                           <button
                             type="button"
@@ -315,10 +340,10 @@
                         activePurchaseKey() ===
                         registration.id + ":" + addOn.addOnId
                           ? addOn.isPaid
-                            ? "Preparing checkout…"
+                            ? "Opening payment…"
                             : "Adding…"
                           : addOn.isPaid
-                            ? "Continue to Stripe"
+                            ? "Continue to payment"
                             : "Add to ticket"
                       }}
                     </button>
@@ -360,7 +385,7 @@
                               as checkoutUrl
                             ) {
                               <a [href]="checkoutUrl" mat-flat-button>
-                                Continue Stripe checkout
+                                Continue to payment
                               </a>
                             }
                           </div>
@@ -403,7 +428,7 @@
             >
               {{ transferStatus.body }}
               @if (transferStatus.showExpiry) {
-                The private offer expires
+                The private transfer expires
                 {{ activeTransfer.expiresAt | date: "medium" }}.
               }
             </p>
@@ -430,8 +455,8 @@
           @if (cancellation.buttonLabel; as cancellationButtonLabel) {
             @if (registrationHasPendingAddonPayment(registration)) {
               <p class="body-small text-on-surface-variant" role="status">
-                Finish or let the pending add-on checkout expire before
-                cancelling this registration.
+                Wait for the current add-on payment to finish or expire before
+                cancelling this ticket.
               </p>
             }
             <button
@@ -499,8 +524,23 @@
     class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
     role="alert"
   >
-    <h3 class="title-medium">Registration cancellation failed</h3>
+    <h3 class="title-medium">Ticket was not cancelled</h3>
     <p>{{ errorMessage(cancelRegistrationMutation.error()) }}</p>
+  </div>
+}
+@if (retryRegistrationCheckoutMutation.isError()) {
+  <div
+    class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
+    role="alert"
+  >
+    <h3 class="title-medium">Payment could not be started</h3>
+    <p>
+      {{
+        registrationCheckoutErrorMessage(
+          retryRegistrationCheckoutMutation.error()
+        )
+      }}
+    </p>
   </div>
 }
 @if (transferRegistrationMutation.isError()) {
@@ -508,7 +548,7 @@
     class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
     role="alert"
   >
-    <h3 class="title-medium">Registration transfer failed</h3>
+    <h3 class="title-medium">Ticket transfer could not be started</h3>
     <p>{{ transferErrorMessage(transferRegistrationMutation.error()) }}</p>
   </div>
 }
@@ -517,7 +557,7 @@
     class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
     role="alert"
   >
-    <h3 class="title-medium">Transfer cancellation failed</h3>
+    <h3 class="title-medium">Ticket transfer was not cancelled</h3>
     <p>{{ transferErrorMessage(cancelTransferMutation.error()) }}</p>
   </div>
 }

@@ -14,6 +14,7 @@ import {
   FinanceResourceNotFoundError,
   ReceiptMediaInternalError,
 } from '../../../../../shared/rpc-contracts/app-rpcs/finance.errors';
+import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { canSubmitEventReceipts, databaseEffect } from './finance.shared';
 import {
@@ -24,8 +25,22 @@ import {
 
 const UPLOAD_POLICY_TTL_MILLISECONDS = 5 * 60 * 1000;
 
-const storageMutationError = (message: string, cause?: unknown) =>
-  new ReceiptMediaInternalError({ cause, message });
+const storageMutationError = (message: string) =>
+  new ReceiptMediaInternalError({ message });
+
+const mapStorageMutationError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, ReceiptMediaInternalError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logError(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => storageMutationError(message)),
+    );
 
 const finalizedUpload = (upload: {
   fileName: string;
@@ -58,7 +73,8 @@ export const financeMediaHandlers = {
       if (!canSubmit) {
         return yield* Effect.fail(
           new RpcForbiddenError({
-            message: 'Forbidden',
+            message:
+              'You do not have permission to submit receipts for this event.',
             permission: `finance:submitReceipts:${input.eventId}`,
           }),
         );
@@ -74,7 +90,8 @@ export const financeMediaHandlers = {
         return yield* Effect.fail(
           new FinanceResourceNotFoundError({
             id: input.eventId,
-            message: 'Event not found for receipt upload',
+            message:
+              'This event is no longer available, so no receipt was added. Go back and choose an available event before adding a receipt.',
             resource: 'event',
           }),
         );
@@ -106,15 +123,15 @@ export const financeMediaHandlers = {
             sizeBytes: input.sizeBytes,
             status: 'pending',
             storageKey,
-            storageUrl: null,
             tenantId: tenant.id,
             uploadedAt: null,
             uploadedByUserId: user.id,
           })
           .returning({ id: financeReceiptUploads.id }),
       ).pipe(
-        Effect.mapError((cause) =>
-          storageMutationError('Failed to prepare receipt upload', cause),
+        mapStorageMutationError(
+          'receiptMedia.upload.prepare',
+          'Failed to prepare receipt upload',
         ),
       );
       if (inserted.length !== 1) {
@@ -167,15 +184,17 @@ export const financeMediaHandlers = {
           },
         }),
       ).pipe(
-        Effect.mapError((cause) =>
-          storageMutationError('Failed to load receipt upload', cause),
+        mapStorageMutationError(
+          'receiptMedia.upload.load',
+          'Failed to load receipt upload',
         ),
       );
       const upload = yield* loadUpload;
       if (!upload) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt upload is unavailable',
+            message:
+              'This receipt file is no longer available. Add the file again.',
             reason: 'receipt_upload_unavailable',
           }),
         );
@@ -189,7 +208,8 @@ export const financeMediaHandlers = {
       if (!canSubmit) {
         return yield* Effect.fail(
           new RpcForbiddenError({
-            message: 'Forbidden',
+            message:
+              'You do not have permission to submit receipts for this event.',
             permission: `finance:submitReceipts:${upload.eventId}`,
           }),
         );
@@ -200,7 +220,8 @@ export const financeMediaHandlers = {
       if (upload.status !== 'pending') {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt upload cannot be finalized',
+            message:
+              'This receipt file can no longer be used. Add the file again.',
             reason: 'receipt_upload_unavailable',
           }),
         );
@@ -219,56 +240,24 @@ export const financeMediaHandlers = {
               ),
             ),
         ).pipe(
-          Effect.mapError((cause) =>
-            storageMutationError('Failed to expire receipt upload', cause),
+          mapStorageMutationError(
+            'receiptMedia.upload.expire',
+            'Failed to expire receipt upload',
           ),
         );
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Receipt upload has expired',
+            message:
+              'This receipt file was not saved in time. Add the file again.',
             reason: 'receipt_upload_expired',
           }),
         );
       }
 
-      const inspected = yield* ReceiptMediaService.inspectUpload({
-        eventId: upload.eventId,
-        fileName: upload.fileName,
-        mimeType: upload.mimeType,
-        sizeBytes: upload.sizeBytes,
-        storageKey: upload.storageKey,
-        tenantId: tenant.id,
-        uploadId: upload.id,
-        userId: user.id,
-      }).pipe(
-        Effect.tapErrorTag('ReceiptMediaBadRequestError', (error) =>
-          Database.use((database) =>
-            database
-              .update(financeReceiptUploads)
-              .set({ rejectionReason: error.message, status: 'rejected' })
-              .where(
-                and(
-                  eq(financeReceiptUploads.id, upload.id),
-                  eq(financeReceiptUploads.status, 'pending'),
-                ),
-              ),
-          ).pipe(
-            Effect.mapError((cause) =>
-              storageMutationError('Failed to reject receipt upload', cause),
-            ),
-          ),
-        ),
-      );
-      const completed = yield* Database.use((database) =>
+      const claimedRows = yield* Database.use((database) =>
         database
           .update(financeReceiptUploads)
-          .set({
-            rejectionReason: null,
-            status: 'ready',
-            storageKey: inspected.storageKey,
-            storageUrl: inspected.storageUrl,
-            uploadedAt: now,
-          })
+          .set({ status: 'finalizing' })
           .where(
             and(
               eq(financeReceiptUploads.id, upload.id),
@@ -281,14 +270,92 @@ export const financeMediaHandlers = {
             ),
           )
           .returning({
+            eventId: financeReceiptUploads.eventId,
+            fileName: financeReceiptUploads.fileName,
+            id: financeReceiptUploads.id,
+            mimeType: financeReceiptUploads.mimeType,
+            sizeBytes: financeReceiptUploads.sizeBytes,
+            storageKey: financeReceiptUploads.storageKey,
+          }),
+      ).pipe(
+        mapStorageMutationError(
+          'receiptMedia.upload.claim',
+          'Failed to claim receipt upload for finalization',
+        ),
+      );
+      const claimed = claimedRows[0];
+      if (!claimed) {
+        const concurrent = yield* loadUpload;
+        if (concurrent?.status === 'ready') {
+          return finalizedUpload(concurrent);
+        }
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message:
+              'This receipt file is already being saved. Wait a moment and try again.',
+            reason: 'receipt_upload_unavailable',
+          }),
+        );
+      }
+
+      const inspected = yield* ReceiptMediaService.inspectUpload({
+        eventId: claimed.eventId,
+        fileName: claimed.fileName,
+        mimeType: claimed.mimeType,
+        sizeBytes: claimed.sizeBytes,
+        storageKey: claimed.storageKey,
+        tenantId: tenant.id,
+        uploadId: claimed.id,
+        userId: user.id,
+      }).pipe(
+        Effect.tapErrorTag('ReceiptMediaBadRequestError', (error) =>
+          Database.use((database) =>
+            database
+              .update(financeReceiptUploads)
+              .set({ rejectionReason: error.message, status: 'rejected' })
+              .where(
+                and(
+                  eq(financeReceiptUploads.id, upload.id),
+                  eq(financeReceiptUploads.status, 'finalizing'),
+                ),
+              ),
+          ).pipe(
+            mapStorageMutationError(
+              'receiptMedia.upload.reject',
+              'Failed to reject receipt upload',
+            ),
+          ),
+        ),
+      );
+      const completed = yield* Database.use((database) =>
+        database
+          .update(financeReceiptUploads)
+          .set({
+            rejectionReason: null,
+            status: 'ready',
+            storageKey: inspected.storageKey,
+            uploadedAt: now,
+          })
+          .where(
+            and(
+              eq(financeReceiptUploads.id, upload.id),
+              eq(financeReceiptUploads.tenantId, tenant.id),
+              eq(financeReceiptUploads.eventId, upload.eventId),
+              eq(financeReceiptUploads.uploadedByUserId, user.id),
+              eq(financeReceiptUploads.storageKey, claimed.storageKey),
+              eq(financeReceiptUploads.status, 'finalizing'),
+            ),
+          )
+          .returning({
             fileName: financeReceiptUploads.fileName,
             id: financeReceiptUploads.id,
             mimeType: financeReceiptUploads.mimeType,
             sizeBytes: financeReceiptUploads.sizeBytes,
           }),
       ).pipe(
-        Effect.mapError((cause) =>
-          storageMutationError('Failed to finalize receipt upload', cause),
+        mapStorageMutationError(
+          'receiptMedia.upload.finalize',
+          'Failed to finalize receipt upload',
         ),
       );
       const finalized = completed[0];
@@ -296,16 +363,10 @@ export const financeMediaHandlers = {
         return finalizedUpload(finalized);
       }
 
-      const concurrent = yield* loadUpload;
-      if (concurrent?.storageKey !== inspected.storageKey) {
-        yield* ReceiptMediaService.discardPromotedUpload(inspected.storageKey);
-      }
-      if (concurrent?.status === 'ready') {
-        return finalizedUpload(concurrent);
-      }
+      yield* ReceiptMediaService.discardPromotedUpload(inspected.storageKey);
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Receipt upload could not be finalized',
+          message: 'This receipt file could not be saved. Add the file again.',
           reason: 'receipt_upload_unavailable',
         }),
       );

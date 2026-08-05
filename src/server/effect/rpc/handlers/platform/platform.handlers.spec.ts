@@ -1,11 +1,13 @@
 import { describe, expect, it } from '@effect/vitest';
-import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import {
-  PlatformRegistrationPageLimit,
-  PlatformRegistrationsListInput,
-} from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
+import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
-import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
+import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
 import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
 import { vi } from 'vitest';
@@ -26,8 +28,8 @@ import {
   platformEventAddonMappingRemovalError,
   platformEventAuditSnapshot,
   platformEventGraphCompatibilityError,
+  platformEventQuestionLimitError,
   platformEventStateError,
-  platformUnsupportedRegistrationModeError,
   validatePlatformEventCreateReferences,
 } from './platform-events.handlers';
 import {
@@ -42,6 +44,7 @@ import { platformHandlers } from './platform.handlers';
 
 const eventRecord = {
   addOns: [],
+  announcementRoleIds: [],
   creator: {
     email: 'owner@example.org',
     firstName: 'Event',
@@ -84,7 +87,6 @@ const eventRecord = {
   status: 'DRAFT' as const,
   statusComment: null,
   title: 'Event',
-  unlisted: false,
 };
 
 const registrationRecord = {
@@ -110,7 +112,7 @@ const registrationRecord = {
   },
   checkedInGuestCount: 0,
   checkInTime: null,
-  checkInTimingIssue: false,
+  checkInTimingIssue: null,
   currency: 'EUR' as const,
   event: {
     id: 'event-1',
@@ -161,7 +163,6 @@ const templateRecord = {
   ],
   simpleModeEnabled: false,
   title: 'Template',
-  unlisted: false,
 };
 
 const authority = PlatformAdministratorAuthority.make({
@@ -182,7 +183,6 @@ const targetTenant = Tenant.make({
   id: 'tenant-target',
   legalNoticeText: undefined,
   legalNoticeUrl: undefined,
-  locale: 'de-DE',
   logoUrl: undefined,
   maxActiveRegistrationsPerUser: 0,
   name: 'Target tenant',
@@ -244,12 +244,11 @@ describe('platform event, template, and registration handlers', () => {
       'platform.events.review',
       'platform.events.submitForReview',
       'platform.events.update',
-      'platform.events.updateListing',
+      'platform.events.updateAnnouncementDiscovery',
       'platform.registrations.approve',
       'platform.registrations.cancel',
       'platform.registrations.checkIn',
       'platform.registrations.findOne',
-      'platform.registrations.list',
       'platform.templates.create',
       'platform.templates.findOne',
       'platform.templates.formOptions',
@@ -281,24 +280,18 @@ describe('platform event, template, and registration handlers', () => {
       Effect.gen(function* () {
         const creatorError = yield* validatePlatformEventCreateReferences({
           creatorMembershipFound: false,
-          registrationModes: [],
           templateFound: true,
         }).pipe(Effect.flip);
         expect(creatorError.reason).toBe('creatorMembershipNotFound');
 
         const templateError = yield* validatePlatformEventCreateReferences({
           creatorMembershipFound: true,
-          registrationModes: [],
           templateFound: false,
         }).pipe(Effect.flip);
         expect(templateError.reason).toBe('templateNotFound');
-
-        const modeError = yield* validatePlatformEventCreateReferences({
-          creatorMembershipFound: true,
-          registrationModes: ['random'],
-          templateFound: true,
-        }).pipe(Effect.flip);
-        expect(modeError.reason).toBe('unsupportedRegistrationMode');
+        expect(templateError.message).toBe(
+          'The selected template is no longer available in this organization. No event was created. Review the event setup and choose an available template before creating the event again.',
+        );
       }),
   );
 
@@ -379,6 +372,22 @@ describe('platform event, template, and registration handlers', () => {
     ).toMatchObject({
       _tag: 'RpcBadRequestError',
       reason: 'paidEventAddonRequiresPositivePrice',
+    });
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: false },
+        input: {
+          addOns: Array.from({ length: MAX_EVENT_ADDON_TYPES + 1 }, () => ({
+            ...paidAddOn,
+            isPaid: false,
+            stripeTaxRateId: null,
+          })),
+          registrationOptions: eventRecord.registrationOptions,
+        },
+      }),
+    ).toMatchObject({
+      message: `Add no more than ${MAX_EVENT_ADDON_TYPES} different add-ons.`,
+      reason: 'eventAddonTypeLimitExceeded',
     });
     expect(
       platformEventGraphCompatibilityError({
@@ -507,6 +516,43 @@ describe('platform event, template, and registration handlers', () => {
     }
   });
 
+  it('rejects invalid platform event question counts and text before persistence', () => {
+    const question = {
+      description: null,
+      registrationOptionId: 'option-1',
+      required: false,
+      sortOrder: 0,
+      title: 'Question',
+    };
+
+    expect(platformEventQuestionLimitError([question])).toBeNull();
+    expect(
+      platformEventQuestionLimitError(
+        Array.from({ length: MAX_REGISTRATION_QUESTIONS + 1 }, () => question),
+      ),
+    ).toMatchObject({
+      message: `Add no more than ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+      reason: 'eventQuestionLimitExceeded',
+    });
+    for (const invalidQuestion of [
+      { ...question, title: ' ' },
+      {
+        ...question,
+        title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH + 1),
+      },
+      {
+        ...question,
+        description: 'd'.repeat(
+          MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH + 1,
+        ),
+      },
+    ]) {
+      expect(platformEventQuestionLimitError([invalidQuestion])).toMatchObject({
+        reason: 'invalidEventQuestion',
+      });
+    }
+  });
+
   it('diffs event add-on mappings without deleting retained purchased associations', () => {
     const existing = [
       {
@@ -542,48 +588,10 @@ describe('platform event, template, and registration handlers', () => {
     expect(platformEventAddonMappingRemovalError(true)).toMatchObject({
       _tag: 'RpcBadRequestError',
       message:
-        'An add-on that has already been purchased must remain available with its existing registration option',
+        'An add-on that has already been bought must remain available with its current sign-up choice.',
       reason: 'eventAddonMappingInUse',
     });
   });
-
-  it.effect(
-    'rejects random event updates before opening a target mutation',
-    () =>
-      Effect.gen(function* () {
-        expect(
-          platformUnsupportedRegistrationModeError(['application', 'fcfs']),
-        ).toBeNull();
-
-        const error = yield* platformHandlers['platform.events.update'](
-          {
-            addOns: eventRecord.addOns,
-            description: eventRecord.description,
-            end: eventRecord.end,
-            eventId: eventRecord.id,
-            icon: eventRecord.icon,
-            location: eventRecord.location,
-            questions: eventRecord.questions,
-            reason: 'Attempt to retain an unsupported allocation mode',
-            registrationOptions: eventRecord.registrationOptions.map(
-              (option) => ({
-                ...option,
-                registrationMode: 'random',
-              }),
-            ),
-            start: eventRecord.start,
-            targetTenantId: targetTenant.id,
-            title: eventRecord.title,
-          } as never,
-          undefined,
-        ).pipe(Effect.flip);
-
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          reason: 'unsupportedRegistrationMode',
-        });
-      }),
-  );
 
   it.effect('plans attendee and guest counters without double counting', () =>
     Effect.gen(function* () {
@@ -620,20 +628,6 @@ describe('platform event, template, and registration handlers', () => {
     }),
   );
 
-  it.effect('defaults and bounds platform registration result pages', () =>
-    Effect.gen(function* () {
-      const defaults = yield* Schema.decodeUnknownEffect(
-        PlatformRegistrationsListInput,
-      )({ targetTenantId: 'tenant-1' });
-      expect(defaults.limit).toBe(100);
-      expect(defaults.offset).toBe(0);
-      const oversized = yield* Schema.decodeUnknownEffect(
-        PlatformRegistrationPageLimit,
-      )(101).pipe(Effect.flip);
-      expect(oversized['_tag']).toBe('SchemaError');
-    }),
-  );
-
   it.effect('preserves platform approval internal failures as defects', () =>
     Effect.gen(function* () {
       const exit = yield* platformHandlers['platform.registrations.approve'](
@@ -655,9 +649,10 @@ describe('platform event, template, and registration handlers', () => {
       const defect = Cause.squash(exit.cause);
       expect(defect).toBeInstanceOf(EventRegistrationInternalError);
       expect(defect).toMatchObject({
-        cause: expect.any(Error),
-        message: 'Invalid E2E_NOW_ISO server clock value',
+        message:
+          'The current time could not be checked. No sign-up was changed. Try again.',
       });
+      expect(defect).not.toHaveProperty('cause');
     }),
   );
 
@@ -665,6 +660,8 @@ describe('platform event, template, and registration handlers', () => {
     Effect.gen(function* () {
       const exit = yield* platformHandlers['platform.registrations.cancel'](
         {
+          expectedPaymentPending: false,
+          expectedStatus: 'CONFIRMED',
           reason: 'Cancel the target registration',
           registrationId: registrationRecord.id,
           targetTenantId: targetTenant.id,
@@ -682,9 +679,10 @@ describe('platform event, template, and registration handlers', () => {
       const defect = Cause.squash(exit.cause);
       expect(defect).toBeInstanceOf(EventRegistrationInternalError);
       expect(defect).toMatchObject({
-        cause: expect.any(Error),
-        message: 'Invalid E2E_NOW_ISO server clock value',
+        message:
+          'The event time could not be checked. No sign-up was changed. Open the event again and review its current details before continuing.',
       });
+      expect(defect).not.toHaveProperty('cause');
     }),
   );
 
@@ -699,7 +697,7 @@ describe('platform event, template, and registration handlers', () => {
     );
 
     expect(error.reason).toBe('registrationTransferActive');
-    expect(error.message).toContain('this registration');
+    expect(error.message).toContain('this ticket');
     expect(error.message).toContain('Finish or cancel');
   });
 
@@ -853,6 +851,12 @@ describe('platform event, template, and registration handlers', () => {
     );
     expect(registrationSource).toContain('enforceParticipantDeadline: false');
     expect(registrationSource).toContain('executiveUserId: null');
+    expect(registrationSource).toContain(
+      'expectedPaymentPending: input.expectedPaymentPending',
+    );
+    expect(registrationSource).toContain(
+      'expectedStatus: input.expectedStatus',
+    );
     expect(registrationSource).toContain("action: 'registration.approve'");
     expect(registrationSource).toContain("action: 'registration.cancel'");
     expect(registrationSource).toContain(
@@ -878,6 +882,16 @@ describe('platform event, template, and registration handlers', () => {
     );
     expect(secondGuardIndex).toBeGreaterThan(lockedRegistrationIndex);
     expect(secondGuardIndex).toBeLessThan(
+      checkInHandler.indexOf('const before'),
+    );
+    const lockedEventIndex = checkInHandler.indexOf('const lockedEvents');
+    const timingIssueIndex = checkInHandler.indexOf(
+      'const timingIssue = eventCheckInTimingIssue',
+    );
+    expect(lockedEventIndex).toBeGreaterThan(lockedRegistrationIndex);
+    expect(checkInHandler).toContain(".for('share')");
+    expect(timingIssueIndex).toBeGreaterThan(lockedEventIndex);
+    expect(timingIssueIndex).toBeLessThan(
       checkInHandler.indexOf('const before'),
     );
 

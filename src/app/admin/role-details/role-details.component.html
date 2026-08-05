@@ -1,5 +1,5 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a [routerLink]="['/admin/roles']" mat-icon-button>
+  <a [routerLink]="['/admin/roles']" mat-icon-button aria-label="Back to roles">
     <fa-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">{{ roleQuery.data()?.name }}</h1>
@@ -7,6 +7,7 @@
   <a
     [routerLink]="['/admin/roles', roleQuery.data()?.id, 'edit']"
     mat-icon-button
+    aria-label="Edit role"
   >
     <fa-icon [icon]="faEdit" />
   </a>
@@ -16,10 +17,20 @@
   <div
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
-    <h2 class="title-medium">Loading ...</h2>
+    <h2 class="title-medium">Loading role…</h2>
   </div>
 } @else if (roleQuery.isError()) {
-  <p>Error: {{ errorMessage(roleQuery.error()) }}</p>
+  <div class="flex flex-col items-start gap-3" role="alert">
+    <p>We couldn't load this role.</p>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="roleQuery.isFetching()"
+      (click)="roleQuery.refetch()"
+    >
+      {{ roleQuery.isFetching() ? "Trying again…" : "Try again" }}
+    </button>
+  </div>
 } @else if (roleQuery.isSuccess()) {
   <div
     class="bg-surface-container-low text-on-surface-container-low flex flex-col gap-4 rounded-2xl p-4"

@@ -26,6 +26,7 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
+import { eventReviewActionErrorRequiresRefresh } from '../../events/event-rpc-error';
 
 export const eventReviewQueueActionDisabled = ({
   actionPending,
@@ -50,12 +51,12 @@ export const eventReviewQueueActionDisabled = ({
       >
         <fa-duotone-icon [icon]="faArrowLeft" />
       </a>
-      <h1 class="title-large">Event Reviews</h1>
+      <h1 class="title-large">Event reviews</h1>
       <div class="grow"></div>
       <button
         mat-icon-button
         (click)="pendingReviewsQuery.refetch()"
-        aria-label="Refresh pending reviews"
+        aria-label="Check pending reviews again"
       >
         <fa-duotone-icon [icon]="faRotateRight" />
       </button>
@@ -68,10 +69,10 @@ export const eventReviewQueueActionDisabled = ({
     } @else if (pendingReviewsQuery.isError()) {
       <div class="flex flex-col items-center justify-center gap-2 p-8">
         <span class="text-on-surface-variant">
-          Failed to load pending reviews.
+          The pending reviews could not be loaded. Try again.
         </span>
         <button mat-stroked-button (click)="pendingReviewsQuery.refetch()">
-          Retry
+          Try again
         </button>
       </div>
     } @else if (pendingReviewsQuery.isSuccess()) {
@@ -98,7 +99,7 @@ export const eventReviewQueueActionDisabled = ({
                       })
                     "
                   >
-                    Reject
+                    Return to draft
                   </button>
                   <button
                     mat-flat-button
@@ -116,21 +117,10 @@ export const eventReviewQueueActionDisabled = ({
               </div>
               <div class="text-on-surface-variant">
                 <p>Start: {{ event.start | date: 'medium' }}</p>
-                <!--                <p>End: {{ event.end | date: 'medium' }}</p>-->
-              </div>
-              <!--              <div [innerHTML]="event.description"></div>-->
-              <div class="mt-2">
-                <!--                <h3 class="title-small mb-2">Registration Options:</h3>-->
-                <!--                @for (option of event.registrationOptions; track option.id) {-->
-                <!--                  <div class="text-on-surface-variant ml-4">-->
-                <!--                    <p>{{ option.title }} - {{ option.spots }} spots</p>-->
-                <!--                    <p>Price: {{ option.price | currency }}</p>-->
-                <!--                  </div>-->
-                <!--                }-->
               </div>
               <a mat-button routerLink="/events/{{ event.id }}">
                 <fa-duotone-icon [icon]="faArrowUpRightFromSquare" />
-                Open Event
+                Open event
               </a>
             </div>
           }
@@ -158,7 +148,7 @@ export class EventReviewsComponent {
   private readonly queryClient = inject(QueryClient);
 
   constructor() {
-    // Auto-refresh pending reviews every 30 seconds
+    // Recheck pending reviews every 30 seconds.
     interval(30_000)
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
@@ -208,16 +198,12 @@ export class EventReviewsComponent {
   private async handleReviewActionError(error: unknown): Promise<void> {
     const message = getErrorMessage(
       error,
-      'Failed to update event review status',
+      'The event review could not be updated. Try again.',
+      ['EventConflictError', 'EventNotFoundError', 'RpcBadRequestError'],
     );
-    const normalizedMessage = message.toLowerCase();
-    if (
-      normalizedMessage.includes('status changed') ||
-      normalizedMessage.includes('refresh and try again') ||
-      normalizedMessage.includes('no longer pending review')
-    ) {
+    if (eventReviewActionErrorRequiresRefresh(error)) {
       this.notifications.showError(
-        'Event status changed. Refreshed the latest state.',
+        'This event changed while you were working. We loaded the latest details. Review them and try again.',
       );
       await this.refreshReviewState();
       return;

@@ -16,13 +16,13 @@ import { resolveServerRpcOrigin } from './effect-rpc-angular-client';
 
 const trustedTenantDomain = 'tenant.example.com';
 const sessionCookies = [
-  '__a0_session.0=chunk-zero',
+  'appSession.0=chunk-zero',
   'evorto-tenant=stale.example.com',
-  '__a0_session.1=chunk-one',
+  'appSession.1=chunk-one',
 ].join('; ');
 const trustedSessionCookies = [
-  '__a0_session.0=chunk-zero',
-  '__a0_session.1=chunk-one',
+  'appSession.0=chunk-zero',
+  'appSession.1=chunk-one',
   `evorto-tenant=${trustedTenantDomain}`,
 ].join('; ');
 

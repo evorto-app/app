@@ -1,3 +1,4 @@
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
@@ -102,6 +103,28 @@ describe('add-on payment allocation', () => {
     expect(
       result.reduce((sum, allocation) => sum + allocation.grossAmount, 0),
     ).toBe(1600);
+  });
+
+  it('rejects purchase lots above the bounded registration quantity', async () => {
+    const error = await Effect.runPromise(
+      finalizeAddonPaymentAllocations({
+        applicationFee: 0,
+        grossAmount: 1000,
+        includesRegistrationCharge: false,
+        lots: [
+          {
+            baseAmount: 1000,
+            id: 'oversized',
+            quantity: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+            taxRateInclusive: null,
+            taxRatePercentage: null,
+          },
+        ],
+        stripeFee: 0,
+      }).pipe(Effect.flip),
+    );
+
+    expect(error.message).toBe('Purchase lot terms are invalid');
   });
 
   it('makes repeated partial refunds plus the final cancellation exact', () => {

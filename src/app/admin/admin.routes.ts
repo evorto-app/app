@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { permissionGuard } from '../core/guards/permission.guard';
+import { tenantSettingsUnsavedChangesGuard } from './settings/settings-form';
 
 export const ADMIN_ROUTES: Routes = [
   {
@@ -63,12 +64,61 @@ export const ADMIN_ROUTES: Routes = [
       },
       {
         canActivate: [permissionGuard],
+        canDeactivate: [tenantSettingsUnsavedChangesGuard],
         data: {
           permissions: ['admin:changeSettings'],
         },
         loadComponent: () =>
-          import('./general-settings/general-settings.component').then(
-            (m) => m.GeneralSettingsComponent,
+          import('./settings/appearance-settings.component').then(
+            (m) => m.AppearanceSettingsComponent,
+          ),
+        path: 'settings/appearance',
+      },
+      {
+        canActivate: [permissionGuard],
+        canDeactivate: [tenantSettingsUnsavedChangesGuard],
+        data: {
+          permissions: ['admin:changeSettings'],
+        },
+        loadComponent: () =>
+          import('./settings/legal-settings.component').then(
+            (m) => m.LegalSettingsComponent,
+          ),
+        path: 'settings/legal',
+      },
+      {
+        canActivate: [permissionGuard],
+        canDeactivate: [tenantSettingsUnsavedChangesGuard],
+        data: {
+          permissions: ['admin:managePayments'],
+        },
+        loadComponent: () =>
+          import('./settings/payment-provider-settings.component').then(
+            (m) => m.PaymentProviderSettingsComponent,
+          ),
+        path: 'settings/payments',
+      },
+      {
+        canActivate: [permissionGuard],
+        canDeactivate: [tenantSettingsUnsavedChangesGuard],
+        data: {
+          permissions: ['admin:changeSettings'],
+        },
+        loadComponent: () =>
+          import('./settings/registration-settings.component').then(
+            (m) => m.RegistrationSettingsComponent,
+          ),
+        path: 'settings/registration',
+      },
+      {
+        canActivate: [permissionGuard],
+        canDeactivate: [tenantSettingsUnsavedChangesGuard],
+        data: {
+          permissions: ['admin:changeSettings'],
+        },
+        loadComponent: () =>
+          import('./settings/organization-settings.component').then(
+            (m) => m.OrganizationSettingsComponent,
           ),
         path: 'settings',
       },
@@ -110,6 +160,7 @@ export const ADMIN_ROUTES: Routes = [
       anyPermissions: [
         'admin:manageRoles',
         'admin:changeSettings',
+        'admin:managePayments',
         'admin:tax',
         'users:viewAll',
         'events:review',

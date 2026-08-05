@@ -3,7 +3,6 @@ import type { Locator, Page } from '@playwright/test';
 import { and, eq, inArray } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
-import { getId } from '../../../helpers/get-id';
 import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
@@ -15,7 +14,7 @@ const templateOptionEditorByTitle = async (
   title: string,
 ): Promise<Locator> => {
   const editors = page.locator('app-template-registration-option-editor');
-  const inputs = editors.getByLabel('Registration option name', {
+  const inputs = editors.getByLabel('Sign-up choice name', {
     exact: true,
   });
   let matchingIndex = -1;
@@ -61,13 +60,13 @@ test('Manage templates', async ({
   if (!category) {
     throw new Error('Expected seeded template category for template docs');
   }
-  const templateTitle = `Docs reusable template ${getId().slice(0, 6)}`;
+  const templateTitle = 'Volunteer welcome evening';
   const planningTips = 'Bring the printed volunteer briefing checklist.';
-  const addOnTitle = `Docs snack voucher ${getId().slice(0, 6)}`;
-  const addOnDescription = 'Reusable snack add-on for docs coverage.';
-  const questionTitle = `Docs accessibility needs ${getId().slice(0, 6)}`;
+  const addOnTitle = 'Snack voucher';
+  const addOnDescription = 'A snack voucher available during the event.';
+  const questionTitle = 'Accessibility needs';
   const questionDescription = 'Tell organizers what support you need.';
-  const eventTitle = `Docs event from template ${getId().slice(0, 6)}`;
+  const eventTitle = 'Volunteer welcome event';
 
   registerDatabaseCleanup(async (cleanupDatabase) => {
     const createdEvents = await cleanupDatabase
@@ -184,77 +183,73 @@ test('Manage templates', async ({
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
-{% callout type="note" title="Before you begin" %}
-Use an account that can create and edit templates and create events.
+{% callout type="note" title="Who can do this" %}
+You need **View templates** plus **Create templates** to create templates, **Edit all templates** to edit them, and **Create events** to create an event from a template.
 {% /callout %}
-Templates are the base for all events.
-They are used to save common settings for events and have to be created before you can create an event.
+Templates are reusable starting points for events. To create an event, choose the template whose structure you want to start with.
 
 
 ## Creating templates
 Start by navigating to **Templates**. Here you can see an overview of the existing templates.
-Click on _Create template_ to create a new template.`,
+Select **Create template** to create a new template.`,
   });
   await page.getByRole('link', { name: 'Templates' }).click();
   await takeScreenshot(
     testInfo,
     page.getByRole('link', { name: 'Create template' }),
     page,
+    'Event templates page with the Create template action',
   );
   await page.getByRole('link', { name: 'Create template' }).click();
   await testInfo.attach('markdown', {
     body: `
 You can now specify all the settings for your template.
-Everything you enter for a template will be the starting point for all events created from this template.
-#### General settings
+The template's event details, sign-up choices, questions, and add-ons become the starting point for new events. Template-only fields such as its category and organizer planning tips are not copied.
+### General settings
 There are a few general settings that are required for templates:
 - **Template icon**: The icon to be used for the template.
-- **Template name**: The name of the template.
+- **Template title**: The title of the template.
 - **Template category**: The category this template should belong to. Learn how to [manage categories](/docs/manage-template-categories) to group your templates.
-- **Template description**: Lastly, the description of the template. To open the full editor, click the field for the description.
+- **Template description**: The description of the template. To open the full editor, select the description field.
 - **Organizer planning tips**: Optional private organizer notes, setup checklists, or recurring reminders that stay on the template detail page and are not shown on the public event page.
+
+Templates provide the starting details for new events. They do not decide who can find an event. After publication, an event appears to members who can use one of its sign-up choices. Choose who can see an announcement on the announcement itself.
 `,
   });
   await takeScreenshot(
     testInfo,
     page.locator('app-template-create form div').first(),
     page,
+    'Template general settings',
   );
   await testInfo.attach('markdown', {
     body: `
-#### Registration settings
-Simple mode is the default and splits registration settings in two.
-There are the settings for participants, and separately, those for organizers.
-Both have the same structure, but you can see that different roles are preselected.
-Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Advanced configuration supports any number of named options and lets you choose which registration options can use each reusable add-on. Every mode change asks for confirmation. To return to simple mode, first save the advanced setup with exactly one organizing and one non-organizing option; switching modes never silently replaces saved options.
-Paid event registrations and add-ons use Stripe only. If the organization has no connected Stripe account, keep every registration fee and add-on price at zero; there is no cash or manually settled paid-event fallback.
-The registration consists of the following settings:
-- **Registration option name**: The reusable label copied into events created
-  from this template.
-- **Description** and **description for registered users**: Optional reusable
-  public and attendee-only copy that is copied into the event registration
-  option.
-- **Payment required**: Is a payment required for this registration?
-- **Registration fee**: The registration fee for this registration. This field is only visible if the payment is required.
-- **ESNcard discounted price**: Optional discounted pricing for organizations with ESNcard discounts enabled. Leave it empty when this template registration should use the standard price only.
-- **Selected roles**: The roles that are selected for this registration. Users can only see and use the registration if they have one of the selected roles.
-- **Registration mode**: **First come, first served** confirms an eligible signup when capacity is available. **Manual approval** saves a pending application for an organizer to review; if the option is paid, payment starts only after approval and confirmation waits for successful payment.
-- **Registration start**: The offset in hours for when the registration should start. For example 168 hours means that the registration will start 7 days before the event starts.
-- **Registration end**: The offset in hours for when the registration should end. For example 24 hours means that the registration will end 1 day before the event starts.
-- **Role picker behavior**: Roles that are already selected are hidden from autocomplete suggestions to prevent duplicates.
+### Sign-up setup
+Simple setup starts with one choice for attendees and one for organizers or helpers. Both have the same fields, but different roles are selected for each.
+Advanced setup supports any number of named choices and lets you choose which choices can use each reusable add-on. Switching between simple and advanced setup asks for confirmation. To return to simple setup, first save exactly one organizer choice and one attendee choice. Switching setups never replaces saved choices without confirmation.
+If paid sign-ups are not ready, prices must remain zero. An administrator with **Manage payments** access can open **Admin Tools** → **Payments** to review readiness. If the page still says paid sign-ups are not ready, contact Evorto support.
+Each sign-up choice includes:
+- **Sign-up choice name**: The label copied into events created from this template.
+- **Description** and **Details shown after sign-up**: Optional information shown before and after someone signs up, copied into the event.
+- **Enable payment**: Adds a price to this choice.
+- **Price**: The amount each person pays. It appears only when payment is enabled.
+- **ESNcard price**: An optional lower price for organizations that offer an ESNcard discount. Leave it empty to use the standard price.
+- **Who can use this choice**: The organization roles allowed to choose it.
+- **How sign-ups are confirmed**: **First come, first served** confirms a sign-up when space is available. **Manual approval** lets an organizer review it first. If payment is required, the person pays after approval.
+- **Sign-up opens**: Enter how long before the event sign-up begins in **Days** and **Hours**; for example, 7 days and 0 hours.
+- **Sign-up closes**: Enter how long before the event sign-up closes in **Days** and **Hours**; for example, 1 day and 0 hours.
 `,
   });
   await takeScreenshot(
     testInfo,
     page.locator('app-template-graph-editor'),
     page,
-    'Simple registration configuration',
+    'Simple sign-up setup',
   );
 
   await testInfo.attach('markdown', {
     body: `
-In the migrated form, payment-specific fields are conditionally shown.
-When **Enable Payment** is on, the price and tax-rate fields appear for that registration block. Organizations with ESNcard discounts enabled also see the optional ESNcard price field.
+When **Enable payment** is on, the price and tax-rate fields appear for that sign-up choice. Organizations with ESNcard discounts enabled also see the optional ESNcard price field.
 `,
   });
   const paymentToggle = page
@@ -271,7 +266,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
   await expect(
     organizerRegistrationForm
       .locator('mat-form-field')
-      .filter({ hasText: 'Inclusive tax rate' })
+      .filter({ hasText: 'Tax included in the shown price' })
       .locator('mat-select')
       .first(),
   ).toBeVisible();
@@ -285,12 +280,12 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
 
   await testInfo.attach('markdown', {
     body: `
-Choose **Manual approval** when an organizer must review this category before confirming it. This works for participant and organizer/helper options. Applications do not reserve capacity or grant organizer access while pending.
+Choose **Manual approval** when an organizer must review this choice before confirming it. This works for attendee and organizer/helper choices. Applications do not reserve a place or allow someone to organize the event while waiting for review.
 `,
   });
   const organizerRegistrationMode = organizerRegistrationForm.getByRole(
     'combobox',
-    { name: 'Registration mode' },
+    { name: 'How sign-ups are confirmed' },
   );
   await organizerRegistrationMode.click();
   await page
@@ -306,10 +301,10 @@ Choose **Manual approval** when an organizer must review this category before co
 
   await testInfo.attach('markdown', {
     body: `
-Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.
+Already selected roles are not offered again.
 `,
   });
-  const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
+  const organizerRoleInput = page.getByPlaceholder('Add role…').first();
   await organizerRoleInput.fill('a');
   const roleOptions = page.locator('mat-option');
   await expect(roleOptions.first()).toBeVisible();
@@ -332,35 +327,35 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
     testInfo,
     organizerRegistrationForm,
     page,
-    'Role autocomplete hides selected entries',
+    'Selected roles are not offered twice',
   );
   await page.keyboard.press('Escape');
 
   await testInfo.attach('markdown', {
     body: `
-#### Reusable add-ons
+### Reusable add-ons
 Templates can also store optional add-ons such as meals, equipment, or other extras.
-Add-ons can be free or paid, mapped to one or more registration options, and can separately limit included units, optional purchases, total availability, and the maximum quantity per user.
-When a template creates an event, those reusable add-ons are copied into the event and shown on matching registration cards for registration-time purchase.
+Add-ons can be free or paid and available with one or more sign-up choices. For each sign-up choice, set how many items are included and how many additional items each person may buy. You can also set the total available quantity and the maximum each person can receive.
+When a template creates an event, those reusable add-ons are copied into the event and shown with the matching sign-up choices.
 `,
   });
   await page
-    .getByRole('button', { name: 'Use advanced configuration' })
+    .getByRole('main')
+    .getByRole('button', { name: 'Use advanced setup', exact: true })
     .click();
-  await expect(
-    page.getByRole('heading', {
-      name: 'Switch to advanced configuration?',
-    }),
-  ).toBeVisible();
-  await page
-    .getByRole('button', { name: 'Switch to advanced', exact: true })
+  const advancedSetupDialog = page.getByRole('dialog', {
+    name: 'Switch to advanced setup?',
+  });
+  await expect(advancedSetupDialog).toBeVisible();
+  await advancedSetupDialog
+    .getByRole('button', { name: 'Use advanced setup', exact: true })
     .click();
   await page.getByRole('button', { name: 'Add add-on' }).click();
   const addOnEditor = page.locator('app-template-addon-editor').first();
   await expect(addOnEditor.getByLabel('Add-on name')).toBeVisible();
   await expect(
     addOnEditor.getByRole('combobox', {
-      name: 'Registration option',
+      name: 'Sign-up choice',
       exact: true,
     }),
   ).toBeVisible();
@@ -368,14 +363,14 @@ When a template creates an event, those reusable add-ons are copied into the eve
     testInfo,
     addOnEditor,
     page,
-    'Registration options for reusable add-ons',
+    'Sign-up choices for reusable add-ons',
   );
 
   await testInfo.attach('markdown', {
     body: `
-#### Registration questions
-Templates can store reusable registration questions for participant or organizer signup.
-Questions can include help text and can be marked as required. Event-side answer collection is handled separately from this template setup flow.
+### Sign-up questions
+Templates can store questions for attendees, organizers, or helpers.
+Questions can include help text and can be marked as required. Choose the sign-up choice that should show each question and use **Question order** to control which question appears first.
 `,
   });
   await page.getByRole('button', { name: 'Add question' }).click();
@@ -384,18 +379,19 @@ Questions can include help text and can be marked as required. Event-side answer
     questionEditor.getByRole('textbox', { name: 'Question' }),
   ).toBeVisible();
   await expect(questionEditor.getByLabel('Ask during')).toBeVisible();
+  await expect(questionEditor.getByLabel('Question order')).toBeVisible();
   await expect(page.getByText('Require an answer')).toBeVisible();
   await takeScreenshot(
     testInfo,
     questionEditor,
     page,
-    'Reusable registration question form',
+    'Reusable sign-up question form',
   );
 
   await testInfo.attach('markdown', {
     body: `
-Once you are happy with your template, click _Save template_ to save your changes.
-You will be redirected to the detail page for that template.
+Once you are happy with your template, select **Save template** to save your changes.
+Evorto opens the template details page.
 `,
   });
   const categorySelect = page.getByRole('combobox', {
@@ -405,27 +401,28 @@ You will be redirected to the detail page for that template.
   await page.keyboard.press('Enter');
   await page.getByRole('option', { name: category.title }).click();
   await fillTemplateBasics(page, {
+    description: 'A welcoming evening for new volunteers.',
     title: templateTitle,
   });
   await page.getByLabel('Organizer planning tips').fill(planningTips);
   await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
   await addOnEditor.getByLabel('Description').fill(addOnDescription);
   await addOnEditor
-    .getByRole('combobox', { name: 'Registration option', exact: true })
+    .getByRole('combobox', { name: 'Sign-up choice', exact: true })
     .click();
   await page
-    .getByRole('option', { name: 'Participant registration', exact: true })
+    .getByRole('option', { name: 'Attendee sign-up', exact: true })
     .click();
-  await addOnEditor.getByLabel('Included quantity').fill('2');
-  await addOnEditor.getByLabel('Optional purchase quantity').fill('1');
-  await addOnEditor.getByLabel('Available quantity').fill('8');
-  await addOnEditor.getByLabel('Maximum per user').fill('3');
+  await addOnEditor.getByLabel('Included items').fill('2');
+  await addOnEditor.getByLabel('Items people can buy').fill('1');
+  await addOnEditor.getByLabel('Items available').fill('8');
+  await addOnEditor.getByLabel('Maximum each person can get').fill('3');
   await questionEditor
     .getByRole('textbox', { name: 'Question' })
     .fill(questionTitle);
   await questionEditor.getByLabel('Ask during').click();
   await page
-    .getByRole('option', { name: 'Participant registration', exact: true })
+    .getByRole('option', { name: 'Attendee sign-up', exact: true })
     .click();
   await questionEditor.getByLabel('Help text').fill(questionDescription);
   await questionEditor
@@ -439,8 +436,12 @@ You will be redirected to the detail page for that template.
     page.getByRole('heading', { name: templateTitle }),
   ).toBeVisible();
   await expect(page.getByText(planningTips)).toBeVisible();
-  await expect(page.getByText(addOnTitle)).toBeVisible();
-  await expect(page.getByText(questionTitle)).toBeVisible();
+  await expect(
+    page.getByRole('heading', { exact: true, name: addOnTitle }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { exact: true, name: questionTitle }),
+  ).toBeVisible();
 
   let createdTemplate: typeof schema.eventTemplates.$inferSelect | undefined;
   await expect(async () => {
@@ -548,11 +549,11 @@ You will be redirected to the detail page for that template.
   await testInfo.attach('markdown', {
     body: `
 ## Creating an event from a template
-Open the template detail page and click **Create event**. The event form starts with the template title, description, and registration options. When you save, Evorto copies the template's registration setup, questions, and add-ons into the new event. Later template changes do not alter events already created from it.
+Open the template detail page and select **Create event**. The event form starts with the template title, description, and sign-up choices. When you select **Create event**, Evorto copies the sign-up setup, questions, and add-ons into the new event. Later template changes do not alter events already created from it. After publication, the event appears to members who can use one of its sign-up choices.
 
-Dates use the fixed **de-DE** format. Enter times in the organization's time zone; Evorto preserves that meaning even when an organizer's browser is set to another time zone.
+Enter dates in day.month.year format and use the time shown for the organization. The event keeps that time even when an organizer opens it from somewhere with a different local time.
 
-If **Event could not be created** appears, your entries remain in the form. Read the reason. For a temporary connection error, correct any affected field and click **Create event** again. If the reason says a registration option no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. If it mentions random allocation, return to the template, change every option to **First come, first served** or **Manual approval**, save the template, and then start event creation again. A restarted form does not retain unsaved event entries. Do not assume the event exists until its detail page opens and shows the event title.
+If **Event could not be created** appears, your entries remain in the form. Read the reason and correct any highlighted field before trying again. If the template changed while the form was open, copy any unsaved text you need, use **Back to template**, and start again from the latest template. The event has been created only when its details page opens and shows the event title.
 `,
   });
   await page.getByRole('link', { name: 'Create event' }).click();
@@ -674,8 +675,8 @@ If **Event could not be created** appears, your entries remain in the form. Read
 
   await testInfo.attach('markdown', {
     body: `
-## Template and event independence
-The event now has its own copy of the registration setup. Editing the template changes future events only; the existing event keeps its saved options, labels, add-on availability, and quantities.
+## Later template changes do not change this event
+The event now has its own copy of the sign-up setup. Editing the template changes future events only; the existing event keeps its saved choices, labels, add-on availability, and quantities.
 `,
   });
   await page.goto(`/templates/${createdTemplate.id}/edit`);
@@ -688,18 +689,18 @@ The event now has its own copy of the registration setup. Editing the template c
   });
   const participantOptionEditor = await templateOptionEditorByTitle(
     page,
-    'Participant registration',
+    'Attendee sign-up',
   );
-  const updatedParticipantTitle = 'Participant registration updated';
+  const updatedParticipantTitle = 'Updated attendee sign-up';
   const participantTitleInput = participantOptionEditor.getByLabel(
-    'Registration option name',
+    'Sign-up choice name',
   );
   await participantTitleInput.fill(updatedParticipantTitle);
   await expect(participantTitleInput).toHaveValue(updatedParticipantTitle);
   await page
     .locator('app-template-addon-editor')
     .filter({ hasText: addOnTitle })
-    .getByLabel('Included quantity')
+    .getByLabel('Included items')
     .fill('3');
   await page.getByTestId('save-template-graph').click();
   await expect(page).toHaveURL(`/templates/${createdTemplate.id}`, {

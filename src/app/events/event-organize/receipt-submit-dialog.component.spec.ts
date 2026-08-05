@@ -15,7 +15,7 @@ const formValue: ReceiptSubmitFormValue = {
   hasAlcohol: true,
   hasDeposit: true,
   purchaseCountry: 'DE',
-  receiptDate: new Date('2026-05-20T12:00:00.000Z'),
+  receiptDate: '2026-05-20',
   taxAmount: 3.45,
   totalAmount: 12.34,
 };
@@ -70,7 +70,7 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formValue,
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Choose an image or PDF receipt file.');
+    ).toBe('Choose a receipt image or document.');
 
     expect(
       receiptSubmitDialogResultFromFormValue({
@@ -80,7 +80,21 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formValue,
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Only image and PDF files are supported.');
+    ).toBe(
+      'This receipt cannot be used. Choose a different receipt image or document.',
+    );
+
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: new File([], 'empty.pdf', { type: 'application/pdf' }),
+        formInvalid: false,
+        formValue,
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe(
+      'This receipt is empty or larger than 20 MB. Choose another image or document.',
+    );
   });
 
   it('rejects invalid form state and countries outside tenant settings', () => {
@@ -131,10 +145,58 @@ describe('receiptSubmitDialogResultFromFormValue', () => {
         formInvalid: false,
         formValue: {
           ...formValue,
-          receiptDate: new Date('invalid'),
+          receiptDate: '2026-02-30',
         },
         selectableCountries: ['DE'],
       }).errorMessage,
-    ).toBe('Invalid receipt date.');
+    ).toBe('Choose a valid receipt date.');
+  });
+
+  it('rejects precision loss, zero totals, and contradictory optional amounts', () => {
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: receiptFile,
+        formInvalid: false,
+        formValue: {
+          ...formValue,
+          totalAmount: 12.345,
+        },
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe('Enter amounts with no more than two decimal places.');
+
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: receiptFile,
+        formInvalid: false,
+        formValue: {
+          ...formValue,
+          alcoholAmount: 0,
+          depositAmount: 0,
+          hasAlcohol: false,
+          hasDeposit: false,
+          totalAmount: 0,
+        },
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe('Total amount must be at least 0.01 and within the allowed range.');
+
+    expect(
+      receiptSubmitDialogResultFromFormValue({
+        attachmentName: '',
+        file: receiptFile,
+        formInvalid: false,
+        formValue: {
+          ...formValue,
+          depositAmount: 2.34,
+          hasDeposit: false,
+        },
+        selectableCountries: ['DE'],
+      }).errorMessage,
+    ).toBe(
+      'Deposit amount must be positive when a deposit is included and zero otherwise.',
+    );
   });
 });

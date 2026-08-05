@@ -34,7 +34,7 @@ const normalizeReason = (
   Effect.try({
     catch: () =>
       new RpcBadRequestError({
-        message: 'A reason is required for platform changes',
+        message: 'Enter a reason for this change.',
       }),
     try: () => {
       const normalizedReason = reason.trim();
@@ -59,14 +59,14 @@ const resolvePlatformOperation = Effect.fn(
   const requestContext = yield* RpcAccess.current();
   if (!requestContext.authenticated) {
     return yield* new RpcUnauthorizedError({
-      message: 'Authentication required',
+      message: 'Sign in to continue.',
     });
   }
 
   const authority = requestContext.platformAuthority;
   if (!authority) {
     return yield* new RpcForbiddenError({
-      message: 'Platform administrator authority required',
+      message: 'You need Evorto administrator access to do this.',
     });
   }
 
@@ -78,8 +78,12 @@ const resolvePlatformOperation = Effect.fn(
       .pipe(Effect.orDie),
   );
   if (!targetTenantRecord) {
+    yield* Effect.logWarning('Platform operation organization not found').pipe(
+      Effect.annotateLogs({ targetTenantId: input.targetTenantId }),
+    );
     return yield* new RpcBadRequestError({
-      message: 'Target tenant not found',
+      message:
+        'This organization no longer exists. No changes were made. Return to Organizations and choose an existing organization.',
     });
   }
 

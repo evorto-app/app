@@ -19,17 +19,13 @@ describe('worker email delivery route', () => {
         claimLeaseExpiresAt: null,
         claimLeaseId: null,
         createdAt: now,
-        exhaustedAt: null,
-        fromEmail: 'no-reply@notifications.evorto.app',
-        fromName: 'Evorto',
+        deliveryUnknownAt: null,
         html: '<p>Hello</p>',
         id: 'email-1',
         idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
         kind: 'receiptReviewed' as const,
         lastAttemptAt: null,
         lastError: null,
-        maxAttempts: 8,
-        nextAttemptAt: now,
         provider: null,
         providerMessageId: null,
         replyToEmail: 'board@example.org',
@@ -37,6 +33,7 @@ describe('worker email delivery route', () => {
         sentAt: null,
         status: 'queued' as const,
         subject: 'Receipt approved',
+        suppressedAt: null,
         tenantId: 'tenant-1',
         text: 'Hello',
         toEmail: 'alice@example.com',
@@ -74,7 +71,9 @@ describe('worker email delivery route', () => {
                 Effect.succeed(
                   values.status === 'sending'
                     ? [claimedRow]
-                    : [{ id: claimedRow.id }],
+                    : values.status === 'deliveryUnknown'
+                      ? []
+                      : [{ id: claimedRow.id }],
                 ),
             }),
           }),
@@ -111,7 +110,11 @@ describe('worker email delivery route', () => {
         webHandler.handler(
           new Request(`https://worker.internal${WORKER_EMAIL_DELIVERY_PATH}`, {
             body: JSON.stringify({ limit: 1 }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              host: 'worker.internal',
+              'x-forwarded-proto': 'https',
+            },
             method: 'POST',
           }),
         ),
@@ -124,7 +127,6 @@ describe('worker email delivery route', () => {
       expect(deliver).toHaveBeenCalledOnce();
       expect(deliver).toHaveBeenCalledWith(
         expect.objectContaining({
-          idempotencyKey: queuedRow.idempotencyKey,
           to: queuedRow.toEmail,
         }),
       );

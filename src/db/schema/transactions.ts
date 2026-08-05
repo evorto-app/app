@@ -91,6 +91,10 @@ export const paidEventTransactionMethodCheckName =
   'transactions_paid_event_method_stripe';
 export const refundOperationShapeCheckName =
   'transactions_refund_operation_shape';
+export const transactionCounterBoundsCheckName = 'transactions_counter_bounds';
+export const transactionLeaseShapeCheckName = 'transactions_lease_shape';
+export const transactionPaymentOwnershipCheckName =
+  'transactions_payment_ownership';
 export const registrationRefundOperationUniqueIndexName =
   'transactions_registration_refund_operation_unique';
 
@@ -191,6 +195,11 @@ export const transactions = pgTable(
       paidEventTransactionMethodCheckName,
       sql`${table.type}::text NOT IN ('registration', 'addon') OR (${table.method}::text = 'stripe' AND ${table.amount} > 0)`,
     ),
+    paymentOwnership: check(
+      transactionPaymentOwnershipCheckName,
+      sql`${table.type}::text NOT IN ('registration', 'addon')
+        OR (${table.eventId} IS NOT NULL AND ${table.eventRegistrationId} IS NOT NULL)`,
+    ),
     refundOperationShape: check(
       refundOperationShapeCheckName,
       sql`(
@@ -199,7 +208,7 @@ export const transactions = pgTable(
         (${table.type}::text = 'refund' AND ${table.amount} < 0 AND (
           (${table.sourceTransactionId} IS NULL AND ${table.refundOperationKey} IS NULL AND ${table.stripeRefundApplicationFee} IS NULL AND ${table.manuallyCreated} IS TRUE)
           OR
-          (${table.sourceTransactionId} IS NOT NULL AND ${table.refundOperationKey} IS NOT NULL AND length(trim(${table.refundOperationKey})) BETWEEN 1 AND 100 AND ${table.stripeRefundApplicationFee} IS NOT NULL AND ${table.manuallyCreated} IS FALSE AND ${table.method}::text = 'stripe')
+          (${table.sourceTransactionId} IS NOT NULL AND ${table.eventId} IS NOT NULL AND ${table.eventRegistrationId} IS NOT NULL AND ${table.refundOperationKey} IS NOT NULL AND length(trim(${table.refundOperationKey})) BETWEEN 1 AND 100 AND ${table.stripeRefundApplicationFee} IS NOT NULL AND ${table.manuallyCreated} IS FALSE AND ${table.method}::text = 'stripe')
         ))
       )`,
     ),
@@ -226,11 +235,37 @@ export const transactions = pgTable(
       foreignColumns: [eventRegistrations.id, eventRegistrations.tenantId],
       name: 'transactions_registration_tenant_fk',
     }),
-    sourceTenant: foreignKey({
-      columns: [table.sourceTransactionId, table.tenantId],
-      foreignColumns: [table.id, table.tenantId],
-      name: 'transactions_source_tenant_fk',
+    retryCounterBounds: check(
+      transactionCounterBoundsCheckName,
+      sql`${table.stripeCheckoutReconcileAttempts} >= 0
+        AND ${table.stripeRefundAttempts} >= 0
+        AND ${table.stripeRefundAttempts} <= ${table.stripeRefundMaxAttempts}
+        AND ${table.stripeRefundGeneration} >= 0
+        AND ${table.stripeRefundMaxAttempts} > 0`,
+    ),
+    retryLeaseShape: check(
+      transactionLeaseShapeCheckName,
+      sql`(${table.stripeCheckoutReconcileLeaseId} IS NULL) = (${table.stripeCheckoutReconcileLeaseExpiresAt} IS NULL)
+        AND (${table.stripeRefundClaimLeaseId} IS NULL) = (${table.stripeRefundClaimLeaseExpiresAt} IS NULL)`,
+    ),
+    sourcePayment: foreignKey({
+      columns: [
+        table.sourceTransactionId,
+        table.tenantId,
+        table.eventId,
+        table.eventRegistrationId,
+      ],
+      foreignColumns: [
+        table.id,
+        table.tenantId,
+        table.eventId,
+        table.eventRegistrationId,
+      ],
+      name: 'transactions_source_payment_fk',
     }),
+    sourcePaymentIdentity: unique(
+      'transactions_id_tenant_event_registration_unique',
+    ).on(table.id, table.tenantId, table.eventId, table.eventRegistrationId),
     stripeCheckoutReconcileIndex: index(
       'transactions_checkout_reconcile_idx',
     ).on(table.type, table.status, table.stripeCheckoutReconcileNextAt),

@@ -2,6 +2,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
 import { eventInstances, eventReviewStatus } from './event-instances';
+import { eventTemplates } from './event-templates';
 
 describe('eventReviewStatus', () => {
   it('stores only the active review states', () => {
@@ -19,5 +20,29 @@ describe('eventReviewStatus', () => {
 
     expect(modeColumn?.notNull).toBe(true);
     expect(modeColumn?.default).toBe(true);
+  });
+
+  it('keeps optionless announcement discovery link-only by default', () => {
+    const columns = getTableConfig(eventInstances).columns;
+    const announcementRolesColumn = columns.find(
+      (column) => column.name === 'announcementRoleIds',
+    );
+
+    expect(announcementRolesColumn?.notNull).toBe(true);
+    expect(announcementRolesColumn?.default).toEqual([]);
+    expect(
+      getTableConfig(eventTemplates).columns.some(
+        (column) => column.name === 'announcementRoleIds',
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps ordinary event discovery out of event and template state', () => {
+    for (const table of [eventInstances, eventTemplates]) {
+      const columns = getTableConfig(table).columns;
+      expect(columns.some((column) => column.name === 'listingAudience')).toBe(
+        false,
+      );
+    }
   });
 });

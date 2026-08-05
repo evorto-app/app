@@ -8,6 +8,7 @@ import type { AuthSession } from '../auth/auth-session';
 import { Database } from '../../db';
 import { Context as RequestContext } from '../../types/custom/context';
 import { isAuthenticated, resolveRequestOrigin } from '../auth/auth-session';
+import { RuntimeConfig } from '../config/runtime-config';
 import {
   resolveAuthenticationContext,
   resolvePlatformAuthority,
@@ -35,9 +36,10 @@ export const resolveHttpRequestContext = (
 ): Effect.Effect<
   Schema.Schema.Type<typeof RequestContext>,
   EffectDrizzleQueryError | HttpRequestTenantNotFoundError,
-  Database
+  Database | RuntimeConfig
 > =>
   Effect.gen(function* () {
+    const { deployment, testRuntime } = yield* RuntimeConfig;
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
       isAuthenticated: isAuthenticated(authSession),
@@ -71,9 +73,14 @@ export const resolveHttpRequestContext = (
       oidcUser: authSession?.authData,
       tenantId: resolvedTenant.id,
     });
-    const platformAuthority = resolvePlatformAuthority(authSession?.authData);
+    const platformAuthority = resolvePlatformAuthority(
+      authSession?.authData,
+      deployment.APP_ENVIRONMENT === 'local'
+        ? testRuntime.E2E_GLOBAL_ADMIN_AUTH0_IDS
+        : [],
+    );
     const permissions = resolveRequestPermissions({
-      oidcUser: authSession?.authData,
+      platformAuthority,
       user: tenantUser,
     });
 

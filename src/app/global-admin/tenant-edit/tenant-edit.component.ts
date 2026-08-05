@@ -30,14 +30,12 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import {
-  supportedTenantCurrencies,
-  supportedTenantTimezones,
-} from '../../../types/custom/tenant';
+import { supportedTenantCurrencies } from '../../../types/custom/tenant';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
+import { tenantTimezoneOptions } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import {
+  globalAdminTenantDomainValidationMessage,
   type GlobalAdminTenantFormModel,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantSubmitDisabled,
@@ -93,7 +91,7 @@ export class TenantEditComponent {
     );
   });
   protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
-  protected readonly timezoneOptions = supportedTenantTimezones;
+  protected readonly timezoneOptions = tenantTimezoneOptions;
 
   protected readonly updateTenantMutation = injectMutation(() =>
     this.rpc.globalAdmin.tenants.update.mutationOptions(),
@@ -101,10 +99,6 @@ export class TenantEditComponent {
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to load organization');
-  }
 
   protected async updateTenant(event: Event): Promise<void> {
     event.preventDefault();
@@ -117,7 +111,7 @@ export class TenantEditComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to update organization'),
+            globalAdminTenantDomainValidationMessage(error),
           );
           return null;
         }

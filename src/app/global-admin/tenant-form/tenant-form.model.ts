@@ -4,7 +4,10 @@ import type {
   GlobalAdminTenantWriteInput,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
-import { normalizeTenantDomain } from '@shared/tenant-origin';
+import {
+  normalizeTenantDomain,
+  TenantDomainValidationError,
+} from '@shared/tenant-origin';
 
 import { getErrorMessage } from '../../core/error-message';
 
@@ -13,7 +16,6 @@ export interface GlobalAdminTenantFormModel {
   domain: string;
   name: string;
   reason: string;
-  stripeAccountId: string;
   theme: GlobalAdminTenantWriteInput['theme'];
   timezone: GlobalAdminTenantWriteInput['timezone'];
 }
@@ -34,7 +36,6 @@ export const createGlobalAdminTenantFormModel =
     domain: '',
     name: '',
     reason: '',
-    stripeAccountId: '',
     theme: 'evorto',
     timezone: 'Europe/Berlin',
   });
@@ -46,7 +47,6 @@ export const globalAdminTenantFormModelFromRecord = (
   domain: tenant.domain,
   name: tenant.name,
   reason: '',
-  stripeAccountId: tenant.stripeAccountId ?? '',
   theme: tenant.theme,
   timezone: tenant.timezone,
 });
@@ -71,26 +71,31 @@ export const resolveGlobalAdminTenantEditFormModel = (
     : createGlobalAdminTenantFormModel();
 };
 
-const optionalTrimmed = (value: string): string | undefined =>
-  value.trim() || undefined;
-
 export const normalizeGlobalAdminTenantDomain = (value: string): string =>
   normalizeTenantDomain(value);
 
-export const globalAdminTenantUpdateErrorMessage = (error: unknown): string => {
-  const message = getErrorMessage(error, 'Failed to update organization');
-  if (
-    !error ||
-    typeof error !== 'object' ||
-    Reflect.get(error, '_tag') !== 'GlobalAdminTenantUrlMigrationBlockedError'
-  ) {
-    return message;
+export const globalAdminTenantDomainValidationMessage = (
+  error: unknown,
+): string => {
+  if (error instanceof TenantDomainValidationError) {
+    return error.message;
   }
+  throw error;
+};
 
-  const reason = Reflect.get(error, 'reason');
-  return typeof reason === 'string' && reason.trim().length > 0
-    ? `${message}. ${reason}`
-    : message;
+export const globalAdminTenantUpdateErrorMessage = (error: unknown): string => {
+  const errorTag =
+    typeof error === 'object' && error !== null && '_tag' in error
+      ? error._tag
+      : undefined;
+  if (errorTag !== 'GlobalAdminTenantUrlMigrationBlockedError') {
+    return getErrorMessage(
+      error,
+      'The organization could not be updated. Try again.',
+      ['RpcBadRequestError'],
+    );
+  }
+  return 'The website address cannot be changed while payments, refunds, or ticket transfers are unfinished. Finish or cancel them and try again.';
 };
 
 export const globalAdminTenantPayloadFromForm = (
@@ -103,7 +108,6 @@ export const globalAdminTenantPayloadFromForm = (
       currency: model.currency,
       domain,
       name: model.name.trim(),
-      stripeAccountId: optionalTrimmed(model.stripeAccountId),
       theme: model.theme,
       timezone: model.timezone,
     };

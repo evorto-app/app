@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from '@effect/vitest';
-import { Effect, Layer } from 'effect';
+import { Cause, Effect, Exit, Layer } from 'effect';
 
 import { Database } from '../../db';
 import {
@@ -11,25 +11,40 @@ import {
 } from './request-context-resolver';
 
 const createTenant = (domain: string) => ({
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR',
   defaultLocation: null,
-  discountProviders: null,
+  discountProviders: {
+    esnCard: {
+      config: {},
+      status: 'disabled',
+    },
+  },
   domain,
   id: `tenant-${domain}`,
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: domain,
-  receiptSettings: null,
+  privacyPolicyVersions: [
+    {
+      privacyPolicyText: 'Tenant privacy policy',
+      privacyPolicyUrl: null,
+    },
+  ],
+  receiptSettings: {
+    allowOther: false,
+    receiptCountries: ['DE', 'CZ'],
+  },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto',
   timezone: 'Europe/Berlin',
+  transferDeadlineHoursBeforeStart: 0,
 });
 
 const createPreparedDatabase = ({
-  attributesExecute = vi.fn(() => Effect.succeed([])),
   tenantExecute = vi.fn(() => Effect.succeed()),
   userExecute,
 }: {
-  attributesExecute?: ReturnType<typeof vi.fn>;
   tenantExecute?: ReturnType<typeof vi.fn>;
   userExecute?: ReturnType<typeof vi.fn>;
 }) => ({
@@ -49,17 +64,6 @@ const createPreparedDatabase = ({
       }),
     },
   },
-  select: () => ({
-    from: () => ({
-      where: () => ({
-        limit: () => ({
-          prepare: () => ({
-            execute: attributesExecute,
-          }),
-        }),
-      }),
-    }),
-  }),
 });
 
 describe('request-context-resolver', () => {
@@ -92,6 +96,32 @@ describe('request-context-resolver', () => {
           domain: 'tenant.example.com',
         });
       }),
+  );
+
+  it.effect('uses the latest versioned privacy policy as the only truth', () =>
+    Effect.gen(function* () {
+      const tenantExecute = vi.fn(({ domain }: { domain: string }) =>
+        Effect.succeed({
+          ...createTenant(domain),
+          privacyPolicyVersions: [
+            {
+              privacyPolicyText: 'Latest privacy policy',
+              privacyPolicyUrl: null,
+            },
+          ],
+        }),
+      );
+      const database = createPreparedDatabase({ tenantExecute });
+
+      const result = yield* resolveTenantContext({
+        cookies: undefined,
+        protocol: 'https',
+        requestHost: 'tenant.example.com',
+      }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+      expect(result.tenant?.privacyPolicyText).toBe('Latest privacy policy');
+      expect(result.tenant?.privacyPolicyUrl).toBeNull();
+    }),
   );
 
   it.effect('uses the tenant cookie for localhost requests', () =>
@@ -179,18 +209,19 @@ describe('request-context-resolver', () => {
     const oidcUser = {
       email: 'platform@example.org',
       'evorto.app/app_metadata': {
-        globalAdmin: true,
+        platformAdministrator: true,
       },
       sub: 'auth0|platform-admin',
     };
+    const platformAuthority = resolvePlatformAuthority(oidcUser);
 
     expect(
       resolveRequestPermissions({
-        oidcUser,
+        platformAuthority,
         user: undefined,
       }),
     ).toEqual(['globalAdmin:manageTenants']);
-    expect(resolvePlatformAuthority(oidcUser)).toEqual(
+    expect(platformAuthority).toEqual(
       expect.objectContaining({
         actorEmail: 'platform@example.org',
         actorId: 'auth0|platform-admin',
@@ -199,18 +230,37 @@ describe('request-context-resolver', () => {
     );
   });
 
-  it('resolves local e2e global-admin permissions from configured Auth0 ids', () => {
+  it('does not accept the removed globalAdmin metadata alias', () => {
+    expect(
+      resolvePlatformAuthority({
+        'evorto.app/app_metadata': {
+          globalAdmin: true,
+        },
+        sub: 'auth0|legacy-platform-admin',
+      }),
+    ).toBeUndefined();
+  });
+
+  it('uses only explicitly injected test authority ids and ignores ambient process state', () => {
     vi.stubEnv('NODE_ENV', 'test');
-    vi.stubEnv(
-      'E2E_GLOBAL_ADMIN_AUTH0_IDS',
-      ' auth0|global-admin , auth0|other ',
-    );
+    vi.stubEnv('E2E_GLOBAL_ADMIN_AUTH0_IDS', 'auth0|global-admin');
     try {
+      const oidcUser = {
+        sub: 'auth0|global-admin',
+      };
+      expect(resolvePlatformAuthority(oidcUser)).toBeUndefined();
+
+      const platformAuthority = resolvePlatformAuthority(oidcUser, [
+        'auth0|global-admin',
+        'auth0|other',
+      ]);
+      expect(platformAuthority).toMatchObject({
+        actorId: 'auth0|global-admin',
+        kind: 'platformAdministrator',
+      });
       expect(
         resolveRequestPermissions({
-          oidcUser: {
-            sub: 'auth0|global-admin',
-          },
+          platformAuthority,
           user: undefined,
         }),
       ).toContain('globalAdmin:manageTenants');
@@ -219,49 +269,13 @@ describe('request-context-resolver', () => {
     }
   });
 
-  it('does not resolve e2e global-admin permissions in production', () => {
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('E2E_GLOBAL_ADMIN_AUTH0_IDS', 'auth0|global-admin');
-    try {
-      expect(
-        resolveRequestPermissions({
-          oidcUser: {
-            sub: 'auth0|global-admin',
-          },
-          user: undefined,
-        }),
-      ).not.toContain('globalAdmin:manageTenants');
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
-  it('does not resolve e2e global-admin permissions when NODE_ENV is unset', () => {
-    vi.stubEnv('NODE_ENV');
-    vi.stubEnv('E2E_GLOBAL_ADMIN_AUTH0_IDS', 'auth0|global-admin');
-    try {
-      expect(
-        resolveRequestPermissions({
-          oidcUser: {
-            sub: 'auth0|global-admin',
-          },
-          user: undefined,
-        }),
-      ).not.toContain('globalAdmin:manageTenants');
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
   it.effect('does not resolve a tenant user without a tenant assignment', () =>
     Effect.gen(function* () {
-      const attributesExecute = vi.fn(() => Effect.succeed([]));
       const database = createPreparedDatabase({
-        attributesExecute,
         userExecute: vi.fn(() =>
           Effect.succeed({
             auth0Id: 'auth0|global',
-            communicationEmail: null,
+            communicationEmail: 'global@example.com',
             email: 'global@example.com',
             firstName: 'Global',
             iban: null,
@@ -282,7 +296,6 @@ describe('request-context-resolver', () => {
       }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
       expect(user).toBeUndefined();
-      expect(attributesExecute).not.toHaveBeenCalled();
     }),
   );
 
@@ -290,10 +303,8 @@ describe('request-context-resolver', () => {
     'does not expose an assigned tenant user before current onboarding is complete',
     () =>
       Effect.gen(function* () {
-        const attributesExecute = vi.fn(() => Effect.succeed([]));
         const resolveOnboardingComplete = vi.fn(() => Effect.succeed(false));
         const database = createPreparedDatabase({
-          attributesExecute,
           userExecute: vi.fn(() =>
             Effect.succeed({
               auth0Id: 'auth0|member',
@@ -325,19 +336,18 @@ describe('request-context-resolver', () => {
           tenantId: 'tenant-1',
           userId: 'user-1',
         });
-        expect(attributesExecute).not.toHaveBeenCalled();
       }),
   );
 
   it.effect(
-    'discards poisoned platform permissions while preserving tenant role permissions',
+    'fails visibly when persisted tenant roles contain platform authority',
     () =>
       Effect.gen(function* () {
         const database = createPreparedDatabase({
           userExecute: vi.fn(() =>
             Effect.succeed({
               auth0Id: 'auth0|tenant-user',
-              communicationEmail: null,
+              communicationEmail: 'member@example.com',
               email: 'member@example.com',
               firstName: 'Tenant',
               iban: null,
@@ -363,34 +373,34 @@ describe('request-context-resolver', () => {
           ),
         });
 
-        const user = yield* resolveUserContext(
+        const exit = yield* resolveUserContext(
           {
             isAuthenticated: true,
             oidcUser: { sub: 'auth0|tenant-user' },
             tenantId: 'tenant-1',
           },
           () => Effect.succeed(true),
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        ).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.exit,
+        );
 
-        expect(user?.permissions).toEqual(['events:viewPublic', 'events:*']);
-        expect(user?.roleIds).toEqual(['role-mixed']);
-        expect(
-          resolveRequestPermissions({
-            oidcUser: { sub: 'auth0|tenant-user' },
-            user,
-          }),
-        ).not.toContain('globalAdmin:manageTenants');
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          expect(String(Cause.squash(exit.cause))).toContain('globalAdmin');
+        }
       }),
   );
 
   it('retains platform-global authority for genuine platform principals', () => {
-    const permissions = resolveRequestPermissions({
-      oidcUser: {
-        'evorto.app/app_metadata': {
-          globalAdmin: true,
-        },
-        sub: 'auth0|platform-admin',
+    const platformAuthority = resolvePlatformAuthority({
+      'evorto.app/app_metadata': {
+        platformAdministrator: true,
       },
+      sub: 'auth0|platform-admin',
+    });
+    const permissions = resolveRequestPermissions({
+      platformAuthority,
       user: {
         permissions: ['events:viewPublic'],
       },

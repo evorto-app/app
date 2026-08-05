@@ -1,2 +1,11 @@
-project_id        = "00000000-0000-0000-0000-000000000000"
-state_bucket_name = "evorto-terraform-state-replace-with-unique-suffix"
+bootstrap_project_id = "00000000-0000-0000-0000-000000000000"
+organization_id      = "00000000-0000-0000-0000-000000000000"
+tem_project_id       = "00000000-0000-0000-0000-000000000000"
+state_bucket_names = {
+  bootstrap  = "evorto-terraform-state-bootstrap-replace-with-unique-suffix"
+  production = "evorto-terraform-state-production-replace-with-unique-suffix"
+  staging    = "evorto-terraform-state-staging-replace-with-unique-suffix"
+}
+
+cloudflare_zone_id = "00000000000000000000000000000000"
+validate_tem_dns   = false

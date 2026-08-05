@@ -1,12 +1,12 @@
 @if (selectedTarget() === null) {
-  <h2 mat-dialog-title>Choose the new participant</h2>
+  <h2 mat-dialog-title>Choose the new attendee</h2>
   <mat-dialog-content class="grid gap-4">
     <p class="text-on-surface-variant text-sm">
       Transfer from {{ currentParticipantLabel() }}
     </p>
 
     <mat-form-field class="w-full">
-      <mat-label>Search eligible organization members</mat-label>
+      <mat-label>Search members who can receive this ticket</mat-label>
       <input
         matInput
         autocomplete="off"
@@ -16,22 +16,22 @@
     </mat-form-field>
 
     <p class="text-on-surface-variant text-sm">
-      Choose a recipient. Evorto will review the complete ticket, current prices
-      and discounts, and any refund before anything changes. Direct transfer is
-      available only when the recipient owes nothing and the current owner needs
-      no refund.
+      Choose the new attendee. Evorto will check the ticket, current prices and
+      discounts, and any refund before anything changes. You can complete the
+      transfer here only when the new attendee has nothing to pay and the
+      previous attendee needs no refund.
     </p>
 
     @if (transferTargetsQuery.isPending()) {
       <div class="bg-surface-container rounded-lg p-4 text-sm" role="status">
-        Loading eligible members...
+        Loading members…
       </div>
     } @else if (transferTargetsQuery.isError()) {
       <div
         class="bg-error-container text-on-error-container grid gap-3 rounded-lg p-4"
         role="alert"
       >
-        <p>Eligible members could not be loaded. Nothing has changed.</p>
+        <p>Members could not be loaded. Nothing has changed.</p>
         <button
           mat-stroked-button
           type="button"
@@ -40,21 +40,19 @@
           [disabled]="transferTargetsQuery.isFetching()"
         >
           {{
-            transferTargetsQuery.isFetching()
-              ? "Trying again…"
-              : "Retry member search"
+            transferTargetsQuery.isFetching() ? "Trying again…" : "Search again"
           }}
         </button>
       </div>
     } @else if (transferTargetsQuery.data()?.length === 0) {
       <div class="bg-surface-container rounded-lg p-4 text-sm" role="status">
-        No eligible organization member matched this search. Try another name or
-        email.
+        No member who can receive this ticket matched the search. Try another
+        name or email.
       </div>
     } @else {
       <div
         class="grid max-h-80 gap-2 overflow-y-auto"
-        aria-label="Eligible transfer recipients"
+        aria-label="Members who can receive this ticket"
       >
         @for (target of transferTargetsQuery.data(); track target.id) {
           <button
@@ -75,12 +73,12 @@
     }
   </mat-dialog-content>
 } @else {
-  <h2 mat-dialog-title>Review direct transfer</h2>
+  <h2 mat-dialog-title>Review ticket transfer</h2>
   <mat-dialog-content class="@container grid gap-5">
     @if (transferPreviewQuery.isPending()) {
       <div class="bg-surface-container rounded-lg p-4 text-sm" role="status">
-        Checking the complete bundle, recipient price, and refund for the
-        current owner...
+        Checking the ticket, the new attendee's price, and any refund for the
+        previous attendee…
       </div>
     } @else if (transferPreviewQuery.isError()) {
       <section
@@ -88,9 +86,7 @@
         role="alert"
       >
         <h3 class="title-medium">Transfer details could not be checked</h3>
-        <p class="text-sm">
-          Nothing changed. Refresh the details and try again.
-        </p>
+        <p class="text-sm">Nothing changed. Select Check again.</p>
         <button
           mat-stroked-button
           type="button"
@@ -101,7 +97,7 @@
           {{
             transferPreviewQuery.isFetching()
               ? "Checking again…"
-              : "Retry transfer review"
+              : "Check again"
           }}
         </button>
       </section>
@@ -116,7 +112,7 @@
         aria-labelledby="transfer-participants-heading"
       >
         <h3 id="transfer-participants-heading" class="title-medium">
-          Participants
+          Attendees
         </h3>
         <dl
           class="divide-outline-variant divide-y border-y border-outline-variant"
@@ -140,12 +136,14 @@
       </section>
 
       <section class="grid gap-2" aria-labelledby="transfer-bundle-heading">
-        <h3 id="transfer-bundle-heading" class="title-medium">Fixed bundle</h3>
+        <h3 id="transfer-bundle-heading" class="title-medium">
+          Ticket and included items
+        </h3>
         <dl
           class="divide-outline-variant divide-y border-y border-outline-variant"
         >
           <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
-            <dt class="text-on-surface-variant text-sm">Registration</dt>
+            <dt class="text-on-surface-variant text-sm">Sign-up choice</dt>
             <dd class="text-sm">1 × {{ preview.registrationOption.title }}</dd>
           </div>
           <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
@@ -164,9 +162,7 @@
             </dd>
           </div>
           <div class="grid gap-1 py-3 @sm:grid-cols-[8rem_1fr] @sm:gap-4">
-            <dt class="text-on-surface-variant text-sm">
-              Participant check-in
-            </dt>
+            <dt class="text-on-surface-variant text-sm">Attendee check-in</dt>
             <dd class="text-sm">
               {{ preview.bundle.checkInTime ? "Checked in" : "Not checked in" }}
             </dd>
@@ -180,11 +176,11 @@
                   {{ addOn.includedQuantity }} included ·
                   {{ addOn.purchasedQuantity }} purchased ·
                   {{ addOn.remainingQuantity }} remaining ·
-                  {{ addOn.redeemedQuantity }} redeemed ·
+                  {{ addOn.redeemedQuantity }} handed out ·
                   {{ addOn.cancelledQuantity }} cancelled
                 </span>
                 <span class="text-on-surface-variant text-xs">
-                  Current unit price:
+                  Current price per item:
                   {{ addOn.currentUnitPrice | receiptAmount: preview.currency }}
                 </span>
               </dd>
@@ -200,14 +196,14 @@
 
       <section class="grid gap-2" aria-labelledby="transfer-pricing-heading">
         <h3 id="transfer-pricing-heading" class="title-medium">
-          Recalculated transfer
+          Prices and refund
         </h3>
         <dl
           class="divide-outline-variant divide-y border-y border-outline-variant"
         >
           <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
             <dt class="text-on-surface-variant text-sm">
-              Current registration price
+              Current ticket price
             </dt>
             <dd class="text-sm">
               {{
@@ -218,7 +214,7 @@
           </div>
           <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
             <dt class="text-on-surface-variant text-sm">
-              Recipient registration price
+              New attendee's ticket price
             </dt>
             <dd class="grid gap-1 text-sm">
               <span>
@@ -229,13 +225,13 @@
               </span>
               @if (preview.pricing.appliedDiscountType === "esnCard") {
                 <span class="text-on-surface-variant text-xs">
-                  Recipient's current ESNcard discount applied
+                  New attendee's current ESNcard discount applied
                 </span>
               }
             </dd>
           </div>
           <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
-            <dt class="text-on-surface-variant text-sm">Recipient total</dt>
+            <dt class="text-on-surface-variant text-sm">New attendee pays</dt>
             <dd class="text-sm">
               {{
                 preview.pricing.recipientBundlePrice
@@ -245,7 +241,7 @@
           </div>
           <div class="grid gap-1 py-3 @sm:grid-cols-[12rem_1fr] @sm:gap-4">
             <dt class="text-on-surface-variant text-sm">
-              Refund to current owner
+              Refund to previous attendee
             </dt>
             <dd class="text-sm">
               {{
@@ -265,20 +261,22 @@
           What happens next
         </h3>
         <p class="text-sm">
-          The registration, every included and purchased add-on, all quantities,
-          and all check-in, redemption, and cancellation history move together.
-          The recipient cannot omit anything or reset its history.
+          The ticket, guests, add-ons, quantities, and all existing check-in and
+          use history move together. The new attendee cannot remove anything or
+          reset that history.
         </p>
         <p class="text-sm">
-          Current base prices and only the recipient's currently eligible
-          discounts produced a free bundle. The current owner's discounts did
-          not transfer, and no refund to them is required.
+          This transfer is free because the current ticket price and the new
+          attendee's available discounts reduce the total to zero. Discounts
+          used by the previous attendee do not transfer, and no refund is due.
         </p>
         <p class="text-sm">
-          Because the recipient owes nothing and the current owner needs no
-          refund, the transfer completes immediately when you confirm. If
-          anything changes first, Evorto will stop and ask you to review the
-          updated details. This cannot be undone automatically.
+          Because the new attendee has nothing to pay and the previous attendee
+          needs no refund, the transfer completes immediately when you confirm.
+          If anything changes first, Evorto will stop and ask you to review the
+          updated details. After you confirm, the previous attendee cannot undo
+          the transfer. Any later transfer must start from the new attendee's
+          ticket.
         </p>
       </section>
     }
@@ -302,7 +300,7 @@
   </button>
   @if (transferPreviewQuery.isSuccess() && transferPreviewQuery.data()) {
     <button mat-flat-button type="button" (click)="confirmTransfer()">
-      Transfer registration
+      Transfer ticket
     </button>
   }
 </mat-dialog-actions>

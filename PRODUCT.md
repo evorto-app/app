@@ -16,7 +16,9 @@ The relaunch target is a full production replacement, not a prototype. Core work
   - Example: the default event setup UI can show "participant signup settings" and "organizer signup settings" while creating separate registration options internally.
 - **Tenant-first**: associations/sections own their events, templates, roles, registrations, settings, branding, and configuration.
 - **Role-based eligibility**: access to registration options should be modeled through tenant roles and capabilities, not scattered special-case flags.
-- **Account-required registration**: anonymous users may browse eligible listed events, but registration requires an account.
+- **Account-required registration**: anonymous users may discover a published
+  event through its public projection when one of its registration options is
+  available to a default user role, but registration requires an account.
 - **Stripe is the payment source of truth**: local state may mirror payment details for app behavior, but payment lifecycle changes must respect Stripe state and webhooks.
 - **Paid event activity is Stripe-only**: event registrations and add-ons may
   charge money only through the tenant's connected Stripe account. Without
@@ -29,6 +31,7 @@ The relaunch target is a full production replacement, not a prototype. Core work
 - **Templates preserve organizational memory**: repeated events should be easy to recreate without losing reusable event knowledge.
 - **No hidden deliverables**: a new user-facing feature or page is not complete if it can only be reached by typing a URL.
 - **Documentation is part of the product**: essential flows should be documented for users and admins, preferably through Playwright-generated documentation.
+- **Plain product language**: application copy, email, and generated guides describe what people can do, what happened, and what to do next. They do not expose implementation terms, internal identifiers, storage or delivery mechanics, or test evidence. Unexpected failures remain visible, while technical diagnostics stay in logs.
 
 ## Tenants and Identity
 
@@ -92,7 +95,9 @@ A tenant may model different organizer categories, such as main organizer and he
 
 ### Participants
 
-People who browse public/listed events, register, pay if required, attend events, transfer registrations where supported, and receive registration/check-in information.
+People who discover published events, register, pay if required, attend events,
+transfer registrations where supported, and receive registration/check-in
+information.
 
 ### Platform administrators
 
@@ -132,7 +137,7 @@ The core product lifecycle is:
 
 Other important workflows:
 
-- browse listed events
+- discover published events
 - manage templates
 - manage tenant roles and capabilities
 - manage tenant branding/legal settings
@@ -159,16 +164,38 @@ permission does not grant event-edit permission; a reviewer may edit an event
 only when they also have the relevant event-edit capability or are otherwise
 authorized as its editor.
 
-Publishing is the approval act. There is no separate "approved but not published" state for now.
+Publishing is the approval act. There is no separate "approved but not
+published" state for now.
 
-Listing is separate from publishing. A published event may be:
+Ordinary events with registration options do not have a separately configured
+participant, organizer, both, or unlisted audience. Their normal discovery is
+derived from the registration options on the published event:
 
-- listed for participants
-- listed for organizers
-- listed for both
-- unlisted for both, reachable only by direct link
+- a signed-in member discovers the event when they are currently eligible for
+  at least one registration option;
+- an anonymous visitor discovers the event when at least one registration
+  option is available to at least one role assigned by default to new users in
+  that tenant.
 
-Anonymous users may see events when those events have registration options available to roles that every new user receives by default in that tenant. Anonymous visibility should not show events that a user would lose access to immediately after signing in.
+Anonymous discovery exposes only the public event projection. Registration
+still requires sign-in. Discovery is never an authorization result: the server
+must re-evaluate registration eligibility and every other mutable write
+precondition when a registration is created or changed. An anonymous person who
+opens a published optionful event through a direct link receives the public
+projection and an explicit sign-in state even when no option qualifies for
+anonymous discovery; the application must not misreport that the event has no
+registration options. A signed-in person who follows the same link but is not
+eligible keeps the explicit ineligible outcome. Neither case may hide the event
+or fall back to another audience.
+
+Optionless announcement-style events intentionally use a different discovery
+rule because they have no registration options from which to derive
+eligibility. Their normal discovery is controlled by an explicit selected set
+of tenant roles. An empty selection means link-only. The selected roles control
+visibility only: they do not grant roles or event access and do not send
+notifications. Direct-link behavior is unchanged. Registration-option-derived
+ordinary event discovery and role-targeted announcement discovery must remain
+separate rules; neither is a fallback for the other.
 
 ## Registration Model
 
@@ -178,9 +205,8 @@ A sign-up event has registration options. Registration options can represent par
 
 First-come-first-served and manual-approval (`application`) are supported
 relaunch registration modes. A manual approval remains pending until an
-authorized organizer approves it; a paid approval then follows the normal
-Stripe Checkout lifecycle. `random` registration is not a supported relaunch
-mode and must not appear as a usable stored-only configuration.
+organizer who can review applications approves it; a paid approval then follows
+the normal payment flow.
 
 Important rules:
 
@@ -245,7 +271,10 @@ without registrations remain valid.
 
 Registration questions attach to one concrete registration option. In advanced
 configuration, a shared question is represented by deliberate copies rather
-than an implicit organizer/participant shortcut.
+than an implicit organizer/participant shortcut. Once a question has an
+answer, its title, description, requiredness, sort order, registration-option
+assignment, and existence are historical facts. Ordinary organizers and
+platform administrators must preserve them exactly.
 
 ### Add-ons and fulfillment
 
@@ -318,6 +347,12 @@ They do not behave like a reservation queue. Waitlist messages are informative
 only: receiving one never reserves capacity, creates a checkout hold, or
 guarantees a place.
 
+Waitlist entries do not consume the tenant's active-registration limit. Before
+a waitlisted user receives a real registration, the normal registration
+boundary must recheck the current limit and surface an unavailable outcome if
+the user is no longer eligible. Joining a waitlist never reserves limit
+capacity.
+
 Users should intentionally join a waitlist through a distinct action when an option is full. Do not silently add a user to a waitlist as a side effect of failed registration.
 
 ## Transfers and Resale
@@ -348,40 +383,44 @@ The intended workflow:
    and purchased-add-on payment after prior successful refunds.
 
 Previous participant-question answers are never part of the transfer bundle.
-An immediate organizer or participant reassignment is available only when the
-whole bundle is free, no source refund is required, and the registration option
-has no participant questions. When current questions exist, the recipient must
-use the private link/code claim so they can provide their own answers before
-ownership changes.
+Participant self-service has one path: the current owner creates a private
+offer, and the recipient claims it by link or code. A wholly free, questionless
+claim with no source refund completes immediately. Organizers retain a separate
+operational direct reassignment only when the whole bundle is free, no source
+refund is required, and the registration option has no participant questions.
+When current questions or any payment are involved, the current owner must
+create the private offer so the recipient can review the bundle, provide their
+own answers, and complete the Stripe-backed flow before ownership changes.
 
 The goal is to let users transfer spots without trusting each other directly.
 
-New payments for a tenant use its currently configured Stripe Connect account.
-Every refund uses the persisted owning Connect account of its original Stripe
-payment, even if the tenant rotated accounts afterward. The application submits
-that payment-owning account with each Stripe request and adds only the platform
-application fee; all other payment and cancellation configuration belongs to
-the tenant, subject to the registration-option override rules. The ordinary
-cancellation fee policy does not reduce a transfer refund: each source
-registration or add-on payment is refunded until its total refunds equal the
-exact original Stripe amount.
+New payments for a tenant use its configured Stripe Connect account. Every
+refund uses the persisted owning account of its original Stripe payment. The
+application submits that payment-owning account with each Stripe request and
+adds only the platform application fee; all other payment and cancellation
+configuration belongs to the tenant, subject to the registration-option
+override rules. The ordinary cancellation fee policy does not reduce a
+transfer refund: each source registration or add-on payment is refunded until
+its total refunds equal the exact original Stripe amount.
 
-Stripe tax-rate IDs are account-owned configuration. Disconnecting remains
-blocked while paid event or template configuration exists. For an account
-rotation, the replacement Stripe account must already contain exactly one
-active, inclusive rate with the same normalized percentage, display name,
-country, and state as each assigned source rate. Evorto rejects a missing or
-ambiguous match; otherwise it atomically imports the replacement metadata and
-remaps every event and template registration-option and add-on binding without
-changing its tax semantics.
+The client sees only whether paid sign-ups are ready. It never receives or
+edits the connected-account identifier. A private operations action may attach
+the first account only after explicit confirmation and only while the tenant
+has no payment history, pending payment work, paid event/template configuration,
+or imported/assigned tax rates. Rotation and disconnect are intentionally
+unsupported; do not emulate them with remapping, fallback, or compatibility
+flows.
 
 ## Check-in
 
 Confirmed organizers/helpers and users with the tenant-wide event-organizing
-capability may check attendees in. Check-in opens during a pre-start window
-appropriate for entrance logistics. Duplicate scans succeed with an explicit
-“already checked in” result, and organizers can check in a buyer and selected
-guest quantity separately so partial arrival is supported.
+capability may check attendees in. Check-in opens one hour before the event
+starts and closes two hours after the event ends. A check-in attempt outside
+that window returns an explicit `notOpen` or `ended` reason, and the server
+rechecks the event window under the registration transaction before writing.
+Duplicate scans during the window succeed with an explicit “already checked
+in” result, and organizers can check in a buyer and selected guest quantity
+separately so partial arrival is supported.
 
 ## Templates
 
@@ -412,6 +451,13 @@ retroactively alter existing events. Some duplication between templates and
 event instances is acceptable if it keeps event instances stable and
 understandable.
 
+Templates define reusable event structure only. They do not define discovery
+visibility, persist a listing audience, or supply a default audience to a new
+event. Ordinary event discovery derives from the created event instance's
+registration options and current eligibility. Any selected roles for an
+optionless announcement belong to that event instance and are not template
+state.
+
 ## Roles, Capabilities, and Eligibility
 
 Tenants can define their own roles. There is no single system-defined default role.
@@ -430,7 +476,6 @@ The exact capability list may evolve with the product, but these areas are expec
 - create events
 - submit events for review
 - publish events
-- manage event listing/visibility
 - manage templates
 - manage roles
 - manage tenant settings
@@ -477,15 +522,25 @@ Checkout, customer, payment-intent, expiry, and refund calls must execute for
 that connected account. Evorto adds its application fee but does not own or
 silently replace the tenant's other payment configuration.
 
+One payment account may intentionally serve more than one organization. This
+does not join those organizations or share their members, events, settings, or
+records. Every action remains scoped to the organization in which it started.
+
+Application and generated-documentation surfaces expose payment readiness only,
+never the connected-account identifier or provider setup mechanics. The first
+account attachment is a private, explicitly confirmed operations action. It is
+allowed only for a fresh tenant with no payment history, pending payment work,
+paid configuration, or tax-rate configuration. The product does not support
+rotation or disconnect through tenant or platform administration.
+
 Users should receive registration confirmation and an authenticated link to
 their ticket only after registration is successful. For paid events, that means
 after successful payment.
 
-Rendering a ticket QR requires the confirmed registration owner or an
-authorized organizer to be signed in. The QR may encode the registration id as
-an opaque locator, but that id is never a bearer credential: the scanner still
-requires tenant-scoped organizer authorization and validates the registration
-status before check-in.
+Rendering a ticket QR requires the confirmed ticket owner or someone who can
+organize the event to be signed in. The QR can identify the ticket, but opening
+or scanning it never grants event access. Evorto still checks the organization,
+the person's event access, and the ticket before check-in.
 
 ## Receipts and Reimbursements
 
@@ -501,11 +556,13 @@ Email is the first notification channel.
 
 Customer-facing email templates are rendered with React Email. Rendering stays
 separate from transactional delivery: templates enter the durable outbox and
-retain its recipient, idempotency, retry, and failure-observability rules.
+retain their recipient, enqueue idempotency, and failure-observability rules.
 
-After automatic delivery exhausts its retry budget, the outbox row remains
-stored and read-only for operational evidence. No exhausted-email recovery
-action is required for the current product scope.
+Each queued email gets one bounded provider request. An explicit provider
+rejection becomes a terminal failure. A timeout, lost response, or abandoned
+sending claim has an unknown outcome and remains terminal without automatic
+resend, because avoiding duplicate customer messages is more important than
+hiding an uncertain delivery.
 
 In scope:
 
@@ -549,7 +606,7 @@ Tenants should be able to customize:
 - registration limits
 - enabled complexity where applicable
 - email sender name, likely derived from tenant config
-- Stripe Connect account and tenant payment/cancellation defaults
+- payment readiness and tenant payment/cancellation defaults
 
 Evorto uses the fixed `de-DE` formatting locale for all tenants. This affects
 date, number, and money formatting only; the interface, emails, generated

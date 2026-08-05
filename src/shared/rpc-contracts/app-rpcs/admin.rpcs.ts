@@ -1,14 +1,23 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
-import { literalUnion, nonNegativeNumber } from '@shared/schema-utilities';
-import { Schema } from 'effect';
+import {
+  literalUnion,
+  nonNegativePostgresInteger,
+} from '@shared/schema-utilities';
+import { TenantReceiptSettingsSchema } from '@shared/tenant-config';
+import { Effect, Schema, SchemaTransformation } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
 import { GoogleLocation } from '../../../types/location';
 import { TenantRolePermissionSchema } from '../../permissions/permissions';
-import { AdminRoleRpcError, AdminTenantRpcError } from './admin.errors';
+import {
+  AdminRoleRpcError,
+  AdminRoleWriteRpcError,
+  AdminTenantRpcError,
+} from './admin.errors';
+import { RoleWriteInput } from './role-write.shared';
 
 const UrlString = Schema.String.pipe(
   Schema.check(
@@ -49,7 +58,6 @@ const OptionalSenderEmail = Schema.NonEmptyString.check(
 );
 
 export const AdminRoleRecord = Schema.Struct({
-  collapseMembersInHup: Schema.Boolean,
   defaultOrganizerRole: Schema.Boolean,
   defaultUserRole: Schema.Boolean,
   description: Schema.NullOr(Schema.String),
@@ -117,15 +125,7 @@ export const AdminRolesFindHubRoles = asRpcQuery(
   }),
 );
 
-export const AdminRolesCreateInput = Schema.Struct({
-  collapseMembersInHup: Schema.Boolean,
-  defaultOrganizerRole: Schema.Boolean,
-  defaultUserRole: Schema.Boolean,
-  description: Schema.NullOr(Schema.NonEmptyString),
-  displayInHub: Schema.Boolean,
-  name: Schema.NonEmptyString,
-  permissions: Schema.mutable(Schema.Array(TenantRolePermissionSchema)),
-});
+export const AdminRolesCreateInput = RoleWriteInput;
 
 export type AdminRolesCreateInput = Schema.Schema.Type<
   typeof AdminRolesCreateInput
@@ -133,7 +133,7 @@ export type AdminRolesCreateInput = Schema.Schema.Type<
 
 export const AdminRolesCreate = asRpcMutation(
   Rpc.make('admin.roles.create', {
-    error: AdminRoleRpcError,
+    error: AdminRoleWriteRpcError,
     payload: AdminRolesCreateInput,
     success: AdminRoleRecord,
   }),
@@ -170,7 +170,7 @@ export type AdminRolesUpdateInput = Schema.Schema.Type<
 
 export const AdminRolesUpdate = asRpcMutation(
   Rpc.make('admin.roles.update', {
-    error: AdminRoleRpcError,
+    error: AdminRoleWriteRpcError,
     payload: AdminRolesUpdateInput,
     success: AdminRoleRecord,
   }),
@@ -204,12 +204,23 @@ export type AdminTenantStripeTaxRateRecord = Schema.Schema.Type<
   typeof AdminTenantStripeTaxRateRecord
 >;
 
+const AdminTenantStripeTaxRateIds = Schema.Array(Schema.NonEmptyString).check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(100),
+);
+
+export const AdminTenantImportStripeTaxRatesInput = Schema.Struct({
+  ids: AdminTenantStripeTaxRateIds,
+});
+
+export type AdminTenantImportStripeTaxRatesInput = Schema.Schema.Type<
+  typeof AdminTenantImportStripeTaxRatesInput
+>;
+
 export const AdminTenantImportStripeTaxRates = asRpcMutation(
   Rpc.make('admin.tenant.importStripeTaxRates', {
     error: AdminTenantRpcError,
-    payload: Schema.Struct({
-      ids: Schema.Array(Schema.NonEmptyString),
-    }),
+    payload: AdminTenantImportStripeTaxRatesInput,
     success: Schema.Void,
   }),
 );
@@ -230,34 +241,86 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
   }),
 );
 
-export const AdminTenantUpdateSettingsInput = Schema.Struct({
-  allowOther: Schema.Boolean,
-  buyEsnCardUrl: Schema.optional(UrlString),
-  cancellationDeadlineHoursBeforeStart: nonNegativeNumber,
-  currency: Tenant.fields.currency,
+export const AdminTenantUpdateAppearanceSettingsInput = Schema.Struct({
+  faviconUrl: Schema.optional(TenantBrandAssetUrlString),
+  logoUrl: Schema.optional(TenantBrandAssetUrlString),
+  seoDescription: Schema.optional(Schema.String),
+  seoTitle: Schema.optional(Schema.String),
+  theme: Tenant.fields.theme,
+});
+
+export type AdminTenantUpdateAppearanceSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateAppearanceSettingsInput
+>;
+
+export const AdminTenantUpdateLegalSettingsInput = Schema.Struct({
+  legalNoticeText: Schema.optional(Schema.String),
+  legalNoticeUrl: Schema.optional(UrlString),
+  termsText: Schema.optional(Schema.String),
+  termsUrl: Schema.optional(UrlString),
+});
+
+export type AdminTenantUpdateLegalSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateLegalSettingsInput
+>;
+
+export const AdminTenantUpdateOrganizationSettingsInput = Schema.Struct({
   defaultLocation: Schema.NullOr(GoogleLocation),
   emailSenderEmail: Schema.optional(OptionalSenderEmail),
   emailSenderName: Schema.optional(Schema.NonEmptyString),
-  esnCardEnabled: Schema.Boolean,
-  faviconUrl: Schema.optional(TenantBrandAssetUrlString),
-  legalNoticeText: Schema.optional(Schema.String),
-  legalNoticeUrl: Schema.optional(UrlString),
-  logoUrl: Schema.optional(TenantBrandAssetUrlString),
-  maxActiveRegistrationsPerUser: nonNegativeNumber,
-  receiptCountries: Schema.Array(Schema.NonEmptyString),
-  refundFeesOnCancellation: Schema.Boolean,
-  seoDescription: Schema.optional(Schema.String),
-  seoTitle: Schema.optional(Schema.String),
-  stripeAccountId: Schema.optional(Schema.NonEmptyString),
-  termsText: Schema.optional(Schema.String),
-  termsUrl: Schema.optional(UrlString),
-  theme: literalUnion('evorto', 'esn'),
   timezone: Tenant.fields.timezone,
-  transferDeadlineHoursBeforeStart: nonNegativeNumber,
 });
 
-export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<
-  typeof AdminTenantUpdateSettingsInput
+export type AdminTenantUpdateOrganizationSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateOrganizationSettingsInput
+>;
+
+const AdminTenantUpdatePaymentProviderSettingsPayload = Schema.Struct({
+  allowOther: Schema.Boolean,
+  buyEsnCardUrl: Schema.optional(UrlString),
+  currency: Tenant.fields.currency,
+  esnCardEnabled: Schema.Boolean,
+  receiptCountries: TenantReceiptSettingsSchema.fields.receiptCountries,
+  refundFeesOnCancellation: Schema.Boolean,
+});
+
+export const AdminTenantUpdatePaymentProviderSettingsInput = Schema.Json.pipe(
+  Schema.decodeTo(
+    AdminTenantUpdatePaymentProviderSettingsPayload,
+    SchemaTransformation.transformOrFail({
+      decode: (input) =>
+        Schema.decodeUnknownEffect(
+          AdminTenantUpdatePaymentProviderSettingsPayload,
+        )(input, { onExcessProperty: 'error' }).pipe(
+          Effect.mapError((error) => error.issue),
+        ),
+      encode: (value) =>
+        Effect.succeed({
+          allowOther: value.allowOther,
+          ...(value.buyEsnCardUrl !== undefined && {
+            buyEsnCardUrl: value.buyEsnCardUrl,
+          }),
+          currency: value.currency,
+          esnCardEnabled: value.esnCardEnabled,
+          receiptCountries: value.receiptCountries,
+          refundFeesOnCancellation: value.refundFeesOnCancellation,
+        }),
+    }),
+  ),
+);
+
+export type AdminTenantUpdatePaymentProviderSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdatePaymentProviderSettingsInput
+>;
+
+export const AdminTenantUpdateRegistrationSettingsInput = Schema.Struct({
+  cancellationDeadlineHoursBeforeStart: nonNegativePostgresInteger,
+  maxActiveRegistrationsPerUser: nonNegativePostgresInteger,
+  transferDeadlineHoursBeforeStart: nonNegativePostgresInteger,
+});
+
+export type AdminTenantUpdateRegistrationSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateRegistrationSettingsInput
 >;
 
 export const AdminTenantBrandAssetKind = literalUnion('favicon', 'logo');
@@ -283,11 +346,43 @@ export const AdminTenantUploadBrandAsset = asRpcMutation(
   }),
 );
 
-export const AdminTenantUpdateSettings = asRpcMutation(
-  Rpc.make('admin.tenant.updateSettings', {
+export const AdminTenantUpdateAppearanceSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateAppearanceSettings', {
     error: AdminTenantRpcError,
-    payload: AdminTenantUpdateSettingsInput,
-    success: Tenant,
+    payload: AdminTenantUpdateAppearanceSettingsInput,
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantUpdateLegalSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateLegalSettings', {
+    error: AdminTenantRpcError,
+    payload: AdminTenantUpdateLegalSettingsInput,
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantUpdateOrganizationSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateOrganizationSettings', {
+    error: AdminTenantRpcError,
+    payload: AdminTenantUpdateOrganizationSettingsInput,
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantUpdatePaymentProviderSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updatePaymentProviderSettings', {
+    error: AdminTenantRpcError,
+    payload: AdminTenantUpdatePaymentProviderSettingsInput,
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantUpdateRegistrationSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateRegistrationSettings', {
+    error: AdminTenantRpcError,
+    payload: AdminTenantUpdateRegistrationSettingsInput,
+    success: Schema.Void,
   }),
 );
 
@@ -303,5 +398,9 @@ export class AdminRpcs extends RpcGroup.make(
   AdminTenantListImportedTaxRates,
   AdminTenantListStripeTaxRates,
   AdminTenantUploadBrandAsset,
-  AdminTenantUpdateSettings,
+  AdminTenantUpdateAppearanceSettings,
+  AdminTenantUpdateLegalSettings,
+  AdminTenantUpdateOrganizationSettings,
+  AdminTenantUpdatePaymentProviderSettings,
+  AdminTenantUpdateRegistrationSettings,
 ) {}

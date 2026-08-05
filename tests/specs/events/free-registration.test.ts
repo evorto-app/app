@@ -6,9 +6,12 @@ import { waitForRegistrationPage } from '../../support/utils/event-registration-
 import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
-test.use({
-  storageState: usersToAuthenticate.find((u) => u.roles === 'user')!.stateFile,
-});
+const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
+if (!regularUser) {
+  throw new Error('Expected the regular-user authentication fixture');
+}
+
+test.use({ storageState: regularUser.stateFile });
 
 test('register for a free event as regular user', async ({
   database,
@@ -16,7 +19,7 @@ test('register for a free event as regular user', async ({
   seeded,
   tenant,
 }) => {
-  const user = usersToAuthenticate.find((u) => u.roles === 'user')!;
+  const user = regularUser;
   const targetEventId = seeded.scenario.events.freeOpen.eventId;
   const targetOptionId = seeded.scenario.events.freeOpen.optionId;
   const serverEventWindow = futureServerEventWindow();
@@ -103,24 +106,24 @@ test('register for a free event as regular user', async ({
     await expect(page).toHaveURL(`/events/${targetEventId}`);
     await waitForRegistrationPage(page);
     const registerButton = page
-      .getByRole('button', { name: 'Register' })
+      .getByRole('button', { name: 'Sign up' })
       .first();
     await expect(registerButton).toBeEnabled({ timeout: 20_000 });
     await registerButton.click();
 
     // After registering, the status refetches; wait for the loading indicator
     await page
-      .getByText('Loading registration status')
+      .getByText('Loading your sign-up')
       .first()
       .waitFor({ state: 'attached', timeout: 2000 })
       .catch(() => {});
     await page
-      .getByText('Loading registration status')
+      .getByText('Loading your sign-up')
       .first()
       .waitFor({ state: 'detached' });
 
-    // Confirm success copy is rendered (seed sets registeredDescription: "You are registered")
-    await expect(page.getByText('You are registered')).toBeVisible();
+    // Confirm the attendee sees the event's success message.
+    await expect(page.getByText('Your place is confirmed')).toBeVisible();
 
     // Verify DB registration exists and counts updated
     const [registration] = await database
@@ -161,7 +164,7 @@ test('register for a free event as regular user', async ({
     });
     expect(registrationEmail?.html).toContain(`/events/${targetEventId}`);
     expect(registrationEmail?.text).toContain(
-      'The ticket owner must sign in to Evorto',
+      'Sign in with the account that holds this ticket to open it.',
     );
 
     const [after] = await database

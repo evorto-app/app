@@ -117,14 +117,6 @@ export const expiredUnboundRegistrationClaimPredicate = (
     isNull(transactions.stripeCheckoutSessionId),
   );
 
-export const expiredBoundRegistrationClaimPredicate = (
-  nowEpochSeconds: number,
-) =>
-  and(
-    expiredRegistrationClaimPredicate(nowEpochSeconds),
-    isNotNull(transactions.stripeCheckoutSessionId),
-  );
-
 const pendingBoundRegistrationClaimPredicate = () =>
   and(
     pendingRegistrationClaimPredicate(),
@@ -297,7 +289,6 @@ const cancelExpiredRegistrationClaim = Effect.fn(
     readonly stripeAccountId: string;
     readonly stripeCheckoutSessionId: string;
   },
-  requireExpiredRequest = true,
 ) {
   yield* Effect.annotateCurrentSpan({
     registrationId: candidate.registrationId,
@@ -307,9 +298,7 @@ const cancelExpiredRegistrationClaim = Effect.fn(
 
   const exactClaimPredicate = binding
     ? and(
-        requireExpiredRequest
-          ? expiredBoundRegistrationClaimPredicate(nowEpochSeconds)
-          : pendingBoundRegistrationClaimPredicate(),
+        pendingBoundRegistrationClaimPredicate(),
         eq(transactions.stripeAccountId, binding.stripeAccountId),
         eq(
           transactions.stripeCheckoutSessionId,
@@ -476,18 +465,6 @@ export const cancelExpiredUnboundRegistrationClaim = Effect.fn(
   return yield* cancelExpiredRegistrationClaim(candidate, nowEpochSeconds);
 });
 
-export const cancelExpiredBoundRegistrationClaim = Effect.fn(
-  'cancelExpiredBoundRegistrationClaim',
-)(function* (
-  candidate: BoundExpiredCheckoutCandidate,
-  nowEpochSeconds: number,
-) {
-  return yield* cancelExpiredRegistrationClaim(candidate, nowEpochSeconds, {
-    stripeAccountId: candidate.stripeAccountId,
-    stripeCheckoutSessionId: candidate.stripeCheckoutSessionId,
-  });
-});
-
 export const cancelTerminalBoundRegistrationCheckout = Effect.fn(
   'cancelTerminalBoundRegistrationCheckout',
 )(function* (candidate: BoundExpiredCheckoutCandidate) {
@@ -541,15 +518,10 @@ export const cancelTerminalBoundRegistrationCheckout = Effect.fn(
     return 'skipped' as const;
   }
 
-  return yield* cancelExpiredRegistrationClaim(
-    candidate,
-    0,
-    {
-      stripeAccountId: candidate.stripeAccountId,
-      stripeCheckoutSessionId: candidate.stripeCheckoutSessionId,
-    },
-    false,
-  );
+  return yield* cancelExpiredRegistrationClaim(candidate, 0, {
+    stripeAccountId: candidate.stripeAccountId,
+    stripeCheckoutSessionId: candidate.stripeCheckoutSessionId,
+  });
 });
 
 export const boundExpiredCheckoutReconciliationAction = (
@@ -559,33 +531,6 @@ export const boundExpiredCheckoutReconciliationAction = (
   if (status === 'open') return 'expire';
   return 'skip';
 };
-
-export const reconcileExpiredBoundRegistrationCheckout = Effect.fn(
-  'reconcileExpiredBoundRegistrationCheckout',
-)(function* (
-  candidate: BoundExpiredCheckoutCandidate,
-  nowEpochSeconds: number,
-) {
-  const existingSession = yield* retrieveHostedCheckoutSession(
-    candidate.stripeCheckoutSessionId,
-    candidate.stripeAccountId,
-  );
-  const action = boundExpiredCheckoutReconciliationAction(
-    existingSession.status,
-  );
-  if (action === 'skip') return 'skipped' as const;
-
-  const expiredSession =
-    action === 'cancel'
-      ? existingSession
-      : yield* expireHostedCheckoutSession(
-          candidate.stripeCheckoutSessionId,
-          candidate.stripeAccountId,
-        );
-  if (expiredSession.status !== 'expired') return 'skipped' as const;
-
-  return yield* cancelExpiredBoundRegistrationClaim(candidate, nowEpochSeconds);
-});
 
 export const reconcileExpiredRegistrationTransferCheckout = Effect.fn(
   'reconcileExpiredRegistrationTransferCheckout',
@@ -751,7 +696,7 @@ export const processDueBoundRegistrationCheckouts = Effect.fn(
         error,
         noLaterThanExpiry: false,
         now,
-      }).pipe(Effect.ignore);
+      });
       yield* Effect.logError(
         'Failed to reconcile bound registration Checkout',
       ).pipe(
@@ -836,91 +781,6 @@ export const processExpiredUnboundRegistrationCheckouts = Effect.fn(
         Effect.annotateLogs({
           error: outcome.failure,
           registrationId: candidate.registrationId,
-          tenantId: candidate.tenantId,
-          transactionId: candidate.transactionId,
-        }),
-      );
-      continue;
-    }
-    if (outcome.success === 'cancelled') {
-      cancelled += 1;
-    } else {
-      skipped += 1;
-    }
-  }
-
-  return {
-    cancelled,
-    failed,
-    scanned: dueClaims.length,
-    skipped,
-  } satisfies ExpiredCheckoutCleanupSummary;
-});
-
-export const processExpiredBoundRegistrationCheckouts = Effect.fn(
-  'processExpiredBoundRegistrationCheckouts',
-)(function* (options: ExpiredCheckoutCleanupOptions = {}) {
-  const nowEpochSeconds =
-    options.nowEpochSeconds ??
-    Math.floor((yield* Clock.currentTimeMillis) / 1000);
-  const batchSize = normalizeExpiredCheckoutCleanupBatchSize(options.batchSize);
-  const dueClaims = yield* Database.use((database) =>
-    database
-      .select({
-        registrationId: transactions.eventRegistrationId,
-        stripeAccountId: transactions.stripeAccountId,
-        stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
-        tenantId: transactions.tenantId,
-        transactionId: transactions.id,
-      })
-      .from(transactions)
-      .where(expiredBoundRegistrationClaimPredicate(nowEpochSeconds))
-      .orderBy(asc(transactions.createdAt), asc(transactions.id))
-      .limit(batchSize),
-  );
-
-  let cancelled = 0;
-  let failed = 0;
-  let skipped = 0;
-
-  for (const dueClaim of dueClaims) {
-    if (
-      !dueClaim.registrationId ||
-      !dueClaim.stripeAccountId ||
-      !dueClaim.stripeCheckoutSessionId
-    ) {
-      failed += 1;
-      yield* Effect.logError(
-        'Expired bound registration checkout is missing persisted ownership',
-      ).pipe(
-        Effect.annotateLogs({
-          registrationId: dueClaim.registrationId,
-          tenantId: dueClaim.tenantId,
-          transactionId: dueClaim.transactionId,
-        }),
-      );
-      continue;
-    }
-    const candidate = {
-      registrationId: dueClaim.registrationId,
-      stripeAccountId: dueClaim.stripeAccountId,
-      stripeCheckoutSessionId: dueClaim.stripeCheckoutSessionId,
-      tenantId: dueClaim.tenantId,
-      transactionId: dueClaim.transactionId,
-    } satisfies BoundExpiredCheckoutCandidate;
-    const outcome = yield* Effect.result(
-      reconcileExpiredBoundRegistrationCheckout(candidate, nowEpochSeconds),
-    );
-    if (Result.isFailure(outcome)) {
-      failed += 1;
-      yield* Effect.logError(
-        'Failed to reconcile expired bound registration checkout',
-      ).pipe(
-        Effect.annotateLogs({
-          error: outcome.failure,
-          registrationId: candidate.registrationId,
-          stripeAccountId: candidate.stripeAccountId,
-          stripeCheckoutSessionId: candidate.stripeCheckoutSessionId,
           tenantId: candidate.tenantId,
           transactionId: candidate.transactionId,
         }),
@@ -1366,7 +1226,7 @@ export const processDueAddonPurchaseCheckouts = Effect.fn(
         error,
         noLaterThanExpiry: false,
         now,
-      }).pipe(Effect.ignore);
+      });
       yield* Effect.logError(
         'Failed to reconcile participant add-on Checkout',
       ).pipe(

@@ -74,17 +74,19 @@ This will:
 1. Generate or refresh `.env.dev` through the package script's `bun run env:runtime` prelude, so Docker, database, and Playwright commands keep isolated ports/project naming
 2. Ensure schema exists and reset/seed the local database (`bun run db:reset`)
 
-`bun run db:reset` now uses the same generated `.env.dev` plus `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract.
+`bun run db:reset` now uses the same generated `.env.dev` plus `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract. The local Drizzle config refuses to connect unless `LOCAL_DATABASE=true`, the PostgreSQL URL has explicit credentials and a database name, and its host is loopback or the Compose `db` service. An exported remote `DATABASE_URL` therefore fails before schema inspection or mutation.
 
 Docker Compose runs a pinned PostgreSQL 17 container plus one-shot `db-setup`
 before `evorto` and the polling worker start. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run
 `docker compose down --timeout 60 --remove-orphans` first, then run the
 equivalent of `bun run db:reset` against the Docker database during stack
-startup. That path drops and recreates `public`, applies Drizzle, and seeds the
-local dataset without an interactive confirmation. PostgreSQL data, Mailpit
-messages, and the Stripe signing secret use project-scoped named volumes;
-MinIO data is container-local for the disposable test stack.
+startup. The one-shot setup ensures the fixed disposable integration database
+exists directly through PostgreSQL, then drops and recreates the application's
+`public` schema, applies Drizzle, and seeds the local dataset without an
+interactive confirmation. PostgreSQL data, Mailpit messages, and the Stripe
+signing secret use project-scoped named volumes; MinIO data is container-local
+for the disposable test stack. PostgreSQL startup has no host-file mount.
 
 The generated `E2E_USE_DOCKER_STACK=true` environment makes Playwright use
 `bun run docker:webserver`. That wrapper refuses to take ownership when an
@@ -145,12 +147,12 @@ Browser or Playwright runs only work when that exact callback URL is registered
 in Auth0. If the generated port is not registered, free port 4200 and start the
 stack with `APP_HOST_PORT=4200 bun run docker:start`.
 
-Local global-admin e2e coverage can use `E2E_GLOBAL_ADMIN_AUTH0_IDS` as a
-no-secret fallback when the Auth0 tenant user has app metadata but the
-post-login session does not include the namespaced global-admin claim. Keep this
-limited to known local or CI e2e Auth0 ids. The fallback is ignored when
-`NODE_ENV=production`; production global-admin access remains driven by Auth0
-app metadata claims, not tenant roles.
+Local global-admin e2e coverage can configure `E2E_GLOBAL_ADMIN_AUTH0_IDS` when
+the Auth0 tenant user has app metadata but the post-login session does not
+include the namespaced global-admin claim. Validated local test configuration
+injects those ids explicitly into request-context resolution. Hosted startup
+rejects the variable; platform authority otherwise comes only from Auth0 app
+metadata claims, not tenant roles.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
@@ -196,6 +198,9 @@ after the Docker `db-setup` reset: default user and organizer roles, all
 template seed families, paid and free event options, paid tax-rate wiring,
 scenario handles for open/closed/draft/past registration states, confirmed
 registrations, and at least one checked-in aggregate for scanner review.
+The setup reset and every seeded tenant commit in one database transaction.
+Tenant domain, name, and currency are explicit seed inputs, and missing
+administrator, organizer, or regular-user roles fail the seed.
 
 The Docker Stripe CLI listener writes its generated webhook signing secret into
 a shared Docker volume. The app container reads that file through

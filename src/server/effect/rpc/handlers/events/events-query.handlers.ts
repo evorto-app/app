@@ -1,3 +1,5 @@
+import type { EventsEventListUserSignUpState } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import { RpcForbiddenError } from '@shared/errors/rpc-errors';
 import {
   includesPermission,
@@ -34,7 +36,9 @@ import {
   eventRegistrationQuestions,
   eventRegistrations,
   tenantStripeTaxRates,
+  transactions,
 } from '../../../../../db/schema';
+import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { loadEventGraphDetail } from './event-graph.loader';
 import {
@@ -71,6 +75,87 @@ export const organizeOverviewAccessAllowed = (input: {
   confirmedOrganizerRegistration: boolean;
   permissions: readonly Permission[];
 }): boolean => eventOrganizeCapabilities(input).canViewOverview;
+
+export const eventDiscoveryWindow = (from: Date) =>
+  gt(eventInstances.end, from);
+
+export const eventListOrder = () => [
+  asc(eventInstances.start),
+  asc(eventInstances.id),
+];
+
+export const eventListUserSignUpState = ({
+  hasPendingRegistrationTransaction,
+  registrationId,
+  registrationMode,
+  registrationStatus,
+}: {
+  hasPendingRegistrationTransaction: boolean;
+  registrationId: string;
+  registrationMode: 'application' | 'fcfs';
+  registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+}): EventsEventListUserSignUpState => {
+  switch (registrationStatus) {
+    case 'CONFIRMED': {
+      return 'confirmed';
+    }
+    case 'WAITLIST': {
+      return 'waitlisted';
+    }
+    case 'PENDING': {
+      if (hasPendingRegistrationTransaction) {
+        return 'paymentRequired';
+      }
+      if (registrationMode === 'application') {
+        return 'approvalPending';
+      }
+      throw new Error(
+        `Active registration ${registrationId} is pending in first-come-first-served mode without a pending registration payment`,
+      );
+    }
+    case 'CANCELLED': {
+      throw new Error(
+        `Cancelled registration ${registrationId} reached the active event-list state mapper`,
+      );
+    }
+  }
+};
+
+export const eventRegistrationOptionRoleEligibilityFilter = ({
+  allowUnrestricted,
+  roleIds,
+}: {
+  allowUnrestricted: boolean;
+  roleIds: readonly string[];
+}) =>
+  or(
+    ...(allowUnrestricted
+      ? [sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`]
+      : []),
+    ...(roleIds.length > 0
+      ? [arrayOverlaps(eventRegistrationOptions.roleIds, [...roleIds])]
+      : []),
+  ) ?? sql<boolean>`false`;
+
+export const eventReviewMetadata = <Reviewer>({
+  canEdit,
+  canReview,
+  canSeeDrafts,
+  reviewer,
+  statusComment,
+}: {
+  canEdit: boolean;
+  canReview: boolean;
+  canSeeDrafts: boolean;
+  reviewer: null | Reviewer;
+  statusComment: null | string;
+}): {
+  reviewer: null | Reviewer;
+  statusComment: null | string;
+} =>
+  canEdit || canReview || canSeeDrafts
+    ? { reviewer, statusComment }
+    : { reviewer: null, statusComment: null };
 
 const canOrganizeEvent = Effect.fn('Events.canOrganizeEvent')(function* ({
   eventId,
@@ -128,7 +213,7 @@ export const organizerRegistrationApprovalState = ({
   registrationStatus,
   transactions,
 }: {
-  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationMode: 'application' | 'fcfs';
   registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
   transactions: readonly {
     status: string;
@@ -155,6 +240,22 @@ export const organizerRegistrationApprovalState = ({
 
 const canInspectTenantEvents = (permissions: readonly Permission[]): boolean =>
   includesPermission('globalAdmin:manageTenants', permissions);
+
+export const eventRegistrationOptionsBypassEligibility = ({
+  canEdit,
+  canInspectAllTenantEvents,
+  canReview,
+  canSeeDrafts,
+  status,
+}: {
+  canEdit: boolean;
+  canInspectAllTenantEvents: boolean;
+  canReview: boolean;
+  canSeeDrafts: boolean;
+  status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
+}): boolean =>
+  canInspectAllTenantEvents ||
+  (status !== 'APPROVED' && (canEdit || canReview || canSeeDrafts));
 
 export const groupEventsByTenantDay = <EventRecord extends { start: string }>(
   events: readonly EventRecord[],
@@ -208,17 +309,6 @@ export const eventQueryHandlers = {
       const userPermissions = user?.permissions ?? [];
       const canInspectAllTenantEvents = canInspectTenantEvents(userPermissions);
 
-      if (user?.id !== input.userId) {
-        yield* Effect.logWarning(
-          'Supplied query parameter userId does not match authenticated user',
-        ).pipe(
-          Effect.annotateLogs({
-            actualUserId: user?.id ?? null,
-            suppliedUserId: input.userId,
-          }),
-        );
-      }
-
       const isOnlyApprovedStatus =
         input.status.length === 1 && input.status[0] === 'APPROVED';
       if (
@@ -228,21 +318,8 @@ export const eventQueryHandlers = {
       ) {
         return yield* Effect.fail(
           new RpcForbiddenError({
-            message: 'Forbidden',
+            message: 'You do not have permission to view unpublished events.',
             permission: 'events:seeDrafts',
-          }),
-        );
-      }
-
-      if (
-        input.includeUnlisted &&
-        !canInspectAllTenantEvents &&
-        !includesPermission('events:seeUnlisted', userPermissions)
-      ) {
-        return yield* Effect.fail(
-          new RpcForbiddenError({
-            message: 'Forbidden',
-            permission: 'events:seeUnlisted',
           }),
         );
       }
@@ -263,82 +340,148 @@ export const eventQueryHandlers = {
                 Effect.map((roleRecords) => roleRecords.map((role) => role.id)),
               ),
           )));
-      const roleFilters =
-        rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
+      const optionRoleEligibility =
+        eventRegistrationOptionRoleEligibilityFilter({
+          allowUnrestricted: user !== null || rolesToFilterBy.length > 0,
+          roleIds: rolesToFilterBy,
+        });
+      const announcementRoleEligibility =
+        user !== null && rolesToFilterBy.length > 0
+          ? arrayOverlaps(eventInstances.announcementRoleIds, [
+              ...rolesToFilterBy,
+            ])
+          : sql<boolean>`false`;
       const startAfter = new Date(input.startAfter);
 
       const selectedEvents = yield* databaseEffect((database) =>
         database
           .select({
-            creatorId: eventInstances.creatorId,
+            announcementRoleIds: eventInstances.announcementRoleIds,
+            hasRegistrationOptions: exists(
+              database
+                .select()
+                .from(eventRegistrationOptions)
+                .where(eq(eventRegistrationOptions.eventId, eventInstances.id)),
+            ),
             icon: eventInstances.icon,
             id: eventInstances.id,
             start: eventInstances.start,
             status: eventInstances.status,
             title: eventInstances.title,
-            unlisted: eventInstances.unlisted,
-            userRegistered: exists(
-              database
-                .select()
-                .from(eventRegistrations)
-                .where(
-                  and(
-                    eq(eventRegistrations.eventId, eventInstances.id),
-                    eq(eventRegistrations.userId, user?.id ?? ''),
-                    not(eq(eventRegistrations.status, 'CANCELLED')),
-                  ),
-                ),
-            ),
           })
           .from(eventInstances)
           .where(
             and(
-              gt(eventInstances.start, startAfter),
+              eventDiscoveryWindow(startAfter),
               eq(eventInstances.tenantId, tenant.id),
               inArray(eventInstances.status, [...input.status]),
-              ...(input.includeUnlisted
-                ? []
-                : [eq(eventInstances.unlisted, false)]),
               ...(canInspectAllTenantEvents
                 ? []
                 : [
-                    exists(
-                      database
-                        .select()
-                        .from(eventRegistrationOptions)
-                        .where(
-                          and(
-                            eq(
-                              eventRegistrationOptions.eventId,
-                              eventInstances.id,
-                            ),
-                            or(
-                              sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
-                              arrayOverlaps(
-                                eventRegistrationOptions.roleIds,
-                                roleFilters,
+                    or(
+                      not(eq(eventInstances.status, 'APPROVED')),
+                      exists(
+                        database
+                          .select()
+                          .from(eventRegistrationOptions)
+                          .where(
+                            and(
+                              eq(
+                                eventRegistrationOptions.eventId,
+                                eventInstances.id,
                               ),
+                              optionRoleEligibility,
                             ),
                           ),
+                      ),
+                      and(
+                        not(
+                          exists(
+                            database
+                              .select()
+                              .from(eventRegistrationOptions)
+                              .where(
+                                eq(
+                                  eventRegistrationOptions.eventId,
+                                  eventInstances.id,
+                                ),
+                              ),
+                          ),
                         ),
+                        announcementRoleEligibility,
+                      ),
                     ),
                   ]),
             ),
           )
           .limit(input.limit)
           .offset(input.offset)
-          .orderBy(eventInstances.start),
+          .orderBy(...eventListOrder()),
+      );
+
+      const activeUserRegistrations =
+        user === null || selectedEvents.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  eventId: eventRegistrations.eventId,
+                  hasPendingRegistrationTransaction: exists(
+                    database
+                      .select()
+                      .from(transactions)
+                      .where(
+                        and(
+                          eq(
+                            transactions.eventRegistrationId,
+                            eventRegistrations.id,
+                          ),
+                          eq(transactions.tenantId, tenant.id),
+                          eq(transactions.type, 'registration'),
+                          eq(transactions.status, 'pending'),
+                        ),
+                      ),
+                  ).mapWith(Boolean),
+                  registrationId: eventRegistrations.id,
+                  registrationMode: eventRegistrationOptions.registrationMode,
+                  registrationStatus: eventRegistrations.status,
+                })
+                .from(eventRegistrations)
+                .innerJoin(
+                  eventRegistrationOptions,
+                  eq(
+                    eventRegistrationOptions.id,
+                    eventRegistrations.registrationOptionId,
+                  ),
+                )
+                .where(
+                  and(
+                    eq(eventRegistrations.tenantId, tenant.id),
+                    eq(eventRegistrations.userId, user.id),
+                    inArray(
+                      eventRegistrations.eventId,
+                      selectedEvents.map((event) => event.id),
+                    ),
+                    not(eq(eventRegistrations.status, 'CANCELLED')),
+                  ),
+                ),
+            );
+      const userSignUpStateByEventId = new Map(
+        activeUserRegistrations.map((registration) => [
+          registration.eventId,
+          eventListUserSignUpState(registration),
+        ]),
       );
 
       const eventRecords = selectedEvents.map((event) => ({
+        announcementRoleCount: event.announcementRoleIds.length,
+        hasRegistrationOptions: Boolean(event.hasRegistrationOptions),
         icon: event.icon,
         id: event.id,
         start: event.start.toISOString(),
         status: event.status,
         title: event.title,
-        unlisted: event.unlisted,
-        userIsCreator: event.creatorId === (user?.id ?? 'not'),
-        userRegistered: Boolean(event.userRegistered),
+        userSignUpState: userSignUpStateByEventId.get(event.id) ?? null,
       }));
 
       return groupEventsByTenantDay(eventRecords, tenant.timezone);
@@ -370,13 +513,16 @@ export const eventQueryHandlers = {
         })
       ) {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message: 'You do not have permission to edit this event.',
+          }),
         );
       }
       if (event.status !== 'DRAFT') {
         return yield* Effect.fail(
           new EventConflictError({
-            message: 'Event cannot be edited in its current state',
+            message:
+              'This event cannot be edited in its current status. Return to the event and review it.',
           }),
         );
       }
@@ -397,6 +543,10 @@ export const eventQueryHandlers = {
       const { user } = yield* RpcAccess.current();
       const userPermissions = user?.permissions ?? [];
       const canInspectAllTenantEvents = canInspectTenantEvents(userPermissions);
+      const canChangeAnnouncementDiscovery = includesPermission(
+        'events:changeAnnouncementDiscovery',
+        userPermissions,
+      );
 
       const rolesToFilterBy = canInspectAllTenantEvents
         ? []
@@ -414,10 +564,13 @@ export const eventQueryHandlers = {
                 Effect.map((roleRecords) => roleRecords.map((role) => role.id)),
               ),
           )));
+      const allowUnrestrictedOptions =
+        user !== null || rolesToFilterBy.length > 0;
 
       const event = yield* databaseEffect((database) =>
         database.query.eventInstances.findFirst({
           columns: {
+            announcementRoleIds: true,
             creatorId: true,
             description: true,
             end: true,
@@ -428,13 +581,11 @@ export const eventQueryHandlers = {
             status: true,
             statusComment: true,
             title: true,
-            unlisted: true,
           },
           where: { id, tenantId: tenant.id },
           with: {
             registrationOptions: {
               columns: {
-                checkedInSpots: true,
                 closeRegistrationTime: true,
                 confirmedSpots: true,
                 description: true,
@@ -444,7 +595,6 @@ export const eventQueryHandlers = {
                 openRegistrationTime: true,
                 organizingRegistration: true,
                 price: true,
-                registeredDescription: true,
                 registrationMode: true,
                 reservedSpots: true,
                 roleIds: true,
@@ -452,15 +602,6 @@ export const eventQueryHandlers = {
                 stripeTaxRateId: true,
                 title: true,
               },
-              where: canInspectAllTenantEvents
-                ? undefined
-                : {
-                    RAW: (table) =>
-                      sql`cardinality(${table.roleIds}) = 0 or ${arrayOverlaps(
-                        table.roleIds,
-                        [...rolesToFilterBy],
-                      )}`,
-                  },
             },
             reviewer: {
               columns: {
@@ -489,6 +630,13 @@ export const eventQueryHandlers = {
             userId: user.id,
           })
         : false;
+      const reviewMetadata = eventReviewMetadata({
+        canEdit: canEditEvent_,
+        canReview: Boolean(canReviewEvents),
+        canSeeDrafts: Boolean(canSeeDrafts),
+        reviewer: event.reviewer,
+        statusComment: event.statusComment ?? null,
+      });
       if (
         event.status !== 'APPROVED' &&
         !canSeeDrafts &&
@@ -500,27 +648,32 @@ export const eventQueryHandlers = {
         );
       }
 
-      const hasAnyRegistrationOption =
-        event.registrationOptions.length > 0
-          ? true
-          : Boolean(
-              yield* databaseEffect((database) =>
-                database.query.eventRegistrationOptions.findFirst({
-                  columns: {
-                    id: true,
-                  },
-                  where: {
-                    eventId: event.id,
-                  },
-                }),
+      const bypassRegistrationOptionEligibility =
+        eventRegistrationOptionsBypassEligibility({
+          canEdit: canEditEvent_,
+          canInspectAllTenantEvents,
+          canReview: Boolean(canReviewEvents),
+          canSeeDrafts: Boolean(canSeeDrafts),
+          status: event.status,
+        });
+      const roleIdsToFilterBy = new Set(rolesToFilterBy);
+      const visibleRegistrationOptions = bypassRegistrationOptionEligibility
+        ? event.registrationOptions
+        : event.registrationOptions.filter(
+            (registrationOption) =>
+              (allowUnrestrictedOptions &&
+                registrationOption.roleIds.length === 0) ||
+              registrationOption.roleIds.some((roleId) =>
+                roleIdsToFilterBy.has(roleId),
               ),
-            );
+          );
+      const hasAnyRegistrationOption = event.registrationOptions.length > 0;
       const isRegistrationOptionsHiddenByEligibility =
         Boolean(user) &&
-        event.registrationOptions.length === 0 &&
+        visibleRegistrationOptions.length === 0 &&
         hasAnyRegistrationOption;
 
-      const registrationOptionIds = event.registrationOptions.map(
+      const registrationOptionIds = visibleRegistrationOptions.map(
         (registrationOption) => registrationOption.id,
       );
       const eventAddOnRows =
@@ -597,7 +750,7 @@ export const eventQueryHandlers = {
             );
       const registrationOptionTaxRateIds = [
         ...new Set(
-          event.registrationOptions
+          visibleRegistrationOptions
             .map((registrationOption) => registrationOption.stripeTaxRateId)
             .filter((id): id is string => typeof id === 'string'),
         ),
@@ -692,7 +845,6 @@ export const eventQueryHandlers = {
             optionalPurchaseQuantity: number;
             registrationOptionId: string;
           }[];
-          stripeTaxRateId: null | string;
           taxRateDisplayName: null | string;
           taxRatePercentage: null | string;
           title: string;
@@ -715,7 +867,6 @@ export const eventQueryHandlers = {
           maxQuantityPerUser: addOn.maxQuantityPerUser,
           price: addOn.price,
           registrationOptions: [],
-          stripeTaxRateId: addOn.stripeTaxRateId ?? null,
           taxRateDisplayName: taxRate?.displayName ?? null,
           taxRatePercentage: taxRate?.percentage ?? null,
           title: addOn.title,
@@ -755,13 +906,17 @@ export const eventQueryHandlers = {
 
       return {
         addOns: [...addOnsById.values()],
-        creatorId: event.creatorId,
+        announcementRoleCount: event.announcementRoleIds.length,
+        announcementRoleIds: canChangeAnnouncementDiscovery
+          ? [...event.announcementRoleIds]
+          : null,
         description: event.description,
         end: event.end.toISOString(),
+        hasRegistrationOptions: hasAnyRegistrationOption,
         icon: event.icon,
         id: event.id,
         location: event.location ?? null,
-        registrationOptions: event.registrationOptions.map(
+        registrationOptions: visibleRegistrationOptions.map(
           (registrationOption) => {
             const esnCardDiscountedPrice =
               esnCardDiscountedPriceByOptionId.get(registrationOption.id) ??
@@ -785,7 +940,6 @@ export const eventQueryHandlers = {
               appliedDiscountType: discountApplied
                 ? ('esnCard' as const)
                 : null,
-              checkedInSpots: registrationOption.checkedInSpots,
               closeRegistrationTime:
                 registrationOption.closeRegistrationTime.toISOString(),
               confirmedSpots: registrationOption.confirmedSpots,
@@ -811,13 +965,9 @@ export const eventQueryHandlers = {
                 sortOrder: question.sortOrder,
                 title: question.title,
               })),
-              registeredDescription:
-                registrationOption.registeredDescription ?? null,
               registrationMode: registrationOption.registrationMode,
               reservedSpots: registrationOption.reservedSpots,
-              roleIds: [...registrationOption.roleIds],
               spots: registrationOption.spots,
-              stripeTaxRateId: registrationOption.stripeTaxRateId ?? null,
               taxRateDisplayName: taxRate?.displayName ?? null,
               taxRatePercentage: taxRate?.percentage ?? null,
               title: registrationOption.title,
@@ -826,144 +976,12 @@ export const eventQueryHandlers = {
         ),
         registrationOptionsHiddenByEligibility:
           isRegistrationOptionsHiddenByEligibility,
-        reviewer: event.reviewer,
+        reviewer: reviewMetadata.reviewer,
         start: event.start.toISOString(),
         status: event.status,
-        statusComment: event.statusComment ?? null,
+        statusComment: reviewMetadata.statusComment,
         title: event.title,
-        unlisted: event.unlisted,
-      };
-    }),
-  'events.findOneForEdit': ({ id }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
-      const { tenant } = yield* RpcAccess.current();
-      const user = yield* RpcAccess.requireUser();
-
-      const event = yield* databaseEffect((database) =>
-        database.query.eventInstances.findFirst({
-          columns: {
-            creatorId: true,
-            description: true,
-            end: true,
-            icon: true,
-            id: true,
-            location: true,
-            start: true,
-            status: true,
-            title: true,
-          },
-          where: { id, tenantId: tenant.id },
-          with: {
-            registrationOptions: {
-              columns: {
-                cancellationDeadlineHoursBeforeStart: true,
-                closeRegistrationTime: true,
-                description: true,
-                id: true,
-                isPaid: true,
-                openRegistrationTime: true,
-                organizingRegistration: true,
-                price: true,
-                refundFeesOnCancellation: true,
-                registeredDescription: true,
-                registrationMode: true,
-                roleIds: true,
-                spots: true,
-                stripeTaxRateId: true,
-                title: true,
-                transferDeadlineHoursBeforeStart: true,
-              },
-            },
-          },
-        }),
-      );
-
-      if (!event) {
-        return yield* Effect.fail(
-          new EventNotFoundError({ id, message: 'Event not found' }),
-        );
-      }
-
-      const canEdit =
-        event.creatorId === user.id ||
-        includesPermission('events:editAll', user.permissions);
-      if (!canEdit) {
-        return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
-        );
-      }
-
-      if (event.status !== 'DRAFT') {
-        return yield* Effect.fail(
-          new EventConflictError({
-            message: 'Event cannot be edited in its current state',
-          }),
-        );
-      }
-
-      const registrationOptionIds = event.registrationOptions.map(
-        (option) => option.id,
-      );
-      const optionDiscounts =
-        registrationOptionIds.length === 0
-          ? []
-          : yield* databaseEffect((database) =>
-              database
-                .select({
-                  discountedPrice:
-                    eventRegistrationOptionDiscounts.discountedPrice,
-                  discountType: eventRegistrationOptionDiscounts.discountType,
-                  registrationOptionId:
-                    eventRegistrationOptionDiscounts.registrationOptionId,
-                })
-                .from(eventRegistrationOptionDiscounts)
-                .where(
-                  and(
-                    eq(
-                      eventRegistrationOptionDiscounts.discountType,
-                      'esnCard',
-                    ),
-                    inArray(
-                      eventRegistrationOptionDiscounts.registrationOptionId,
-                      [...registrationOptionIds],
-                    ),
-                  ),
-                ),
-            );
-      const esnCardDiscountedPriceByOptionId =
-        getEsnCardDiscountedPriceByOptionId(optionDiscounts);
-
-      return {
-        description: event.description,
-        end: event.end.toISOString(),
-        icon: event.icon,
-        id: event.id,
-        location: event.location ?? null,
-        registrationOptions: event.registrationOptions.map((option) => ({
-          cancellationDeadlineHoursBeforeStart:
-            option.cancellationDeadlineHoursBeforeStart,
-          closeRegistrationTime: option.closeRegistrationTime.toISOString(),
-          description: option.description ?? null,
-          esnCardDiscountedPrice:
-            esnCardDiscountedPriceByOptionId.get(option.id) ?? undefined,
-          id: option.id,
-          isPaid: option.isPaid,
-          openRegistrationTime: option.openRegistrationTime.toISOString(),
-          organizingRegistration: option.organizingRegistration,
-          price: option.price,
-          refundFeesOnCancellation: option.refundFeesOnCancellation,
-          registeredDescription: option.registeredDescription ?? null,
-          registrationMode: option.registrationMode,
-          roleIds: [...option.roleIds],
-          spots: option.spots,
-          stripeTaxRateId: option.stripeTaxRateId ?? null,
-          title: option.title,
-          transferDeadlineHoursBeforeStart:
-            option.transferDeadlineHoursBeforeStart,
-        })),
-        start: event.start.toISOString(),
-        title: event.title,
+        userIsCreator: user?.id === event.creatorId,
       };
     }),
   'events.getOrganizeOverview': ({ eventId }, _options) =>
@@ -1040,14 +1058,12 @@ export const eventQueryHandlers = {
               columns: {
                 id: true,
                 organizingRegistration: true,
-                price: true,
                 registrationMode: true,
                 title: true,
               },
             },
             transactions: {
               columns: {
-                amount: true,
                 status: true,
                 stripeCheckoutSessionId: true,
                 type: true,
@@ -1139,28 +1155,15 @@ export const eventQueryHandlers = {
                 registrationStatus: registration.status,
                 transactions: registration.transactions,
               });
-              const discountedPriceFromTransaction =
-                registration.transactions.find(
-                  (transaction) =>
-                    transaction.amount < registrationOption.price,
-                )?.amount;
-              const appliedDiscountedPrice =
-                registration.appliedDiscountedPrice ??
-                discountedPriceFromTransaction ??
-                null;
-              const appliedDiscountType =
-                registration.appliedDiscountType ??
-                (appliedDiscountedPrice === null ? null : ('esnCard' as const));
-              const basePriceAtRegistration =
-                registration.basePriceAtRegistration ??
-                (appliedDiscountedPrice === null
-                  ? null
-                  : registrationOption.price);
-              const discountAmount =
-                registration.discountAmount ??
-                (appliedDiscountedPrice === null
-                  ? null
-                  : registrationOption.price - appliedDiscountedPrice);
+              const priceSnapshot = readRegistrationPriceSnapshot({
+                appliedDiscountedPrice: registration.appliedDiscountedPrice,
+                appliedDiscountType: registration.appliedDiscountType,
+                basePriceAtRegistration: registration.basePriceAtRegistration,
+                discountAmount: registration.discountAmount,
+                paymentPending: approvalState.paymentPending,
+                registrationId: registration.id,
+                status: registration.status,
+              });
 
               return {
                 addonPurchases: registration.addonPurchases.flatMap(
@@ -1175,12 +1178,9 @@ export const eventQueryHandlers = {
                         ]
                       : [],
                 ),
-                appliedDiscountedPrice,
-                appliedDiscountType,
-                basePriceAtRegistration,
+                ...priceSnapshot,
                 checkedIn: registration.checkInTime !== null,
                 checkInTime: registration.checkInTime?.toISOString() ?? null,
-                discountAmount,
                 email: registration.user.email,
                 firstName: registration.user.firstName,
                 lastName: registration.user.lastName,

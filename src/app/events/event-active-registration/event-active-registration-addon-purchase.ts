@@ -50,28 +50,28 @@ export const registrationAddonPurchaseBlockedCopy = (
       return 'This event is not available for add-on purchases.';
     }
     case 'multipleNotAllowed': {
-      return 'This add-on can be purchased only once per registration.';
+      return 'This add-on can be purchased only once per ticket.';
     }
     case 'none': {
       return null;
     }
     case 'optionLimitReached': {
-      return "You have reached this registration option's add-on limit.";
+      return "You have reached this sign-up choice's add-on limit.";
     }
     case 'outOfStock': {
       return 'This add-on is sold out.';
     }
     case 'paymentPending': {
-      return 'Another add-on payment is already in progress for this registration.';
+      return 'Another add-on payment is already in progress for this ticket.';
     }
     case 'paymentUnavailable': {
       return 'Online payment is not available for this add-on. Contact an organizer.';
     }
     case 'registrationStatus': {
-      return 'Add-ons can be purchased only for a confirmed registration.';
+      return 'Add-ons can be purchased only for a confirmed ticket.';
     }
     case 'taxUnavailable': {
-      return "Payment is blocked because this add-on's tax setup is incomplete. Contact an organizer.";
+      return 'Payment is not available for this add-on. Contact an organizer.';
     }
     case 'userLimitReached': {
       return 'You have reached the per-person limit for this add-on.';

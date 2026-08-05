@@ -1,0 +1,45 @@
+<section class="bg-surface text-on-surface rounded-2xl p-6">
+  <div class="space-y-4">
+    <h1 class="title-large" id="profile-detail-heading" tabindex="-1">
+      Your receipts
+    </h1>
+    @if (myReceiptsQuery.isPending()) {
+      <div class="bg-surface-container rounded-xl p-4" role="status">
+        Loading receipts…
+      </div>
+    } @else if (myReceiptsQuery.isError()) {
+      <div
+        class="bg-error-container text-on-error-container rounded-xl p-4"
+        role="alert"
+      >
+        We couldn't load your receipts. Try again.
+      </div>
+    } @else if (myReceiptsQuery.isSuccess()) {
+      @if (myReceiptsQuery.data().length === 0) {
+        <div class="bg-surface-container rounded-xl p-4">
+          You have not submitted receipts yet.
+        </div>
+      } @else {
+        <div class="grid gap-3">
+          @for (receipt of myReceiptsQuery.data(); track receipt.id) {
+            <article class="bg-surface-container rounded-xl p-4">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="font-medium">{{ receipt.attachmentFileName }}</h2>
+                <span class="rounded bg-surface px-2 py-1 text-xs uppercase">
+                  {{ receiptStatusLabel(receipt.status) }}
+                </span>
+              </div>
+              <p class="text-on-surface-variant text-sm">
+                {{ receipt.eventTitle }} ·
+                {{ receipt.receiptDate | date: "mediumDate" }}
+              </p>
+              <p class="text-sm">
+                {{ receipt.totalAmount | receiptAmount: receipt.currency }}
+              </p>
+            </article>
+          }
+        </div>
+      }
+    }
+  </div>
+</section>

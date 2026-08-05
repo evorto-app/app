@@ -13,17 +13,24 @@ import {
   claimedAddonPurchaseCheckoutPredicate,
   dueBoundAddonPurchaseCheckoutPredicate,
   dueBoundRegistrationCheckoutPredicate,
-  expiredBoundRegistrationClaimPredicate,
   expiredUnboundRegistrationClaimPredicate,
   nextAddonPurchaseCheckoutReconcileAt,
   nextRegistrationCheckoutReconcileAt,
   normalizeExpiredCheckoutCleanupBatchSize,
-  reconcileExpiredBoundRegistrationCheckout,
   reconcileExpiredRegistrationTransferCheckout,
 } from './expired-checkout-cleanup';
 import { expiredRegistrationTransferCheckoutCandidatePredicate } from './registration-transfer-finalization';
 
 describe('expired checkout cleanup', () => {
+  it('does not hide retry-schedule persistence failures', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('expired-checkout-cleanup.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(source).not.toContain('Effect.ignore');
+  });
+
   it('keeps every sweep within the configured batch bound', () => {
     expect(normalizeExpiredCheckoutCleanupBatchSize()).toBe(25);
     expect(normalizeExpiredCheckoutCleanupBatchSize(0)).toBe(1);
@@ -65,15 +72,7 @@ describe('expired checkout cleanup', () => {
     ]);
   });
 
-  it('selects bound claims separately and reconciles only open or expired sessions', () => {
-    const dialect = new PgDialect();
-    const query = dialect.sqlToQuery(
-      expiredBoundRegistrationClaimPredicate(1_750_000_000),
-    );
-
-    expect(query.sql).toContain(
-      '"transactions"."stripeCheckoutSessionId" is not null',
-    );
+  it('reconciles transfer sessions only when Stripe reports them open or expired', () => {
     expect(boundExpiredCheckoutReconciliationAction('open')).toBe('expire');
     expect(boundExpiredCheckoutReconciliationAction('expired')).toBe('cancel');
     expect(boundExpiredCheckoutReconciliationAction('complete')).toBe('skip');
@@ -252,41 +251,6 @@ describe('expired checkout cleanup', () => {
       1_750_000_000,
     ]);
   });
-
-  it.effect(
-    'retrieves through the persisted account and preserves a completed Checkout',
-    () =>
-      Effect.gen(function* () {
-        const stripe = new Stripe('sk_test_123');
-        const retrieve = vi
-          .spyOn(stripe.checkout.sessions, 'retrieve')
-          .mockResolvedValue({
-            id: 'cs_bound_1',
-            status: 'complete',
-          } as Stripe.Checkout.Session);
-        const expire = vi.spyOn(stripe.checkout.sessions, 'expire');
-
-        const outcome = yield* reconcileExpiredBoundRegistrationCheckout(
-          {
-            registrationId: 'registration-1',
-            stripeAccountId: 'acct_persisted',
-            stripeCheckoutSessionId: 'cs_bound_1',
-            tenantId: 'tenant-1',
-            transactionId: 'transaction-1',
-          },
-          1_750_000_000,
-        ).pipe(
-          Effect.provideService(Database, {} as DatabaseClient),
-          Effect.provideService(StripeClient, stripe),
-        );
-
-        expect(outcome).toBe('skipped');
-        expect(retrieve).toHaveBeenCalledWith('cs_bound_1', undefined, {
-          stripeAccount: 'acct_persisted',
-        });
-        expect(expire).not.toHaveBeenCalled();
-      }),
-  );
 
   it.effect(
     'retrieves an expired transfer Checkout through its persisted account and preserves completion',

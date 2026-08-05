@@ -64,7 +64,9 @@ describe('paid event configuration', () => {
 
       expect(error).toMatchObject({
         _tag: 'RpcBadRequestError',
-        reason: 'stripeRequiredForPaidEventConfiguration',
+        message:
+          'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
+        reason: 'paymentSetupRequired',
       });
       expect(select).toHaveBeenCalledTimes(1);
     }),
@@ -95,7 +97,9 @@ describe('paid event configuration', () => {
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'stripeRequiredForPaidEventConfiguration',
+          message:
+            'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
+          reason: 'paymentSetupRequired',
         });
         expect(select).toHaveBeenCalledTimes(3);
       }),
@@ -162,18 +166,20 @@ describe('paid event configuration', () => {
       }),
   );
 
-  it.effect('allows Stripe removal after every stored price is free', () =>
-    Effect.gen(function* () {
-      const select = vi.fn(() => selectResult([]));
+  it.effect(
+    'reports no paid configuration when every stored price is free',
+    () =>
+      Effect.gen(function* () {
+        const select = vi.fn(() => selectResult([]));
 
-      const hasPaidConfiguration = yield* tenantHasPaidEventConfiguration(
-        { select } as never,
-        'tenant-1',
-      );
+        const hasPaidConfiguration = yield* tenantHasPaidEventConfiguration(
+          { select } as never,
+          'tenant-1',
+        );
 
-      expect(hasPaidConfiguration).toBe(false);
-      expect(select).toHaveBeenCalledTimes(4);
-    }),
+        expect(hasPaidConfiguration).toBe(false);
+        expect(select).toHaveBeenCalledTimes(4);
+      }),
   );
 
   it.effect(
@@ -221,7 +227,7 @@ describe('paid event configuration', () => {
   );
 
   it.effect(
-    'allows account changes after every tax-rate binding is clear',
+    'reports no tax-rate configuration when every assignment is clear',
     () =>
       Effect.gen(function* () {
         const select = vi.fn(() => selectResult([]));

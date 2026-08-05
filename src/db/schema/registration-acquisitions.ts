@@ -1,3 +1,7 @@
+import {
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -122,6 +126,10 @@ export const registrationAcquisitions = pgTable(
     )
       .on(table.previousAcquisitionId)
       .where(sql`${table.previousAcquisitionId} IS NOT NULL`),
+    spotCountBounded: check(
+      'registration_acquisition_spot_count_bounded',
+      sql`${table.spotCount} <= ${MAX_REGISTRATION_GUESTS + 1}`,
+    ),
     spotCountPositive: check(
       'registration_acquisition_spot_count_positive',
       sql`${table.spotCount} > 0`,
@@ -311,6 +319,10 @@ export const registrationAcquisitionComponents = pgTable(
       ],
       name: 'registration_acquisition_component_purchase_fk',
     }),
+    quantityBounded: check(
+      'registration_acquisition_component_quantity_bounded',
+      sql`(${table.kind} = 'registration' AND ${table.quantity} <= ${MAX_REGISTRATION_GUESTS + 1}) OR (${table.kind} = 'addon_lot' AND ${table.quantity} <= ${MAX_REGISTRATION_ADDON_QUANTITY})`,
+    ),
     registrationComponentUnique: uniqueIndex(
       'registration_acquisition_component_registration_unique',
     )

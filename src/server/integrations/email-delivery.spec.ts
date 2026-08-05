@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
-import { ConfigProvider, Effect } from 'effect';
+import { ConfigProvider, Effect, Fiber } from 'effect';
+import { TestClock } from 'effect/testing';
 
 import {
+  EMAIL_DELIVERY_REQUEST_TIMEOUT_MS,
   EmailDelivery,
-  EmailDeliveryRetryableError,
+  EmailDeliveryRejectedError,
   EmailDeliveryUnknownError,
 } from './email-delivery';
 
 const request = {
   html: '<p>Hello</p>',
-  idempotencyKey: 'registration-confirmed/tenant-1/registration-1',
   replyTo: {
     email: 'board@example.org',
     name: 'Example Section',
@@ -72,18 +73,12 @@ describe('EmailDelivery', () => {
           to: [{ email: 'member@example.org' }],
         }),
       );
-      expect(body.additional_headers).toEqual(
-        expect.arrayContaining([
-          {
-            key: 'Reply-To',
-            value: 'Example Section <board@example.org>',
-          },
-          {
-            key: 'X-Evorto-Idempotency-Key',
-            value: request.idempotencyKey,
-          },
-        ]),
-      );
+      expect(body.additional_headers).toEqual([
+        {
+          key: 'Reply-To',
+          value: 'Example Section <board@example.org>',
+        },
+      ]);
     }),
   );
 
@@ -109,7 +104,7 @@ describe('EmailDelivery', () => {
   );
 
   it.effect(
-    'classifies explicit provider overload responses as retryable',
+    'marks provider overload responses as an ambiguous delivery outcome',
     () =>
       Effect.gen(function* () {
         vi.stubGlobal(
@@ -123,9 +118,29 @@ describe('EmailDelivery', () => {
           Effect.flip,
         );
 
-        expect(error).toBeInstanceOf(EmailDeliveryRetryableError);
-        expect(error.message).toBe('tem email request failed with HTTP 503');
+        expect(error).toBeInstanceOf(EmailDeliveryUnknownError);
+        expect(error.message).toBe(
+          'tem email request failed with HTTP 503; delivery outcome is unknown',
+        );
       }),
+  );
+
+  it.effect('marks an explicit provider rejection as terminal', () =>
+    Effect.gen(function* () {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('{}', { status: 400 })),
+      );
+
+      const error = yield* EmailDelivery.deliver(request).pipe(
+        Effect.provide(EmailDelivery.Default),
+        Effect.provide(temLayer()),
+        Effect.flip,
+      );
+
+      expect(error).toBeInstanceOf(EmailDeliveryRejectedError);
+      expect(error.message).toBe('tem email request failed with HTTP 400');
+    }),
   );
 
   it.effect('marks network failures as an ambiguous delivery outcome', () =>
@@ -166,6 +181,35 @@ describe('EmailDelivery', () => {
         expect(error).toBeInstanceOf(EmailDeliveryUnknownError);
         expect(error.message).toContain('returned no email record');
       }),
+  );
+
+  it.effect('bounds a slow provider request below the outbox claim lease', () =>
+    Effect.gen(function* () {
+      const fetchMock = vi.fn(
+        (_input: Request | string | URL, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              'abort',
+              () => reject(new Error('provider request aborted')),
+              { once: true },
+            );
+          }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const fiber = yield* EmailDelivery.deliver(request).pipe(
+        Effect.provide(EmailDelivery.Default),
+        Effect.provide(temLayer()),
+        Effect.forkChild,
+      );
+      yield* Effect.yieldNow;
+      yield* TestClock.adjust(EMAIL_DELIVERY_REQUEST_TIMEOUT_MS);
+      const error = yield* Fiber.join(fiber).pipe(Effect.flip);
+
+      expect(error).toBeInstanceOf(EmailDeliveryUnknownError);
+      expect(error.message).toContain('provider request exceeded');
+      expect(fetchMock).toHaveBeenCalledOnce();
+    }),
   );
 
   it.effect('uses the Mailpit HTTP API for local delivery', () =>

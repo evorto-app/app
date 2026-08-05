@@ -28,7 +28,6 @@
       "@server/*": ["src/server/*"],
       "@db/*": ["src/db/*"],
       "@shared/*": ["src/shared/*"],
-      "@types/*": ["src/types/*"],
       "@helpers/*": ["helpers/*"]
     }
   },

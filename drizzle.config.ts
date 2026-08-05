@@ -1,9 +1,8 @@
 import { defineConfig } from 'drizzle-kit';
 
-const databaseUrl = process.env['DATABASE_URL'];
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL must be configured for drizzle-kit');
-}
+import { resolveLocalDatabaseEnvironment } from './helpers/local-database-preflight';
+
+const { databaseUrl } = resolveLocalDatabaseEnvironment();
 
 export default defineConfig({
   dbCredentials: { url: databaseUrl },

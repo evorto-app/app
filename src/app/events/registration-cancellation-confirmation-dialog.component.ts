@@ -24,59 +24,77 @@ export const registrationCancellationConfirmationCopy = ({
   status,
 }: RegistrationCancellationConfirmationData): {
   readonly confirmLabel: string;
+  readonly dismissLabel: string;
   readonly impact: string;
   readonly title: string;
 } => {
   if (actor === 'organizer') {
-    const subject = participantName?.trim() || 'this participant';
+    const subject = participantName?.trim() || 'this attendee';
 
     if (status === 'PENDING' && !paymentPending) {
       return {
-        confirmLabel: 'Confirm cancellation',
-        impact: `This immediately withdraws ${subject}'s pending application. It does not release confirmed capacity or start a refund. This action cannot be undone.`,
-        title: `Cancel ${subject}'s registration?`,
+        confirmLabel: 'Withdraw application',
+        dismissLabel: 'Go back',
+        impact: `This immediately withdraws ${subject}'s pending application. It does not affect any confirmed places or start a refund. This action cannot be undone.`,
+        title: `Withdraw ${subject}'s application?`,
       };
     }
 
     if (status === 'PENDING') {
       return {
-        confirmLabel: 'Confirm cancellation',
-        impact: `This immediately cancels ${subject}'s pending registration and releases its reserved capacity. It does not complete a payment. This action cannot be undone.`,
-        title: `Cancel ${subject}'s registration?`,
+        confirmLabel: 'Cancel sign-up',
+        dismissLabel: 'Go back',
+        impact: `This immediately cancels ${subject}'s pending sign-up and releases the places held for it. The unfinished payment will not confirm their place. This action cannot be undone.`,
+        title: `Cancel ${subject}'s pending sign-up?`,
+      };
+    }
+
+    if (status === 'WAITLIST') {
+      return {
+        confirmLabel: 'Remove from waitlist',
+        dismissLabel: 'Keep on waitlist',
+        impact: `This immediately removes ${subject} from the waitlist and gives up their current position. It does not cancel a confirmed ticket or start a refund. This action cannot be undone.`,
+        title: `Remove ${subject} from the waitlist?`,
       };
     }
 
     return {
-      confirmLabel: 'Confirm cancellation',
-      impact: `This immediately cancels ${subject}'s registration and releases its reserved capacity. If a refund applies, Evorto starts it automatically; it may take time to appear. This action cannot be undone.`,
-      title: `Cancel ${subject}'s registration?`,
+      confirmLabel: 'Cancel ticket',
+      dismissLabel: 'Go back',
+      impact: `This immediately cancels ${subject}'s ticket and releases the places it reserved. If a refund applies, it will be requested and may take time to appear. This action cannot be undone.`,
+      title: `Cancel ${subject}'s ticket?`,
     };
   }
 
   if (status === 'WAITLIST') {
     return {
       confirmLabel: 'Leave waitlist',
+      dismissLabel: 'Stay on waitlist',
       impact:
-        'This immediately removes your registration and gives up your current waitlist position. This action cannot be undone.',
+        'This immediately removes you from the waitlist and gives up your current position. This action cannot be undone.',
       title: 'Leave the waitlist?',
     };
   }
 
   if (status === 'PENDING') {
     return {
-      confirmLabel: 'Confirm cancellation',
+      confirmLabel: paymentPending ? 'Cancel sign-up' : 'Withdraw application',
+      dismissLabel: 'Go back',
       impact: paymentPending
-        ? 'This immediately cancels your pending registration and releases its reserved capacity. It does not complete a payment. This action cannot be undone.'
-        : 'This immediately withdraws your pending application. It does not release confirmed capacity or start a refund. This action cannot be undone.',
-      title: 'Cancel your pending registration?',
+        ? 'This immediately cancels your pending sign-up and releases the places held for it. The unfinished payment will not confirm your place. This action cannot be undone.'
+        : 'This immediately withdraws your pending application. It does not affect any confirmed places or start a refund. This action cannot be undone.',
+      title: paymentPending
+        ? 'Cancel your pending sign-up?'
+        : 'Withdraw your application?',
     };
   }
 
   return {
-    confirmLabel: 'Confirm cancellation',
+    confirmLabel: 'Cancel ticket',
+    dismissLabel: 'Go back',
     impact:
-      'This immediately cancels your confirmed registration and releases its reserved capacity. If a refund applies, Evorto starts it automatically; it may take time to appear. Do not pay or register again to retry it. This action cannot be undone.',
-    title: 'Cancel your registration?',
+      'This immediately cancels your ticket and releases the places it reserved. If a refund applies, it will be requested and may take time to appear. You do not need to pay or sign up again. This action cannot be undone.',
+    title: 'Cancel your ticket?',
   };
 };
 
@@ -102,7 +120,7 @@ export const registrationCancellationConfirmationCopy = ({
         [mat-dialog-close]="false"
         cdkFocusInitial
       >
-        Keep registration
+        {{ copy.dismissLabel }}
       </button>
       <button mat-flat-button type="button" [mat-dialog-close]="true">
         {{ copy.confirmLabel }}

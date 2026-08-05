@@ -17,10 +17,7 @@ import {
   faArrowLeft,
   faCircleInfo,
 } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  requireWritableRegistrationMode,
-  writableRegistrationModes,
-} from '@shared/registration-modes';
+import { registrationModes } from '@shared/registration-modes';
 import { EventCreateIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -41,7 +38,6 @@ import {
   createEventGeneralFormModel,
   EventGeneralFormModel,
   eventGeneralFormSchemaWithPaymentAvailability,
-  resetEventGeneralFormPayments,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { createEventFormModelFromTemplate } from './template-create-event.mapper';
@@ -65,38 +61,44 @@ export class TemplateCreateEventOperations {
   findTemplate(id: string) {
     return this.rpc.templates.findOne.queryOptions({ id });
   }
+
+  taxRates() {
+    return this.rpc.taxRates.listActive.queryOptions();
+  }
 }
 
 export const templateCreateEventSubmitDisabled = ({
+  discountProvidersReady,
   formInvalid,
   formSubmitting,
-  legacyRandomBlocked,
   mutationPending,
+  paidGraphBlocked,
+  taxRatesReady,
 }: {
+  discountProvidersReady: boolean;
   formInvalid: boolean;
   formSubmitting: boolean;
-  legacyRandomBlocked: boolean;
   mutationPending: boolean;
+  paidGraphBlocked: boolean;
+  taxRatesReady: boolean;
 }): boolean =>
-  formInvalid || formSubmitting || legacyRandomBlocked || mutationPending;
-
-export const templateHasLegacyRandomRegistration = (
-  registrationOptions: readonly { registrationMode: string }[],
-): boolean =>
-  registrationOptions.some((option) => option.registrationMode === 'random');
-
-export const legacyRandomTemplateEventMessage =
-  'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.';
+  !discountProvidersReady ||
+  !taxRatesReady ||
+  formInvalid ||
+  formSubmitting ||
+  mutationPending ||
+  paidGraphBlocked;
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
-    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards for registration-time purchase.`
+    ? `This template includes ${addOnCount} add-on${addOnCount === 1 ? '' : 's'}. They will be available when people sign up for the new event.`
     : null;
 
 export const templateCreateEventErrorMessage = (error: unknown): string =>
   getErrorMessage(
     error,
-    'The event could not be created. Review the form and try again.',
+    'The event could not be created. Check the event details and try again.',
+    ['RpcBadRequestError'],
   );
 
 @Component({
@@ -123,6 +125,14 @@ export class TemplateCreateEventComponent {
         : 0,
     ),
   );
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.operations.taxRates(),
+  );
+  protected readonly availableTaxRates = computed(() =>
+    this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
+      ? this.taxRatesQuery.data()
+      : undefined,
+  );
   private readonly config = inject(ConfigService);
   private readonly tenantTimezone = resolveTenantRuntimeTimezone(
     this.config.tenantSignal()?.timezone,
@@ -130,8 +140,8 @@ export class TemplateCreateEventComponent {
   protected readonly createEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel({}, this.tenantTimezone),
   );
-  protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  protected readonly stripeConnected = computed(
+    () => this.config.tenantSignal()?.paymentsConfigured === true,
   );
   protected readonly createEventForm = form(
     this.createEventModel,
@@ -143,33 +153,58 @@ export class TemplateCreateEventComponent {
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.operations.discountProviders(),
   );
-  protected readonly esnEnabled = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return false;
-    const providers = this.discountProvidersQuery.data();
-    return (
-      providers.find((provider) => provider.type === 'esnCard')?.status ===
-      'enabled'
-    );
+  protected readonly discountProviderState = computed(() => {
+    if (this.discountProvidersQuery.isError()) return 'error' as const;
+    if (
+      !this.discountProvidersQuery.isSuccess() ||
+      this.discountProvidersQuery.isFetching()
+    ) {
+      return 'loading' as const;
+    }
+    return this.discountProvidersQuery
+      .data()
+      .some(
+        (provider) =>
+          provider.type === 'esnCard' && provider.status === 'enabled',
+      )
+      ? ('esnEnabled' as const)
+      : ('ready' as const);
   });
+  protected readonly discountProvidersReady = computed(
+    () =>
+      this.discountProviderState() === 'ready' ||
+      this.discountProviderState() === 'esnEnabled',
+  );
+  protected readonly esnEnabled = computed(
+    () => this.discountProviderState() === 'esnEnabled',
+  );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
   protected readonly iconUsage = EventCreateIconUsage.make({});
-  protected readonly legacyRandomBlocked = computed(
-    () =>
-      this.templateQuery.isSuccess() &&
-      templateHasLegacyRandomRegistration(
-        this.templateQuery.data().registrationOptions,
-      ),
-  );
-  protected readonly legacyRandomTemplateEventMessage =
-    legacyRandomTemplateEventMessage;
   protected readonly stripeConnectionKnown = computed(
     () => this.config.tenantSignal() !== null,
   );
   protected readonly paidControlsUnavailable = computed(
     () => this.stripeConnectionKnown() && !this.stripeConnected(),
   );
-  protected readonly registrationModes = writableRegistrationModes;
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.paidControlsUnavailable() &&
+      this.createEventModel().registrationOptions.some(
+        (option) => option.isPaid,
+      ),
+  );
+  protected readonly registrationModes = registrationModes;
+  protected readonly taxRatesReady = computed(
+    () => this.availableTaxRates() !== undefined,
+  );
+  protected readonly taxRateState = computed(() =>
+    this.taxRatesQuery.isError()
+      ? ('error' as const)
+      : this.availableTaxRates() === undefined
+        ? ('loading' as const)
+        : ('ready' as const),
+  );
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
   private readonly initializedTemplateId = signal<null | string>(null);
@@ -183,29 +218,18 @@ export class TemplateCreateEventComponent {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
       if (this.initializedTemplateId() === template.id) return;
-      if (templateHasLegacyRandomRegistration(template.registrationOptions)) {
-        this.initializedTemplateId.set(template.id);
-        return;
-      }
 
       const startDateTime = this.toDateTime(
         untracked(() => this.createEventForm.start().value()),
       );
       const model = createEventFormModelFromTemplate(template, startDateTime);
-      this.createEventModel.set(
-        this.paidControlsUnavailable()
-          ? resetEventGeneralFormPayments(model)
-          : model,
-      );
+      this.createEventModel.set(model);
       this.lastStart.set(startDateTime);
       this.initializedTemplateId.set(template.id);
     });
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
-      if (templateHasLegacyRandomRegistration(template.registrationOptions)) {
-        return;
-      }
       const eventStart = this.createEventForm.start().value();
       const registrationOptions = this.createEventModel().registrationOptions;
       if (!eventStart || registrationOptions.length === 0) return;
@@ -242,32 +266,26 @@ export class TemplateCreateEventComponent {
         );
       }
     });
-    effect(() => {
-      if (!this.paidControlsUnavailable()) return;
-      const model = this.createEventModel();
-      const resetModel = resetEventGeneralFormPayments(model);
-      if (resetModel === model) return;
-      untracked(() => this.createEventModel.set(resetModel));
-    });
   }
 
   async onSubmit(event: Event) {
     event.preventDefault();
     if (
       templateCreateEventSubmitDisabled({
+        discountProvidersReady: this.discountProvidersReady(),
         formInvalid: this.createEventForm().invalid(),
         formSubmitting: this.createEventForm().submitting(),
-        legacyRandomBlocked: this.legacyRandomBlocked(),
         mutationPending: this.createEventMutation.isPending(),
+        paidGraphBlocked: this.paidGraphBlocked(),
+        taxRatesReady: this.taxRatesReady(),
       })
     ) {
       return;
     }
 
     await submit(this.createEventForm, async (formState) => {
-      const formValue = this.paidControlsUnavailable()
-        ? resetEventGeneralFormPayments(formState().value())
-        : formState().value();
+      if (!this.discountProvidersReady() || !this.taxRatesReady()) return;
+      const formValue = formState().value();
       if (!formValue.icon) {
         return;
       }
@@ -293,9 +311,7 @@ export class TemplateCreateEventComponent {
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
-            registrationMode: requireWritableRegistrationMode(
-              option.registrationMode,
-            ),
+            registrationMode: option.registrationMode,
             roleIds: option.roleIds,
             sourceTemplateRegistrationOptionId: option.id || undefined,
             spots: option.spots,

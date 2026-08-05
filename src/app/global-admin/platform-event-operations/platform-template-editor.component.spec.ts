@@ -7,6 +7,7 @@ import { Component, input, output } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -24,6 +25,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { PLATFORM_EVENT_OPERATION_ROUTES } from './platform-event-operations.routes';
 import {
+  platformTemplateAddonTypeLimitIssue,
   PlatformTemplateEditorComponent,
   platformTemplateEditorDataReady,
   PlatformTemplateEditorOperations,
@@ -114,6 +116,76 @@ describe('platform template editor readiness', () => {
         templateResolved: false,
       }),
     ).toBe(true);
+  });
+
+  it('does not turn unavailable tax-rate data into an empty catalog', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-template-editor.component.ts',
+      ),
+      'utf8',
+    );
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-template-editor.component.html',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain(': undefined');
+    expect(source).toContain('taxRatesReady');
+    expect(source).toContain("message: 'Choose an icon.'");
+    expect(source).not.toContain('Enter an icon name.');
+    expect(source).toContain("message: 'Choose the icon again.'");
+    expect(source).not.toContain('icon color index');
+    expect(template.replaceAll(/\s+/g, ' ')).toContain(
+      'Tax rates could not be loaded. Paid prices cannot be saved until they are available.',
+    );
+    expect(template).not.toContain('Reload the page.');
+    expect(template).toContain('!taxRatesReady()');
+    expect(template).toContain('Loading template…');
+    expect(template).not.toContain('Loading template editor…');
+  });
+
+  it('accepts the add-on type cap, rejects cap plus one, and renders shared quantity limits', () => {
+    expect(
+      platformTemplateAddonTypeLimitIssue(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES }),
+      ),
+    ).toBeNull();
+    expect(
+      platformTemplateAddonTypeLimitIssue(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES + 1 }),
+      ),
+    ).toBe(`Templates support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`);
+
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-template-editor.component.ts',
+      ),
+      'utf8',
+    );
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-template-editor.component.html',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('apply(addOn, templateGraphAddonFormSchema)');
+    expect(template).toContain(
+      'At most {{ maxRegistrationAddonQuantity }} items per person.',
+    );
+    expect(template).toContain(
+      '{{ maxRegistrationAddonQuantity }} per sign-up.',
+    );
+    expect(template).toContain(
+      '[disabled]="templateForm.addOns.length >= maxEventAddonTypes"',
+    );
   });
 });
 
@@ -211,7 +283,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
             tenant: () => ({
               queryFn: async () => ({
                 currency: 'EUR',
-                stripeConnected: true,
+                paymentsConfigured: true,
               }),
               queryKey: ['platform-template', 'tenant'],
             }),
@@ -485,7 +557,6 @@ const completeTemplate = (): TemplateGraphRecord => ({
   ],
   simpleModeEnabled: false,
   title: 'Weekend trip',
-  unlisted: true,
 });
 
 describe('platform template editor graph mapping', () => {
@@ -597,7 +668,6 @@ describe('platform template editor graph mapping', () => {
       planningTips: payload.planningTips,
       simpleModeEnabled: payload.simpleModeEnabled,
       title: payload.title,
-      unlisted: payload.unlisted,
     }).toEqual({
       categoryId: 'category-1',
       description: '<p>Template description</p>',
@@ -605,22 +675,6 @@ describe('platform template editor graph mapping', () => {
       planningTips: 'Bring the banner',
       simpleModeEnabled: false,
       title: 'Weekend trip',
-      unlisted: true,
-    });
-  });
-
-  it('explains why a random-allocation template cannot be edited', () => {
-    const source = completeTemplate();
-    const legacyRandomTemplate: TemplateGraphRecord = {
-      ...source,
-      registrationOptions: source.registrationOptions.map((option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-      ),
-    };
-
-    expect(platformTemplateRecordToFormModel(legacyRandomTemplate)).toEqual({
-      error:
-        'Random allocation is unavailable. Create a new template using First come, first served or Manual approval instead.',
     });
   });
 
@@ -636,7 +690,7 @@ describe('platform template editor graph mapping', () => {
 
     expect(platformTemplateRecordToFormModel(corrupt)).toEqual({
       error:
-        'This template graph contains a registration-option reference that does not belong to the template.',
+        'This template has incomplete sign-up choices, so it cannot be edited. Nothing was saved. Select Back to template, then contact Evorto support and include the template name.',
     });
   });
 
@@ -665,7 +719,7 @@ describe('platform template editor graph mapping', () => {
         incompatiblePersisted,
         currentOptions,
       ),
-    ).toContain('Save the compatible advanced changes first');
+    ).toContain('Save these changes first');
     expect(
       platformTemplateModeTransitionIssue(
         'advanced',
@@ -678,7 +732,7 @@ describe('platform template editor graph mapping', () => {
         organizerOption,
         { ...participantOption, organizingRegistration: true },
       ]),
-    ).toContain('exactly one organizing and one non-organizing option');
+    ).toContain('exactly one organizer choice and one attendee choice');
   });
 
   it('reuses the shared graph validation and confirms mode changes', () => {
@@ -713,10 +767,17 @@ describe('platform template editor graph mapping', () => {
     expect(source).toContain(
       'disabled(addOn.isPaid, () => !this.stripeConnected())',
     );
-    expect(source).toContain('resetTemplateGraphPayments');
+    expect(source).not.toContain('resetTemplateGraphPayments');
+    expect(source).toContain('paidGraphBlocked');
     expect(template).toContain("requestMode('simple')");
     expect(template).toContain("requestMode('advanced')");
-    expect(template).toContain('status could not be loaded');
+    expect(template).toContain('"Attendee choice"');
+    expect(template).not.toContain('"Participant choice"');
+    expect(template).toContain(
+      'Paid sign-up choices are unavailable because paid sign-ups',
+    );
+    expect(template).toContain('details are preserved');
+    expect(template).toContain('cannot be saved until paid sign-ups are ready');
     expect(template.match(/<app-currency-amount-input/g)?.length).toBe(3);
     expect(template.match(/\[minimumMinorUnits\]="1"/g)?.length).toBe(2);
     expect(template).toContain('[currencyCode]="targetTenantCurrency()"');
@@ -731,7 +792,6 @@ describe('platform template editor graph mapping', () => {
     expect(template).not.toContain('{{ selectedCategoryId }}');
     expect(template).not.toContain('{{ missingRoleId }}');
     expect(template).not.toContain('{{ selectedTaxRateId }}');
-    expect(source).not.toContain('getErrorMessage');
     expect(template).not.toContain(
       '[formField]="templateForm.simpleModeEnabled"',
     );

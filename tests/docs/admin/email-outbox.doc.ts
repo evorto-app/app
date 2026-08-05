@@ -22,7 +22,7 @@ const outboxRow = (page: Page, item: EmailOutboxScenarioItem) =>
     .locator(':scope > div')
     .filter({ has: page.getByRole('heading', { name: item.subject }) });
 
-test('Review global email delivery health @admin @globalAdmin', async ({
+test('Review email delivery across organizations @admin @globalAdmin', async ({
   database,
   page,
   tenant,
@@ -34,36 +34,35 @@ test('Review global email delivery health @admin @globalAdmin', async ({
 
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="Platform authority" %}
-You must be signed in as a platform administrator. Organization roles, including an organization's ordinary Admin role, do not grant access to this cross-organization page.
+{% callout type="note" title="Who can use this page" %}
+Only people who manage Evorto as a whole can use this page. The Admin role for one organization does not open it.
 {% /callout %}
 
-# Review Global Email Delivery Health
 
-The **Email outbox** is an operational overview across every organization. Use it to understand whether Evorto has queued an email, is currently delivering it, will retry it, or has exhausted delivery attempts. The page does not expose message bodies or a manual retry control.
+**Email delivery** shows recent messages for every organization. It tells you whether each message is waiting, being sent, could not be sent, was sent, could not be confirmed, or was not sent because the address cannot receive organization emails. The page does not show message contents or offer a resend action.
 `,
     });
 
     await expect(
       page.getByRole('heading', {
         level: 1,
-        name: 'Platform administration',
+        name: 'Evorto administration',
       }),
     ).toBeVisible();
-    await page.getByRole('link', { name: 'Email outbox' }).click();
-    await expect(page).toHaveURL(/\/global-admin\/email-outbox$/);
+    await page.getByRole('link', { name: 'Email delivery' }).click();
+    await expect(page).toHaveURL(/\/global-admin\/email-delivery$/);
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Email outbox' }),
+      page.getByRole('heading', { level: 1, name: 'Email delivery' }),
     ).toBeVisible();
 
     await expect(
-      page.getByText('Queued', { exact: true }).first(),
+      page.getByText('Waiting to send', { exact: true }).first(),
     ).toBeVisible();
     await expect(
       page.getByText('Sending', { exact: true }).first(),
     ).toBeVisible();
     await expect(
-      page.getByText('Failed', { exact: true }).first(),
+      page.getByText('Could not send', { exact: true }).first(),
     ).toBeVisible();
     await expect(page.getByText('Sent', { exact: true }).first()).toBeVisible();
     await expect(
@@ -74,36 +73,21 @@ The **Email outbox** is an operational overview across every organization. Use i
         .locator('.headline-small'),
     ).toHaveText(/^[1-9]\d*$/);
 
-    const queuedRow = outboxRow(page, scenario.queued);
-    const retryRow = outboxRow(page, scenario.retry);
+    const unknownRow = outboxRow(page, scenario.unknown);
     const sendingRow = outboxRow(page, scenario.sending);
-    const exhaustedRow = outboxRow(page, scenario.exhausted);
-    await expect(queuedRow).toContainText('Queued');
-    await expect(queuedRow).toContainText('0/8');
-    await expect(queuedRow).toContainText('Not attempted');
-    await expect(retryRow).toContainText('Queued');
-    await expect(retryRow).toContainText('2/8');
-    await expect(retryRow).toContainText('Temporary provider timeout');
-    await expect(sendingRow).toContainText('Sending');
-    await expect(sendingRow).toContainText('1/8');
-    await expect(exhaustedRow).toContainText('Failed');
-    await expect(exhaustedRow).toContainText('8/8');
-    await expect(exhaustedRow).toContainText('Recipient address was rejected');
-    await expect(
-      exhaustedRow.getByText('Retries ended', { exact: true }),
-    ).toBeVisible();
-    await expect(exhaustedRow).toContainText(
-      'Automatic retries ended. Stored as read-only history.',
+    const failedRow = outboxRow(page, scenario.failed);
+    await expect(unknownRow).toContainText('Delivery not confirmed');
+    await expect(unknownRow).toContainText(
+      'Evorto could not confirm whether this email was delivered, so it will not send it again.',
     );
-    await expect(exhaustedRow.getByText('Next attempt')).toHaveCount(0);
+    await expect(sendingRow).toContainText('Sending');
+    await expect(sendingRow).toContainText(
+      'Evorto is sending this message. If delivery cannot be confirmed, it will not be sent again.',
+    );
+    await expect(failedRow).toContainText('Could not send');
+    await expect(failedRow).toContainText('This email could not be sent.');
     await expect(
-      page.getByRole('heading', { name: 'Email delivery status' }),
-    ).toBeVisible();
-    await expect(
-      page.getByText(
-        'Exhausted emails remain stored as read-only history. Automatic retries have ended; no recovery action is required.',
-        { exact: true },
-      ),
+      page.getByRole('heading', { name: 'Some emails need attention' }),
     ).toBeVisible();
     await expect(
       page.getByRole('heading', { name: scenario.sent.subject }),
@@ -113,46 +97,48 @@ The **Email outbox** is an operational overview across every organization. Use i
       testInfo,
       page.locator('app-email-outbox'),
       page,
-      'Global email outbox delivery states',
+      'Email totals for all organizations and messages needing attention',
     );
 
     await testInfo.attach('markdown', {
       body: `
 ## Read the overview before the delivery details
 
-The four totals at the top count **Queued**, **Sending**, **Failed**, and **Sent** emails globally. They are not limited to your current organization. The **Email delivery status** banner summarizes exhausted failures and emails that have stayed in **Sending** for too long.
+The six totals at the top count messages that are **Waiting to send**, **Sending**, **Could not send**, **Sent**, **Delivery not confirmed**, or **Not sent**. They cover every organization, not only the one you currently have open. The notice highlights messages that need attention.
 
-The **Delivery details** list is a fixed operational filter, not an interactive search:
+The **Delivery details** list shows up to 100 recent messages:
 
-- It shows the 100 most recently updated **queued**, **sending**, and **failed** rows.
-- It omits successfully **sent** rows even though the Sent total still includes them.
-- When there are no active rows, the list says **No queued, sending, or failed emails.**
+- Messages marked **Could not send** or **Delivery not confirmed** appear before messages still waiting or being sent. Each group shows the newest messages first.
+- Successfully **Sent** messages are included in the total but omitted from this list.
+- When there is nothing to review, the list says **No email delivery details to show.**
 
-Each active row identifies the organization name and primary address, recipient, email kind, attempt count, last attempt, and last delivery error when one exists. Rows still eligible for automatic delivery show **Next attempt**; exhausted rows instead show that automatic retries ended and remain stored as read-only history. Check the organization before contacting its team: this is a cross-organization surface.
+Each row identifies the organization, recipient, purpose, and relevant times. Check the organization before following up because this page covers all organizations.
 
-## Interpret delivery states
+## Understand delivery status
 
-- **Queued, 0/8, Not attempted** means the email is waiting for its first delivery attempt.
-- **Queued** with a prior attempt and a **Last error** means an automatic retry is scheduled for **Next attempt**. Wait until that time, then use **Refresh** to read the latest state.
-- **Sending** means a delivery attempt is in progress. Do not infer that the email is permanently stuck from a brief **Sending** state; refresh later to check the outcome.
-- **Failed**, attempts equal to the maximum, and a **Retries ended** timestamp means automatic retries have stopped. The row remains stored as read-only history and intentionally has no **Next attempt** or recovery action. Record the organization, recipient, and last error for incident investigation.
+- **Waiting to send** means Evorto has not tried the message yet and will try automatically.
+- **Sending** means Evorto is sending the message.
+- **Could not send** means sending failed and Evorto will not try again automatically.
+- **Sent** means Evorto sent the message.
+- **Delivery not confirmed** means Evorto could not confirm delivery and will not send the message again, avoiding a duplicate.
+- **Not sent** means the address cannot receive organization emails.
 
-There is currently no organization/status search control and no manual retry button on this page. **Refresh** only reloads the overview; it does not send or requeue an email.
+There is currently no search or resend action on this page. **Check again** shows the latest information but does not send anything.
 `,
     });
 
-    await page.getByRole('button', { name: 'Refresh' }).click();
-    await expect(outboxRow(page, scenario.retry)).toContainText(
-      'Temporary provider timeout',
+    await page.getByRole('button', { name: 'Check again' }).click();
+    await expect(outboxRow(page, scenario.unknown)).toContainText(
+      'Delivery not confirmed',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Access denial and safe follow-up
+## If you cannot open Email delivery
 
-A signed-in user without platform administrator authority is redirected to the forbidden page when opening **Email outbox** directly. Do not grant a broad organization role as a workaround; platform access is separate.
+A signed-in member who does not manage Evorto as a whole sees **Access not allowed** when opening **Email delivery** directly. Being an Admin for one organization does not open this page for all organizations.
 
-For an exhausted row, capture the organization, recipient, attempt count, and last error while investigating the delivery or data problem. Do not expect a recovery action on this page. For a queued retry or an active **Sending** row, refresh later so automatic delivery can finish before manual investigation.
+For **Could not send**, verify the address with the organization and contact the recipient another way; Evorto will not try again automatically. For **Delivery not confirmed**, do not immediately send a duplicate because the first message may have arrived. For either status, include the organization, recipient, purpose, and time when asking Evorto support for help. For **Sending**, wait briefly and select **Check again** once. If it still has not changed, contact Evorto support with the same details.
 `,
     });
   } finally {

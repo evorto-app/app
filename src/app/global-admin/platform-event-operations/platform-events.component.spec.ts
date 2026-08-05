@@ -25,12 +25,13 @@ class PlatformTenantPageHeaderStub {
 }
 
 const listedEvent: PlatformEventListRecord = {
+  announcementRoleCount: 0,
   end: '2030-01-02T02:00:00.000Z',
+  hasRegistrationOptions: true,
   id: 'event-1',
   start: '2030-01-02T00:00:00.000Z',
   status: 'APPROVED',
   title: 'Weekend trip',
-  unlisted: false,
 };
 
 describe('PlatformEventsComponent', () => {
@@ -88,8 +89,20 @@ describe('PlatformEventsComponent', () => {
         fixture.detectChanges();
         return fixture.nativeElement.textContent;
       })
-      .toContain(
-        '02 Jan 2030, 10:00 – 02 Jan 2030, 12:00 · Australia/Brisbane',
-      );
+      .toContain('02 Jan 2030, 10:00 – 02 Jan 2030, 12:00 · Brisbane time');
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Australia/Brisbane',
+    );
+  });
+
+  it('labels registration-option-derived discovery', async () => {
+    const fixture = render();
+
+    await expect
+      .poll(() => {
+        fixture.detectChanges();
+        return fixture.nativeElement.textContent;
+      })
+      .toContain('Who can find it: Sign-up event');
   });
 });

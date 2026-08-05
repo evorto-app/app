@@ -1,5 +1,9 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/global-admin/tenants" mat-icon-button>
+  <a
+    routerLink="/global-admin/tenants"
+    mat-icon-button
+    aria-label="Back to organizations"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">
@@ -8,10 +12,10 @@
       @if (tenant) {
         {{ tenant.name }}
       } @else {
-        Organization review
+        Organization details
       }
     } @else {
-      Organization review
+      Organization details
     }
   </h1>
   <div class="grow"></div>
@@ -21,12 +25,23 @@
   <div
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
-    <h2 class="title-medium">Loading organization...</h2>
+    <h2 class="title-medium">Loading organization…</h2>
   </div>
 } @else if (tenantQuery.isError()) {
-  <div class="bg-error text-on-error rounded-2xl p-4">
-    <h2 class="title-medium mb-4">There was an error</h2>
-    <p class="body-medium">Error: {{ errorMessage(tenantQuery.error()) }}</p>
+  <div
+    class="bg-error text-on-error grid justify-items-start gap-3 rounded-2xl p-4"
+    role="alert"
+  >
+    <h2 class="title-medium">Organization unavailable</h2>
+    <p class="body-medium">The organization could not be loaded. Try again.</p>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="tenantQuery.isFetching()"
+      (click)="tenantQuery.refetch()"
+    >
+      {{ tenantQuery.isFetching() ? "Trying again…" : "Try again" }}
+    </button>
   </div>
 } @else if (tenantQuery.isSuccess()) {
   @let tenant = tenantQuery.data();
@@ -36,7 +51,8 @@
         <div>
           <h2 class="title-medium">{{ tenant.name }}</h2>
           <p class="body-medium text-on-surface-variant">
-            Review this organization's settings and platform tools.
+            Review this organization's settings and manage its events, members,
+            roles, and finances.
           </p>
         </div>
         <div class="grow"></div>
@@ -72,13 +88,13 @@
       </dl>
 
       <nav
-        aria-label="Organization operations"
+        aria-label="Organization management"
         class="border-outline-variant mt-6 border-t pt-4"
       >
-        <h3 class="title-small">Organization operations</h3>
+        <h3 class="title-small">Organization management</h3>
         <p class="body-small text-on-surface-variant mt-1">
-          These tools act only within this organization. They do not add the
-          platform administrator as a member.
+          Changes made here affect only this organization. They do not add you
+          as a member.
         </p>
         <div class="mt-3 flex flex-wrap gap-2">
           <a
@@ -97,13 +113,13 @@
             mat-stroked-button
             [routerLink]="['/global-admin/tenants', tenant.id, 'scanner']"
           >
-            Inspect registrations
+            Ticket support
           </a>
           <a
             mat-stroked-button
             [routerLink]="['/global-admin/tenants', tenant.id, 'users']"
           >
-            Manage users
+            Manage members
           </a>
           <a
             mat-stroked-button
@@ -130,8 +146,7 @@
     <section class="bg-surface text-on-surface rounded-2xl p-4">
       <h2 class="title-medium">Organization not found</h2>
       <p class="body-medium text-on-surface-variant">
-        This organization either does not exist or is no longer available for
-        platform review.
+        This organization either does not exist or is no longer available.
       </p>
     </section>
   }
@@ -139,8 +154,7 @@
   <section class="bg-surface text-on-surface rounded-2xl p-4">
     <h2 class="title-medium">Organization not found</h2>
     <p class="body-medium text-on-surface-variant">
-      This organization either does not exist or is no longer available for
-      platform review.
+      This organization either does not exist or is no longer available.
     </p>
   </section>
 }

@@ -7,7 +7,6 @@ import { createRegistrationOptionFormModel } from '../registration-option-form/r
 import {
   createEventGeneralFormModel,
   eventGeneralFormSchemaWithPaymentAvailability,
-  resetEventGeneralFormPayments,
 } from './event-general-form.schema';
 
 describe('createEventGeneralFormModel', () => {
@@ -41,33 +40,5 @@ describe('createEventGeneralFormModel', () => {
 
     expect(eventForm.registrationOptions[0].isPaid().disabled()).toBe(false);
     expect(eventForm.registrationOptions[0].price().disabled()).toBe(false);
-  });
-
-  it('clears only payment fields when Stripe is confirmed disconnected', () => {
-    const model = createEventGeneralFormModel({
-      registrationOptions: [
-        createRegistrationOptionFormModel({
-          esnCardDiscountedPrice: 900,
-          isPaid: true,
-          price: 1000,
-          roleIds: ['role-1'],
-          stripeTaxRateId: 'txr_1',
-          title: 'Retained option',
-        }),
-      ],
-      title: 'Retained title',
-    });
-
-    const reset = resetEventGeneralFormPayments(model);
-
-    expect(reset).toMatchObject({ title: 'Retained title' });
-    expect(reset.registrationOptions[0]).toMatchObject({
-      esnCardDiscountedPrice: '',
-      isPaid: false,
-      price: 0,
-      roleIds: ['role-1'],
-      stripeTaxRateId: null,
-      title: 'Retained option',
-    });
   });
 });

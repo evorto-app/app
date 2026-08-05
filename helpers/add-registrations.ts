@@ -19,8 +19,9 @@ import consola from 'consola';
 import { eq, InferInsertModel } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { relations } from '../src/db/relations';
-import * as schema from '../src/db/schema';
+import { relations } from '@db/relations';
+import * as schema from '@db/schema';
+import { type SupportedTenantCurrency } from '../src/types/custom/tenant';
 import { getId } from './get-id';
 import { getSeedDate } from './seed-clock';
 import { usersToAuthenticate } from './user-data';
@@ -32,15 +33,22 @@ export interface EventRegistrationInput {
   id: string;
   registrationOptions: {
     confirmedSpots: number;
-    id?: string;
+    id: string;
     isPaid: boolean;
     price: number;
     roleIds: string[];
     spots: number;
   }[];
-  start: Date | string;
-  tenantId?: string;
-  title?: string;
+  start: Date;
+  tenantId: string;
+  title: string;
+}
+
+interface AddRegistrationsInput {
+  currency: SupportedTenantCurrency;
+  events: readonly EventRegistrationInput[];
+  seedDate?: Date;
+  tenantId: string;
 }
 
 const MAX_REGISTRATIONS_PER_USER = 4;
@@ -79,6 +87,18 @@ export const claimRegistrationSeedUsers = <User extends { id: string }>(
   return selectedUsers;
 };
 
+export const validateRegistrationSeedEventOwnership = (
+  events: readonly EventRegistrationInput[],
+  tenantId: string,
+): void => {
+  const mismatchedEvent = events.find((event) => event.tenantId !== tenantId);
+  if (mismatchedEvent) {
+    throw new Error(
+      `Cannot seed event ${mismatchedEvent.id} for tenant ${tenantId}: event belongs to ${mismatchedEvent.tenantId}`,
+    );
+  }
+};
+
 /**
  * Adds realistic event registrations to the database.
  *
@@ -95,9 +115,10 @@ export const claimRegistrationSeedUsers = <User extends { id: string }>(
  */
 export async function addRegistrations(
   database: NodePgDatabase<typeof relations>,
-  events: EventRegistrationInput[],
-  seedDate?: Date,
+  { currency, events, seedDate, tenantId }: AddRegistrationsInput,
 ) {
+  validateRegistrationSeedEventOwnership(events, tenantId);
+
   // Query all users with their tenant relationships and roles
   const usersRaw = await database.query.users.findMany({
     with: {
@@ -119,8 +140,7 @@ export async function addRegistrations(
   );
 
   if (users.length === 0) {
-    console.warn('No users found for registrations');
-    return [];
+    throw new Error('Cannot seed registrations without base users');
   }
 
   // Prepare batch operation arrays
@@ -173,21 +193,12 @@ export async function addRegistrations(
     return result;
   };
 
-  // Get the default tenant for fallback values
-  const defaultTenant = await database.query.tenants.findFirst();
-  if (!defaultTenant) {
-    console.warn('No tenant found for registrations');
-    return [];
-  }
-  const defaultCurrency = defaultTenant.currency || 'EUR';
-
   const testerUserIds = new Set(usersToAuthenticate.map((user) => user.id));
   const seededCountByUser = new Map<string, number>();
 
   // Process each event with varied registration patterns
   for (const [eventIndex, event] of events.entries()) {
-    // Skip events without valid data
-    if (!event.id || !event.registrationOptions?.length) {
+    if (event.registrationOptions.length === 0) {
       continue;
     }
 
@@ -241,15 +252,6 @@ export async function addRegistrations(
 
     // Process each registration option
     for (const option of event.registrationOptions) {
-      // Ensure option has an ID
-      if (!option.id) {
-        console.warn('Registration option missing ID, skipping');
-        continue;
-      }
-
-      // Get tenantId for this event
-      const tenantId = event.tenantId || defaultTenant.id;
-
       // Eligible users for this option (union of role holders within tenant)
       const eligibleUsers = getEligibleUsers(tenantId, option.roleIds);
 
@@ -353,6 +355,12 @@ export async function addRegistrations(
 
         // Add registration to batch
         registrations.push({
+          ...(status === 'CONFIRMED' && {
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
+            basePriceAtRegistration: option.price,
+            discountAmount: 0,
+          }),
           checkInTime,
           eventId: event.id,
           id: registrationId,
@@ -366,8 +374,8 @@ export async function addRegistrations(
         if (option.isPaid && paymentState) {
           transactions.push({
             amount: option.price,
-            comment: `Registration for event ${event.title || 'Untitled'}`,
-            currency: defaultCurrency as 'AUD' | 'CZK' | 'EUR',
+            comment: `Ticket for ${event.title}`,
+            currency,
             eventId: event.id,
             eventRegistrationId: registrationId,
             executiveUserId: user.id,
@@ -392,10 +400,7 @@ export async function addRegistrations(
     }
   }
 
-  // Execute writes without an explicit transaction so the deterministic seed
-  // path stays compatible with the shared script database client. A failed
-  // write must still reject the seed so db:reset cannot report partial data as
-  // a successful setup.
+  // Every write is awaited so a failed seed cannot report success.
   if (registrations.length > 0) {
     await database.insert(schema.eventRegistrations).values(registrations);
   }

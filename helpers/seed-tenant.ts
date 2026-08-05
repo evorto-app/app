@@ -1,4 +1,3 @@
-import type { InferInsertModel } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { SupportedTenantCurrency } from '../src/types/custom/tenant';
 
@@ -8,8 +7,8 @@ import consola from 'consola';
 import type { SeedProfile, SeedScenarioEvents } from './add-events';
 import type { SeedTemplateKey } from './add-templates';
 
-import { relations } from '../src/db/relations';
-import * as schema from '../src/db/schema';
+import { relations } from '@db/relations';
+import * as schema from '@db/schema';
 import { addEvents } from './add-events';
 import { addFinanceReceipts } from './add-finance-receipts';
 import { addIcons } from './add-icons';
@@ -18,16 +17,14 @@ import { addExampleUsers, addRoles, addUsersToRoles } from './add-roles';
 import { addTaxRates } from './add-tax-rates';
 import { addTemplateCategories } from './add-template-categories';
 import { addTemplates } from './add-templates';
-import { createTenant } from './create-tenant';
+import { createTenant, type CreateSeedTenantInput } from './create-tenant';
 import { getSeedDate } from './seed-clock';
+import { requireSeedRoles } from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 
-const resolveStripeSeedAccountId = (
-  profile: SeedProfile,
-  explicitValue?: string,
-): string | undefined => {
+export const resolveStripeSeedAccountId = (explicitValue?: string): string => {
   if (explicitValue && explicitValue.trim().length > 0) {
-    return explicitValue;
+    return explicitValue.trim();
   }
 
   const fromEnvironment = process.env['STRIPE_TEST_ACCOUNT_ID']?.trim();
@@ -35,22 +32,19 @@ const resolveStripeSeedAccountId = (
     return fromEnvironment;
   }
 
-  if (profile === 'docs' || profile === 'test') {
-    throw new Error(
-      'Missing STRIPE_TEST_ACCOUNT_ID for deterministic paid seed scenarios',
-    );
-  }
-
-  return undefined;
+  throw new Error(
+    'Missing STRIPE_TEST_ACCOUNT_ID for deterministic paid seed scenarios',
+  );
 };
 
 export interface SeedTenantOptions {
-  domain?: string;
+  currency: SupportedTenantCurrency;
+  domain: string;
   ensureUsers?: boolean;
   includeExampleUsers?: boolean;
   includeRegistrations?: boolean;
   logSeedMap?: boolean;
-  name?: string;
+  name: string;
   profile?: SeedProfile;
   runId?: string;
   seedDate?: Date;
@@ -79,7 +73,6 @@ export interface SeedTenantResult {
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     tenantId: string;
     title: string;
-    unlisted: boolean;
   }[];
   registrations: {
     eventId: string;
@@ -155,6 +148,7 @@ export const seedBaseUsers = async (
 export async function seedTenant(
   database: NodePgDatabase<typeof relations>,
   {
+    currency,
     domain,
     ensureUsers = false,
     includeExampleUsers = false,
@@ -171,32 +165,22 @@ export async function seedTenant(
     await seedBaseUsers(database);
   }
 
-  const resolvedDomain = domain ?? (runId ? `e2e-${runId}` : undefined);
-  const resolvedName = name ?? (runId ? `E2E ${runId}` : undefined);
-
   const resolvedSeedDate = seedDate ?? getSeedDate();
-  const resolvedStripeAccountId = resolveStripeSeedAccountId(
-    profile,
-    stripeAccountId,
-  );
+  const resolvedStripeAccountId = resolveStripeSeedAccountId(stripeAccountId);
 
-  const tenantInput: Partial<InferInsertModel<typeof schema.tenants>> = {
-    ...(resolvedStripeAccountId && {
-      stripeAccountId: resolvedStripeAccountId,
-    }),
+  const tenantInput: CreateSeedTenantInput = {
+    currency,
+    domain,
+    name,
+    stripeAccountId: resolvedStripeAccountId,
   };
-  if (typeof resolvedDomain === 'string') {
-    tenantInput.domain = resolvedDomain;
-  }
-  if (typeof resolvedName === 'string') {
-    tenantInput.name = resolvedName;
-  }
 
   const tenant = await createTenant(database, tenantInput);
 
   await addTaxRates(database, tenant);
   const icons = await addIcons(database, tenant);
   const roles = await addRoles(database, tenant);
+  const { adminRole } = requireSeedRoles(roles);
   await addUsersToRoles(
     database,
     usersToAuthenticate
@@ -205,14 +189,14 @@ export async function seedTenant(
         roles
           .filter((role) => {
             if (data.roles === 'none') return false;
-            if (data.roles === 'all') return true;
-            if (data.roles === 'user') return role.defaultUserRole;
+            if (data.roles === 'profile' || data.roles === 'user')
+              return role.defaultUserRole;
             if (data.roles === 'organizer')
               return role.defaultUserRole || role.defaultOrganizerRole;
             if (data.roles === 'admin')
               return (
                 role.defaultUserRole ||
-                role.name === 'Admin' ||
+                role.id === adminRole.id ||
                 role.name === 'Section member'
               );
             return false;
@@ -243,7 +227,12 @@ export async function seedTenant(
   );
   const registrations = (
     effectiveIncludeRegistrations
-      ? await addRegistrations(database, seededEvents.events, resolvedSeedDate)
+      ? await addRegistrations(database, {
+          currency: tenant.currency,
+          events: seededEvents.events,
+          seedDate: resolvedSeedDate,
+          tenantId: tenant.id,
+        })
       : []
   ).map((registration) => {
     if (!registration.id) {
@@ -313,7 +302,6 @@ export async function seedTenant(
       status: event.status,
       tenantId: event.tenantId,
       title: event.title,
-      unlisted: event.unlisted,
     })),
     registrations,
     roles,

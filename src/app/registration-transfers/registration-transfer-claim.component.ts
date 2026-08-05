@@ -11,6 +11,7 @@ import {
   inject,
   Injectable,
   input,
+  output,
   signal,
   untracked,
 } from '@angular/core';
@@ -18,6 +19,7 @@ import {
   applyEach,
   form,
   FormField,
+  maxLength,
   required,
   schema,
   submit,
@@ -28,6 +30,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
   injectMutation,
   injectQuery,
@@ -65,6 +68,9 @@ const answerSchema = schema<TransferClaimAnswerModel>((answer) => {
     message: 'Answer this required question.',
     when: ({ valueOf }) => valueOf(answer.required),
   });
+  maxLength(answer.answer, MAX_REGISTRATION_ANSWER_LENGTH, {
+    message: `Answers must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer.`,
+  });
   validate(answer.answer, ({ value, valueOf }) => {
     const answerValue = value();
     return valueOf(answer.required) && answerValue && !answerValue.trim()
@@ -81,16 +87,16 @@ export const transferClaimFormSchema = schema<TransferClaimFormModel>(
 
 export const registrationTransferClaimPayload = ({
   answers,
-  credential,
+  claimCode,
 }: {
   answers: readonly { answer: string; questionId: string }[];
-  credential: string;
+  claimCode: string;
 }) => ({
   answers: answers.map((answer) => ({
     answer: answer.answer,
     questionId: answer.questionId,
   })),
-  credential,
+  claimCode,
 });
 
 export const registrationTransferCheckoutUrl = (
@@ -132,7 +138,7 @@ export const registrationTransferLookupErrorCopy = (
   return {
     body: 'We could not load the latest transfer details. Nothing changed. Try again, or enter another code.',
     retryable: true,
-    title: 'Transfer is temporarily unavailable',
+    title: 'Transfer details could not be loaded',
   };
 };
 
@@ -147,28 +153,28 @@ export const registrationTransferStatusCopy = (
   switch (status) {
     case 'cancelled': {
       return {
-        body: 'The previous owner cancelled this offer. Their registration was not transferred.',
+        body: 'The sender cancelled the transfer. The ticket was not transferred.',
         title: 'Transfer cancelled',
         tone: 'info',
       };
     }
     case 'checkout_pending': {
       return {
-        body: 'Your payment is pending. The fixed ticket bundle stays confirmed for its current owner until payment succeeds. Continue the existing Stripe Checkout; do not start another claim.',
+        body: 'Your payment is pending. The ticket remains with the previous attendee until payment is complete. Continue the same payment; do not start again.',
         title: 'Payment still required',
         tone: 'info',
       };
     }
     case 'compensated': {
       return {
-        body: 'The transfer could not finish, so the ticket stayed with its previous owner and your full payment, including the platform fee, was refunded. Do not pay or claim again.',
+        body: 'The transfer could not finish, so the ticket stayed with the previous attendee and your full payment, including all fees, was refunded. Do not pay or try the transfer again.',
         title: 'Transfer stopped — payment refunded',
         tone: 'info',
       };
     }
     case 'compensation_failed': {
       return {
-        body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs follow-up and may not have reached you. Do not pay or claim again; contact the organizer for an update.',
+        body: 'The transfer could not finish, so the ticket stayed with the previous attendee. Your full refund needs attention and may not have reached you. Do not pay or try the transfer again; contact the organizer for an update.',
         title: 'Transfer stopped — refund needs attention',
         tone: 'error',
       };
@@ -176,41 +182,41 @@ export const registrationTransferStatusCopy = (
     case 'compensation_pending': {
       if (refundLifecycle?.state === 'actionRequired') {
         return {
-          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund, including the platform fee, needs follow-up. Do not pay or claim again; contact the organizer for an update.',
+          body: 'The transfer could not finish, so the ticket stayed with the previous attendee. Your full refund, including all fees, needs attention. Do not pay or try the transfer again; contact the organizer for an update.',
           title: 'Transfer stopped — refund needs attention',
           tone: 'error',
         };
       }
       if (refundLifecycle?.state === 'succeeded') {
         return {
-          body: 'The transfer could not finish, so the ticket stayed with its previous owner and your full payment, including the platform fee, was refunded. Do not pay or claim again.',
+          body: 'The transfer could not finish, so the ticket stayed with the previous attendee and your full payment, including all fees, was refunded. Do not pay or try the transfer again.',
           title: 'Transfer stopped — payment refunded',
           tone: 'info',
         };
       }
       if (refundLifecycle?.state !== 'processing') {
         return {
-          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs follow-up and may not have reached you. Do not pay or claim again; contact the organizer for an update.',
+          body: 'The transfer could not finish, so the ticket stayed with the previous attendee. Your full refund needs attention and may not have reached you. Do not pay or try the transfer again; contact the organizer for an update.',
           title: 'Transfer stopped — refund needs attention',
           tone: 'error',
         };
       }
       return {
-        body: 'The transfer could not finish because the original ticket changed after your payment. The ticket stayed with its previous owner, and your full refund, including the platform fee, is processing. Do not pay or claim again.',
-        title: 'Transfer stopped — refund processing',
+        body: 'The transfer could not finish because the ticket details changed after your payment. The ticket stayed with the previous attendee, and your full refund, including all fees, is in progress. Do not pay or try the transfer again.',
+        title: 'Transfer stopped — refund in progress',
         tone: 'info',
       };
     }
     case 'completed': {
       return {
-        body: 'The registration now belongs to you. You can open the event page for your ticket and current registration details.',
+        body: 'The ticket is now yours and confirmed. Open the event page to see its details.',
         title: 'Transfer complete',
         tone: 'success',
       };
     }
     case 'expired': {
       return {
-        body: 'This offer or its Checkout window expired. The previous owner kept their confirmed registration.',
+        body: 'This private transfer or its payment link expired. The previous attendee kept the ticket.',
         title: 'Transfer expired',
         tone: 'info',
       };
@@ -220,7 +226,7 @@ export const registrationTransferStatusCopy = (
     }
     case 'refund_failed': {
       return {
-        body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
+        body: 'The ticket is now yours and confirmed. A refund for the previous attendee still needs attention; you do not need to pay or try the transfer again.',
         title: 'Transfer complete — refund needs attention',
         tone: 'error',
       };
@@ -228,28 +234,28 @@ export const registrationTransferStatusCopy = (
     case 'refund_pending': {
       if (refundLifecycle?.state === 'actionRequired') {
         return {
-          body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
+          body: 'The ticket is now yours and confirmed. A refund for the previous attendee still needs attention; you do not need to pay or try the transfer again.',
           title: 'Transfer complete — refund needs attention',
           tone: 'error',
         };
       }
       if (refundLifecycle?.state === 'succeeded') {
         return {
-          body: 'The fixed registration bundle now belongs to you, and the previous owner refund completed.',
+          body: "The ticket is now yours and confirmed. The previous attendee's refund is complete.",
           title: 'Transfer complete — refund completed',
           tone: 'success',
         };
       }
       if (refundLifecycle?.state !== 'processing') {
         return {
-          body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
+          body: 'The ticket is now yours and confirmed. A refund for the previous attendee still needs attention; you do not need to pay or try the transfer again.',
           title: 'Transfer complete — refund needs attention',
           tone: 'error',
         };
       }
       return {
-        body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund is still being processed; you do not need to do anything.',
-        title: 'Transfer complete — refund processing',
+        body: "The ticket is now yours and confirmed. The previous attendee's refund is in progress; you do not need to do anything.",
+        title: 'Transfer complete — refund in progress',
         tone: 'success',
       };
     }
@@ -264,8 +270,8 @@ export class RegistrationTransferClaimOperations {
     return this.rpc.registrationTransfers.claim.mutationOptions();
   }
 
-  getClaim(credential: string) {
-    return this.rpc.registrationTransfers.getClaim.queryOptions({ credential });
+  getClaim(claimCode: string) {
+    return this.rpc.registrationTransfers.getClaim.queryOptions({ claimCode });
   }
 
   retryCheckout() {
@@ -289,7 +295,8 @@ export class RegistrationTransferClaimOperations {
   templateUrl: './registration-transfer-claim.component.html',
 })
 export class RegistrationTransferClaimComponent {
-  public readonly credential = input.required<string>();
+  public readonly claimCode = input.required<string>();
+  public readonly enterAnotherCode = output();
   private readonly claimModel = signal<TransferClaimFormModel>({
     answers: [],
   });
@@ -299,9 +306,11 @@ export class RegistrationTransferClaimComponent {
     this.operations.claim(),
   );
   protected readonly claimQuery = injectQuery(() =>
-    this.operations.getClaim(this.credential()),
+    this.operations.getClaim(this.claimCode()),
   );
   protected readonly lookupErrorCopy = registrationTransferLookupErrorCopy;
+  protected readonly maxRegistrationAnswerLength =
+    MAX_REGISTRATION_ANSWER_LENGTH;
   protected readonly retryMutation = injectMutation(() =>
     this.operations.retryCheckout(),
   );
@@ -313,7 +322,7 @@ export class RegistrationTransferClaimComponent {
 
   constructor() {
     effect(() => {
-      this.credential();
+      this.claimCode();
       this.unsafeCheckout.set(false);
     });
     effect(() => {
@@ -377,7 +386,7 @@ export class RegistrationTransferClaimComponent {
         const result = await this.claimMutation.mutateAsync(
           registrationTransferClaimPayload({
             answers: value.answers,
-            credential: this.credential(),
+            claimCode: this.claimCode(),
           }),
         );
         if (!this.openCheckout(result.checkoutUrl)) {

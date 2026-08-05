@@ -33,6 +33,11 @@ import {
   users,
   usersToTenants,
 } from '@db/schema';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
 import { registrationTransferAddonAllocationKey } from '@shared/registration-transfer';
 import {
   RegistrationTransferConflictError,
@@ -57,10 +62,7 @@ import type { Tenant } from '../../types/custom/tenant';
 import type { User } from '../../types/custom/user';
 
 import { getServerNow } from '../clock';
-import {
-  isUserEligibleForRegistrationOption,
-  validateRegistrationQuestionAnswers,
-} from '../effect/rpc/handlers/events/event-registration.service';
+import { validateRegistrationQuestionAnswers } from '../effect/rpc/handlers/events/event-registration.service';
 import { EventRegistrationConflictError } from '../effect/rpc/handlers/events/events.errors';
 import {
   buildCheckoutSessionExpiresAt,
@@ -77,6 +79,7 @@ import {
   processRegistrationRefundClaim,
 } from '../payments/registration-refund';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
+import { safeServerErrorSummary } from '../utils/safe-server-error-summary';
 import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
@@ -85,14 +88,17 @@ import {
   completePaidRegistrationCheckout,
   registrationCheckoutInitialReconcileAt,
 } from './registration-checkout-completion';
-import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
+import { registrationCheckoutHasTooManyLines } from './registration-checkout-lines';
+import { isUserEligibleForRegistrationOption } from './registration-eligibility';
 import {
-  createRegistrationTransferCredentials,
-  registrationTransferCredentialHashes,
-} from './registration-transfer-credentials';
+  createRegistrationTransferClaimCode,
+  hashRegistrationTransferClaimCode,
+} from './registration-transfer-claim-code';
+import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
 import { expireRegistrationTransferCheckout } from './registration-transfer-finalization';
 import {
   registrationTransferBasePrice,
+  RegistrationTransferPricingError,
   registrationTransferTotalPrice,
   resolveRegistrationTransferClaimPricing,
   resolveRegistrationTransferPrice,
@@ -100,7 +106,10 @@ import {
 import { resolveRegistrationTransferPriorRefunds } from './registration-transfer-prior-refunds';
 import { resolveRegistrationTransferRefundLifecycle } from './registration-transfer-refund-lifecycle';
 import { refundPlansExactlyCoverCurrentAcquisitionPayments } from './registration-transfer-refund-plan-coverage';
-import { resolveRegistrationTransferDeadline } from './registration-transfer-state';
+import {
+  RegistrationTransferStateError,
+  resolveRegistrationTransferDeadline,
+} from './registration-transfer-state';
 
 interface CancelRegistrationTransferInput {
   readonly tenant: TransferTenant;
@@ -110,7 +119,7 @@ interface CancelRegistrationTransferInput {
 
 interface ClaimRegistrationTransferInput {
   readonly answers: readonly RegistrationTransferAnswerInput[];
-  readonly credential: string;
+  readonly claimCode: string;
   readonly tenant: TransferTenant;
   readonly user: TransferUser;
 }
@@ -122,7 +131,7 @@ interface CreateRegistrationTransferOfferInput {
 }
 
 interface GetRegistrationTransferClaimInput {
-  readonly credential: string;
+  readonly claimCode: string;
   readonly tenant: TransferTenant;
   readonly user: TransferUser;
 }
@@ -143,7 +152,7 @@ export const registrationTransferGuestCheckoutLine = (input: {
 }): RegistrationCheckoutSnapshot['lineItems'][number] | undefined =>
   input.guestCount > 0 && input.guestUnitPrice > 0
     ? {
-        name: `Guest registration fee for ${input.eventTitle}`,
+        name: `Guest ticket for ${input.eventTitle}`,
         quantity: input.guestCount,
         ...(input.stripeTaxRateId && {
           taxRateId: input.stripeTaxRateId,
@@ -178,16 +187,136 @@ type TransferUser = Pick<
   'communicationEmail' | 'email' | 'id' | 'roleIds'
 >;
 
+const mapRegistrationTransferInternalError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, RegistrationTransferInternalError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logError(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => new RegistrationTransferInternalError({ message })),
+    );
+
+const failRegistrationTransferConflictError = (
+  operation: string,
+  message: string,
+  error: unknown,
+) =>
+  Effect.logWarning(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(
+      Effect.fail(new RegistrationTransferConflictError({ message })),
+    ),
+  );
+
+const deadlinePassedMessage =
+  'The ticket transfer deadline has passed. No ticket transfer was started.';
+const invalidDeadlinePolicyMessage =
+  'The transfer deadline settings are invalid. No transfer was started. Ask an organizer to review them.';
+const invalidPricingMessage =
+  'The saved price for this transfer is invalid. No payment was started. Ask an organizer for help.';
+const priceLimitMessage =
+  'The total price for this transfer is too high. No payment was started. Ask an organizer for help.';
+const unexpectedTransferStateMessage =
+  'Evorto found conflicting details for this transfer. No transfer was started. Ask an organizer for help.';
+
+export const registrationTransferDeadlineFailure = (
+  error: RegistrationTransferStateError,
+): RegistrationTransferConflictError | RegistrationTransferInternalError => {
+  switch (error.reason) {
+    case 'deadlinePassed': {
+      return new RegistrationTransferConflictError({
+        message: deadlinePassedMessage,
+      });
+    }
+    case 'invalidDeadlinePolicy': {
+      return new RegistrationTransferInternalError({
+        message: invalidDeadlinePolicyMessage,
+      });
+    }
+    default: {
+      return new RegistrationTransferInternalError({
+        message: unexpectedTransferStateMessage,
+      });
+    }
+  }
+};
+
+export const registrationTransferPricingFailure = (
+  error: RegistrationTransferPricingError,
+): RegistrationTransferInternalError => {
+  switch (error.reason) {
+    case 'amountTooLarge': {
+      return new RegistrationTransferInternalError({
+        message: priceLimitMessage,
+      });
+    }
+    case 'invalidAmount': {
+      return new RegistrationTransferInternalError({
+        message: invalidPricingMessage,
+      });
+    }
+  }
+};
+
+const failRegistrationTransferInvariant = (
+  operation: string,
+  error: RegistrationTransferPricingError | RegistrationTransferStateError,
+  mappedError: RegistrationTransferInternalError,
+) =>
+  Effect.logError('Registration transfer invariant failed').pipe(
+    Effect.annotateLogs({
+      ...safeServerErrorSummary(operation, error),
+      invariantReason: error.reason,
+    }),
+    Effect.andThen(Effect.fail(mappedError)),
+  );
+
+const mapRegistrationTransferDeadlineError =
+  (operation: string) =>
+  (
+    error: RegistrationTransferStateError,
+  ): Effect.Effect<
+    never,
+    RegistrationTransferConflictError | RegistrationTransferInternalError
+  > => {
+    const mappedError = registrationTransferDeadlineFailure(error);
+    return mappedError._tag === 'RegistrationTransferConflictError'
+      ? Effect.fail(mappedError)
+      : failRegistrationTransferInvariant(operation, error, mappedError);
+  };
+
+const mapRegistrationTransferPricingError =
+  (operation: string) => (error: RegistrationTransferPricingError) =>
+    failRegistrationTransferInvariant(
+      operation,
+      error,
+      registrationTransferPricingFailure(error),
+    );
+
+const failRegistrationTransferInternalError = (
+  operation: string,
+  message: string,
+  error: unknown,
+) =>
+  Effect.logError(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(
+      Effect.fail(new RegistrationTransferInternalError({ message })),
+    ),
+  );
+
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, RegistrationTransferInternalError, Database> =>
   Database.use((database) => operation(database)).pipe(
-    Effect.mapError(
-      (cause) =>
-        new RegistrationTransferInternalError({
-          cause,
-          message: 'Registration transfer storage failed',
-        }),
+    mapRegistrationTransferInternalError(
+      'registrationTransfer.storage',
+      'Ticket transfers could not be loaded or saved. Nothing was changed. Try again.',
     ),
   );
 
@@ -255,18 +384,15 @@ export const resumeRegistrationTransferCheckout = Effect.fn(
       stripeAccount: paymentClaim.stripeAccountId,
     },
   ).pipe(
-    Effect.mapError(
-      (error) =>
-        new RegistrationTransferInternalError({
-          cause: error,
-          message:
-            'Transfer payment setup is still pending. Retry without creating another transfer.',
-        }),
+    mapRegistrationTransferInternalError(
+      'registrationTransfer.checkout.create',
+      'Transfer payment setup is still pending. Retry without creating another transfer.',
     ),
   );
   if (!session.url) {
     return yield* new RegistrationTransferInternalError({
-      message: 'Stripe Checkout did not provide a payment URL',
+      message:
+        'The payment page could not be opened. No payment was started. Try again.',
     });
   }
 
@@ -325,18 +451,14 @@ export const resumeRegistrationTransferCheckout = Effect.fn(
       session.id,
       paymentClaim.stripeAccountId,
     ).pipe(
-      Effect.mapError(
-        (cause) =>
-          new RegistrationTransferInternalError({
-            cause,
-            message:
-              'Transfer payment state changed before Checkout was ready, and the unbound Checkout session could not be expired.',
-          }),
+      mapRegistrationTransferInternalError(
+        'registrationTransfer.checkout.expireUnbound',
+        'Transfer payment state changed before Checkout was ready, and the unbound Checkout session could not be expired.',
       ),
     );
     return yield* new RegistrationTransferConflictError({
       message:
-        'Transfer payment state changed before Checkout was ready. Refresh before retrying.',
+        'The ticket transfer changed while payment was opening. No payment was taken and no refund was started. Select Check transfer status before continuing.',
     });
   }
   return session.url;
@@ -491,22 +613,26 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
     );
     if (!source) {
       return yield* new RegistrationTransferNotFoundError({
-        message: 'Registration not found',
+        message:
+          'This ticket is no longer available to transfer. No transfer, payment, or refund was started. Reopen the event and review your current ticket.',
       });
     }
     if (!source.event || !source.registrationOption) {
       return yield* new RegistrationTransferInternalError({
-        message: 'Registration transfer relations are missing',
+        message:
+          'The ticket details are incomplete. No transfer, payment, or refund was started. Contact an Evorto administrator.',
       });
     }
     if (source.status !== 'CONFIRMED') {
       return yield* new RegistrationTransferConflictError({
-        message: 'Only confirmed registrations can be transferred',
+        message:
+          'This sign-up is not yet a confirmed ticket. No ticket transfer or refund was started. Check its current details before trying again.',
       });
     }
     if (source.event.status !== 'APPROVED') {
       return yield* new RegistrationTransferConflictError({
-        message: 'The event is not open for registration transfer',
+        message:
+          'This event is not accepting ticket transfers. No ticket transfer or refund was started.',
       });
     }
 
@@ -517,12 +643,13 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
         source.registrationOption.transferDeadlineHoursBeforeStart,
       tenantHoursBeforeStart: tenant.transferDeadlineHoursBeforeStart ?? 0,
     }).pipe(
-      Effect.mapError(
-        (error) =>
-          new RegistrationTransferConflictError({ message: error.message }),
+      Effect.catch(
+        mapRegistrationTransferDeadlineError(
+          'registrationTransfer.offer.deadline',
+        ),
       ),
     );
-    const credentials = createRegistrationTransferCredentials();
+    const claimCredential = createRegistrationTransferClaimCode();
 
     const transferResult = yield* Database.use((database) =>
       database
@@ -555,7 +682,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             ) {
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'Source registration changed before the transfer offer could be created',
+                  'The ticket changed before the transfer could start. No transfer, payment, or refund was started. Reopen the ticket and review its current details before starting a new transfer.',
               });
             }
 
@@ -591,7 +718,8 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               lockedTransferTerm.eventStatus !== 'APPROVED'
             ) {
               return yield* new RegistrationTransferConflictError({
-                message: 'The event is not open for registration transfer',
+                message:
+                  'This event is not accepting ticket transfers. No ticket transfer or refund was started.',
               });
             }
             const mutationNow = getServerNow(undefined).toJSDate();
@@ -603,11 +731,10 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               tenantHoursBeforeStart:
                 lockedTransferTerm.tenantTransferDeadlineHoursBeforeStart,
             }).pipe(
-              Effect.mapError(
-                (error) =>
-                  new RegistrationTransferConflictError({
-                    message: error.message,
-                  }),
+              Effect.catch(
+                mapRegistrationTransferDeadlineError(
+                  'registrationTransfer.offer.lockedDeadline',
+                ),
               ),
             );
 
@@ -638,7 +765,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             ) {
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'Registration payment ownership is not initialized for the current owner.',
+                  'The payment history for this ticket is incomplete, so it cannot be transferred. No ticket transfer or refund was started. Ask an organizer for help.',
               });
             }
 
@@ -710,7 +837,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               }
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'Finish or let the pending add-on Checkout expire before transferring this registration.',
+                  'An add-on payment is still open. Finish it or wait for its payment link to expire, then try the ticket transfer again. No ticket transfer or refund was started.',
               });
             }
             const sourceAddOnEntitlements = yield* tx
@@ -839,7 +966,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             ) {
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'Registration payment components are incomplete for the fixed transfer bundle.',
+                  'The payment history does not fully cover this ticket and its add-ons. No ticket transfer or refund was started. Ask an organizer for help.',
               });
             }
 
@@ -944,7 +1071,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             ) {
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'Registration acquisition payment settlement is inconsistent.',
+                  'The recorded amounts for this ticket and its add-ons do not match. No ticket transfer or refund was started. Ask an organizer for help.',
               });
             }
 
@@ -993,7 +1120,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             if (!lockedTenant) {
               return yield* new RegistrationTransferInternalError({
                 message:
-                  'Tenant disappeared before the transfer offer could be created',
+                  'The organization is no longer available. No transfer offer or refund was started.',
               });
             }
             if (
@@ -1008,7 +1135,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             ) {
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'Every paid registration and add-on in this bundle must have exact Stripe ownership before it can transfer.',
+                  'A payment for this ticket or its add-ons cannot be matched to the current ticket holder. No ticket transfer or refund was started. Ask an organizer for help.',
               });
             }
 
@@ -1020,48 +1147,45 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             if (priorRefundResolution._tag === 'Unresolved') {
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'An earlier source refund is unresolved, so the fixed bundle cannot transfer without risking a duplicate refund.',
+                  'A previous refund for this ticket is still unfinished. No ticket transfer or new refund was started. Wait for the refund to finish, then try again.',
               });
             }
             if (priorRefundResolution._tag === 'InvalidProvenance') {
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'Source refund ownership is inconsistent, so the fixed bundle cannot transfer safely.',
+                  'The refund history for this ticket does not match its payments. No ticket transfer or new refund was started. Ask an organizer for help.',
               });
             }
             if (priorRefundResolution._tag === 'InvalidAmount') {
               return yield* new RegistrationTransferInternalError({
-                message: 'Source refund history has an invalid amount',
+                message:
+                  'The earlier refund could not be checked. The transfer was not accepted. Contact an Evorto administrator.',
               });
             }
             const priorRefundedBySource =
               priorRefundResolution.refundedBySourceTransactionId;
 
-            const claimUrl = yield* tenantOutboundUrl(
+            const claimPageUrl = yield* tenantOutboundUrl(
               lockedTenant,
-              `/registration-transfers/${encodeURIComponent(credentials.claimToken)}`,
+              '/registration-transfers',
             ).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new RegistrationTransferInternalError({
-                    cause,
-                    message:
-                      'Registration transfer claim URL could not be created',
-                  }),
+              mapRegistrationTransferInternalError(
+                'registrationTransfer.offer.claimUrl',
+                'The private transfer link could not be created. No offer was sent. Try again.',
               ),
             );
             const offerInsertNow = getServerNow(undefined).toJSDate();
             if (lockedExpiresAt <= offerInsertNow) {
               return yield* new RegistrationTransferConflictError({
-                message: 'Registration can no longer be transferred',
+                message:
+                  'The ticket transfer deadline passed before the offer could be created. No ticket transfer or refund was started.',
               });
             }
 
             const inserted = yield* tx
               .insert(registrationTransfers)
               .values({
-                claimCodeHash: credentials.claimCodeHash,
-                claimTokenHash: credentials.claimTokenHash,
+                claimCodeHash: claimCredential.claimCodeHash,
                 eventId: lockedSource.eventId,
                 expiresAt: lockedExpiresAt,
                 registrationOptionId: lockedSource.registrationOptionId,
@@ -1075,7 +1199,8 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
             const transfer = inserted[0];
             if (!transfer) {
               return yield* new RegistrationTransferInternalError({
-                message: 'Registration transfer offer was not persisted',
+                message:
+                  'The transfer offer could not be saved. No offer was sent. Try again.',
               });
             }
             if (sourceAddOnEntitlements.length > 0) {
@@ -1148,7 +1273,8 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               });
               if (plannedRefunds.includes(undefined)) {
                 return yield* new RegistrationTransferInternalError({
-                  message: 'Source refunds exceed an original Stripe payment',
+                  message:
+                    'The earlier refund amount does not match the original payment. No transfer offer or refund was started. Contact an Evorto administrator.',
                 });
               }
               const validPlannedRefunds = plannedRefunds.filter(
@@ -1199,7 +1325,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               transferId: transfer.id,
             });
             return {
-              claimUrl,
+              claimPageUrl,
               expiresAt: lockedExpiresAt,
               transferRows: inserted,
             };
@@ -1218,7 +1344,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
                 return Effect.fail(
                   new RegistrationTransferConflictError({
                     message:
-                      'This registration already has an active transfer offer',
+                      'This ticket already has an open transfer offer. No new transfer or refund was started. Cancel the current offer before creating another.',
                   }),
                 );
               }
@@ -1228,11 +1354,10 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               ) {
                 return Effect.fail(error);
               }
-              return Effect.fail(
-                new RegistrationTransferInternalError({
-                  cause: error,
-                  message: 'Registration transfer offer could not be saved',
-                }),
+              return failRegistrationTransferInternalError(
+                'registrationTransfer.offer.persist',
+                'The transfer offer could not be saved. No offer was sent. Try again.',
+                error,
               );
             },
           ),
@@ -1240,13 +1365,14 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
     );
     if (transferResult.transferRows.length !== 1) {
       return yield* new RegistrationTransferInternalError({
-        message: 'Registration transfer offer was not persisted',
+        message:
+          'The transfer offer could not be saved. No offer was sent. Try again.',
       });
     }
 
     return RegistrationTransferOfferResult.make({
-      claimCode: credentials.claimCode,
-      claimUrl: transferResult.claimUrl,
+      claimCode: claimCredential.claimCode,
+      claimPageUrl: transferResult.claimPageUrl,
       expiresAt: transferResult.expiresAt.toISOString(),
       status: 'open' as const,
     });
@@ -1254,11 +1380,11 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
 );
 
 const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
-  credential,
+  claimCode,
   tenant,
   user,
 }: GetRegistrationTransferClaimInput) {
-  const credentialHashes = registrationTransferCredentialHashes(credential);
+  const claimCodeHash = hashRegistrationTransferClaimCode(claimCode);
   const transferRows = yield* databaseEffect((database) =>
     database
       .select({
@@ -1310,10 +1436,7 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
       .where(
         and(
           eq(registrationTransfers.tenantId, tenant.id),
-          or(
-            inArray(registrationTransfers.claimTokenHash, credentialHashes),
-            inArray(registrationTransfers.claimCodeHash, credentialHashes),
-          ),
+          eq(registrationTransfers.claimCodeHash, claimCodeHash),
         ),
       )
       .limit(1),
@@ -1324,7 +1447,8 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
     (transfer.recipientUserId && transfer.recipientUserId !== user.id)
   ) {
     return yield* new RegistrationTransferNotFoundError({
-      message: 'Registration transfer not found',
+      message:
+        'This ticket transfer link is invalid or no longer available. This request did not start a payment. Ask the sender for a new link.',
     });
   }
 
@@ -1565,10 +1689,10 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
     guestCount: transfer.sourceSpotCount - 1,
     guestUnitPrice: claimPricing.basePrice,
   }).pipe(
-    Effect.mapError((error) =>
-      RegistrationTransferInternalError.make({
-        message: error.message,
-      }),
+    Effect.catch(
+      mapRegistrationTransferPricingError(
+        'registrationTransfer.getClaim.totalPrice',
+      ),
     ),
   );
 
@@ -1623,7 +1747,7 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
       .select({
         recipientCheckoutTransactionId:
           registrationTransfers.recipientCheckoutTransactionId,
-        recipientRegistrationId: registrationTransfers.recipientRegistrationId,
+        recipientRegistrationId: registrationTransfers.sourceRegistrationId,
         status: registrationTransfers.status,
         stripeAccountId: transactions.stripeAccountId,
         stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
@@ -1651,13 +1775,15 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
   const preflight = preflightRows[0];
   if (!preflight) {
     return yield* new RegistrationTransferNotFoundError({
-      message: 'Registration transfer not found',
+      message:
+        'This ticket transfer is not available to this account. No ticket, payment, or refund was changed.',
     });
   }
   if (preflight.status === 'cancelled') return;
   if (preflight.status !== 'checkout_pending' && preflight.status !== 'open') {
     return yield* new RegistrationTransferConflictError({
-      message: `Registration transfer cannot be cancelled after it is ${preflight.status.replaceAll('_', ' ')}`,
+      message:
+        "This ticket transfer can no longer be cancelled. No ticket, payment, or refund was changed. Reopen the ticket and review the transfer's current details.",
     });
   }
 
@@ -1689,7 +1815,8 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
     };
     if (preflight.stripeCheckoutSessionId && !preflight.stripeAccountId) {
       return yield* new RegistrationTransferInternalError({
-        message: 'Transfer Checkout Stripe account is missing',
+        message:
+          'The saved payment details are incomplete. The transfer was not changed. Contact an Evorto administrator.',
       });
     }
     if (preflight.stripeCheckoutSessionId && preflight.stripeAccountId) {
@@ -1697,19 +1824,15 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
         preflight.stripeCheckoutSessionId,
         preflight.stripeAccountId,
       ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new RegistrationTransferInternalError({
-              cause,
-              message:
-                'Checkout cancellation could not be confirmed. The source registration and transfer remain unchanged.',
-            }),
+        mapRegistrationTransferInternalError(
+          'registrationTransfer.cancel.checkout.retrieve',
+          'The payment could not be stopped. The ticket and transfer were not changed. Reopen the ticket and review the current payment before trying again.',
         ),
       );
       if (checkoutSession.status === 'complete') {
         return yield* new RegistrationTransferConflictError({
           message:
-            'Checkout already completed. Refresh while payment finalization finishes.',
+            "Payment is already complete, so this ticket transfer cannot be cancelled here. No refund was started. Reopen the ticket and review the transfer's current outcome.",
         });
       }
       const expiredSession =
@@ -1719,19 +1842,15 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
               preflight.stripeCheckoutSessionId,
               preflight.stripeAccountId,
             ).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new RegistrationTransferInternalError({
-                    cause,
-                    message:
-                      'Checkout cancellation could not be confirmed. The source registration and transfer remain unchanged.',
-                  }),
+              mapRegistrationTransferInternalError(
+                'registrationTransfer.cancel.checkout.expire',
+                'The payment could not be stopped. The ticket and transfer were not changed. Reopen the ticket and review the current payment before trying again.',
               ),
             );
       if (expiredSession.status !== 'expired') {
         return yield* new RegistrationTransferInternalError({
           message:
-            'Stripe did not confirm Checkout cancellation. The source registration and transfer remain unchanged.',
+            'The payment could not be stopped. The ticket and transfer were not changed. Reopen the ticket and review the current payment before trying again.',
         });
       }
       expiredCheckout = {
@@ -1789,7 +1908,7 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
               recipientCheckoutTransactionId:
                 registrationTransfers.recipientCheckoutTransactionId,
               recipientRegistrationId:
-                registrationTransfers.recipientRegistrationId,
+                registrationTransfers.sourceRegistrationId,
               sourceRegistrationId: registrationTransfers.sourceRegistrationId,
               sourceUserId: registrationTransfers.sourceUserId,
               status: registrationTransfers.status,
@@ -1852,8 +1971,7 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
             !payment ||
             registration.status !== 'CONFIRMED' ||
             registration.userId !== locked.sourceUserId ||
-            locked.recipientRegistrationId !== locked.sourceRegistrationId ||
-            pendingIdentity.registrationId !== locked.recipientRegistrationId ||
+            pendingIdentity.registrationId !== locked.sourceRegistrationId ||
             pendingIdentity.transactionId !==
               locked.recipientCheckoutTransactionId
           ) {
@@ -1897,7 +2015,6 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
             .update(registrationTransfers)
             .set({
               cancelledAt: now,
-              reservedAdditionalSpots: 0,
               status: 'cancelled',
             })
             .where(
@@ -1926,11 +2043,10 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
         Effect.catch((error) =>
           error instanceof RegistrationTransferInternalError
             ? Effect.fail(error)
-            : Effect.fail(
-                new RegistrationTransferInternalError({
-                  cause: error,
-                  message: 'Registration transfer cancellation failed',
-                }),
+            : failRegistrationTransferInternalError(
+                'registrationTransfer.cancel.persist',
+                'The transfer could not be cancelled. Nothing was changed. Try again.',
+                error,
               ),
         ),
       ),
@@ -1938,19 +2054,19 @@ const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
   if (cancellationResult._tag === 'Changed') {
     return yield* new RegistrationTransferConflictError({
       message:
-        'Registration transfer state changed while cancellation was starting. Refresh and retry.',
+        "The ticket transfer changed while cancellation was starting. The ticket did not change hands and no refund was started. Reopen the ticket and review the transfer's current payment details.",
     });
   }
 });
 
 const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
   answers,
-  credential,
+  claimCode,
   tenant,
   user,
 }: ClaimRegistrationTransferInput) {
   const now = getServerNow(undefined).toJSDate();
-  const credentialHashes = registrationTransferCredentialHashes(credential);
+  const claimCodeHash = hashRegistrationTransferClaimCode(claimCode);
   const claimRows = yield* databaseEffect((database) =>
     database
       .select({
@@ -1967,7 +2083,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
         optionStripeTaxRateId: eventRegistrationOptions.stripeTaxRateId,
         recipientCheckoutTransactionId:
           registrationTransfers.recipientCheckoutTransactionId,
-        recipientRegistrationId: registrationTransfers.recipientRegistrationId,
+        recipientRegistrationId: registrationTransfers.sourceRegistrationId,
         recipientUserId: registrationTransfers.recipientUserId,
         sourceRegistrationId: registrationTransfers.sourceRegistrationId,
         sourceSpotCount: registrationTransfers.sourceSpotCount,
@@ -1995,10 +2111,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
       .where(
         and(
           eq(registrationTransfers.tenantId, tenant.id),
-          or(
-            inArray(registrationTransfers.claimTokenHash, credentialHashes),
-            inArray(registrationTransfers.claimCodeHash, credentialHashes),
-          ),
+          eq(registrationTransfers.claimCodeHash, claimCodeHash),
         ),
       )
       .limit(1),
@@ -2006,17 +2119,20 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
   const transfer = claimRows[0];
   if (!transfer) {
     return yield* new RegistrationTransferNotFoundError({
-      message: 'Registration transfer not found',
+      message:
+        'This ticket transfer link is invalid or no longer available. This request did not start a payment. Ask the sender for a new link.',
     });
   }
   if (transfer.recipientUserId && transfer.recipientUserId !== user.id) {
     return yield* new RegistrationTransferNotFoundError({
-      message: 'Registration transfer not found',
+      message:
+        'This ticket transfer link is invalid or no longer available. This request did not start a payment. Ask the sender for a new link.',
     });
   }
   if (transfer.sourceUserId === user.id) {
     return yield* new RegistrationTransferConflictError({
-      message: 'You cannot claim your own registration transfer',
+      message:
+        'You cannot accept a ticket transfer that you created. No ticket, payment, or refund was changed.',
     });
   }
   if (
@@ -2096,7 +2212,8 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
   }
   if (transfer.status !== 'open') {
     return yield* new RegistrationTransferConflictError({
-      message: `Registration transfer is ${transfer.status.replaceAll('_', ' ')}`,
+      message:
+        'This ticket transfer is no longer available. This request did not start a new payment or refund. Ask the sender for a new offer.',
     });
   }
   if (transfer.expiresAt <= now) {
@@ -2107,7 +2224,8 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
       transferId: transfer.transferId,
     });
     return yield* new RegistrationTransferConflictError({
-      message: 'Registration transfer has expired',
+      message:
+        'This ticket transfer link has expired. No payment or refund was started. Ask the sender for a new offer.',
     });
   }
   if (
@@ -2116,13 +2234,20 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
     transfer.optionEventId !== transfer.eventId
   ) {
     return yield* new RegistrationTransferConflictError({
-      message: 'Source registration is no longer transferable',
+      message:
+        'The original ticket or event changed and can no longer be transferred. No payment or refund was started. Ask the sender to review the ticket.',
     });
   }
   const recipientRegistrationId = transfer.sourceRegistrationId;
   const paymentTransactionId = createId();
   const recipientSpotCount = transfer.sourceSpotCount;
   const guestCount = transfer.sourceSpotCount - 1;
+  if (guestCount < 0 || guestCount > MAX_REGISTRATION_GUESTS) {
+    return yield* new RegistrationTransferConflictError({
+      message:
+        'This ticket includes too many guests to transfer. No payment or refund was started. Ask an organizer for help.',
+    });
+  }
 
   const claimResult = yield* Database.use((database) =>
     database
@@ -2243,6 +2368,19 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             )
             .orderBy(registrationTransferBundleAddonPurchases.sourcePurchaseId)
             .for('update');
+          if (
+            bundleSnapshots.some(
+              (snapshot) =>
+                snapshot.quantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+                snapshot.includedQuantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+                snapshot.purchasedQuantity > MAX_REGISTRATION_ADDON_QUANTITY,
+            )
+          ) {
+            return yield* new RegistrationTransferConflictError({
+              message:
+                'This ticket includes too many of one or more add-ons to transfer. No payment or refund was started. Ask an organizer for help.',
+            });
+          }
           const sourceFulfillment = yield* tx
             .select({
               addonId: eventRegistrationAddonPurchases.addonId,
@@ -2409,12 +2547,9 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             lockedTenant,
             `/events/${encodeURIComponent(transfer.eventId)}`,
           ).pipe(
-            Effect.mapError(
-              (cause) =>
-                new RegistrationTransferInternalError({
-                  cause,
-                  message: 'Transfer event URL could not be created',
-                }),
+            mapRegistrationTransferInternalError(
+              'registrationTransfer.claim.eventUrl',
+              'Transfer event URL could not be created',
             ),
           );
 
@@ -2510,22 +2645,38 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               ),
             )
             .for('update');
-          const answerInserts = yield* Effect.try({
-            catch: (error) =>
-              error instanceof EventRegistrationConflictError
-                ? new RegistrationTransferConflictError({
-                    message: error.message,
-                  })
-                : new RegistrationTransferInternalError({
-                    cause: error,
-                    message: 'Registration question validation failed',
-                  }),
+          const answerInserts = yield* Effect.try<
+            ReturnType<typeof validateRegistrationQuestionAnswers>,
+            unknown
+          >({
+            catch: (error) => error,
             try: () =>
               validateRegistrationQuestionAnswers({
                 answers,
                 questions: questionRows,
               }),
-          });
+          }).pipe(
+            Effect.catch(
+              (
+                error,
+              ): Effect.Effect<
+                never,
+                | RegistrationTransferConflictError
+                | RegistrationTransferInternalError
+              > =>
+                error instanceof EventRegistrationConflictError
+                  ? failRegistrationTransferConflictError(
+                      'registrationTransfer.claim.validateQuestions',
+                      'One or more sign-up answers need attention. The ticket transfer was not accepted, and no payment or refund was started. Review the answers and try again.',
+                      error,
+                    )
+                  : failRegistrationTransferInternalError(
+                      'registrationTransfer.claim.validateQuestions',
+                      'The sign-up answers could not be checked. The transfer was not accepted, and no payment or refund was started. Review the answers and try again.',
+                      error,
+                    ),
+            ),
+          );
 
           const lockedBundleAddOns =
             bundleSnapshots.length === 0
@@ -2670,11 +2821,10 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             guestCount,
             guestUnitPrice: optionBasePrice,
           }).pipe(
-            Effect.mapError(
-              (error) =>
-                new RegistrationTransferConflictError({
-                  message: error.message,
-                }),
+            Effect.catch(
+              mapRegistrationTransferPricingError(
+                'registrationTransfer.claim.totalPrice',
+              ),
             ),
           );
           const requiresCheckout = totalPrice > 0;
@@ -2701,7 +2851,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             [];
           if (discountResolution.effectivePrice > 0) {
             checkoutLineItems.push({
-              name: `Registration fee for ${lockedOption.eventTitle}`,
+              name: `Ticket for ${lockedOption.eventTitle}`,
               quantity: 1,
               ...(lockedOption.optionStripeTaxRateId && {
                 taxRateId: lockedOption.optionStripeTaxRateId,
@@ -2733,6 +2883,18 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               unitAmount: addOn.price,
             });
           }
+          if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+            return yield* new RegistrationTransferConflictError({
+              message:
+                'This ticket has too many separately priced items to complete one payment. No payment or refund was started. Ask an organizer for help.',
+            });
+          }
+          if (bundleAddOns.length > MAX_EVENT_ADDON_TYPES) {
+            return yield* new RegistrationTransferConflictError({
+              message:
+                'This ticket includes too many different add-ons to transfer. No payment or refund was started. Ask an organizer for help.',
+            });
+          }
           let paymentClaim: RegistrationTransferPaymentClaim | undefined;
           if (
             requiresCheckout &&
@@ -2749,9 +2911,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 eventUrl,
                 expiresAt: checkoutExpiresAt,
                 lineItems: checkoutLineItems,
-                notificationEmail:
-                  recipientUser.communicationEmail?.trim() ||
-                  recipientUser.email,
+                notificationEmail: recipientUser.communicationEmail,
               },
               stripeAccountId: lockedStripeAccountId,
             };
@@ -2791,7 +2951,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 and(
                   eq(eventRegistrations.tenantId, tenant.id),
                   eq(eventRegistrations.userId, user.id),
-                  not(eq(eventRegistrations.status, 'CANCELLED')),
+                  inArray(eventRegistrations.status, ['PENDING', 'CONFIRMED']),
                   sql`${eventInstances.start} > ${now}`,
                 ),
               )
@@ -2856,7 +3016,8 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             const paymentMutationNow = getServerNow(undefined).toJSDate();
             if (lockedTransfer.expiresAt <= paymentMutationNow) {
               return yield* new RegistrationTransferConflictError({
-                message: 'Registration transfer has expired',
+                message:
+                  'This ticket transfer expired before payment could start. No payment or refund was started. Ask the sender for a new offer.',
               });
             }
             if (
@@ -2866,13 +3027,13 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             ) {
               return yield* new RegistrationTransferConflictError({
                 message:
-                  'There is not enough time before this transfer expires to start payment',
+                  'There is not enough time left to complete payment before this ticket transfer expires. No payment or refund was started. Ask the sender for a new offer.',
               });
             }
             yield* tx.insert(transactions).values({
               amount: totalPrice,
               appFee: paymentClaim.appFee,
-              comment: `Registration transfer payment for ${lockedOption.eventTitle}`,
+              comment: `Ticket transfer payment for ${lockedOption.eventTitle}`,
               currency: paymentClaim.currency,
               eventId: transfer.eventId,
               eventRegistrationId: recipientRegistrationId,
@@ -2896,14 +3057,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 recipientBasePrice: optionBasePrice,
                 recipientCheckoutTransactionId: paymentClaim.id,
                 recipientDiscountAmount: discountResolution.discountAmount,
-                recipientRegistrationId,
-                recipientSpotCount,
                 recipientStripeTaxRateId: lockedOption.optionStripeTaxRateId,
                 recipientTaxRateDisplayName: selectedTaxRate?.displayName,
                 recipientTaxRateInclusive: selectedTaxRate?.inclusive,
                 recipientTaxRatePercentage: selectedTaxRate?.percentage,
                 recipientUserId: user.id,
-                reservedAdditionalSpots: 0,
                 status: 'checkout_pending',
               })
               .where(
@@ -3181,7 +3339,8 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           const ownershipMutationNow = getServerNow(undefined).toJSDate();
           if (lockedTransfer.expiresAt <= ownershipMutationNow) {
             return yield* new RegistrationTransferConflictError({
-              message: 'Registration transfer has expired',
+              message:
+                'This ticket transfer expired before it could finish. No ticket, payment, or refund was changed. Ask the sender for a new offer.',
             });
           }
           const completedAt = ownershipMutationNow;
@@ -3191,7 +3350,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               appliedDiscountedPrice: discountResolution.appliedDiscountedPrice,
               appliedDiscountType: discountResolution.appliedDiscountType,
               basePriceAtRegistration: optionBasePrice,
-              discountAmount: discountResolution.discountAmount,
+              discountAmount: discountResolution.discountAmount ?? 0,
               stripeTaxRateId: lockedOption.optionStripeTaxRateId,
               taxRateDisplayName: selectedTaxRate?.displayName,
               taxRateInclusive: selectedTaxRate?.inclusive,
@@ -3224,13 +3383,9 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             tenantId: tenant.id,
             transferId: transfer.transferId,
           }).pipe(
-            Effect.mapError(
-              (cause) =>
-                new RegistrationTransferInternalError({
-                  cause,
-                  message:
-                    'Recipient acquisition could not be established after transfer',
-                }),
+            mapRegistrationTransferInternalError(
+              'registrationTransfer.claim.persistAcquisition',
+              'Recipient acquisition could not be established after transfer',
             ),
           );
 
@@ -3246,8 +3401,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             yield* tx.insert(eventRegistrationQuestionAnswers).values(
               answerInserts.map((answer) => ({
                 answer: answer.answer,
+                eventId: transfer.eventId,
                 questionId: answer.questionId,
                 registrationId: recipientRegistrationId,
+                registrationOptionId: transfer.optionId,
+                tenantId: tenant.id,
               })),
             );
           }
@@ -3296,7 +3454,6 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           const sourceUsers = yield* tx
             .select({
               communicationEmail: users.communicationEmail,
-              email: users.email,
             })
             .from(users)
             .where(eq(users.id, transfer.sourceUserId))
@@ -3304,7 +3461,8 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           const sourceUser = sourceUsers[0];
           if (!sourceUser) {
             return yield* new RegistrationTransferInternalError({
-              message: 'Source registration owner is missing',
+              message:
+                'The previous ticket holder could not be found. The transfer was not completed. Contact an Evorto administrator.',
             });
           }
           yield* enqueueRegistrationTransferredEmail(tx, {
@@ -3312,9 +3470,10 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             eventUrl,
             recipientRole: 'previousOwner',
             recipientUserId: transfer.sourceUserId,
+            refundOutcome: refundClaimIds.length > 0 ? 'pending' : 'notStarted',
             registrationId: recipientRegistrationId,
             tenant: lockedTenant,
-            to: sourceUser.communicationEmail?.trim() || sourceUser.email,
+            to: sourceUser.communicationEmail,
             transferOperationId,
           });
           yield* enqueueRegistrationTransferredEmail(tx, {
@@ -3322,9 +3481,10 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             eventUrl,
             recipientRole: 'newOwner',
             recipientUserId: user.id,
+            refundOutcome: refundClaimIds.length > 0 ? 'pending' : 'notStarted',
             registrationId: recipientRegistrationId,
             tenant: lockedTenant,
-            to: recipientUser.communicationEmail?.trim() || recipientUser.email,
+            to: recipientUser.communicationEmail,
             transferOperationId,
           });
           const nextStatus =
@@ -3341,14 +3501,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               recipientBasePrice: optionBasePrice,
               recipientConfirmedAt: completedAt,
               recipientDiscountAmount: discountResolution.discountAmount,
-              recipientRegistrationId,
-              recipientSpotCount,
               recipientStripeTaxRateId: lockedOption.optionStripeTaxRateId,
               recipientTaxRateDisplayName: selectedTaxRate?.displayName,
               recipientTaxRateInclusive: selectedTaxRate?.inclusive,
               recipientTaxRatePercentage: selectedTaxRate?.percentage,
               recipientUserId: user.id,
-              reservedAdditionalSpots: 0,
               status: nextStatus,
             })
             .where(
@@ -3414,11 +3571,10 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           error instanceof RegistrationTransferConflictError ||
           error instanceof RegistrationTransferInternalError
             ? Effect.fail(error)
-            : Effect.fail(
-                new RegistrationTransferInternalError({
-                  cause: error,
-                  message: 'Registration transfer claim failed',
-                }),
+            : failRegistrationTransferInternalError(
+                'registrationTransfer.claim.persist',
+                'The ticket transfer could not be accepted. Nothing was changed. Try again.',
+                error,
               ),
         ),
       ),
@@ -3426,13 +3582,14 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
   switch (claimResult._tag) {
     case 'AlreadyRegistered': {
       return yield* new RegistrationTransferConflictError({
-        message: 'You already have an active registration for this event',
+        message:
+          'You already have a ticket for this event. This transfer was not accepted, and no payment or refund was started.',
       });
     }
     case 'CheckoutWindowTooShort': {
       return yield* new RegistrationTransferConflictError({
         message:
-          'There is not enough time before this transfer expires to start payment',
+          'There is not enough time left to complete payment before this ticket transfer expires. No payment or refund was started. Ask the sender for a new offer.',
       });
     }
     case 'Confirmed': {
@@ -3449,10 +3606,15 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                   'Registration transfer refund remains queued after immediate processing failed',
                 ).pipe(
                   Effect.annotateLogs({
-                    cause: String(cause),
                     refundClaimId,
                     transferId: transfer.transferId,
                   }),
+                  Effect.annotateLogs(
+                    safeServerErrorSummary(
+                      'registrationTransfer.claim.refundProcessing',
+                      cause,
+                    ),
+                  ),
                 );
           }),
         );
@@ -3465,12 +3627,14 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
     }
     case 'Ineligible': {
       return yield* new RegistrationTransferConflictError({
-        message: 'You are not eligible for this registration option',
+        message:
+          'This sign-up choice is not available to you. The ticket transfer was not accepted, and no payment or refund was started.',
       });
     }
     case 'NotMember': {
       return yield* new RegistrationTransferNotFoundError({
-        message: 'Registration transfer not found',
+        message:
+          'This ticket transfer is not available for your account. No payment or refund was started. Ask the sender to check the recipient.',
       });
     }
     case 'PaymentPending': {
@@ -3489,23 +3653,26 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
     }
     case 'StripeUnavailable': {
       return yield* new RegistrationTransferInternalError({
-        message: 'Tenant Stripe account is not configured',
+        message:
+          'This organization is not ready to accept online payments. The transfer was not accepted. Ask an organizer for help.',
       });
     }
     case 'TenantLimit': {
       return yield* new RegistrationTransferConflictError({
-        message: 'Active registration limit reached',
+        message:
+          "You have reached this organization's active sign-up limit. The ticket transfer was not accepted, and no payment or refund was started.",
       });
     }
     case 'TermsChanged': {
       return yield* new RegistrationTransferConflictError({
         message:
-          'Registration pricing or tax terms changed while claiming. Review the current details and retry.',
+          'The price or tax for this ticket changed while you were accepting it. No payment or refund was started. Review the latest total and try again.',
       });
     }
     case 'Unavailable': {
       return yield* new RegistrationTransferConflictError({
-        message: 'Registration transfer is no longer available',
+        message:
+          'The ticket transfer changed before it could finish. This request did not start a new payment or refund. Select Check transfer status before continuing.',
       });
     }
   }
@@ -3522,8 +3689,7 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
         .select({
           appFee: transactions.appFee,
           currency: transactions.currency,
-          recipientRegistrationId:
-            registrationTransfers.recipientRegistrationId,
+          recipientRegistrationId: registrationTransfers.sourceRegistrationId,
           request: transactions.stripeCheckoutRequest,
           stripeAccountId: transactions.stripeAccountId,
           stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
@@ -3554,7 +3720,8 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
     const row = rows[0];
     if (!row?.recipientRegistrationId) {
       return yield* new RegistrationTransferNotFoundError({
-        message: 'Pending transfer Checkout not found',
+        message:
+          'There is no unfinished payment for this ticket transfer. No new payment was started. Select Check transfer status to review the current outcome.',
       });
     }
     const recipientRegistrationId = row.recipientRegistrationId;
@@ -3569,13 +3736,9 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
         row.stripeCheckoutSessionId,
         row.stripeAccountId,
       ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new RegistrationTransferInternalError({
-              cause,
-              message:
-                'Transfer Checkout status could not be verified. Refresh and retry.',
-            }),
+        mapRegistrationTransferInternalError(
+          'registrationTransfer.checkout.retry.retrieve',
+          "The transfer's payment status could not be checked. Select Check transfer status once. If it still cannot be checked, contact Evorto support.",
         ),
       );
       if (checkoutSession.status === 'open') {
@@ -3595,13 +3758,9 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
           },
           checkoutSession,
         ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new RegistrationTransferInternalError({
-                cause,
-                message:
-                  'Completed transfer Checkout could not be reconciled. Refresh and retry.',
-              }),
+          mapRegistrationTransferInternalError(
+            'registrationTransfer.checkout.retry.reconcile',
+            'The completed payment could not be matched to the ticket transfer. Select Check transfer status once. If it still cannot be checked, contact Evorto support.',
           ),
         );
         return RegistrationTransferRetryCheckoutResult.make({
@@ -3620,11 +3779,12 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
         );
         return yield* new RegistrationTransferConflictError({
           message:
-            'Checkout expired. The source registration bundle is unchanged; start a new transfer offer if needed.',
+            'The payment link expired. No payment was taken or refund started, and the original ticket and add-ons remain with the sender. Ask the sender to create a new ticket transfer.',
         });
       }
       return yield* new RegistrationTransferConflictError({
-        message: 'Transfer Checkout is no longer available.',
+        message:
+          'This payment link is no longer available. No new payment or refund was started. Select Check transfer status before continuing.',
       });
     }
     if (

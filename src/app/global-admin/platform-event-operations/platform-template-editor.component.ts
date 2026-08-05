@@ -43,6 +43,15 @@ import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faTrashCan } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -52,10 +61,12 @@ import { firstValueFrom } from 'rxjs';
 import type { EventLocationType } from '../../../types/location';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
+import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
 import { persistedAdvancedToSimpleModeIssue } from '../../shared/components/forms/registration-mode-transition';
 import {
   templateGraphAddonFormSchema,
@@ -73,7 +84,6 @@ import {
   createTemplateGraphFormModel,
   createTemplateGraphQuestionFormModel,
   createTemplateGraphRegistrationOptionFormModel,
-  resetTemplateGraphPayments,
   type TemplateGraphFormModel,
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { templateGraphRegistrationOptionFormSchema } from '../../shared/components/forms/template-graph-editor/template-graph-registration-option-form.schema';
@@ -104,6 +114,13 @@ export const createPlatformTemplateQuestionFormModel =
   createTemplateGraphQuestionFormModel;
 export const platformTemplateFormToPayload = templateGraphFormToPayload;
 
+export const platformTemplateAddonTypeLimitIssue = (
+  addOns: readonly unknown[],
+): null | string =>
+  addOns.length > MAX_EVENT_ADDON_TYPES
+    ? `Templates support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`
+    : null;
+
 export const platformTemplateIconChoiceToValue = (
   choice: Pick<IconRecord, 'commonName' | 'sourceColor'>,
 ): IconValue => ({
@@ -121,7 +138,7 @@ export const platformTemplateModeTransitionIssue = (
 ): null | string => {
   if (targetMode === 'advanced') return null;
   if (!isSimpleCompatibleRegistrationOptions(currentOptions)) {
-    return 'Simple configuration requires exactly one organizing and one non-organizing option. Reclassify or remove options first; nothing was deleted.';
+    return 'Simple setup requires exactly one organizer choice and one attendee choice. Change or remove choices first; nothing was deleted.';
   }
   return persistedAdvancedToSimpleModeIssue(persistedTemplate, currentOptions);
 };
@@ -229,7 +246,7 @@ export class PlatformTemplateEditorComponent {
       ? this.taxRatesQuery
           .data()
           .filter((rate) => rate.active && rate.imported && rate.inclusive)
-      : [],
+      : undefined,
   );
   protected readonly createMutation = injectMutation(() =>
     this.operations.create(),
@@ -268,14 +285,35 @@ export class PlatformTemplateEditorComponent {
   );
   protected readonly faPlus = faPlus;
   protected readonly faTrashCan = faTrashCan;
-  private readonly templateModel = signal(createPlatformTemplateFormModel());
+  protected readonly templateModel = signal(createPlatformTemplateFormModel());
   private readonly savedTemplateSnapshot = signal(
     JSON.stringify(this.templateModel()),
   );
   protected readonly hasUnsavedChanges = computed(
     () => this.savedTemplateSnapshot() !== JSON.stringify(this.templateModel()),
   );
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationAddonQuantity =
+    MAX_REGISTRATION_ADDON_QUANTITY;
+  protected readonly maxRegistrationQuestionDescriptionLength =
+    MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
+  protected readonly maxRegistrationQuestionTitleLength =
+    MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
   protected readonly modeBlockMessage = signal('');
+  protected readonly targetTenantQuery = injectQuery(() =>
+    this.operations.tenant(this.tenantId()),
+  );
+  protected readonly stripeDisconnected = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.paymentsConfigured === false,
+  );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.stripeDisconnected() &&
+      graphHasPaidConfiguration(this.templateModel()),
+  );
   protected readonly selectedIcon = computed<IconValue>(() => ({
     iconColor: this.templateModel().iconColor,
     iconName: this.templateModel().iconName,
@@ -295,23 +333,20 @@ export class PlatformTemplateEditorComponent {
   protected readonly selectedLocation = computed(() =>
     templateGraphLocationFormModelToValue(this.templateModel().location),
   );
-  protected readonly targetTenantQuery = injectQuery(() =>
-    this.operations.tenant(this.tenantId()),
-  );
   protected readonly stripeConnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === true,
-  );
-  protected readonly stripeDisconnected = computed(
-    () =>
-      this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === false,
+      this.targetTenantQuery.data()?.paymentsConfigured === true,
   );
   protected readonly targetTenantCurrency = computed(() =>
     this.targetTenantQuery.isSuccess()
       ? (this.targetTenantQuery.data()?.currency ?? '')
       : '',
+  );
+  protected readonly taxRatesReady = computed(
+    () =>
+      !this.stripeConnected() ||
+      (this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()),
   );
   protected readonly templateForm = form(this.templateModel, (template) => {
     required(template.categoryId, { message: 'Select a category.' });
@@ -324,8 +359,8 @@ export class PlatformTemplateEditorComponent {
     required(template.description, {
       message: 'Enter a template description.',
     });
-    required(template.iconName, { message: 'Enter an icon name.' });
-    required(template.iconColor, { message: 'Enter an icon color index.' });
+    required(template.iconName, { message: 'Choose an icon.' });
+    required(template.iconColor, { message: 'Choose the icon again.' });
     required(template.location.name, {
       message: 'Enter a location name.',
       when: ({ valueOf }) => valueOf(template.location.type) !== 'none',
@@ -345,11 +380,11 @@ export class PlatformTemplateEditorComponent {
       },
     });
     required(template.location.placeId, {
-      message: 'Enter a Google place ID.',
+      message: 'Choose a location from Google Maps.',
       when: ({ valueOf }) => valueOf(template.location.type) === 'google',
     });
     required(template.location.meetingUrl, {
-      message: 'Enter a meeting URL.',
+      message: 'Enter an online meeting link.',
       when: ({ valueOf }) => valueOf(template.location.type) === 'online',
     });
 
@@ -370,8 +405,20 @@ export class PlatformTemplateEditorComponent {
       disabled(addOn.price, () => !this.stripeConnected());
       disabled(addOn.stripeTaxRateId, () => !this.stripeConnected());
     });
+    validate(template.addOns, ({ value }) => {
+      const issue = platformTemplateAddonTypeLimitIssue(value());
+      return issue ? { kind: 'maxLength', message: issue } : undefined;
+    });
 
     applyEach(template.questions, templateGraphQuestionFormSchema);
+    validate(template.questions, ({ value }) =>
+      value().length > MAX_REGISTRATION_QUESTIONS
+        ? {
+            kind: 'maxLength',
+            message: `Templates support at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+          }
+        : undefined,
+    );
 
     validate(template.simpleModeEnabled, ({ value, valueOf }) =>
       !value() ||
@@ -382,11 +429,11 @@ export class PlatformTemplateEditorComponent {
         : {
             kind: 'simpleModeShape',
             message:
-              'Simple configuration requires exactly one organizing and one non-organizing option.',
+              'Simple setup requires exactly one organizer choice and one attendee choice.',
           },
     );
 
-    required(template.reason, { message: 'Enter an operational reason.' });
+    required(template.reason, { message: 'Enter a reason for this change.' });
     maxLength(template.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
@@ -458,23 +505,12 @@ export class PlatformTemplateEditorComponent {
           this.editorLoadError.set(result.error);
         } else {
           this.editorLoadError.set('');
-          this.templateModel.set(
-            this.stripeDisconnected()
-              ? resetTemplateGraphPayments(result.model)
-              : result.model,
-          );
+          this.templateModel.set(result.model);
           this.rememberCurrentTemplate();
           this.templateForm().reset();
         }
         this.initializedTemplateId.set(templateId);
       });
-    });
-    effect(() => {
-      if (!this.stripeDisconnected()) return;
-      const model = this.templateModel();
-      const resetModel = resetTemplateGraphPayments(model);
-      if (resetModel === model) return;
-      untracked(() => this.templateModel.set(resetModel));
     });
   }
 
@@ -489,6 +525,7 @@ export class PlatformTemplateEditorComponent {
   }
 
   protected addAddOn(): void {
+    if (this.templateModel().addOns.length >= MAX_EVENT_ADDON_TYPES) return;
     const registrationOptionKey = this.defaultRegistrationOptionKey();
     if (!registrationOptionKey) return;
     this.templateModel.update((model) => ({
@@ -536,7 +573,11 @@ export class PlatformTemplateEditorComponent {
 
   protected addQuestion(): void {
     const registrationOptionKey = this.defaultRegistrationOptionKey();
-    if (!registrationOptionKey) return;
+    if (
+      !registrationOptionKey ||
+      this.templateModel().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.templateModel.update((model) => ({
       ...model,
       questions: [
@@ -555,7 +596,7 @@ export class PlatformTemplateEditorComponent {
       ...model,
       registrationOptions: [
         ...model.registrationOptions,
-        emptyRegistration('Registration option', 20, false),
+        emptyRegistration('Sign-up choice', 20, false),
       ],
     }));
   }
@@ -727,16 +768,16 @@ export class PlatformTemplateEditorComponent {
     if (
       this.mutationPending() ||
       this.editorLoadError() ||
-      !this.editorDataReady()
+      !this.editorDataReady() ||
+      this.paidGraphBlocked() ||
+      !this.taxRatesReady()
     ) {
       return;
     }
 
     void submit(this.templateForm, async () => {
-      if (!this.editorDataReady()) return;
-      const value = this.stripeDisconnected()
-        ? resetTemplateGraphPayments(this.templateModel())
-        : this.templateModel();
+      if (!this.editorDataReady() || !this.taxRatesReady()) return;
+      const value = this.templateModel();
       const payload = platformTemplateFormToPayload(
         value,
         this.esnCardEnabled(),
@@ -769,9 +810,13 @@ export class PlatformTemplateEditorComponent {
           'templates',
           saved.id,
         ]);
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The template could not be saved. Review the details and try again.',
+          getErrorMessage(
+            error,
+            'The template could not be saved. Review the details and try again.',
+            ['RpcBadRequestError'],
+          ),
         );
       }
     });
@@ -798,8 +843,9 @@ export class PlatformTemplateEditorComponent {
     }));
   }
 
-  protected taxRateIsAvailable(taxRateId: string): boolean {
-    return this.availableTaxRates().some((rate) => rate.id === taxRateId);
+  protected taxRateIsAvailable(taxRateId: string): boolean | null {
+    const rates = this.availableTaxRates();
+    return rates ? rates.some((rate) => rate.id === taxRateId) : null;
   }
 
   protected taxRateLabel(rate: PlatformStripeTaxRateRecord): string {

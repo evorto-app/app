@@ -12,10 +12,14 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faCalendarCheck,
+  faCalendarClock,
   faClipboardQuestion,
+  faCreditCard,
   faFolderUser,
   faGlobe,
+  faPalette,
   faReceipt,
+  faScaleBalanced,
   faUsers,
   faUsersGear,
 } from '@fortawesome/duotone-regular-svg-icons';
@@ -44,27 +48,34 @@ export class AdminOverviewComponent {
   protected readonly canReviewEvents =
     this.permissions.hasPermission('events:review');
   protected readonly faCalendarCheck = faCalendarCheck;
+  protected readonly faCalendarClock = faCalendarClock;
   protected readonly faClipboardQuestion = faClipboardQuestion;
+  protected readonly faCreditCard = faCreditCard;
   protected readonly faFolderUser = faFolderUser;
   protected readonly faGlobe = faGlobe;
+  protected readonly faPalette = faPalette;
   protected readonly faReceipt = faReceipt;
+  protected readonly faScaleBalanced = faScaleBalanced;
   protected readonly faUsers = faUsers;
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
   private readonly rpc = AppRpc.injectClient();
-  protected readonly pendingReviewsQuery = injectQuery(() =>
-    this.rpc.events.getPendingReviews.queryOptions(),
-  );
+  protected readonly pendingReviewsQuery = injectQuery(() => ({
+    ...this.rpc.events.getPendingReviews.queryOptions(),
+    enabled: this.canReviewEvents(),
+  }));
   protected readonly pendingReviewsCount = computed(() =>
     this.canReviewEvents() ? (this.pendingReviewsQuery.data()?.length ?? 0) : 0,
   );
 
   constructor() {
-    // Auto-refresh pending reviews count every minute
+    // Recheck the pending review count every minute.
     interval(60_000)
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
-        this.pendingReviewsQuery.refetch();
+        if (this.canReviewEvents()) {
+          void this.pendingReviewsQuery.refetch();
+        }
       });
   }
 }

@@ -39,6 +39,48 @@ const mimeTypeByExtension = new Map(
   ]),
 );
 
+type BrandAssetFileType = 'gif' | 'ico' | 'jpeg' | 'png' | 'webp';
+
+const fileTypeByMimeType = new Map<string, BrandAssetFileType>([
+  ['image/gif', 'gif'],
+  ['image/jpeg', 'jpeg'],
+  ['image/png', 'png'],
+  ['image/vnd.microsoft.icon', 'ico'],
+  ['image/webp', 'webp'],
+  ['image/x-icon', 'ico'],
+]);
+
+const startsWithBytes = (
+  body: Uint8Array,
+  expected: readonly number[],
+): boolean => expected.every((byte, index) => body[index] === byte);
+
+export const detectTenantBrandAssetFileType = (
+  body: Uint8Array,
+): BrandAssetFileType | undefined => {
+  if (startsWithBytes(body, [0xff, 0xd8, 0xff])) return 'jpeg';
+  if (startsWithBytes(body, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+    return 'png';
+  }
+  if (
+    startsWithBytes(body, [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) ||
+    startsWithBytes(body, [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
+  ) {
+    return 'gif';
+  }
+  if (
+    startsWithBytes(body, [0x52, 0x49, 0x46, 0x46]) &&
+    body[8] === 0x57 &&
+    body[9] === 0x45 &&
+    body[10] === 0x42 &&
+    body[11] === 0x50
+  ) {
+    return 'webp';
+  }
+  if (startsWithBytes(body, [0x00, 0x00, 0x01, 0x00])) return 'ico';
+  return;
+};
+
 export const sanitizeTenantBrandAssetFileName = (fileName: string): string =>
   fileName
     .trim()
@@ -59,9 +101,7 @@ export const tenantBrandAssetStorageKey = (input: {
 }) => {
   const tenantId = input.tenantId.trim();
   if (!tenantId) {
-    throw new RpcBadRequestError({
-      message: 'Tenant id is required for brand asset storage',
-    });
+    throw new Error('Tenant id is required for brand asset storage');
   }
   return `tenant-assets/${tenantId}/${input.kind}/${input.fileName}`;
 };
@@ -85,10 +125,7 @@ export const uploadTenantBrandAsset = (input: {
     if (!brandAssetMimeTypes[input.kind].has(input.mimeType)) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message:
-            input.kind === 'favicon'
-              ? 'Favicons must be PNG, JPEG, WebP, GIF, or ICO files'
-              : 'Logos must be PNG, JPEG, WebP, or GIF files',
+          message: 'This image type cannot be used. Choose another image.',
         }),
       );
     }
@@ -98,7 +135,8 @@ export const uploadTenantBrandAsset = (input: {
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Brand asset file must be between 1 byte and 5 MB',
+          message:
+            'This image is empty or larger than 5 MB. Choose another image.',
         }),
       );
     }
@@ -107,7 +145,20 @@ export const uploadTenantBrandAsset = (input: {
     if (body.byteLength !== input.fileSizeBytes) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Uploaded file size does not match payload metadata',
+          message: 'This image could not be verified. Choose the file again.',
+        }),
+      );
+    }
+
+    const expectedFileType = fileTypeByMimeType.get(input.mimeType);
+    if (
+      !expectedFileType ||
+      detectTenantBrandAssetFileType(body) !== expectedFileType
+    ) {
+      return yield* Effect.fail(
+        new RpcBadRequestError({
+          message:
+            'This file could not be used as an image. Choose another image.',
         }),
       );
     }
@@ -116,7 +167,7 @@ export const uploadTenantBrandAsset = (input: {
     if (!extension) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Unsupported brand asset MIME type',
+          message: 'This image type cannot be used. Choose another image.',
         }),
       );
     }
@@ -137,10 +188,9 @@ export const uploadTenantBrandAsset = (input: {
       key: storageKey,
     }).pipe(
       Effect.mapError(
-        (cause) =>
+        () =>
           new RpcInternalServerError({
-            cause,
-            message: 'Failed to upload tenant brand asset',
+            message: 'The organization image could not be saved. Try again.',
           }),
       ),
     );

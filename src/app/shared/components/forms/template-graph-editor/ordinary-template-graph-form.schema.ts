@@ -3,12 +3,22 @@ import {
   applyEach,
   disabled,
   hidden,
+  max,
+  maxLength,
   min,
   required,
   schema,
   validate,
 } from '@angular/forms/signals';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 
 import { templateGeneralFormSchema } from '../../../../templates/shared/template-form/template-general-form.schema';
 import { OrdinaryTemplateGraphFormModel } from './ordinary-template-graph-form';
@@ -21,18 +31,13 @@ import { templateGraphRegistrationOptionFormSchema } from './template-graph-regi
 export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
   (addOn) => {
     required(addOn.title, { message: 'Enter an add-on name.' });
-    validate(addOn.description, ({ value }) =>
-      hasTemporaryRichTextImageSources(value())
-        ? {
-            kind: 'richTextPendingUpload',
-            message: 'Wait for image uploads to finish before saving.',
-          }
-        : undefined,
-    );
     required(addOn.maxQuantityPerUser, {
-      message: 'Enter a per-user maximum.',
+      message: 'Enter the maximum each person can get.',
     });
     min(addOn.maxQuantityPerUser, 1);
+    max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY, {
+      message: `Each person can get at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
+    });
     required(addOn.price, {
       message: 'Enter a price.',
       when: ({ valueOf }) => valueOf(addOn.isPaid),
@@ -41,13 +46,13 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
       message: 'Paid add-ons must cost at least one cent.',
     });
     required(addOn.totalAvailableQuantity, {
-      message: 'Enter available stock.',
+      message: 'Enter the total available.',
     });
     min(addOn.totalAvailableQuantity, 1);
     hidden(addOn.price, ({ valueOf }) => !valueOf(addOn.isPaid));
     hidden(addOn.stripeTaxRateId, ({ valueOf }) => !valueOf(addOn.isPaid));
     required(addOn.stripeTaxRateId, {
-      message: 'Select an inclusive tax rate.',
+      message: 'Select the tax included in the shown price.',
       when: ({ valueOf }) => valueOf(addOn.isPaid),
     });
     validate(addOn.allowPurchaseDuringRegistration, ({ value, valueOf }) =>
@@ -69,26 +74,35 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
         ? undefined
         : {
             kind: 'duplicateRegistrationOption',
-            message: 'Use each registration option only once.',
+            message: 'Add each sign-up choice only once.',
           };
     });
     applyEach(addOn.registrationOptions, (mapping) => {
       required(mapping.registrationOptionKey, {
-        message: 'Select a registration option.',
+        message: 'Choose a sign-up choice.',
       });
       required(mapping.includedQuantity, {
-        message: 'Enter an included quantity.',
+        message: 'Enter how many items are included.',
       });
       min(mapping.includedQuantity, 0);
       required(mapping.optionalPurchaseQuantity, {
-        message: 'Enter an optional quantity.',
+        message: 'Enter how many items people can buy.',
       });
       min(mapping.optionalPurchaseQuantity, 0);
       validate(mapping.includedQuantity, ({ value, valueOf }) =>
         value() + valueOf(mapping.optionalPurchaseQuantity) === 0
           ? {
               kind: 'required',
-              message: 'Set an included or optional quantity.',
+              message: 'Include or offer at least one item.',
+            }
+          : undefined,
+      );
+      validate(mapping.includedQuantity, ({ value, valueOf }) =>
+        value() + valueOf(mapping.optionalPurchaseQuantity) >
+        MAX_REGISTRATION_ADDON_QUANTITY
+          ? {
+              kind: 'max',
+              message: `Included and optional items cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
             }
           : undefined,
       );
@@ -98,7 +112,7 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
           ? {
               kind: 'max',
               message:
-                'Included and optional quantities cannot exceed available stock.',
+                'The amount offered with this choice cannot exceed the total available.',
             }
           : undefined,
       );
@@ -106,7 +120,8 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
         value() > valueOf(addOn.maxQuantityPerUser)
           ? {
               kind: 'max',
-              message: 'Optional quantity cannot exceed max per user.',
+              message:
+                'The number people can buy cannot exceed the per-person maximum.',
             }
           : undefined,
       );
@@ -115,7 +130,8 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
       value() > valueOf(addOn.totalAvailableQuantity)
         ? {
             kind: 'max',
-            message: 'Max per user cannot exceed available quantity.',
+            message:
+              'The per-person maximum cannot exceed the total available.',
           }
         : undefined,
     );
@@ -125,16 +141,42 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
 export const templateGraphQuestionFormSchema =
   schema<TemplateGraphQuestionFormModel>((question) => {
     required(question.title, { message: 'Enter a question.' });
-    required(question.registrationOptionKey, {
-      message: 'Select a registration option.',
+    maxLength(question.title, MAX_REGISTRATION_QUESTION_TITLE_LENGTH, {
+      message: `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`,
     });
-    required(question.sortOrder, { message: 'Enter a sort order.' });
+    maxLength(
+      question.description,
+      MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+      {
+        message: `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
+      },
+    );
+    required(question.registrationOptionKey, {
+      message: 'Choose where this question appears.',
+    });
+    required(question.sortOrder, { message: 'Enter a display order.' });
     min(question.sortOrder, 0);
   });
 
 export const ordinaryTemplateGraphFormSchema =
   schema<OrdinaryTemplateGraphFormModel>((form) => {
     apply(form, templateGeneralFormSchema);
+    validate(form.addOns, ({ value }) =>
+      value().length > MAX_EVENT_ADDON_TYPES
+        ? {
+            kind: 'maxLength',
+            message: `A template can have at most ${MAX_EVENT_ADDON_TYPES} add-ons.`,
+          }
+        : undefined,
+    );
+    validate(form.questions, ({ value }) =>
+      value().length > MAX_REGISTRATION_QUESTIONS
+        ? {
+            kind: 'maxLength',
+            message: `A template can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+          }
+        : undefined,
+    );
     applyEach(
       form.registrationOptions,
       templateGraphRegistrationOptionFormSchema,
@@ -154,7 +196,7 @@ export const ordinaryTemplateGraphFormSchema =
         : {
             kind: 'simpleModeShape',
             message:
-              'Simple configuration requires exactly one organizing and one non-organizing option.',
+              'Simple setup needs exactly one organizer choice and one attendee choice.',
           };
     });
   });

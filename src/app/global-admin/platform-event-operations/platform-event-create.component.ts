@@ -28,6 +28,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import { tenantTimezoneLabel } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import {
@@ -138,7 +140,7 @@ export class PlatformEventCreateComponent {
           }
         : undefined;
     });
-    required(event.reason, { message: 'Enter an operational reason.' });
+    required(event.reason, { message: 'Enter a reason for this change.' });
     maxLength(event.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
@@ -146,6 +148,7 @@ export class PlatformEventCreateComponent {
   protected readonly createMutation = injectMutation(() =>
     this.operations.create(),
   );
+  protected readonly tenantTimezoneLabel = tenantTimezoneLabel;
   private readonly initializedTenantId = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
@@ -179,7 +182,7 @@ export class PlatformEventCreateComponent {
       const start = platformEventLocalDateTimeToInstant(value.start, timezone);
       if (!end || !start) {
         this.notifications.showError(
-          "Enter valid event times in the organization's time zone, including daylight-saving transitions.",
+          "Choose start and end times that exist in the organization's time zone. If the clocks change on that date, choose a different time.",
         );
         return;
       }
@@ -198,9 +201,13 @@ export class PlatformEventCreateComponent {
           'events',
           created.id,
         ]);
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event could not be created. Review the details and try again.',
+          getErrorMessage(
+            error,
+            'The event could not be created. Review the details and try again.',
+            ['RpcBadRequestError'],
+          ),
         );
       }
     });

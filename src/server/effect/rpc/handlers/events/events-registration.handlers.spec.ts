@@ -7,6 +7,9 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
+import { readFileSync } from 'node:fs';
+
+import type { ActiveRegistrationTransferStatus } from '../../../../../shared/registration-transfer';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
@@ -14,6 +17,7 @@ import {
   addonToEventRegistrationOptions,
   emailOutbox,
   eventAddons,
+  eventInstances,
   eventRegistrationAddonFulfillmentEvents,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
@@ -52,15 +56,16 @@ import {
   mapRegistrationAcquisitionGuardError,
   mapRegistrationMutationInternalError,
   mapRegistrationTransferGuardError,
+  registrationAddonCheckoutExpired,
   registrationAddonPurchaseAvailability,
   registrationCancellationAvailability,
   registrationCancellationStripeRefundTerms,
   registrationTransferBlockedReason,
   resolveCancellationDeadlineHoursBeforeStart,
   resolveRefundFeesOnCancellation,
-  withoutRegistrationInternalErrorCause,
 } from './events-registration.handlers';
 import {
+  EventCheckInUnavailableError,
   EventRegistrationConflictError,
   EventRegistrationInternalError,
 } from './events.errors';
@@ -126,7 +131,6 @@ const tenant = {
   emailSenderEmail: 'board@tenant.example.com',
   emailSenderName: 'Tenant Board',
   id: 'tenant-1',
-  locale: 'en',
   maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
@@ -147,7 +151,6 @@ const createUser = ({
   id?: string;
   permissions?: readonly Permission[];
 } = {}) => ({
-  attributes: [],
   auth0Id: `auth0|${id}`,
   communicationEmail: `${id}.contact@example.com`,
   email: `${id}@example.com`,
@@ -213,9 +216,12 @@ const createContextLayer = ({
 const scannedRegistration = {
   appliedDiscountedPrice: null,
   appliedDiscountType: null,
+  basePriceAtRegistration: 0,
   checkedInGuestCount: 0,
   checkInTime: null,
+  discountAmount: 0,
   event: {
+    end: new Date(Date.now() + 2 * 60 * 60 * 1000),
     start: new Date(Date.now() + 30 * 60 * 1000),
     title: 'City tour',
   },
@@ -265,6 +271,34 @@ const orderedRows = <A>(rows: readonly A[]) => ({
   for: () => Effect.succeed(rows),
   limit: () => rowsWithFor(rows),
 });
+
+type RefundRecoveryTransferStatus = Extract<
+  ActiveRegistrationTransferStatus,
+  'refund_failed' | 'refund_pending'
+>;
+
+const createRegistrationTransferFindFirst = (
+  transferStatus?: ActiveRegistrationTransferStatus,
+) =>
+  vi.fn(
+    ({
+      where,
+    }: {
+      readonly where: {
+        readonly sourceRegistrationId: string;
+        readonly status: { readonly in: readonly string[] };
+        readonly tenantId: string;
+      };
+    }) =>
+      Effect.succeed(
+        transferStatus &&
+          where.sourceRegistrationId === 'registration-1' &&
+          where.status.in.includes(transferStatus) &&
+          where.tenantId === tenant.id
+          ? { id: `transfer-${transferStatus}` }
+          : undefined,
+      ),
+  );
 
 interface AcquisitionSourceTransaction {
   readonly amount?: number;
@@ -465,15 +499,30 @@ const createAcquisitionRows = ({
 
 const createRegistrationMutationGuardSelect = ({
   activeTransfers = [],
+  checkedInGuestCount = 0,
+  checkInTime = null,
+  eventEnd = new Date(Date.now() + 2 * 60 * 60 * 1000),
+  eventId = 'event-1',
+  eventStart = new Date(Date.now() + 30 * 60 * 1000),
+  guestCount = 0,
+  registrationOptionId = 'option-1',
   status = 'CONFIRMED',
+  userId = 'attendee-1',
 }: {
   activeTransfers?: readonly {
     id: string;
-    recipientRegistrationId: null | string;
     sourceRegistrationId: string;
     status: 'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
   }[];
-  status?: 'CONFIRMED' | 'PENDING';
+  checkedInGuestCount?: number;
+  checkInTime?: Date | null;
+  eventEnd?: Date;
+  eventId?: string;
+  eventStart?: Date;
+  guestCount?: number;
+  registrationOptionId?: string;
+  status?: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+  userId?: string;
 } = {}) => ({
   select: () => ({
     from: (table: unknown) => ({
@@ -481,10 +530,28 @@ const createRegistrationMutationGuardSelect = ({
         for: () =>
           Effect.succeed(
             table === eventRegistrations
-              ? [{ status }]
-              : table === registrationTransfers
-                ? activeTransfers
-                : [],
+              ? [
+                  {
+                    checkedInGuestCount,
+                    checkInTime,
+                    eventId,
+                    guestCount,
+                    id: 'registration-1',
+                    registrationOptionId,
+                    status,
+                    userId,
+                  },
+                ]
+              : table === eventInstances
+                ? [
+                    {
+                      end: eventEnd,
+                      start: eventStart,
+                    },
+                  ]
+                : table === registrationTransfers
+                  ? activeTransfers
+                  : [],
           ),
       }),
     }),
@@ -510,7 +577,6 @@ const createCancellationTransactionSelect = ({
 }: {
   activeTransfers?: readonly {
     id: string;
-    recipientRegistrationId: null | string;
     sourceRegistrationId: string;
     status: 'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
   }[];
@@ -623,9 +689,11 @@ const createCancellationTransactionSelect = ({
 };
 
 const createGuestCancellationDatabase = ({
+  refundRecoveryTransferStatus,
   status,
   waitlistRegistrations = [],
 }: {
+  refundRecoveryTransferStatus?: RefundRecoveryTransferStatus;
   status: 'CONFIRMED' | 'PENDING';
   waitlistRegistrations?: readonly {
     id: string;
@@ -704,31 +772,52 @@ const createGuestCancellationDatabase = ({
   const database = {
     query: {
       eventRegistrations: {
-        findFirst: () =>
-          Effect.succeed({
-            checkedInGuestCount: 0,
-            checkInTime: null,
-            event: {
-              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
-              title: 'City tour',
-            },
-            eventId: 'event-1',
-            guestCount: 2,
-            id: 'registration-1',
-            registrationOption: {
-              eventRegistrations: waitlistRegistrations,
-              id: 'option-1',
-            },
-            registrationOptionId: 'option-1',
-            status,
-            transactions: currentTransactions,
-            user: {
-              communicationEmail: 'attendee.contact@example.com',
-              email: 'attendee@example.com',
-            },
-            userId: 'attendee-1',
-          }),
+        findFirst: ({
+          where,
+        }: {
+          readonly where: {
+            readonly id: string;
+            readonly tenantId: string;
+            readonly userId?: string;
+          };
+        }) =>
+          Effect.succeed(
+            where.id === 'registration-1' &&
+              where.tenantId === tenant.id &&
+              (where.userId === undefined || where.userId === 'attendee-1')
+              ? {
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                    title: 'City tour',
+                  },
+                  eventId: 'event-1',
+                  guestCount: 2,
+                  id: 'registration-1',
+                  registrationOption: {
+                    eventRegistrations: waitlistRegistrations,
+                    id: 'option-1',
+                  },
+                  registrationOptionId: 'option-1',
+                  status,
+                  transactions: currentTransactions,
+                  user: {
+                    communicationEmail: 'attendee.contact@example.com',
+                    email: 'attendee@example.com',
+                  },
+                  userId: 'attendee-1',
+                }
+              : undefined,
+          ),
       },
+      ...(refundRecoveryTransferStatus && {
+        registrationTransfers: {
+          findFirst: createRegistrationTransferFindFirst(
+            refundRecoveryTransferStatus,
+          ),
+        },
+      }),
     },
     transaction: vi.fn((callback: (tx: typeof tx) => unknown) => callback(tx)),
   };
@@ -920,6 +1009,7 @@ const createStripeAddonOnlyCancellationDatabase = ({
 
 const createTransferDatabase = ({
   activeTargetRegistrations = [],
+  activeTransferStatus,
   afterRegistrationLock,
   bundleAddonPurchases = [],
   concurrentTargetRegistration = null,
@@ -984,6 +1074,7 @@ const createTransferDatabase = ({
   updateError,
 }: {
   activeTargetRegistrations?: readonly { id: string }[];
+  activeTransferStatus?: ActiveRegistrationTransferStatus;
   afterRegistrationLock?: () => void;
   bundleAddonPurchases?: readonly {
     price: number;
@@ -1000,7 +1091,6 @@ const createTransferDatabase = ({
   existingTargetRegistration?: null | { id: string };
   lockedActiveTransfers?: readonly {
     id: string;
-    recipientRegistrationId: null | string;
     sourceRegistrationId: string;
     status: 'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
   }[];
@@ -1443,6 +1533,16 @@ const createTransferDatabase = ({
     select,
     update,
   };
+  const activeTransferFindFirst =
+    createRegistrationTransferFindFirst(activeTransferStatus);
+  const runTransaction = vi.fn(
+    (
+      run: (currentTransaction: typeof transaction) => Effect.Effect<unknown>,
+    ) => {
+      transactionReadCount = 0;
+      return run(transaction);
+    },
+  );
   const database = {
     query: {
       eventRegistrationOptions: {
@@ -1480,6 +1580,9 @@ const createTransferDatabase = ({
         }),
         findMany: () => Effect.succeed(organizerRegistrations),
       },
+      registrationTransfers: {
+        findFirst: activeTransferFindFirst,
+      },
       users: {
         findFirst: () => Effect.succeed(targetUser),
       },
@@ -1488,16 +1591,12 @@ const createTransferDatabase = ({
       },
     },
     select,
-    transaction: (
-      run: (currentTransaction: typeof transaction) => Effect.Effect<unknown>,
-    ) => {
-      transactionReadCount = 0;
-      return run(transaction);
-    },
+    transaction: runTransaction,
     update,
   };
 
   return {
+    activeTransferFindFirst,
     database,
     insertedEmails,
     lockOrder,
@@ -1507,6 +1606,7 @@ const createTransferDatabase = ({
       if (purchase) purchase.redeemedQuantity += 1;
       if (lot) lot.redeemedQuantity += 1;
     },
+    runTransaction,
     sourceTransactions: normalizedSourceTransactions,
     updateSets,
   };
@@ -1762,13 +1862,13 @@ describe('registration mutation guard error mapping', () => {
         new RegistrationAcquisitionWriteError({
           message: 'Current acquisition owner does not match',
         }),
-        'Registration acquisition ownership is inconsistent.',
+        'The payment details changed. Nothing was changed. Reopen the ticket and review its current payment status.',
       ).pipe(Effect.flip);
       expect(acquisitionConflict).toBeInstanceOf(
         EventRegistrationConflictError,
       );
       expect(acquisitionConflict.message).toBe(
-        'Registration acquisition ownership is inconsistent.',
+        'The payment details changed. Nothing was changed. Reopen the ticket and review its current payment status.',
       );
     }),
   );
@@ -1780,7 +1880,7 @@ describe('registration mutation guard error mapping', () => {
         mapRegistrationTransferGuardError(unexpected),
         mapRegistrationAcquisitionGuardError(
           unexpected,
-          'Registration acquisition ownership is inconsistent.',
+          'The payment details changed. Nothing was changed. Reopen the ticket and review its current payment status.',
         ),
       ];
 
@@ -1844,6 +1944,24 @@ describe('event registration owner add-on status', () => {
     });
   });
 
+  it('uses the payment service clock for pending add-on deadlines', () => {
+    const now = new Date('2030-05-01T12:00:00.000Z');
+
+    expect(registrationAddonCheckoutExpired(undefined, now)).toBe(false);
+    expect(
+      registrationAddonCheckoutExpired(
+        new Date('2030-05-01T12:00:01.000Z'),
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      registrationAddonCheckoutExpired(
+        new Date('2030-05-01T12:00:00.000Z'),
+        now,
+      ),
+    ).toBe(true);
+  });
+
   it('allows paid and fulfilled bundles while blocking pending add-on payments', () => {
     const transferableInput = {
       activeTransfer: false,
@@ -1870,31 +1988,20 @@ describe('event registration owner add-on status', () => {
     ).toBe('activeTransfer');
   });
 
-  it('removes internal causes before an add-on purchase error crosses RPC', () => {
-    const sanitized = withoutRegistrationInternalErrorCause(
-      new EventRegistrationInternalError({
-        cause: new Error('duplicate key violates secret_constraint_name'),
-        message: 'Add-on purchase reservation failed',
-      }),
-    );
-
-    expect(sanitized.message).toBe('Add-on purchase reservation failed');
-    expect(sanitized).not.toHaveProperty('cause');
-  });
-
   it.effect(
-    'removes internal causes before a registration mutation error crosses RPC',
+    'preserves an expected cause-free registration mutation error',
     () =>
       Effect.gen(function* () {
-        const sanitized = yield* mapRegistrationMutationInternalError(
-          new EventRegistrationInternalError({
-            cause: new Error('duplicate key violates secret_constraint_name'),
-            message: 'Registration payment setup failed',
-          }),
+        const internalError = new EventRegistrationInternalError({
+          message: 'Registration payment setup failed',
+        });
+        const mapped = yield* mapRegistrationMutationInternalError(
+          internalError,
         ).pipe(Effect.flip);
 
-        expect(sanitized.message).toBe('Registration payment setup failed');
-        expect(sanitized).not.toHaveProperty('cause');
+        expect(mapped).toBe(internalError);
+        expect(mapped.message).toBe('Registration payment setup failed');
+        expect(mapped).not.toHaveProperty('cause');
       }),
   );
 
@@ -1902,7 +2009,7 @@ describe('event registration owner add-on status', () => {
     'returns every configured add-on and owner-scoped pending checkout recovery data',
     () =>
       Effect.gen(function* () {
-        const pendingCheckoutExpiresAt = new Date('2026-09-18T09:30:00.000Z');
+        const pendingCheckoutExpiresAt = new Date('2000-01-01T00:00:00.000Z');
         const includedPurchase = {
           addOn: { title: 'Included lunch' },
           addonId: 'addon-included',
@@ -1917,9 +2024,9 @@ describe('event registration owner add-on status', () => {
           addonPurchases: [includedPurchase],
           appliedDiscountedPrice: null,
           appliedDiscountType: null,
-          basePriceAtRegistration: null,
+          basePriceAtRegistration: 1200,
           checkInTime: null,
-          discountAmount: null,
+          discountAmount: 0,
           event: {
             end: eventEnd,
             start: eventStart,
@@ -2147,6 +2254,7 @@ describe('event registration owner add-on status', () => {
         ).toBe(true);
         expect(pendingRegistration?.registrationAddOns[1]).toEqual(
           expect.objectContaining({
+            pendingCheckoutExpired: false,
             pendingCheckoutExpiresAt: null,
             pendingCheckoutUrl: null,
             pendingOperationKey: null,
@@ -2155,6 +2263,7 @@ describe('event registration owner add-on status', () => {
         );
         expect(pendingRegistration?.registrationAddOns[2]).toEqual(
           expect.objectContaining({
+            pendingCheckoutExpired: true,
             pendingCheckoutExpiresAt: pendingCheckoutExpiresAt.toISOString(),
             pendingCheckoutUrl:
               'https://checkout.stripe.com/c/pay/cs_test_addon',
@@ -2515,6 +2624,25 @@ describe('event registration trusted URLs', () => {
           },
           select: () => ({
             from: (table: unknown) => ({
+              innerJoin: () => ({
+                where: () => ({
+                  for: () =>
+                    Effect.succeed([
+                      {
+                        closeRegistrationTime: new Date(
+                          '2099-01-02T00:00:00.000Z',
+                        ),
+                        eventStatus: 'APPROVED',
+                        openRegistrationTime: new Date(
+                          '2000-01-01T00:00:00.000Z',
+                        ),
+                        organizingRegistration: false,
+                        registrationMode: 'fcfs',
+                        roleIds: [],
+                      },
+                    ]),
+                }),
+              }),
               where: () => ({
                 for: () =>
                   table === tenants
@@ -2873,7 +3001,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled or refunded, and no places were released.',
         );
         expect(database.select).not.toHaveBeenCalled();
         expect(database.insert).not.toHaveBeenCalled();
@@ -2929,11 +3057,19 @@ describe('event registration cancellation handlers', () => {
             registrationId: 'registration-1',
           },
           emptyHandlerOptions,
-        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
+        );
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled or refunded, and no places were released.',
         );
         expect(update).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
@@ -2995,11 +3131,19 @@ describe('event registration cancellation handlers', () => {
             registrationId: 'registration-1',
           },
           emptyHandlerOptions,
-        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
+        );
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled or refunded, and no places were released.',
         );
         expect(update).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
@@ -3068,7 +3212,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.',
+          'The cancellation deadline has passed, so nothing was changed.',
         );
         expect(database.transaction).not.toHaveBeenCalled();
       }),
@@ -3359,12 +3503,50 @@ describe('event registration cancellation handlers', () => {
             registrationId: 'registration-1',
           },
           emptyHandlerOptions,
-        ).pipe(Effect.provide(createContextLayer({ database })));
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
+        );
 
         expectCounterDecrement(updateSets[1], 'confirmedSpots', 3);
         expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
+
+  for (const transferStatus of ['refund_pending', 'refund_failed'] as const) {
+    it.effect(
+      `allows confirmed recipient cancellation while the source transfer is ${transferStatus}`,
+      () =>
+        Effect.gen(function* () {
+          const { database } = createGuestCancellationDatabase({
+            refundRecoveryTransferStatus: transferStatus,
+            status: 'CONFIRMED',
+          });
+
+          yield* eventRegistrationHandlers['events.cancelRegistration'](
+            {
+              expectedPaymentPending: false,
+              expectedStatus: 'CONFIRMED',
+              registrationId: 'registration-1',
+            },
+            emptyHandlerOptions,
+          ).pipe(
+            Effect.provide(
+              createContextLayer({
+                database,
+                user: createUser({ id: 'attendee-1' }),
+              }),
+            ),
+          );
+
+          expect(database.transaction).toHaveBeenCalledOnce();
+        }),
+    );
+  }
 
   it.effect(
     'queues participant cancellation and informational waitlist emails in the cancellation transaction',
@@ -3391,7 +3573,14 @@ describe('event registration cancellation handlers', () => {
             registrationId: 'registration-1',
           },
           emptyHandlerOptions,
-        ).pipe(Effect.provide(createContextLayer({ database })));
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
+        );
 
         expect(insertedEmails).toEqual([
           expect.objectContaining({
@@ -3409,7 +3598,12 @@ describe('event registration cancellation handlers', () => {
         expect(insertedEmails[0]?.html).toContain(
           'https://tenant.example.com/events/event-1',
         );
-        expect(insertedEmails[1]?.text).toContain('does not reserve a spot');
+        expect(insertedEmails[0]?.text).toContain(
+          'No refund was started for this cancellation.',
+        );
+        expect(insertedEmails[1]?.text).toContain(
+          'We have not held a place for you',
+        );
       }),
   );
 
@@ -3431,7 +3625,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(insertedEmails).toHaveLength(1);
         expect(insertedEmails[0]?.text).toContain(
-          'A platform administrator cancelled your registration',
+          'Evorto cancelled your ticket',
         );
       }),
   );
@@ -3502,7 +3696,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'Stripe payment ownership or acquisition settlement is inconsistent',
+          'The payment details need Evorto administrator review.',
         );
         expect(insert).not.toHaveBeenCalled();
         expect(update).not.toHaveBeenCalled();
@@ -3774,6 +3968,7 @@ describe('event registration cancellation handlers', () => {
                 ...tenant,
                 stripeAccountId: 'acct_123',
               },
+              user: createUser({ id: 'attendee-1' }),
             }),
           ),
         );
@@ -3799,9 +3994,7 @@ describe('event registration cancellation handlers', () => {
             type: 'refund',
           }),
         );
-        expect(insertedTransaction?.['comment']).toContain(
-          'Registration refund claim',
-        );
+        expect(insertedTransaction?.['comment']).toBe('Ticket refund');
         expect(insertedTransaction?.['stripeAccountId']).not.toBe('acct_123');
         expect(insertedRefundAllocations).toEqual([
           expect.objectContaining({
@@ -3880,16 +4073,18 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Payment setup is still being reconciled, so this request did not cancel the registration or release its reserved spots. Retry payment setup, then retry cancellation.',
+          'The payment is still being prepared. The ticket was not cancelled and no places were released. Wait a moment before trying again.',
         );
         expect(database.transaction).not.toHaveBeenCalled();
       }),
   );
 
   it.effect(
-    'refuses generic recipient cancellation before expiring an active transfer checkout',
+    'refuses source cancellation when the active transfer matches its source, status, and tenant',
     () =>
       Effect.gen(function* () {
+        const activeTransferFindFirst =
+          createRegistrationTransferFindFirst('checkout_pending');
         const database = {
           query: {
             eventRegistrations: {
@@ -3901,57 +4096,52 @@ describe('event registration cancellation handlers', () => {
                     start: new Date(Date.now() + 24 * 60 * 60 * 1000),
                   },
                   eventId: 'event-1',
-                  guestCount: 3,
-                  id: 'recipient-registration-1',
+                  guestCount: 0,
+                  id: 'registration-1',
                   registrationOptionId: 'option-1',
-                  status: 'PENDING',
-                  transactions: [
-                    {
-                      amount: 1000,
-                      currency: 'EUR',
-                      id: 'recipient-transaction-1',
-                      method: 'stripe',
-                      status: 'pending',
-                      stripeAccountId: 'acct_123',
-                      stripeChargeId: null,
-                      stripeCheckoutSessionId: 'checkout-transfer-1',
-                      stripePaymentIntentId: null,
-                      type: 'registration',
-                    },
-                  ],
-                  userId: 'scanner-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                  userId: 'attendee-1',
                 }),
             },
             registrationTransfers: {
-              findFirst: () =>
-                Effect.succeed({
-                  id: 'transfer-1',
-                  recipientRegistrationId: 'recipient-registration-1',
-                  status: 'checkout_pending',
-                }),
+              findFirst: activeTransferFindFirst,
             },
           },
           transaction: vi.fn(),
         };
-        const stripe = createStripeClientDouble();
 
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
         ](
           {
-            expectedPaymentPending: true,
-            expectedStatus: 'PENDING',
-            registrationId: 'recipient-registration-1',
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
           },
           emptyHandlerOptions,
         ).pipe(
           Effect.flip,
-          Effect.provide(createContextLayer({ database, stripe })),
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toContain('active transfer');
-        expect(stripe.checkout.sessions.expire).not.toHaveBeenCalled();
+        expect(error.message).toBe(
+          'This ticket has an active transfer. Complete or cancel that transfer before changing the ticket.',
+        );
+        expect(activeTransferFindFirst).toHaveBeenCalledWith({
+          columns: { id: true },
+          where: {
+            sourceRegistrationId: 'registration-1',
+            status: { in: ['open', 'checkout_pending'] },
+            tenantId: tenant.id,
+          },
+        });
         expect(database.transaction).not.toHaveBeenCalled();
       }),
   );
@@ -3965,7 +4155,6 @@ describe('event registration cancellation handlers', () => {
             activeTransfers: [
               {
                 id: 'transfer-race',
-                recipientRegistrationId: null,
                 sourceRegistrationId: 'registration-1',
                 status: 'open',
               },
@@ -4104,13 +4293,14 @@ describe('event registration cancellation handlers', () => {
                 ...tenant,
                 stripeAccountId: 'acct_123',
               },
+              user: createUser({ id: 'attendee-1' }),
             }),
           ),
           Effect.flip,
         );
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+          'The sign-up or payment changed after you confirmed. Nothing was cancelled or refunded, and no places were released. Reopen the sign-up and review its current details before trying again.',
         );
         expect(updatedTables).toEqual([]);
         expect(updateSets).toEqual([]);
@@ -4210,13 +4400,14 @@ describe('event registration cancellation handlers', () => {
                 ...tenant,
                 stripeAccountId: 'acct_123',
               },
+              user: createUser({ id: 'attendee-1' }),
             }),
           ),
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(error.message).toBe(
-          'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
+          'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
         );
         expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
           'checkout-1',
@@ -4455,7 +4646,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled or refunded, and no places were released.',
         );
         expect(updateSets).toEqual([
           {
@@ -4549,6 +4740,7 @@ describe('event registration cancellation handlers', () => {
                 ...tenant,
                 stripeAccountId: 'acct_123',
               },
+              user: createUser({ id: 'attendee-1' }),
             }),
           ),
         );
@@ -4608,9 +4800,7 @@ describe('event registration cancellation handlers', () => {
       ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe(
-        'Checked-in registrations cannot be cancelled',
-      );
+      expect(error.message).toBe('A checked-in ticket cannot be cancelled.');
       expect(database.transaction).not.toHaveBeenCalled();
     }),
   );
@@ -4856,8 +5046,78 @@ describe('event registration transfer handlers', () => {
         expect(insertedEmails[1]?.html).toContain(
           'https://tenant.example.com/events/event-1',
         );
+        expect(insertedEmails[0]?.text).toContain(
+          'No refund was started for this transfer.',
+        );
+        expect(insertedEmails[1]?.text).not.toContain('refund');
       }),
   );
+
+  for (const transferStatus of ['refund_pending', 'refund_failed'] as const) {
+    it.effect(
+      `blocks preview and commit while an earlier transfer is ${transferStatus}`,
+      () =>
+        Effect.forEach(
+          ['preview', 'commit'] as const,
+          (operation) =>
+            Effect.gen(function* () {
+              const {
+                activeTransferFindFirst,
+                database,
+                insertedEmails,
+                runTransaction,
+                updateSets,
+              } = createTransferDatabase({
+                activeTransferStatus: transferStatus,
+              });
+              const transferOperation =
+                operation === 'preview'
+                  ? previewEventRegistrationTransfer()
+                  : eventRegistrationHandlers[
+                      'events.transferEventRegistration'
+                    ](
+                      {
+                        eventId: 'event-1',
+                        previewVersion: 'reviewed-preview',
+                        registrationId: 'registration-1',
+                        targetUserId: 'target-user-1',
+                      },
+                      emptyHandlerOptions,
+                    );
+
+              const error = yield* transferOperation.pipe(
+                Effect.flip,
+                Effect.provide(createContextLayer({ database })),
+              );
+
+              expect(error).toBeInstanceOf(EventRegistrationConflictError);
+              expect(error.message).toBe(
+                'This ticket has an active transfer. Complete or cancel that transfer before changing the ticket.',
+              );
+              expect(activeTransferFindFirst).toHaveBeenCalledOnce();
+              expect(activeTransferFindFirst).toHaveBeenCalledWith({
+                columns: { id: true },
+                where: {
+                  sourceRegistrationId: 'registration-1',
+                  status: {
+                    in: [
+                      'open',
+                      'checkout_pending',
+                      'refund_pending',
+                      'refund_failed',
+                    ],
+                  },
+                  tenantId: tenant.id,
+                },
+              });
+              expect(runTransaction).not.toHaveBeenCalled();
+              expect(insertedEmails).toEqual([]);
+              expect(updateSets).toEqual([]);
+            }),
+          { discard: true },
+        ),
+    );
+  }
 
   it.effect(
     'rejects confirmation when fulfillment changes after the reviewed preview',
@@ -4893,7 +5153,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'The registration bundle changed after it was reviewed. Review the transfer again before confirming.',
+          'The ticket or its add-ons changed after you reviewed the transfer. Review it again before confirming.',
         );
         expect(insertedEmails).toEqual([]);
         expect(updateSets).toEqual([]);
@@ -4901,7 +5161,7 @@ describe('event registration transfer handlers', () => {
   );
 
   it.effect(
-    'requires recipient claim when the registration option has participant questions',
+    'requires recipient claim when the sign-up choice has questions',
     () =>
       Effect.gen(function* () {
         const { database, updateSets } = createTransferDatabase({
@@ -4915,21 +5175,20 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'Create a private transfer offer so the recipient can answer the current questions',
+          'Ask the attendee to create a transfer code so the new attendee can answer them.',
         );
         expect(updateSets).toEqual([]);
       }),
   );
 
   it.effect(
-    'rejects a legacy transfer when a concurrent active transfer wins the registration lock',
+    'rejects a transfer when a concurrent active transfer wins the registration lock',
     () =>
       Effect.gen(function* () {
         const { database, updateSets } = createTransferDatabase({
           lockedActiveTransfers: [
             {
               id: 'transfer-1',
-              recipientRegistrationId: null,
               sourceRegistrationId: 'registration-1',
               status: 'open',
             },
@@ -4944,35 +5203,6 @@ describe('event registration transfer handlers', () => {
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain('active transfer');
         expect(updateSets).toEqual([]);
-      }),
-  );
-
-  it.effect(
-    'allows participants to transfer their own confirmed unpaid registration by target email',
-    () =>
-      Effect.gen(function* () {
-        const { database, updateSets } = createTransferDatabase({
-          organizerRegistrations: [],
-        });
-
-        yield* eventRegistrationHandlers['events.transferMyRegistration'](
-          {
-            registrationId: 'registration-1',
-            targetEmail: ' TARGET@EXAMPLE.COM ',
-          },
-          emptyHandlerOptions,
-        ).pipe(
-          Effect.provide(
-            createContextLayer({
-              database,
-              user: createUser({ id: 'attendee-1' }),
-            }),
-          ),
-        );
-
-        expect(updateSets).toEqual([
-          expect.objectContaining({ userId: 'target-user-1' }),
-        ]);
       }),
   );
 
@@ -5078,70 +5308,6 @@ describe('event registration transfer handlers', () => {
     }),
   );
 
-  it.effect(
-    'rejects participant transfer when the target email is not an existing user',
-    () =>
-      Effect.gen(function* () {
-        const { database, updateSets } = createTransferDatabase({
-          targetUser: null,
-        });
-
-        const error = yield* eventRegistrationHandlers[
-          'events.transferMyRegistration'
-        ](
-          {
-            registrationId: 'registration-1',
-            targetEmail: 'missing@example.com',
-          },
-          emptyHandlerOptions,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            createContextLayer({
-              database,
-              user: createUser({ id: 'attendee-1' }),
-            }),
-          ),
-        );
-
-        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(error.message).toBe('Target user not found');
-        expect(updateSets).toEqual([]);
-      }),
-  );
-
-  it.effect(
-    'does not reveal existing users outside the tenant during participant transfer',
-    () =>
-      Effect.gen(function* () {
-        const { database, updateSets } = createTransferDatabase({
-          targetTenantUser: null,
-        });
-
-        const error = yield* eventRegistrationHandlers[
-          'events.transferMyRegistration'
-        ](
-          {
-            registrationId: 'registration-1',
-            targetEmail: 'target@example.com',
-          },
-          emptyHandlerOptions,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            createContextLayer({
-              database,
-              user: createUser({ id: 'attendee-1' }),
-            }),
-          ),
-        );
-
-        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(error.message).toBe('Target user not found');
-        expect(updateSets).toEqual([]);
-      }),
-  );
-
   it.effect('rejects transfer without organizer access', () =>
     Effect.gen(function* () {
       const { database, updateSets } = createTransferDatabase({
@@ -5198,7 +5364,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'This registration bundle cannot be reassigned directly. Create a private transfer offer so the recipient claim can apply current pricing and source refunds atomically.',
+          'This ticket includes a payment that needs to be reviewed before it can be transferred. Ask the attendee to create a transfer code so the new attendee can review the price and any refund.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5237,7 +5403,9 @@ describe('event registration transfer handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toContain('Create a private transfer offer');
+        expect(error.message).toContain(
+          'Ask the attendee to create a transfer code',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5309,7 +5477,9 @@ describe('event registration transfer handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toContain('Create a private transfer offer');
+        expect(error.message).toContain(
+          'Ask the attendee to create a transfer code',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5336,7 +5506,7 @@ describe('event registration transfer handlers', () => {
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'Target user is not eligible for this registration option',
+        'The selected member cannot use this sign-up choice.',
       );
       expect(updateSets).toEqual([]);
     }),
@@ -5363,7 +5533,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'Target user is not eligible for this registration option',
+          'The selected member cannot use this sign-up choice.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5389,7 +5559,7 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('Registration can no longer be transferred');
+        expect(error.message).toBe('This ticket can no longer be transferred.');
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5415,7 +5585,9 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('Registration can no longer be transferred');
+        expect(error.message).toBe(
+          'The transfer deadline has passed, so this ticket can no longer be transferred.',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5466,7 +5638,7 @@ describe('event registration transfer handlers', () => {
 
           expect(error).toBeInstanceOf(EventRegistrationConflictError);
           expect(error.message).toBe(
-            'Registration can no longer be transferred',
+            'The transfer deadline has passed, so this ticket can no longer be transferred.',
           );
           expect(updateSets).toEqual([]);
         } finally {
@@ -5495,7 +5667,9 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(error.message).toBe('Target tenant user not found');
+        expect(error.message).toBe(
+          'The selected member is no longer available in this organization. No transfer or payment was started. Review the ticket transfer and choose an available member.',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5520,7 +5694,9 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(error.message).toBe('Target tenant user not found');
+        expect(error.message).toBe(
+          'The selected member is no longer available in this organization. No transfer or payment was started. Review the ticket transfer and choose an available member.',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5546,7 +5722,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Target user already has an active registration',
+          'The selected member already has a ticket for this event.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5573,7 +5749,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Target user already has an active registration',
+          'The selected member already has a ticket for this event.',
         );
         expect(updateSets).toEqual([]);
       }),
@@ -5616,7 +5792,7 @@ describe('event registration transfer handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'Target user already has an active registration',
+          'The selected member already has a ticket for this event.',
         );
         expect(updateSets).toEqual([
           expect.objectContaining({ userId: 'target-user-1' }),
@@ -5717,7 +5893,7 @@ describe('event registration transfer handlers', () => {
 
       expect(error).toBeInstanceOf(EventRegistrationConflictError);
       expect(error.message).toContain(
-        'Source refund ownership is inconsistent',
+        'The payment history needs Evorto administrator review',
       );
       expect(updateSets).toEqual([]);
     }),
@@ -5771,7 +5947,7 @@ describe('event registration transfer handlers', () => {
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'An earlier source refund is unresolved. Resolve it before creating a private transfer offer.',
+        'An earlier refund is still being processed. Wait for it to finish before creating a transfer offer.',
       );
       expect(updateSets).toEqual([]);
     }),
@@ -5791,7 +5967,9 @@ describe('event registration transfer handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toContain('Create a private transfer offer');
+        expect(error.message).toContain(
+          'Ask the attendee to create a transfer code',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
@@ -5827,10 +6005,27 @@ describe('event registration transfer handlers', () => {
         );
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
-        expect(error.message).toBe('Active registration limit reached');
+        expect(error.message).toBe(
+          'The selected member has reached the current sign-up limit.',
+        );
         expect(updateSets).toEqual([]);
       }),
   );
+
+  it('counts only pending and confirmed registrations toward the organizer direct-transfer limit', () => {
+    const source = readFileSync(
+      new URL('events-registration.handlers.ts', import.meta.url),
+      'utf8',
+    );
+    const directTransfer = source.slice(
+      source.indexOf('const transferEventRegistration'),
+      source.indexOf('export const eventRegistrationHandlers'),
+    );
+
+    expect(directTransfer).toMatch(
+      /inArray\(\s*eventRegistrations\.status,\s*\[\s*'PENDING',\s*'CONFIRMED',?\s*\],?\s*\)/u,
+    );
+  });
 });
 
 describe('event registration scan handlers', () => {
@@ -5885,10 +6080,44 @@ describe('event registration scan handlers', () => {
       );
 
       expect(result.allowCheckin).toBe(false);
-      expect(result.checkInTimingIssue).toBe(true);
+      expect(result.checkInTimingIssue).toBe('notOpen');
       expect(result.registrationStatus).toBe('CONFIRMED');
       expect(result.registrationStatusIssue).toBe(false);
       expect(result.sameUserIssue).toBe(false);
+    }),
+  );
+
+  it.effect('reports a scan after the post-event grace period as ended', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                ...scannedRegistration,
+                event: {
+                  ...scannedRegistration.event,
+                  end: new Date(Date.now() - 3 * 60 * 60 * 1000),
+                  start: new Date(Date.now() - 5 * 60 * 60 * 1000),
+                },
+              }),
+          },
+        },
+      };
+
+      const result = yield* eventRegistrationHandlers[
+        'events.registrationScanned'
+      ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+        Effect.provide(
+          createContextLayer({
+            database,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(result.allowCheckin).toBe(false);
+      expect(result.checkInTimingIssue).toBe('ended');
     }),
   );
 
@@ -5905,6 +6134,7 @@ describe('event registration scan handlers', () => {
                   ...scannedRegistration,
                   event: {
                     ...scannedRegistration.event,
+                    end: new Date('2026-09-15T14:00:00.000Z'),
                     start: new Date('2026-09-15T12:30:00.000Z'),
                   },
                 }),
@@ -5925,7 +6155,7 @@ describe('event registration scan handlers', () => {
         );
 
         expect(result.allowCheckin).toBe(true);
-        expect(result.checkInTimingIssue).toBe(false);
+        expect(result.checkInTimingIssue).toBeNull();
       }),
   );
 
@@ -5955,7 +6185,9 @@ describe('event registration scan handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Invalid E2E_NOW_ISO server clock value');
+        expect(error.message).toBe(
+          'The event time could not be checked. No sign-up was changed. Open the event again and review its current details before continuing.',
+        );
       }),
   );
 
@@ -6026,91 +6258,103 @@ describe('event registration scan handlers', () => {
         expect(result.alreadyCheckedInIssue).toBe(false);
         expect(result.attendeeCheckedIn).toBe(true);
         expect(result.checkedInGuestCount).toBe(1);
-        expect(result.checkInTimingIssue).toBe(false);
+        expect(result.checkInTimingIssue).toBeNull();
         expect(result.guestCount).toBe(2);
         expect(result.remainingGuestCount).toBe(1);
       }),
   );
 
   it.effect(
-    'records check-in and increments the option counter for an organizer',
+    'records check-in during source refund recovery and increments the option counter',
     () =>
-      Effect.gen(function* () {
-        const nowIso = '2026-09-15T12:00:00.000Z';
-        const updateCalls: string[] = [];
-        const tx = {
-          ...createRegistrationMutationGuardSelect(),
-          update: (table: unknown) => ({
-            set: (values: { checkInTime?: Date }) => ({
-              where: () => ({
-                returning: () => {
-                  if (table === eventRegistrations) {
-                    updateCalls.push('registration');
-                    return Effect.succeed([
-                      {
-                        checkedInGuestCount: 0,
-                        checkInTime: values.checkInTime,
-                        id: 'registration-1',
-                      },
-                    ]);
-                  }
-
-                  if (table === eventRegistrationOptions) {
-                    updateCalls.push('option');
-                    return Effect.succeed([{ id: 'option-1' }]);
-                  }
-
-                  return Effect.succeed([]);
-                },
+      Effect.forEach(
+        ['refund_pending', 'refund_failed'] as const,
+        (transferStatus) =>
+          Effect.gen(function* () {
+            const nowIso = '2026-09-15T12:00:00.000Z';
+            const updateCalls: string[] = [];
+            const tx = {
+              ...createRegistrationMutationGuardSelect({
+                eventEnd: new Date('2026-09-15T14:00:00.000Z'),
+                eventStart: new Date('2026-09-15T12:30:00.000Z'),
               }),
-            }),
-          }),
-        };
-        const database = {
-          query: {
-            eventRegistrations: {
-              findFirst: () =>
-                Effect.succeed({
-                  checkedInGuestCount: 0,
-                  checkInTime: null,
-                  event: {
-                    start: new Date('2026-09-15T12:30:00.000Z'),
-                  },
-                  eventId: 'event-1',
-                  guestCount: 0,
-                  id: 'registration-1',
-                  registrationOptionId: 'option-1',
-                  status: 'CONFIRMED',
-                  userId: 'attendee-1',
-                }),
-              findMany: () =>
-                Effect.succeed([
-                  {
-                    id: 'organizer-registration-1',
-                    registrationOption: {
-                      organizingRegistration: true,
+              update: (table: unknown) => ({
+                set: (values: { checkInTime?: Date }) => ({
+                  where: () => ({
+                    returning: () => {
+                      if (table === eventRegistrations) {
+                        updateCalls.push('registration');
+                        return Effect.succeed([
+                          {
+                            checkedInGuestCount: 0,
+                            checkInTime: values.checkInTime,
+                            id: 'registration-1',
+                          },
+                        ]);
+                      }
+
+                      if (table === eventRegistrationOptions) {
+                        updateCalls.push('option');
+                        return Effect.succeed([{ id: 'option-1' }]);
+                      }
+
+                      return Effect.succeed([]);
                     },
-                  },
-                ]),
-            },
-          },
-          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
-            callback(tx),
-          ),
-        };
+                  }),
+                }),
+              }),
+            };
+            const database = {
+              query: {
+                eventRegistrations: {
+                  findFirst: () =>
+                    Effect.succeed({
+                      checkedInGuestCount: 0,
+                      checkInTime: null,
+                      event: {
+                        start: new Date('2026-09-15T12:30:00.000Z'),
+                      },
+                      eventId: 'event-1',
+                      guestCount: 0,
+                      id: 'registration-1',
+                      registrationOptionId: 'option-1',
+                      status: 'CONFIRMED',
+                      userId: 'attendee-1',
+                    }),
+                  findMany: () =>
+                    Effect.succeed([
+                      {
+                        id: 'organizer-registration-1',
+                        registrationOption: {
+                          organizingRegistration: true,
+                        },
+                      },
+                    ]),
+                },
+                registrationTransfers: {
+                  findFirst:
+                    createRegistrationTransferFindFirst(transferStatus),
+                },
+              },
+              transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+                callback(tx),
+              ),
+            };
 
-        const result = yield* eventRegistrationHandlers[
-          'events.checkInRegistration'
-        ](
-          { guestCheckInCount: 0, registrationId: 'registration-1' },
-          emptyHandlerOptions,
-        ).pipe(Effect.provide(createContextLayer({ database, nowIso })));
+            const result = yield* eventRegistrationHandlers[
+              'events.checkInRegistration'
+            ](
+              { guestCheckInCount: 0, registrationId: 'registration-1' },
+              emptyHandlerOptions,
+            ).pipe(Effect.provide(createContextLayer({ database, nowIso })));
 
-        expect(result.alreadyCheckedIn).toBe(false);
-        expect(result.checkInTime).toBe(nowIso);
-        expect(updateCalls).toEqual(['registration', 'option']);
-        expect(database.transaction).toHaveBeenCalledOnce();
-      }),
+            expect(result.alreadyCheckedIn).toBe(false);
+            expect(result.checkInTime).toBe(nowIso);
+            expect(updateCalls).toEqual(['registration', 'option']);
+            expect(database.transaction).toHaveBeenCalledOnce();
+          }),
+        { discard: true },
+      ),
   );
 
   it.effect('refuses check-in while the source transfer is active', () =>
@@ -6175,7 +6419,6 @@ describe('event registration scan handlers', () => {
             activeTransfers: [
               {
                 id: 'transfer-race',
-                recipientRegistrationId: null,
                 sourceRegistrationId: 'registration-1',
                 status: 'open',
               },
@@ -6228,11 +6471,120 @@ describe('event registration scan handlers', () => {
       }),
   );
 
+  it.effect(
+    'rejects check-in when cancellation wins the registration lock',
+    () =>
+      Effect.gen(function* () {
+        const tx = {
+          ...createRegistrationMutationGuardSelect({ status: 'CANCELLED' }),
+          update: vi.fn(),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 30 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  userId: 'attendee-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ](
+          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('This ticket is not ready for check-in.');
+        expect(tx.update).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect('rejects a guest increment consumed by a concurrent check-in', () =>
+    Effect.gen(function* () {
+      const persistedCheckInTime = new Date('2026-09-18T09:45:00.000Z');
+      const tx = {
+        ...createRegistrationMutationGuardSelect({
+          checkedInGuestCount: 1,
+          checkInTime: persistedCheckInTime,
+          guestCount: 1,
+        }),
+        update: vi.fn(),
+      };
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkedInGuestCount: 0,
+                checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 30 * 60 * 1000),
+                },
+                eventId: 'event-1',
+                guestCount: 1,
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'CONFIRMED',
+                userId: 'attendee-1',
+              }),
+          },
+        },
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
+      };
+
+      const error = yield* eventRegistrationHandlers[
+        'events.checkInRegistration'
+      ](
+        { guestCheckInCount: 1, registrationId: 'registration-1' },
+        emptyHandlerOptions,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer({
+            database,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe('Enter no more than 0 additional guests.');
+      expect(tx.update).not.toHaveBeenCalled();
+    }),
+  );
+
   it.effect('records selected guest check-ins with the attendee check-in', () =>
     Effect.gen(function* () {
       const updateSets: unknown[] = [];
       const tx = {
-        ...createRegistrationMutationGuardSelect(),
+        ...createRegistrationMutationGuardSelect({ guestCount: 2 }),
         update: (table: unknown) => ({
           set: (values: unknown) => {
             updateSets.push(values);
@@ -6343,7 +6695,7 @@ describe('event registration scan handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Guest check-in count must be a non-negative integer',
+          'Enter a whole number of guests, starting at zero.',
         );
         expect(
           database.query.eventRegistrations.findFirst,
@@ -6403,15 +6755,77 @@ describe('event registration scan handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe(
-          'Guest check-in count exceeds remaining guests',
-        );
+        expect(error.message).toBe('Enter no more than 1 additional guest.');
         expect(database.transaction).not.toHaveBeenCalled();
       }),
   );
 
-  it.effect('rejects check-in before the pre-start window opens', () =>
+  it.effect(
+    'rejects check-in from the event reread after locking the registration',
+    () =>
+      Effect.gen(function* () {
+        const tx = {
+          ...createRegistrationMutationGuardSelect({
+            eventEnd: new Date(Date.now() + 3 * 60 * 60 * 1000),
+            eventStart: new Date(Date.now() + 2 * 60 * 60 * 1000),
+          }),
+          update: vi.fn(),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  userId: 'attendee-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ](
+          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error).toBeInstanceOf(EventCheckInUnavailableError);
+        expect(error).toMatchObject({
+          message: 'Check-in opens one hour before this event starts',
+          reason: 'notOpen',
+        });
+        expect(database.transaction).toHaveBeenCalledOnce();
+        expect(tx.update).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect('rejects check-in after the two-hour post-event grace period', () =>
     Effect.gen(function* () {
+      const tx = {
+        ...createRegistrationMutationGuardSelect({
+          eventEnd: new Date(Date.now() - 3 * 60 * 60 * 1000),
+          eventStart: new Date(Date.now() - 5 * 60 * 60 * 1000),
+        }),
+        update: vi.fn(),
+      };
       const database = {
         query: {
           eventRegistrations: {
@@ -6419,9 +6833,6 @@ describe('event registration scan handlers', () => {
               Effect.succeed({
                 checkedInGuestCount: 0,
                 checkInTime: null,
-                event: {
-                  start: new Date(Date.now() + 2 * 60 * 60 * 1000),
-                },
                 eventId: 'event-1',
                 guestCount: 0,
                 id: 'registration-1',
@@ -6431,7 +6842,9 @@ describe('event registration scan handlers', () => {
               }),
           },
         },
-        transaction: vi.fn(),
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
       };
 
       const error = yield* eventRegistrationHandlers[
@@ -6449,15 +6862,23 @@ describe('event registration scan handlers', () => {
         ),
       );
 
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Check-in is not open for this event yet');
-      expect(database.transaction).not.toHaveBeenCalled();
+      expect(error).toBeInstanceOf(EventCheckInUnavailableError);
+      expect(error).toMatchObject({
+        message: 'Check-in closed two hours after this event ended',
+        reason: 'ended',
+      });
+      expect(database.transaction).toHaveBeenCalledOnce();
+      expect(tx.update).not.toHaveBeenCalled();
     }),
   );
 
   it.effect('treats duplicate check-in as an idempotent success', () =>
     Effect.gen(function* () {
       const checkInTime = new Date('2026-09-18T09:45:00.000Z');
+      const tx = {
+        ...createRegistrationMutationGuardSelect({ checkInTime }),
+        update: vi.fn(),
+      };
       const database = {
         query: {
           eventRegistrations: {
@@ -6469,6 +6890,7 @@ describe('event registration scan handlers', () => {
                   start: new Date(Date.now() + 2 * 60 * 60 * 1000),
                 },
                 eventId: 'event-1',
+                guestCount: 0,
                 id: 'registration-1',
                 registrationOptionId: 'option-1',
                 status: 'CONFIRMED',
@@ -6485,7 +6907,9 @@ describe('event registration scan handlers', () => {
               ]),
           },
         },
-        transaction: vi.fn(),
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
       };
 
       const result = yield* eventRegistrationHandlers[
@@ -6499,7 +6923,8 @@ describe('event registration scan handlers', () => {
         alreadyCheckedIn: true,
         checkInTime: '2026-09-18T09:45:00.000Z',
       });
-      expect(database.transaction).not.toHaveBeenCalled();
+      expect(database.transaction).toHaveBeenCalledOnce();
+      expect(tx.update).not.toHaveBeenCalled();
     }),
   );
 
@@ -6544,7 +6969,7 @@ describe('event registration scan handlers', () => {
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
-        'Users cannot check in their own registration',
+        'Ask another organizer to check in this ticket.',
       );
     }),
   );
@@ -6590,9 +7015,7 @@ describe('event registration scan handlers', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe(
-          'Only confirmed registrations can be checked in',
-        );
+        expect(error.message).toBe('This ticket is not ready for check-in.');
         expect(database.transaction).not.toHaveBeenCalled();
       }),
     );

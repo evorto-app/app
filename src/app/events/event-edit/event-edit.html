@@ -13,22 +13,11 @@
       Edit event
     }
   </h1>
-  <div class="grow"></div>
-  <button
-    type="button"
-    *appIfAnyPermission="['events:changeListing']"
-    mat-icon-button
-    aria-label="Open event actions"
-    [matMenuTriggerFor]="menu"
-  >
-    <fa-icon [icon]="faEllipsisVertical" />
-  </button>
-  <mat-menu #menu="matMenu"></mat-menu>
 </div>
 
 <main class="mx-auto w-full max-w-6xl pb-24">
   @if (eventQuery.isPending()) {
-    <p class="text-on-surface-variant py-8">Loading event configuration…</p>
+    <p class="text-on-surface-variant py-8">Loading event setup…</p>
   } @else if (eventQuery.isError()) {
     <section
       class="bg-error-container text-on-error-container rounded-xl p-4"
@@ -43,12 +32,8 @@
       role="alert"
       data-testid="event-graph-readonly"
     >
-      <h2 class="title-medium">Registration configuration is read-only</h2>
+      <h2 class="title-medium">Sign-up setup cannot be edited</h2>
       <p class="mt-2">{{ message }}</p>
-      <p class="mt-2 text-sm">
-        Nothing has been converted or removed. Contact a platform administrator
-        to review this event's registration setup.
-      </p>
     </section>
   } @else {
     <form (submit)="saveEvent($event)">
@@ -134,17 +119,16 @@
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 id="registration-mode-heading" class="title-large">
-                Registration configuration
+                Sign-up setup
               </h2>
               <p class="text-on-surface-variant mt-1 max-w-3xl text-sm">
-                Simple mode keeps one organizer and one participant option.
-                Advanced mode supports any number of named options and reveals
-                add-on configuration.
+                Simple setup keeps one organizer choice and one attendee choice.
+                Advanced setup lets you add more choices and set up add-ons.
               </p>
             </div>
             <div
               class="border-outline-variant flex gap-1 rounded-lg border p-1"
-              aria-label="Registration configuration mode"
+              aria-label="Sign-up setup"
             >
               <button
                 type="button"
@@ -173,22 +157,28 @@
 
           @if (!eventModel().simpleModeEnabled && simpleModeIssue()) {
             <p class="text-on-surface-variant mt-3 text-sm">
-              To return to simple mode, keep exactly one organizing and one
-              non-organizing option. Switching modes never deletes options for
+              To return to simple setup, keep exactly one organizer choice and
+              one attendee choice. Switching setups never deletes choices for
               you.
             </p>
           }
           @if (!stripeConnectionKnown()) {
             <p class="text-on-surface-variant mt-3 text-sm" role="status">
-              Paid controls are unavailable while the organization's Stripe
-              status is loading.
+              Paid choices are unavailable while payment settings load.
             </p>
           } @else if (paidControlsUnavailable()) {
-            <p class="text-on-surface-variant mt-3 text-sm" role="status">
-              Paid controls are unavailable because this organization has no
-              connected Stripe account. Saving keeps event registrations and
-              add-ons free.
-            </p>
+            @if (paidGraphBlocked()) {
+              <p class="text-error mt-3 text-sm" role="alert">
+                This existing event includes paid sign-up choices or add-ons.
+                They remain unchanged, but you cannot save changes until paid
+                sign-ups are ready again.
+              </p>
+            } @else {
+              <p class="text-on-surface-variant mt-3 text-sm" role="status">
+                Paid choices are unavailable because paid sign-ups are not ready
+                for this organization.
+              </p>
+            }
           }
           @if (graphActionMessage(); as message) {
             <p
@@ -207,12 +197,12 @@
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="registration-options-heading" class="title-large">
-                Registration options
+                Sign-up choices
               </h2>
               @if (eventModel().simpleModeEnabled) {
                 <p class="text-on-surface-variant mt-1 text-sm">
-                  Both options remain fully editable. Switch to advanced mode
-                  before adding or removing options.
+                  Both choices remain fully editable. Switch to advanced setup
+                  before adding or removing choices.
                 </p>
               }
             </div>
@@ -222,7 +212,7 @@
                 mat-button
                 (click)="addRegistrationOption()"
               >
-                Add registration option
+                Add sign-up choice
               </button>
             }
           </div>
@@ -236,8 +226,7 @@
                 <p data-testid="event-graph-warning">{{ warning }}</p>
               }
               <p class="mt-1 text-sm">
-                This is allowed for operational events and does not block saving
-                or publishing.
+                You can still save and publish this event.
               </p>
             </div>
           }
@@ -253,14 +242,17 @@
                 [optionForm]="option"
                 [removable]="!eventModel().simpleModeEnabled"
                 [simpleMode]="eventModel().simpleModeEnabled"
+                [taxRates]="availableTaxRates()"
+                [taxRateState]="taxRateState()"
                 (removeRequested)="
                   removeRegistrationOption(option.key().value())
                 "
               />
             } @empty {
               <p class="text-on-surface-variant py-4 text-sm">
-                This operational event has no registration options. Add one when
-                participants or organizers should register.
+                This announcement has no sign-up choices. From the event page,
+                choose which roles can find it in Events. Add a choice when
+                attendees or organizers should sign up.
               </p>
             }
           </div>
@@ -273,17 +265,20 @@
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="registration-questions-heading" class="title-large">
-                Registration questions
+                Sign-up questions
               </h2>
               <p class="text-on-surface-variant mt-1 text-sm">
-                Each question belongs to one concrete option. Duplicate it
-                deliberately when multiple options should ask the same thing.
+                Each question is shown for one sign-up choice. Copy it when
+                several choices should ask the same thing.
               </p>
             </div>
             <button
               type="button"
               mat-button
-              [disabled]="eventModel().registrationOptions.length === 0"
+              [disabled]="
+                eventModel().registrationOptions.length === 0 ||
+                eventModel().questions.length >= maxRegistrationQuestions
+              "
               (click)="addQuestion()"
             >
               Add question
@@ -305,7 +300,7 @@
                     <input matInput [formField]="question.title" />
                   </mat-form-field>
                   <mat-form-field>
-                    <mat-label>Registration option</mat-label>
+                    <mat-label>Sign-up choice</mat-label>
                     <mat-select [formField]="question.registrationOptionKey">
                       @for (option of optionChoices(); track option.key) {
                         <mat-option [value]="option.key">
@@ -315,7 +310,7 @@
                     </mat-select>
                   </mat-form-field>
                   <mat-form-field>
-                    <mat-label>Sort order</mat-label>
+                    <mat-label>Question order</mat-label>
                     <input
                       matInput
                       type="number"
@@ -339,6 +334,10 @@
                     <button
                       type="button"
                       mat-button
+                      [disabled]="
+                        eventModel().questions.length >=
+                        maxRegistrationQuestions
+                      "
                       (click)="duplicateQuestion(questionIndex)"
                     >
                       Duplicate question
@@ -355,7 +354,13 @@
               </article>
             } @empty {
               <p class="text-on-surface-variant text-sm">
-                No registration questions are configured.
+                No sign-up questions yet.
+              </p>
+            }
+            @if (eventModel().questions.length >= maxRegistrationQuestions) {
+              <p class="body-small text-on-surface-variant">
+                You have added the maximum of
+                {{ maxRegistrationQuestions }} questions.
               </p>
             }
           </div>
@@ -371,14 +376,26 @@
               <div>
                 <h2 id="event-addons-heading" class="title-large">Add-ons</h2>
                 <p class="text-on-surface-variant mt-1 text-sm">
-                  Reuse one add-on across several options. Each registration
-                  option has its own included and optional quantities.
+                  Offer one add-on with several sign-up choices. Each choice can
+                  include a different amount or let people buy a different
+                  amount. An event can have up to
+                  {{ maxEventAddonTypes }} add-ons.
                 </p>
               </div>
-              <button type="button" mat-button (click)="addAddOn()">
+              <button
+                type="button"
+                mat-button
+                [disabled]="eventModel().addOns.length >= maxEventAddonTypes"
+                (click)="addAddOn()"
+              >
                 Add add-on
               </button>
             </div>
+            @for (error of eventForm.addOns().errors(); track error) {
+              <p class="text-error mb-3 text-sm" role="alert">
+                {{ error.message }}
+              </p>
+            }
 
             <div class="grid gap-4">
               @for (
@@ -390,6 +407,8 @@
                   [addOnForm]="addOn"
                   [currencyCode]="tenantCurrency()"
                   [optionChoices]="optionChoices()"
+                  [taxRates]="availableTaxRates()"
+                  [taxRateState]="taxRateState()"
                   (addMappingRequested)="addAddOnMapping(addOnIndex)"
                   (removeMappingRequested)="
                     removeAddOnMapping(addOnIndex, $event)
@@ -398,7 +417,7 @@
                 />
               } @empty {
                 <p class="text-on-surface-variant text-sm">
-                  No add-ons yet. Add one to offer extras with registration.
+                  No add-ons yet. Add one to offer extras during sign-up.
                 </p>
               }
             </div>
@@ -428,6 +447,23 @@
               Try again
             </button>
           }
+          @if (taxRatesQuery.isFetching()) {
+            <p class="text-on-surface-variant text-sm" role="status">
+              Loading tax rates. Saving is available when they finish loading.
+            </p>
+          } @else if (taxRatesQuery.isError()) {
+            <p class="text-error text-sm" role="alert">
+              Tax rates could not be loaded. No changes can be saved until they
+              are available, so existing tax selections stay unchanged.
+            </p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="taxRatesQuery.refetch()"
+            >
+              Try again
+            </button>
+          }
           <button
             type="submit"
             mat-flat-button
@@ -439,6 +475,8 @@
                 formSubmitting: eventForm().submitting(),
                 graphReadOnly: loadBlock() !== null,
                 mutationPending: updateEventMutation.isPending(),
+                paidGraphBlocked: paidGraphBlocked(),
+                taxRatesReady: taxRatesReady(),
               })
             "
           >

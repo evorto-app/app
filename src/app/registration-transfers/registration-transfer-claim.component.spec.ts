@@ -80,8 +80,8 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       status: 'confirmed',
     });
     loadClaim.mockReset();
-    loadClaim.mockImplementation(async (credential: string) =>
-      credential === 'offer-b'
+    loadClaim.mockImplementation(async (claimCode: string) =>
+      claimCode === 'offer-b'
         ? transferClaim('transfer-b', 'question-b')
         : transferClaim('transfer-a', 'question-a'),
     );
@@ -121,9 +121,9 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
               mutationFn: claimMutation,
               mutationKey: ['transfer-claim', 'claim'],
             }),
-            getClaim: (credential: string) => ({
-              queryFn: () => loadClaim(credential),
-              queryKey: ['transfer-claim', credential],
+            getClaim: (claimCode: string) => ({
+              queryFn: () => loadClaim(claimCode),
+              queryKey: ['transfer-claim', claimCode],
             }),
             retryCheckout: () => ({
               mutationFn: retryCheckoutMutation,
@@ -143,7 +143,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
 
   it('preserves same-transfer edits but resets them when the reused route loads another transfer', async () => {
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -183,7 +183,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       expect(currentInputs[1]?.value).toBe('');
     });
 
-    fixture.componentRef.setInput('credential', 'offer-b');
+    fixture.componentRef.setInput('claimCode', 'offer-b');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -203,7 +203,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       })
       .mockResolvedValueOnce({ status: 'reconciled' });
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -256,7 +256,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       expect(unsafeCheckoutText(fixture)).toContain('true');
     });
 
-    fixture.componentRef.setInput('credential', 'offer-b');
+    fixture.componentRef.setInput('claimCode', 'offer-b');
     fixture.detectChanges();
     await vi.waitFor(() => {
       fixture.detectChanges();
@@ -274,7 +274,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       new Error('Registration transfer is no longer available'),
     );
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -363,7 +363,7 @@ describe('reconcileTransferClaimAnswers', () => {
 });
 
 describe('registrationTransferClaimPayload', () => {
-  it('submits only recipient answers and the claim credential', () => {
+  it('submits only recipient answers and the claim code', () => {
     const payload = registrationTransferClaimPayload({
       answers: [
         {
@@ -371,7 +371,7 @@ describe('registrationTransferClaimPayload', () => {
           questionId: 'question-1',
         },
       ],
-      credential: 'claim-token',
+      claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
     });
 
     expect(payload).toEqual({
@@ -381,7 +381,7 @@ describe('registrationTransferClaimPayload', () => {
           questionId: 'question-1',
         },
       ],
-      credential: 'claim-token',
+      claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
     });
     expect(payload).not.toHaveProperty('addOns');
     expect(payload).not.toHaveProperty('guestCount');
@@ -407,7 +407,7 @@ describe('registrationTransferCheckoutUrl', () => {
 });
 
 describe('registrationTransferLookupErrorCopy', () => {
-  it('keeps missing and unauthorized credentials indistinguishable', () => {
+  it('keeps missing and unauthorized claim codes indistinguishable', () => {
     const notFound = registrationTransferLookupErrorCopy({
       _tag: 'RegistrationTransferNotFoundError',
     });
@@ -443,7 +443,7 @@ describe('registration transfer bundle review template', () => {
     );
   });
 
-  it('announces claim progress and renders touched validation errors', () => {
+  it('announces transfer progress and renders touched validation errors', () => {
     const template = readSource(
       'src/app/registration-transfers/registration-transfer-claim.component.html',
     );
@@ -451,7 +451,7 @@ describe('registration transfer bundle review template', () => {
     expect(template).toContain(
       '[attr.aria-busy]="claimMutation.isPending() || null"',
     );
-    expect(template).toContain('Claiming registration. Please wait.');
+    expect(template).toContain('Completing transfer. Please wait.');
     expect(template).toContain('answerField.answer().touched()');
     expect(template).toContain('<mat-error>{{ error.message }}</mat-error>');
   });
@@ -461,30 +461,29 @@ describe('registration transfer bundle review template', () => {
       'src/app/registration-transfers/registration-transfer-claim.component.html',
     );
 
-    expect(template).toContain('Registration check-in');
+    expect(template).toContain('Attendee check-in');
     expect(template).toContain('claim.bundle.checkInTime | date: "medium"');
     expect(template).toContain('{{ claim.bundle.checkedInGuestCount }} of');
     expect(template).toContain('Available to use');
     expect(template).toContain('{{ addOn.remainingQuantity }}');
-    expect(template).toContain('Redeemed');
+    expect(template).toContain('Handed out');
     expect(template).toContain('{{ addOn.redeemedQuantity }}');
     expect(template).toContain('Cancelled');
     expect(template).toContain('{{ addOn.cancelledQuantity }}');
-    expect(template).toContain(
-      'existing check-in and use history\n            transfer together',
-    );
+    expect(template).toContain('Existing check-in');
+    expect(template).toContain('cannot be reset');
   });
 
-  it("shows current base price and only the recipient's current discount", () => {
+  it("shows the regular price and only the recipient's current discount", () => {
     const template = readSource(
       'src/app/registration-transfers/registration-transfer-claim.component.html',
     );
 
-    expect(template).toContain('Current base price');
+    expect(template).toContain('Current regular price');
     expect(template).toContain('claim.registrationOption.basePrice / 100');
     expect(template).toContain('Your current ESNcard discount');
     expect(template).toContain('claim.registrationOption.discountAmount / 100');
-    expect(template).toContain('Your current registration price');
+    expect(template).toContain('Your ticket price');
     expect(template).toContain('claim.registrationOption.currentPrice / 100');
     expect(template).not.toContain('sourceDiscount');
   });
@@ -494,12 +493,10 @@ describe('registration transfer bundle review template', () => {
       'src/app/registration-transfers/registration-transfer-claim.component.html',
     );
 
-    expect(template).toContain(
-      'Includes the add-on units marked Included below.',
-    );
-    expect(template).toContain('Included in registration price');
+    expect(template).toContain('Includes the items marked Included below.');
+    expect(template).toContain('Included in the ticket price');
     expect(template).toContain('{{ addOn.includedQuantity }}');
-    expect(template).toContain('Purchased at current unit price');
+    expect(template).toContain('Purchased at the current price per item');
     expect(template).toContain('{{ addOn.purchasedQuantity }} ×');
     expect(template).toContain('addOn.currentUnitPrice / 100');
     expect(template).not.toContain('{{ addOn.quantity }} total ·');
@@ -527,11 +524,11 @@ describe('registration transfer bundle review template', () => {
     expect(template).not.toContain('errorMessage(retryMutation.error()');
     expect(template).toContain('lookupErrorCopy(claimQuery.error())');
     expect(template).toContain('(click)="claimQuery.refetch()"');
-    expect(template).toContain('routerLink="/registration-transfers"');
+    expect(template).toContain('(click)="enterAnotherCode.emit()"');
     expect(template).toContain('Enter another code');
     expect(template).toContain('@if (unsafeCheckout())');
     expect(template).toContain('@else if (retryMutation.isError())');
-    expect(template).toContain('Your transfer has not changed');
+    expect(template).toContain('Check transfer status');
   });
 
   it('announces transfer error states as alerts', () => {
@@ -546,6 +543,14 @@ describe('registration transfer bundle review template', () => {
 });
 
 describe('registrationTransferStatusCopy', () => {
+  it('explains that the sender cancelled the transfer', () => {
+    expect(registrationTransferStatusCopy('cancelled')).toEqual({
+      body: 'The sender cancelled the transfer. The ticket was not transferred.',
+      title: 'Transfer cancelled',
+      tone: 'info',
+    });
+  });
+
   it('explains paid-recipient compensation without suggesting another payment', () => {
     const pending = registrationTransferStatusCopy('compensation_pending', {
       state: 'processing',
@@ -554,11 +559,11 @@ describe('registrationTransferStatusCopy', () => {
     const completed = registrationTransferStatusCopy('compensated');
 
     expect(pending?.body).toContain('full refund');
-    expect(pending?.body).toContain('including the platform fee');
+    expect(pending?.body).toContain('including all fees');
     expect(failed?.body).toContain('contact the organizer for an update');
     expect(completed?.body).toContain('was refunded');
     for (const copy of [pending, failed, completed]) {
-      expect(copy?.body).toContain('Do not pay or claim again');
+      expect(copy?.body).toContain('Do not pay or try the transfer again');
     }
   });
 
@@ -566,8 +571,8 @@ describe('registrationTransferStatusCopy', () => {
     expect(
       registrationTransferStatusCopy('refund_pending', { state: 'processing' }),
     ).toEqual({
-      body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund is still being processed; you do not need to do anything.',
-      title: 'Transfer complete — refund processing',
+      body: "The ticket is now yours and confirmed. The previous attendee's refund is in progress; you do not need to do anything.",
+      title: 'Transfer complete — refund in progress',
       tone: 'success',
     });
   });
@@ -584,10 +589,12 @@ describe('registrationTransferStatusCopy', () => {
     expect(actionRequired?.title).toBe(
       'Transfer stopped — refund needs attention',
     );
-    expect(actionRequired?.body).toContain('Do not pay or claim again');
+    expect(actionRequired?.body).toContain(
+      'Do not pay or try the transfer again',
+    );
     expect(actionRequired?.body).not.toContain('is processing');
     expect(stopped?.title).toBe('Transfer complete — refund needs attention');
-    expect(stopped?.body).toContain('still needs follow-up');
+    expect(stopped?.body).toContain('still needs attention');
     expect(stopped?.body).not.toContain('platform-administrator');
   });
 
@@ -602,14 +609,16 @@ describe('registrationTransferStatusCopy', () => {
     const copy = registrationTransferStatusCopy('refund_failed');
 
     expect(copy?.title).toBe('Transfer complete — refund needs attention');
-    expect(copy?.body).toContain('you do not need to pay or claim again');
-    expect(copy?.body).toContain('previous owner refund still needs follow-up');
+    expect(copy?.body).toContain(
+      'you do not need to pay or try the transfer again',
+    );
+    expect(copy?.body).toContain('previous attendee still needs attention');
     expect(copy?.body).not.toContain('platform administrator');
   });
 
-  it('states that an expired Checkout preserves the source registration', () => {
+  it('states that an expired payment link preserves the previous ticket', () => {
     expect(registrationTransferStatusCopy('expired')?.body).toContain(
-      'previous owner kept their confirmed registration',
+      'previous attendee kept the ticket',
     );
   });
 });

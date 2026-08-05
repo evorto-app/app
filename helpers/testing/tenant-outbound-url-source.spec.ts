@@ -39,9 +39,9 @@ describe('tenant outbound URL source boundary', () => {
     );
     const tenantAdminSettings = tenantAdminContract.slice(
       tenantAdminContract.indexOf(
-        'export const AdminTenantUpdateSettingsInput',
+        'export const AdminTenantUpdateAppearanceSettingsInput',
       ),
-      tenantAdminContract.indexOf('export type AdminTenantUpdateSettingsInput'),
+      tenantAdminContract.indexOf('export const AdminTenantBrandAssetKind'),
     );
 
     expect(platformContract).not.toContain('canonicalRootUrl');

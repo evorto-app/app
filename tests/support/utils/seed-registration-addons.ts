@@ -27,7 +27,7 @@ export const seedFreeRegistrationAddon = async ({
     allowPurchaseBeforeEvent: false,
     allowPurchaseDuringEvent: false,
     allowPurchaseDuringRegistration: true,
-    description: 'A free add-on for registration flow coverage.',
+    description: 'Collect a snack voucher at the welcome desk.',
     eventId,
     id: addonId,
     isPaid: false,

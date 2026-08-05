@@ -21,30 +21,45 @@
 
     <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <mat-form-field>
-        <mat-label>Total stock</mat-label>
+        <mat-label>Total available</mat-label>
         <input
           matInput
           type="number"
+          step="1"
           [formField]="addOn.totalAvailableQuantity"
         />
+        @for (error of addOn.totalAvailableQuantity().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
       </mat-form-field>
       <mat-form-field>
-        <mat-label>Maximum optional units per user</mat-label>
-        <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+        <mat-label>Maximum each person can buy</mat-label>
+        <input
+          matInput
+          type="number"
+          step="1"
+          [formField]="addOn.maxQuantityPerUser"
+        />
+        <mat-hint>
+          At most {{ maxRegistrationAddonQuantity }} items per sign-up.
+        </mat-hint>
+        @for (error of addOn.maxQuantityPerUser().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
       </mat-form-field>
       <mat-checkbox [formField]="addOn.allowMultiple">
-        Allow multiple units
+        Allow more than one item
       </mat-checkbox>
       <mat-checkbox [formField]="addOn.isPaid">Paid add-on</mat-checkbox>
       <p class="text-on-surface-variant text-sm">
-        Paid add-ons require a connected Stripe account.
+        A price can be added only when paid sign-ups are ready.
       </p>
     </section>
 
     @if (!addOn.price().hidden()) {
       <section class="grid gap-4 sm:grid-cols-2">
         <app-currency-amount-input
-          label="Unit price"
+          label="Price per item"
           [currencyCode]="currencyCode()"
           [formField]="addOn.price"
           [minimumMinorUnits]="1"
@@ -52,17 +67,26 @@
         <mat-form-field>
           <mat-label>Tax rate</mat-label>
           <mat-select [formField]="addOn.stripeTaxRateId">
-            @if (taxRatesQuery.isPending()) {
-              <mat-option disabled>Loading tax rates...</mat-option>
-            } @else if (taxRatesQuery.isSuccess()) {
-              @for (rate of taxRatesQuery.data(); track rate.id) {
+            @if (taxRateState() === "loading") {
+              <mat-option disabled>Loading tax rates…</mat-option>
+            } @else if (taxRateState() === "error") {
+              <mat-option disabled>Tax rates are unavailable</mat-option>
+            } @else if (taxRates(); as resolvedTaxRates) {
+              @for (rate of resolvedTaxRates; track rate.id) {
                 <mat-option [value]="rate.stripeTaxRateId">
-                  {{ rate.displayName || rate.stripeTaxRateId }} —
-                  {{ rate.percentage ?? "?" }}%
+                  {{ rate.displayName || "Tax rate name unavailable" }} —
+                  {{
+                    rate.percentage === null
+                      ? "Percentage unavailable"
+                      : rate.percentage + "%"
+                  }}
                 </mat-option>
               }
             } @else {
-              <mat-option disabled>Failed to load tax rates</mat-option>
+              <mat-option disabled>
+                Tax rates could not be loaded. Paid prices cannot be saved until
+                they are available.
+              </mat-option>
             }
           </mat-select>
         </mat-form-field>
@@ -70,13 +94,13 @@
     }
 
     <section class="grid gap-3">
-      <h3 class="title-medium">Purchase windows</h3>
+      <h3 class="title-medium">When people can buy this add-on</h3>
       <div class="flex flex-wrap gap-x-6 gap-y-2">
         <mat-checkbox [formField]="addOn.allowPurchaseDuringRegistration">
-          During registration
+          During sign-up
         </mat-checkbox>
         <mat-checkbox [formField]="addOn.allowPurchaseBeforeEvent">
-          After registration, before the event
+          After sign-up, before the event
         </mat-checkbox>
         <mat-checkbox [formField]="addOn.allowPurchaseDuringEvent">
           During the event
@@ -92,10 +116,11 @@
     <section class="grid gap-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 class="title-medium">Available with registration options</h3>
+          <h3 class="title-medium">Available with sign-up choices</h3>
           <p class="text-on-surface-variant text-sm">
-            Included units are granted automatically. Optional units remain a
-            separate participant choice.
+            Each person receives the included items with this sign-up choice.
+            They can also buy optional items. Together they cannot exceed
+            {{ maxRegistrationAddonQuantity }} per sign-up.
           </p>
         </div>
         <button
@@ -104,7 +129,7 @@
           [disabled]="!canAddMapping()"
           (click)="addMappingRequested.emit()"
         >
-          Add registration option
+          Add sign-up choice
         </button>
       </div>
 
@@ -117,7 +142,7 @@
           class="border-outline-variant grid gap-3 border-t pt-3 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto]"
         >
           <mat-form-field>
-            <mat-label>Registration option</mat-label>
+            <mat-label>Sign-up choice</mat-label>
             <mat-select [formField]="mapping.registrationOptionKey">
               @for (option of optionChoices(); track option.key) {
                 <mat-option
@@ -132,32 +157,43 @@
             </mat-select>
           </mat-form-field>
           <mat-form-field>
-            <mat-label>Included quantity</mat-label>
+            <mat-label>Included items</mat-label>
             <input
               matInput
               type="number"
+              step="1"
               [formField]="mapping.includedQuantity"
             />
+            @for (error of mapping.includedQuantity().errors(); track error) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
           </mat-form-field>
           <mat-form-field>
-            <mat-label>Optional quantity</mat-label>
+            <mat-label>Items people can buy</mat-label>
             <input
               matInput
               type="number"
+              step="1"
               [formField]="mapping.optionalPurchaseQuantity"
             />
+            @for (
+              error of mapping.optionalPurchaseQuantity().errors();
+              track error
+            ) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
           </mat-form-field>
           <button
             type="button"
             mat-button
             (click)="removeMappingRequested.emit(mappingIndex)"
           >
-            Remove registration option
+            Remove sign-up choice
           </button>
         </div>
       } @empty {
         <p class="text-on-surface-variant text-sm">
-          This add-on is not currently offered by any registration option.
+          This add-on is not currently offered with any sign-up choice.
         </p>
       }
 

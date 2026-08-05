@@ -1,13 +1,16 @@
-import { readonly, required, schema } from '@angular/forms/signals';
+import { maxLength, readonly, required, schema } from '@angular/forms/signals';
 
 import {
   ALL_PERMISSIONS,
   PERMISSION_DEPENDENCIES,
   TenantRolePermission,
 } from '../../../../shared/permissions/permissions';
+import {
+  ROLE_DESCRIPTION_MAX_LENGTH,
+  ROLE_NAME_MAX_LENGTH,
+} from '../../../../shared/rpc-contracts/app-rpcs/role-write.shared';
 
 export interface RoleFormData {
-  collapseMembersInHup: boolean;
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: null | string;
@@ -17,7 +20,6 @@ export interface RoleFormData {
 }
 
 export interface RoleFormModel {
-  collapseMembersInHup: boolean;
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: string;
@@ -62,7 +64,6 @@ const buildPermissions = (
 export const createRoleFormModel = (
   overrides: RoleFormOverrides = {},
 ): RoleFormModel => ({
-  collapseMembersInHup: overrides.collapseMembersInHup ?? false,
   defaultOrganizerRole: overrides.defaultOrganizerRole ?? false,
   defaultUserRole: overrides.defaultUserRole ?? false,
   description: overrides.description ?? '',
@@ -100,7 +101,13 @@ for (const [permission, dependencies] of Object.entries(
 }
 
 export const roleFormSchema = schema<RoleFormModel>((form) => {
-  required(form.name);
+  required(form.name, { message: 'Enter a role name.' });
+  maxLength(form.name, ROLE_NAME_MAX_LENGTH, {
+    message: `Name must be ${ROLE_NAME_MAX_LENGTH} characters or fewer.`,
+  });
+  maxLength(form.description, ROLE_DESCRIPTION_MAX_LENGTH, {
+    message: `Description must be ${ROLE_DESCRIPTION_MAX_LENGTH} characters or fewer.`,
+  });
 
   for (const permission of ALL_PERMISSIONS) {
     const parents = DEPENDENT_PERMISSION_PARENTS[permission];

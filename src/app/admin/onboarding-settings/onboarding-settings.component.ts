@@ -58,10 +58,10 @@ export const onboardingOptionsValidationMessage = (
 ): string | undefined => {
   const options = onboardingOptionsFromText(optionsText);
   if (options.some((option) => option.length > 80)) {
-    return 'Selection options must be no longer than 80 characters.';
+    return 'Each choice must be 80 characters or fewer.';
   }
   if (options.length < 2 || options.length > 20) {
-    return 'Selection questions require between 2 and 20 options.';
+    return 'Add between 2 and 20 choices.';
   }
   return;
 };
@@ -85,7 +85,7 @@ const settingsSchema = schema<OnboardingSettingsFormModel>((settings) => {
       ? undefined
       : {
           kind: 'required',
-          message: 'Add privacy policy text or a privacy policy URL.',
+          message: 'Add privacy policy text or a privacy policy web address.',
         },
   );
 });
@@ -97,12 +97,12 @@ export const onboardingPublishNotice = (result: {
   questionsChanged: boolean;
 }): string => {
   if (result.policyChanged) {
-    return `Privacy policy version ${result.policyVersion} published. ${result.affectedUsers} members must accept it before continuing.`;
+    return `Privacy policy updated. ${result.affectedUsers} members must accept the new policy before continuing.`;
   }
   if (result.questionsChanged) {
-    return 'Onboarding questions updated. Members with missing answers will be prompted before continuing.';
+    return 'Questions updated. Members who have not answered them will be asked before continuing.';
   }
-  return 'Onboarding settings are unchanged';
+  return 'No changes to publish';
 };
 
 @Injectable({ providedIn: 'root' })
@@ -223,7 +223,14 @@ export class OnboardingSettingsComponent {
         this.notifications.showSuccess(onboardingPublishNotice(result));
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to publish onboarding settings'),
+          getErrorMessage(
+            error,
+            "We couldn't publish these changes. Try again.",
+            [
+              'TenantOnboardingConfigurationError',
+              'TenantOnboardingValidationError',
+            ],
+          ),
         );
       }
     });

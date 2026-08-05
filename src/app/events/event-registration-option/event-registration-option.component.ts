@@ -1,3 +1,5 @@
+import type { RegistrationMode } from '@shared/registration-modes';
+
 import { CurrencyPipe } from '@angular/common';
 import {
   afterNextRender,
@@ -12,6 +14,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import {
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
   injectMutation,
   injectQuery,
@@ -62,16 +69,24 @@ export interface EventRegistrationOptionView {
     sortOrder: number;
     title: string;
   }[];
-  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationMode: RegistrationMode;
   reservedSpots: number;
   spots: number;
-  stripeTaxRateId?: null | string;
   taxRateDisplayName?: null | string;
   taxRatePercentage?: null | string;
   title: string;
 }
 
 export type RegistrationAvailability = 'open' | 'tooEarly' | 'tooLate';
+
+export const registrationOptionErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string =>
+  getErrorMessage(error, fallback, [
+    'EventRegistrationConflictError',
+    'EventRegistrationNotFoundError',
+  ]);
 
 export const registrationOptionAudienceCopy = (
   option: Pick<
@@ -91,7 +106,7 @@ export const registrationOptionAudienceCopy = (
     return {
       actionSuffix: 'apply as organizer/helper',
       helperText:
-        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
       label: 'Organizer/helper application',
       primaryAction: 'Apply as organizer/helper',
     };
@@ -100,8 +115,8 @@ export const registrationOptionAudienceCopy = (
   if (option.organizingRegistration) {
     return {
       actionSuffix: 'sign up as organizer/helper',
-      helperText: 'Use this option when you are helping run the event.',
-      label: 'Organizer/helper option',
+      helperText: 'Use this choice when you are helping run the event.',
+      label: 'Organizer/helper choice',
       primaryAction: 'Sign up as organizer/helper',
     };
   }
@@ -110,17 +125,17 @@ export const registrationOptionAudienceCopy = (
     return {
       actionSuffix: 'apply',
       helperText:
-        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
-      label: 'Manual approval option',
+        'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
+      label: 'Organizer approval required',
       primaryAction: 'Apply for approval',
     };
   }
 
   return {
-    actionSuffix: 'register',
-    helperText: 'Use this option when you are attending the event.',
-    label: 'Participant option',
-    primaryAction: 'Register',
+    actionSuffix: 'sign up',
+    helperText: 'Use this choice when you are attending the event.',
+    label: 'Attendee choice',
+    primaryAction: 'Sign up',
   };
 };
 
@@ -152,6 +167,19 @@ export const registrationOptionAvailableSpots = (
   >,
 ): number =>
   Math.max(0, option.spots - option.confirmedSpots - option.reservedSpots);
+
+export const registrationOptionMaxGuestCount = (
+  option: Pick<
+    EventRegistrationOptionView,
+    'confirmedSpots' | 'organizingRegistration' | 'reservedSpots' | 'spots'
+  >,
+): number =>
+  option.organizingRegistration
+    ? 0
+    : Math.min(
+        MAX_REGISTRATION_GUESTS,
+        Math.max(0, registrationOptionAvailableSpots(option) - 1),
+      );
 
 export const registrationOptionSelectedTotalPrice = (
   option: Pick<EventRegistrationOptionView, 'effectivePrice' | 'price'>,
@@ -208,9 +236,11 @@ export const registrationAddonMaxSelectableQuantity = (
   }
 
   return Math.min(
+    MAX_REGISTRATION_ADDON_QUANTITY,
     attachment.optionalPurchaseQuantity,
     Math.max(0, addOn.maxQuantityPerUser),
     Math.max(0, addOn.totalAvailableQuantity - attachment.includedQuantity),
+    Math.max(0, MAX_REGISTRATION_ADDON_QUANTITY - attachment.includedQuantity),
   );
 };
 
@@ -349,10 +379,10 @@ export class EventRegistrationOptionComponent {
   });
   protected readonly guestCount = signal(0);
   protected readonly maxGuestCount = computed(() =>
-    this.registrationOption().organizingRegistration
-      ? 0
-      : Math.max(0, this.availableSpots() - 1),
+    registrationOptionMaxGuestCount(this.registrationOption()),
   );
+  protected readonly maxRegistrationAnswerLength =
+    MAX_REGISTRATION_ANSWER_LENGTH;
   protected readonly registrationMutation = injectMutation(() =>
     this.rpc.events.registerForEvent.mutationOptions(),
   );
@@ -388,9 +418,6 @@ export class EventRegistrationOptionComponent {
       this.registrationOption().registrationMode !== 'application' &&
       this.selectedTotalPrice() > 0,
   );
-  protected readonly registrationModeSupported = computed(
-    () => this.registrationOption().registrationMode !== 'random',
-  );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
   });
@@ -419,7 +446,6 @@ export class EventRegistrationOptionComponent {
     return {
       displayName: option.taxRateDisplayName ?? null,
       percentage: option.taxRatePercentage ?? null,
-      stripeTaxRateId: option.stripeTaxRateId ?? null,
     };
   });
 
@@ -584,8 +610,8 @@ export class EventRegistrationOptionComponent {
     }));
   }
 
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+  protected errorMessage(error: unknown, fallback: string): string {
+    return registrationOptionErrorMessage(error, fallback);
   }
 
   private async refreshRegistrationState(eventId: string): Promise<void> {

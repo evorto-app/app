@@ -23,7 +23,6 @@ import { completePaidRegistrationCheckout } from '../registrations/registration-
 import { expireRegistrationTransferCheckout } from '../registrations/registration-transfer-finalization';
 import { StripeClient } from '../stripe-client';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
-import { readRequestBody } from './request-body';
 
 export const MAX_STRIPE_WEBHOOK_SIZE_BYTES = 200 * 1024;
 export const MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES = MAX_STRIPE_WEBHOOK_SIZE_BYTES;
@@ -185,48 +184,6 @@ export const stripeEventOwnsPersistedAccount = (
   Boolean(
     eventAccount && persistedAccount && eventAccount === persistedAccount,
   );
-
-export const prepareStripeWebhookRequest = Effect.fn(
-  'prepareStripeWebhookRequest',
-)(function* (request: Request) {
-  const signature = request.headers.get('stripe-signature');
-  if (!signature) {
-    return responseText('No signature', 400);
-  }
-
-  const rawBody = yield* readRequestBody(
-    request,
-    MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES,
-  ).pipe(
-    Effect.catchTags({
-      RequestBodyInvalidContentLengthError: (error) =>
-        Effect.logWarning('Stripe webhook has invalid Content-Length').pipe(
-          Effect.annotateLogs({ contentLength: error.contentLength }),
-          Effect.as(responseText('Invalid Content-Length', 400)),
-        ),
-      RequestBodyReadError: (error) =>
-        Effect.logWarning('Failed to read Stripe webhook body').pipe(
-          Effect.annotateLogs({
-            error:
-              error.cause instanceof Error
-                ? error.cause.message
-                : String(error.cause),
-          }),
-          Effect.as(responseText('Unable to read payload', 400)),
-        ),
-      RequestBodyTooLargeError: (error) =>
-        Effect.logWarning('Stripe webhook body exceeded route limit').pipe(
-          Effect.annotateLogs({ maxBytes: error.maxBytes }),
-          Effect.as(responseText('Payload too large', 413)),
-        ),
-    }),
-  );
-  if (rawBody instanceof Response) {
-    return rawBody;
-  }
-
-  return { rawBody, signature };
-});
 
 type StripeRefundWebhookEvent =
   | Stripe.RefundCreatedEvent
@@ -390,11 +347,6 @@ const getCheckoutNotificationContext = (
     }),
   );
 
-const checkoutNotificationEmail = (user: {
-  communicationEmail: string;
-  email: string;
-}): string => user.communicationEmail.trim() || user.email;
-
 const getCheckoutSessionPaymentIntentId = (
   session: Stripe.Checkout.Session,
 ): string | undefined =>
@@ -531,7 +483,11 @@ export const validateCheckoutSessionBinding = ({
   ) {
     return { type: 'already-finalized-expiry' };
   }
-  if (persisted.status !== 'pending') {
+  const isTerminalSuccessfulRegistration =
+    persisted.type === 'registration' &&
+    persisted.status === 'successful' &&
+    (registrationStatus === 'CONFIRMED' || registrationStatus === 'CANCELLED');
+  if (persisted.status !== 'pending' && !isTerminalSuccessfulRegistration) {
     return { type: 'state-conflict' };
   }
 
@@ -575,10 +531,11 @@ const resolveCheckoutSession = (
         return { type: 'unresolved' } as const;
       }
 
-      const finalizedRegistration =
-        options.allowFinalizedExpiry &&
-        persisted.status === 'cancelled' &&
-        persisted.eventRegistrationId
+      const persistedRegistration =
+        persisted.eventRegistrationId &&
+        ((options.allowFinalizedExpiry && persisted.status === 'cancelled') ||
+          (persisted.type === 'registration' &&
+            persisted.status === 'successful'))
           ? yield* database.query.eventRegistrations.findFirst({
               columns: { status: true },
               where: {
@@ -598,7 +555,7 @@ const resolveCheckoutSession = (
         metadata: eventSession.metadata,
         paymentIntentId,
         persisted,
-        registrationStatus: finalizedRegistration?.status,
+        registrationStatus: persistedRegistration?.status,
         requirePaymentIntent: options.requirePaymentIntent,
         sessionId: eventSession.id,
         stripeAccountId: tenant?.stripeAccountId,
@@ -749,6 +706,11 @@ const markWebhookEventProcessed = (eventId: string) =>
 
 export const handleStripeWebhookWebRequest = (request: Request) =>
   Effect.gen(function* () {
+    const signature = request.headers.get('stripe-signature');
+    if (!signature) {
+      return responseText('No signature', 400);
+    }
+
     const rawBody = yield* readStripeWebhookBody(request).pipe(
       Effect.tapErrorTag('StripeWebhookBodyReadError', (error) =>
         Effect.logError('Failed to read Stripe webhook body').pipe(
@@ -766,11 +728,6 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
     const stripe = yield* StripeClient;
     const { STRIPE_WEBHOOK_SECRET: endpointSecret } =
       yield* stripeWebhookConfig;
-    const signature = request.headers.get('stripe-signature');
-    if (!signature) {
-      return responseText('No signature', 400);
-    }
-
     const event = yield* Effect.sync(() =>
       stripe.webhooks.constructEvent(
         Buffer.from(rawBody.buffer, rawBody.byteOffset, rawBody.byteLength),
@@ -1307,9 +1264,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   ? [
                       {
                         registrationId: waitlistRegistration.id,
-                        to: checkoutNotificationEmail(
-                          waitlistRegistration.user,
-                        ),
+                        to: waitlistRegistration.user.communicationEmail,
                       },
                     ]
                   : [],

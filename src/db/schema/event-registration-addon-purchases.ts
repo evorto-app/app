@@ -1,3 +1,4 @@
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -56,6 +57,10 @@ export const eventRegistrationAddonPurchases = pgTable(
     check(
       'event_registration_addon_purchases_quantities_nonnegative',
       sql`${table.quantity} > 0 AND ${table.includedQuantity} >= 0 AND ${table.purchasedQuantity} >= 0 AND ${table.redeemedQuantity} >= 0 AND ${table.cancelledQuantity} >= 0 AND ${table.refundAllocatedPurchasedQuantity} >= 0`,
+    ),
+    check(
+      'event_registration_addon_purchases_quantity_bounded',
+      sql`${table.quantity} <= ${MAX_REGISTRATION_ADDON_QUANTITY}`,
     ),
     check(
       'event_registration_addon_purchases_grant_breakdown',

@@ -182,7 +182,7 @@ describe('post-registration add-on mutation guards', () => {
     const registrationLock = createOffer.indexOf('const lockedSources =');
     const termsLock = createOffer.indexOf('const lockedTransferTerms =');
     const deadlineSampleTime = createOffer.indexOf('const mutationNow =');
-    const claimUrl = createOffer.indexOf('const claimUrl =');
+    const claimPageUrl = createOffer.indexOf('const claimPageUrl =');
     const insertSampleTime = createOffer.indexOf('const offerInsertNow =');
     const transferInsert = createOffer.indexOf(
       '.insert(registrationTransfers)',
@@ -191,8 +191,8 @@ describe('post-registration add-on mutation guards', () => {
     expect(registrationLock).toBeGreaterThanOrEqual(0);
     expect(termsLock).toBeGreaterThan(registrationLock);
     expect(deadlineSampleTime).toBeGreaterThan(termsLock);
-    expect(claimUrl).toBeGreaterThan(deadlineSampleTime);
-    expect(insertSampleTime).toBeGreaterThan(claimUrl);
+    expect(claimPageUrl).toBeGreaterThan(deadlineSampleTime);
+    expect(insertSampleTime).toBeGreaterThan(claimPageUrl);
     expect(transferInsert).toBeGreaterThan(insertSampleTime);
     expect(createOffer.slice(termsLock, deadlineSampleTime)).toContain(
       ".for('update')",

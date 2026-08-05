@@ -12,13 +12,12 @@ test('Manage finances @finance', async ({
   database,
   permissionOverride,
   page,
-  seedDate,
   tenant,
 }, testInfo) => {
   const visibleTransactionId = getId();
   const cancelledTransactionId = getId();
-  const visibleTransactionComment = `finance-doc-visible-${seedDate.getTime()}`;
-  const cancelledTransactionComment = `finance-doc-cancelled-${seedDate.getTime()}`;
+  const visibleTransactionComment = 'Community dinner ticket payment';
+  const cancelledTransactionComment = 'Cancelled workshop ticket payment';
 
   await permissionOverride({
     add: [
@@ -58,18 +57,17 @@ test('Manage finances @finance', async ({
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="User permissions" %}
+{% callout type="note" title="Who can do this" %}
 You need the finance access for the page you want to use:
-- **View transactions** to review the organization's transaction list.
+- **View money received and spent** to review the organization's payment history.
 - **Approve receipts** to review submitted receipts.
-- **Record receipt reimbursements** to record reimbursement batches.
+- **Record receipt reimbursements** to record that approved receipts were paid.
 {% /callout %}
 
-# Finance Management
 
-The finance area groups transaction review, receipt approval, and receipt reimbursement recording. Each child page is guarded by its own finance permission.
+The finance area brings together payments, receipt approval, and reimbursements. You see only the pages you are allowed to use.
 
-## Accessing Finance Overview
+## Open finances
 
 To access the finance overview, navigate to the **Finances** section from the main menu.
 `,
@@ -79,79 +77,85 @@ To access the finance overview, navigate to the **Finances** section from the ma
       testInfo,
       page.locator('app-finance-overview'),
       page,
-      'Finance overview page',
+      'Finance actions available to this member',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Finance Overview
+## Finance overview
 
-The finance overview is a navigation surface. It shows links only for the finance capabilities you have, so users with receipt approval access do not automatically see the transaction list.
+The finance overview shows links only for the work you are allowed to do. For example, someone who can approve receipts does not automatically see all payments.
 `,
     });
 
     await testInfo.attach('markdown', {
       body: `
-## Transaction List
+## Payment history
 
-You can view a detailed list of all transactions by clicking on the **Transactions** tab.
+Select **Payment history** to see money received and refunded.
 `,
     });
 
-    await page.getByRole('link', { name: 'Transactions' }).click();
+    await page.getByRole('link', { name: 'Payment history' }).click();
     await expect(page.getByText(visibleTransactionComment)).toBeVisible();
     await expect(page.getByText(cancelledTransactionComment)).toHaveCount(0);
     await takeScreenshot(
       testInfo,
       page.locator('app-transaction-list'),
       page,
-      'Transaction list page',
+      'Organization payments with amount, method, status, and comment',
     );
 
     await testInfo.attach('markdown', {
       body: `
-The transaction list shows all financial transactions with details such as:
+The payment history shows money received and refunded by the organization. Each item includes:
 
-- Transaction ID
 - Amount
+- Method
+- Created
 - Status
-- Date
-- Payment method
+- Comment
 
-Cancelled transactions are omitted from this list.
+Cancelled payment attempts are omitted from this list.
 `,
     });
 
     await testInfo.attach('markdown', {
       body: `
-## Receipt Approvals
+## Receipt approvals
 
-The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Each amount is displayed in the currency recorded when the receipt was submitted, rather than a later organization default. Reviewers can open each receipt, validate submitted values, and approve or reject it. The detail page notes that the submitter will be notified after the review is saved.
+The **Receipt approvals** page shows all receipts waiting for finance review, grouped by event. Each amount is displayed in the currency recorded when the receipt was submitted, rather than a later organization default. Reviewers can open each receipt, check the submitted values, and approve or reject it.
 
-Approving or rejecting records the review status in Evorto and schedules an email to the submitter.
+The detail page explains that Evorto will try to email the submitter after the review is saved. Saving records the decision immediately; email delivery is separate and may take time or fail.
 `,
     });
     await page.goto('/finance/receipts-approval');
+    await expect(
+      page.getByText('kitchen-supplies.pdf', { exact: true }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-receipt-approval-list'),
       page,
-      'Receipt approval list',
+      'Submitted receipts waiting for review',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Receipt Reimbursements
+## Receipt reimbursements
 
-The **Receipt reimbursements** tab groups approved receipts by recipient and recorded currency and renders each group in a selectable table. Recipient contact details use the submitter's notification email when configured, with login email as fallback. Finance users can select one or more same-currency rows, verify payout details (IBAN/PayPal), and record the manual reimbursement transaction for the selected batch. The transaction keeps the receipts' recorded currency.
+The **Receipt reimbursements** page groups approved receipts by recipient and currency. Finance team members can select receipts in the same currency, check the recipient's IBAN or PayPal details, send the money outside Evorto, and record that the selected receipts were reimbursed.
 `,
     });
     await page.goto('/finance/receipts-refunds');
+    await expect(
+      page.getByText('venue-deposit.pdf', { exact: true }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-receipt-refund-list'),
       page,
-      'Receipt reimbursements list',
+      'Approved receipts grouped for reimbursement',
     );
   } finally {
     await database

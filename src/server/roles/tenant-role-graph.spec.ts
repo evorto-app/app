@@ -27,6 +27,7 @@ describe('tenant role graph concurrency boundary', () => {
     expect(source).toContain('pg_advisory_xact_lock');
     expect(source).toContain('evorto:tenant-role-graph:');
     expect(source).toContain('rolesToTenantUsers.roleId');
+    expect(source).toContain('eventInstances.announcementRoleIds');
     expect(source).toContain('eventRegistrationOptions.roleIds');
     expect(source).toContain('templateRegistrationOptions.roleIds');
   });
@@ -69,14 +70,11 @@ describe('tenant role graph concurrency boundary', () => {
   });
 
   it('holds the role graph lock across ordinary template validation and writes', () => {
-    const service = readSource(
-      'src/server/effect/rpc/handlers/templates/simple-template.service.ts',
-    );
     const handlers = readSource(
       'src/server/effect/rpc/handlers/templates.handlers.ts',
     );
 
-    expect(occurrenceCount(service, 'lockTenantRoleGraph(')).toBe(2);
+    expect(occurrenceCount(handlers, 'lockTenantRoleGraph(')).toBe(2);
     expect(
       occurrenceCount(handlers, '.transaction((transaction)'),
     ).toBeGreaterThanOrEqual(2);
@@ -88,7 +86,7 @@ describe('tenant role graph concurrency boundary', () => {
     );
     const ordinaryUpdate = ordinaryTemplates.slice(
       ordinaryTemplates.indexOf("'templates.update':"),
-      ordinaryTemplates.indexOf("'templates.updateSimpleTemplate':"),
+      ordinaryTemplates.indexOf('satisfies Partial<AppRpcHandlers>'),
     );
     expect(ordinaryUpdate).toContain('lockTenantRoleGraph(');
     expect(ordinaryUpdate).toContain(".for('update')");
@@ -120,18 +118,6 @@ describe('tenant role graph concurrency boundary', () => {
       platformUpdate.indexOf(".for('update')"),
     );
 
-    const simpleTemplateService = readSource(
-      'src/server/effect/rpc/handlers/templates/simple-template.service.ts',
-    );
-    const simpleUpdate = simpleTemplateService.slice(
-      simpleTemplateService.indexOf('const updateSimpleTemplate'),
-    );
-    expect(simpleUpdate).toContain('lockTenantRoleGraph(');
-    expect(simpleUpdate).toContain('.update(eventTemplates)');
-    expect(simpleUpdate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
-      simpleUpdate.indexOf('.update(eventTemplates)'),
-    );
-
     const events = readSource(
       'src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts',
     );
@@ -147,16 +133,37 @@ describe('tenant role graph concurrency boundary', () => {
   });
 
   it('holds the role graph lock across event option validation and writes', () => {
-    const source = readSource(
+    const lifecycleHandlers = readSource(
       'src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts',
     );
+    const eventCreate = lifecycleHandlers.slice(
+      lifecycleHandlers.indexOf('export const createEventGraph'),
+      lifecycleHandlers.indexOf('const isExpectedEventCreateError'),
+    );
+    const eventGraph = readSource(
+      'src/server/effect/rpc/handlers/events/event-graph.service.ts',
+    );
+    const eventUpdate = eventGraph.slice(
+      eventGraph.indexOf('export const updateEventGraph'),
+    );
 
-    expect(
-      occurrenceCount(source, 'lockTenantRoleGraph('),
-    ).toBeGreaterThanOrEqual(2);
-    expect(
-      occurrenceCount(source, 'tenantRoleIdsExist('),
-    ).toBeGreaterThanOrEqual(2);
+    expect(occurrenceCount(eventCreate, 'lockTenantRoleGraph(')).toBe(1);
+    expect(occurrenceCount(eventCreate, 'tenantRoleIdsExist(')).toBe(1);
+    expect(eventCreate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      eventCreate.indexOf('tenantRoleIdsExist('),
+    );
+    expect(eventCreate.indexOf('tenantRoleIdsExist(')).toBeLessThan(
+      eventCreate.indexOf('.insert(eventRegistrationOptions)'),
+    );
+
+    expect(occurrenceCount(eventUpdate, 'lockTenantRoleGraph(')).toBe(1);
+    expect(occurrenceCount(eventUpdate, 'tenantRoleIdsExist(')).toBe(1);
+    expect(eventUpdate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      eventUpdate.indexOf('tenantRoleIdsExist('),
+    );
+    expect(eventUpdate.indexOf('tenantRoleIdsExist(')).toBeLessThan(
+      eventUpdate.indexOf('.update(eventRegistrationOptions)'),
+    );
   });
 
   it('locks platform event creation before establishing its transaction snapshot', () => {

@@ -1,0 +1,113 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to administration"
+  >
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Payments</h1>
+</div>
+
+<form
+  class="bg-surface text-on-surface rounded-2xl p-4"
+  (submit)="save($event)"
+>
+  <fieldset
+    class="m-0 grid min-w-0 grid-cols-1 gap-6 border-0 p-0"
+    [disabled]="!settingsInteractionReady()"
+  >
+    <section class="grid grid-cols-1">
+      <h2 class="title-small mb-2">Paid sign-ups</h2>
+      @if (paymentsConfigured()) {
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Paid sign-ups are ready.
+        </p>
+      } @else {
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Paid sign-ups are not ready. Contact Evorto support before adding
+          prices.
+        </p>
+      }
+      <mat-form-field>
+        <mat-label>Currency</mat-label>
+        <mat-select [formField]="settingsForm.currency">
+          @for (currency of currencyOptions; track currency) {
+            <mat-option [value]="currency">{{ currency }}</mat-option>
+          }
+        </mat-select>
+        <mat-hint>
+          Currency is locked after templates, events, receipts, or payments
+          exist.
+        </mat-hint>
+      </mat-form-field>
+      <mat-slide-toggle [formField]="settingsForm.refundFeesOnCancellation">
+        Refund fees on cancellation
+      </mat-slide-toggle>
+      <p class="text-on-surface-variant text-xs">
+        When turned on, refundable payment fees are included when a cancellation
+        receives a refund.
+      </p>
+    </section>
+
+    <section class="grid grid-cols-1">
+      <h2 class="title-small mb-2">Receipt countries</h2>
+      <mat-form-field>
+        <mat-label>Allowed receipt countries</mat-label>
+        <mat-select [formField]="settingsForm.receiptCountries" multiple>
+          @for (country of receiptCountryOptions; track country.code) {
+            <mat-option [value]="country.code">
+              {{ country.label }}
+            </mat-option>
+          }
+        </mat-select>
+        @for (error of settingsForm.receiptCountries().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
+      </mat-form-field>
+      <mat-checkbox [formField]="settingsForm.allowOther">
+        Allow receipts from other countries
+      </mat-checkbox>
+      <p class="text-on-surface-variant text-xs">
+        Adds an “Other” option for receipts outside the selected countries.
+      </p>
+    </section>
+
+    <section class="grid grid-cols-1">
+      <h2 class="title-small mb-2">Discount cards</h2>
+      <mat-slide-toggle [formField]="settingsForm.esnCardEnabled">
+        ESNcard discounts
+      </mat-slide-toggle>
+      @if (settingsForm.esnCardEnabled().value()) {
+        <mat-form-field class="mt-4">
+          <mat-label>ESNcard purchase web address</mat-label>
+          <input
+            matInput
+            [formField]="settingsForm.buyEsnCardUrl"
+            placeholder="https://esncard.org/"
+          />
+          <mat-hint>
+            Optional link shown to users without a verified ESNcard.
+          </mat-hint>
+        </mat-form-field>
+      }
+    </section>
+
+    <button
+      mat-flat-button
+      type="submit"
+      class="w-fit"
+      [disabled]="
+        tenantSettingsSaveDisabled({
+          formInvalid: settingsForm().invalid(),
+          formSubmitting: settingsForm().submitting(),
+          interactionReady: settingsInteractionReady(),
+          mutationPending: updateMutation.isPending(),
+        })
+      "
+    >
+      Save payment settings
+    </button>
+  </fieldset>
+</form>

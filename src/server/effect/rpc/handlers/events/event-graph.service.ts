@@ -1,6 +1,15 @@
 import type { EventGraphEditRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -13,10 +22,13 @@ import {
   eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
-  eventRegistrationQuestionAnswers,
   eventRegistrationQuestions,
   eventRegistrations,
 } from '../../../../../db/schema';
+import {
+  ensureAnsweredEventQuestionsUnchanged,
+  normalizeEventQuestionValues,
+} from '../../../../registrations/event-question-answer-guard';
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
@@ -31,8 +43,11 @@ export type EventGraphUpdateInput = Parameters<
 const invalidGraph = (message: string, reason: string) =>
   new RpcBadRequestError({ message, reason });
 
+const eventChangedMessage =
+  'Some event details changed while this page was open. Nothing was saved. Reopen the event and review the current details before making your changes again.';
+
 export const purchasedAddOnRegistrationOptionRemovalMessage =
-  'An add-on that has already been purchased must remain available with its existing registration option';
+  'An add-on that has already been bought must remain available with its current sign-up choice.';
 
 const hasDuplicates = (values: readonly string[]): boolean =>
   new Set(values).size !== values.length;
@@ -49,20 +64,13 @@ const isInvalidInteger = (value: number): boolean =>
 const validateSubmittedIds = (
   submittedIds: readonly (string | undefined)[],
   existingIds: ReadonlySet<string>,
-  resourceName: string,
 ): null | RpcBadRequestError => {
   const ids = submittedIds.filter((id): id is string => id !== undefined);
   if (hasDuplicates(ids)) {
-    return invalidGraph(
-      `${resourceName} IDs must be unique`,
-      'duplicateEventGraphId',
-    );
+    return invalidGraph(eventChangedMessage, 'duplicateEventGraphId');
   }
   if (ids.some((id) => !existingIds.has(id))) {
-    return invalidGraph(
-      `${resourceName} does not belong to the target event`,
-      'eventGraphIdMismatch',
-    );
+    return invalidGraph(eventChangedMessage, 'eventGraphIdMismatch');
   }
   return null;
 };
@@ -77,14 +85,16 @@ export const validateEventGraphStructure = ({
     'addOns' | 'questions' | 'registrationOptions' | 'simpleModeEnabled'
   >;
 }): null | RpcBadRequestError => {
-  if (
-    before.registrationOptions.some(
-      (option) => option.registrationMode === 'random',
-    )
-  ) {
+  if (input.addOns.length > MAX_EVENT_ADDON_TYPES) {
     return invalidGraph(
-      'Random allocation is legacy-readable but cannot be written',
-      'unsupportedEventRegistrationMode',
+      `An event can have at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+      'eventAddonTypeLimitExceeded',
+    );
+  }
+  if (input.questions.length > MAX_REGISTRATION_QUESTIONS) {
+    return invalidGraph(
+      `An event can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+      'eventQuestionLimitExceeded',
     );
   }
 
@@ -96,27 +106,21 @@ export const validateEventGraphStructure = ({
     hasDuplicates(addOnKeys) ||
     hasDuplicates(questionKeys)
   ) {
-    return invalidGraph(
-      'Event graph keys must be unique within each resource type',
-      'duplicateEventGraphKey',
-    );
+    return invalidGraph(eventChangedMessage, 'duplicateEventGraphKey');
   }
 
   const idError =
     validateSubmittedIds(
       input.registrationOptions.map((option) => option.id),
       new Set(before.registrationOptions.map((option) => option.id)),
-      'Registration option',
     ) ??
     validateSubmittedIds(
       input.addOns.map((addOn) => addOn.id),
       new Set(before.addOns.map((addOn) => addOn.id)),
-      'Add-on',
     ) ??
     validateSubmittedIds(
       input.questions.map((question) => question.id),
       new Set(before.questions.map((question) => question.id)),
-      'Question',
     );
   if (idError) return idError;
 
@@ -132,7 +136,7 @@ export const validateEventGraphStructure = ({
       )
     ) {
       return invalidGraph(
-        'Changing event configuration mode must preserve every existing registration option ID',
+        'Save the event, reopen it, then change the sign-up setup.',
         'eventModeTransitionMustPreserveOptionIds',
       );
     }
@@ -141,7 +145,7 @@ export const validateEventGraphStructure = ({
       !hasSimpleRegistrationOptionShape(before.registrationOptions)
     ) {
       return invalidGraph(
-        'Save the advanced event with exactly one organizing and one non-organizing registration option before switching to simple mode',
+        'Before using simple setup, keep exactly one organizer choice and one attendee choice, save the event, and reopen it.',
         'eventAdvancedToSimpleRequiresPersistedSimpleShape',
       );
     }
@@ -152,7 +156,7 @@ export const validateEventGraphStructure = ({
     !hasSimpleRegistrationOptionShape(input.registrationOptions)
   ) {
     return invalidGraph(
-      'Simple mode requires exactly one organizing and one non-organizing registration option',
+      'Simple setup needs exactly one organizer choice and one attendee choice.',
       'simpleEventGraphRequiresTwoOptions',
     );
   }
@@ -160,7 +164,7 @@ export const validateEventGraphStructure = ({
   for (const option of input.registrationOptions) {
     if (option.isPaid && option.price <= 0) {
       return invalidGraph(
-        'Paid event registration options require a positive price',
+        'Enter a price greater than zero for each paid sign-up choice.',
         'paidEventRegistrationOptionRequiresPositivePrice',
       );
     }
@@ -180,17 +184,8 @@ export const validateEventGraphStructure = ({
         isInvalidInteger(option.transferDeadlineHoursBeforeStart))
     ) {
       return invalidGraph(
-        'Event registration option values are invalid',
+        "Review each sign-up choice's name, dates, number of places, and prices.",
         'invalidEventRegistrationOption',
-      );
-    }
-    if (
-      option.registrationMode !== 'application' &&
-      option.registrationMode !== 'fcfs'
-    ) {
-      return invalidGraph(
-        'Random allocation is legacy-readable but cannot be written',
-        'unsupportedEventRegistrationMode',
       );
     }
   }
@@ -199,7 +194,7 @@ export const validateEventGraphStructure = ({
   for (const addOn of input.addOns) {
     if (addOn.isPaid && addOn.price <= 0) {
       return invalidGraph(
-        'Paid event add-ons require a positive price',
+        'Enter a price greater than zero for each paid add-on.',
         'paidEventAddonRequiresPositivePrice',
       );
     }
@@ -214,6 +209,7 @@ export const validateEventGraphStructure = ({
         !addOn.allowPurchaseDuringRegistration) ||
       isInvalidInteger(addOn.maxQuantityPerUser) ||
       addOn.maxQuantityPerUser === 0 ||
+      addOn.maxQuantityPerUser > MAX_REGISTRATION_ADDON_QUANTITY ||
       isInvalidInteger(addOn.price) ||
       isInvalidInteger(addOn.totalAvailableQuantity) ||
       hasDuplicates(mappedKeys) ||
@@ -224,12 +220,14 @@ export const validateEventGraphStructure = ({
           isInvalidInteger(mapping.optionalPurchaseQuantity) ||
           mapping.includedQuantity + mapping.optionalPurchaseQuantity === 0 ||
           mapping.includedQuantity + mapping.optionalPurchaseQuantity >
+            MAX_REGISTRATION_ADDON_QUANTITY ||
+          mapping.includedQuantity + mapping.optionalPurchaseQuantity >
             addOn.totalAvailableQuantity ||
           mapping.optionalPurchaseQuantity > addOn.maxQuantityPerUser,
       )
     ) {
       return invalidGraph(
-        'Event add-on configuration is invalid',
+        "Review each add-on's name, availability, quantities, and sign-up choices.",
         'invalidEventAddon',
       );
     }
@@ -238,11 +236,14 @@ export const validateEventGraphStructure = ({
   for (const question of input.questions) {
     if (
       !question.title.trim() ||
+      question.title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH ||
+      (question.description?.length ?? 0) >
+        MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH ||
       !optionKeySet.has(question.registrationOptionKey) ||
       isInvalidInteger(question.sortOrder)
     ) {
       return invalidGraph(
-        'Event registration question is invalid',
+        'Review each sign-up question and the sign-up choice it belongs to.',
         'invalidEventQuestion',
       );
     }
@@ -273,7 +274,7 @@ const ensureNoRemovedOptionRegistrations = Effect.fn(
   if (registrations.length > 0) {
     return yield* Effect.fail(
       invalidGraph(
-        'Registration options with registrations cannot be removed',
+        'A sign-up choice with existing sign-ups cannot be removed.',
         'eventRegistrationOptionInUse',
       ),
     );
@@ -302,36 +303,12 @@ const ensureNoRemovedAddOnPurchases = Effect.fn(
   if (purchases.length > 0) {
     return yield* Effect.fail(
       invalidGraph(
-        'Purchased event add-ons cannot be removed',
+        'An add-on that has already been bought cannot be removed.',
         'eventAddonInUse',
       ),
     );
   }
 });
-
-const ensureNoQuestionAnswers = Effect.fn('Events.ensureNoQuestionAnswers')(
-  function* (database: DatabaseClient, removedQuestionIds: readonly string[]) {
-    if (removedQuestionIds.length === 0) return;
-    const answers = yield* database
-      .select({ id: eventRegistrationQuestionAnswers.id })
-      .from(eventRegistrationQuestionAnswers)
-      .where(
-        inArray(eventRegistrationQuestionAnswers.questionId, [
-          ...removedQuestionIds,
-        ]),
-      )
-      .limit(1)
-      .pipe(Effect.orDie);
-    if (answers.length > 0) {
-      return yield* Effect.fail(
-        invalidGraph(
-          'Answered event questions cannot be changed or removed',
-          'eventQuestionInUse',
-        ),
-      );
-    }
-  },
-);
 
 const mappingKey = (addOnId: string, optionId: string): string =>
   `${addOnId}:${optionId}`;
@@ -362,7 +339,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
     if (!rolesExist) {
       return yield* Effect.fail(
         invalidGraph(
-          'Registration option role not found for this tenant',
+          'One selected role is no longer available. Nothing was saved. Reopen the event and review who can use each sign-up choice.',
           'registrationRoleNotFound',
         ),
       );
@@ -377,7 +354,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
       if (!taxRate.success) {
         return yield* Effect.fail(
           invalidGraph(
-            'Registration option tax rate is invalid',
+            'Choose an available tax rate for each paid sign-up choice.',
             'invalidEventRegistrationOptionTaxRate',
           ),
         );
@@ -390,7 +367,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
       ) {
         return yield* Effect.fail(
           invalidGraph(
-            'Registration option ESNcard discount is invalid',
+            'Review each ESNcard price. Discounts can only be used on paid choices and cannot exceed the regular price.',
             'invalidEventRegistrationDiscount',
           ),
         );
@@ -405,7 +382,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
       if (!taxRate.success) {
         return yield* Effect.fail(
           invalidGraph(
-            'Event add-on tax rate is invalid',
+            'Choose an available tax rate for each paid add-on.',
             'invalidEventAddonTaxRate',
           ),
         );
@@ -494,6 +471,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
           .values({
             discountedPrice: option.esnCardDiscountedPrice,
             discountType: 'esnCard',
+            eventId: input.eventId,
             registrationOptionId: optionId,
           })
           .pipe(Effect.orDie);
@@ -577,7 +555,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
         if (!addOnId) {
           return yield* Effect.fail(
             invalidGraph(
-              'Add-on stock changed while this event was being edited. Reload and try again.',
+              'The available add-on quantity changed while you were editing this event. Nothing was saved. Reopen the event and review the current quantity before changing it again.',
               'eventAddonStockConflict',
             ),
           );
@@ -714,13 +692,35 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
       }
     }
 
+    const submittedPersistedQuestions = [];
+    for (const question of input.questions) {
+      if (!question.id) continue;
+      const registrationOptionId = optionIdByKey.get(
+        question.registrationOptionKey,
+      );
+      if (!registrationOptionId) {
+        return yield* Effect.die(
+          new Error('Validated question target is missing'),
+        );
+      }
+      submittedPersistedQuestions.push({
+        id: question.id,
+        ...normalizeEventQuestionValues({
+          ...question,
+          registrationOptionId,
+        }),
+      });
+    }
+    yield* ensureAnsweredEventQuestionsUnchanged(database, {
+      before: before.questions,
+      submitted: submittedPersistedQuestions,
+    });
     const submittedQuestionIds = new Set(
-      input.questions.flatMap((question) => (question.id ? [question.id] : [])),
+      submittedPersistedQuestions.map((question) => question.id),
     );
     const removedQuestionIds = before.questions
       .map((question) => question.id)
       .filter((id) => !submittedQuestionIds.has(id));
-    yield* ensureNoQuestionAnswers(database, removedQuestionIds);
     if (removedQuestionIds.length > 0) {
       yield* database
         .delete(eventRegistrationQuestions)
@@ -741,31 +741,11 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
           new Error('Validated question target is missing'),
         );
       }
-      const values = {
-        description: question.description?.trim() || null,
+      const values = normalizeEventQuestionValues({
+        ...question,
         registrationOptionId,
-        required: question.required,
-        sortOrder: question.sortOrder,
-        title: question.title.trim(),
-      };
+      });
       if (question.id) {
-        const beforeQuestion = before.questions.find(
-          (existing) => existing.id === question.id,
-        );
-        if (!beforeQuestion) {
-          return yield* Effect.die(
-            new Error('Validated event question is missing from prior graph'),
-          );
-        }
-        const questionChanged =
-          (beforeQuestion.description ?? '') !== (values.description ?? '') ||
-          beforeQuestion.registrationOptionId !== values.registrationOptionId ||
-          beforeQuestion.required !== values.required ||
-          beforeQuestion.sortOrder !== values.sortOrder ||
-          beforeQuestion.title !== values.title;
-        if (questionChanged) {
-          yield* ensureNoQuestionAnswers(database, [question.id]);
-        }
         yield* database
           .update(eventRegistrationQuestions)
           .set(values)

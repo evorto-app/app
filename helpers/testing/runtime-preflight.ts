@@ -35,6 +35,7 @@ interface RuntimePreflightOptions {
 }
 
 const commandTimeoutMs = 15_000;
+const minimumSessionSecretBytes = 32;
 
 const e2eTestAccountPasswordVariables = e2eTestUserPasswordVariables.map(
   (name) => ({
@@ -150,6 +151,32 @@ const readTarget = (): RuntimeTarget => {
 const isPresent = (env: NodeJS.ProcessEnv, name: string): boolean => {
   const value = env[name];
   return value !== undefined && value.trim().length > 0;
+};
+
+const isValidRequiredVariable = (
+  env: NodeJS.ProcessEnv,
+  name: string,
+): boolean => {
+  if (!isPresent(env, name)) return false;
+  if (name !== 'SECRET') return true;
+
+  return (
+    new TextEncoder().encode(env[name]?.trim()).byteLength >=
+    minimumSessionSecretBytes
+  );
+};
+
+const requiredVariableProblem = (
+  env: NodeJS.ProcessEnv,
+  variable: RequiredVariable,
+): string | undefined => {
+  if (!isPresent(env, variable.name)) {
+    return `${variable.name}: ${variable.description}`;
+  }
+  if (!isValidRequiredVariable(env, variable.name)) {
+    return `${variable.name}: ${variable.description} must contain at least ${minimumSessionSecretBytes} UTF-8 bytes`;
+  }
+  return;
 };
 
 const defaultRunCommand = (
@@ -325,11 +352,14 @@ export const evaluateRuntimePreflight = (
   const env = options.env ?? process.env;
   const fileExists = options.fileExists ?? fs.existsSync;
   const runCommand = options.runCommand ?? defaultRunCommand;
-  const missingVariables = requiredByTarget[target].filter(
-    ({ name }) => !isPresent(env, name),
+  const requiredVariableProblems = requiredByTarget[target].flatMap(
+    (variable) => {
+      const problem = requiredVariableProblem(env, variable);
+      return problem ? [problem] : [];
+    },
   );
   const presentVariables = requiredByTarget[target].filter(({ name }) =>
-    isPresent(env, name),
+    isValidRequiredVariable(env, name),
   );
   const missingOptionalVariables = optionalByTarget[target].filter(
     ({ name }) => !isPresent(env, name),
@@ -340,13 +370,11 @@ export const evaluateRuntimePreflight = (
   const checks: RuntimeCheck[] = [
     {
       details:
-        missingVariables.length > 0
-          ? missingVariables.map(
-              ({ description, name }) => `${name}: ${description}`,
-            )
+        requiredVariableProblems.length > 0
+          ? requiredVariableProblems
           : ['All required variables are present.'],
       label: `Required ${target} runtime variables`,
-      severity: missingVariables.length > 0 ? 'failure' : 'ok',
+      severity: requiredVariableProblems.length > 0 ? 'failure' : 'ok',
     },
     {
       details:

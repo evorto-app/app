@@ -1,11 +1,74 @@
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
 import {
+  eventListOrder,
+  eventListUserSignUpState,
   eventOrganizeCapabilities,
   groupEventsByTenantDay,
   organizeOverviewAccessAllowed,
   organizerRegistrationApprovalState,
 } from './events-query.handlers';
+
+describe('eventListOrder', () => {
+  it('uses event ID as the deterministic tie-breaker for offset paging', () => {
+    const dialect = new PgDialect();
+
+    expect(
+      eventListOrder().map((order) => dialect.sqlToQuery(order).sql),
+    ).toEqual(['"event_instances"."start" asc', '"event_instances"."id" asc']);
+  });
+});
+
+describe('eventListUserSignUpState', () => {
+  it('maps every valid active registration state', () => {
+    expect(
+      eventListUserSignUpState({
+        hasPendingRegistrationTransaction: false,
+        registrationId: 'confirmed-registration',
+        registrationMode: 'fcfs',
+        registrationStatus: 'CONFIRMED',
+      }),
+    ).toBe('confirmed');
+    expect(
+      eventListUserSignUpState({
+        hasPendingRegistrationTransaction: false,
+        registrationId: 'waitlist-registration',
+        registrationMode: 'fcfs',
+        registrationStatus: 'WAITLIST',
+      }),
+    ).toBe('waitlisted');
+    expect(
+      eventListUserSignUpState({
+        hasPendingRegistrationTransaction: true,
+        registrationId: 'payment-registration',
+        registrationMode: 'fcfs',
+        registrationStatus: 'PENDING',
+      }),
+    ).toBe('paymentRequired');
+    expect(
+      eventListUserSignUpState({
+        hasPendingRegistrationTransaction: false,
+        registrationId: 'application-registration',
+        registrationMode: 'application',
+        registrationStatus: 'PENDING',
+      }),
+    ).toBe('approvalPending');
+  });
+
+  it('fails loudly for a pending first-come-first-served registration without payment', () => {
+    expect(() =>
+      eventListUserSignUpState({
+        hasPendingRegistrationTransaction: false,
+        registrationId: 'registration-1',
+        registrationMode: 'fcfs',
+        registrationStatus: 'PENDING',
+      }),
+    ).toThrow(
+      'Active registration registration-1 is pending in first-come-first-served mode without a pending registration payment',
+    );
+  });
+});
 
 describe('organizeOverviewAccessAllowed', () => {
   it('allows broad organizers and confirmed event organizers', () => {

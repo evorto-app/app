@@ -37,19 +37,19 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     await page.goto('/logout');
     await page.goto('.');
 
-    const loginLink = page.getByRole('link', { name: 'Login' }).first();
+    const loginLink = page.getByRole('link', { name: 'Sign in' }).first();
     if (!(await loginLink.isVisible())) {
-      const logoutLink = page.getByRole('link', { name: 'Logout' }).first();
+      const logoutLink = page.getByRole('link', { name: 'Sign out' }).first();
       if (await logoutLink.isVisible()) {
         await logoutLink.click();
         await page.waitForURL(/\/(login|$)/);
       }
     }
 
-    await page.getByRole('link', { name: 'Login' }).first().waitFor({
+    await page.getByRole('link', { name: 'Sign in' }).first().waitFor({
       state: 'visible',
     });
-    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'Sign in' }).click();
     await page.getByLabel('Email address').waitFor({ state: 'visible' });
     await page.getByLabel('Email address').fill(newUser.email);
     await fillProtectedValue(
@@ -85,7 +85,7 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       createAccountForm.getByRole('textbox', { name: 'Last name' }),
     ).toHaveValue(newUser.lastName);
     await expect(
-      createAccountForm.getByRole('textbox', { name: 'Notification email' }),
+      createAccountForm.getByRole('textbox', { name: 'Email for updates' }),
     ).toHaveValue(newUser.email);
 
     await createAccountForm
@@ -95,8 +95,15 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     await expect(
       page.getByRole('heading', {
         level: 1,
-        name: `${newUser.firstName} ${newUser.lastName}`,
+        name: 'Profile',
       }),
+    ).toBeVisible();
+    await expect(
+      page
+        .locator('app-user-profile')
+        .getByText(`${newUser.firstName} ${newUser.lastName}`, {
+          exact: true,
+        }),
     ).toBeVisible();
 
     const createdUser = await database.query.users.findFirst({

@@ -1,9 +1,12 @@
 import { Database } from '@db/index';
 import { financeReceiptUploads } from '@db/schema';
 import { and, asc, eq, inArray, lte, or } from 'drizzle-orm';
-import { Cause, Clock, Duration, Effect, Schedule } from 'effect';
+import { Cause, Clock, Data, Duration, Effect, Schedule } from 'effect';
 
-import { ObjectStorage } from '../integrations/object-storage';
+import {
+  ObjectStorage,
+  ObjectStorageNotFoundError,
+} from '../integrations/object-storage';
 
 const defaultBatchSize = 25;
 const maximumBatchSize = 100;
@@ -11,7 +14,14 @@ const pollingInterval = Duration.minutes(5);
 const safetyGraceMilliseconds = 15 * 60 * 1000;
 const readyOrphanRetentionMilliseconds = 24 * 60 * 60 * 1000;
 
-type ReceiptUploadStatus = 'consumed' | 'pending' | 'ready' | 'rejected';
+type ReceiptUploadStatus =
+  'cleaning' | 'consumed' | 'finalizing' | 'pending' | 'ready' | 'rejected';
+
+export class ReceiptOrphanCleanupError extends Data.TaggedError(
+  'ReceiptOrphanCleanupError',
+)<{
+  readonly failedUploadIds: readonly string[];
+}> {}
 
 export const normalizeReceiptOrphanBatchSize = (
   batchSize = defaultBatchSize,
@@ -28,6 +38,11 @@ export const isReceiptUploadOrphan = (input: {
 }) => {
   if (input.status === 'consumed') {
     return false;
+  }
+  if (input.status === 'cleaning') {
+    return (
+      input.updatedAt.getTime() <= input.now.getTime() - safetyGraceMilliseconds
+    );
   }
   if (input.status === 'ready') {
     return (
@@ -50,10 +65,10 @@ export const processReceiptOrphans = Effect.fn('processReceiptOrphans')(
       now.getTime() - readyOrphanRetentionMilliseconds,
     );
 
-    return yield* Database.use((database) =>
+    const candidates = yield* Database.use((database) =>
       database.transaction((transaction) =>
         Effect.gen(function* () {
-          const candidates = yield* transaction
+          const rows = yield* transaction
             .select({
               id: financeReceiptUploads.id,
               storageKey: financeReceiptUploads.storageKey,
@@ -63,6 +78,7 @@ export const processReceiptOrphans = Effect.fn('processReceiptOrphans')(
               or(
                 and(
                   inArray(financeReceiptUploads.status, [
+                    'finalizing',
                     'pending',
                     'rejected',
                   ]),
@@ -71,6 +87,10 @@ export const processReceiptOrphans = Effect.fn('processReceiptOrphans')(
                 and(
                   eq(financeReceiptUploads.status, 'ready'),
                   lte(financeReceiptUploads.updatedAt, readyCutoff),
+                ),
+                and(
+                  eq(financeReceiptUploads.status, 'cleaning'),
+                  lte(financeReceiptUploads.updatedAt, expiredCutoff),
                 ),
               ),
             )
@@ -84,32 +104,84 @@ export const processReceiptOrphans = Effect.fn('processReceiptOrphans')(
               skipLocked: true,
             });
 
-          let deleted = 0;
-          for (const candidate of candidates) {
-            const exists = yield* objectStorage.exists(candidate.storageKey);
-            if (exists) {
-              yield* objectStorage.deleteObject(candidate.storageKey);
-            }
-            const rows = yield* transaction
-              .delete(financeReceiptUploads)
-              .where(
-                and(
-                  eq(financeReceiptUploads.id, candidate.id),
-                  inArray(financeReceiptUploads.status, [
-                    'pending',
-                    'ready',
-                    'rejected',
-                  ]),
-                ),
-              )
-              .returning({ id: financeReceiptUploads.id });
-            deleted += rows.length;
+          if (rows.length === 0) {
+            return [];
           }
-
-          return { deleted, scanned: candidates.length };
+          return yield* transaction
+            .update(financeReceiptUploads)
+            .set({ status: 'cleaning', updatedAt: now })
+            .where(
+              inArray(
+                financeReceiptUploads.id,
+                rows.map((row) => row.id),
+              ),
+            )
+            .returning({
+              id: financeReceiptUploads.id,
+              storageKey: financeReceiptUploads.storageKey,
+            });
         }),
       ),
     );
+
+    let deleted = 0;
+    const failedUploadIds: string[] = [];
+    for (const candidate of candidates) {
+      const storageDeleted = yield* objectStorage
+        .deleteObject(candidate.storageKey)
+        .pipe(
+          Effect.as(true),
+          Effect.catch((error) =>
+            error instanceof ObjectStorageNotFoundError
+              ? Effect.succeed(true)
+              : Effect.logError(
+                  'Failed to delete claimed receipt orphan from storage',
+                ).pipe(
+                  Effect.annotateLogs({ uploadId: candidate.id }),
+                  Effect.as(false),
+                ),
+          ),
+        );
+      if (!storageDeleted) {
+        failedUploadIds.push(candidate.id);
+        continue;
+      }
+
+      const databaseDeleted = yield* Database.use((database) =>
+        database
+          .delete(financeReceiptUploads)
+          .where(
+            and(
+              eq(financeReceiptUploads.id, candidate.id),
+              eq(financeReceiptUploads.status, 'cleaning'),
+            ),
+          )
+          .returning({ id: financeReceiptUploads.id }),
+      ).pipe(
+        Effect.map((rows) => rows.length === 1),
+        Effect.catch(() =>
+          Effect.logError(
+            'Failed to delete claimed receipt orphan database row',
+          ).pipe(
+            Effect.annotateLogs({ uploadId: candidate.id }),
+            Effect.as(false),
+          ),
+        ),
+      );
+      if (!databaseDeleted) {
+        failedUploadIds.push(candidate.id);
+        continue;
+      }
+      deleted += 1;
+    }
+
+    if (failedUploadIds.length > 0) {
+      return yield* Effect.fail(
+        new ReceiptOrphanCleanupError({ failedUploadIds }),
+      );
+    }
+
+    return { deleted, scanned: candidates.length };
   },
 );
 

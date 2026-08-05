@@ -2,8 +2,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Source guard: unsupported random registration may remain readable from data,
-// but authoring screens should only expose supported writable modes.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (sourcePath: string): string =>
@@ -16,26 +14,25 @@ const authoringSurfaces = [
 ] as const;
 
 describe('registration mode source constraints', () => {
-  it('keeps event and template authoring limited to writable modes', () => {
+  it('uses the canonical registration modes in every authoring surface', () => {
     for (const path of authoringSurfaces) {
       const source = readSource(path);
 
       expect(source).toContain('registrationModes');
-      expect(source).not.toContain("['random'");
-      expect(source).not.toContain("'fcfs', 'random'");
     }
   });
 
-  it('keeps persisted unsupported modes readable but out of the authoring default', () => {
-    const labelSource = readSource('src/shared/registration-modes.ts');
-    const formSource = readSource(
-      'src/app/templates/shared/template-form/template-registration-option-form.utilities.ts',
-    );
+  it('keeps the database enum and labels aligned with the supported modes', () => {
+    const sharedSource = readSource('src/shared/registration-modes.ts');
+    const databaseSource = readSource('src/db/schema/global-enums.ts');
 
-    expect(labelSource).toContain("application: 'Manual approval'");
-    expect(labelSource).toContain("random: 'Unsupported random allocation'");
-    expect(labelSource).toContain("'application'");
-    expect(formSource).toContain("registrationMode: 'fcfs'");
-    expect(formSource).not.toContain("registrationMode: 'random'");
+    expect(sharedSource).toContain("application: 'Manual approval'");
+    expect(sharedSource).toContain("fcfs: 'First come, first served'");
+    expect(sharedSource).toContain(
+      "export const registrationModes = ['fcfs', 'application'] as const",
+    );
+    expect(databaseSource).toMatch(
+      /pgEnum\('registration_mode',\s*\[\s*'fcfs',\s*'application',?\s*\]\)/,
+    );
   });
 });

@@ -7,6 +7,7 @@ import { createId } from '../src/db/create-id';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
+import { requireSeedUserId } from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 
 export const addFinanceReceipts = async (
@@ -17,12 +18,8 @@ export const addFinanceReceipts = async (
     tenantId: string;
   },
 ) => {
-  const regularUserId =
-    usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
-    usersToAuthenticate[0].id;
-  const reviewerUserId =
-    usersToAuthenticate.find((user) => user.roles === 'admin')?.id ??
-    usersToAuthenticate[0].id;
+  const regularUserId = requireSeedUserId(usersToAuthenticate, 'user');
+  const reviewerUserId = requireSeedUserId(usersToAuthenticate, 'admin');
   if (options.eventIds.length === 0) {
     return;
   }
@@ -33,13 +30,14 @@ export const addFinanceReceipts = async (
     communicationEmail: `finance-${reimbursementUserId}@example.com`,
     email: `finance-${reimbursementUserId}@example.com`,
     firstName: 'Finance',
-    iban: 'DE00123456781234567890',
+    iban: 'DE89370400440532013000',
     id: reimbursementUserId,
     lastName: 'Recipient',
     paypalEmail: 'organizer-refunds@example.com',
   });
 
   const now = new Date();
+  const receiptDate = now.toISOString().slice(0, 10);
   const [eventA, eventB, eventC] = options.eventIds;
   const kitchenSuppliesUploadId = getId();
   const venueDepositUploadId = getId();
@@ -79,7 +77,6 @@ export const addFinanceReceipts = async (
     consumedAt: now,
     mimeType: 'application/pdf',
     status: 'consumed' as const,
-    storageUrl: 'local-unavailable://receipt',
     tenantId: options.tenantId,
     uploadedAt: now,
   }));
@@ -102,8 +99,6 @@ export const addFinanceReceipts = async (
     {
       alcoholAmount: 0,
       attachmentFileName: 'kitchen-supplies.pdf',
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 42_000,
       attachmentUploadId: kitchenSuppliesUploadId,
       currency: options.currency,
       depositAmount: 0,
@@ -111,7 +106,7 @@ export const addFinanceReceipts = async (
       hasAlcohol: false,
       hasDeposit: false,
       purchaseCountry: 'DE',
-      receiptDate: now,
+      receiptDate,
       status: 'submitted',
       submittedByUserId: reimbursementUserId,
       taxAmount: 250,
@@ -121,8 +116,6 @@ export const addFinanceReceipts = async (
     {
       alcoholAmount: 300,
       attachmentFileName: 'venue-deposit.pdf',
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 48_000,
       attachmentUploadId: venueDepositUploadId,
       currency: options.currency,
       depositAmount: 1000,
@@ -130,7 +123,7 @@ export const addFinanceReceipts = async (
       hasAlcohol: true,
       hasDeposit: true,
       purchaseCountry: 'DE',
-      receiptDate: now,
+      receiptDate,
       reviewedAt: now,
       reviewedByUserId: reviewerUserId,
       status: 'approved',
@@ -142,8 +135,6 @@ export const addFinanceReceipts = async (
     {
       alcoholAmount: 200,
       attachmentFileName: 'transport-ticket.pdf',
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 21_000,
       attachmentUploadId: transportTicketUploadId,
       currency: options.currency,
       depositAmount: 0,
@@ -151,7 +142,7 @@ export const addFinanceReceipts = async (
       hasAlcohol: true,
       hasDeposit: false,
       purchaseCountry: 'DE',
-      receiptDate: now,
+      receiptDate,
       reviewedAt: now,
       reviewedByUserId: reviewerUserId,
       status: 'approved',
@@ -163,8 +154,6 @@ export const addFinanceReceipts = async (
     {
       alcoholAmount: 0,
       attachmentFileName: 'profile-receipt.pdf',
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 30_000,
       attachmentUploadId: profileReceiptUploadId,
       currency: options.currency,
       depositAmount: 0,
@@ -172,7 +161,7 @@ export const addFinanceReceipts = async (
       hasAlcohol: false,
       hasDeposit: false,
       purchaseCountry: 'DE',
-      receiptDate: now,
+      receiptDate,
       status: 'submitted',
       submittedByUserId: regularUserId,
       taxAmount: 200,

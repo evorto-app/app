@@ -59,7 +59,7 @@ test('profile edit persists notification email and reimbursement details', async
     });
     const notificationEmailInput = editDialog.getByRole('textbox', {
       exact: true,
-      name: 'Notification email',
+      name: 'Email for updates',
     });
     const ibanInput = editDialog.getByRole('textbox', {
       exact: true,
@@ -91,21 +91,27 @@ test('profile edit persists notification email and reimbursement details', async
     await fillControlledTextField(firstNameInput, originalUser.firstName);
     await fillControlledTextField(notificationEmailInput, notificationEmail);
     await fillControlledTextField(ibanInput, ` ${iban} `);
-    await fillControlledTextField(paypalEmailInput, ` ${paypalEmail} `);
+    await paypalEmailInput.fill(` ${paypalEmail} `);
+    await paypalEmailInput.blur();
+    // Browsers strip surrounding whitespace from type=email values before
+    // Angular receives the input event.
+    await expect(paypalEmailInput).toHaveValue(paypalEmail);
 
     // Keep every signal-backed field stable through the final form update.
     await expect(firstNameInput).toHaveValue(originalUser.firstName);
     await expect(notificationEmailInput).toHaveValue(notificationEmail);
     await expect(ibanInput).toHaveValue(` ${iban} `);
-    await expect(paypalEmailInput).toHaveValue(` ${paypalEmail} `);
+    await expect(paypalEmailInput).toHaveValue(paypalEmail);
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
 
     await expect(editDialog).toHaveCount(0);
     await expect(
-      page.getByText(`Notifications: ${notificationEmail}`),
+      page.getByText(notificationEmail, { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(`Login: ${originalUser.email}`)).toBeVisible();
+    await expect(
+      page.getByText(originalUser.email, { exact: true }),
+    ).toBeVisible();
 
     const updatedUser = await database.query.users.findFirst({
       where: { id: regularUser.id },

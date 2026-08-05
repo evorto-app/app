@@ -154,8 +154,9 @@ describe('tenant currency financial-configuration serialization', () => {
     const error = await staleTemplate;
     expect(error).toMatchObject({
       _tag: 'RpcBadRequestError',
-      message:
-        'Tenant currency changed while this financial configuration was being prepared',
+      message: "The organization's currency changed while you were editing.",
+      reason:
+        'Nothing was saved. Open the form again and review every amount in CZK before saving.',
     });
     expect(
       await database.query.eventTemplates.findFirst({

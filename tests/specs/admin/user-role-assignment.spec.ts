@@ -14,7 +14,9 @@ const openUserAssignment = async (
   scenario: UserRoleAssignmentScenario,
 ): Promise<{ roleSelect: Locator; userRow: Locator }> => {
   await page.goto('/admin/users');
-  await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'All members' }),
+  ).toBeVisible();
   await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
   await page.getByPlaceholder('Name or email').fill(scenario.user.email);
@@ -31,7 +33,7 @@ const openUserAssignment = async (
 test.describe('with users:assignRoles', () => {
   test.use({ storageState: adminStateFile });
 
-  test('assigns and removes an existing user role with persisted UI readback @admin @permissions', async ({
+  test('assigns and removes an existing member role with persisted UI readback @admin @permissions', async ({
     database,
     page,
     tenant,
@@ -56,7 +58,7 @@ test.describe('with users:assignRoles', () => {
       await expect(roleOption).toHaveAttribute('aria-selected', 'false');
       await roleOption.click();
       await page.keyboard.press('Escape');
-      await expect(page.getByText('User roles updated')).toBeVisible();
+      await expect(page.getByText('Member roles updated')).toBeVisible();
       await expect
         .poll(scenario.readAssignedRoleIds)
         .toEqual([scenario.role.id]);
@@ -97,7 +99,7 @@ test.describe('with users:assignRoles', () => {
 test.describe('with users:viewAll but without users:assignRoles', () => {
   test.use({ storageState: organizerStateFile });
 
-  test('shows existing-user assignments as read-only role chips @admin @permissions', async ({
+  test('shows existing member assignments as read-only role chips @admin @permissions', async ({
     database,
     page,
     permissionOverride,

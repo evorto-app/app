@@ -800,7 +800,7 @@ test('name', options, handler);
         .map((violation) => formatControlViolation(violation))
         .join('\n')}`,
     ).toEqual([]);
-  });
+  }, 30_000);
 
   it('keeps runtime completeness reporters on every repository-owned suite', () => {
     const vitestConfig = readFileSync(

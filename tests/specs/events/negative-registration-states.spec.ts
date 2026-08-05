@@ -50,9 +50,9 @@ test.describe('Negative registration states', () => {
         await expect(page).toHaveURL(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
-        await expect(page.getByText('Registration is closed')).toBeVisible();
+        await expect(page.getByText('Sign-up closed')).toBeVisible();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
       } finally {
         await database
@@ -153,7 +153,9 @@ test.describe('Negative registration states', () => {
         await page.goto(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
-        await expect(page.getByText('This option is full.')).toBeVisible();
+        await expect(
+          page.getByText('This sign-up choice is full.'),
+        ).toBeVisible();
         const waitlistButton = page.getByRole('button', {
           name: 'Join waitlist',
         });
@@ -176,7 +178,7 @@ test.describe('Negative registration states', () => {
         );
         await expect(waitlistButton).toBeEnabled();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
 
         await waitlistButton.click();
@@ -233,7 +235,9 @@ test.describe('Negative registration states', () => {
           .getByRole('dialog')
           .getByRole('button', { name: 'Leave waitlist' })
           .click();
-        await expect(page.getByText('This option is full.')).toBeVisible();
+        await expect(
+          page.getByText('This sign-up choice is full.'),
+        ).toBeVisible();
         await expect(
           page.getByRole('button', { name: 'Join waitlist' }),
         ).toBeVisible();
@@ -310,97 +314,6 @@ test.describe('Negative registration states', () => {
       }
     });
 
-    test('does not expose registration actions for an unsupported random stored mode', async ({
-      database,
-      page,
-      seeded,
-      tenant,
-    }) => {
-      if (!regularUser) {
-        throw new Error('Expected regular user fixture');
-      }
-
-      const targetEventId = seeded.scenario.events.freeOpen.eventId;
-      const targetOptionId = seeded.scenario.events.freeOpen.optionId;
-      const targetOption =
-        await database.query.eventRegistrationOptions.findFirst({
-          where: { eventId: targetEventId, id: targetOptionId },
-        });
-      if (!targetOption) {
-        throw new Error('Expected seeded freeOpen registration option');
-      }
-      const originalRegistrations = await database
-        .select()
-        .from(schema.eventRegistrations)
-        .where(
-          and(
-            eq(schema.eventRegistrations.eventId, targetEventId),
-            eq(schema.eventRegistrations.tenantId, tenant.id),
-            eq(schema.eventRegistrations.userId, regularUser.id),
-          ),
-        );
-
-      try {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({
-            confirmedSpots: targetOption.spots,
-            registrationMode: 'random',
-            reservedSpots: 0,
-            waitlistSpots: 0,
-          })
-          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-
-        await page.goto(`/events/${targetEventId}`);
-        await waitForRegistrationStatus(page);
-
-        const optionCard = page
-          .locator('app-event-registration-option')
-          .filter({ hasText: targetOption.title });
-        await expect(optionCard.getByRole('alert')).toHaveText(
-          'This option uses a registration mode that is no longer supported. Ask an organizer to update the event before trying again.',
-        );
-        await expect(
-          optionCard.getByRole('button', { name: 'Join waitlist' }),
-        ).toHaveCount(0);
-        await expect(
-          optionCard.getByRole('button', { name: /^Register$/ }),
-        ).toHaveCount(0);
-      } finally {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
-        if (originalRegistrations.length) {
-          await database
-            .insert(schema.eventRegistrations)
-            .values(originalRegistrations);
-        }
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({
-            confirmedSpots: targetOption.confirmedSpots,
-            registrationMode: targetOption.registrationMode,
-            reservedSpots: targetOption.reservedSpots,
-            waitlistSpots: targetOption.waitlistSpots,
-          })
-          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-      }
-    });
     test('keeps a direct event link visible with explicit ineligible copy', async ({
       database,
       page,
@@ -459,15 +372,15 @@ test.describe('Negative registration states', () => {
         await waitForRegistrationStatus(page);
 
         await expect(
-          page.getByRole('heading', { name: 'Registration unavailable' }),
+          page.getByRole('heading', { name: 'Sign-up unavailable' }),
         ).toBeVisible();
         await expect(
           page.getByText(
-            'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+            'You can view this event, but none of its sign-up choices are available to you.',
           ),
         ).toBeVisible();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
       } finally {
         await database

@@ -12,10 +12,14 @@ import {
   PermissionDiff,
 } from '../utils/permissions-override';
 import { test as base } from './base-test';
+import {
+  fixtureOrganizationName,
+  parallelOrganizationDomain,
+} from './tenant-identity';
 
 const buildRunId = (seed: string) =>
   crypto.createHash('sha256').update(seed).digest('hex').slice(0, 10);
-const seededEsnCardIdentifier = 'TEST-ESN-0001';
+const seededEsnCardIdentifier = 'DE-2026-000184';
 
 interface BaseFixtures {
   discounts?: void;
@@ -40,7 +44,6 @@ interface BaseFixtures {
     start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     title: string;
-    unlisted: boolean;
   }[];
   permissionOverride: (diff: PermissionDiff) => Promise<void>;
   registrations: {
@@ -98,7 +101,9 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
     async ({ database, falsoSeed, seedDate }, use, testInfo) => {
       const runId = buildRunId(`${falsoSeed}:retry-${testInfo.retry}`);
       const result = await seedTenant(database, {
-        domain: `e2e-${runId}`,
+        currency: 'EUR',
+        domain: parallelOrganizationDomain(runId),
+        name: fixtureOrganizationName,
         profile: 'test',
         runId,
         seedDate,
@@ -131,7 +136,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
   },
   permissionOverride: async ({ database, tenant }, use) => {
     await use(async (diff: PermissionDiff) => {
-      await applyPermissionDiff(database as any, tenant, diff);
+      await applyPermissionDiff(database, tenant, diff);
     });
   },
 
@@ -142,18 +147,14 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
       const currentTenant = await database.query.tenants.findFirst({
         where: { id: tenant.id },
       });
-      const current = ((currentTenant as any)?.discountProviders ??
-        {}) as Record<
-        string,
-        { config: unknown; status: 'disabled' | 'enabled' }
-      >;
+      const current = currentTenant?.discountProviders ?? {};
       const updated = {
         ...current,
         esnCard: { config: {}, status: 'enabled' },
       };
       await database
         .update(schema.tenants)
-        .set({ discountProviders: updated as any })
+        .set({ discountProviders: updated })
         .where(eq(schema.tenants.id, tenant.id));
       const regularUser = usersToAuthenticate.find((u) => u.roles === 'user');
       if (regularUser) {

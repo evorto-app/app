@@ -33,10 +33,10 @@
 
   <section
     class="grid gap-3"
-    aria-label="Registration options available for this add-on"
+    aria-label="Sign-up choices available for this add-on"
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <h4 class="title-small">Available with registration options</h4>
+      <h4 class="title-small">Available with sign-up choices</h4>
       <button
         mat-button
         type="button"
@@ -44,9 +44,13 @@
         (click)="addMapping.emit()"
       >
         <fa-duotone-icon [icon]="faPlus" />
-        Add registration option
+        Add sign-up choice
       </button>
     </div>
+    <p class="body-small text-on-surface-variant">
+      Included items and items people can buy cannot exceed
+      {{ maxRegistrationAddonQuantity }} per sign-up.
+    </p>
     @for (
       mapping of addOn.registrationOptions;
       track mapping;
@@ -57,7 +61,7 @@
         data-testid="template-addon-mapping"
       >
         <mat-form-field>
-          <mat-label>Registration option</mat-label>
+          <mat-label>Sign-up choice</mat-label>
           <mat-select [formField]="mapping.registrationOptionKey">
             @for (option of optionChoices(); track option.key) {
               <mat-option [value]="option.key">{{ option.title }}</mat-option>
@@ -71,10 +75,11 @@
           }
         </mat-form-field>
         <mat-form-field>
-          <mat-label>Included quantity</mat-label>
+          <mat-label>Included items</mat-label>
           <input
             matInput
             type="number"
+            step="1"
             [formField]="mapping.includedQuantity"
           />
           @for (error of mapping.includedQuantity().errors(); track error) {
@@ -82,10 +87,11 @@
           }
         </mat-form-field>
         <mat-form-field>
-          <mat-label>Optional purchase quantity</mat-label>
+          <mat-label>Items people can buy</mat-label>
           <input
             matInput
             type="number"
+            step="1"
             [formField]="mapping.optionalPurchaseQuantity"
           />
           @for (
@@ -98,8 +104,8 @@
         <button
           mat-icon-button
           type="button"
-          aria-label="Remove registration option from add-on"
-          title="Remove registration option from add-on"
+          aria-label="Remove sign-up choice from add-on"
+          title="Remove sign-up choice from add-on"
           (click)="removeMapping.emit(mappingIndex)"
         >
           <fa-duotone-icon [icon]="faTrashCan" />
@@ -107,7 +113,7 @@
       </div>
     } @empty {
       <p class="body-small text-on-surface-variant">
-        This add-on is not available with any registration option.
+        This add-on is not available with any sign-up choice.
       </p>
     }
     @for (error of addOn.registrationOptions().errors(); track error) {
@@ -117,10 +123,11 @@
 
   <div class="grid gap-4 @sm:grid-cols-2">
     <mat-form-field>
-      <mat-label>Available quantity</mat-label>
+      <mat-label>Items available</mat-label>
       <input
         matInput
         type="number"
+        step="1"
         [formField]="addOn.totalAvailableQuantity"
       />
       @for (error of addOn.totalAvailableQuantity().errors(); track error) {
@@ -128,8 +135,16 @@
       }
     </mat-form-field>
     <mat-form-field>
-      <mat-label>Maximum per user</mat-label>
-      <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+      <mat-label>Maximum each person can get</mat-label>
+      <input
+        matInput
+        type="number"
+        step="1"
+        [formField]="addOn.maxQuantityPerUser"
+      />
+      <mat-hint>
+        At most {{ maxRegistrationAddonQuantity }} items per sign-up.
+      </mat-hint>
       @for (error of addOn.maxQuantityPerUser().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
       }
@@ -138,13 +153,13 @@
 
   <div class="grid gap-2 @sm:grid-cols-2">
     <mat-checkbox [formField]="addOn.allowMultiple">
-      Allow multiple purchases per user
+      Allow attendees to buy more than once
     </mat-checkbox>
     <mat-checkbox [formField]="addOn.allowPurchaseDuringRegistration">
-      Available during registration
+      Available during sign-up
     </mat-checkbox>
     <mat-checkbox [formField]="addOn.allowPurchaseBeforeEvent">
-      Available after registration and before the event
+      Available after sign-up and before the event
     </mat-checkbox>
     <mat-checkbox [formField]="addOn.allowPurchaseDuringEvent">
       Available during the event
@@ -161,31 +176,37 @@
 
   <mat-checkbox [formField]="addOn.isPaid">Enable payment</mat-checkbox>
   <p class="text-on-surface-variant text-sm">
-    Paid add-ons require a connected Stripe account.
+    A price can be added only when paid sign-ups are ready.
   </p>
   @if (!addOn.price().hidden()) {
     <div class="grid gap-4 @sm:grid-cols-2">
       <app-currency-amount-input
-        label="Unit price"
+        label="Price per item"
         [currencyCode]="currencyCode()"
         [formField]="addOn.price"
         [minimumMinorUnits]="1"
       />
       <mat-form-field>
-        <mat-label>Inclusive tax rate</mat-label>
+        <mat-label>Tax included in the shown price</mat-label>
         <mat-select [formField]="addOn.stripeTaxRateId">
           @if (taxRateState() === "loading") {
-            <mat-option disabled>Loading tax rates...</mat-option>
+            <mat-option disabled>Loading tax rates…</mat-option>
           } @else if (taxRateState() === "error") {
-            <mat-option disabled>Failed to load tax rates</mat-option>
+            <mat-option disabled>Tax rates could not be loaded</mat-option>
           } @else {
             @for (rate of taxRates(); track rate.id) {
               <mat-option [value]="rate.stripeTaxRateId">
-                {{ rate.displayName || rate.stripeTaxRateId }} —
-                {{ rate.percentage ?? "?" }}%
+                {{ rate.displayName || "Tax rate name unavailable" }} —
+                {{
+                  rate.percentage === null
+                    ? "Percentage unavailable"
+                    : rate.percentage + "%"
+                }}
               </mat-option>
             } @empty {
-              <mat-option disabled>No active inclusive tax rates</mat-option>
+              <mat-option disabled
+                >No tax rates available for shown prices</mat-option
+              >
             }
           }
         </mat-select>

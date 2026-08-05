@@ -1,9 +1,5 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import {
-  partitionTenantRolePermissions,
-  type Permission,
-  type TenantRolePermission,
-} from '@shared/permissions/permissions';
+import { type TenantRolePermission } from '@shared/permissions/permissions';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import {
   type PlatformRoleCreateInput,
@@ -17,10 +13,10 @@ import {
   type PlatformTenantUsersListInput,
   PlatformTenantUsersListResult,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
+import { RoleNameAlreadyExistsError } from '@shared/rpc-contracts/app-rpcs/role-write.shared';
 import { and, count, eq, ilike, inArray } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 import { createHash } from 'node:crypto';
-import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
@@ -31,6 +27,19 @@ import {
   users,
   usersToTenants,
 } from '../../../../../db/schema';
+import {
+  ensureStripeAccountUnchanged,
+  listStripeTaxRates,
+  loadStripeTaxRatesForImport,
+  requireTenantStripeAccount,
+  stripeTaxRateAccountConflict,
+  type StripeTaxRateSource,
+  toTenantStripeTaxRateValues,
+} from '../../../../payments/stripe-tax-rate.service';
+import {
+  normalizeRoleWrite,
+  roleNameConflictFromDatabase,
+} from '../../../../roles/role-write';
 import {
   ensureTenantRetainsAnotherDefaultUserRole,
   ensureTenantRoleIsUnreferenced,
@@ -44,34 +53,9 @@ import {
   writePlatformAudit,
 } from '../shared/platform-operation.service';
 
-export interface StripeTaxRateSource {
-  readonly active: boolean;
-  readonly country: null | string;
-  readonly display_name: null | string;
-  readonly id: string;
-  readonly inclusive: boolean;
-  readonly percentage: null | number;
-  readonly state: null | string;
-}
-
-interface NormalizedRoleWrite {
-  readonly collapseMembersInHup: boolean;
-  readonly defaultOrganizerRole: boolean;
-  readonly defaultUserRole: boolean;
-  readonly description: null | string;
-  readonly displayInHub: boolean;
-  readonly name: string;
-  readonly permissions: TenantRolePermission[];
-}
-
 type QueryDatabase = Pick<DatabaseClient, 'query'>;
 
 type SelectDatabase = Pick<DatabaseClient, 'select'>;
-
-interface StripeTaxRatePage {
-  readonly data: readonly StripeTaxRateSource[];
-  readonly hasMore: boolean;
-}
 
 export class PlatformTaxRateAuditRecord extends Schema.Class<PlatformTaxRateAuditRecord>(
   'PlatformTaxRateAuditRecord',
@@ -113,16 +97,41 @@ const databaseEffect = <A, E, R>(
     ),
   );
 
-const roleNotFound = (roleId: string) =>
-  new RpcBadRequestError({
-    message: `Role ${roleId} was not found for the target tenant`,
-    reason: 'roleNotFound',
-  });
+const databaseRoleEffect = <A, R>(
+  roleName: string,
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+): Effect.Effect<
+  A,
+  RoleNameAlreadyExistsError | RpcBadRequestError,
+  Database | R
+> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch(
+        (
+          error,
+        ): Effect.Effect<
+          never,
+          RoleNameAlreadyExistsError | RpcBadRequestError,
+          never
+        > => {
+          const nameConflict = roleNameConflictFromDatabase(error, roleName);
+          if (nameConflict) {
+            return Effect.fail(nameConflict);
+          }
 
-const missingStripeAccount = () =>
+          return error instanceof RpcBadRequestError
+            ? Effect.fail(error)
+            : Effect.die(error);
+        },
+      ),
+    ),
+  );
+
+const roleNotFound = () =>
   new RpcBadRequestError({
-    message: 'The target tenant does not have a connected Stripe account',
-    reason: 'stripeAccountRequired',
+    message: 'This role no longer exists. Return to the role list.',
+    reason: 'roleNotFound',
   });
 
 const lockTargetTenant = Effect.fn('PlatformTenantAdmin.lockTargetTenant')(
@@ -146,61 +155,7 @@ const lockTargetTenant = Effect.fn('PlatformTenantAdmin.lockTargetTenant')(
   },
 );
 
-export const normalizeTenantAssignableRolePermissions = Effect.fn(
-  'PlatformTenantAdmin.normalizeTenantAssignableRolePermissions',
-)(function* (permissions: readonly Permission[]) {
-  const partitionedPermissions = partitionTenantRolePermissions(permissions);
-  if (partitionedPermissions.rejected.length > 0) {
-    return yield* new RpcBadRequestError({
-      message: 'Platform authority cannot be granted through a tenant role',
-      reason: 'platformPermissionNotAssignable',
-    });
-  }
-
-  return [...new Set(partitionedPermissions.accepted)].toSorted();
-});
-
-export const ensureStripeAccountUnchanged = Effect.fn(
-  'PlatformTenantAdmin.ensureStripeAccountUnchanged',
-)(function* (
-  expectedStripeAccountId: string,
-  lockedStripeAccountId: null | string,
-) {
-  if (lockedStripeAccountId !== expectedStripeAccountId) {
-    return yield* new RpcBadRequestError({
-      message:
-        'The target tenant Stripe account changed while tax rates were being loaded; retry the import',
-      reason: 'stripeAccountChanged',
-    });
-  }
-});
-
-const normalizeRoleWrite = Effect.fn('PlatformTenantAdmin.normalizeRoleWrite')(
-  function* (input: PlatformRoleCreateInput | PlatformRoleUpdateInput) {
-    const name = input.name.trim();
-    if (!name) {
-      return yield* new RpcBadRequestError({
-        message: 'Role name is required',
-        reason: 'roleNameRequired',
-      });
-    }
-
-    return {
-      collapseMembersInHup: input.collapseMembersInHup,
-      defaultOrganizerRole: input.defaultOrganizerRole,
-      defaultUserRole: input.defaultUserRole,
-      description: input.description?.trim() || null,
-      displayInHub: input.displayInHub,
-      name,
-      permissions: yield* normalizeTenantAssignableRolePermissions(
-        input.permissions,
-      ),
-    } satisfies NormalizedRoleWrite;
-  },
-);
-
 const toPlatformRoleRecord = (role: {
-  collapseMembersInHup: boolean;
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: null | string;
@@ -216,7 +171,6 @@ const loadPlatformRole = Effect.fn('PlatformTenantAdmin.loadPlatformRole')(
     const role = yield* database.query.roles
       .findFirst({
         columns: {
-          collapseMembersInHup: true,
           defaultOrganizerRole: true,
           defaultUserRole: true,
           description: true,
@@ -230,7 +184,7 @@ const loadPlatformRole = Effect.fn('PlatformTenantAdmin.loadPlatformRole')(
       })
       .pipe(Effect.orDie);
     if (!role) {
-      return yield* roleNotFound(roleId);
+      return yield* roleNotFound();
     }
 
     return toPlatformRoleRecord(role);
@@ -241,7 +195,6 @@ const lockPlatformRole = Effect.fn('PlatformTenantAdmin.lockPlatformRole')(
   function* (database: SelectDatabase, targetTenantId: string, roleId: string) {
     const matchingRoles = yield* database
       .select({
-        collapseMembersInHup: roles.collapseMembersInHup,
         defaultOrganizerRole: roles.defaultOrganizerRole,
         defaultUserRole: roles.defaultUserRole,
         description: roles.description,
@@ -257,7 +210,7 @@ const lockPlatformRole = Effect.fn('PlatformTenantAdmin.lockPlatformRole')(
       .pipe(Effect.orDie);
     const role = matchingRoles[0];
     if (!role) {
-      return yield* roleNotFound(roleId);
+      return yield* roleNotFound();
     }
 
     return toPlatformRoleRecord(role);
@@ -268,7 +221,6 @@ const roleSnapshot = (role: PlatformRoleRecord): PlatformAuditSnapshot => ({
   resourceId: role.id,
   resourceType: 'role',
   state: {
-    collapseMembersInHup: role.collapseMembersInHup,
     defaultOrganizerRole: role.defaultOrganizerRole,
     defaultUserRole: role.defaultUserRole,
     description: role.description,
@@ -395,98 +347,6 @@ const selectPlatformTaxRateAuditRecords = Effect.fn(
   );
 });
 
-export const PLATFORM_STRIPE_TAX_RATE_MAX_PAGES = 20;
-
-export const collectSupportedStripeTaxRatePages = Effect.fn(
-  'PlatformTenantAdmin.collectSupportedStripeTaxRatePages',
-)(function* <E, R>(
-  loadPage: (
-    startingAfter: string | undefined,
-  ) => Effect.Effect<StripeTaxRatePage, E, R>,
-  maxPages = PLATFORM_STRIPE_TAX_RATE_MAX_PAGES,
-) {
-  const supportedRates: StripeTaxRateSource[] = [];
-  let startingAfter: string | undefined;
-
-  for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
-    const page = yield* loadPage(startingAfter);
-    supportedRates.push(
-      ...page.data.filter((rate) => rate.active && rate.inclusive),
-    );
-    if (!page.hasMore) {
-      return supportedRates;
-    }
-
-    const lastRate = page.data.at(-1);
-    if (!lastRate) {
-      return yield* Effect.die(
-        new Error('Stripe returned an empty tax-rate page with has_more=true'),
-      );
-    }
-    startingAfter = lastRate.id;
-  }
-
-  return yield* new RpcBadRequestError({
-    message:
-      'The target Stripe account has too many tax rates to list safely in one request',
-    reason: 'stripeTaxRatePageLimitExceeded',
-  });
-});
-
-const ensureRoleNameAvailable = Effect.fn(
-  'PlatformTenantAdmin.ensureRoleNameAvailable',
-)(function* (
-  database: QueryDatabase,
-  targetTenantId: string,
-  name: string,
-  excludedRoleId?: string,
-) {
-  const existingRole = yield* database.query.roles
-    .findFirst({
-      columns: { id: true },
-      where: {
-        name,
-        tenantId: targetTenantId,
-        ...(excludedRoleId && { id: { NOT: excludedRoleId } }),
-      },
-    })
-    .pipe(Effect.orDie);
-  if (existingRole) {
-    return yield* new RpcBadRequestError({
-      message: `A role named ${name} already exists for the target tenant`,
-      reason: 'roleNameAlreadyExists',
-    });
-  }
-});
-
-const retrieveSupportedStripeTaxRate = Effect.fn(
-  'PlatformTenantAdmin.retrieveSupportedStripeTaxRate',
-)(function* (stripe: Stripe, stripeAccount: string, id: string) {
-  const stripeRate = yield* Effect.tryPromise({
-    catch: (error) => error,
-    try: () => stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
-  }).pipe(
-    Effect.catch((error) =>
-      error instanceof Stripe.errors.StripeInvalidRequestError
-        ? Effect.fail(
-            new RpcBadRequestError({
-              message: `Stripe tax rate ${id} was not found for the target tenant account`,
-              reason: 'stripeTaxRateNotFound',
-            }),
-          )
-        : Effect.die(error),
-    ),
-  );
-  if (!stripeRate.active || !stripeRate.inclusive) {
-    return yield* new RpcBadRequestError({
-      message: `Stripe tax rate ${id} must be active and inclusive`,
-      reason: 'unsupportedStripeTaxRate',
-    });
-  }
-
-  return stripeRate;
-});
-
 const toPlatformStripeTaxRateRecord = (
   rate: StripeTaxRateSource,
   imported: boolean,
@@ -512,16 +372,11 @@ export const platformTenantAdminHandlers = {
       const normalized = yield* normalizeRoleWrite(input);
 
       return yield* providePlatformOperation(
-        databaseEffect((database) =>
+        databaseRoleEffect(normalized.name, (database) =>
           database.transaction((transaction) =>
             Effect.gen(function* () {
               yield* lockTenantRoleGraph(transaction, input.targetTenantId);
               yield* lockTargetTenant(transaction, input.targetTenantId);
-              yield* ensureRoleNameAvailable(
-                transaction,
-                input.targetTenantId,
-                normalized.name,
-              );
 
               const createdRoles = yield* transaction
                 .insert(roles)
@@ -530,7 +385,6 @@ export const platformTenantAdminHandlers = {
                   tenantId: input.targetTenantId,
                 })
                 .returning({
-                  collapseMembersInHup: roles.collapseMembersInHup,
                   defaultOrganizerRole: roles.defaultOrganizerRole,
                   defaultUserRole: roles.defaultUserRole,
                   description: roles.description,
@@ -539,8 +393,7 @@ export const platformTenantAdminHandlers = {
                   name: roles.name,
                   permissions: roles.permissions,
                   sortOrder: roles.sortOrder,
-                })
-                .pipe(Effect.orDie);
+                });
               const createdRole = createdRoles[0];
               if (!createdRole) {
                 return yield* Effect.die(
@@ -645,7 +498,6 @@ export const platformTenantAdminHandlers = {
           database.query.roles
             .findMany({
               columns: {
-                collapseMembersInHup: true,
                 defaultOrganizerRole: true,
                 defaultUserRole: true,
                 description: true,
@@ -678,7 +530,7 @@ export const platformTenantAdminHandlers = {
       const normalized = yield* normalizeRoleWrite(input);
 
       return yield* providePlatformOperation(
-        databaseEffect((database) =>
+        databaseRoleEffect(normalized.name, (database) =>
           database.transaction((transaction) =>
             Effect.gen(function* () {
               yield* lockTenantRoleGraph(transaction, input.targetTenantId);
@@ -686,12 +538,6 @@ export const platformTenantAdminHandlers = {
               const before = yield* lockPlatformRole(
                 transaction,
                 input.targetTenantId,
-                input.roleId,
-              );
-              yield* ensureRoleNameAvailable(
-                transaction,
-                input.targetTenantId,
-                normalized.name,
                 input.roleId,
               );
               if (before.defaultUserRole && !normalized.defaultUserRole) {
@@ -712,7 +558,6 @@ export const platformTenantAdminHandlers = {
                   ),
                 )
                 .returning({
-                  collapseMembersInHup: roles.collapseMembersInHup,
                   defaultOrganizerRole: roles.defaultOrganizerRole,
                   defaultUserRole: roles.defaultUserRole,
                   description: roles.description,
@@ -721,8 +566,7 @@ export const platformTenantAdminHandlers = {
                   name: roles.name,
                   permissions: roles.permissions,
                   sortOrder: roles.sortOrder,
-                })
-                .pipe(Effect.orDie);
+                });
               const updatedRole = updatedRoles[0];
               if (!updatedRole) {
                 return yield* Effect.die(
@@ -750,16 +594,14 @@ export const platformTenantAdminHandlers = {
   ) =>
     Effect.gen(function* () {
       const operation = yield* resolvePlatformMutation(input);
-      const stripeAccount = operation.targetTenant.stripeAccountId;
-      if (!stripeAccount) {
-        return yield* missingStripeAccount();
-      }
-      const ids = uniqueSortedIds(input.ids);
+      const stripeAccount = yield* requireTenantStripeAccount(
+        operation.targetTenant.stripeAccountId ?? null,
+      );
       const stripe = yield* StripeClient;
-      const stripeRates = yield* Effect.forEach(
-        ids,
-        (id) => retrieveSupportedStripeTaxRate(stripe, stripeAccount, id),
-        { concurrency: 10 },
+      const { ids, rates: stripeRates } = yield* loadStripeTaxRatesForImport(
+        stripe.taxRates,
+        stripeAccount,
+        input.ids,
       );
       const resourceId = taxRateBatchResourceId(stripeAccount, ids);
 
@@ -797,31 +639,16 @@ export const platformTenantAdminHandlers = {
                   (rate) => rate.stripeAccountId !== stripeAccount,
                 )
               ) {
-                return yield* new RpcBadRequestError({
-                  message:
-                    'Imported tax-rate metadata belongs to a different Stripe account',
-                  reason:
-                    'Change or disconnect the Stripe account before importing this rate.',
-                });
+                return yield* stripeTaxRateAccountConflict();
               }
 
               yield* Effect.forEach(
                 stripeRates,
                 (stripeRate) => {
-                  const values = {
-                    active: true,
-                    country: stripeRate.country ?? null,
-                    displayName: stripeRate.display_name ?? null,
-                    inclusive: true,
-                    percentage:
-                      stripeRate.percentage === null
-                        ? null
-                        : String(stripeRate.percentage),
-                    state: stripeRate.state ?? null,
+                  const values = toTenantStripeTaxRateValues(stripeRate, {
                     stripeAccountId: stripeAccount,
-                    stripeTaxRateId: stripeRate.id,
                     tenantId: input.targetTenantId,
-                  };
+                  });
 
                   return transaction
                     .insert(tenantStripeTaxRates)
@@ -863,36 +690,20 @@ export const platformTenantAdminHandlers = {
   ) =>
     Effect.gen(function* () {
       const operation = yield* resolvePlatformRead(input.targetTenantId);
-      const stripeAccount = operation.targetTenant.stripeAccountId;
-      if (!stripeAccount) {
-        return yield* missingStripeAccount();
-      }
+      const stripeAccount = yield* requireTenantStripeAccount(
+        operation.targetTenant.stripeAccountId ?? null,
+      );
       const stripe = yield* StripeClient;
 
       return yield* providePlatformOperation(
         Effect.gen(function* () {
-          const supportedRates = yield* collectSupportedStripeTaxRatePages(
-            (startingAfter) =>
-              Effect.tryPromise({
-                catch: (error) => error,
-                try: () =>
-                  stripe.taxRates.list(
-                    {
-                      active: true,
-                      limit: 100,
-                      ...(startingAfter !== undefined && {
-                        starting_after: startingAfter,
-                      }),
-                    },
-                    { stripeAccount },
-                  ),
-              }).pipe(
-                Effect.orDie,
-                Effect.map((page) => ({
-                  data: page.data,
-                  hasMore: page.has_more,
-                })),
-              ),
+          const supportedRates = yield* listStripeTaxRates(
+            stripe.taxRates,
+            stripeAccount,
+            {
+              active: true,
+              inclusive: true,
+            },
           );
           if (supportedRates.length === 0) {
             return [];
@@ -961,7 +772,7 @@ export const platformTenantAdminHandlers = {
               const membership = memberships[0];
               if (!membership) {
                 return yield* new RpcBadRequestError({
-                  message: 'Tenant user membership was not found',
+                  message: 'Member not found.',
                   reason: 'tenantUserNotFound',
                 });
               }
@@ -989,7 +800,7 @@ export const platformTenantAdminHandlers = {
                 if (targetRoles.length !== nextRoleIds.length) {
                   return yield* new RpcBadRequestError({
                     message:
-                      'One or more roles were not found for the target tenant',
+                      'One or more selected roles are no longer available.',
                     reason: 'roleNotFound',
                   });
                 }

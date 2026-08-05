@@ -19,8 +19,11 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
-import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-dialog/import-tax-rates-dialog.component';
+import { taxRateRegionLabel } from '../../core/geography-labels';
+import {
+  ImportTaxRatesDialogComponent,
+  type ImportTaxRatesDialogData,
+} from '../components/import-tax-rates-dialog/import-tax-rates-dialog.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,7 +43,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
         <fa-duotone-icon [icon]="faArrowLeft" />
       </a>
-      <h1 class="title-large">Tax Rates</h1>
+      <h1 class="title-large">Tax rates</h1>
     </div>
 
     <!-- FAB for primary action -->
@@ -49,10 +52,10 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
       extended
       class="fab-fixed"
       (click)="openImportDialog()"
-      [disabled]="importedQuery.isLoading()"
+      [disabled]="!importedQuery.isSuccess()"
     >
       <fa-duotone-icon [icon]="faReceipt" />
-      Import Tax Rates
+      Add tax rates
     </button>
 
     <!-- Main content grid with list-detail pattern -->
@@ -62,20 +65,28 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
         <div
           class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
         >
-          <h2 class="title-medium">Loading tax rates...</h2>
+          <h2 class="title-medium">Loading tax rates…</h2>
         </div>
       }
 
       <!-- Error state -->
       @else if (importedQuery.error()) {
-        <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+        <div
+          class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-2xl p-4"
+          role="alert"
+        >
           <div class="flex items-center gap-2">
             <fa-duotone-icon [icon]="faCircleExclamation" />
-            <span class="body-medium"
-              >Failed to load tax rates:
-              {{ errorMessage(importedQuery.error()) }}</span
-            >
+            <span class="body-medium">We couldn't load the tax rates.</span>
           </div>
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="importedQuery.isFetching()"
+            (click)="importedQuery.refetch()"
+          >
+            {{ importedQuery.isFetching() ? 'Trying again…' : 'Try again' }}
+          </button>
         </div>
       }
 
@@ -90,12 +101,12 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
             [icon]="faReceipt"
             class="mb-4 text-6xl text-on-surface-variant"
           />
-          <h2 class="title-medium mb-2">No tax rates imported</h2>
+          <h2 class="title-medium mb-2">No tax rates added</h2>
           <p class="body-medium text-on-surface-variant mb-4 text-center">
-            Import tax rates from Stripe to enable paid registration options.
+            Add tax rates to enable paid sign-up choices.
           </p>
           <button mat-button color="primary" (click)="openImportDialog()">
-            Import your first tax rate
+            Add your first tax rate
           </button>
         </div>
       }
@@ -106,7 +117,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
         @if (importedRates().length > 0) {
           <div class="bg-surface-container-low text-on-surface rounded-2xl p-4">
             <div class="mb-4">
-              <h2 class="title-small">Compatible Tax Rates</h2>
+              <h2 class="title-small">Available tax rates</h2>
               <p class="body-medium text-on-surface-variant">
                 Available for use in your events and templates
               </p>
@@ -120,7 +131,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
                     Name
                   </th>
                   <td mat-cell *matCellDef="let rate" class="body-medium">
-                    {{ rate.displayName || 'Unnamed Rate' }}
+                    {{ rate.displayName || 'Unnamed tax rate' }}
                   </td>
                 </ng-container>
 
@@ -133,7 +144,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
                     @if (rate.percentage === '0') {
                       <mat-chip
                         class="bg-tertiary-container text-on-tertiary-container"
-                        >Tax Free</mat-chip
+                        >Tax-free</mat-chip
                       >
                     } @else {
                       <span class="body-medium">{{ rate.percentage }}%</span>
@@ -147,16 +158,9 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
                     Region
                   </th>
                   <td mat-cell *matCellDef="let rate">
-                    @if (rate.country || rate.state) {
-                      <span class="body-medium"
-                        >{{ rate.country
-                        }}{{ rate.state ? ', ' + rate.state : '' }}</span
-                      >
-                    } @else {
-                      <span class="body-medium text-on-surface-variant"
-                        >Global</span
-                      >
-                    }
+                    <span class="body-medium">
+                      {{ taxRateRegionLabel(rate.country, rate.state) }}
+                    </span>
                   </td>
                 </ng-container>
 
@@ -168,22 +172,8 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
                   <td mat-cell *matCellDef="let rate">
                     <mat-chip
                       class="bg-primary-container text-on-primary-container"
-                      >Compatible</mat-chip
+                      >Available</mat-chip
                     >
-                  </td>
-                </ng-container>
-
-                <!-- Provider ID Column -->
-                <ng-container matColumnDef="stripeTaxRateId">
-                  <th mat-header-cell *matHeaderCellDef class="title-small">
-                    Provider ID
-                  </th>
-                  <td mat-cell *matCellDef="let rate">
-                    <code
-                      class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded font-mono text-sm"
-                    >
-                      {{ rate.stripeTaxRateId }}
-                    </code>
                   </td>
                 </ng-container>
 
@@ -202,10 +192,9 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
         @if (incompatibleRates().length > 0) {
           <div class="bg-surface-container-low text-on-surface rounded-2xl p-4">
             <div class="mb-4">
-              <h2 class="title-small">Incompatible Rates</h2>
+              <h2 class="title-small">Unavailable tax rates</h2>
               <p class="body-medium text-on-surface-variant">
-                Cannot be used for new registration options but shown for
-                reference
+                Cannot be used for new sign-up choices but shown for reference.
               </p>
             </div>
 
@@ -221,7 +210,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
                     Name
                   </th>
                   <td mat-cell *matCellDef="let rate" class="body-medium">
-                    {{ rate.displayName || 'Unnamed Rate' }}
+                    {{ rate.displayName || 'Unnamed tax rate' }}
                   </td>
                 </ng-container>
 
@@ -233,7 +222,7 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
                     @if (rate.percentage === '0') {
                       <mat-chip
                         class="bg-surface-variant text-on-surface-variant"
-                        >Tax Free</mat-chip
+                        >Tax-free</mat-chip
                       >
                     } @else {
                       <span class="body-medium">{{ rate.percentage }}%</span>
@@ -246,16 +235,9 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
                     Region
                   </th>
                   <td mat-cell *matCellDef="let rate">
-                    @if (rate.country || rate.state) {
-                      <span class="body-medium"
-                        >{{ rate.country
-                        }}{{ rate.state ? ', ' + rate.state : '' }}</span
-                      >
-                    } @else {
-                      <span class="body-medium text-on-surface-variant"
-                        >Global</span
-                      >
-                    }
+                    <span class="body-medium">
+                      {{ taxRateRegionLabel(rate.country, rate.state) }}
+                    </span>
                   </td>
                 </ng-container>
 
@@ -267,27 +249,14 @@ import { ImportTaxRatesDialogComponent } from '../components/import-tax-rates-di
                     @if (!rate.inclusive) {
                       <mat-chip
                         class="bg-error-container text-on-error-container"
-                        >Exclusive</mat-chip
+                        >Tax added when paying</mat-chip
                       >
                     } @else if (!rate.active) {
                       <mat-chip
                         class="bg-error-container text-on-error-container"
-                        >Inactive</mat-chip
+                        >Archived</mat-chip
                       >
                     }
-                  </td>
-                </ng-container>
-
-                <ng-container matColumnDef="stripeTaxRateId">
-                  <th mat-header-cell *matHeaderCellDef class="title-small">
-                    Provider ID
-                  </th>
-                  <td mat-cell *matCellDef="let rate">
-                    <code
-                      class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded font-mono text-sm"
-                    >
-                      {{ rate.stripeTaxRateId }}
-                    </code>
                   </td>
                 </ng-container>
 
@@ -311,13 +280,11 @@ export class TaxRatesSettingsComponent {
     'percentage',
     'region',
     'status',
-    'stripeTaxRateId',
   ];
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faReceipt = faReceipt;
   private readonly rpc = AppRpc.injectClient();
-
   protected readonly importedQuery = injectQuery(() =>
     this.rpc.admin.tenant.listImportedTaxRates.queryOptions(),
   );
@@ -336,14 +303,19 @@ export class TaxRatesSettingsComponent {
     return rates.filter((rate) => !rate.inclusive || !rate.active);
   });
 
+  protected readonly taxRateRegionLabel = taxRateRegionLabel;
+
   private readonly dialog = inject(MatDialog);
 
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
-  }
-
   protected openImportDialog(): void {
+    if (!this.importedQuery.isSuccess()) return;
+
     const dialogReference = this.dialog.open(ImportTaxRatesDialogComponent, {
+      data: {
+        importedTaxRateIds: this.importedQuery
+          .data()
+          .map((rate) => rate.stripeTaxRateId),
+      } satisfies ImportTaxRatesDialogData,
       disableClose: true,
       width: '800px',
     });

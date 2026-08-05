@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { test as setup } from '../support/fixtures/base-test';
+import { fixtureOrganizationName } from '../support/fixtures/tenant-identity';
 import { seedTenant } from '../../helpers/seed-tenant';
 import { applyTestConsolaLevel } from '../../helpers/testing/test-logging';
 import * as schema from '../../src/db/schema';
@@ -16,9 +17,11 @@ setup('Setup database', async ({ database, seedDate }) => {
   await reset(database, schema);
   const runId = init({ length: 10 })();
   const result = await seedTenant(database, {
+    currency: 'EUR',
     domain: 'localhost',
     ensureUsers: true,
     logSeedMap: true,
+    name: fixtureOrganizationName,
     profile: 'docs',
     runId,
     seedDate,

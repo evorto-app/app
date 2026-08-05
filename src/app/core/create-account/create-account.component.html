@@ -1,12 +1,13 @@
 <main class="mx-auto grid w-full max-w-3xl gap-4 p-4 lg:p-6">
   <header class="flex items-start justify-between gap-4">
     <div>
-      <h1 class="title-large">Complete organization setup</h1>
+      <h1 class="title-large">Finish setting up your account</h1>
       <p class="body-medium text-on-surface-variant mt-1">
-        Review this organization's current requirements before continuing.
+        Review your details and answer this organization's questions before
+        continuing.
       </p>
     </div>
-    <a href="/logout" mat-stroked-button>Log out</a>
+    <a href="/logout" mat-stroked-button>Sign out</a>
   </header>
 
   @if (authDataQuery.isPending() || onboardingRequirementsQuery.isPending()) {
@@ -15,7 +16,7 @@
       aria-live="polite"
       class="bg-surface-container text-on-surface grid gap-2 rounded-xl p-4"
     >
-      <h2 class="title-medium">Loading organization requirements...</h2>
+      <h2 class="title-medium">Loading your account setup…</h2>
     </section>
   } @else if (
     authDataQuery.isError() || onboardingRequirementsQuery.isError()
@@ -25,11 +26,11 @@
       class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-4"
     >
       <div>
-        <h2 class="title-medium">Organization setup could not be loaded</h2>
+        <h2 class="title-medium">We couldn't load your account setup</h2>
         <p class="body-medium mt-1">
-          Your verified login details or this organization's current
-          requirements are unavailable. Try again, or log out and sign in again
-          if the problem continues.
+          We couldn't load your sign-in details or what this organization asks
+          from new members. Try again. If the problem continues, contact Evorto
+          support and say that account setup could not be loaded.
         </p>
       </div>
       <button
@@ -43,7 +44,7 @@
       >
         {{
           authDataQuery.isFetching() || onboardingRequirementsQuery.isFetching()
-            ? "Retrying..."
+            ? "Trying again…"
             : "Try again"
         }}
       </button>
@@ -58,9 +59,9 @@
         class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-4"
       >
         <div>
-          <h2 class="title-medium">Your email is not verified</h2>
+          <h2 class="title-medium">Verify your email</h2>
           <p class="body-medium mt-1">
-            Verify your login email, then check again to continue setup.
+            Verify your sign-in email, then check again to continue.
           </p>
         </div>
         <button
@@ -70,7 +71,7 @@
           [disabled]="authDataQuery.isFetching()"
           (click)="authDataQuery.refetch()"
         >
-          {{ authDataQuery.isFetching() ? "Checking..." : "Check again" }}
+          {{ authDataQuery.isFetching() ? "Checking…" : "Check again" }}
         </button>
       </section>
     } @else if (!requirements.policy) {
@@ -78,10 +79,10 @@
         role="alert"
         class="bg-error-container text-on-error-container rounded-xl p-4"
       >
-        <h2 class="title-medium">Organization setup is not configured</h2>
+        <h2 class="title-medium">You can't finish setup yet</h2>
         <p class="body-medium mt-1">
-          {{ requirements.tenantName }} has not published a privacy policy yet.
-          Contact an organization administrator before continuing.
+          {{ requirements.tenantName }} has not added a privacy policy yet.
+          Contact an administrator for this organization.
         </p>
       </section>
     } @else {
@@ -92,10 +93,10 @@
         <section class="grid gap-4" aria-labelledby="profile-details-heading">
           <div>
             <h2 id="profile-details-heading" class="title-medium">
-              Profile details
+              Your details
             </h2>
             <p class="body-medium text-on-surface-variant mt-1">
-              Your notification email is used for event and finance messages.
+              We'll use this address for event and reimbursement updates.
             </p>
           </div>
           <div class="grid gap-4 md:grid-cols-2">
@@ -119,7 +120,7 @@
           </div>
 
           <mat-form-field>
-            <mat-label>Notification email</mat-label>
+            <mat-label>Email for updates</mat-label>
             <input
               matInput
               type="email"
@@ -127,7 +128,7 @@
               data-testid="communication-email"
               [formField]="accountForm.communicationEmail"
             />
-            <mat-hint>Address where you receive notifications</mat-hint>
+            <mat-hint>Where you want to receive updates</mat-hint>
             @if (
               accountForm.communicationEmail().touched() &&
               accountForm.communicationEmail().invalid()
@@ -152,8 +153,8 @@
                 {{ requirements.tenantName }} questions
               </h2>
               <p class="body-medium text-on-surface-variant mt-1">
-                Every question is required and your submitted answers are kept
-                in the organization's onboarding history.
+                Answer every question. The organization saves your answers with
+                your account.
               </p>
             </div>
 
@@ -217,7 +218,7 @@
         >
           <div>
             <h2 id="privacy-policy-heading" class="title-medium">
-              Privacy policy version {{ requirements.policy.version }}
+              Current privacy policy
             </h2>
             @if (requirements.policy.privacyPolicyText) {
               <p class="body-medium mt-2 whitespace-pre-line">
@@ -239,8 +240,8 @@
             I accept {{ requirements.tenantName }}'s current privacy policy.
           </mat-checkbox>
           <p class="body-small text-on-surface-variant">
-            You must accept a future policy version before you can continue in
-            this organization.
+            If the privacy policy changes, you'll be asked to read and accept it
+            before continuing.
           </p>
         </section>
 
@@ -264,9 +265,9 @@
         >
           {{
             completeOnboardingMutation.isPending()
-              ? "Saving..."
+              ? "Saving…"
               : requirements.hasMembership
-                ? "Confirm and continue"
+                ? "Finish setup"
                 : "Join organization"
           }}
         </button>

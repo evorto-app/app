@@ -1,9 +1,10 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
+import { usersToAuthenticate } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { seedFreeRegistrationAddon } from './seed-registration-addons';
@@ -58,48 +59,92 @@ export const seedProfileEventCards = async ({
   const confirmedRegistrationId = getId();
   const confirmedEventId = getId();
   const confirmedEventOptionId = getId();
-  const confirmedEventTitle = `Profile docs confirmed ${seedDate.getTime()}`;
+  const confirmedEventTitle = 'Community dinner';
   const confirmedAddonId = getId();
   const confirmedAddonPurchaseId = getId();
-  const confirmedAddonTitle = `Profile docs snack ${seedDate.getTime()}`;
+  const confirmedAddonTitle = 'Meal voucher';
   const checkedInRegistrationId = getId();
   const checkedInEventId = getId();
   const checkedInEventOptionId = getId();
-  const checkedInEventTitle = `Profile docs checked in ${seedDate.getTime()}`;
+  const checkedInEventTitle = 'City museum visit';
   const checkedInAddonId = getId();
   const checkedInAddonPurchaseId = getId();
-  const checkedInAddonTitle = `Profile docs checked snack ${seedDate.getTime()}`;
+  const checkedInAddonTitle = 'Audio guide';
   const pendingCheckoutEventId = getId();
   const pendingCheckoutOptionId = getId();
   const pendingCheckoutRegistrationId = getId();
   const pendingCheckoutTransactionId = getId();
   const pendingCheckoutSessionId = `cs_profile_docs_${seedDate.getTime()}`;
-  const pendingCheckoutTitle = `Profile docs pending checkout ${seedDate.getTime()}`;
+  const pendingCheckoutTitle = 'Weekend kayaking trip';
   const pendingCheckoutUrl = `https://checkout.stripe.com/c/pay/${pendingCheckoutSessionId}`;
   const waitlistEventId = getId();
   const waitlistOptionId = getId();
   const waitlistRegistrationId = getId();
-  const waitlistTitle = `Profile docs waitlist ${seedDate.getTime()}`;
+  const waitlistTitle = 'Summer welcome picnic';
   const sourceEventId = seeded.scenario.events.freeOpen.eventId;
-  const sourceEvent = await database.query.eventInstances.findFirst({
-    where: (eventInstance) =>
-      and(
-        eq(eventInstance.id, sourceEventId),
-        eq(eventInstance.tenantId, seeded.tenant.id),
-      ),
+  const sourceOptionId = seeded.scenario.events.freeOpen.optionId;
+  const paidSourceEventId = seeded.scenario.events.paidOpen.eventId;
+  const paidSourceOptionId = seeded.scenario.events.paidOpen.optionId;
+  const [sourceEvent, paidSourceEvent] = await Promise.all([
+    database.query.eventInstances.findFirst({
+      where: {
+        id: sourceEventId,
+        tenantId: seeded.tenant.id,
+      },
+      with: { registrationOptions: true },
+    }),
+    database.query.eventInstances.findFirst({
+      where: {
+        id: paidSourceEventId,
+        tenantId: seeded.tenant.id,
+      },
+      with: { registrationOptions: true },
+    }),
+  ]);
+  const sourceOption = sourceEvent?.registrationOptions.find(
+    (option) => option.id === sourceOptionId,
+  );
+  const paidSourceOption = paidSourceEvent?.registrationOptions.find(
+    (option) => option.id === paidSourceOptionId,
+  );
+  const reviewer = usersToAuthenticate.find((user) => user.roles === 'admin');
+  if (
+    !sourceEvent ||
+    !sourceOption ||
+    sourceOption.isPaid ||
+    sourceOption.price !== 0 ||
+    sourceOption.stripeTaxRateId !== null ||
+    !paidSourceEvent ||
+    !paidSourceOption ||
+    !paidSourceOption.isPaid ||
+    paidSourceOption.price <= 0 ||
+    !paidSourceOption.stripeTaxRateId ||
+    !reviewer
+  ) {
+    throw new Error(
+      'Expected canonical free and paid profile source options and reviewer',
+    );
+  }
+  const paidTaxRate = await database.query.tenantStripeTaxRates.findFirst({
+    where: {
+      stripeTaxRateId: paidSourceOption.stripeTaxRateId,
+      tenantId: seeded.tenant.id,
+    },
   });
-  if (!sourceEvent) {
-    throw new Error('Expected seeded profile source event');
+  if (!paidTaxRate) {
+    throw new Error('Expected canonical paid profile source tax rate');
   }
 
   await database.insert(schema.eventInstances).values([
     {
       creatorId: userId,
-      description: 'Profile docs event for confirmed registration coverage.',
+      description: 'A relaxed dinner for members and their guests.',
       end: new Date(seedDate.getTime() + 8 * 60 * 60 * 1000),
       icon: sourceEvent.icon,
       id: confirmedEventId,
       location: sourceEvent.location,
+      reviewedAt: seedDate,
+      reviewedBy: reviewer.id,
       start: new Date(seedDate.getTime() + 6 * 60 * 60 * 1000),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
@@ -108,11 +153,13 @@ export const seedProfileEventCards = async ({
     },
     {
       creatorId: userId,
-      description: 'Profile docs event for checked-in registration coverage.',
+      description: 'A guided visit to the city museum.',
       end: new Date(seedDate.getTime() + 60 * 60 * 1000),
       icon: sourceEvent.icon,
       id: checkedInEventId,
       location: sourceEvent.location,
+      reviewedAt: seedDate,
+      reviewedBy: reviewer.id,
       start: new Date(seedDate.getTime() - 2 * 60 * 60 * 1000),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
@@ -121,12 +168,13 @@ export const seedProfileEventCards = async ({
     },
     {
       creatorId: userId,
-      description:
-        'Profile docs event for pending checkout continuation coverage.',
+      description: 'A guided kayaking trip for beginners.',
       end: new Date(seedDate.getTime() + 3 * 60 * 60 * 1000),
       icon: sourceEvent.icon,
       id: pendingCheckoutEventId,
       location: sourceEvent.location,
+      reviewedAt: seedDate,
+      reviewedBy: reviewer.id,
       start: new Date(seedDate.getTime() + 2 * 60 * 60 * 1000),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
@@ -135,11 +183,13 @@ export const seedProfileEventCards = async ({
     },
     {
       creatorId: userId,
-      description: 'Profile docs event for waitlist card coverage.',
+      description: 'A summer picnic for new and returning members.',
       end: new Date(seedDate.getTime() + 5 * 60 * 60 * 1000),
       icon: sourceEvent.icon,
       id: waitlistEventId,
       location: sourceEvent.location,
+      reviewedAt: seedDate,
+      reviewedBy: reviewer.id,
       start: new Date(seedDate.getTime() + 4 * 60 * 60 * 1000),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
@@ -152,53 +202,57 @@ export const seedProfileEventCards = async ({
       closeRegistrationTime: new Date(seedDate.getTime() + 5 * 60 * 60 * 1000),
       eventId: confirmedEventId,
       id: confirmedEventOptionId,
-      isPaid: false,
+      isPaid: sourceOption.isPaid,
       openRegistrationTime: new Date(seedDate.getTime() - 60 * 60 * 1000),
       organizingRegistration: false,
-      price: 0,
+      price: sourceOption.price,
       registrationMode: 'fcfs',
       roleIds: [],
       spots: 20,
-      title: 'Confirmed participant',
+      stripeTaxRateId: sourceOption.stripeTaxRateId,
+      title: 'Dinner attendee',
     },
     {
       closeRegistrationTime: seedDate,
       eventId: checkedInEventId,
       id: checkedInEventOptionId,
-      isPaid: false,
+      isPaid: sourceOption.isPaid,
       openRegistrationTime: new Date(seedDate.getTime() - 3 * 60 * 60 * 1000),
       organizingRegistration: false,
-      price: 0,
+      price: sourceOption.price,
       registrationMode: 'fcfs',
       roleIds: [],
       spots: 20,
-      title: 'Checked-in participant',
+      stripeTaxRateId: sourceOption.stripeTaxRateId,
+      title: 'Museum visitor',
     },
     {
       closeRegistrationTime: new Date(seedDate.getTime() + 60 * 60 * 1000),
       eventId: pendingCheckoutEventId,
       id: pendingCheckoutOptionId,
-      isPaid: true,
+      isPaid: paidSourceOption.isPaid,
       openRegistrationTime: new Date(seedDate.getTime() - 60 * 60 * 1000),
       organizingRegistration: false,
-      price: 2500,
+      price: paidSourceOption.price,
       registrationMode: 'fcfs',
       roleIds: [],
       spots: 20,
-      title: 'Participant checkout',
+      stripeTaxRateId: paidSourceOption.stripeTaxRateId,
+      title: 'Kayaking attendee',
     },
     {
       closeRegistrationTime: new Date(seedDate.getTime() + 60 * 60 * 1000),
       eventId: waitlistEventId,
       id: waitlistOptionId,
-      isPaid: false,
+      isPaid: sourceOption.isPaid,
       openRegistrationTime: new Date(seedDate.getTime() - 60 * 60 * 1000),
       organizingRegistration: false,
-      price: 0,
+      price: sourceOption.price,
       registrationMode: 'fcfs',
       roleIds: [],
       spots: 1,
-      title: 'Participant waitlist',
+      stripeTaxRateId: sourceOption.stripeTaxRateId,
+      title: 'Picnic attendee',
     },
   ]);
   await seedFreeRegistrationAddon({
@@ -217,6 +271,10 @@ export const seedProfileEventCards = async ({
   });
   await database.insert(schema.eventRegistrations).values([
     {
+      appliedDiscountedPrice: null,
+      appliedDiscountType: null,
+      basePriceAtRegistration: sourceOption.price,
+      discountAmount: 0,
       eventId: confirmedEventId,
       guestCount: 1,
       id: confirmedRegistrationId,
@@ -226,7 +284,11 @@ export const seedProfileEventCards = async ({
       userId,
     },
     {
+      appliedDiscountedPrice: null,
+      appliedDiscountType: null,
+      basePriceAtRegistration: sourceOption.price,
       checkInTime: seedDate,
+      discountAmount: 0,
       eventId: checkedInEventId,
       id: checkedInRegistrationId,
       registrationOptionId: checkedInEventOptionId,
@@ -235,10 +297,18 @@ export const seedProfileEventCards = async ({
       userId,
     },
     {
+      appliedDiscountedPrice: null,
+      appliedDiscountType: null,
+      basePriceAtRegistration: paidSourceOption.price,
+      discountAmount: 0,
       eventId: pendingCheckoutEventId,
       id: pendingCheckoutRegistrationId,
       registrationOptionId: pendingCheckoutOptionId,
       status: 'PENDING',
+      stripeTaxRateId: paidSourceOption.stripeTaxRateId,
+      taxRateDisplayName: paidTaxRate.displayName,
+      taxRateInclusive: paidTaxRate.inclusive,
+      taxRatePercentage: paidTaxRate.percentage,
       tenantId: seeded.tenant.id,
       userId,
     },
@@ -276,9 +346,9 @@ export const seedProfileEventCards = async ({
     },
   ]);
   await database.insert(schema.transactions).values({
-    amount: 2500,
+    amount: paidSourceOption.price,
     comment: 'Profile docs pending checkout card',
-    currency: 'EUR',
+    currency: seeded.tenant.currency,
     eventId: pendingCheckoutEventId,
     eventRegistrationId: pendingCheckoutRegistrationId,
     executiveUserId: userId,

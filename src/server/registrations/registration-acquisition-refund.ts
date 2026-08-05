@@ -1,4 +1,9 @@
 import {
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+
+import {
   allocateCumulativeQuantityAmount,
   allocateIntegerByWeight,
 } from '../payments/addon-payment-allocation';
@@ -11,6 +16,7 @@ export interface AcquisitionComponentQuantityAmounts {
 }
 
 interface RefundableAcquisitionComponent extends AcquisitionComponentQuantityAmounts {
+  readonly kind: 'addon_lot' | 'registration';
   readonly quantity: number;
 }
 
@@ -26,6 +32,10 @@ export const allocateAcquisitionComponentQuantity = (input: {
   readonly quantity: number;
 }): AcquisitionComponentQuantityAmounts | undefined => {
   const { component } = input;
+  const maximumQuantity =
+    component.kind === 'registration'
+      ? MAX_REGISTRATION_GUESTS + 1
+      : MAX_REGISTRATION_ADDON_QUANTITY;
   const values = [
     input.alreadyAllocatedQuantity,
     input.quantity,
@@ -38,6 +48,7 @@ export const allocateAcquisitionComponentQuantity = (input: {
   if (
     values.some((value) => !Number.isSafeInteger(value) || value < 0) ||
     component.quantity === 0 ||
+    component.quantity > maximumQuantity ||
     input.quantity === 0 ||
     input.alreadyAllocatedQuantity + input.quantity > component.quantity ||
     component.netAmount +

@@ -8,9 +8,16 @@ export const PlatformOperationRpcError =
 export type PlatformOperationRpcError =
   BadRequestForbiddenOrUnauthorizedRpcError;
 
-export const PlatformOperationReason = Schema.String.check(
+const stripeAccountIdentifierPattern = /(?:^|\W)acct_[A-Za-z0-9]+(?:$|\W)/u;
+
+export const PlatformOperationReason = Schema.Trim.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(500),
+  Schema.makeFilter((value) =>
+    stripeAccountIdentifierPattern.test(value)
+      ? 'The reason must not include a payment account identifier'
+      : undefined,
+  ),
 );
 
 export class PlatformTenantMutationContext extends Schema.Class<PlatformTenantMutationContext>(

@@ -8,9 +8,8 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { form, FormField, submit } from '@angular/forms/signals';
+import { form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -24,6 +23,8 @@ import consola from 'consola/browser';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
 import {
   createOrdinaryTemplateGraphFormModel,
   ordinaryTemplateGraphFormToPayload,
@@ -31,18 +32,25 @@ import {
 } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form';
 import { ordinaryTemplateGraphFormSchemaWithPaymentAvailability } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema';
 import { TemplateGraphEditorComponent } from '../../shared/components/forms/template-graph-editor/template-graph-editor.component';
-import { resetTemplateGraphPayments } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 
 const logger = consola.withTag('app/templates/edit');
+
+export const templateEditLoadErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'This template could not be loaded. Try again.', [
+    'TemplateSimpleNotFoundError',
+  ]);
+
+export const templateEditSaveErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'The template could not be saved. Try again.', [
+    'RpcBadRequestError',
+  ]);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
-    FormField,
     MatButtonModule,
-    MatCheckboxModule,
     RouterLink,
     TemplateGeneralFormComponent,
     TemplateGraphEditorComponent,
@@ -52,16 +60,61 @@ const logger = consola.withTag('app/templates/edit');
 })
 export class TemplateEditComponent {
   private readonly rpc = AppRpc.injectClient();
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.rpc.taxRates.listActive.queryOptions(),
+  );
+  protected readonly availableTaxRates = computed(() =>
+    this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
+      ? this.taxRatesQuery.data()
+      : undefined,
+  );
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
+  protected readonly discountProviderState = computed(() => {
+    if (this.discountProvidersQuery.isError()) return 'error' as const;
+    if (
+      !this.discountProvidersQuery.isSuccess() ||
+      this.discountProvidersQuery.isFetching()
+    ) {
+      return 'loading' as const;
+    }
+    return this.discountProvidersQuery
+      .data()
+      .some(
+        (provider) =>
+          provider.type === 'esnCard' && provider.status === 'enabled',
+      )
+      ? ('esnEnabled' as const)
+      : ('ready' as const);
+  });
+  protected readonly authoringProvidersReady = computed(
+    () =>
+      (this.discountProviderState() === 'ready' ||
+        this.discountProviderState() === 'esnEnabled') &&
+      this.availableTaxRates() !== undefined,
+  );
   protected readonly editorLoadError = signal('');
   private readonly config = inject(ConfigService);
-  protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+  protected readonly stripeConnected = computed(
+    () => this.config.tenantSignal()?.paymentsConfigured === true,
+  );
+  protected readonly stripeConnectionKnown = computed(
+    () => this.config.tenantSignal() !== null,
+  );
+  protected readonly paidControlsUnavailable = computed(
+    () => this.stripeConnectionKnown() && !this.stripeConnected(),
   );
   private readonly templateModel = signal(
     createOrdinaryTemplateGraphFormModel(),
+  );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.paidControlsUnavailable() &&
+      graphHasPaidConfiguration(this.templateModel()),
+  );
+  protected readonly rolesQuery = injectQuery(() =>
+    this.rpc.roles.findMany.queryOptions({}),
   );
   protected readonly templateForm = form(
     this.templateModel,
@@ -76,51 +129,44 @@ export class TemplateEditComponent {
   protected readonly updateTemplateMutation = injectMutation(() =>
     this.rpc.templates.update.mutationOptions(),
   );
-  private readonly defaultUserRolesQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({ defaultUserRole: true }),
-  );
   protected readonly canSubmit = computed(
     () =>
       this.templateQuery.isSuccess() &&
-      this.defaultUserRolesQuery.isSuccess() &&
-      this.discountProvidersQuery.isSuccess() &&
+      this.rolesQuery.isSuccess() &&
+      this.authoringProvidersReady() &&
+      !this.paidGraphBlocked() &&
       !this.editorLoadError() &&
       !this.templateForm().invalid() &&
       !this.templateForm().submitting() &&
       !this.updateTemplateMutation.isPending(),
   );
   protected readonly defaultParticipantRoleIds = computed(() =>
-    this.defaultUserRolesQuery.isSuccess()
-      ? this.defaultUserRolesQuery.data().map((role) => role.id)
+    this.rolesQuery.isSuccess()
+      ? this.rolesQuery
+          .data()
+          .filter((role) => role.defaultUserRole)
+          .map((role) => role.id)
       : [],
   );
-  protected readonly esnEnabled = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return false;
-    return (
-      this.discountProvidersQuery
-        .data()
-        .find((provider) => provider.type === 'esnCard')?.status === 'enabled'
-    );
-  });
+  protected readonly esnEnabled = computed(
+    () => this.discountProviderState() === 'esnEnabled',
+  );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly iconUsage = computed(() =>
     TemplateEditIconUsage.make({ templateId: this.templateId() }),
   );
-  protected readonly stripeConnectionKnown = computed(
-    () => this.config.tenantSignal() !== null,
-  );
-  protected readonly paidControlsUnavailable = computed(
-    () => this.stripeConnectionKnown() && !this.stripeConnected(),
-  );
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.rpc.taxRates.listActive.queryOptions(),
-  );
   protected readonly taxRateState = computed(() =>
-    this.taxRatesQuery.isPending()
-      ? ('loading' as const)
-      : this.taxRatesQuery.isError()
-        ? ('error' as const)
+    this.taxRatesQuery.isError()
+      ? ('error' as const)
+      : this.availableTaxRates() === undefined
+        ? ('loading' as const)
         : ('ready' as const),
+  );
+  protected readonly templateQueryErrorMessage = computed(() =>
+    templateEditLoadErrorMessage(this.templateQuery.error()),
+  );
+  protected readonly updateErrorMessage = computed(() =>
+    templateEditSaveErrorMessage(this.updateTemplateMutation.error()),
   );
 
   private readonly initializedTemplateId = signal<null | string>(null);
@@ -144,22 +190,11 @@ export class TemplateEditComponent {
           this.editorLoadError.set(result.error);
         } else {
           this.editorLoadError.set('');
-          this.templateModel.set(
-            this.paidControlsUnavailable()
-              ? resetTemplateGraphPayments(result.model)
-              : result.model,
-          );
+          this.templateModel.set(result.model);
           this.templateForm().reset();
         }
         this.initializedTemplateId.set(templateId);
       });
-    });
-    effect(() => {
-      if (!this.paidControlsUnavailable()) return;
-      const model = this.templateModel();
-      const resetModel = resetTemplateGraphPayments(model);
-      if (resetModel === model) return;
-      untracked(() => this.templateModel.set(resetModel));
     });
   }
 
@@ -168,10 +203,8 @@ export class TemplateEditComponent {
     if (!this.canSubmit()) return;
 
     await submit(this.templateForm, async (formState) => {
-      const value = this.paidControlsUnavailable()
-        ? resetTemplateGraphPayments(formState().value())
-        : formState().value();
-      if (!value.icon || !this.discountProvidersQuery.isSuccess()) return;
+      const value = formState().value();
+      if (!value.icon || !this.authoringProvidersReady()) return;
       const payload = ordinaryTemplateGraphFormToPayload(
         { ...value, icon: value.icon },
         this.esnEnabled(),

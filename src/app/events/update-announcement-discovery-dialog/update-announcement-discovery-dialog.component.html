@@ -1,0 +1,28 @@
+<h2 mat-dialog-title>Choose who can find {{ data.event.title }}</h2>
+<mat-dialog-content>
+  <div class="mt-2 grid w-full gap-3">
+    <p class="body-medium">
+      Select the organization roles that should see this announcement in Events.
+    </p>
+    <app-role-select
+      [formField]="announcementDiscoveryForm.announcementRoleIds"
+    />
+    <p class="text-on-surface-variant body-medium">
+      Without a selected role, this announcement is available only through its
+      direct link. Selecting roles does not change anyone's access or send them
+      a message.
+    </p>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button
+    mat-button
+    type="button"
+    cdkFocusInitial
+    [disabled]="saveDisabled()"
+    (click)="save()"
+  >
+    Save
+  </button>
+</mat-dialog-actions>

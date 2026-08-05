@@ -11,6 +11,15 @@ export interface RegistrationPaymentFields<
   esnCardDiscountedPrice: DiscountedPrice;
 }
 
+export const graphHasPaidConfiguration = (graph: {
+  readonly addOns: readonly Pick<AddOnPaymentFields<null | string>, 'isPaid'>[];
+  readonly registrationOptions: readonly Pick<
+    RegistrationPaymentFields<null | string, '' | null | number>,
+    'isPaid'
+  >[];
+}): boolean =>
+  [...graph.registrationOptions, ...graph.addOns].some((item) => item.isPaid);
+
 export const resetAddOnPayment = <
   TaxRateId extends null | string,
   AddOn extends AddOnPaymentFields<TaxRateId>,

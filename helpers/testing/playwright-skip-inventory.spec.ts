@@ -7,7 +7,6 @@ import { describe, expect, it } from 'vitest';
 // is unavailable instead of disappearing behind `skip` or `fixme` calls.
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const testsRoot = path.join(repositoryRoot, 'tests');
-const testInventoryPath = path.join(testsRoot, 'test-inventory.md');
 
 const skipPattern = /\b(?:test|it|describe)\.(skip|fixme)\b/g;
 const placeholderMetadataPattern = /@(track|req|doc)\(/g;
@@ -40,24 +39,6 @@ const collectPlaywrightSpecAndDocFiles = () =>
           entryPath.endsWith('.spec.ts') ||
           entryPath.endsWith('.test.ts')),
     );
-
-const collectActiveInventoryFiles = () => {
-  const source = readFileSync(testInventoryPath, 'utf8');
-  const activeFilesSection = source.match(
-    /## Active Files\n(?<section>[\s\S]*?)\n## Suite Ownership/,
-  )?.groups?.section;
-
-  if (activeFilesSection === undefined) {
-    throw new Error('tests/test-inventory.md is missing the Active Files list');
-  }
-
-  return activeFilesSection
-    .split('\n')
-    .map(
-      (line) => line.match(/^ {2}- (?<path>(?:docs|specs)\/\S+)/)?.groups?.path,
-    )
-    .filter((path): path is string => path !== undefined);
-};
 
 const collectPlaywrightSkipEntries = () =>
   collectTypeScriptFiles(testsRoot).flatMap((sourcePath) => {
@@ -109,12 +90,6 @@ const collectFixedWaitEntries = () =>
   });
 
 describe('Playwright skip inventory', () => {
-  it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
-    expect(collectActiveInventoryFiles().toSorted()).toEqual(
-      collectPlaywrightSpecAndDocFiles().toSorted(),
-    );
-  });
-
   it('keeps active Playwright coverage free of skip and fixme calls', () => {
     const entries = collectPlaywrightSkipEntries().toSorted();
 

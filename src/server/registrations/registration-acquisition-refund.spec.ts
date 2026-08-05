@@ -1,4 +1,8 @@
 import { describe, expect, it } from '@effect/vitest';
+import {
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
 
 import {
   type AcquisitionComponentQuantityAmounts,
@@ -38,6 +42,7 @@ describe('allocateAcquisitionComponentQuantity', () => {
     const component = {
       applicationFeeAmount: 2,
       grossAmount: 17,
+      kind: 'addon_lot' as const,
       netAmount: 11,
       quantity: 5,
       stripeFeeAmount: 4,
@@ -70,6 +75,7 @@ describe('allocateAcquisitionComponentQuantity', () => {
     const component = {
       applicationFeeAmount: 0,
       grossAmount: 3,
+      kind: 'addon_lot' as const,
       netAmount: 2,
       quantity: 4,
       stripeFeeAmount: 1,
@@ -142,6 +148,7 @@ describe('allocateAcquisitionComponentQuantity', () => {
     const validComponent = {
       applicationFeeAmount: 1,
       grossAmount: 10,
+      kind: 'addon_lot' as const,
       netAmount: 7,
       quantity: 4,
       stripeFeeAmount: 2,
@@ -195,5 +202,57 @@ describe('allocateAcquisitionComponentQuantity', () => {
     for (const input of invalidInputs) {
       expect(allocateAcquisitionComponentQuantity(input)).toBeUndefined();
     }
+  });
+
+  it('bounds the per-unit allocator before materializing physical slices', () => {
+    const atLimit = {
+      applicationFeeAmount: 1,
+      grossAmount: 10,
+      kind: 'addon_lot' as const,
+      netAmount: 8,
+      quantity: MAX_REGISTRATION_ADDON_QUANTITY,
+      stripeFeeAmount: 1,
+    };
+
+    expect(
+      allocateAcquisitionComponentQuantity({
+        alreadyAllocatedQuantity: 0,
+        component: atLimit,
+        quantity: 1,
+      }),
+    ).toBeDefined();
+    expect(
+      allocateAcquisitionComponentQuantity({
+        alreadyAllocatedQuantity: 0,
+        component: {
+          ...atLimit,
+          quantity: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+        },
+        quantity: 1,
+      }),
+    ).toBeUndefined();
+
+    const registrationAtLimit = {
+      ...atLimit,
+      kind: 'registration' as const,
+      quantity: MAX_REGISTRATION_GUESTS + 1,
+    };
+    expect(
+      allocateAcquisitionComponentQuantity({
+        alreadyAllocatedQuantity: 0,
+        component: registrationAtLimit,
+        quantity: 1,
+      }),
+    ).toBeDefined();
+    expect(
+      allocateAcquisitionComponentQuantity({
+        alreadyAllocatedQuantity: 0,
+        component: {
+          ...registrationAtLimit,
+          quantity: MAX_REGISTRATION_GUESTS + 2,
+        },
+        quantity: 1,
+      }),
+    ).toBeUndefined();
   });
 });

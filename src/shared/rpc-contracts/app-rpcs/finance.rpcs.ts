@@ -1,8 +1,11 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { CanonicalIban } from '@shared/iban';
+import { CanonicalEmailAddress } from '@shared/notification-email';
 import {
   extendStruct,
   literalUnion,
-  nonNegativeNumber,
+  PageLimit,
+  PageOffset,
   pickStruct,
   positiveNumber,
 } from '@shared/schema-utilities';
@@ -16,6 +19,13 @@ import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
+import {
+  FinanceReceiptCalendarDate,
+  FinanceReceiptMinorUnitAmount,
+  FinanceReceiptPositiveMinorUnitAmount,
+  validateFinanceReceiptAmounts,
+} from '../../finance/receipt-values';
+import { maximumFinanceReimbursementReceiptCount } from '../../finance/reimbursement';
 import {
   FinanceResourceNotFoundError,
   FinanceRpcError,
@@ -42,43 +52,53 @@ export type FinanceReceiptAttachmentInput = Schema.Schema.Type<
   typeof FinanceReceiptAttachmentInput
 >;
 
-export const FinanceReceiptFieldsInput = Schema.Struct({
-  alcoholAmount: nonNegativeNumber,
-  depositAmount: nonNegativeNumber,
+export const FinanceReceiptFields = Schema.Struct({
+  alcoholAmount: FinanceReceiptMinorUnitAmount,
+  depositAmount: FinanceReceiptMinorUnitAmount,
   hasAlcohol: Schema.Boolean,
   hasDeposit: Schema.Boolean,
   purchaseCountry: Schema.NonEmptyString,
-  receiptDate: Schema.NonEmptyString,
-  taxAmount: nonNegativeNumber,
-  totalAmount: nonNegativeNumber,
+  receiptDate: FinanceReceiptCalendarDate,
+  taxAmount: FinanceReceiptMinorUnitAmount,
+  totalAmount: FinanceReceiptPositiveMinorUnitAmount,
 });
+
+const financeReceiptAmountsAreConsistent = Schema.makeFilter(
+  (fields: Schema.Schema.Type<typeof FinanceReceiptFields>) =>
+    validateFinanceReceiptAmounts(fields) === null,
+  { message: 'Receipt amounts are contradictory' },
+);
+
+export const FinanceReceiptFieldsInput = FinanceReceiptFields.check(
+  financeReceiptAmountsAreConsistent,
+);
 export type FinanceReceiptFieldsInput = Schema.Schema.Type<
   typeof FinanceReceiptFieldsInput
 >;
 
 export const FinanceReceiptBaseRecord = Schema.Struct({
-  alcoholAmount: Schema.Number,
+  alcoholAmount: FinanceReceiptMinorUnitAmount,
   attachmentFileName: Schema.NonEmptyString,
   attachmentMimeType: Schema.NonEmptyString,
   attachmentStorageKey: Schema.NullOr(Schema.NonEmptyString),
   createdAt: Schema.NonEmptyString,
   currency: Tenant.fields.currency,
-  depositAmount: Schema.Number,
+  depositAmount: FinanceReceiptMinorUnitAmount,
   eventId: Schema.NonEmptyString,
   hasAlcohol: Schema.Boolean,
   hasDeposit: Schema.Boolean,
   id: Schema.NonEmptyString,
   previewImageUrl: Schema.NullOr(Schema.NonEmptyString),
   purchaseCountry: Schema.NonEmptyString,
-  receiptDate: Schema.NonEmptyString,
+  receiptDate: FinanceReceiptCalendarDate,
   refundedAt: Schema.NullOr(Schema.NonEmptyString),
   refundTransactionId: Schema.NullOr(Schema.NonEmptyString),
   rejectionReason: Schema.NullOr(Schema.String),
   reviewedAt: Schema.NullOr(Schema.NonEmptyString),
   status: FinanceReceiptStatus,
   submittedByUserId: Schema.NonEmptyString,
-  taxAmount: Schema.Number,
-  totalAmount: Schema.Number,
+  taxAmount: FinanceReceiptMinorUnitAmount,
+  totalAmount: FinanceReceiptPositiveMinorUnitAmount,
   updatedAt: Schema.NonEmptyString,
 });
 export type FinanceReceiptBaseRecord = Schema.Schema.Type<
@@ -140,8 +160,8 @@ export const FinanceReceiptRefundableRecord = extendStruct(
   Schema.Struct({
     eventStart: Schema.NonEmptyString,
     eventTitle: Schema.NonEmptyString,
-    recipientIban: Schema.NullOr(Schema.NonEmptyString),
-    recipientPaypalEmail: Schema.NullOr(Schema.NonEmptyString),
+    recipientIban: Schema.NullOr(CanonicalIban),
+    recipientPaypalEmail: Schema.NullOr(CanonicalEmailAddress),
   }),
 );
 export type FinanceReceiptRefundableRecord = Schema.Schema.Type<
@@ -151,8 +171,8 @@ export type FinanceReceiptRefundableRecord = Schema.Schema.Type<
 export const FinanceReceiptRefundGroupRecord = Schema.Struct({
   currency: Tenant.fields.currency,
   payout: Schema.Struct({
-    iban: Schema.NullOr(Schema.NonEmptyString),
-    paypalEmail: Schema.NullOr(Schema.NonEmptyString),
+    iban: Schema.NullOr(CanonicalIban),
+    paypalEmail: Schema.NullOr(CanonicalEmailAddress),
   }),
   receipts: Schema.Array(FinanceReceiptRefundableRecord),
   submittedByEmail: Schema.NonEmptyString,
@@ -164,6 +184,23 @@ export const FinanceReceiptRefundGroupRecord = Schema.Struct({
 export type FinanceReceiptRefundGroupRecord = Schema.Schema.Type<
   typeof FinanceReceiptRefundGroupRecord
 >;
+
+export const FinanceReceiptCreateRefundInput = Schema.Union([
+  Schema.Struct({
+    payoutReference: CanonicalIban,
+    payoutType: Schema.Literal('iban'),
+    receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString).check(
+      Schema.isMaxLength(maximumFinanceReimbursementReceiptCount),
+    ),
+  }),
+  Schema.Struct({
+    payoutReference: CanonicalEmailAddress,
+    payoutType: Schema.Literal('paypal'),
+    receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString).check(
+      Schema.isMaxLength(maximumFinanceReimbursementReceiptCount),
+    ),
+  }),
+]);
 
 export const FinanceReceiptsByEvent = asRpcQuery(
   Rpc.make('finance.receipts.byEvent', {
@@ -178,11 +215,7 @@ export const FinanceReceiptsByEvent = asRpcQuery(
 export const FinanceReceiptsCreateRefund = asRpcMutation(
   Rpc.make('finance.receipts.createRefund', {
     error: FinanceRpcError,
-    payload: Schema.Struct({
-      payoutReference: Schema.NonEmptyString,
-      payoutType: literalUnion('iban', 'paypal'),
-      receiptIds: Schema.NonEmptyArray(Schema.NonEmptyString),
-    }),
+    payload: FinanceReceiptCreateRefundInput,
     success: Schema.Struct({
       receiptCount: Schema.Number,
       totalAmount: Schema.Number,
@@ -228,14 +261,12 @@ export const FinanceReceiptsRefundableGroupedByRecipient = asRpcQuery(
 export const FinanceReceiptsReview = asRpcMutation(
   Rpc.make('finance.receipts.review', {
     error: FinanceRpcError,
-    payload: extendStruct(
-      Schema.Struct({
-        id: Schema.NonEmptyString,
-        rejectionReason: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-        status: literalUnion('approved', 'rejected'),
-      }),
-      FinanceReceiptFieldsInput,
-    ),
+    payload: Schema.Struct({
+      ...FinanceReceiptFields.fields,
+      id: Schema.NonEmptyString,
+      rejectionReason: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+      status: literalUnion('approved', 'rejected'),
+    }).check(financeReceiptAmountsAreConsistent),
     success: FinanceReceiptReviewRecord,
   }),
 );
@@ -310,13 +341,15 @@ export type FinanceTransactionRecord = Schema.Schema.Type<
   typeof FinanceTransactionRecord
 >;
 
+export const FinanceTransactionPageInput = Schema.Struct({
+  limit: PageLimit,
+  offset: PageOffset,
+});
+
 export const FinanceTransactionsFindMany = asRpcQuery(
   Rpc.make('finance.transactions.findMany', {
     error: FinanceRpcError,
-    payload: Schema.Struct({
-      limit: Schema.Number,
-      offset: Schema.Number,
-    }),
+    payload: FinanceTransactionPageInput,
     success: Schema.Struct({
       data: Schema.Array(FinanceTransactionRecord),
       total: Schema.Number,

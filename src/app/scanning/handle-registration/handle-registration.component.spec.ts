@@ -9,22 +9,48 @@ import {
   registrationAddonRefundStatusLabel,
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
+  scanCheckInTimingIssueCopy,
   scanGuestCheckInCountFromInput,
+  scannerRegistrationErrorMessage,
   scanRegistrationStatusIssueCopy,
   scanSpotCountLabel,
 } from './handle-registration.component';
+
+describe('scanner registration error messages', () => {
+  it('shows check-in and registration outcomes without exposing internal failures', () => {
+    const fallback = 'Check-in could not be completed. Try again.';
+    expect(
+      scannerRegistrationErrorMessage(
+        {
+          _tag: 'EventCheckInUnavailableError',
+          message: 'Check-in opens one hour before this event starts.',
+        },
+        fallback,
+      ),
+    ).toBe('Check-in opens one hour before this event starts.');
+    expect(
+      scannerRegistrationErrorMessage(
+        {
+          _tag: 'EventRegistrationInternalError',
+          message: 'database failed',
+        },
+        fallback,
+      ),
+    ).toBe(fallback);
+  });
+});
 
 describe('registration add-on fulfillment copy', () => {
   it('explains every cancellation block without exposing an unusable action', () => {
     expect(registrationAddonCancellationBlockedMessage('none')).toBe('');
     expect(registrationAddonCancellationBlockedMessage('permission')).toBe(
-      'Cancelling units requires Cancel registrations and add-ons access.',
+      'You cannot cancel these items. Ask someone who manages tickets and add-ons for this event.',
     );
     expect(
       registrationAddonCancellationBlockedMessage('registrationStatus'),
-    ).toBe('Add-on units can only be cancelled for a confirmed registration.');
+    ).toBe('Add-on items can be cancelled only while the ticket is confirmed.');
     expect(registrationAddonCancellationBlockedMessage('noQuantity')).toBe(
-      'No unredeemed units remain to cancel.',
+      'No unused items remain to cancel.',
     );
   });
 
@@ -148,7 +174,7 @@ describe('registration add-on fulfillment copy', () => {
       'No refund requested',
     );
     expect(registrationAddonRefundStatusLabel('pending')).toBe(
-      'Refund processing',
+      'Refund in progress',
     );
     expect(registrationAddonRefundStatusLabel('partiallyRefunded')).toBe(
       'Partially refunded',
@@ -161,39 +187,39 @@ describe('registration add-on fulfillment copy', () => {
       'Cancelled without refund',
     );
     expect(registrationAddonRefundStatusLabel('notRequired')).toBe(
-      'No monetary refund required',
+      'No refund needed',
     );
   });
 
   it('explains every cancellation outcome without suggesting a duplicate action', () => {
     expect(registrationAddonCancellationSuccessMessage('actionRequired')).toBe(
-      'Cancellation recorded, but the refund needs a platform administrator to review it. Do not cancel or charge again.',
+      'The items were cancelled, but the refund needs attention. Do not cancel them or charge again. Ask an administrator to review this ticket.',
     );
     expect(
       registrationAddonCancellationSuccessMessage('cancelledWithoutRefund'),
-    ).toBe('Cancellation recorded without a refund, as requested.');
+    ).toBe('The items were cancelled without a refund, as requested.');
     expect(registrationAddonCancellationSuccessMessage('failed')).toBe(
-      'Cancellation recorded, but the refund needs platform administrator attention. Do not cancel or charge again.',
+      'The items were cancelled, but the refund needs attention. Do not cancel them or charge again. Ask an administrator to review this ticket.',
     );
     expect(registrationAddonCancellationSuccessMessage('notApplicable')).toBe(
-      'Cancellation recorded. No refund applies to this add-on.',
+      'The items were cancelled. No refund applies to this add-on.',
     );
     expect(registrationAddonCancellationSuccessMessage('notRequested')).toBe(
-      'Cancellation recorded. No refund was requested.',
+      'The items were cancelled. No refund was requested.',
     );
     expect(registrationAddonCancellationSuccessMessage('notRequired')).toBe(
-      'Cancellation recorded. No monetary refund was required.',
+      'The items were cancelled. No refund was needed.',
     );
     expect(
       registrationAddonCancellationSuccessMessage('partiallyRefunded'),
     ).toBe(
-      'Cancellation recorded. Part of the refund completed; the remaining refund is still tracked.',
+      'The items were cancelled. Part of the refund is complete; the rest is still in progress.',
     );
     expect(registrationAddonCancellationSuccessMessage('pending')).toBe(
-      'Cancellation recorded. Refund processing started.',
+      'The items were cancelled. The refund has started.',
     );
     expect(registrationAddonCancellationSuccessMessage('refunded')).toBe(
-      'Cancellation recorded. The refund completed.',
+      'The items were cancelled and refunded.',
     );
   });
 
@@ -215,7 +241,7 @@ describe('registration add-on fulfillment copy', () => {
         includedQuantity: 0,
         purchasedQuantity: 0,
       }),
-    ).toBe('No units');
+    ).toBe('No items');
   });
 });
 
@@ -228,24 +254,38 @@ describe('scan registration status copy', () => {
     const copy = scanRegistrationStatusIssueCopy('CANCELLED');
 
     expect(copy).toEqual({
-      body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, ask an organizer to review the existing registration.',
-      title: 'Registration cancelled',
+      body: 'This sign-up has ended and cannot be checked in. Do not ask the attendee to pay or sign up again. If the cancellation or refund looks wrong, review the existing sign-up instead of creating a replacement.',
+      title: 'Sign-up ended',
     });
     expect(copy?.body).not.toContain('check if they paid');
   });
 
   it('distinguishes pending approval or payment from a duplicate payment', () => {
     expect(scanRegistrationStatusIssueCopy('PENDING')).toEqual({
-      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
-      title: 'Registration pending',
+      body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start another sign-up or payment from the scanner.',
+      title: 'Sign-up pending',
     });
   });
 
-  it('explains that a waitlisted attendee has no confirmed spot', () => {
+  it('explains that a waitlisted attendee has no confirmed place', () => {
     expect(scanRegistrationStatusIssueCopy('WAITLIST')).toEqual({
-      body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Ask an organizer to review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
-      title: 'Registration on waitlist',
+      body: 'This attendee does not have a confirmed place yet and cannot be checked in. Ask an organizer to review the waitlist and available places. Do not take payment or start another sign-up from the scanner.',
+      title: 'On waitlist',
     });
+  });
+});
+
+describe('scan check-in timing copy', () => {
+  it('distinguishes a future event from a closed event', () => {
+    expect(scanCheckInTimingIssueCopy('notOpen')).toEqual({
+      body: 'Check-in opens one hour before the event starts.',
+      title: 'Check-in not open',
+    });
+    expect(scanCheckInTimingIssueCopy('ended')).toEqual({
+      body: 'The event ended more than two hours ago, so check-in is closed. The attendee was not checked in.',
+      title: 'Check-in closed',
+    });
+    expect(scanCheckInTimingIssueCopy(null)).toBeNull();
   });
 });
 
@@ -333,8 +373,8 @@ describe('scan check-in copy', () => {
   });
 
   it('uses singular and plural spot suffixes for guest check-in selection', () => {
-    expect(scanSpotCountLabel(1)).toBe('1 spot now');
-    expect(scanSpotCountLabel(3)).toBe('3 spots now');
+    expect(scanSpotCountLabel(1)).toBe('1 place now');
+    expect(scanSpotCountLabel(3)).toBe('3 places now');
   });
 });
 

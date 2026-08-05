@@ -23,7 +23,7 @@ describe('paid configuration Stripe serialization source guards', () => {
       '../effect/rpc/handlers/events/events-lifecycle.handlers.ts',
     );
     const handlerStart = source.indexOf("'events.create':");
-    const handlerEnd = source.indexOf("'events.update':", handlerStart);
+    const handlerEnd = source.indexOf("'events.updateGraph':", handlerStart);
     const handler = source.slice(handlerStart, handlerEnd);
 
     expect(handlerStart).toBeGreaterThanOrEqual(0);
@@ -132,26 +132,14 @@ describe('paid configuration Stripe serialization source guards', () => {
       [
         standard,
         "'templates.create':",
-        "'templates.createSimpleTemplate':",
+        "'templates.findOne':",
         'TemplateGraphService.createTemplate(',
       ],
       [
         standard,
-        "'templates.createSimpleTemplate':",
-        "'templates.findOne':",
-        'SimpleTemplateService.createSimpleTemplate(',
-      ],
-      [
-        standard,
         "'templates.update':",
-        "'templates.updateSimpleTemplate':",
-        'TemplateGraphService.updateTemplate(',
-      ],
-      [
-        standard,
-        "'templates.updateSimpleTemplate':",
         'satisfies Partial<AppRpcHandlers>',
-        'SimpleTemplateService.updateSimpleTemplate(',
+        'TemplateGraphService.updateTemplate(',
       ],
       [
         platform,

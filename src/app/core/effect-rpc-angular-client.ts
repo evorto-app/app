@@ -19,11 +19,29 @@ import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 const normalizeBaseUrl = (value: string): string =>
   value.endsWith('/') ? value.slice(0, -1) : value;
 
-const normalizeConfiguredOrigin = (value: string): string => {
-  const url = new URL(value);
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('SSR_RPC_ORIGIN must use http or https');
+export class ServerRpcOriginResolutionError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = 'ServerRpcOriginResolutionError';
   }
+}
+
+const normalizeHttpOrigin = (value: string, source: string): string => {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ServerRpcOriginResolutionError(
+      `${source} must be an absolute HTTP or HTTPS URL`,
+    );
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new ServerRpcOriginResolutionError(
+      `${source} must use HTTP or HTTPS`,
+    );
+  }
+
   return normalizeBaseUrl(url.origin);
 };
 
@@ -37,7 +55,6 @@ interface ServerProcessLike {
 }
 
 interface ServerRequestLike {
-  readonly headers?: Headers;
   readonly url: string;
 }
 
@@ -48,28 +65,8 @@ export const resolveTrustedServerRpcOrigin = (): string | undefined => {
   const configuredOrigin = processLike?.env?.['SSR_RPC_ORIGIN']?.trim();
 
   return configuredOrigin
-    ? normalizeConfiguredOrigin(configuredOrigin)
+    ? normalizeHttpOrigin(configuredOrigin, 'SSR_RPC_ORIGIN')
     : undefined;
-};
-
-const resolveOriginFromHeaders = (headers?: Headers): string | undefined => {
-  if (!headers) {
-    return;
-  }
-
-  const protocol =
-    headers.get('x-forwarded-proto')?.split(',', 1)[0]?.trim() ??
-    headers.get('x-forwarded-protocol')?.split(',', 1)[0]?.trim() ??
-    'http';
-  const host =
-    headers.get('x-forwarded-host')?.split(',', 1)[0]?.trim() ??
-    headers.get('host')?.trim();
-
-  if (!host) {
-    return;
-  }
-
-  return normalizeBaseUrl(`${protocol}://${host}`);
 };
 
 const resolveRequest = (): ServerRequestLike | undefined => {
@@ -95,17 +92,12 @@ export const resolveServerRpcOrigin = (request?: ServerRequestLike): string => {
   }
 
   if (request) {
-    try {
-      return normalizeBaseUrl(new URL(request.url).origin);
-    } catch {
-      const headerOrigin = resolveOriginFromHeaders(request.headers);
-      if (headerOrigin) {
-        return headerOrigin;
-      }
-    }
+    return normalizeHttpOrigin(request.url, 'Angular REQUEST URL');
   }
 
-  return 'http://localhost:4200';
+  throw new ServerRpcOriginResolutionError(
+    'SSR RPC origin is unavailable: set SSR_RPC_ORIGIN or provide an absolute Angular REQUEST URL',
+  );
 };
 
 export const resolveRpcUrl = (): string =>
@@ -130,7 +122,9 @@ type AppRpcClient = ReturnType<
   ReturnType<typeof createAppRpcFactory>['injectClient']
 >;
 
-const APP_RPC_CLIENT = new InjectionToken<AppRpcClient>('APP_RPC_CLIENT');
+export const APP_RPC_CLIENT = new InjectionToken<AppRpcClient>(
+  'APP_RPC_CLIENT',
+);
 
 const createAppRpcClient = (): AppRpcClient => {
   const rpcLayer = inject(EFFECT_RPC_PROTOCOL_HTTP_LAYER);

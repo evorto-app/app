@@ -24,15 +24,14 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import {
-  supportedTenantCurrencies,
-  supportedTenantTimezones,
-} from '../../../types/custom/tenant';
+import { supportedTenantCurrencies } from '../../../types/custom/tenant';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { tenantTimezoneOptions } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import {
   createGlobalAdminTenantFormModel,
+  globalAdminTenantDomainValidationMessage,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantSubmitDisabled,
 } from '../tenant-form/tenant-form.model';
@@ -79,7 +78,7 @@ export class TenantCreateComponent {
     required(schema.reason);
     validate(schema.domain, ({ value }) =>
       value().trim().length === 0
-        ? { kind: 'required', message: 'Domain is required.' }
+        ? { kind: 'required', message: 'Website address is required.' }
         : undefined,
     );
     validate(schema.name, ({ value }) =>
@@ -94,7 +93,7 @@ export class TenantCreateComponent {
     );
   });
   protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
-  protected readonly timezoneOptions = supportedTenantTimezones;
+  protected readonly timezoneOptions = tenantTimezoneOptions;
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
 
@@ -114,7 +113,7 @@ export class TenantCreateComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to create organization'),
+            globalAdminTenantDomainValidationMessage(error),
           );
           return null;
         }
@@ -132,7 +131,11 @@ export class TenantCreateComponent {
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to create organization'),
+              getErrorMessage(
+                error,
+                'The organization could not be created. Try again.',
+                ['RpcBadRequestError'],
+              ),
             );
           },
           onSuccess: async (tenant) => {

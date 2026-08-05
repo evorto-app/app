@@ -3,12 +3,12 @@ import { Effect, Schema } from 'effect';
 
 import {
   PlatformRoleCreateInput,
+  PlatformRoleMutationRpcError,
   PlatformTaxRatesImportInput,
   PlatformTenantUsersListInput,
 } from './platform-tenant-admin.rpcs';
 
 const roleCreateInput = {
-  collapseMembersInHup: false,
   defaultOrganizerRole: false,
   defaultUserRole: true,
   description: '',
@@ -31,15 +31,43 @@ describe('platform tenant-admin RPC schemas', () => {
     }),
   );
 
-  it.effect('rejects platform-global permissions on tenant role writes', () =>
-    Effect.gen(function* () {
-      for (const permission of ['globalAdmin:*', 'globalAdmin:manageTenants']) {
-        const error = yield* Schema.decodeUnknownEffect(
-          PlatformRoleCreateInput,
-        )({ ...roleCreateInput, permissions: [permission] }).pipe(Effect.flip);
+  it.effect(
+    'keeps known permissions structural for typed server-side validation',
+    () =>
+      Effect.gen(function* () {
+        for (const permission of [
+          'globalAdmin:*',
+          'globalAdmin:manageTenants',
+        ]) {
+          const decoded = yield* Schema.decodeUnknownEffect(
+            PlatformRoleCreateInput,
+          )({ ...roleCreateInput, permissions: [permission] });
 
-        expect(error['_tag']).toBe('SchemaError');
-      }
+          expect(decoded.permissions).toEqual([permission]);
+        }
+      }),
+  );
+
+  it.effect('declares typed validation and duplicate-name errors', () =>
+    Effect.gen(function* () {
+      const validation = yield* Schema.decodeUnknownEffect(
+        PlatformRoleMutationRpcError,
+      )({
+        _tag: 'RoleWriteValidationError',
+        field: 'permissions',
+        message:
+          'Permissions reserved for Evorto administrators cannot be added to an organization role.',
+      });
+      expect(validation._tag).toBe('RoleWriteValidationError');
+
+      const duplicate = yield* Schema.decodeUnknownEffect(
+        PlatformRoleMutationRpcError,
+      )({
+        _tag: 'RoleNameAlreadyExistsError',
+        message: 'A role named Member already exists',
+        name: 'Member',
+      });
+      expect(duplicate._tag).toBe('RoleNameAlreadyExistsError');
     }),
   );
 
@@ -57,12 +85,24 @@ describe('platform tenant-admin RPC schemas', () => {
       );
       expect(limitError['_tag']).toBe('SchemaError');
 
+      const zeroLimitError = yield* Schema.decodeUnknownEffect(
+        PlatformTenantUsersListInput,
+      )({ limit: 0, offset: 0, targetTenantId: 'tenant-1' }).pipe(Effect.flip);
+      expect(zeroLimitError['_tag']).toBe('SchemaError');
+
       const offsetError = yield* Schema.decodeUnknownEffect(
         PlatformTenantUsersListInput,
       )({ limit: 100, offset: -1, targetTenantId: 'tenant-1' }).pipe(
         Effect.flip,
       );
       expect(offsetError['_tag']).toBe('SchemaError');
+
+      const fractionalOffsetError = yield* Schema.decodeUnknownEffect(
+        PlatformTenantUsersListInput,
+      )({ limit: 100, offset: 0.5, targetTenantId: 'tenant-1' }).pipe(
+        Effect.flip,
+      );
+      expect(fractionalOffsetError['_tag']).toBe('SchemaError');
     }),
   );
 

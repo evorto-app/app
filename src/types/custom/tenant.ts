@@ -1,26 +1,20 @@
 import {
   literalUnion,
-  nonNegativeNumber,
+  nonNegativePostgresInteger,
   optionalNullable,
 } from '@shared/schema-utilities';
 import {
-  createDefaultTenantDiscountProviders,
-  DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
-  DEFAULT_TENANT_RECEIPT_COUNTRIES,
+  TenantDiscountProvidersSchema,
+  TenantReceiptSettingsSchema,
 } from '@shared/tenant-config';
 import { Effect, Schema, SchemaGetter } from 'effect';
 
 import { GoogleLocation } from '../location';
 
 export const supportedTenantCurrencies = ['EUR', 'CZK', 'AUD'] as const;
+export const supportedTenantThemes = ['evorto', 'classic', 'esn'] as const;
 export const TENANT_FORMATTING_LOCALE = 'de-DE' as const;
 export const DEFAULT_TENANT_TIMEZONE = 'Europe/Berlin' as const;
-export const supportedTenantLocales = [TENANT_FORMATTING_LOCALE] as const;
-const legacyTenantLocales: ReadonlySet<string> = new Set([
-  'en-AU',
-  'en-GB',
-  'en-US',
-]);
 export const supportedTenantTimezones = [
   'Europe/Prague',
   DEFAULT_TENANT_TIMEZONE,
@@ -28,7 +22,7 @@ export const supportedTenantTimezones = [
 ] as const;
 
 const SupportedTenantCurrency = literalUnion(...supportedTenantCurrencies);
-const SupportedTenantLocale = literalUnion(...supportedTenantLocales);
+const SupportedTenantTheme = literalUnion(...supportedTenantThemes);
 
 export const isIanaTimezone = (value: string): boolean => {
   if (
@@ -58,27 +52,7 @@ export const TenantTimezone = Schema.String.check(
 
 export type SupportedTenantCurrency =
   (typeof supportedTenantCurrencies)[number];
-export type SupportedTenantLocale = (typeof supportedTenantLocales)[number];
 export type SupportedTenantTimezone = Schema.Schema.Type<typeof TenantTimezone>;
-
-const normalizeTenantLocale = (value: string): SupportedTenantLocale => {
-  if (
-    value === 'en' ||
-    value === TENANT_FORMATTING_LOCALE ||
-    legacyTenantLocales.has(value)
-  ) {
-    return TENANT_FORMATTING_LOCALE;
-  }
-
-  throw new Error(`Unsupported tenant locale: ${value}`);
-};
-
-const TenantLocale = Schema.String.pipe(
-  Schema.decodeTo(SupportedTenantLocale, {
-    decode: SchemaGetter.transform(normalizeTenantLocale),
-    encode: SchemaGetter.transform(() => TENANT_FORMATTING_LOCALE),
-  }),
-);
 
 const OptionalGoogleLocation = Schema.NullishOr(GoogleLocation).pipe(
   Schema.decodeTo(Schema.UndefinedOr(GoogleLocation), {
@@ -92,62 +66,11 @@ const OptionalGoogleLocation = Schema.NullishOr(GoogleLocation).pipe(
   ),
 );
 
-const TenantReceiptSettings = Schema.Struct({
-  allowOther: Schema.optional(Schema.Boolean).pipe(
-    Schema.withDecodingDefaultType(
-      Effect.sync(() => DEFAULT_TENANT_RECEIPT_ALLOW_OTHER),
-    ),
-  ),
-  receiptCountries: Schema.optional(Schema.Array(Schema.NonEmptyString)).pipe(
-    Schema.withDecodingDefaultType(
-      Effect.sync(() => [...DEFAULT_TENANT_RECEIPT_COUNTRIES]),
-    ),
-  ),
-});
-
-const OptionalTenantReceiptSettings = Schema.NullishOr(
-  TenantReceiptSettings,
-).pipe(
-  Schema.decodeTo(Schema.UndefinedOr(TenantReceiptSettings), {
-    decode: SchemaGetter.transform((value) => value ?? undefined),
-    encode: SchemaGetter.transform((value) => value ?? null),
-  }),
-  Schema.withDecodingDefaultType(
-    Effect.sync(() => ({
-      allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
-      receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
-    })),
-  ),
-);
-
 export class Tenant extends Schema.Class<Tenant>('Tenant')({
-  cancellationDeadlineHoursBeforeStart: nonNegativeNumber.pipe(
-    Schema.withDecodingDefaultTypeKey(Effect.sync(() => 120)),
-  ),
+  cancellationDeadlineHoursBeforeStart: nonNegativePostgresInteger,
   currency: SupportedTenantCurrency,
   defaultLocation: OptionalGoogleLocation,
-  discountProviders: Schema.optional(
-    Schema.NullOr(
-      Schema.Struct({
-        esnCard: Schema.optional(
-          Schema.Struct({
-            config: Schema.Struct({
-              buyEsnCardUrl: Schema.optional(Schema.NonEmptyString),
-            }),
-            status: literalUnion('disabled', 'enabled'),
-          }).pipe(
-            Schema.withDecodingDefaultType(
-              Effect.sync(() => createDefaultTenantDiscountProviders().esnCard),
-            ),
-          ),
-        ),
-      }),
-    ),
-  ).pipe(
-    Schema.withDecodingDefaultType(
-      Effect.sync(() => createDefaultTenantDiscountProviders()),
-    ),
-  ),
+  discountProviders: TenantDiscountProvidersSchema,
   domain: Schema.NonEmptyString,
   emailSenderEmail: optionalNullable(Schema.NonEmptyString),
   emailSenderName: optionalNullable(Schema.NonEmptyString),
@@ -155,26 +78,19 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   id: Schema.NonEmptyString,
   legalNoticeText: optionalNullable(Schema.NonEmptyString),
   legalNoticeUrl: optionalNullable(Schema.NonEmptyString),
-  locale: TenantLocale,
   logoUrl: optionalNullable(Schema.NonEmptyString),
-  maxActiveRegistrationsPerUser: Schema.optional(Schema.Number).pipe(
-    Schema.withDecodingDefaultType(Effect.sync(() => 0)),
-  ),
+  maxActiveRegistrationsPerUser: nonNegativePostgresInteger,
   name: Schema.NonEmptyString,
   privacyPolicyText: optionalNullable(Schema.NonEmptyString),
   privacyPolicyUrl: optionalNullable(Schema.NonEmptyString),
-  receiptSettings: OptionalTenantReceiptSettings,
-  refundFeesOnCancellation: Schema.Boolean.pipe(
-    Schema.withDecodingDefaultTypeKey(Effect.sync(() => true)),
-  ),
+  receiptSettings: TenantReceiptSettingsSchema,
+  refundFeesOnCancellation: Schema.Boolean,
   seoDescription: optionalNullable(Schema.NonEmptyString),
   seoTitle: optionalNullable(Schema.NonEmptyString),
   stripeAccountId: optionalNullable(Schema.NonEmptyString),
   termsText: optionalNullable(Schema.NonEmptyString),
   termsUrl: optionalNullable(Schema.NonEmptyString),
-  theme: literalUnion('evorto', 'esn'),
+  theme: SupportedTenantTheme,
   timezone: TenantTimezone,
-  transferDeadlineHoursBeforeStart: nonNegativeNumber.pipe(
-    Schema.withDecodingDefaultTypeKey(Effect.sync(() => 0)),
-  ),
+  transferDeadlineHoursBeforeStart: nonNegativePostgresInteger,
 }) {}

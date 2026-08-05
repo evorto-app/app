@@ -16,19 +16,19 @@ describe('registrationAddonRefundChoiceDescription', () => {
     expect(
       registrationAddonRefundChoiceDescription('noMonetaryRefundRequired'),
     ).toBe(
-      'No monetary refund is required because these optional units were free. The result will be recorded as refund not required.',
+      'These items were bought separately for free, so there is nothing to refund.',
     );
     expect(registrationAddonRefundChoiceTitle('noMonetaryRefundRequired')).toBe(
-      'Cancel with refund handling (no payment refund)',
+      'Cancel free items',
     );
   });
 
-  it('distinguishes a monetary refund from an ineligible purchase', () => {
+  it('explains whether optional items can be refunded', () => {
     expect(
       registrationAddonRefundChoiceDescription('monetaryRefundAvailable'),
-    ).toContain('Refund the eligible payment');
+    ).toContain('can be refunded');
     expect(registrationAddonRefundChoiceDescription('none')).toContain(
-      'No optional purchase',
+      'cannot be refunded',
     );
     expect(registrationAddonRefundChoiceTitle('monetaryRefundAvailable')).toBe(
       'Cancel with refund',
@@ -37,7 +37,7 @@ describe('registrationAddonRefundChoiceDescription', () => {
 });
 
 describe('registrationAddonCancellationAllocation', () => {
-  it('allocates optional purchases before included units', () => {
+  it('allocates optional purchases before included items', () => {
     expect(
       registrationAddonCancellationAllocation({
         cancellablePurchasedQuantity: 2,
@@ -54,12 +54,12 @@ describe('registrationAddonCancellationAllocation', () => {
 });
 
 describe('registrationAddonRefundQuantityDescription', () => {
-  it('separates total cancellable units from the optional refundable portion', () => {
+  it('separates all cancellable items from the refundable portion', () => {
     expect(registrationAddonRefundQuantityDescription(2)).toBe(
-      'Up to 2 optional units may have refund handling. Included units are never refunded.',
+      'Up to 2 items bought separately can be refunded. Items included with the ticket cannot be refunded.',
     );
     expect(registrationAddonRefundQuantityDescription(0)).toBe(
-      'Only included units remain. No payment refund applies to them.',
+      'Only items included with the ticket remain. They cannot be refunded.',
     );
   });
 });
@@ -72,18 +72,18 @@ describe('registrationAddonCancellationResult', () => {
         maxQuantity: 3,
         model: {
           quantity: 2,
-          reason: '  Attendee no longer needs these units.  ',
+          reason: '  Attendee no longer needs these items.  ',
           refundChoice: 'refund',
         },
       }),
     ).toEqual({
       quantity: 2,
-      reason: 'Attendee no longer needs these units.',
+      reason: 'Attendee no longer needs these items.',
       refundRequested: true,
     });
   });
 
-  it('rejects missing decisions, blank reasons, fractions, and excess units', () => {
+  it('rejects missing decisions, blank reasons, fractions, and excess items', () => {
     for (const model of [
       { quantity: 1, reason: 'Reason', refundChoice: '' as const },
       { quantity: 1, reason: '  ', refundChoice: 'noRefund' as const },
@@ -112,13 +112,13 @@ describe('registrationAddonCancellationResult', () => {
         maxQuantity: 1,
         model: {
           quantity: 1,
-          reason: 'Included unit no longer needed',
+          reason: 'Included item no longer needed',
           refundChoice: 'refund',
         },
       }),
     ).toEqual({
       quantity: 1,
-      reason: 'Included unit no longer needed',
+      reason: 'Included item no longer needed',
       refundRequested: false,
     });
   });
@@ -150,6 +150,13 @@ describe('RegistrationAddonCancellationDialogComponent', () => {
     await fixture.whenStable();
 
     expect(fixture.nativeElement.textContent).toContain('No refund applies.');
+    expect(fixture.nativeElement.textContent).toContain(
+      '2 unused items available',
+    );
+    expect(fixture.nativeElement.textContent).toContain('Keep items');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Cancel selected items',
+    );
     expect(fixture.nativeElement.querySelector('mat-radio-group')).toBeNull();
 
     const reason: HTMLTextAreaElement =
@@ -173,7 +180,7 @@ describe('RegistrationAddonCancellationDialogComponent', () => {
     await fixture.whenStable();
 
     expect(fixture.nativeElement.textContent).toContain(
-      'Choose an available whole-unit quantity.',
+      'Enter a whole number from 1 to 2.',
     );
     expect(submit.disabled).toBe(true);
   });

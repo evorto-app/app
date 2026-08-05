@@ -131,6 +131,8 @@ Use:
 - Effect Schema for input/output validation
 - typed error channels
 - explicit domain error mapping
+- one typed `RpcRequestContext` service provided at the HTTP request boundary;
+  trusted identity, tenant, and permission state never travels through headers
 
 Do not introduce new Express/Hono server paths.
 
@@ -148,7 +150,9 @@ Agents should:
 
 - derive types from Drizzle where possible
 - avoid duplicate handwritten DB model types
-- keep migrations explicit and committed
+- apply local schema changes directly from the current Drizzle source
+- explain and allowlist hosted schema changes before the private `ops` role
+  applies the packaged schema
 - define real database constraints where needed
 - keep relation optionality accurate
 - be careful with event/registration/payment archival model changes
@@ -168,6 +172,8 @@ High-risk data areas:
 - transfer-bundle identity across registration, add-on quantities, source
   payments, and fulfillment history
 - check-in state
+- check-in window enforcement against the transactionally reread event start
+  and end
 - receipt persistence
 - event archival
 
@@ -175,7 +181,7 @@ High-risk data areas:
 
 Auth0 is the current auth provider.
 
-The product does not require anonymous registration. Users need an account to register, but anonymous users may browse eligible listed events.
+The product does not require anonymous registration. Users need an account to register, but anonymous users may browse eligible published events through the public projection.
 
 Auth-related changes should preserve:
 
@@ -217,21 +223,29 @@ Stripe is the source of truth for payment state.
 
 Evorto should use local payment data only as application state derived from Stripe and app workflow needs.
 
-New payments belong to each tenant's currently configured Stripe Connect
-account. Each persisted payment retains its owning account across later account
-rotation, and every expiry or refund call must use that original account as the
-connected-account context. Customer, Checkout, and payment-intent calls use the
-account that owns the relevant payment workflow. Evorto adds only its
-application fee; tenant payment and cancellation settings remain tenant-owned,
-with narrower registration-option overrides where configured.
+New payments belong to each tenant's configured Stripe Connect account. Each
+persisted payment retains its owning account, and every expiry or refund call
+must use that original account as the connected-account context. Customer,
+Checkout, and payment-intent calls use the account that owns the relevant
+payment workflow. Evorto adds only its application fee; tenant payment and
+cancellation settings remain tenant-owned, with narrower registration-option
+overrides where configured.
 
-Mutable event/template tax-rate bindings are scoped to the current Connect
-account. Disconnect is rejected while any binding remains. Account rotation
-preloads the replacement account's active inclusive rates, requires one exact
-normalized semantic match for each distinct source rate, then atomically
-replaces tenant tax metadata and remaps all event/template registration-option
-and add-on bindings. Missing or ambiguous matches fail before mutation, so an
-account change cannot silently drop or alter tax behavior.
+The client-facing tenant, platform-administration, and audit contracts expose
+only a payment-readiness boolean. They must not return or accept the connected
+account identifier. The first account attachment is a bounded private-worker
+operation with an explicit confirmation token and reason. It validates the
+account, locks and rechecks the tenant, and succeeds only when the account is
+still unset and no payment history, pending payment work, paid event/template
+configuration, imported tax metadata, or assigned tax-rate binding exists. Its
+audit entry records only readiness before and after. Rotation and disconnect
+are intentionally unsupported; do not add remapping, fallback, or compatibility
+paths that pretend either operation succeeded.
+
+The same connected payment account may be attached deliberately to more than
+one organization. That choice changes neither tenant isolation nor payment
+ownership checks: each operation still starts from one tenant and uses that
+tenant's configured account without inferring access to any other tenant.
 
 Event registrations and add-ons have no non-Stripe paid path. Without a
 connected Stripe account, persisted and editable registration options and
@@ -249,10 +263,15 @@ payment independently. Only a wholly free bundle with no refund obligation may
 complete database-only.
 
 Participant-question answers are recipient-owned data, not bundle state. The
-server permits immediate direct reassignment only when the free/no-refund
-bundle's registration option has no participant questions. Otherwise it routes
-the transfer through the private recipient claim, which validates current
-questions and atomically replaces any source answers with the recipient's own.
+participant path always uses the private recipient claim, which validates
+current questions and atomically replaces any source answers with the
+recipient's own. The separate organizer-only direct reassignment is permitted
+only when the bundle is free, no source refund is due, and the registration
+option has no participant questions. An answered event question is immutable
+historical context: both ordinary and platform event mutation paths use the same
+answer guard before changing or removing its copy, requiredness, order, or
+registration-option assignment. Answers submitted for a pending transfer claim
+are protected by the same guard while Stripe completion remains asynchronous.
 
 Transfer ownership and refund provenance use an application-append-only
 acquisition ledger. Production server code inserts ownership epochs,
@@ -285,11 +304,12 @@ payment transitions belong in atomic, replay-safe state changes.
 
 Customer-facing email is rendered from React Email components and committed to
 the transactional outbox before delivery through the configured provider. Do
-not bypass the outbox for template rendering, delivery, idempotency, retries, or
-failure observability.
+not bypass the outbox for template rendering, enqueue idempotency,
+single-dispatch delivery, or failure observability.
 
-An exhausted outbox row remains stored and read-only. The current product does
-not expose an exhausted-email requeue or correction mutation.
+An explicit provider rejection is terminal. A provider timeout, unreadable
+success response, or abandoned sending claim becomes delivery-unknown and is
+never resent automatically.
 
 ## Location and Image Provider Boundary
 
@@ -336,17 +356,21 @@ Scaleway staging in `fr-par` is the first hosted target. The same immutable
 Linux/amd64 image starts as exactly one role:
 
 - `web` exposes public HTTP, RPC, and SSR and runs no background loops;
-- `worker` is private and exposes only bounded idempotent email, checkout,
-  refund, and receipt-orphan operations invoked by CRON triggers;
+- `worker` is private and exposes only bounded single-dispatch email plus
+  idempotent checkout, refund, and receipt-orphan operations invoked by CRON
+  triggers;
 - `ops` is private and exposes only schema explain/apply and confirmed staging
   reset-and-seed operations. It does not expose arbitrary commands.
 
 All roles reach PostgreSQL 17 over a private network with verified TLS and
-bounded pools. Static infrastructure is Terraform-owned; protected GitHub
-deployment workflows own immutable image revisions and synchronized
-role-scoped secret values. Staging uses `staging.evorto.app`. Production is
-defined as `alpha.evorto.app` but remains unprovisioned behind an explicit
-disabled gate until staging acceptance and a separate enablement decision.
+bounded pools. Bootstrap, staging, and production use fixed, independent
+Terraform state keys. Bootstrap owns projects, registries, and IAM; each
+environment root owns only its own static resources. Protected GitHub deployment
+workflows use project-scoped identities and own immutable image revisions and
+synchronized role-scoped secret values. Staging uses `staging.evorto.app`.
+Production is defined as `alpha.evorto.app` but remains unprovisioned behind an
+explicit disabled gate until staging acceptance and a separate enablement
+decision.
 
 The server resolves tenants from the real `Host` header, does not accept
 `X-Forwarded-Host` as tenant authority, and trusts forwarded scheme only at the
@@ -369,7 +393,7 @@ in `infrastructure/scaleway/README.md`.
 
 Agents should usually start in these areas when working on related changes:
 
-- event browsing and listing
+- event discovery
 - event creation/editing
 - template management
 - review and publishing workflow
@@ -452,6 +476,33 @@ with an explicit organizing flag. Missing organizer or participant options are
 diagnostic warnings, not persistence blockers, because optionless operational
 events are valid. Mode changes require explicit confirmation; advanced-to-simple
 conversion additionally requires exactly one option of each kind.
+
+### Event discovery
+
+Ordinary published events persist no separate discovery audience. For a
+signed-in member, normal discovery requires at least one registration option
+whose role restriction accepts the member; an empty option role list remains
+open to signed-in members. The organizing flag describes the registration
+option, not a second discovery axis.
+
+Anonymous discovery for an ordinary event uses an explicit existential check
+against roles marked as defaults for new members in that tenant. An unrestricted
+option is anonymously discoverable only when at least one such default role
+exists. Anonymous responses use the public event projection and require sign-in
+before registration. Discovery never authorizes a write: registration
+eligibility and all mutable preconditions are reread server-side. An anonymous
+direct-link visitor receives an explicit sign-in state when the published event
+has options but none may be projected anonymously; this is not rendered as an
+optionless event. After sign-in, a member without an eligible option receives
+the explicit ineligible result. Do not hide either outcome or substitute a
+fallback audience.
+
+Optionless announcement events intentionally use a separate rule because they
+have no options. Their persisted tenant-role IDs match only roles held by the
+current signed-in member. Anonymous visitors do not borrow default new-member
+roles for announcements, and an empty role list makes the announcement
+link-only. These roles do not grant access, assign roles, or trigger
+notifications. Templates own neither discovery state nor announcement roles.
 
 Add-ons are reusable event/template entities with explicit many-to-many option
 attachments. Each attachment must keep included entitlement quantity separate

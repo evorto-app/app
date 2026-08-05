@@ -171,7 +171,7 @@ describe('RegistrationTransferDialogComponent', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Transfer registration');
+      expect(normalizeText(fixture)).toContain('Transfer ticket');
     });
   };
 
@@ -182,21 +182,24 @@ describe('RegistrationTransferDialogComponent', () => {
     await selectRecipient(fixture);
 
     const text = normalizeText(fixture);
-    expect(text).toContain('Review direct transfer');
+    expect(text).toContain('Review ticket transfer');
     expect(text).toContain('Alex Able (alex@example.com)');
     expect(text).not.toContain('Stale Source (stale-source@example.com)');
     expect(text).toContain('Riley Recipient (riley@example.com)');
+    expect(text).toContain('Sign-up choice');
     expect(text).toContain('1 × Participant ticket');
     expect(text).toContain('2 additional guests');
     expect(text).toContain('1 of 2 guests checked in');
     expect(text).toContain('5 × Welcome dinner');
     expect(text).toContain(
-      '2 included · 3 purchased · 2 remaining · 2 redeemed · 1 cancelled',
+      '2 included · 3 purchased · 2 remaining · 2 handed out · 1 cancelled',
     );
-    expect(text).toContain("Recipient's current ESNcard discount applied");
-    expect(text).toContain('recipient cannot omit anything');
+    expect(text).toContain("New attendee's current ESNcard discount applied");
+    expect(text).toContain('new attendee cannot remove anything');
     expect(text).toContain('ask you to review the updated details');
-    expect(text).toContain('Refund to current owner');
+    expect(text).toContain('Any later transfer must start from the new');
+    expect(text).not.toContain('cannot be undone automatically');
+    expect(text).toContain('Refund to previous attendee');
     expect(text).not.toContain('Source refund due');
   });
 
@@ -219,9 +222,9 @@ describe('RegistrationTransferDialogComponent', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(findButton(fixture, 'Transfer registration')).toBeDefined();
+      expect(findButton(fixture, 'Transfer ticket')).toBeDefined();
     });
-    findButton(fixture, 'Transfer registration')?.click();
+    findButton(fixture, 'Transfer ticket')?.click();
 
     expect(close).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledWith({
@@ -241,7 +244,7 @@ describe('RegistrationTransferDialogComponent', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Nothing changed. Refresh the details and try again.',
+        'Nothing changed. Select Check again.',
       );
     });
 
@@ -251,13 +254,13 @@ describe('RegistrationTransferDialogComponent', () => {
     expect(normalizeText(fixture)).not.toContain(
       'A private transfer offer is required for this recipient.',
     );
-    expect(findButton(fixture, 'Transfer registration')).toBeUndefined();
+    expect(findButton(fixture, 'Transfer ticket')).toBeUndefined();
     expect(close).not.toHaveBeenCalled();
 
-    findButton(fixture, 'Retry transfer review')?.click();
+    findButton(fixture, 'Check again')?.click();
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(findButton(fixture, 'Transfer registration')).toBeDefined();
+      expect(findButton(fixture, 'Transfer ticket')).toBeDefined();
     });
     expect(close).not.toHaveBeenCalled();
   });
@@ -273,13 +276,11 @@ describe('RegistrationTransferDialogComponent', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain(
-        'Eligible members could not be loaded',
-      );
+      expect(normalizeText(fixture)).toContain('Members could not be loaded');
     });
-    expect(findButton(fixture, 'Retry member search')).toBeDefined();
+    expect(findButton(fixture, 'Search again')).toBeDefined();
 
-    findButton(fixture, 'Retry member search')?.click();
+    findButton(fixture, 'Search again')?.click();
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain('Riley Recipient');
@@ -294,8 +295,8 @@ describe('RegistrationTransferDialogComponent', () => {
     findButton(fixture, 'Back')?.click();
     fixture.detectChanges();
 
-    expect(normalizeText(fixture)).toContain('Choose the new participant');
-    expect(normalizeText(fixture)).not.toContain('Review direct transfer');
+    expect(normalizeText(fixture)).toContain('Choose the new attendee');
+    expect(normalizeText(fixture)).not.toContain('Review ticket transfer');
     expect(close).not.toHaveBeenCalled();
   });
 });

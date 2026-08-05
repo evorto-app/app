@@ -6,6 +6,7 @@ import {
   objectStorageConfig,
   type ObjectStorageConfig,
 } from '../config/object-storage-config';
+import { safeServerErrorSummary } from '../utils/safe-server-error-summary';
 
 export interface PresignedPostUpload {
   readonly fields: Readonly<Record<string, string>>;
@@ -65,6 +66,15 @@ interface BunS3File {
   ): Promise<number>;
 }
 
+export class ObjectStorageNotFoundError extends Error {
+  readonly _tag = 'ObjectStorageNotFoundError';
+
+  constructor() {
+    super('Object storage object not found');
+    this.name = 'ObjectStorageNotFoundError';
+  }
+}
+
 const getBunS3ClientConstructor = () => {
   const bunRuntime = (
     globalThis as typeof globalThis & {
@@ -97,11 +107,25 @@ const buildS3Client = (
   });
 };
 
-const storageFailure = (operation: string, key: string, cause: unknown) =>
-  new RpcInternalServerError({
-    cause,
-    message: `Object storage ${operation} failed for key ${key}`,
-  });
+const withStorageFailure = <A, E, R>(
+  operation: string,
+  effect: Effect.Effect<A, E, R>,
+) =>
+  effect.pipe(
+    Effect.tapError((error) =>
+      Effect.logError('Object storage operation failed').pipe(
+        Effect.annotateLogs(
+          safeServerErrorSummary(`objectStorage.${operation}`, error),
+        ),
+      ),
+    ),
+    Effect.mapError(
+      () =>
+        new RpcInternalServerError({
+          message: 'Object storage operation failed',
+        }),
+    ),
+  );
 
 const hmac = (key: Buffer | string, value: string) =>
   createHmac('sha256', key).update(value).digest();
@@ -182,38 +206,66 @@ export class ObjectStorage extends Context.Service<ObjectStorage>()(
         key: string,
       ) {
         const config = yield* loadConfig;
-        const file = yield* Effect.try({
-          catch: (cause) => storageFailure('client initialization', key, cause),
-          try: () => buildS3Client(config).file(key),
-        });
-        yield* Effect.tryPromise({
-          catch: (cause) => storageFailure('delete', key, cause),
-          try: () => file.delete(),
-        });
+        const file = yield* withStorageFailure(
+          'clientInitialization',
+          Effect.try({
+            catch: (cause) => cause,
+            try: () => buildS3Client(config).file(key),
+          }),
+        );
+        yield* withStorageFailure(
+          'delete',
+          Effect.tryPromise({
+            catch: (cause) => cause,
+            try: () => file.delete(),
+          }),
+        );
       });
 
       const exists = Effect.fn('ObjectStorage.exists')(function* (key: string) {
         const config = yield* loadConfig;
-        const file = yield* Effect.try({
-          catch: (cause) => storageFailure('client initialization', key, cause),
-          try: () => buildS3Client(config).file(key),
-        });
-        return yield* Effect.tryPromise({
-          catch: (cause) => storageFailure('existence check', key, cause),
-          try: () => file.exists(),
-        });
+        const file = yield* withStorageFailure(
+          'clientInitialization',
+          Effect.try({
+            catch: (cause) => cause,
+            try: () => buildS3Client(config).file(key),
+          }),
+        );
+        return yield* withStorageFailure(
+          'existenceCheck',
+          Effect.tryPromise({
+            catch: (cause) => cause,
+            try: () => file.exists(),
+          }),
+        );
       });
 
       const get = Effect.fn('ObjectStorage.get')(function* (key: string) {
         const config = yield* loadConfig;
-        const file = yield* Effect.try({
-          catch: (cause) => storageFailure('client initialization', key, cause),
-          try: () => buildS3Client(config).file(key),
-        });
-        const body = yield* Effect.tryPromise({
-          catch: (cause) => storageFailure('read', key, cause),
-          try: () => file.arrayBuffer(),
-        });
+        const file = yield* withStorageFailure(
+          'clientInitialization',
+          Effect.try({
+            catch: (cause) => cause,
+            try: () => buildS3Client(config).file(key),
+          }),
+        );
+        const objectExists = yield* withStorageFailure(
+          'existenceCheck',
+          Effect.tryPromise({
+            catch: (cause) => cause,
+            try: () => file.exists(),
+          }),
+        );
+        if (!objectExists) {
+          return yield* Effect.fail(new ObjectStorageNotFoundError());
+        }
+        const body = yield* withStorageFailure(
+          'read',
+          Effect.tryPromise({
+            catch: (cause) => cause,
+            try: () => file.arrayBuffer(),
+          }),
+        );
         return new Uint8Array(body);
       });
 
@@ -222,19 +274,28 @@ export class ObjectStorage extends Context.Service<ObjectStorage>()(
         prefixBytes = 16,
       ) {
         const config = yield* loadConfig;
-        const file = yield* Effect.try({
-          catch: (cause) => storageFailure('client initialization', key, cause),
-          try: () => buildS3Client(config).file(key),
-        });
+        const file = yield* withStorageFailure(
+          'clientInitialization',
+          Effect.try({
+            catch: (cause) => cause,
+            try: () => buildS3Client(config).file(key),
+          }),
+        );
         const [stat, prefix] = yield* Effect.all([
-          Effect.tryPromise({
-            catch: (cause) => storageFailure('metadata read', key, cause),
-            try: () => file.stat(),
-          }),
-          Effect.tryPromise({
-            catch: (cause) => storageFailure('prefix read', key, cause),
-            try: () => file.slice(0, prefixBytes).arrayBuffer(),
-          }),
+          withStorageFailure(
+            'metadataRead',
+            Effect.tryPromise({
+              catch: (cause) => cause,
+              try: () => file.stat(),
+            }),
+          ),
+          withStorageFailure(
+            'prefixRead',
+            Effect.tryPromise({
+              catch: (cause) => cause,
+              try: () => file.slice(0, prefixBytes).arrayBuffer(),
+            }),
+          ),
         ]);
         return {
           contentType: stat.type,
@@ -249,40 +310,51 @@ export class ObjectStorage extends Context.Service<ObjectStorage>()(
         expiresInSeconds = 60 * 15,
       ) {
         const config = yield* loadConfig;
-        return yield* Effect.try({
-          catch: (cause) => storageFailure('GET signing', key, cause),
-          try: () =>
-            buildS3Client(config, config.publicEndpoint).file(key).presign({
-              contentDisposition: 'inline',
-              expiresIn: expiresInSeconds,
-              method: 'GET',
-            }),
-        });
+        return yield* withStorageFailure(
+          'getSigning',
+          Effect.try({
+            catch: (cause) => cause,
+            try: () =>
+              buildS3Client(config, config.publicEndpoint).file(key).presign({
+                contentDisposition: 'inline',
+                expiresIn: expiresInSeconds,
+                method: 'GET',
+              }),
+          }),
+        );
       });
 
       const presignPost = Effect.fn('ObjectStorage.presignPost')(function* (
         input: PresignPostInput,
       ) {
         const config = yield* loadConfig;
-        return yield* Effect.try({
-          catch: (cause) => storageFailure('POST signing', input.key, cause),
-          try: () => createS3PresignedPost({ ...input, config }),
-        });
+        return yield* withStorageFailure(
+          'postSigning',
+          Effect.try({
+            catch: (cause) => cause,
+            try: () => createS3PresignedPost({ ...input, config }),
+          }),
+        );
       });
 
       const put = Effect.fn('ObjectStorage.put')(function* (
         input: PutObjectInput,
       ) {
         const config = yield* loadConfig;
-        const file = yield* Effect.try({
-          catch: (cause) =>
-            storageFailure('client initialization', input.key, cause),
-          try: () => buildS3Client(config).file(input.key),
-        });
-        yield* Effect.tryPromise({
-          catch: (cause) => storageFailure('upload', input.key, cause),
-          try: () => file.write(input.body, { type: input.contentType }),
-        });
+        const file = yield* withStorageFailure(
+          'clientInitialization',
+          Effect.try({
+            catch: (cause) => cause,
+            try: () => buildS3Client(config).file(input.key),
+          }),
+        );
+        yield* withStorageFailure(
+          'upload',
+          Effect.tryPromise({
+            catch: (cause) => cause,
+            try: () => file.write(input.body, { type: input.contentType }),
+          }),
+        );
         return {
           storageKey: input.key,
           storageUrl: `s3://${config.bucket}/${input.key}`,

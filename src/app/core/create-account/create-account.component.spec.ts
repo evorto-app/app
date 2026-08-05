@@ -15,6 +15,7 @@ import {
 const loadAuthData = vi.fn();
 const loadRequirements = vi.fn();
 const completeOnboarding = vi.fn();
+const navigateAfterOnboarding = vi.fn();
 
 const onboardingRequirements = (
   questions: readonly {
@@ -70,15 +71,11 @@ describe('CreateAccountComponent load recovery', () => {
               mutationFn: completeOnboarding,
               mutationKey: ['complete-onboarding'],
             }),
-            maybeSelfFilter: () => ({ queryKey: ['maybe-self'] }),
+            navigateAfterCompletion: navigateAfterOnboarding,
             onboardingRequirements: () => ({
               queryFn: loadRequirements,
               queryKey: ['onboarding-requirements'],
             }),
-            onboardingStatusFilter: () => ({
-              queryKey: ['onboarding-status'],
-            }),
-            selfFilter: () => ({ queryKey: ['self'] }),
           },
         },
         {
@@ -112,15 +109,19 @@ describe('CreateAccountComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Organization setup could not be loaded',
+        "We couldn't load your account setup",
       );
     });
 
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      "Your verified login details or this organization's current requirements are unavailable.",
+      "We couldn't load your sign-in details or what this organization asks from new members.",
     );
+    expect(alert?.textContent).toContain(
+      'contact Evorto support and say that account setup could not be loaded',
+    );
+    expect(alert?.textContent).not.toContain('sign out and sign in again');
 
     const retryButton: HTMLButtonElement | null =
       fixture.nativeElement.querySelector('button');
@@ -129,7 +130,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Notification email');
+      expect(normalizeText(fixture)).toContain('Email for updates');
     });
     expect(loadAuthData).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
@@ -156,7 +157,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Your email is not verified');
+      expect(normalizeText(fixture)).toContain('Verify your email');
     });
 
     const retryButton = [
@@ -167,7 +168,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Notification email');
+      expect(normalizeText(fixture)).toContain('Email for updates');
     });
     expect(loadAuthData).toHaveBeenCalledTimes(2);
   });
@@ -280,13 +281,57 @@ describe('CreateAccountComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(completeOnboarding).toHaveBeenCalledOnce();
-      expect(normalizeText(fixture)).toContain('Temporary connection problem');
+      expect(normalizeText(fixture)).toContain(
+        "We couldn't finish setting up your account. Try again.",
+      );
     });
 
     const retainedAnswer: HTMLInputElement | null =
       fixture.nativeElement.querySelector('[data-question-id="question-1"]');
     expect(retainedAnswer?.value).toBe('Keep my answer');
     expect(loadRequirements).toHaveBeenCalledOnce();
+  });
+
+  it('performs a full navigation after onboarding refreshes server-derived permissions', async () => {
+    loadRequirements.mockResolvedValue(onboardingRequirements());
+    loadAuthData.mockResolvedValue({
+      email: 'alex@example.org',
+      email_verified: true,
+      family_name: 'Morgan',
+      given_name: 'Alex',
+    });
+    completeOnboarding.mockResolvedValue(undefined);
+
+    const fixture = TestBed.createComponent(CreateAccountComponent);
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector(
+          '[data-testid="communication-email"]',
+        ),
+      ).not.toBeNull();
+    });
+
+    const privacyCheckbox: HTMLInputElement | null =
+      fixture.nativeElement.querySelector('input[type="checkbox"]');
+    const form: HTMLFormElement | null =
+      fixture.nativeElement.querySelector('form');
+    expect(privacyCheckbox).not.toBeNull();
+    expect(form).not.toBeNull();
+
+    if (!privacyCheckbox || !form) return;
+    privacyCheckbox.click();
+    fixture.detectChanges();
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+
+    await vi.waitFor(() => {
+      expect(completeOnboarding).toHaveBeenCalledOnce();
+      expect(navigateAfterOnboarding).toHaveBeenCalledOnce();
+    });
   });
 
   it('reloads changed requirements and merges matching answers by question id', async () => {
@@ -470,7 +515,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Privacy policy version 2');
+      expect(normalizeText(fixture)).toContain('Current privacy policy');
       expect(
         fixture.nativeElement.querySelector('[data-question-id="question-3"]'),
       ).not.toBeNull();

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import { randomUUID } from 'node:crypto';
@@ -46,6 +46,9 @@ type RegistrationInput = Parameters<
   typeof EventRegistrationService.registerForEvent
 >[0];
 type TestDatabase = NodePgDatabase<typeof relations>;
+type WaitlistInput = Parameters<
+  typeof EventRegistrationService.joinWaitlist
+>[0];
 
 const makeId = (prefix: string, suffix: string) =>
   `${prefix}-${suffix}`.slice(0, 20);
@@ -79,6 +82,21 @@ const runRegistration = (
 ) =>
   Effect.runPromise(
     EventRegistrationService.registerForEvent(input).pipe(
+      Effect.match({
+        onFailure: (error) => ({ error, status: 'failure' as const }),
+        onSuccess: () => ({ status: 'success' as const }),
+      }),
+      Effect.provide(EventRegistrationService.Default),
+      Effect.provide(serviceLayer),
+    ),
+  );
+
+const runWaitlist = (
+  input: WaitlistInput,
+  serviceLayer: ReturnType<typeof makeServiceLayer>,
+) =>
+  Effect.runPromise(
+    EventRegistrationService.joinWaitlist(input).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
         onSuccess: () => ({ status: 'success' as const }),
@@ -162,8 +180,8 @@ const seedLimitFixture = async (
   });
   await database.insert(users).values({
     auth0Id: `auth0|limit-${suffix}`,
-    communicationEmail: `${suffix}@example.com`,
-    email: `${suffix}@example.com`,
+    communicationEmail: `${userId}@example.com`,
+    email: `${userId}@example.com`,
     firstName: 'Limit',
     id: userId,
     lastName: 'Tester',
@@ -194,6 +212,8 @@ const seedLimitFixture = async (
       end: new Date(now + (9 + index) * 24 * 60 * 60 * 1000),
       icon: { iconColor: 0, iconName: 'circle' },
       id,
+      reviewedAt: new Date(now - 24 * 60 * 60 * 1000),
+      reviewedBy: userId,
       start: new Date(now + (7 + index) * 24 * 60 * 60 * 1000),
       status: 'APPROVED' as const,
       templateId,
@@ -285,7 +305,23 @@ const registrationInput = (
     stripeAccountId: null,
   },
   user: {
+    communicationEmail: `${fixture.userId}@example.com`,
     email: `${fixture.userId}@example.com`,
+    id: fixture.userId,
+    roleIds: [],
+  },
+});
+
+const waitlistInput = (
+  fixture: LimitFixture,
+  eventIndex: 0 | 1,
+): WaitlistInput => ({
+  eventId: fixture.eventIds[eventIndex],
+  registrationOptionId: fixture.optionIds[eventIndex],
+  tenant: {
+    id: fixture.tenantId,
+  },
+  user: {
     id: fixture.userId,
     roleIds: [],
   },
@@ -306,6 +342,79 @@ describe('tenant active-registration limit concurrency', () => {
       await cleanLimitFixture(database, fixture);
     }
     await pool.end();
+  });
+
+  it('allows joining a waitlist after the real-registration limit is reached', async () => {
+    const fixture = await seedLimitFixture(database);
+    fixtures.push(fixture);
+    const serviceLayer = makeServiceLayer(databaseUrl);
+
+    await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
+      eventId: fixture.eventIds[0],
+      registrationOptionId: fixture.optionIds[0],
+      status: 'CONFIRMED',
+      tenantId: fixture.tenantId,
+      userId: fixture.userId,
+    });
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: 1 })
+      .where(eq(eventRegistrationOptions.id, fixture.optionIds[0]));
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: 5 })
+      .where(eq(eventRegistrationOptions.id, fixture.optionIds[1]));
+
+    const outcome = await runWaitlist(waitlistInput(fixture, 1), serviceLayer);
+
+    expect(outcome).toEqual({ status: 'success' });
+    const registrations = await database.query.eventRegistrations.findMany({
+      columns: { status: true },
+      where: {
+        tenantId: fixture.tenantId,
+        userId: fixture.userId,
+      },
+    });
+    expect(registrations.map(({ status }) => status).toSorted()).toEqual([
+      'CONFIRMED',
+      'WAITLIST',
+    ]);
+  });
+
+  it('does not count a waitlist entry when creating a real registration', async () => {
+    const fixture = await seedLimitFixture(database);
+    fixtures.push(fixture);
+    const serviceLayer = makeServiceLayer(databaseUrl);
+
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: 5 })
+      .where(eq(eventRegistrationOptions.id, fixture.optionIds[0]));
+
+    const waitlistOutcome = await runWaitlist(
+      waitlistInput(fixture, 0),
+      serviceLayer,
+    );
+    const registrationOutcome = await runRegistration(
+      registrationInput(fixture, 1),
+      serviceLayer,
+    );
+
+    expect(waitlistOutcome).toEqual({ status: 'success' });
+    expect(registrationOutcome).toEqual({ status: 'success' });
+    const registrations = await database.query.eventRegistrations.findMany({
+      columns: { status: true },
+      where: {
+        tenantId: fixture.tenantId,
+        userId: fixture.userId,
+      },
+    });
+    expect(registrations.map(({ status }) => status).toSorted()).toEqual([
+      'CONFIRMED',
+      'WAITLIST',
+    ]);
   });
 
   it('allows only one simultaneous registration across different events at a limit of one', async () => {
@@ -335,7 +444,8 @@ describe('tenant active-registration limit concurrency', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'Active registration limit reached',
+            message:
+              'This organization has reached its limit for current sign-ups. Contact an administrator.',
           }),
           status: 'failure',
         }),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect } from 'effect';
+import { readFileSync } from 'node:fs';
 
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
@@ -29,7 +30,6 @@ const targetTenant = Tenant.make({
   id: 'tenant-target',
   legalNoticeText: undefined,
   legalNoticeUrl: undefined,
-  locale: 'de-DE',
   logoUrl: undefined,
   maxActiveRegistrationsPerUser: 0,
   name: 'Target tenant',
@@ -81,4 +81,24 @@ describe('providePlatformOperation', () => {
       ['templates:create'],
     ).pipe(Effect.provide(RpcAccess.Default)),
   );
+
+  it('keeps administrator errors in product language', () => {
+    const source = readFileSync(
+      new URL('platform-operation.service.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(source).toContain("message: 'Enter a reason for this change.'");
+    expect(source).toContain(
+      "message: 'You need Evorto administrator access to do this.'",
+    );
+    expect(source).toContain(
+      "'This organization no longer exists. No changes were made. Return to Organizations and choose an existing organization.'",
+    );
+    expect(source).not.toContain("message: 'Authentication required'");
+    expect(source).not.toContain("message: 'Target tenant not found'");
+    expect(source).not.toContain(
+      "message: 'Platform administrator authority required'",
+    );
+  });
 });

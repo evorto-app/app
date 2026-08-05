@@ -85,7 +85,7 @@ export const eventReviewHandlers = {
       if (!decision) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Feedback is required when returning an event to draft',
+            message: 'Add feedback before returning this event to its creator.',
             reason: 'reviewFeedbackRequired',
           }),
         );
@@ -156,7 +156,8 @@ export const eventReviewHandlers = {
 
       return yield* Effect.fail(
         new EventConflictError({
-          message: 'Event cannot be reviewed in its current state',
+          message:
+            'This event is no longer awaiting review. No review decision was saved. Reopen the event and review its current status.',
         }),
       );
     }),
@@ -196,14 +197,17 @@ export const eventReviewHandlers = {
         })
       ) {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message:
+              'You do not have permission to submit this event for review.',
+          }),
         );
       }
       if (event.status !== 'DRAFT') {
         return yield* Effect.fail(
           new EventConflictError({
             message:
-              'Event cannot be submitted for review in its current state',
+              'This event is no longer a draft. It was not sent for review. Reopen the event and review its current status.',
           }),
         );
       }
@@ -234,7 +238,8 @@ export const eventReviewHandlers = {
 
       return yield* Effect.fail(
         new EventConflictError({
-          message: 'Event review submission preconditions failed',
+          message:
+            'This event changed before it could be sent for review. It was not sent for review. Reopen the event and review the current details before sending it again.',
         }),
       );
     }),

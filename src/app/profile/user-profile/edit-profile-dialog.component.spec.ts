@@ -6,7 +6,7 @@ describe('editProfileDialogResultFromFormValue', () => {
   it('trims required profile fields and clears blank reimbursement details', () => {
     expect(
       editProfileDialogResultFromFormValue({
-        communicationEmail: ' events@example.com ',
+        communicationEmail: ' Events@Example.COM ',
         firstName: ' Alice ',
         iban: ' '.repeat(3),
         lastName: ' Updated ',
@@ -26,9 +26,9 @@ describe('editProfileDialogResultFromFormValue', () => {
       editProfileDialogResultFromFormValue({
         communicationEmail: 'finance@example.com',
         firstName: 'Alice',
-        iban: ' NL91ABNA0417164300 ',
+        iban: ' nl91 abna 0417 1643 00 ',
         lastName: 'One',
-        paypalEmail: ' paypal@example.com ',
+        paypalEmail: ' PayPal@Example.COM ',
       }),
     ).toEqual({
       communicationEmail: 'finance@example.com',

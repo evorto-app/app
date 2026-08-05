@@ -1,9 +1,16 @@
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+export { isAllowedReceiptMimeType } from '@shared/finance/receipt-media';
 import {
   buildSelectableReceiptCountries,
   normalizeReceiptCountryCode,
   OTHER_RECEIPT_COUNTRY_CODE,
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
+import {
+  type FinanceReceiptAmounts,
+  isFinanceReceiptCalendarDate,
+  validateFinanceReceiptAmounts,
+} from '@shared/finance/receipt-values';
 import { and, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -20,13 +27,10 @@ import {
 } from '../../../../../shared/permissions/permissions';
 
 interface ReceiptCountryConfigTenant {
-  receiptSettings?:
-    | null
-    | undefined
-    | {
-        allowOther?: boolean | undefined;
-        receiptCountries?: readonly string[] | undefined;
-      };
+  receiptSettings: {
+    allowOther: boolean;
+    receiptCountries: readonly string[];
+  };
 }
 
 export const databaseEffect = <A>(
@@ -34,17 +38,11 @@ export const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
-export const isAllowedReceiptMimeType = (mimeType: string): boolean =>
-  mimeType === 'image/jpeg' ||
-  mimeType === 'image/png' ||
-  mimeType === 'image/webp' ||
-  mimeType === 'application/pdf';
-
 export const resolveTenantSelectableReceiptCountries = (
   tenant: ReceiptCountryConfigTenant,
 ): string[] =>
   buildSelectableReceiptCountries(
-    resolveReceiptCountrySettings(tenant.receiptSettings ?? undefined),
+    resolveReceiptCountrySettings(tenant.receiptSettings),
   );
 
 export const validateReceiptCountryForTenant = (
@@ -53,7 +51,7 @@ export const validateReceiptCountryForTenant = (
 ): null | string => {
   if (purchaseCountry === OTHER_RECEIPT_COUNTRY_CODE) {
     const receiptCountrySettings = resolveReceiptCountrySettings(
-      tenant.receiptSettings ?? undefined,
+      tenant.receiptSettings,
     );
     return receiptCountrySettings.allowOther
       ? OTHER_RECEIPT_COUNTRY_CODE
@@ -71,12 +69,71 @@ export const validateReceiptCountryForTenant = (
     : null;
 };
 
+export const ensureValidFinanceReceiptAmounts = Effect.fn(
+  'Finance.ensureValidReceiptAmounts',
+)(function* (amounts: FinanceReceiptAmounts) {
+  const validationError = validateFinanceReceiptAmounts(amounts);
+  if (!validationError) {
+    return;
+  }
+
+  const error = {
+    alcoholAmountOutOfRange: {
+      message: 'Enter a valid alcohol amount of zero or more.',
+      reason: 'invalidAlcoholAmount',
+    },
+    alcoholFlagContradiction: {
+      message:
+        'Enter an alcohol amount greater than zero when the receipt includes alcohol; otherwise enter zero.',
+      reason: 'alcoholAmountContradiction',
+    },
+    depositAmountOutOfRange: {
+      message: 'Enter a valid deposit amount of zero or more.',
+      reason: 'invalidDepositAmount',
+    },
+    depositAndAlcoholExceedTotal: {
+      message:
+        'The deposit and alcohol amounts cannot be greater than the receipt total.',
+      reason: 'inconsistentAmounts',
+    },
+    depositFlagContradiction: {
+      message:
+        'Enter a deposit amount greater than zero when the receipt includes a deposit; otherwise enter zero.',
+      reason: 'depositAmountContradiction',
+    },
+    taxAmountExceedsTotal: {
+      message: 'The tax amount cannot be greater than the receipt total.',
+      reason: 'taxAmountExceedsTotal',
+    },
+    taxAmountOutOfRange: {
+      message: 'Enter a valid tax amount of zero or more.',
+      reason: 'invalidTaxAmount',
+    },
+    totalAmountOutOfRange: {
+      message: 'Enter a valid receipt total greater than zero.',
+      reason: 'invalidTotalAmount',
+    },
+  } as const;
+
+  return yield* new RpcBadRequestError(error[validationError]);
+});
+
+export const ensureValidFinanceReceiptCalendarDate = Effect.fn(
+  'Finance.ensureValidReceiptCalendarDate',
+)(function* (receiptDate: string) {
+  if (!isFinanceReceiptCalendarDate(receiptDate)) {
+    return yield* new RpcBadRequestError({
+      message: 'Enter a valid receipt date.',
+      reason: 'invalidReceiptDate',
+    });
+  }
+});
+
 export const financeReceiptView = {
   alcoholAmount: financeReceipts.alcoholAmount,
   attachmentFileName: financeReceipts.attachmentFileName,
   attachmentMimeType: financeReceiptUploads.mimeType,
   attachmentStorageKey: financeReceiptUploads.storageKey,
-  attachmentStorageUrl: financeReceiptUploads.storageUrl,
   attachmentUploadConsumedAt: financeReceiptUploads.consumedAt,
   attachmentUploadedAt: financeReceiptUploads.uploadedAt,
   attachmentUploadedByUserId: financeReceiptUploads.uploadedByUserId,
@@ -91,7 +148,6 @@ export const financeReceiptView = {
   hasAlcohol: financeReceipts.hasAlcohol,
   hasDeposit: financeReceipts.hasDeposit,
   id: financeReceipts.id,
-  previewImageUrl: financeReceipts.previewImageUrl,
   purchaseCountry: financeReceipts.purchaseCountry,
   receiptDate: financeReceipts.receiptDate,
   refundedAt: financeReceipts.refundedAt,
@@ -120,7 +176,7 @@ export const normalizeFinanceReceiptBaseRecord = (receipt: {
   id: string;
   previewImageUrl: null | string;
   purchaseCountry: string;
-  receiptDate: Date;
+  receiptDate: string;
   refundedAt: Date | null;
   refundTransactionId: null | string;
   rejectionReason: null | string;
@@ -144,7 +200,7 @@ export const normalizeFinanceReceiptBaseRecord = (receipt: {
   id: receipt.id,
   previewImageUrl: receipt.previewImageUrl ?? null,
   purchaseCountry: receipt.purchaseCountry,
-  receiptDate: receipt.receiptDate.toISOString(),
+  receiptDate: receipt.receiptDate,
   refundedAt: receipt.refundedAt?.toISOString() ?? null,
   refundTransactionId: receipt.refundTransactionId ?? null,
   rejectionReason: receipt.rejectionReason ?? null,

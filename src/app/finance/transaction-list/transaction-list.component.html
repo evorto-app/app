@@ -1,5 +1,5 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <h1 class="title-large">All transactions</h1>
+  <h1 class="title-large">Payment history</h1>
 </div>
 @if (transactionsQuery.isPending()) {
   <div
@@ -7,7 +7,7 @@
     aria-live="polite"
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
-    <h2 class="title-medium">Loading transactions ...</h2>
+    <h2 class="title-medium">Loading payment history…</h2>
   </div>
 } @else if (transactionsQuery.isError()) {
   <div
@@ -15,10 +15,9 @@
     class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
   >
     <div>
-      <h2 class="title-medium">Transactions could not be loaded</h2>
+      <h2 class="title-medium">Payment history could not be loaded</h2>
       <p class="body-medium mt-1">
-        The transaction history is unavailable. Check your connection and try
-        again.
+        No payments or refunds are shown. Select Try again.
       </p>
     </div>
     <button
@@ -27,14 +26,14 @@
       [disabled]="transactionsQuery.isFetching()"
       (click)="transactionsQuery.refetch()"
     >
-      {{ transactionsQuery.isFetching() ? "Retrying..." : "Try again" }}
+      {{ transactionsQuery.isFetching() ? "Trying again…" : "Try again" }}
     </button>
   </div>
 } @else if (transactionsQuery.isSuccess()) {
   @let result = transactionsQuery.data();
   @if (result.data.length === 0) {
     <div class="bg-surface text-on-surface rounded-2xl p-4">
-      <h2 class="title-medium">No transactions recorded yet</h2>
+      <h2 class="title-medium">No payments or refunds recorded yet</h2>
       <p class="body-medium text-on-surface-variant mt-1">
         Completed payments and recorded reimbursements will appear here.
       </p>
@@ -59,7 +58,7 @@
                 </p>
                 @if ((element.appFee ?? 0) > 0) {
                   <p>
-                    Platform fee:
+                    Evorto fee:
                     {{
                       (element.appFee ?? 0) / 100 | currency: element.currency
                     }}
@@ -67,7 +66,7 @@
                 }
                 @if ((element.stripeFee ?? 0) > 0) {
                   <p>
-                    Stripe fee:
+                    Payment fee:
                     {{
                       (element.stripeFee ?? 0) / 100
                         | currency: element.currency
@@ -111,9 +110,9 @@
         <tr mat-row *matRowDef="let row; columns: columnsToDisplay"></tr>
       </table>
       <mat-paginator
-        [pageSizeOptions]="[50, 100, 200, 500]"
+        [pageSizeOptions]="[25, 50, 100]"
         showFirstLastButtons
-        aria-label="Select page of transactions"
+        aria-label="Select page of payments and refunds"
         (page)="handlePageChange($event)"
         [length]="result.total"
         [pageSize]="100"

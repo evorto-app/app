@@ -1,15 +1,17 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect, Exit } from 'effect';
+import { Cause, Effect, Exit } from 'effect';
 
 import {
-  collectSupportedStripeTaxRatePages,
-  decodePlatformTaxRateAuditRecord,
+  collectStripeTaxRatePages,
   ensureStripeAccountUnchanged,
+  type StripeTaxRateSource,
+} from '../../../../payments/stripe-tax-rate.service';
+import { normalizeRoleWrite } from '../../../../roles/role-write';
+import {
+  decodePlatformTaxRateAuditRecord,
   normalizePlatformTenantUserSearch,
-  normalizeTenantAssignableRolePermissions,
   PlatformTaxRateAuditRecord,
   platformTaxRateBatchAuditSnapshot,
-  type StripeTaxRateSource,
   taxRateBatchResourceId,
   uniqueSortedIds,
 } from './platform-tenant-admin.handlers';
@@ -62,41 +64,68 @@ describe('platform tenant-admin handler boundaries', () => {
 
   it.effect('keeps platform authority out of tenant role permissions', () =>
     Effect.gen(function* () {
-      const permissions = yield* normalizeTenantAssignableRolePermissions([
-        'users:viewAll',
+      const roleInput = {
+        defaultOrganizerRole: false,
+        defaultUserRole: false,
+        description: null,
+        displayInHub: false,
+        name: 'Member',
+        permissions: [
+          'users:viewAll',
+          'admin:manageRoles',
+          'users:viewAll',
+        ] as const,
+      };
+      const normalized = yield* normalizeRoleWrite(roleInput);
+      expect(normalized.permissions).toEqual([
         'admin:manageRoles',
         'users:viewAll',
       ]);
-      expect(permissions).toEqual(['admin:manageRoles', 'users:viewAll']);
 
-      const wildcardError = yield* normalizeTenantAssignableRolePermissions([
+      for (const permission of [
         'globalAdmin:*',
-      ]).pipe(Effect.flip);
-      expect(wildcardError.reason).toBe('platformPermissionNotAssignable');
-
-      const manageError = yield* normalizeTenantAssignableRolePermissions([
         'globalAdmin:manageTenants',
-      ]).pipe(Effect.flip);
-      expect(manageError.reason).toBe('platformPermissionNotAssignable');
+      ] as const) {
+        const error = yield* normalizeRoleWrite({
+          ...roleInput,
+          permissions: [permission],
+        }).pipe(Effect.flip);
+        expect(error).toMatchObject({
+          _tag: 'RoleWriteValidationError',
+          field: 'permissions',
+        });
+      }
     }),
   );
 
-  it.effect('fails tax import when the locked Stripe account changed', () =>
-    Effect.gen(function* () {
-      yield* ensureStripeAccountUnchanged('acct_original', 'acct_original');
+  it.effect(
+    'defects when tax rates do not match the locked payment owner',
+    () =>
+      Effect.gen(function* () {
+        yield* ensureStripeAccountUnchanged('acct_original', 'acct_original');
 
-      const changedError = yield* ensureStripeAccountUnchanged(
-        'acct_original',
-        'acct_replacement',
-      ).pipe(Effect.flip);
-      expect(changedError.reason).toBe('stripeAccountChanged');
+        const changedExit = yield* ensureStripeAccountUnchanged(
+          'acct_original',
+          'acct_replacement',
+        ).pipe(Effect.exit);
+        expect(Exit.isFailure(changedExit)).toBe(true);
+        if (Exit.isFailure(changedExit)) {
+          expect(Cause.squash(changedExit.cause)).toMatchObject({
+            message: 'Tenant Stripe account changed during tax-rate import',
+          });
+        }
 
-      const disconnectedError = yield* ensureStripeAccountUnchanged(
-        'acct_original',
-        null,
-      ).pipe(Effect.flip);
-      expect(disconnectedError.reason).toBe('stripeAccountChanged');
-    }),
+        const disconnectedExit = yield* ensureStripeAccountUnchanged(
+          'acct_original',
+          null,
+        ).pipe(Effect.exit);
+        expect(Exit.isFailure(disconnectedExit)).toBe(true);
+        if (Exit.isFailure(disconnectedExit)) {
+          expect(Cause.squash(disconnectedExit.cause)).toMatchObject({
+            message: 'Tenant Stripe account changed during tax-rate import',
+          });
+        }
+      }),
   );
 
   it('audits full tax-rate metadata in stable Stripe ID order', () => {
@@ -169,30 +198,28 @@ describe('platform tenant-admin handler boundaries', () => {
   it.effect('walks every bounded Stripe tax-rate page', () =>
     Effect.gen(function* () {
       const cursors: (string | undefined)[] = [];
-      const rates = yield* collectSupportedStripeTaxRatePages(
-        (startingAfter) => {
-          cursors.push(startingAfter);
-          return Effect.succeed(
-            startingAfter === undefined
-              ? {
-                  data: [
-                    stripeRate('txr_active'),
-                    stripeRate('txr_inactive', { active: false }),
-                  ],
-                  hasMore: true,
-                }
-              : {
-                  data: [stripeRate('txr_second_page')],
-                  hasMore: false,
-                },
-          );
-        },
-        3,
-      );
+      const rates = yield* collectStripeTaxRatePages((startingAfter) => {
+        cursors.push(startingAfter);
+        return Effect.succeed(
+          startingAfter === undefined
+            ? {
+                data: [
+                  stripeRate('txr_active'),
+                  stripeRate('txr_inactive', { active: false }),
+                ],
+                has_more: true,
+              }
+            : {
+                data: [stripeRate('txr_second_page')],
+                has_more: false,
+              },
+        );
+      }, 3);
 
       expect(cursors).toEqual([undefined, 'txr_inactive']);
       expect(rates.map((rate) => rate.id)).toEqual([
         'txr_active',
+        'txr_inactive',
         'txr_second_page',
       ]);
     }),
@@ -201,16 +228,20 @@ describe('platform tenant-admin handler boundaries', () => {
   it.effect('fails instead of silently truncating Stripe tax-rate pages', () =>
     Effect.gen(function* () {
       let page = 0;
-      const error = yield* collectSupportedStripeTaxRatePages(() => {
+      const error = yield* collectStripeTaxRatePages(() => {
         page += 1;
         return Effect.succeed({
           data: [stripeRate(`txr_${page}`)],
-          hasMore: true,
+          has_more: true,
         });
       }, 2).pipe(Effect.flip);
 
       expect(page).toBe(2);
-      expect(error.reason).toBe('stripeTaxRatePageLimitExceeded');
+      expect(error).toMatchObject({
+        message:
+          'There are too many tax rates to load at once. Archive tax rates you no longer use, then try again.',
+        reason: 'taxRatePageLimitExceeded',
+      });
     }),
   );
 });

@@ -27,6 +27,19 @@ import {
   MatSelectModule,
 } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
+import {
+  eventDiscoveryDescription,
+  eventDiscoveryLabel,
+} from '@shared/event-discovery';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { type PlatformEventDetailRecord } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import {
   injectMutation,
@@ -35,6 +48,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import { tenantTimezoneLabel } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import {
   majorCurrencyInputToMinorUnits,
@@ -42,6 +57,7 @@ import {
 } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import {
+  graphHasPaidConfiguration,
   resetAddOnPayment,
   resetRegistrationPayment,
 } from '../../shared/components/forms/payment-configuration';
@@ -96,7 +112,7 @@ export const platformEventPaidRegistrationPriceIssue = (
 ): null | string =>
   !isPaid || (Number.isInteger(price) && price >= 1)
     ? null
-    : 'Paid registrations must cost at least 0.01.';
+    : 'Paid sign-up choices must cost at least 0.01.';
 
 export const platformEventPaidAddOnPriceIssue = (
   isPaid: boolean,
@@ -113,19 +129,39 @@ export const platformEventPaidTaxRateIssue = (
 ): null | string => {
   if (!isPaid) return null;
   if (!stripeTaxRateId) {
-    return 'Select an inclusive tax rate for this paid item.';
+    return 'Select a tax rate that is included in the price.';
   }
   return availableTaxRateIds.has(stripeTaxRateId)
     ? null
-    : 'This tax rate is no longer available. Choose another inclusive tax rate.';
+    : 'This tax rate is no longer available. Choose another tax rate that is included in the price.';
 };
 
-type PlatformEventTitledItem = 'add-on' | 'question' | 'registration option';
+type PlatformEventTitledItem = 'add-on' | 'question' | 'sign-up choice';
 
 export const platformEventTitleIssue = (
   title: string,
   item: PlatformEventTitledItem,
 ): null | string => (title.trim() ? null : `Enter a ${item} title.`);
+
+export const platformEventQuestionTitleIssue = (title: string): null | string =>
+  platformEventTitleIssue(title, 'question') ??
+  (title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH
+    ? `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`
+    : null);
+
+export const platformEventQuestionDescriptionIssue = (
+  description: null | string,
+): null | string =>
+  (description?.length ?? 0) > MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH
+    ? `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`
+    : null;
+
+export const platformEventQuestionCountIssue = (
+  questions: readonly unknown[],
+): null | string =>
+  questions.length > MAX_REGISTRATION_QUESTIONS
+    ? `Add no more than ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`
+    : null;
 
 export const platformEventQuestionOptionIssue = (
   registrationOptionId: string,
@@ -133,7 +169,7 @@ export const platformEventQuestionOptionIssue = (
 ): null | string =>
   registrationOptionIds.has(registrationOptionId)
     ? null
-    : 'Select a registration option for this question.';
+    : 'Select a sign-up choice for this question.';
 
 export const platformEventSimpleModeIssue = (
   simpleModeEnabled: boolean,
@@ -143,7 +179,7 @@ export const platformEventSimpleModeIssue = (
   (options.length === 2 &&
     options.filter((option) => option.organizingRegistration).length === 1)
     ? null
-    : 'Simple events need one organizer registration and one participant registration.';
+    : 'Simple setup needs one organizer sign-up choice and one attendee sign-up choice.';
 
 export const platformEventAddOnAvailabilityIssue = (
   addOn: Pick<
@@ -169,6 +205,20 @@ export const platformEventAddOnStockIssue = (
     ? 'Maximum per attendee cannot exceed available stock.'
     : null;
 
+export const platformEventAddOnQuantityLimitIssue = (
+  quantity: number,
+): null | string =>
+  quantity > MAX_REGISTRATION_ADDON_QUANTITY
+    ? `Maximum per attendee cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`
+    : null;
+
+export const platformEventAddonTypeLimitIssue = (
+  addOns: readonly unknown[],
+): null | string =>
+  addOns.length > MAX_EVENT_ADDON_TYPES
+    ? `Add no more than ${MAX_EVENT_ADDON_TYPES} different add-ons.`
+    : null;
+
 export const platformEventAddOnMappingIssue = (
   addOn: Pick<
     PlatformEventAddonEdit,
@@ -178,7 +228,10 @@ export const platformEventAddOnMappingIssue = (
   optionalPurchaseQuantity: number,
 ): null | string => {
   const total = includedQuantity + optionalPurchaseQuantity;
-  if (total === 0) return 'Include or offer at least one unit.';
+  if (total === 0) return 'Include or offer at least one item.';
+  if (total > MAX_REGISTRATION_ADDON_QUANTITY) {
+    return `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`;
+  }
   if (total > addOn.totalAvailableQuantity) {
     return 'Included and optional quantities cannot exceed available stock.';
   }
@@ -198,12 +251,12 @@ export const platformEventDiscountedPriceIssue = (
     return 'Remove the ESNcard price because ESNcard discounts are disabled for this organization.';
   }
   if (!isPaid)
-    return 'ESNcard prices are only available for paid registrations.';
+    return 'ESNcard prices are only available for paid sign-up choices.';
   if (!Number.isInteger(discountedPrice) || discountedPrice < 0) {
     return 'Discounted price must be a whole number of zero or more.';
   }
   return discountedPrice > price
-    ? 'Discounted price cannot exceed the base price.'
+    ? 'Discounted price cannot exceed the regular price.'
     : null;
 };
 
@@ -218,9 +271,10 @@ export const platformEventGraphHasIssues = (
     graph.registrationOptions.map((option) => option.id),
   );
   return (
+    platformEventAddonTypeLimitIssue(graph.addOns) !== null ||
     graph.registrationOptions.some(
       (option) =>
-        platformEventTitleIssue(option.title, 'registration option') !== null ||
+        platformEventTitleIssue(option.title, 'sign-up choice') !== null ||
         platformEventPaidRegistrationPriceIssue(option.isPaid, option.price) !==
           null ||
         platformEventPaidTaxRateIssue(
@@ -256,6 +310,8 @@ export const platformEventGraphHasIssues = (
           options.taxRateIds,
         ) !== null ||
         platformEventAddOnAvailabilityIssue(addOn) !== null ||
+        platformEventAddOnQuantityLimitIssue(addOn.maxQuantityPerUser) !==
+          null ||
         platformEventAddOnStockIssue(addOn) !== null ||
         platformEventIntegerIssue(addOn.totalAvailableQuantity, 0) !== null ||
         platformEventIntegerIssue(addOn.maxQuantityPerUser, 1) !== null ||
@@ -271,9 +327,11 @@ export const platformEventGraphHasIssues = (
             ) !== null,
         ),
     ) ||
+    platformEventQuestionCountIssue(graph.questions) !== null ||
     graph.questions.some(
       (question) =>
-        platformEventTitleIssue(question.title, 'question') !== null ||
+        platformEventQuestionTitleIssue(question.title) !== null ||
+        platformEventQuestionDescriptionIssue(question.description) !== null ||
         platformEventQuestionOptionIssue(
           question.registrationOptionId,
           registrationOptionIds,
@@ -319,31 +377,6 @@ export const platformEventRegistrationWindowHasValidOrder = (
     true,
   );
 
-type PlatformEventRegistrationWindowField =
-  'closeRegistrationTime' | 'openRegistrationTime';
-
-export const unsupportedPlatformEventRegistrationOptions = <
-  Option extends Pick<PlatformEventRegistrationOption, 'registrationMode'>,
->(
-  options: readonly Option[],
-): readonly Option[] =>
-  options.filter((option) => option.registrationMode === 'random');
-
-export const writablePlatformEventRegistrationOptions = <
-  Option extends Pick<PlatformEventRegistrationOption, 'registrationMode'>,
->(
-  options: readonly Option[],
-):
-  | readonly (Option & { registrationMode: 'application' | 'fcfs' })[]
-  | undefined => {
-  const supported = options.filter(
-    (option): option is Option & { registrationMode: 'application' | 'fcfs' } =>
-      option.registrationMode === 'application' ||
-      option.registrationMode === 'fcfs',
-  );
-  return supported.length === options.length ? supported : undefined;
-};
-
 export interface PlatformEventRegistrationOptionEdit extends Omit<
   PlatformEventRegistrationOption,
   'roleIds'
@@ -351,23 +384,8 @@ export interface PlatformEventRegistrationOptionEdit extends Omit<
   roleIds: string[];
 }
 
-export const resetPlatformEventGraphPayments = <
-  Model extends PlatformEventGraphEditModel,
->(
-  model: Model,
-): Model => {
-  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, null));
-  const registrationOptions = model.registrationOptions.map((option) =>
-    resetRegistrationPayment(option, null, null),
-  );
-  const unchanged =
-    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
-    registrationOptions.every(
-      (option, index) => option === model.registrationOptions[index],
-    );
-
-  return unchanged ? model : { ...model, addOns, registrationOptions };
-};
+type PlatformEventRegistrationWindowField =
+  'closeRegistrationTime' | 'openRegistrationTime';
 
 const textInputValue = (event: Event): string | undefined =>
   event.target instanceof HTMLInputElement ||
@@ -427,8 +445,8 @@ export class PlatformEventDetailOperations {
     return this.rpc.platform.events.update.mutationOptions();
   }
 
-  updateListing() {
-    return this.rpc.platform.events.updateListing.mutationOptions();
+  updateAnnouncementDiscovery() {
+    return this.rpc.platform.events.updateAnnouncementDiscovery.mutationOptions();
   }
 }
 
@@ -457,11 +475,18 @@ export class PlatformEventDetailComponent {
   protected readonly addOnAvailabilityIssue =
     platformEventAddOnAvailabilityIssue;
   protected readonly addOnMappingIssue = platformEventAddOnMappingIssue;
+  protected readonly addOnQuantityLimitIssue =
+    platformEventAddOnQuantityLimitIssue;
   protected readonly addOnStockIssue = platformEventAddOnStockIssue;
+  protected readonly addOnTypeLimitIssue = platformEventAddonTypeLimitIssue;
+  private readonly operations = inject(PlatformEventDetailOperations);
+  protected readonly announcementDiscoveryMutation = injectMutation(() =>
+    this.operations.updateAnnouncementDiscovery(),
+  );
+  protected readonly announcementRoleIds = signal<readonly string[]>([]);
   protected readonly currencyAmountErrors = signal<ReadonlyMap<string, string>>(
     new Map(),
   );
-  private readonly operations = inject(PlatformEventDetailOperations);
   protected readonly formOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
@@ -501,12 +526,14 @@ export class PlatformEventDetailComponent {
     validate(event.reason, ({ value }) =>
       value().trim()
         ? undefined
-        : { kind: 'required', message: 'Enter an operational reason.' },
+        : { kind: 'required', message: 'Enter a reason for this change.' },
     );
     maxLength(event.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
   });
+  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   protected readonly eventEditorIsReadOnly = platformEventEditorIsReadOnly;
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findOne(this.tenantId(), this.eventId()),
@@ -545,11 +572,31 @@ export class PlatformEventDetailComponent {
   protected readonly invalidRegistrationWindowFields = signal<
     ReadonlySet<string>
   >(new Set());
-  protected readonly listingMutation = injectMutation(() =>
-    this.operations.updateListing(),
-  );
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationAddonQuantity =
+    MAX_REGISTRATION_ADDON_QUANTITY;
+  protected readonly maxRegistrationQuestionDescriptionLength =
+    MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
+  protected readonly maxRegistrationQuestionTitleLength =
+    MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
   protected readonly minorUnitsToMajorCurrencyInput =
     minorUnitsToMajorCurrencyInput;
+  protected readonly targetTenantQuery = injectQuery(() =>
+    this.operations.tenant(this.tenantId()),
+  );
+  protected readonly stripeDisconnected = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.paymentsConfigured === false,
+  );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.stripeDisconnected() && graphHasPaidConfiguration(this.graphModel()),
+  );
+  protected readonly questionDescriptionIssue =
+    platformEventQuestionDescriptionIssue;
+  protected readonly questionTitleIssue = platformEventQuestionTitleIssue;
   protected readonly registrationOptionIds = computed(
     () =>
       new Set(this.graphModel().registrationOptions.map((option) => option.id)),
@@ -564,18 +611,10 @@ export class PlatformEventDetailComponent {
       this.graphModel().registrationOptions,
     ),
   );
-  protected readonly targetTenantQuery = injectQuery(() =>
-    this.operations.tenant(this.tenantId()),
-  );
   protected readonly stripeConnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === true,
-  );
-  protected readonly stripeDisconnected = computed(
-    () =>
-      this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === false,
+      this.targetTenantQuery.data()?.paymentsConfigured === true,
   );
   protected readonly submitMutation = injectMutation(() =>
     this.operations.submitForReview(),
@@ -585,12 +624,8 @@ export class PlatformEventDetailComponent {
       ? (this.targetTenantQuery.data()?.currency ?? '')
       : '',
   );
+  protected readonly tenantTimezoneLabel = tenantTimezoneLabel;
   protected readonly titleIssue = platformEventTitleIssue;
-  protected readonly unsupportedRegistrationOptions = computed(() =>
-    unsupportedPlatformEventRegistrationOptions(
-      this.graphModel().registrationOptions,
-    ),
-  );
   protected readonly updateMutation = injectMutation(() =>
     this.operations.update(),
   );
@@ -612,6 +647,7 @@ export class PlatformEventDetailComponent {
       const timezone = formOptions.timezone;
       untracked(() => {
         this.actionReason.set('');
+        this.announcementRoleIds.set([...event.announcementRoleIds]);
         this.reviewFeedback.set('');
         this.editModel.set({
           description: event.description,
@@ -633,30 +669,17 @@ export class PlatformEventDetailComponent {
             roleIds: [...option.roleIds],
           })),
         };
-        this.graphModel.set(
-          this.stripeDisconnected()
-            ? resetPlatformEventGraphPayments(graph)
-            : graph,
-        );
+        this.graphModel.set(graph);
         this.invalidRegistrationWindowFields.set(new Set());
         this.currencyAmountErrors.set(new Map());
         this.editForm().reset();
         this.initializedEventKey.set(eventKey);
       });
     });
-    effect(() => {
-      if (!this.stripeDisconnected()) return;
-      const graph = this.graphModel();
-      const resetGraph = resetPlatformEventGraphPayments(graph);
-      if (resetGraph === graph) return;
-      untracked(() => {
-        this.graphModel.set(resetGraph);
-        this.currencyAmountErrors.set(new Map());
-      });
-    });
   }
 
   protected addAddOn(): void {
+    if (this.graphModel().addOns.length >= MAX_EVENT_ADDON_TYPES) return;
     this.graphModel.update((graph) => ({
       ...graph,
       addOns: [
@@ -712,7 +735,11 @@ export class PlatformEventDetailComponent {
 
   protected addQuestion(): void {
     const registrationOptionId = this.graphModel().registrationOptions[0]?.id;
-    if (!registrationOptionId) return;
+    if (
+      !registrationOptionId ||
+      this.graphModel().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.graphModel.update((graph) => ({
       ...graph,
       questions: [
@@ -730,28 +757,6 @@ export class PlatformEventDetailComponent {
 
   protected approve(): void {
     this.review(true);
-  }
-
-  protected changeListing(unlisted: boolean): void {
-    const reason = this.actionReason().trim();
-    if (!reason || this.mutationPending()) return;
-    void (async () => {
-      try {
-        await this.listingMutation.mutateAsync({
-          eventId: this.eventId(),
-          reason,
-          targetTenantId: this.tenantId(),
-          unlisted,
-        });
-        await this.refresh();
-        this.actionReason.set('');
-        this.notifications.showSuccess('Event listing updated');
-      } catch {
-        this.notifications.showError(
-          'The event listing could not be updated. Try again.',
-        );
-      }
-    })();
   }
 
   protected displayDateTime(value: string): string {
@@ -774,7 +779,7 @@ export class PlatformEventDetailComponent {
 
   protected mutationPending(): boolean {
     return (
-      this.listingMutation.isPending() ||
+      this.announcementDiscoveryMutation.isPending() ||
       this.reviewMutation.isPending() ||
       this.submitMutation.isPending() ||
       this.updateMutation.isPending()
@@ -864,7 +869,7 @@ export class PlatformEventDetailComponent {
       this.invalidRegistrationWindowFields().size > 0 ||
       this.hasInvalidRegistrationWindowOrder() ||
       this.simpleModeIssue() !== null ||
-      this.unsupportedRegistrationOptions().length > 0
+      this.paidGraphBlocked()
     ) {
       return;
     }
@@ -880,17 +885,11 @@ export class PlatformEventDetailComponent {
       const start = platformEventLocalDateTimeToInstant(value.start, timezone);
       if (!end || !start) {
         this.notifications.showError(
-          "Enter valid event times in the organization's time zone, including daylight-saving transitions.",
+          "Choose start and end times that exist in the organization's time zone. If the clocks change on that date, choose a different time.",
         );
         return;
       }
-      const graph = this.stripeDisconnected()
-        ? resetPlatformEventGraphPayments(this.graphModel())
-        : this.graphModel();
-      const registrationOptions = writablePlatformEventRegistrationOptions(
-        graph.registrationOptions,
-      );
-      if (!registrationOptions) return;
+      const graph = this.graphModel();
       try {
         await this.updateMutation.mutateAsync({
           addOns: graph.addOns,
@@ -901,19 +900,28 @@ export class PlatformEventDetailComponent {
           location: current.location,
           questions: graph.questions,
           reason: value.reason,
-          registrationOptions,
+          registrationOptions: graph.registrationOptions,
           start,
           targetTenantId: this.tenantId(),
           title: value.title,
         });
         await this.refresh();
         this.notifications.showSuccess('Event updated');
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event could not be updated. Review the details and try again.',
+          getErrorMessage(
+            error,
+            'The event could not be updated. Review the details and try again.',
+            ['RpcBadRequestError'],
+          ),
         );
       }
     });
+  }
+
+  protected saveAnnouncementDiscovery(): void {
+    if (!this.eventQuery.isSuccess()) return;
+    this.updateAnnouncementDiscovery(this.announcementRoleIds());
   }
 
   protected setActionReason(event: Event): void {
@@ -1046,6 +1054,14 @@ export class PlatformEventDetailComponent {
       }
       return { ...addOn, title: value };
     });
+  }
+
+  protected setAnnouncementRole(roleId: string, enabled: boolean): void {
+    this.announcementRoleIds.update((roleIds) =>
+      enabled
+        ? [...new Set([...roleIds, roleId])]
+        : roleIds.filter((candidate) => candidate !== roleId),
+    );
   }
 
   protected setOptionBoolean(
@@ -1255,9 +1271,13 @@ export class PlatformEventDetailComponent {
         await this.refresh();
         this.actionReason.set('');
         this.notifications.showSuccess('Event submitted for review');
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event could not be submitted for review. Try again.',
+          getErrorMessage(
+            error,
+            'The event could not be submitted for review. Try again.',
+            ['RpcBadRequestError'],
+          ),
         );
       }
     })();
@@ -1322,9 +1342,13 @@ export class PlatformEventDetailComponent {
         this.notifications.showSuccess(
           approved ? 'Event approved' : 'Event returned to draft',
         );
-      } catch {
+      } catch (error) {
         this.notifications.showError(
-          'The event review could not be saved. Try again.',
+          getErrorMessage(
+            error,
+            'The event review could not be saved. Try again.',
+            ['RpcBadRequestError'],
+          ),
         );
       }
     })();
@@ -1340,6 +1364,36 @@ export class PlatformEventDetailComponent {
         candidate === index ? update(addOn) : addOn,
       ),
     }));
+  }
+
+  private updateAnnouncementDiscovery(
+    announcementRoleIds: readonly string[],
+  ): void {
+    const reason = this.actionReason().trim();
+    if (!reason || this.mutationPending()) return;
+    void (async () => {
+      try {
+        await this.announcementDiscoveryMutation.mutateAsync({
+          announcementRoleIds: [...announcementRoleIds],
+          eventId: this.eventId(),
+          reason,
+          targetTenantId: this.tenantId(),
+        });
+        await this.refresh();
+        this.actionReason.set('');
+        this.notifications.showSuccess(
+          'Who can find the announcement was updated',
+        );
+      } catch (error) {
+        this.notifications.showError(
+          getErrorMessage(
+            error,
+            'Who can find the announcement could not be saved. Try again.',
+            ['RpcBadRequestError'],
+          ),
+        );
+      }
+    })();
   }
 
   private updateQuestion(
