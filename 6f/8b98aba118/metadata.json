@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "6f8b98aba118",
+  "strategy": "manual-commit",
+  "branch": "codex/explain-event-discovery-and-publishing",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/6f/8b98aba118/0/metadata.json",
+      "transcript": "/6f/8b98aba118/0/full.jsonl",
+      "content_hash": "/6f/8b98aba118/0/content_hash.txt",
+      "prompt": "/6f/8b98aba118/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 29274433,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1664300800,
+    "output_tokens": 2548824,
+    "api_call_count": 13112
+  }
+}
