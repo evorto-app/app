@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "5a5841b8679a",
+  "strategy": "manual-commit",
+  "branch": "codex/timeout-wrapper-cleanup-reporting",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/5a/5841b8679a/0/metadata.json",
+      "transcript": "/5a/5841b8679a/0/full.jsonl",
+      "content_hash": "/5a/5841b8679a/0/content_hash.txt",
+      "prompt": "/5a/5841b8679a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 31485127,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1805543424,
+    "output_tokens": 2753956,
+    "api_call_count": 14254
+  }
+}
