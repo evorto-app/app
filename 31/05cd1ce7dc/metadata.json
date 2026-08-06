@@ -2,7 +2,7 @@
   "cli_version": "0.5.6",
   "checkpoint_id": "3105cd1ce7dc",
   "strategy": "manual-commit",
-  "branch": "codex/full-application-simplification-review",
+  "branch": "codex/trace-staging-request-latency",
   "checkpoints_count": 1,
   "files_touched": null,
   "sessions": [
@@ -14,10 +14,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 29670783,
+    "input_tokens": 29706136,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1688365312,
-    "output_tokens": 2573121,
-    "api_call_count": 13295
+    "cache_read_tokens": 1692936960,
+    "output_tokens": 2582386,
+    "api_call_count": 13326
   }
 }
