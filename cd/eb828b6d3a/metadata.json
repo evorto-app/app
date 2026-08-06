@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "cdeb828b6d3a",
+  "strategy": "manual-commit",
+  "branch": "codex/prove-profile-discounts-and-onboarding-journeys",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/cd/eb828b6d3a/0/metadata.json",
+      "transcript": "/cd/eb828b6d3a/0/full.jsonl",
+      "content_hash": "/cd/eb828b6d3a/0/content_hash.txt",
+      "prompt": "/cd/eb828b6d3a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 29267246,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1662435584,
+    "output_tokens": 2547934,
+    "api_call_count": 13101
+  }
+}
