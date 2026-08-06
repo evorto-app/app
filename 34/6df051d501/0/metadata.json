@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "346df051d501",
+  "session_id": "019f9f44-d3cb-70b3-a93f-4038b4f1b4a2",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-06T11:11:10.957998Z",
+  "branch": "codex/timeout-wrapper-cleanup-reporting",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "5633c038bf37",
+  "token_usage": {
+    "input_tokens": 31041206,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1769786880,
+    "output_tokens": 2681257,
+    "api_call_count": 13931
+  },
+  "session_metrics": {
+    "turn_count": 15
+  }
+}
