@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "627f32b3b9aa",
+  "strategy": "manual-commit",
+  "branch": "codex/prove-registration-and-ticket-lifecycle",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/62/7f32b3b9aa/0/metadata.json",
+      "transcript": "/62/7f32b3b9aa/0/full.jsonl",
+      "content_hash": "/62/7f32b3b9aa/0/content_hash.txt",
+      "prompt": "/62/7f32b3b9aa/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 29277867,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1665238528,
+    "output_tokens": 2549052,
+    "api_call_count": 13118
+  }
+}
