@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "f33680476e10",
+  "strategy": "manual-commit",
+  "branch": "codex/prove-finance-receipts-and-webhook-recovery",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/f3/3680476e10/0/metadata.json",
+      "transcript": "/f3/3680476e10/0/full.jsonl",
+      "content_hash": "/f3/3680476e10/0/content_hash.txt",
+      "prompt": "/f3/3680476e10/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 29284471,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1666370560,
+    "output_tokens": 2549346,
+    "api_call_count": 13126
+  }
+}
