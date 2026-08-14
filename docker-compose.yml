@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17.10-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: postgres:18.0-alpine@sha256:48c8ad3a7284b82be4482a52076d47d879fd6fb084a1cbfccbd551f9331b0e40
     restart: unless-stopped
     environment:
       POSTGRES_DB: "${POSTGRES_DB:-appdb}"
