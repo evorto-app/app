@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "6f596aa0dab0",
+  "session_id": "01a06cdc-629f-7b82-8a80-b940922d7571",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-04T22:16:01.130974Z",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/clear-prior-receipt-documentation-notice.md",
+    ".changeset/explain-unconfirmed-mutation-outcomes.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts",
+    "src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.html",
+    "src/app/events/event-active-registration/event-active-registration.component.spec.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.ts",
+    "src/app/events/event-organize/event-organize.spec.ts",
+    "src/app/events/event-organize/event-organize.ts",
+    "src/app/global-admin/platform-tenant-admin/platform-tax-rates.component.spec.ts",
+    "src/app/global-admin/platform-tenant-admin/platform-tax-rates.component.ts",
+    "src/app/profile/profile-discounts/profile-discounts.esn-card.spec.ts",
+    "src/app/profile/profile-discounts/profile-discounts.esn-card.ts",
+    "src/server/tenant-public-url-migration.postgres.spec.ts",
+    "tests/docs/finance/receipt-review-reimbursement.doc.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "c3026ce215b8",
+  "checkpoint_transcript_start": 13202,
+  "transcript_lines_at_start": 13202,
+  "token_usage": {
+    "input_tokens": 260148,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 20881152,
+    "output_tokens": 56360,
+    "api_call_count": 209
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-04T22:16:00.338932Z",
+    "agent_lines": 892,
+    "agent_removed": 330,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 892,
+    "total_lines_changed": 1222,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

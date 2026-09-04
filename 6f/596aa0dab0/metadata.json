@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "6f596aa0dab0",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/clear-prior-receipt-documentation-notice.md",
+    ".changeset/explain-unconfirmed-mutation-outcomes.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts",
+    "src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.html",
+    "src/app/events/event-active-registration/event-active-registration.component.spec.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.ts",
+    "src/app/events/event-organize/event-organize.spec.ts",
+    "src/app/events/event-organize/event-organize.ts",
+    "src/app/global-admin/platform-tenant-admin/platform-tax-rates.component.spec.ts",
+    "src/app/global-admin/platform-tenant-admin/platform-tax-rates.component.ts",
+    "src/app/profile/profile-discounts/profile-discounts.esn-card.spec.ts",
+    "src/app/profile/profile-discounts/profile-discounts.esn-card.ts",
+    "src/server/tenant-public-url-migration.postgres.spec.ts",
+    "tests/docs/finance/receipt-review-reimbursement.doc.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6f/596aa0dab0/0/metadata.json",
+      "transcript": "/6f/596aa0dab0/0/full.jsonl",
+      "content_hash": "/6f/596aa0dab0/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 260148,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 20881152,
+    "output_tokens": 56360,
+    "api_call_count": 209
+  }
+}
