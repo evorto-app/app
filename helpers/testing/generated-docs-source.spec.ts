@@ -80,7 +80,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(scenario).toContain("name: 'Leave the waitlist?'");
     expect(scenario).toContain(
-      "getByRole('button', { exact: true, name: 'Register' })",
+      "getByRole('button', { exact: true, name: 'Sign up' })",
     );
     expect(scenario).toContain("status: 'CONFIRMED'");
     expect(scenario).toContain("kind: 'registrationConfirmed'");
@@ -175,8 +175,8 @@ describe('generated docs source current behavior', () => {
     );
     expect(scenarioCleanup).toContain("eq(schema.transactions.type, 'refund')");
 
-    expect(journey).toContain("name: 'Cancel registration'");
-    expect(journey).toContain("name: 'Confirm cancellation'");
+    expect(journey).toContain("name: 'Cancel ticket'");
+    expect(journey).toContain("name: 'Cancel your ticket?'");
     expect(journey).toContain('eventRegistrationAddonFulfillmentAllocations');
     expect(journey).toContain('registrationAcquisitions.findFirst');
     expect(journey).toContain("orderBy: { ordinal: 'desc' }");
@@ -1158,37 +1158,35 @@ describe('generated docs source current behavior', () => {
     );
 
     expect(source).toContain(
-      'When a participant option is full, registration changes to a distinct **Join waitlist** action',
+      'When an attendee choice is full, **Join waitlist** replaces **Sign up**.',
     );
     expect(source).toContain(
-      'Waitlisted participants can return to the event page and use **Leave waitlist** before the event starts.',
+      'People on the waitlist can return to the event page and use **Leave waitlist** before the event starts.',
     );
     expect(source).toContain(
-      'When the registration window is closed, participants can still read the event details, but the registration action is removed.',
+      'When the sign-up window is closed, attendees can still read the event details, but the sign-up action is removed.',
     );
     expect(source).toContain(
-      'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+      "Your access in this organization does not include any of this event's sign-up choices. You can still view the event, but you cannot sign up.",
     );
-    expect(source).toContain("test('Buy add-ons after registration'");
+    expect(source).toContain("test('Buy add-ons for a confirmed ticket'");
     expect(source).not.toContain('## Buy add-ons after registration');
     expect(source).not.toContain('## Registration unavailable states');
     expect(source).toContain(
-      'This guide is for a signed-in participant whose account belongs to the same organization as the event.',
+      'This guide is for a signed-in attendee whose account belongs to the same organization as the event.',
     );
     expect(source).toContain(
-      "A paid registration also requires the organization's Stripe payments to be available",
+      "For a paid sign-up, the organization's online payments must be available",
     );
+    expect(source).toContain('Show the QR code when attending the event.');
     expect(source).toContain(
-      'Show this ticket QR code when attending the event.',
-    );
-    expect(source).toContain(
-      'guests do not need separate accounts, but each guest uses one available event spot and stays attached to your registration.',
+      'guests do not need separate accounts, but each guest uses one available event place and stays attached to your ticket.',
     );
     expect(source).toContain(
       "const guestCountInput = participantRegistrationCard.getByLabel('Guests')",
     );
     expect(source).toContain("await guestCountInput.fill('1')");
-    expect(source).toContain("getByText('+ you = 2 spots')");
+    expect(source).toContain("getByText('+ you = 2 places')");
     expect(source).toContain('expect(registration.guestCount).toBe(1)');
     expect(source).toContain('confirmedSpots: 2');
     expect(source).toContain(
@@ -1208,7 +1206,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('deliverCompletedRegistrationCheckoutWebhook({');
     expect(source).not.toContain('fillTestCard');
     expect(source).toContain(
-      'After Stripe accepts the payment, return to the event page to see your registration confirmation.',
+      'After payment succeeds, return to the event page and check for **Your ticket is confirmed**.',
     );
     expect(source).not.toContain(
       'After successful payment, you are redirected back to the event page',
@@ -1216,9 +1214,15 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('This add-on is not sold before the event.');
     expect(source).toContain('This add-on is not sold during the event.');
     expect(source).toContain('Payment is pending');
-    expect(source).toContain('Continue Stripe checkout');
+    expect(source).toContain('Continue to payment');
+    expect(source).toContain(
+      'If payment setup needs review, keep the existing sign-up and contact an organizer; do not start another payment.',
+    );
+    expect(source).toContain(
+      'If the link is unavailable or has expired, follow the message on the ticket and ask an organizer for review; do not start another purchase.',
+    );
     expect(source).not.toContain('await scenario.beginPaidCheckout(2)');
-    expect(source).toContain("name: 'Continue to Stripe'");
+    expect(source).toContain("name: 'Continue to payment'");
     expect(source).toContain(
       String.raw`page.waitForURL(/checkout\.stripe\.com/`,
     );
@@ -1555,59 +1559,57 @@ describe('generated docs source current behavior', () => {
     );
     expect(registrationPageSource).toContain(':not([aria-busy="true"])');
     expect(registrationPageSource).toContain(
-      ".getByText('Loading event ...', { exact: true })",
+      ".getByText('Loading event…', { exact: true })",
     );
     expect(registrationPageSource).toContain(
       ".getByText('Failed to load event.', { exact: true })",
     );
     expect(registrationPageSource).toContain('level: 2');
-    expect(registrationPageSource).toContain("name: 'Registration'");
+    expect(registrationPageSource).toContain("name: 'Your sign-up'");
     expect(registrationPageSource).toContain(
-      ".getByText('Loading registration status')",
+      ".getByText('Loading your sign-up')",
     );
     expect(registrationPageSource).toContain(
       ".getByText('Failed to load registration status.')",
     );
-    expect(registrationPageSource.indexOf("name: 'Registration'")).toBeLessThan(
-      registrationPageSource.indexOf(
-        ".getByText('Loading registration status')",
-      ),
+    expect(registrationPageSource.indexOf("name: 'Your sign-up'")).toBeLessThan(
+      registrationPageSource.indexOf(".getByText('Loading your sign-up')"),
     );
     expect(
       registrationPageSource.indexOf(':not([aria-busy="true"])'),
     ).toBeLessThan(
       registrationPageSource.indexOf(
-        ".getByText('Loading event ...', { exact: true })",
+        ".getByText('Loading event…', { exact: true })",
       ),
     );
     expect(
       registrationPageSource.indexOf(
         ".getByText('Failed to load event.', { exact: true })",
       ),
-    ).toBeLessThan(registrationPageSource.indexOf("name: 'Registration'"));
+    ).toBeLessThan(registrationPageSource.indexOf("name: 'Your sign-up'"));
     expect(source).not.toContain(
       'Paid registration transfer and resale are not automatic yet.',
     );
     expect(source).toContain(
-      'Evorto also queues a confirmation email with a link back to this authenticated ticket page.',
+      'Evorto also tries to send a confirmation email with a link back to the ticket.',
     );
     expect(source).toContain('seedRequiredRegistrationQuestion');
     expect(source).toContain(
-      'Free registration cards can also offer guests, registration-time add-ons, and required questions.',
+      'A free sign-up choice can also offer guests, add-ons, and required questions.',
     );
-    expect(source).toContain('question answers are stored for organizers.');
+    expect(source).toContain('organizers can review the answers.');
     expect(source).toContain(
       'participantRegistrationCard.getByLabel(registrationQuestion.title)',
     );
     expect(source).toContain('registration.questionAnswers');
     expect(source).toContain(
-      'If that option asks required registration questions, participants must answer them before joining the waitlist.',
+      'If that choice asks required sign-up questions, attendees must answer them before joining.',
     );
     expect(source).toContain('waitlistRegistration.questionAnswers');
     expect(source).toContain(
-      'Review the **Leave the waitlist?** confirmation; **Keep registration** receives focus by default.',
+      'When the **Leave the waitlist?** confirmation opens, pressing Enter chooses **Stay on waitlist**, so your place stays unchanged.',
     );
-    expect(source).toContain('Confirm before giving up a waitlist position');
+    expect(source).toContain('Review before leaving the waitlist');
     expect(source).toContain('fullOptionAfterLeaving.waitlistSpots');
     expect(source).not.toContain('Register button stays available');
     expect(source).not.toContain('paid transfers are automatic');
@@ -1628,7 +1630,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('Unlisted event opened from its direct link');
     expect(source).toContain('page.context().clearCookies()');
-    expect(source).toContain("name: 'Log in now'");
+    expect(source).toContain("name: 'Sign in now'");
     expect(source).toContain(
       'Anyone with the exact link can open the approved event details.',
     );
@@ -1687,37 +1689,58 @@ describe('generated docs source current behavior', () => {
   it('keeps manual approval docs beginner-readable and behavior-backed', () => {
     const source = readSource('tests/docs/events/manual-approval.doc.ts');
 
-    expect(source).toContain('# Manual approval registrations');
-    expect(source).toContain('This guide uses two signed-in accounts');
+    expect(source).not.toMatch(/^#\s+/mu);
     expect(source).toContain(
-      'An application does not reserve a spot, charge the participant, or create a ticket.',
+      'An attendee whose organization role allows the event choice applies for a place.',
+    );
+    expect(source).toContain(
+      'An application does not reserve a place, charge the attendee, or create a ticket.',
     );
     expect(source).toContain('Apply for approval');
     expect(source).toContain('Awaiting approval');
     expect(source).toContain('Approve application');
     expect(source).toContain(
-      'Refresh or reopen the event after the organizer finishes.',
+      'Open the event again after the organizer finishes to see the confirmed ticket and its QR code.',
     );
     expect(source).toContain(
-      'Selecting **Approve application** reserves one spot and prepares one Stripe Checkout session.',
+      "Selecting **Approve application** reserves one place and prepares the attendee's payment link.",
     );
     expect(source).toContain('deliverCompletedRegistrationCheckoutWebhook({');
     expect(source).not.toContain('fillTestCard');
     expect(source).toContain(".toBe('successful:CONFIRMED')");
     expect(source).toContain('approvalEmailsForRegistration');
+    expect(source).toContain('Application states');
     expect(source).toContain('Payment needs attention');
     expect(source).not.toContain('Retry payment setup');
     expect(source).toContain('.toEqual(originalClaim)');
-    expect(source).toContain('# Withdraw a pending application');
     expect(source).toContain(
-      'This immediately withdraws your pending application. It does not release confirmed capacity or start a refund.',
+      'There is no automatic retry action for this state.',
+    );
+    expect(source).toContain(
+      'The attendee should contact the event organizer. Do not apply again or start another payment.',
+    );
+    expect(source).toContain(
+      'The place remains reserved and the ticket stays unconfirmed while the payment is unresolved.',
+    );
+    expect(source).not.toContain('refresh shortly');
+    expect(source).not.toContain('focused by default');
+    expect(source).toContain(
+      '.toEqual({ confirmedSpots: 0, reservedSpots: 1 })',
+    );
+    expect(source).toContain(
+      "test('Withdraw a pending application and apply again'",
+    );
+    expect(source).toContain(
+      'The confirmation explains exactly what changes: the pending application is withdrawn immediately, it does not affect any confirmed places, and no refund starts.',
     );
     expect(source).toContain("status: 'CANCELLED'");
     expect(source).toContain('capacityBeforeApplying');
     expect(source).toContain(
       "throw new Error('Expected a new pending application after withdrawal')",
     );
-    expect(source).toContain('Application states');
+    expect(source).toContain(
+      'Cancellation leaves the unresolved payment and reserved place unchanged',
+    );
     expect(source).not.toContain(
       'A separate **Reject application** action is not currently available',
     );
@@ -1736,33 +1759,42 @@ describe('generated docs source current behavior', () => {
       'tests/support/utils/organizer-signup-scenario.ts',
     );
 
-    expect(source).toContain('# Sign up as an organizer or helper');
+    expect(source).not.toMatch(/^#\s+/mu);
     expect(source).toContain(
-      'Organizer/helper registrations never include guests or a waitlist.',
+      'Organizer/helper sign-ups never include guests or a waitlist.',
     );
     expect(source).toContain(
-      'Evorto allows one active registration per person and event',
+      'Evorto allows one active ticket per person and event',
     );
-    expect(source).toContain('Organizer/helper registration confirmed');
+    expect(source).toContain('Organizer/helper ticket confirmed');
     expect(source).toContain('Your organizer/helper pass');
     expect(source).toContain('Organizer/helper team');
-    expect(source).toContain('Participant registrations');
+    expect(source).toContain('Attendee sign-ups');
     expect(source).toContain('Type** as **Organizer/helper');
-    expect(source).toContain('A saved or copied organizer URL');
+    expect(source).toContain('A saved or copied organizer link');
+    expect(source).toContain(
+      'This does not remove access provided in other ways',
+    );
+    expect(source).not.toContain('Other permissions');
     expect(source).toContain(
       'page.goto(`/events/${scenario.event.id}/organize`)',
     );
     expect(source).toContain(String.raw`page).toHaveURL(/\/403$/)`);
-    expect(source).toContain(
-      '# Apply for an advanced organizer or helper category',
-    );
+    expect(source).toContain("test('Apply to help organize an event'");
     expect(source).toContain('Organizer/helper application pending');
     expect(source).toContain('Approve application');
     expect(source).toContain(
-      'A paid category remains pending until Stripe payment succeeds',
+      'A paid category remains pending until payment succeeds',
     );
     expect(source).toContain('## Withdraw before approval');
     expect(source).toContain('## Apply again');
+    expect(source).toContain(
+      'pressing Enter chooses **Go back** and leaves the application unchanged',
+    );
+    expect(source).not.toContain('receives focus');
+    expect(source).not.toContain('remain eligible');
+    expect(source).not.toContain('the eligible sign-up choices');
+    expect(source).not.toContain('role must still be eligible');
     expect(source).toContain("status: 'CANCELLED'");
     expect(source).toContain('paymentCount: 0');
     expect(source).toContain(

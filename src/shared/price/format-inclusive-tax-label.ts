@@ -8,23 +8,24 @@ export interface TaxRateInfo {
 }
 
 /**
- * Formats an inclusive tax label based on tax rate information
+ * Formats a plain-language label for tax included in a displayed price.
  *
  * Examples:
- * - "Incl. 19% VAT"
+ * - "19% VAT included in the shown price"
  * - "Tax free" (for 0%)
- * - "Incl. Tax" (fallback when details unavailable)
+ * - "Tax details unavailable" when a paid price has no validated tax metadata
  *
  * @param taxRate Tax rate information or null/undefined if unavailable
- * @returns Formatted inclusive tax label string
+ * @returns Formatted tax label string
  */
 export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
-  // If no tax rate info available, use fallback
+  // Missing metadata is invalid for a paid price. Surface it rather than
+  // implying that an unspecified tax was included.
   if (!taxRate || (!taxRate.percentage && !taxRate.displayName)) {
-    return 'Incl. Tax';
+    return 'Tax details unavailable';
   }
 
-  // Handle zero percent case - show "Tax free" instead of "Incl. 0%"
+  // A zero-percent rate is clearer as "Tax free".
   if (
     taxRate.percentage === '0' ||
     taxRate.percentage === '0.0' ||
@@ -33,23 +34,19 @@ export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
     return 'Tax free';
   }
 
-  // Try to build specific label with percentage and name
   if (taxRate.percentage && taxRate.displayName) {
-    return `Incl. ${taxRate.percentage}% ${taxRate.displayName}`;
+    return `${taxRate.percentage}% ${taxRate.displayName} included in the shown price`;
   }
 
-  // If only percentage available
   if (taxRate.percentage) {
-    return `Incl. ${taxRate.percentage}%`;
+    return `${taxRate.percentage}% tax included in the shown price`;
   }
 
-  // If only name available (rare case)
   if (taxRate.displayName) {
-    return `Incl. ${taxRate.displayName}`;
+    return `${taxRate.displayName} included in the shown price`;
   }
 
-  // Fallback
-  return 'Incl. Tax';
+  return 'Tax details unavailable';
 }
 
 /**
@@ -58,7 +55,7 @@ export function formatInclusiveTaxLabel(taxRate?: null | TaxRateInfo): string {
  * @param amount Price amount (in cents or smallest currency unit)
  * @param currency Currency code (default: EUR)
  * @param taxRate Tax rate information
- * @returns Formatted price with tax label, e.g. "€25.00 Incl. 19% VAT"
+ * @returns Formatted price with tax label, e.g. "€25.00 19% VAT included in the shown price"
  */
 export function formatPriceWithTax(
   amount: number,
@@ -78,19 +75,12 @@ export function formatPriceWithTax(
   return `${formattedAmount} ${taxLabel}`;
 }
 
-/**
- * Validates that a tax rate info object has minimum required data for labeling
- */
 export function hasValidTaxRateInfo(taxRate?: null | TaxRateInfo): boolean {
   if (!taxRate) return false;
 
-  // Valid if we have either percentage or display name
   return !!(taxRate.percentage || taxRate.displayName);
 }
 
-/**
- * Checks if a tax rate should be considered as zero/free
- */
 export function isZeroTaxRate(taxRate?: null | TaxRateInfo): boolean {
   if (!taxRate?.percentage) return false;
 

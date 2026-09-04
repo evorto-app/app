@@ -196,7 +196,7 @@ export const eventAddonPurchaseTiming = (addOn: {
   allowPurchaseDuringRegistration: boolean;
 }): string => {
   const windows = [
-    addOn.allowPurchaseDuringRegistration ? 'During registration' : null,
+    addOn.allowPurchaseDuringRegistration ? 'During sign-up' : null,
     addOn.allowPurchaseBeforeEvent ? 'Before event' : null,
     addOn.allowPurchaseDuringEvent ? 'During event' : null,
   ].filter((window): window is string => window !== null);
@@ -211,7 +211,7 @@ export const eventRegistrationOptionTitle = (
   registrationOptionId: string,
 ): string =>
   event.registrationOptions.find((option) => option.id === registrationOptionId)
-    ?.title ?? 'Broken registration option configuration';
+    ?.title ?? 'Sign-up choice is missing from this event';
 
 export const eventAddonsForRegistrationOption = <
   TAddOn extends {

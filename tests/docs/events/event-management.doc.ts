@@ -190,7 +190,7 @@ After creating an event, you'll be taken to the event details page. This page sh
 The event details page has several sections:
 
 - **Basic Information**: Title, description, date, location
-- **Registration**: Available registration options or your active registration
+- **Your sign-up**: Available choices or your active ticket
 - **Review and listing actions**: Status, submit/review actions, edit link, and listing controls when your account has access
 - **Organize this event**: A link to the organizer surface when you are allowed to organize the event
 
@@ -226,11 +226,11 @@ Note: The event created from the template already has registration options confi
 
   // Take a screenshot of the existing registration options section
   await expect(
-    page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
+    page.getByRole('heading', { level: 2, name: 'Your sign-up' }).first(),
   ).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
+    page.getByRole('heading', { level: 2, name: 'Your sign-up' }).first(),
     page,
     'Registration options section',
   );
@@ -712,7 +712,7 @@ It does not currently include attendee export, attendee messaging, or manual che
   await page.route('**/rpc/**', failOrganizerPageDataOnce);
   await page.goto(`/events/${target.id}/organize`);
   const organizerLoadAlert = page.getByRole('alert').filter({
-    hasText: 'Participant data could not be loaded',
+    hasText: 'Attendees could not be loaded',
   });
   const receiptLoadAlert = page.getByRole('alert').filter({
     hasText: 'Receipts could not be loaded',
@@ -723,15 +723,15 @@ It does not currently include attendee export, attendee messaging, or manual che
   expect(organizerOverviewFailureCount).toBe(1);
   expect(receiptFailureCount).toBe(1);
   await expect(organizerLoadAlert).toContainText(
-    'Participant data could not be loaded',
+    'Attendees could not be loaded',
   );
   await expect(organizerLoadAlert).toContainText(
-    'Do not treat the missing counts as zero or as current event data.',
+    'No current sign-up counts or attendee actions are shown. Select Try again.',
   );
-  await expect(page.getByText('Registered', { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole('button', { name: 'Cancel registration' }),
-  ).toHaveCount(0);
+  await expect(page.getByText('Signed up', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cancel ticket' })).toHaveCount(
+    0,
+  );
   await expect(addReceiptButton).toBeDisabled();
   await expect(
     page.getByText('Receipt history must load before a receipt can be added.'),
@@ -752,7 +752,7 @@ If the organizer overview request fails, Evorto hides every registration count a
 1. Do not cancel, transfer, or approve a registration based on an empty-looking page.
 2. Check that your network connection is available.
 3. Select **Try again** in the warning.
-4. Wait for the **Overview** and **Participant registrations** sections to return before continuing.
+4. Wait for the **Overview** and **Attendee sign-ups** sections to return before continuing.
 
 Receipt history has its own warning and **Try again** action. A receipt-loading warning means existing receipts may still be present; it is not a verified empty list. **Add receipt** stays unavailable until that history loads, preventing a duplicate submission based on incomplete information.
 `,

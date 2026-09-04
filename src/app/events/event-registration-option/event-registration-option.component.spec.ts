@@ -93,9 +93,24 @@ describe('guest selection template', () => {
     expect(template).toContain(
       'Guests do not need separate accounts. Each guest uses one',
     );
-    expect(template).toContain('available spot and shares your registration.');
+    expect(template).toContain('available place and shares your ticket.');
     expect(template).toContain('subscriptSizing="dynamic"');
-    expect(template).toContain('selectedSpotCount() === 1 ? "spot" : "spots"');
+    expect(template).toContain(
+      'selectedSpotCount() === 1 ? "place" : "places"',
+    );
+  });
+});
+
+describe('sign-in check recovery', () => {
+  it('keeps the sign-up unchanged and offers a local check action', () => {
+    const template = readSource(
+      'src/app/events/event-registration-option/event-registration-option.component.html',
+    );
+
+    expect(template).toContain('Your sign-up was not');
+    expect(template).toContain('(click)="authenticationQuery.refetch()"');
+    expect(template).toContain('"Check again"');
+    expect(template).not.toContain('Reload the page');
   });
 });
 
@@ -105,7 +120,7 @@ describe('registration add-on template', () => {
       'src/app/events/event-registration-option/event-registration-option.component.html',
     );
 
-    expect(template).toContain('Included in registration price');
+    expect(template).toContain('Included in the ticket price');
     expect(template).toContain('per extra item');
     expect(template).toContain('@else if (soldOut)');
     expect(template).toContain('addonSoldOutLabel(includedQuantity)');
@@ -116,17 +131,17 @@ describe('registration add-on template', () => {
 });
 
 describe('registrationOptionAudienceCopy', () => {
-  it('keeps participant options on registration copy', () => {
+  it('uses sign-up wording for attendee choices', () => {
     expect(
       registrationOptionAudienceCopy({
         organizingRegistration: false,
         registrationMode: 'fcfs',
       }),
     ).toEqual({
-      actionSuffix: 'register',
-      helperText: 'Use this option when you are attending the event.',
-      label: 'Participant option',
-      primaryAction: 'Register',
+      actionSuffix: 'sign up',
+      helperText: 'Use this choice when you are attending the event.',
+      label: 'Attendee choice',
+      primaryAction: 'Sign up',
     });
   });
 
@@ -138,8 +153,8 @@ describe('registrationOptionAudienceCopy', () => {
       }),
     ).toEqual({
       actionSuffix: 'sign up as organizer/helper',
-      helperText: 'Use this option when you are helping run the event.',
-      label: 'Organizer/helper option',
+      helperText: 'Use this choice when you are helping run the event.',
+      label: 'Organizer/helper choice',
       primaryAction: 'Sign up as organizer/helper',
     });
   });
@@ -153,8 +168,8 @@ describe('registrationOptionAudienceCopy', () => {
     ).toEqual({
       actionSuffix: 'apply',
       helperText:
-        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
-      label: 'Manual approval option',
+        'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
+      label: 'Organizer approval required',
       primaryAction: 'Apply for approval',
     });
   });
@@ -168,7 +183,7 @@ describe('registrationOptionAudienceCopy', () => {
     ).toEqual({
       actionSuffix: 'apply as organizer/helper',
       helperText:
-        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
       label: 'Organizer/helper application',
       primaryAction: 'Apply as organizer/helper',
     });
@@ -614,6 +629,7 @@ type WaitlistOptions = ReturnType<
 >;
 const submitRegistration = vi.fn<NonNullable<RegisterOptions['mutationFn']>>();
 const submitWaitlist = vi.fn<NonNullable<WaitlistOptions['mutationFn']>>();
+const checkAuthentication = vi.fn<() => Promise<boolean>>();
 const registrationOptions = (): RegisterOptions => ({
   mutationFn: submitRegistration,
   mutationKey: ['register'],
@@ -623,7 +639,7 @@ const waitlistOptions = (): WaitlistOptions => ({
   mutationKey: ['waitlist'],
 });
 const authenticationOptions = (): AuthenticationOptions => ({
-  queryFn: async () => true,
+  queryFn: checkAuthentication,
   queryKey: [['config', 'isAuthenticated'], { type: 'query' }],
 });
 
@@ -659,6 +675,7 @@ describe('EventRegistrationOptionComponent input limits', () => {
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    checkAuthentication.mockReset().mockResolvedValue(true);
     submitRegistration.mockReset().mockResolvedValue(undefined);
     submitWaitlist.mockReset().mockResolvedValue(undefined);
     queryClient = new QueryClient({
@@ -725,6 +742,62 @@ describe('EventRegistrationOptionComponent input limits', () => {
     });
     return { element, fixture };
   };
+
+  it('keeps answers and guests while checking sign-in again without submitting', async () => {
+    const { element, fixture } = await render(boundedRegistrationOption());
+    const answer = element.querySelector('textarea');
+    const guests = element.querySelector('input[type="number"]');
+    if (!(answer instanceof HTMLTextAreaElement))
+      throw new Error('Expected an answer textarea');
+    if (!(guests instanceof HTMLInputElement))
+      throw new Error('Expected a guest quantity input');
+    answer.value = 'Keep this answer';
+    answer.dispatchEvent(new Event('input', { bubbles: true }));
+    guests.value = '2';
+    guests.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+
+    checkAuthentication.mockRejectedValueOnce(
+      new Error('Sign-in check unavailable'),
+    );
+    await queryClient.refetchQueries({
+      exact: true,
+      queryKey: authenticationOptions().queryKey,
+    });
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(element.textContent?.replaceAll(/\s+/g, ' ')).toContain(
+        'Your sign-up was not sent.',
+      );
+    });
+    const checkAgain = element.querySelector('button');
+    if (!(checkAgain instanceof HTMLButtonElement))
+      throw new Error('Expected a sign-in check button');
+    expect(checkAgain.textContent?.trim()).toBe('Check again');
+    expect(checkAuthentication).toHaveBeenCalledTimes(2);
+    expect(submitRegistration).not.toHaveBeenCalled();
+    expect(submitWaitlist).not.toHaveBeenCalled();
+
+    checkAgain.click();
+    await fixture.whenStable();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(element.querySelector('button')?.textContent?.trim()).toBe(
+        'Sign up',
+      );
+    });
+    const restoredAnswer = element.querySelector('textarea');
+    const restoredGuests = element.querySelector('input[type="number"]');
+    if (!(restoredAnswer instanceof HTMLTextAreaElement))
+      throw new Error('Expected the preserved answer textarea');
+    if (!(restoredGuests instanceof HTMLInputElement))
+      throw new Error('Expected the preserved guest quantity input');
+    expect(restoredAnswer.value).toBe('Keep this answer');
+    expect(restoredGuests.value).toBe('2');
+    expect(checkAuthentication).toHaveBeenCalledTimes(3);
+    expect(submitRegistration).not.toHaveBeenCalled();
+    expect(submitWaitlist).not.toHaveBeenCalled();
+  });
 
   it('caps guests at the shared maximum and remaining capacity before submitting', async () => {
     const option = boundedRegistrationOption({ questions: [] });

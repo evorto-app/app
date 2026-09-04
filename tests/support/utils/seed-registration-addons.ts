@@ -30,7 +30,7 @@ export const seedFreeRegistrationAddon = async ({
     allowPurchaseBeforeEvent: false,
     allowPurchaseDuringEvent: false,
     allowPurchaseDuringRegistration: true,
-    description: 'A free add-on for registration flow coverage.',
+    description: 'Collect a snack voucher at the welcome desk.',
     eventId,
     id: addonId,
     isPaid: false,
@@ -101,7 +101,9 @@ export const seedFreeAddonRegistrationEvent = async ({
   window,
 }: {
   database: TestDatabase;
-  registerDatabaseCleanup: (cleanup: () => Promise<void>) => void;
+  registerDatabaseCleanup: (
+    cleanup: (database: TestDatabase) => Promise<void>,
+  ) => void;
   sourceEventId: string;
   sourceOptionId: string;
   tenantId: string;
@@ -122,9 +124,9 @@ export const seedFreeAddonRegistrationEvent = async ({
   const optionId = getId();
   let ownsEvent = false;
 
-  registerDatabaseCleanup(async () => {
+  registerDatabaseCleanup(async (cleanupDatabase) => {
     if (!ownsEvent) return;
-    await database.transaction(async (transaction) => {
+    await cleanupDatabase.transaction(async (transaction) => {
       const registrations = await transaction
         .select({ id: schema.eventRegistrations.id })
         .from(schema.eventRegistrations)
