@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "380a96dd8acf",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "helpers/testing/runtime-preflight.ts",
+    "src/server/auth/auth-session.spec.ts",
+    "src/server/context/request-context-resolver.spec.ts",
+    "src/server/effect/rpc/handlers/onboarding.handlers.postgres.spec.ts",
+    "src/server/effect/rpc/handlers/onboarding.handlers.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/38/0a96dd8acf/0/metadata.json",
+      "transcript": "/38/0a96dd8acf/0/full.jsonl",
+      "content_hash": "/38/0a96dd8acf/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 124765,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 4967552,
+    "output_tokens": 10211,
+    "api_call_count": 72
+  }
+}
