@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Tenant } from '@types/custom/tenant';
 import { Schema } from 'effect';
+
+import { Tenant } from '../../types/custom/tenant';
 
 const tenantInput = {
   currency: 'EUR',

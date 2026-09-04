@@ -23,8 +23,8 @@ prior Evorto knowledge. Include:
 7. accessible screenshots where they clarify a real decision or result, backed by behavior assertions rather than screenshots alone.
 
 When a complete workflow cannot yet be documented because the product behavior
-does not exist, keep that absence in `APPLICATION_COMPLIANCE_AUDIT.md`; do not
-replace it with aspirational documentation.
+does not exist, record the missing behavior as a visible release blocker; do
+not replace it with aspirational documentation.
 
 ## Fixture Contract
 
@@ -251,8 +251,8 @@ credentials must not be printed or committed.
 - Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default. Use `bun run docker:ps` rather than bare `docker compose ps` when checking a worktree stack because the generated `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Auth0,
-  Stripe, the application session secret, and Font Awesome package
-  registry access for the premium and brand icon packages. It also reports Bun, Docker
+  Stripe, the application session secret, and Font Awesome package registry
+  access for the premium icon package. It also reports Bun, Docker
   Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
   cache status. It lists optional live-provider variables, including
   `E2E_LIVE_ESN_CARD_IDENTIFIER` and

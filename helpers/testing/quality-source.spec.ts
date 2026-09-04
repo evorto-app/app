@@ -72,7 +72,9 @@ describe('quality source', () => {
     expect(source).toContain(
       'Most are now covered by deterministic specs, generated docs, or source guards',
     );
-    expect(source).toContain('in-app Browser manual review queue');
+    expect(source).toMatch(
+      /external\s+verification gates here are the in-app review queue/u,
+    );
     expect(source).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
     expect(source).toContain('E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER');
   });

@@ -409,10 +409,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 The entries below are the areas to keep aligned as stabilization continues.
 Most are now covered by deterministic specs, generated docs, or source guards.
-This inventory is not the release-blocker ledger; use
-`APPLICATION_COMPLIANCE_AUDIT.md` for the complete production-readiness state.
-The external verification gates here are the in-app Browser manual review queue
-and the release-gated live ESNcard provider credential path.
+This inventory supplements the release criteria in `QUALITY.md`. The external
+verification gates here are the in-app review queue and the release-gated live
+ESNcard provider credential path.
 
 - Profile/account:
   - Docker-backed system-Chrome profile edit persistence now passes against the
@@ -738,7 +737,7 @@ and the release-gated live ESNcard provider credential path.
   - Keep app action icons on the Font Awesome component path. Local source
     coverage now fails if app templates or components reintroduce direct
     Material icon elements or `MatIconModule`, preserving the shared
-    premium/brand icon package path.
+    premium icon package path.
   - Keep template-to-event mapper coverage aligned with the event form as richer
     reusable template data is added. Local app coverage now proves event
     defaults, source registration option ids, registration-window offsets, and
