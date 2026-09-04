@@ -604,6 +604,9 @@ either approved identity.
 - distinct `COMPOSE_PROJECT_NAME`
 - distinct local app port and `BASE_URL`
 - distinct local PostgreSQL port
+- distinct local Mailpit port
 - distinct local MinIO ports
 
 Set `APP_HOST_PORT` before running `bun run env:runtime` only when you need a specific callback URL such as `localhost:4200`.
+Set `MAILPIT_HOST_PORT` before that command only when you deliberately need a
+specific local email-inspection port.

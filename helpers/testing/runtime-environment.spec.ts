@@ -14,8 +14,8 @@ describe('runtime environment ports', () => {
       const ports = resolveRuntimePorts(seed, {});
 
       expect(new Set(Object.values(ports)).size, seed).toBe(5);
-      expect(ports.mailpitHostPort, seed).toBeGreaterThanOrEqual(8025);
-      expect(ports.mailpitHostPort, seed).toBeLessThan(8425);
+      expect(ports.mailpitHostPort, seed).toBeGreaterThanOrEqual(10_000);
+      expect(ports.mailpitHostPort, seed).toBeLessThan(50_000);
       expect(ports.minioHostPort, seed).toBeGreaterThanOrEqual(9000);
       expect(ports.minioHostPort, seed).toBeLessThan(9400);
       expect(ports.minioConsoleHostPort, seed).toBeGreaterThanOrEqual(9400);
@@ -23,6 +23,14 @@ describe('runtime environment ports', () => {
       expect(ports.postgresHostPort, seed).toBeGreaterThanOrEqual(55_432);
       expect(ports.postgresHostPort, seed).toBeLessThan(55_832);
     }
+  });
+
+  it('keeps Mailpit distinct for worktree identities that shared the former narrow port slot', () => {
+    // Both identities mapped to port 8058 in the former 400-port range.
+    const first = resolveRuntimePorts('mailpit-worktree-21', {});
+    const second = resolveRuntimePorts('mailpit-worktree-38', {});
+
+    expect(first.mailpitHostPort).not.toBe(second.mailpitHostPort);
   });
 
   it('preserves valid explicit port overrides', () => {

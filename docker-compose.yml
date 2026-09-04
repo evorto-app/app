@@ -8,7 +8,6 @@ services:
       POSTGRES_USER: "${POSTGRES_USER:-evorto}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./ops/local-postgres-init.sql:/docker-entrypoint-initdb.d/10-integration-database.sql:ro
     ports:
       - "${POSTGRES_HOST_PORT:-55432}:5432"
     healthcheck:
@@ -52,7 +51,7 @@ services:
       MP_MAX_MESSAGES: "500"
       MP_SEND_API_AUTH_ACCEPT_ANY: "true"
     ports:
-      - "${MAILPIT_HOST_PORT:-8025}:8025"
+      - "127.0.0.1:${MAILPIT_HOST_PORT:?MAILPIT_HOST_PORT is required}:8025"
     volumes:
       - mailpit-data:/data
 
@@ -184,7 +183,9 @@ services:
       STRIPE_API_KEY:
       WORKER_TRIGGER_MODE: poll
   stripe:
-    image: stripe/stripe-cli:v1.41.1@sha256:f1e91acd11134c1589c13f35b315f648e274a19074d9bfd2c2a5e39552eef620
+    build:
+      context: .
+      dockerfile: helpers/testing/stripe-listener.Dockerfile
     restart: always
     environment:
       STRIPE_API_KEY:
@@ -198,7 +199,6 @@ services:
       retries: 30
       start_period: 5s
     volumes:
-      - ./helpers/testing/stripe-listen-docker.sh:/usr/local/bin/stripe-listen-docker:ro
       - stripe-webhook:/run/stripe-webhook
 
 secrets:

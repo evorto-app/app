@@ -12,26 +12,32 @@ const immutableTaggedImage = /^[^@\s]+:[^@\s]+@sha256:[a-f0-9]{64}$/u;
 
 describe('container image pinning source', () => {
   it('pins every external Dockerfile and Compose image to a manifest digest', () => {
-    const dockerfileStages = new Set<string>();
     const dockerfileImages = [
-      ...source('Dockerfile').matchAll(
-        /^FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?$/gimu,
-      ),
-    ].flatMap((match) => {
-      const imageReference = match[1];
-      const stageName = match[2];
-      const externalImage =
-        imageReference === undefined ||
-        imageReference === 'scratch' ||
-        dockerfileStages.has(imageReference)
-          ? []
-          : [imageReference];
+      'Dockerfile',
+      'helpers/testing/stripe-listener.Dockerfile',
+    ].flatMap((dockerfilePath) => {
+      const dockerfileStages = new Set<string>();
 
-      if (stageName !== undefined) {
-        dockerfileStages.add(stageName);
-      }
+      return [
+        ...source(dockerfilePath).matchAll(
+          /^FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?$/gimu,
+        ),
+      ].flatMap((match) => {
+        const imageReference = match[1];
+        const stageName = match[2];
+        const externalImage =
+          imageReference === undefined ||
+          imageReference === 'scratch' ||
+          dockerfileStages.has(imageReference)
+            ? []
+            : [imageReference];
 
-      return externalImage;
+        if (stageName !== undefined) {
+          dockerfileStages.add(stageName);
+        }
+
+        return externalImage;
+      });
     });
     const composeImages = [
       ...source('docker-compose.yml').matchAll(/^\s+image:\s+(\S+)$/gmu),

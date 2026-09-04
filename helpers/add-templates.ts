@@ -5,6 +5,10 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
+import {
+  requireSeedRoles,
+  requireSeedStripeTaxRates,
+} from './seed-requirements';
 import { getCityTourTemplates } from './templates/city-tour-templates';
 import { getCityTripTemplates } from './templates/city-trip-templates';
 import { getExampleConfigTemplates } from './templates/example-config-templates';
@@ -68,9 +72,7 @@ export const addTemplates = async (
     where: { tenantId },
   });
   consola.info(`Found ${taxRates.length} imported Stripe tax rates`);
-  const vat19 = taxRates.find((r) => r.percentage === '19');
-  const vat7 = taxRates.find((r) => r.percentage === '7');
-  const defaultRate = vat19 ?? vat7 ?? taxRates[0];
+  const { vat7, vat19 } = requireSeedStripeTaxRates(taxRates);
   const hikingCategory = categories.find(
     (category) => category.title === 'Hikes',
   );
@@ -101,10 +103,7 @@ export const addTemplates = async (
     throw new Error('One or more categories not found');
   }
 
-  const defaultUserRoles = roles.filter((role) => role.defaultUserRole);
-  const defaultOrganizerRoles = roles.filter(
-    (role) => role.defaultOrganizerRole,
-  );
+  const { defaultOrganizerRoles, defaultUserRoles } = requireSeedRoles(roles);
 
   const createIconObject = (iconName: string) => {
     const icon = icons.find((index) => index.commonName === iconName);
@@ -259,7 +258,7 @@ export const addTemplates = async (
         registrationMode: 'fcfs' as const,
         roleIds: defaultOrganizerRoles.map((role) => role.id),
         spots: 1,
-        stripeTaxRateId: (vat7 ?? defaultRate)?.stripeTaxRateId ?? null,
+        stripeTaxRateId: vat7.stripeTaxRateId,
         templateId: template.id,
         title: 'Organizer',
       },
@@ -273,7 +272,7 @@ export const addTemplates = async (
         registrationMode: 'fcfs' as const,
         roleIds: defaultUserRoles.map((role) => role.id),
         spots: 20,
-        stripeTaxRateId: (vat19 ?? defaultRate)?.stripeTaxRateId ?? null,
+        stripeTaxRateId: vat19.stripeTaxRateId,
         templateId: template.id,
         title: 'Participant',
       },
@@ -311,7 +310,7 @@ export const addTemplates = async (
       isPaid: true,
       price: 100 * 5,
       seedKey: 'sports' as const,
-      stripeTaxRateId: defaultRate?.stripeTaxRateId ?? null,
+      stripeTaxRateId: vat19.stripeTaxRateId,
       title: 'Equipment rental',
       totalAvailableQuantity: 15,
     },

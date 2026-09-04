@@ -4,7 +4,6 @@ set -uo pipefail
 compose_pid=''
 cleanup_started='false'
 readonly compose_project_name="${COMPOSE_PROJECT_NAME:-}"
-readonly teardown_attempts=2
 readonly teardown_attempt_timeout_seconds=90
 readonly verification_command_timeout_seconds=10
 readonly timeout_termination_grace_seconds=2
@@ -89,36 +88,27 @@ verify_project_removed() {
 }
 
 teardown_compose_project() {
-  local attempt
   local down_status
-  local teardown_status=1
 
-  for ((attempt = 1; attempt <= teardown_attempts; attempt += 1)); do
-    bun "${wall_clock_timeout_script}" \
-      "${teardown_attempt_timeout_seconds}" \
-      "${timeout_termination_grace_seconds}" \
-      docker compose down --timeout 60 --remove-orphans --volumes
-    down_status="$?"
-    if [[ "${down_status}" -ne 0 ]]; then
-      teardown_status="${down_status}"
-      printf 'Docker Compose teardown attempt %s/%s failed (status %s).\n' \
-        "${attempt}" "${teardown_attempts}" "${down_status}" >&2
-      continue
-    fi
+  bun "${wall_clock_timeout_script}" \
+    "${teardown_attempt_timeout_seconds}" \
+    "${timeout_termination_grace_seconds}" \
+    docker compose down --timeout 60 --remove-orphans --volumes
+  down_status="$?"
+  if [[ "${down_status}" -ne 0 ]]; then
+    printf 'Docker Compose teardown failed (status %s).\n' \
+      "${down_status}" >&2
+    return "${down_status}"
+  fi
 
-    verify_project_removed
-    teardown_status="$?"
-    if [[ "${teardown_status}" -eq 0 ]]; then
-      return 0
-    fi
+  verify_project_removed
+  local verification_status="$?"
+  if [[ "${verification_status}" -ne 0 ]]; then
+    printf '%s\n' 'Docker Compose teardown verification failed.' >&2
+    return "${verification_status}"
+  fi
 
-    printf 'Docker Compose teardown verification attempt %s/%s failed.\n' \
-      "${attempt}" "${teardown_attempts}" >&2
-  done
-
-  printf 'Docker Compose teardown failed after %s attempts.\n' \
-    "${teardown_attempts}" >&2
-  return "${teardown_status}"
+  return 0
 }
 
 terminate_compose_process() {

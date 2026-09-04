@@ -13,7 +13,8 @@ const DEFAULT_APP_HOST_PORT = 4200;
 const DEFAULT_POSTGRES_HOST_PORT = 55_432;
 const DEFAULT_MINIO_HOST_PORT = 9000;
 const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9400;
-const DEFAULT_MAILPIT_HOST_PORT = 8025;
+const MAILPIT_HOST_PORT_RANGE_START = 10_000;
+const MAILPIT_HOST_PORT_RANGE_SPAN = 40_000;
 const DEFAULT_PORT_SPAN = 400;
 const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.dev');
 
@@ -94,7 +95,12 @@ export const resolveRuntimePorts = (
     mailpitHostPort: resolvePort(
       environment,
       ['MAILPIT_HOST_PORT'],
-      derivePort(digest, DEFAULT_MAILPIT_HOST_PORT, DEFAULT_PORT_SPAN, 32),
+      derivePort(
+        digest,
+        MAILPIT_HOST_PORT_RANGE_START,
+        MAILPIT_HOST_PORT_RANGE_SPAN,
+        32,
+      ),
     ),
     minioConsoleHostPort: resolvePort(
       environment,

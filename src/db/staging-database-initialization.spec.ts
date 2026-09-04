@@ -11,7 +11,7 @@ describe('staging database initialization', () => {
 
     await expect(
       resolveStagingDatabaseInitializationState({
-        hasStagingTenant: async () => true,
+        hasCompletedSeedMarker: async () => true,
         tableHasRows,
       }),
     ).resolves.toBe('initialized');
@@ -22,7 +22,7 @@ describe('staging database initialization', () => {
     await expect(
       resolveStagingDatabaseInitializationState(
         {
-          hasStagingTenant: async () => false,
+          hasCompletedSeedMarker: async () => false,
           tableHasRows: async () => false,
         },
         ['tenants', 'users'],
@@ -34,7 +34,7 @@ describe('staging database initialization', () => {
     await expect(
       resolveStagingDatabaseInitializationState(
         {
-          hasStagingTenant: async () => false,
+          hasCompletedSeedMarker: async () => false,
           tableHasRows: async (tableName) => tableName === 'users',
         },
         ['tenants', 'users', 'events'],

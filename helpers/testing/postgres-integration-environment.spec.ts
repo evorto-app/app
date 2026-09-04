@@ -1,7 +1,10 @@
 import { inspect } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
-import { resolvePostgresIntegrationEnvironment } from './postgres-integration-environment';
+import {
+  postgresIntegrationChildEnvironment,
+  resolvePostgresIntegrationEnvironment,
+} from './postgres-integration-environment';
 
 const localEnvironment = {
   POSTGRES_INTEGRATION_DATABASE_URL:
@@ -16,6 +19,7 @@ describe('PostgreSQL integration environment', () => {
         environment: localEnvironment,
       }),
     ).resolves.toEqual({
+      databaseName: 'evorto_postgres_integration',
       databaseUrl:
         'postgresql://evorto:secret@localhost:5432/evorto_postgres_integration',
     });
@@ -31,9 +35,25 @@ describe('PostgreSQL integration environment', () => {
         },
       }),
     ).resolves.toEqual({
+      databaseName: 'evorto_postgres_integration',
       databaseUrl:
         'postgresql://evorto:secret@[::1]:5432/evorto_postgres_integration',
     });
+  });
+
+  it('keeps every child command on the validated disposable database', async () => {
+    const integrationEnvironment = await resolvePostgresIntegrationEnvironment({
+      environment: localEnvironment,
+    });
+
+    expect(postgresIntegrationChildEnvironment(integrationEnvironment)).toEqual(
+      {
+        DATABASE_TLS_REQUIRED: 'false',
+        DATABASE_URL:
+          'postgresql://evorto:secret@localhost:5432/evorto_postgres_integration',
+        POSTGRES_DB: 'evorto_postgres_integration',
+      },
+    );
   });
 
   it('does not retain malformed database URL credentials in parse errors', async () => {

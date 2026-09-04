@@ -1,10 +1,11 @@
 const POSTGRES_MAJOR_VERSION = 17;
-const LOCAL_DATABASE_NAME = 'evorto_postgres_integration';
+export const postgresIntegrationDatabaseName = 'evorto_postgres_integration';
 const localHosts = new Set(['127.0.0.1', '::1', 'localhost']);
 const allowedConnectionParameters = new Set(['sslmode']);
 const normalizeHost = (host: string) => host.replace(/^\[(.*)\]$/u, '$1');
 
 export interface PostgresIntegrationEnvironment {
+  readonly databaseName: string;
   readonly databaseUrl: string;
 }
 
@@ -64,9 +65,9 @@ const parseDatabaseUrl = (value: string): URL => {
   const databaseName = decodeURIComponent(
     databaseUrl.pathname.replace(/^\/+/, ''),
   );
-  if (databaseName !== LOCAL_DATABASE_NAME) {
+  if (databaseName !== postgresIntegrationDatabaseName) {
     throw new Error(
-      `Local PostgreSQL integration tests require database ${LOCAL_DATABASE_NAME}`,
+      `Local PostgreSQL integration tests require database ${postgresIntegrationDatabaseName}`,
     );
   }
 
@@ -86,7 +87,18 @@ export const resolvePostgresIntegrationEnvironment = async ({
   const databaseUrl = parseDatabaseUrl(
     requiredValue(environment, 'POSTGRES_INTEGRATION_DATABASE_URL'),
   );
-  return { databaseUrl: databaseUrl.toString() };
+  return {
+    databaseName: decodeURIComponent(databaseUrl.pathname.replace(/^\/+/, '')),
+    databaseUrl: databaseUrl.toString(),
+  };
 };
+
+export const postgresIntegrationChildEnvironment = (
+  environment: PostgresIntegrationEnvironment,
+): Readonly<Record<string, string>> => ({
+  DATABASE_TLS_REQUIRED: 'false',
+  DATABASE_URL: environment.databaseUrl,
+  POSTGRES_DB: environment.databaseName,
+});
 
 export const requiredPostgresMajorVersion = POSTGRES_MAJOR_VERSION;

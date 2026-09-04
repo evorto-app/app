@@ -195,27 +195,26 @@ describe('evaluateRuntimePreflight', () => {
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker',
     );
     expect(packageJson.scripts['docker:ps']).toBe(
-      'bun run env:runtime && dotenv -c dev -- docker compose ps',
+      'bun run env:runtime && dotenv -c dev -- bash helpers/testing/docker-stack.sh status',
     );
     expect(packageJson.scripts['docker:stop']).toBe(
-      'bun run env:runtime && dotenv -c dev -- docker compose down --timeout 60 --remove-orphans',
+      'bun run env:runtime && dotenv -c dev -- bash helpers/testing/with-docker-project-lease.sh docker-stop -- bash helpers/testing/docker-stack.sh stop',
     );
-
-    for (const scriptName of [
-      'docker:start',
-      'docker:start:watch',
-      'docker:start:foreground',
-    ]) {
-      expect(packageJson.scripts[scriptName]).toMatch(
-        /^bun run docker:check && dotenv -c dev -- docker compose down --timeout 60 --remove-orphans && /,
-      );
-    }
+    expect(packageJson.scripts['docker:start']).toBe(
+      "bun run env:runtime && dotenv -c dev -- bash helpers/testing/with-docker-project-lease.sh docker-start -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && bash helpers/testing/docker-stack.sh start'",
+    );
+    expect(packageJson.scripts['docker:start:watch']).toBe(
+      "bun run env:runtime && dotenv -c dev -- bash helpers/testing/with-docker-project-lease.sh docker-start-watch -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && bash helpers/testing/docker-stack.sh start-watch'",
+    );
+    expect(packageJson.scripts['docker:start:foreground']).toBe(
+      "bun run env:runtime && dotenv -c dev -- bash helpers/testing/with-docker-project-lease.sh docker-start-foreground -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && bash helpers/testing/docker-stack.sh start-foreground'",
+    );
 
     expect(packageJson.scripts['docker:resume']).toBe(
-      'bun run docker:check && dotenv -c dev -- bash helpers/testing/docker-resume.sh',
+      "bun run env:runtime && dotenv -c dev -- bash helpers/testing/with-docker-project-lease.sh docker-resume -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && bash helpers/testing/docker-resume.sh'",
     );
     expect(packageJson.scripts['docker:webserver']).toBe(
-      'bun run docker:check && dotenv -c dev -- bash helpers/testing/docker-webserver.sh',
+      "bun run env:runtime && dotenv -c dev -- bash helpers/testing/with-docker-project-lease.sh docker-webserver -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && bash helpers/testing/docker-webserver.sh'",
     );
     expect(packageJson.scripts['test:e2e:check']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts playwright',
@@ -510,6 +509,10 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(mailpitService).toContain('axllent/mailpit:v1.28.2@sha256:');
     expect(mailpitService).toContain('MAILPIT_HOST_PORT');
+    expect(mailpitService).toContain(
+      '"127.0.0.1:${MAILPIT_HOST_PORT:?MAILPIT_HOST_PORT is required}:8025"',
+    );
+    expect(mailpitService).not.toContain('MAILPIT_HOST_PORT:-');
     expect(mailpitService).toContain('mailpit-data:/data');
     expect(workerService).toContain('APP_ROLE: worker');
     expect(workerService).toContain('WORKER_TRIGGER_MODE: poll');
@@ -520,7 +523,7 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(stripeService).toContain('STRIPE_API_KEY:');
     expect(stripeService).toContain(
-      './helpers/testing/stripe-listen-docker.sh',
+      'dockerfile: helpers/testing/stripe-listener.Dockerfile',
     );
     expect(stripeService).toContain(
       'test: ["CMD-SHELL", "test -s /run/stripe-webhook/signing-secret"]',
@@ -546,6 +549,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(runtimeEnvironment).toContain('DEFAULT_E2E_SEED_KEY');
     expect(runtimeEnvironment).toContain('E2E_NOW_ISO: e2eNowIso');
     expect(runtimeEnvironment).toContain('E2E_SEED_KEY: e2eSeedKey');
+    expect(runtimeEnvironment).toContain(
+      'MAILPIT_HOST_PORT: String(mailpitHostPort)',
+    );
     expect(runtimeEnvironment).toContain("NODE_ENV: 'development'");
     expect(runtimeEnvironment).toContain('SSR_RPC_ORIGIN: baseUrl');
 

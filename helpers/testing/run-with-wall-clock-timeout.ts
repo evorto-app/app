@@ -43,6 +43,11 @@ const isNoSuchProcessError = (
 ): error is Error & { code: 'ESRCH' } =>
   error instanceof Error && 'code' in error && error.code === 'ESRCH';
 
+const isPermissionDeniedError = (
+  error: unknown,
+): error is Error & { code: 'EPERM' } =>
+  error instanceof Error && 'code' in error && error.code === 'EPERM';
+
 const signalProcessGroup = (signal: NodeJS.Signals): void => {
   try {
     process.kill(-subprocess.pid, signal);
@@ -66,6 +71,16 @@ const scheduleForceKill = (): void => {
       }
     }, terminationGraceSeconds * 1000);
   });
+};
+
+const cancelForceKill = (): void => {
+  if (forceKillTimer === undefined) return;
+
+  clearTimeout(forceKillTimer);
+  forceKillTimer = undefined;
+  const resolve = resolveForceKill;
+  resolveForceKill = undefined;
+  resolve?.();
 };
 
 const forwardSignal = (signal: NodeJS.Signals, exitCode: number): void => {
@@ -99,11 +114,15 @@ if (forceKillTimer !== undefined) {
   try {
     process.kill(-subprocess.pid, 0);
   } catch (error) {
-    if (!isNoSuchProcessError(error)) throw error;
-    clearTimeout(forceKillTimer);
-    forceKillTimer = undefined;
-    const resolve = resolveForceKill;
-    resolve?.();
+    const permissionDenied = isPermissionDeniedError(error);
+    if (!isNoSuchProcessError(error) && !permissionDenied) throw error;
+
+    cancelForceKill();
+    if (permissionDenied) {
+      process.stderr.write(
+        `Could not verify command process group ${subprocess.pid} cleanup after its leader exited: permission denied.\n`,
+      );
+    }
   }
 }
 if (forceKillPromise !== undefined) await forceKillPromise;

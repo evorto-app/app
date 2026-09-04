@@ -20,6 +20,33 @@ const wallClockTimeoutScript = path.join(
 const temporaryDirectories: string[] = [];
 const childProcesses: ChildProcess[] = [];
 
+const createPermissionDeniedProbePreload = () => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'evorto-wall-clock-timeout-'),
+  );
+  temporaryDirectories.push(directory);
+  const preloadPath = path.join(directory, 'permission-denied-probe.mjs');
+
+  fs.writeFileSync(
+    preloadPath,
+    String.raw`const originalKill = process.kill.bind(process);
+
+process.kill = (pid, signal) => {
+  if (pid < 0 && signal === 0) {
+    const error = new Error('Synthetic process-group probe permission denial');
+    error.name = 'SystemError';
+    error.code = 'EPERM';
+    throw error;
+  }
+
+  return originalKill(pid, signal);
+};
+`,
+  );
+
+  return { directory, preloadPath };
+};
+
 const createFakeDocker = ({
   downFailures = 0,
   downStatus = 1,
@@ -69,6 +96,9 @@ fi
 printf '%s\n' "$*" >> "$DOCKER_LOG"
 if [[ "$1" == 'compose' && "$2" == 'ps' && "$3" == '--all' && "$4" == '-q' ]]; then
   service="$5"
+  if [[ "$service" == "$FAKE_PS_FAILURE_SERVICE" ]]; then
+    exit "$FAKE_PS_FAILURE_STATUS"
+  fi
   if [[ "$service" != "$FAKE_MISSING_SERVICE" ]]; then
     printf '%s-container\n' "$service"
   fi
@@ -173,6 +203,8 @@ exit 0
       FAKE_FAILED_SETUP_SERVICE: '',
       FAKE_MISSING_HEALTHCHECK_SERVICE: '',
       FAKE_MISSING_SERVICE: '',
+      FAKE_PS_FAILURE_SERVICE: '',
+      FAKE_PS_FAILURE_STATUS: '1',
       FAKE_REMAINING_CONTAINER_CHECKS: String(remainingContainerChecks),
       FAKE_REMAINING_NETWORK_CHECKS: String(remainingNetworkChecks),
       FAKE_REMAINING_VOLUME_CHECKS: String(remainingVolumeChecks),
@@ -291,6 +323,84 @@ describe('Docker Compose lifecycle wrappers', () => {
     expect(result.stderr).toBe('');
   });
 
+  it.each([
+    { exitCode: 130, signal: 'SIGINT' as const },
+    { exitCode: 143, signal: 'SIGTERM' as const },
+  ])(
+    'preserves exit code $exitCode when the post-$signal group probe is denied',
+    async ({ exitCode, signal }) => {
+      const { directory, preloadPath } = createPermissionDeniedProbePreload();
+      const readyPath = path.join(directory, 'ready');
+      const stderrChunks: Buffer[] = [];
+      const child = spawn(
+        'bun',
+        [
+          '--preload',
+          preloadPath,
+          wallClockTimeoutScript,
+          '0',
+          '2',
+          'bash',
+          '-c',
+          String.raw`trap 'exit 0' INT TERM
+printf 'ready\n' > "$1"
+while true; do sleep 0.05; done`,
+          'signal-child',
+          readyPath,
+        ],
+        { stdio: ['ignore', 'ignore', 'pipe'] },
+      );
+      childProcesses.push(child);
+      child.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+
+      await waitForFileContents(readyPath);
+      const exitPromise = new Promise<{
+        code: null | number;
+        signal: NodeJS.Signals | null;
+      }>((resolve) => {
+        child.once('exit', (code, childSignal) =>
+          resolve({ code, signal: childSignal }),
+        );
+      });
+
+      expect(child.kill(signal)).toBe(true);
+      const exit = await exitPromise;
+      const stderr = Buffer.concat(stderrChunks).toString('utf8');
+
+      expect(exit).toEqual({ code: exitCode, signal: null });
+      expect(stderr).toContain('Could not verify command process group');
+      expect(stderr).toContain(
+        'cleanup after its leader exited: permission denied.',
+      );
+      expect(stderr).not.toContain('SystemError');
+    },
+  );
+
+  it('preserves timeout status when the post-timeout group probe is denied', () => {
+    const { preloadPath } = createPermissionDeniedProbePreload();
+    const result = spawnSync(
+      'bun',
+      [
+        '--preload',
+        preloadPath,
+        wallClockTimeoutScript,
+        '1',
+        '2',
+        'bash',
+        '-c',
+        "trap 'exit 0' TERM; while :; do sleep 0.05; done",
+      ],
+      { encoding: 'utf8', timeout: 5000 },
+    );
+
+    expect(result.status).toBe(124);
+    expect(result.stderr).toContain('Could not verify command process group');
+    expect(result.stderr).toContain(
+      'Command exceeded its 1-second wall-clock timeout',
+    );
+    expect(result.stderr).not.toContain('SystemError');
+  });
+
   it('ignores obsolete branch variables when resuming plain PostgreSQL', () => {
     const { environment, logPath } = createFakeDocker();
     const result = spawnSync('bash', [resumeScript], {
@@ -368,6 +478,25 @@ describe('Docker Compose lifecycle wrappers', () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('no existing stripe container');
+    expect(fs.readFileSync(logPath, 'utf8')).not.toContain('start ');
+  });
+
+  it('surfaces a bounded Docker inspection failure during resume', () => {
+    const { environment, logPath } = createFakeDocker();
+    const result = spawnSync('bash', [resumeScript], {
+      encoding: 'utf8',
+      env: {
+        ...environment,
+        FAKE_PS_FAILURE_SERVICE: 'minio',
+        FAKE_PS_FAILURE_STATUS: '124',
+      },
+    });
+
+    expect(result.status).toBe(124);
+    expect(result.stderr).toContain(
+      'Docker inspection for existing minio container exceeded its 10-second wall-clock limit.',
+    );
+    expect(result.stderr).toContain('Current Docker Compose state:');
     expect(fs.readFileSync(logPath, 'utf8')).not.toContain('start ');
   });
 
@@ -554,7 +683,7 @@ describe('Docker Compose lifecycle wrappers', () => {
     ]);
   });
 
-  it('retries a failed teardown and preserves the Playwright signal status after recovery', async () => {
+  it('surfaces a failed teardown without retrying', async () => {
     const { environment, logPath } = createFakeDocker({
       downFailures: 1,
       downStatus: 19,
@@ -579,21 +708,17 @@ describe('Docker Compose lifecycle wrappers', () => {
     child.kill('SIGTERM');
     const exit = await exitPromise;
 
-    expect(exit).toEqual({ code: 143, signal: null });
+    expect(exit).toEqual({ code: 19, signal: null });
     expect(fs.readFileSync(logPath, 'utf8').trim().split('\n')).toEqual([
       'compose ps --all -q db',
       'compose build',
       'compose up --no-build --abort-on-container-failure',
       'compose up terminated',
       'compose down --timeout 60 --remove-orphans --volumes',
-      'compose down --timeout 60 --remove-orphans --volumes',
-      'ps --all --quiet --filter label=com.docker.compose.project=evorto-test-project',
-      'network ls --quiet --filter label=com.docker.compose.project=evorto-test-project',
-      'volume ls --quiet --filter label=com.docker.compose.project=evorto-test-project',
     ]);
   });
 
-  it('retries when verification finds a project volume and succeeds only after it is gone', async () => {
+  it('surfaces incomplete teardown without retrying', async () => {
     const { environment, logPath } = createFakeDocker({
       remainingVolumeChecks: 1,
       upBehavior: 'wait',
@@ -617,88 +742,13 @@ describe('Docker Compose lifecycle wrappers', () => {
     child.kill('SIGTERM');
     const exit = await exitPromise;
 
-    expect(exit).toEqual({ code: 143, signal: null });
+    expect(exit).toEqual({ code: 1, signal: null });
     const log = fs.readFileSync(logPath, 'utf8');
     expect(
       log.match(/compose down --timeout 60 --remove-orphans --volumes/gu),
-    ).toHaveLength(2);
-    expect(log.match(/network ls --quiet/gu)).toHaveLength(2);
-    expect(log.match(/volume ls --quiet/gu)).toHaveLength(2);
-  });
-
-  it('returns the teardown failure instead of masking it with the Playwright signal status', async () => {
-    const { environment, logPath } = createFakeDocker({
-      downFailures: 2,
-      downStatus: 19,
-      upBehavior: 'wait',
-    });
-    const child = spawn('bash', [webserverScript], {
-      env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
-      stdio: 'pipe',
-    });
-    childProcesses.push(child);
-    const stderrChunks: Buffer[] = [];
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-    });
-
-    await waitForText(
-      logPath,
-      'compose up --no-build --abort-on-container-failure',
-    );
-    const exitPromise = new Promise<{
-      code: null | number;
-      signal: NodeJS.Signals | null;
-    }>((resolve) => {
-      child.once('exit', (code, signal) => resolve({ code, signal }));
-    });
-    child.kill('SIGTERM');
-    const exit = await exitPromise;
-
-    expect(exit).toEqual({ code: 19, signal: null });
-    expect(
-      fs.readFileSync(logPath, 'utf8').match(/compose down/gu),
-    ).toHaveLength(2);
-    expect(Buffer.concat(stderrChunks).toString('utf8')).toContain(
-      'Docker Compose teardown failed after 2 attempts',
-    );
-  });
-
-  it('fails teardown when a project volume remains after both cleanup attempts', async () => {
-    const { environment, logPath } = createFakeDocker({
-      remainingVolumeChecks: 2,
-      upBehavior: 'wait',
-    });
-    const child = spawn('bash', [webserverScript], {
-      env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
-      stdio: 'pipe',
-    });
-    childProcesses.push(child);
-    const stderrChunks: Buffer[] = [];
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-    });
-
-    await waitForText(
-      logPath,
-      'compose up --no-build --abort-on-container-failure',
-    );
-    const exitPromise = new Promise<{
-      code: null | number;
-      signal: NodeJS.Signals | null;
-    }>((resolve) => {
-      child.once('exit', (code, signal) => resolve({ code, signal }));
-    });
-    child.kill('SIGTERM');
-    const exit = await exitPromise;
-
-    expect(exit).toEqual({ code: 1, signal: null });
-    expect(
-      fs.readFileSync(logPath, 'utf8').match(/compose down/gu),
-    ).toHaveLength(2);
-    expect(Buffer.concat(stderrChunks).toString('utf8')).toContain(
-      'Docker Compose teardown left project containers, networks, or volumes behind',
-    );
+    ).toHaveLength(1);
+    expect(log.match(/network ls --quiet/gu)).toHaveLength(1);
+    expect(log.match(/volume ls --quiet/gu)).toHaveLength(1);
   });
 
   it('preserves the fail-fast Compose exit status when verified cleanup succeeds', () => {

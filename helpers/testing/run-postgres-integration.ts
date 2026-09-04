@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 
 import { createNodePgPoolConfig } from '../../src/db/pg-connection-config';
 import {
+  postgresIntegrationChildEnvironment,
   requiredPostgresMajorVersion,
   resolvePostgresIntegrationEnvironment,
 } from './postgres-integration-environment';
@@ -52,7 +53,8 @@ try {
 await resetPublicSchema(integrationEnvironment);
 
 const childEnvironment = {
-  DATABASE_URL: integrationEnvironment.databaseUrl,
+  ...postgresIntegrationChildEnvironment(integrationEnvironment),
+  LOCAL_DATABASE: 'true',
 };
 await runCommand(
   ['bunx', '--bun', 'drizzle-kit', 'push', '--force'],
