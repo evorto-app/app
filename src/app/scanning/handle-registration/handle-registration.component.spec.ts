@@ -10,9 +10,34 @@ import {
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
   scanGuestCheckInCountFromInput,
+  scannerRegistrationErrorMessage,
   scanRegistrationStatusIssueCopy,
   scanSpotCountLabel,
 } from './handle-registration.component';
+
+describe('scanner registration error messages', () => {
+  it('shows check-in and registration outcomes without exposing internal failures', () => {
+    const fallback = 'Check-in could not be completed. Try again.';
+    expect(
+      scannerRegistrationErrorMessage(
+        {
+          _tag: 'EventCheckInUnavailableError',
+          message: 'Check-in opens one hour before this event starts.',
+        },
+        fallback,
+      ),
+    ).toBe('Check-in opens one hour before this event starts.');
+    expect(
+      scannerRegistrationErrorMessage(
+        {
+          _tag: 'EventRegistrationInternalError',
+          message: 'database failed',
+        },
+        fallback,
+      ),
+    ).toBe(fallback);
+  });
+});
 
 describe('registration add-on fulfillment copy', () => {
   it('explains every cancellation block without exposing an unusable action', () => {

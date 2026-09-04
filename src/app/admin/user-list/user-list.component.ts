@@ -130,7 +130,11 @@ export class UserListComponent {
       this.notifications.showSuccess('User roles updated');
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to update user roles'),
+        getErrorMessage(
+          error,
+          'The member roles could not be updated. Try again.',
+          ['UserRoleAssignmentNotFoundError', 'UserSelfRoleRemovalError'],
+        ),
       );
     }
   }

@@ -51,8 +51,8 @@ Start from the normal application navigation: select **Admin Tools**, then **Gen
 ## Search and review the location
 
 1. In **Location**, type a recognizable place name plus its city or country. More context reduces ambiguous results.
-2. Wait for the Google Places suggestions. An empty-result message means the search found no candidates; broaden or correct the wording. If Google Maps is temporarily unavailable, use **Retry location search**. If location search is not configured, contact the site administrator.
-3. Select the intended suggestion. Evorto then loads that place's details. If that second request fails, use **Retry location details** or choose another result. The dialog closes only after Evorto has a complete location with valid coordinates.
+2. Wait for the Google Places suggestions. An empty-result message means the search found no candidates; broaden or correct the wording. If Google Maps is temporarily unavailable, use **Try location search again**. If location search is unavailable, contact Evorto support.
+3. Select the intended suggestion. Evorto then loads that place's details. If that second request fails, use **Try this location again** or choose another result. The dialog closes only after Evorto has a complete location with valid coordinates.
 
 For example, search for **Brandenburg Gate Berlin Germany**.
 `,

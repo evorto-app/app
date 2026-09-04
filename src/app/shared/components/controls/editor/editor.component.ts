@@ -20,7 +20,6 @@ import { MatSelectModule } from '@angular/material/select';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faEdit } from '@fortawesome/duotone-regular-svg-icons';
 import { Editor } from '@tiptap/core';
-import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
@@ -199,7 +198,7 @@ export class EditorComponent implements OnDestroy {
         attributes: {
           class:
             'ProseMirror prose prose-sm max-w-none min-h-[200px] outline-none',
-          'data-placeholder': 'Start writing...',
+          'data-placeholder': 'Start writing…',
           'data-testid': 'rich-editor-content',
         },
       },
@@ -214,7 +213,6 @@ export class EditorComponent implements OnDestroy {
           defaultProtocol: 'https',
           openOnClick: false,
         }),
-        Image,
         TableKit.configure({
           table: { resizable: true },
         }),
@@ -282,7 +280,10 @@ export class EditorComponent implements OnDestroy {
     }
 
     const previousUrl = this.editor.getAttributes('link')['href'];
-    const nextUrl = globalThis.prompt('Enter URL', previousUrl || 'https://');
+    const nextUrl = globalThis.prompt(
+      'Paste or enter a link',
+      previousUrl || 'https://',
+    );
 
     if (nextUrl === null) {
       return;

@@ -132,11 +132,11 @@ describe('globalAdminTenantListErrorMessage', () => {
       globalAdminTenantListErrorMessage({
         _tag: 'RpcForbiddenError',
       }),
-    ).toBe('Forbidden');
+    ).toBe('Failed to load organizations');
     expect(
       globalAdminTenantListErrorMessage({
         message: 'Global admin permission is required',
       }),
-    ).toBe('Global admin permission is required');
+    ).toBe('Failed to load organizations');
   });
 });

@@ -60,7 +60,9 @@ export const templateCategoryMutationErrorMessage = (
     return 'You no longer have permission to manage template categories. Reload the page to refresh your access, or ask an administrator for this permission.';
   }
 
-  return getErrorMessage(error, 'Template category could not be saved');
+  return getErrorMessage(error, 'Template category could not be saved', [
+    'TemplateCategoryNotFoundError',
+  ]);
 };
 
 @Component({

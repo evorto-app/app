@@ -117,7 +117,9 @@ export class TenantEditComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to update organization'),
+            getErrorMessage(error, 'Failed to update organization', [
+              'RpcBadRequestError',
+            ]),
           );
           return null;
         }

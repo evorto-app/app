@@ -28,6 +28,7 @@ import {
   withRouterConfig,
   withViewTransitions,
 } from '@angular/router';
+import { IS_DISCOVERING_ROUTES } from '@angular/ssr';
 import {
   provideEffectHttpClient,
   provideEffectRpcProtocolHttpLayer,
@@ -46,6 +47,14 @@ import {
   tenantCurrencyCode,
   tenantDatePipeTimezone,
 } from './core/tenant-runtime';
+
+export const initializeApplicationConfig = async (): Promise<void> => {
+  if (inject(IS_DISCOVERING_ROUTES)) {
+    return;
+  }
+
+  await inject(ConfigService).initialize();
+};
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -92,10 +101,7 @@ export const appConfig: ApplicationConfig = {
       provide: ErrorHandler,
       useClass: BrowserErrorHandler,
     },
-    provideAppInitializer(async () => {
-      const config = inject(ConfigService);
-      await config.initialize();
-    }),
+    provideAppInitializer(initializeApplicationConfig),
     {
       deps: [ConfigService],
       provide: DEFAULT_CURRENCY_CODE,

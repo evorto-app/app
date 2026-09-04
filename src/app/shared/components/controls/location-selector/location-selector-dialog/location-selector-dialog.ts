@@ -69,6 +69,10 @@ type PlaceDetailsOutcome =
 type PlaceSelectionState =
   | {
       readonly failure: LocationProviderError;
+      readonly status: 'invalid-result';
+    }
+  | {
+      readonly failure: LocationProviderError;
       readonly status: 'provider-error';
     }
   | { readonly status: 'idle' }
@@ -155,7 +159,12 @@ export class LocationSelectorDialog {
   async selectOption(event: MatAutocompleteSelectedEvent): Promise<void> {
     const value: unknown = event.option.value;
     if (!isLocationSuggestion(value)) {
-      consola.warn('Ignoring an invalid location search result');
+      const failure = new LocationProviderError({
+        cause: new TypeError('Location search returned an invalid selection'),
+        operation: 'placeDetails',
+      });
+      consola.error('Location search returned an invalid selection', failure);
+      this.selectionState.set({ failure, status: 'invalid-result' });
       return;
     }
 

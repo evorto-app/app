@@ -300,7 +300,13 @@ export class ReceiptApprovalDetailComponent {
       }
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to review receipt'),
+        getErrorMessage(error, 'Failed to review receipt', [
+          'RpcBadRequestError',
+          'FinanceReceiptNotFoundError',
+          'FinanceResourceNotFoundError',
+          'ReceiptMediaBadRequestError',
+          'ReceiptMediaServiceUnavailableError',
+        ]),
       );
     }
   }

@@ -184,7 +184,9 @@ export class PlatformTenantUsersComponent {
         this.cancelAssignment();
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update user roles'),
+          getErrorMessage(error, 'Failed to update user roles', [
+            'RpcBadRequestError',
+          ]),
         );
       }
     });

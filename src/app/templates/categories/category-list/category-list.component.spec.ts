@@ -67,6 +67,7 @@ describe('template category permission presentation', () => {
   it('preserves actionable non-permission mutation messages', () => {
     expect(
       templateCategoryMutationErrorMessage({
+        _tag: 'TemplateCategoryNotFoundError',
         message: 'Category not found',
       }),
     ).toBe('Category not found');

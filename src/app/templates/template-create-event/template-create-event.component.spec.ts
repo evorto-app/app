@@ -103,14 +103,23 @@ describe('templateAddOnCopyNotice', () => {
 });
 
 describe('templateCreateEventErrorMessage', () => {
-  it('preserves actionable failures and falls back for unknown errors', () => {
+  it('preserves a typed event validation reason', () => {
+    expect(
+      templateCreateEventErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Registration option does not belong to the selected template',
+      }),
+    ).toBe('Registration option does not belong to the selected template');
+  });
+
+  it('uses a safe fallback for unrecognized failures', () => {
     expect(
       templateCreateEventErrorMessage(
         new Error(
           'Registration option does not belong to the selected template',
         ),
       ),
-    ).toBe('Registration option does not belong to the selected template');
+    ).toBe('The event could not be created. Review the form and try again.');
     expect(templateCreateEventErrorMessage({})).toBe(
       'The event could not be created. Review the form and try again.',
     );
@@ -279,7 +288,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
     const alert = root.querySelector<HTMLElement>('[role="alert"]');
     expect(alert?.textContent).toContain('Event could not be created');
     expect(alert?.textContent).toContain(
-      'Registration option does not belong to the selected template',
+      'The event could not be created. Review the form and try again.',
     );
     expect(alert?.textContent).toContain('Your entries are still here.');
     expect(alert?.textContent).toContain(

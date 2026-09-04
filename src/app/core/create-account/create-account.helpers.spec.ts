@@ -253,13 +253,13 @@ describe('isAuthEmailVerifiedForAccountCreation', () => {
 });
 
 describe('createAccountErrorMessage', () => {
-  it('uses the domain error message when account creation fails', () => {
+  it('does not expose an unapproved domain error message', () => {
     expect(
       createAccountErrorMessage({
         _tag: 'TenantOnboardingRequirementsChangedError',
         message: 'Requirements changed; review and submit again',
       }),
-    ).toBe('Requirements changed; review and submit again');
+    ).toBe('Failed to complete organization setup');
   });
 
   it('falls back to account creation copy for unknown failures', () => {

@@ -280,7 +280,9 @@ describe('CreateAccountComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(completeOnboarding).toHaveBeenCalledOnce();
-      expect(normalizeText(fixture)).toContain('Temporary connection problem');
+      expect(normalizeText(fixture)).toContain(
+        'Failed to complete organization setup',
+      );
     });
 
     const retainedAnswer: HTMLInputElement | null =

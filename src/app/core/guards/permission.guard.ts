@@ -32,7 +32,9 @@ export const permissionGuard: CanActivateFn = (route, state) => {
   }
   if (permissions.length === 0 && anyPermissions.length === 0) {
     logger.warn('No permissions data');
-    return true;
+    return router.createUrlTree(['/403'], {
+      queryParams: { originalPath: state.url },
+    });
   }
   const hasPermission =
     (permissions.length === 0 ||

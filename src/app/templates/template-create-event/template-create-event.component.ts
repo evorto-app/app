@@ -97,6 +97,7 @@ export const templateCreateEventErrorMessage = (error: unknown): string =>
   getErrorMessage(
     error,
     'The event could not be created. Review the form and try again.',
+    ['RpcBadRequestError'],
   );
 
 @Component({

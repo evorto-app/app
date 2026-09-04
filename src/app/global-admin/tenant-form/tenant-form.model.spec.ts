@@ -197,6 +197,15 @@ describe('global admin tenant form model', () => {
     ).toThrow('Domain must be a single host name');
   });
 
+  it('preserves a typed organization validation reason', () => {
+    expect(
+      globalAdminTenantUpdateErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Organization domain already exists',
+      }),
+    ).toBe('Organization domain already exists');
+  });
+
   it('shows the actionable reason for typed public URL migration blockers', () => {
     expect(
       globalAdminTenantUpdateErrorMessage({
@@ -210,7 +219,7 @@ describe('global admin tenant form model', () => {
         tenantId: 'tenant-1',
       }),
     ).toBe(
-      "Organization public URL cannot change while issued links are active. Complete or cancel every active registration transfer before changing the organization's public URL.",
+      "Failed to update organization. Complete or cancel every active registration transfer before changing the organization's public URL.",
     );
   });
 

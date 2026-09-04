@@ -78,7 +78,9 @@ export const normalizeGlobalAdminTenantDomain = (value: string): string =>
   normalizeTenantDomain(value);
 
 export const globalAdminTenantUpdateErrorMessage = (error: unknown): string => {
-  const message = getErrorMessage(error, 'Failed to update organization');
+  const message = getErrorMessage(error, 'Failed to update organization', [
+    'RpcBadRequestError',
+  ]);
   if (
     !error ||
     typeof error !== 'object' ||

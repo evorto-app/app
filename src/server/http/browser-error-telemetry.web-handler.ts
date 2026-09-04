@@ -1,8 +1,7 @@
 import { Effect, Schema } from 'effect';
 
+import { MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES } from '../../shared/browser-error-telemetry';
 import { readRequestBody } from './request-body';
-
-export const MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES = 8 * 1024;
 
 const maxEventsPerWindow = 10;
 const rateLimitWindowMs = 60_000;
@@ -12,6 +11,13 @@ const noStoreHeaders = { 'Cache-Control': 'no-store' };
 interface BrowserErrorTelemetryHandlerOptions {
   log: (payload: BrowserErrorPayload) => Effect.Effect<void>;
   now?: () => number;
+}
+
+interface BrowserErrorTelemetryHostState {
+  eventCount: number;
+  readonly fingerprints: Map<string, number>;
+  lastSeenAt: number;
+  windowStartedAt: number;
 }
 
 class BrowserErrorPayload extends Schema.Class<BrowserErrorPayload>(
@@ -26,6 +32,10 @@ class BrowserErrorPayload extends Schema.Class<BrowserErrorPayload>(
 const redactPatterns = (value: string): string =>
   value
     .replaceAll(/(bearer\s+)[a-z0-9._~+/=-]+/giu, '$1[REDACTED]')
+    .replaceAll(
+      /\b(?:[0-9a-f]{4}-){7}[0-9a-f]{4}\b/giu,
+      '[REDACTED_CLAIM_CODE]',
+    )
     .replaceAll(
       /\b[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}\b/giu,
       '[REDACTED_TOKEN]',
@@ -69,7 +79,7 @@ export const sanitizeBrowserErrorPayload = (
   });
 
 const stableFingerprint = (payload: BrowserErrorPayload): string => {
-  const value = `${payload.name}\u{0}${payload.message}\u{0}${payload.stack ?? ''}`;
+  const value = `${payload.name}\u{0}${payload.message}\u{0}${payload.stack ?? ''}\u{0}${payload.url ?? ''}`;
   let hash = 2_166_136_261;
   for (const character of value) {
     hash ^= character.codePointAt(0) ?? 0;
@@ -78,22 +88,21 @@ const stableFingerprint = (payload: BrowserErrorPayload): string => {
   return (hash >>> 0).toString(16);
 };
 
-const hasTrustedOrigin = (request: Request): boolean => {
+const resolveTrustedHost = (request: Request): string | undefined => {
   const originValue = request.headers.get('origin');
   if (!originValue) {
-    return false;
+    return;
   }
 
   try {
     const origin = new URL(originValue);
     const requestUrl = new URL(request.url);
-    const requestHost = request.headers.get('host') ?? requestUrl.host;
-    const requestProtocol = requestUrl.protocol.replace(/:$/u, '');
-    return (
-      origin.host === requestHost && origin.protocol === `${requestProtocol}:`
-    );
+    if (origin.origin !== requestUrl.origin) {
+      return;
+    }
+    return requestUrl.host.toLowerCase();
   } catch {
-    return false;
+    return;
   }
 };
 
@@ -109,12 +118,11 @@ export const makeBrowserErrorTelemetryHandler = ({
   log,
   now = Date.now,
 }: BrowserErrorTelemetryHandlerOptions) => {
-  let eventCount = 0;
-  let windowStartedAt = 0;
-  const fingerprints = new Map<string, number>();
+  const hostStates = new Map<string, BrowserErrorTelemetryHostState>();
 
   return Effect.fn('handleBrowserErrorTelemetry')(function* (request: Request) {
-    if (!hasTrustedOrigin(request)) {
+    const trustedHost = resolveTrustedHost(request);
+    if (!trustedHost) {
       return new Response(null, { headers: noStoreHeaders, status: 403 });
     }
     if (
@@ -147,24 +155,37 @@ export const makeBrowserErrorTelemetryHandler = ({
     }
 
     const currentTime = now();
-    if (currentTime - windowStartedAt >= rateLimitWindowMs) {
-      eventCount = 0;
-      windowStartedAt = currentTime;
+    for (const [candidateHost, state] of hostStates) {
+      if (currentTime - state.lastSeenAt >= rateLimitWindowMs) {
+        hostStates.delete(candidateHost);
+      }
     }
-    eventCount += 1;
-    if (eventCount > maxEventsPerWindow) {
+    const hostState = hostStates.get(trustedHost) ?? {
+      eventCount: 0,
+      fingerprints: new Map<string, number>(),
+      lastSeenAt: currentTime,
+      windowStartedAt: currentTime,
+    };
+    hostStates.set(trustedHost, hostState);
+    hostState.lastSeenAt = currentTime;
+    if (currentTime - hostState.windowStartedAt >= rateLimitWindowMs) {
+      hostState.eventCount = 0;
+      hostState.windowStartedAt = currentTime;
+    }
+    hostState.eventCount += 1;
+    if (hostState.eventCount > maxEventsPerWindow) {
       return new Response(null, { headers: noStoreHeaders, status: 429 });
     }
 
     const sanitizedPayload = sanitizeBrowserErrorPayload(payloadOption.value);
     const fingerprint = stableFingerprint(sanitizedPayload);
-    const lastSeenAt = fingerprints.get(fingerprint);
-    for (const [candidate, seenAt] of fingerprints) {
+    const lastSeenAt = hostState.fingerprints.get(fingerprint);
+    for (const [candidate, seenAt] of hostState.fingerprints) {
       if (currentTime - seenAt >= deduplicationWindowMs) {
-        fingerprints.delete(candidate);
+        hostState.fingerprints.delete(candidate);
       }
     }
-    fingerprints.set(fingerprint, currentTime);
+    hostState.fingerprints.set(fingerprint, currentTime);
     if (
       lastSeenAt === undefined ||
       currentTime - lastSeenAt >= deduplicationWindowMs
@@ -183,3 +204,5 @@ export const handleBrowserErrorTelemetryWebRequest =
         Effect.annotateLogs({ browserError: payload }),
       ),
   });
+
+export { MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES } from '../../shared/browser-error-telemetry';

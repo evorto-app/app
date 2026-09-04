@@ -93,6 +93,9 @@ export class RoleEditComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+    return getErrorMessage(error, 'The role could not be saved. Try again.', [
+      'AdminRoleNotFoundError',
+      'RpcBadRequestError',
+    ]);
   }
 }

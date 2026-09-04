@@ -315,8 +315,8 @@ Note: The event created from the template already has registration options confi
       name: `Remove ${selectedRole.name}`,
     }),
   ).toBeVisible({ timeout: 15_000 });
-  const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
-  const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
+  const roleInput = registrationOptionEditor.getByPlaceholder('Add role…');
+  const roleListbox = page.getByRole('listbox', { name: 'Selected roles' });
   const selectedRoleOption = roleListbox.getByRole('option', {
     exact: true,
     name: selectedRole.name,

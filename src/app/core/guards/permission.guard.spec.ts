@@ -93,4 +93,27 @@ describe('permissionGuard', () => {
       '/403?originalPath=%2Fadmin%2Froles',
     );
   });
+
+  it('fails closed when permission metadata is missing', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        {
+          provide: PermissionsService,
+          useValue: {
+            hasPermissionSync: () => true,
+          } satisfies Pick<PermissionsService, 'hasPermissionSync'>,
+        },
+      ],
+    });
+
+    const result = TestBed.runInInjectionContext(() =>
+      permissionGuard(routeWithData({}), routerState('/internal/members-hub')),
+    );
+
+    expect(result).toBeInstanceOf(UrlTree);
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe(
+      '/403?originalPath=%2Finternal%2Fmembers-hub',
+    );
+  });
 });

@@ -343,6 +343,7 @@ export class EventEdit {
     return getErrorMessage(
       this.eventQuery.error(),
       'Failed to load the event editor.',
+      ['EventConflictError', 'EventNotFoundError'],
     );
   }
 
@@ -480,7 +481,11 @@ export class EventEdit {
         await this.router.navigate(['/events', result.id]);
       } catch (error) {
         this.saveError.set(
-          getErrorMessage(error, 'Failed to save the event configuration.'),
+          getErrorMessage(error, 'Failed to save the event configuration.', [
+            'EventConflictError',
+            'EventNotFoundError',
+            'RpcBadRequestError',
+          ]),
         );
       }
     });

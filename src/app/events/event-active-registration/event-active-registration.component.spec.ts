@@ -823,7 +823,8 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     findButton(fixture, 'Add to ticket')?.click();
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Checkout unavailable');
+      expect(normalizeText(fixture)).toContain('Add-on purchase failed');
+      expect(normalizeText(fixture)).not.toContain('Checkout unavailable');
       expect(normalizeText(fixture)).toContain(
         'Trying again will not create a duplicate purchase.',
       );
@@ -881,7 +882,8 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     findButton(fixture, 'Continue to Stripe')?.click();
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Response was lost');
+      expect(normalizeText(fixture)).toContain('Add-on purchase failed');
+      expect(normalizeText(fixture)).not.toContain('Response was lost');
     });
 
     fixture.componentRef.setInput('registrations', [
@@ -907,6 +909,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     fixture.detectChanges();
     const root: HTMLElement = fixture.nativeElement;
 
+    expect(normalizeText(fixture)).not.toContain('Add-on purchase failed');
     expect(normalizeText(fixture)).not.toContain('Response was lost');
     expect(
       root.querySelectorAll('a[href^="https://checkout.stripe.com"]'),

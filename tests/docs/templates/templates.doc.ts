@@ -309,7 +309,7 @@ Choose **Manual approval** when an organizer must review this category before co
 Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.
 `,
   });
-  const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
+  const organizerRoleInput = page.getByPlaceholder('Add role…').first();
   await organizerRoleInput.fill('a');
   const roleOptions = page.locator('mat-option');
   await expect(roleOptions.first()).toBeVisible();

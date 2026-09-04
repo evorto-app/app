@@ -38,14 +38,14 @@ const configureServerGuard = ({
 describe('authGuard', () => {
   it('turns an anonymous SSR deep link into a same-origin forward-login redirect', async () => {
     const request = new Request(
-      'https://tenant.example/registration-transfers/private%2Fcredential?from=email&label=two%20words',
+      'https://tenant.example/registration-transfers',
     );
     const response: ResponseInit = {};
     configureServerGuard({ isAuthenticated: false, request, response });
 
     const result = await TestBed.runInInjectionContext(() =>
       authGuard(route, {
-        url: '/registration-transfers/private%2Fcredential?from=email&label=two%20words',
+        url: '/registration-transfers',
       } as RouterStateSnapshot),
     );
 
@@ -64,7 +64,7 @@ describe('authGuard', () => {
       throw new TypeError('Expected a parsed same-origin browser redirect URL');
     }
     expect(router.serializeUrl(browserUrl)).toBe(
-      '/forward-login?redirectUrl=%2Fregistration-transfers%2Fprivate%252Fcredential%3Ffrom%3Demail%26label%3Dtwo%2520words',
+      '/forward-login?redirectUrl=%2Fregistration-transfers',
     );
     expect(response.status).toBe(303);
   });

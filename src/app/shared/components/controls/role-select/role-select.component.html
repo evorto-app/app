@@ -1,33 +1,32 @@
 @if (!hidden()) {
   <mat-form-field class="w-full">
-    <mat-label>Selected Roles</mat-label>
+    <mat-label>Selected roles</mat-label>
     <mat-chip-grid
       #chipGrid
       [attr.aria-label]="hasChipGridRole() ? 'Selected roles' : null"
       [disabled]="disabled() || readonly()"
     >
-      @for (
-        role of currentRolesQuery();
-        track value()[$index] ?? role.data()?.id ?? $index
-      ) {
-        @if (role.data(); as roleData) {
-          <mat-chip-row (removed)="remove(roleData.id)">
-            {{ roleData.name }}
-            <button
-              type="button"
-              matChipRemove
-              [attr.aria-label]="'Remove ' + roleData.name"
-              [disabled]="disabled() || readonly()"
-            >
-              <fa-icon [icon]="faCircleXmark" />
-            </button>
-          </mat-chip-row>
-        }
+      @for (role of selectedRoles(); track role.id) {
+        <mat-chip-row (removed)="remove(role.id)">
+          {{ role.name }}
+          @if (role.unavailable) {
+            <span class="text-error"> (no longer available)</span>
+          }
+          <button
+            type="button"
+            matChipRemove
+            [attr.aria-label]="'Remove ' + role.name"
+            [disabled]="disabled() || readonly()"
+          >
+            <fa-icon [icon]="faCircleXmark" />
+          </button>
+        </mat-chip-row>
       }
     </mat-chip-grid>
     <input
       name="currentRoles"
-      placeholder="Add Role..."
+      autocomplete="off"
+      placeholder="Add role…"
       #roleInput
       [formField]="searchForm.query"
       [matChipInputFor]="chipGrid"
@@ -45,4 +44,33 @@
       }
     </mat-autocomplete>
   </mat-form-field>
+  @if (unavailableSelectedRoleCount() > 0) {
+    <p class="text-error text-sm" role="alert">
+      {{ unavailableSelectedRoleCount() }}
+      {{
+        unavailableSelectedRoleCount() === 1
+          ? "selected role no longer exists"
+          : "selected roles no longer exist"
+      }}. Remove the unavailable
+      {{ unavailableSelectedRoleCount() === 1 ? "role" : "roles" }} before
+      saving.
+    </p>
+  }
+  @if (rolesQuery.isError()) {
+    <div class="text-error grid gap-2 text-sm" role="alert">
+      <p>Roles could not be loaded. Existing selections were not changed.</p>
+      <div>
+        <button
+          type="button"
+          mat-stroked-button
+          [disabled]="rolesQuery.isFetching()"
+          (click)="rolesQuery.refetch()"
+        >
+          {{ rolesQuery.isFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
+    </div>
+  } @else if (!rolesQuery.isSuccess()) {
+    <p class="text-on-surface-variant text-sm" role="status">Loading roles…</p>
+  }
 }

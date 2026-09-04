@@ -17,10 +17,31 @@ import {
   registrationOptionWriteActionDisabled,
   registrationQuestionAnswerPayload,
   registrationQuestionsMissingRequired,
+  registrationWriteErrorMessage,
 } from './event-registration-option.component';
 
 const readSource = (sourcePath: string): string =>
   readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
+
+describe('registration write errors', () => {
+  it('shows the safe reason when registration conditions changed', () => {
+    expect(
+      registrationWriteErrorMessage({
+        _tag: 'EventRegistrationConflictError',
+        message: 'This sign-up choice is now full.',
+      }),
+    ).toBe('This sign-up choice is now full.');
+  });
+
+  it('keeps unexpected server details private', () => {
+    expect(
+      registrationWriteErrorMessage({
+        _tag: 'EventRegistrationInternalError',
+        message: 'database constraint event_registrations_tenant_id_fkey',
+      }),
+    ).toBe("We couldn't complete this request. Try again.");
+  });
+});
 
 describe('unsupported registration mode template', () => {
   it('shows the warning before add-ons, questions, authentication, or write controls', () => {

@@ -107,7 +107,7 @@ describe('authTokenInterceptor', () => {
     (path) => {
       process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
       const { http, httpTesting } = configureServerHttp();
-      const rpcUrl = `${resolveServerRpcOrigin(incomingRequest)}${path}`;
+      const rpcUrl = `${resolveServerRpcOrigin()}${path}`;
 
       http.post(rpcUrl, {}).subscribe();
 
@@ -132,7 +132,7 @@ describe('authTokenInterceptor', () => {
       null,
     );
     const { http, httpTesting } = configureServerHttp(anonymousRequest);
-    const rpcUrl = `${resolveServerRpcOrigin(anonymousRequest)}/rpc`;
+    const rpcUrl = `${resolveServerRpcOrigin()}/rpc`;
 
     http.post(rpcUrl, {}).subscribe();
 
@@ -178,10 +178,11 @@ describe('authTokenInterceptor', () => {
 
   it.each([
     'https://api.example.net/rpc',
-    `${resolveServerRpcOrigin(incomingRequest)}/healthz`,
-    `${resolveServerRpcOrigin(incomingRequest)}/rpc/other`,
-    `${resolveServerRpcOrigin(incomingRequest)}/rpc?operation=events.findOne`,
+    'http://localhost:4200/healthz',
+    'http://localhost:4200/rpc/other',
+    'http://localhost:4200/rpc?operation=events.findOne',
   ])('does not forward server cookies to %s', (url) => {
+    process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
     const { http, httpTesting } = configureServerHttp();
 
     http.get(url).subscribe();

@@ -102,11 +102,11 @@ describe('LocationSelectorDialog', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        'Location search is not configured for this site.',
+        'Location search is unavailable.',
       );
     });
     expect(fixture.nativeElement.textContent).toContain(
-      'Ask a site administrator to enable Google Maps',
+      'Contact Evorto support before choosing a location.',
     );
     expect(fixture.nativeElement.textContent).not.toContain('API key');
     expect(fixture.nativeElement.textContent).not.toContain(
@@ -129,12 +129,15 @@ describe('LocationSelectorDialog', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        'Google Maps is unavailable right now.',
+        "We couldn't search for locations.",
+      );
+      expect(fixture.nativeElement.textContent).toContain(
+        'If the search still fails, contact Evorto support.',
       );
     });
 
     searchEffect = Effect.succeed([]);
-    const retryButton = findButton('Retry location search');
+    const retryButton = findButton('Try location search again');
     retryButton.click();
 
     await vi.waitFor(() => {
@@ -195,7 +198,10 @@ describe('LocationSelectorDialog', () => {
 
     expect(close).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain(
-      'Google Maps could not load this place.',
+      "We couldn't load this location.",
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'If neither works, contact Evorto support.',
     );
 
     const location: GoogleLocationType = {
@@ -206,13 +212,39 @@ describe('LocationSelectorDialog', () => {
       type: 'google',
     };
     placeDetailsEffect = Effect.succeed(location);
-    findButton('Retry location details').click();
+    findButton('Try this location again').click();
 
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(getPlaceDetails).toHaveBeenCalledTimes(2);
       expect(close).toHaveBeenCalledWith(location);
     });
+  });
+
+  it('shows an explicit failure for an invalid provider result', async () => {
+    const autocomplete = TestBed.createComponent(MatAutocomplete);
+    const option = TestBed.createComponent(MatOption);
+    option.componentInstance.value = { placeId: 'incomplete' };
+
+    await fixture.componentInstance.selectOption(
+      new MatAutocompleteSelectedEvent(
+        autocomplete.componentInstance,
+        option.componentInstance,
+      ),
+    );
+    fixture.detectChanges();
+
+    expect(getPlaceDetails).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      "We couldn't use this location result.",
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'Choose another result.',
+    );
+    expect(
+      fixture.nativeElement.querySelector('[role="alert"]'),
+    ).not.toBeNull();
   });
 
   async function enterQuery(query: string): Promise<void> {

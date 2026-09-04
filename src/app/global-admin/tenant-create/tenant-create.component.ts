@@ -114,7 +114,9 @@ export class TenantCreateComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to create organization'),
+            getErrorMessage(error, 'Failed to create organization', [
+              'RpcBadRequestError',
+            ]),
           );
           return null;
         }
@@ -132,7 +134,9 @@ export class TenantCreateComponent {
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to create organization'),
+              getErrorMessage(error, 'Failed to create organization', [
+                'RpcBadRequestError',
+              ]),
             );
           },
           onSuccess: async (tenant) => {
