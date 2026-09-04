@@ -496,13 +496,20 @@ Receipt review should support email notification when a receipt is reviewed.
 
 Email is the first notification channel.
 
-Customer-facing email templates are rendered with React Email. Rendering stays
-separate from transactional delivery: templates enter the durable outbox and
-retain its recipient, idempotency, retry, and failure-observability rules.
+Notification templates enter a durable outbox in the transaction that records
+the business change. Each row receives at most one delivery attempt. A provider
+rejection is a failed delivery; an uncertain result or abandoned sending claim
+is recorded as delivery not confirmed and is never sent again automatically.
+This avoids duplicate messages but cannot guarantee recipient delivery.
 
-After automatic delivery exhausts its retry budget, the outbox row remains
-stored and read-only for operational evidence. No exhausted-email recovery
-action is required for the current product scope.
+Platform administrators can review delivery outcomes, including successful
+messages, across organizations. Failed and uncertain messages remain read-only.
+There is no requeue, edit, recovery, or resend action. Message contents and
+provider diagnostics are not exposed in the overview.
+
+Customer-facing email templates are rendered with React Email. Rendering stays
+separate from transactional delivery, and durable idempotency keys prevent
+duplicate rows for the same business transition.
 
 In scope:
 

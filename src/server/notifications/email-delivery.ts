@@ -7,20 +7,19 @@ import { render } from '@react-email/render';
 import {
   EmailDelivery,
   type EmailDeliveryError,
-  EmailDeliveryRetryableError,
-  TRANSACTIONAL_EMAIL_SENDER,
 } from '@server/integrations/email-delivery';
 import { asc, sql } from 'drizzle-orm';
-import { Cause, Duration, Effect, Schema } from 'effect';
+import { Effect, Schedule, Schema } from 'effect';
 
 import type { Tenant } from '../../types/custom/tenant';
 import type { RegistrationCancellationActor } from './email-templates';
 
+import { reportPollingWorkerFailure } from '../runtime/polling-worker-supervision';
 import {
-  emailOutboxClaimableByIdPredicate,
-  emailOutboxClaimablePredicate,
-  emailOutboxClaimAttempts,
+  emailOutboxAbandonedSendingPredicate,
   emailOutboxClaimLeaseExpiry,
+  emailOutboxDispatchableByIdPredicate,
+  emailOutboxDispatchablePredicate,
   emailOutboxOwnedClaimPredicate,
 } from './email-outbox-lease';
 import {
@@ -114,6 +113,13 @@ interface TenantEmailSender {
   name: string;
 }
 
+const failedDeliveryMessage =
+  'This email could not be sent. Check the recipient address and email settings.';
+const suppressedDeliveryMessage =
+  'This email was not sent because this address cannot receive organization emails.';
+const unknownDeliveryMessage =
+  'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.';
+
 class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRenderError>()(
   'EmailTemplateRenderError',
   {
@@ -121,11 +127,6 @@ class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRend
     message: Schema.String,
   },
 ) {}
-
-const defaultEmailSender = {
-  email: TRANSACTIONAL_EMAIL_SENDER.email,
-  name: TRANSACTIONAL_EMAIL_SENDER.name,
-} satisfies TenantEmailSender;
 
 const tenantReplyTo = (
   tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'name'>,
@@ -175,8 +176,6 @@ const buildOutboxInsert = ({
   const replyTo = tenantReplyTo(tenant);
 
   return {
-    fromEmail: defaultEmailSender.email,
-    fromName: defaultEmailSender.name,
     html,
     idempotencyKey,
     kind,
@@ -319,15 +318,11 @@ export const enqueueRegistrationTransferredEmail = (
     to: input.to,
   });
 
-const retryDelayMs = (attempts: number): number =>
-  Math.min(30 * 60 * 1000, 1000 * 2 ** Math.max(0, attempts - 1));
-
 const sendOutboxRow = Effect.fn('sendOutboxRow')(function* (
   row: EmailOutboxRow,
 ) {
   return yield* EmailDelivery.deliver({
     html: row.html,
-    idempotencyKey: row.idempotencyKey,
     replyTo: row.replyToEmail
       ? {
           email: row.replyToEmail,
@@ -370,22 +365,15 @@ const markOutboxRowFailed = Effect.fn('markOutboxRowFailed')(function* (
     { readonly _tag: 'EmailDeliveryUnknownError' }
   >,
 ) {
-  const exhausted =
-    !(failure instanceof EmailDeliveryRetryableError) ||
-    claim.row.attempts >= claim.row.maxAttempts;
-  const nextAttemptAt = exhausted
-    ? new Date()
-    : new Date(Date.now() + retryDelayMs(claim.row.attempts));
   const updatedRows = yield* Database.use((database) =>
     database
       .update(emailOutboxTable)
       .set({
         claimLeaseExpiresAt: null,
         claimLeaseId: null,
-        exhaustedAt: exhausted ? new Date() : null,
-        lastError: failure.message,
-        nextAttemptAt,
-        status: exhausted ? 'failed' : 'queued',
+        lastError: failedDeliveryMessage,
+        provider: failure.provider,
+        status: 'failed',
       })
       .where(emailOutboxOwnedClaimPredicate(claim.row.id, claim.claimLeaseId))
       .returning({ id: emailOutboxTable.id }),
@@ -408,7 +396,7 @@ const markOutboxRowDeliveryUnknown = Effect.fn('markOutboxRowDeliveryUnknown')(
           claimLeaseExpiresAt: null,
           claimLeaseId: null,
           deliveryUnknownAt: new Date(),
-          lastError: failure.message,
+          lastError: unknownDeliveryMessage,
           provider: failure.provider,
           status: 'deliveryUnknown',
         })
@@ -419,10 +407,27 @@ const markOutboxRowDeliveryUnknown = Effect.fn('markOutboxRowDeliveryUnknown')(
   },
 );
 
+const markAbandonedOutboxRowsDeliveryUnknown = Effect.fn(
+  'markAbandonedOutboxRowsDeliveryUnknown',
+)(function* () {
+  return yield* Database.use((database) =>
+    database
+      .update(emailOutboxTable)
+      .set({
+        claimLeaseExpiresAt: null,
+        claimLeaseId: null,
+        deliveryUnknownAt: new Date(),
+        lastError: unknownDeliveryMessage,
+        status: 'deliveryUnknown',
+      })
+      .where(emailOutboxAbandonedSendingPredicate())
+      .returning({ id: emailOutboxTable.id }),
+  );
+});
+
 const markOutboxRowSuppressed = Effect.fn('markOutboxRowSuppressed')(function* (
   claim: EmailOutboxClaim,
   provider: 'fake' | 'mailpit' | 'tem',
-  reason: string,
 ) {
   const updatedRows = yield* Database.use((database) =>
     database
@@ -430,7 +435,7 @@ const markOutboxRowSuppressed = Effect.fn('markOutboxRowSuppressed')(function* (
       .set({
         claimLeaseExpiresAt: null,
         claimLeaseId: null,
-        lastError: reason,
+        lastError: suppressedDeliveryMessage,
         provider,
         status: 'suppressed',
         suppressedAt: new Date(),
@@ -447,13 +452,13 @@ const claimOutboxRow = Effect.fn('claimOutboxRow')(function* (rowId: string) {
     database
       .update(emailOutboxTable)
       .set({
-        attempts: emailOutboxClaimAttempts(),
+        attempts: 1,
         claimLeaseExpiresAt: emailOutboxClaimLeaseExpiry(),
         claimLeaseId,
         lastAttemptAt: sql<Date>`now()`,
         status: 'sending',
       })
-      .where(emailOutboxClaimableByIdPredicate(rowId))
+      .where(emailOutboxDispatchableByIdPredicate(rowId))
       .returning(),
   );
   const row = rows[0];
@@ -462,12 +467,23 @@ const claimOutboxRow = Effect.fn('claimOutboxRow')(function* (rowId: string) {
 
 export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
   function* (limit = 10) {
+    const abandonedRows = yield* markAbandonedOutboxRowsDeliveryUnknown();
+    if (abandonedRows.length > 0) {
+      yield* Effect.logWarning(
+        'Email outbox deliveries became unknown after their claim leases were missing or expired',
+      ).pipe(
+        Effect.annotateLogs({
+          outboxRowCount: abandonedRows.length,
+        }),
+      );
+    }
+
     const dueRows = yield* Database.use((database) =>
       database
         .select()
         .from(emailOutboxTable)
-        .where(emailOutboxClaimablePredicate())
-        .orderBy(asc(emailOutboxTable.nextAttemptAt))
+        .where(emailOutboxDispatchablePredicate())
+        .orderBy(asc(emailOutboxTable.createdAt))
         .limit(limit),
     );
     let processedRows = 0;
@@ -494,15 +510,32 @@ export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
 
       const settled = yield* Effect.gen(function* () {
         if (attempt._tag === 'Failure') {
+          yield* Effect.logWarning(
+            attempt.error._tag === 'EmailDeliveryUnknownError'
+              ? 'Email delivery outcome could not be confirmed'
+              : 'Email delivery was rejected',
+          ).pipe(
+            Effect.annotateLogs({
+              diagnostic: attempt.error.message,
+              outboxRowId: claimedRow.row.id,
+              provider: attempt.error.provider,
+            }),
+          );
           return attempt.error._tag === 'EmailDeliveryUnknownError'
             ? yield* markOutboxRowDeliveryUnknown(claimedRow, attempt.error)
             : yield* markOutboxRowFailed(claimedRow, attempt.error);
         }
         if (attempt.delivery._tag === 'Suppressed') {
+          yield* Effect.logInfo('Email delivery was withheld').pipe(
+            Effect.annotateLogs({
+              diagnostic: attempt.delivery.reason,
+              outboxRowId: claimedRow.row.id,
+              provider: attempt.delivery.provider,
+            }),
+          );
           return yield* markOutboxRowSuppressed(
             claimedRow,
             attempt.delivery.provider,
-            attempt.delivery.reason,
           );
         }
         return yield* markOutboxRowSent(
@@ -513,7 +546,7 @@ export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
       });
       if (!settled) {
         yield* Effect.logWarning(
-          'Email outbox claim was reclaimed before delivery settled',
+          'Email outbox claim was no longer active when delivery settled',
         ).pipe(
           Effect.annotateLogs({
             claimLeaseId: claimedRow.claimLeaseId,
@@ -527,15 +560,9 @@ export const processDueEmailOutbox = Effect.fn('processDueEmailOutbox')(
   },
 );
 
-export const handleEmailOutboxProcessorCause = (cause: Cause.Cause<unknown>) =>
-  Cause.hasInterrupts(cause)
-    ? Effect.failCause(cause)
-    : Effect.logError('Email outbox processor failed').pipe(
-        Effect.annotateLogs({ cause: String(cause) }),
-      );
-
 export const runEmailOutboxProcessor = processDueEmailOutbox().pipe(
-  Effect.catchCause(handleEmailOutboxProcessorCause),
-  Effect.andThen(Effect.sleep(Duration.seconds(15))),
-  Effect.forever,
+  Effect.catchCause(
+    reportPollingWorkerFailure('Email outbox processor failed'),
+  ),
+  Effect.repeat(Schedule.spaced('15 seconds')),
 );

@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm';
 import {
+  check,
   index,
   integer,
   pgEnum,
@@ -42,16 +44,11 @@ export const emailOutbox = pgTable(
     claimLeaseExpiresAt: timestamp('claim_lease_expires_at'),
     claimLeaseId: text('claim_lease_id'),
     deliveryUnknownAt: timestamp('delivery_unknown_at'),
-    exhaustedAt: timestamp('exhausted_at'),
-    fromEmail: text('from_email').notNull(),
-    fromName: text('from_name').notNull(),
     html: text().notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     kind: emailOutboxKind().notNull(),
     lastAttemptAt: timestamp('last_attempt_at'),
     lastError: text('last_error'),
-    maxAttempts: integer('max_attempts').notNull().default(8),
-    nextAttemptAt: timestamp('next_attempt_at').notNull().defaultNow(),
     provider: emailDeliveryProvider(),
     providerMessageId: text('provider_message_id'),
     replyToEmail: text('reply_to_email'),
@@ -68,10 +65,18 @@ export const emailOutbox = pgTable(
       table.status,
       table.claimLeaseExpiresAt,
     ),
-    idempotencyKeyUnique: unique().on(table.idempotencyKey),
-    nextAttemptIndex: index('email_outbox_next_attempt_idx').on(
+    dispatchIndex: index('email_outbox_dispatch_idx').on(
       table.status,
-      table.nextAttemptAt,
+      table.attempts,
+      table.createdAt,
+    ),
+    idempotencyKeyUnique: unique().on(table.idempotencyKey),
+    singleDispatchAttemptsCheck: check(
+      'email_outbox_single_dispatch_attempts_check',
+      sql`(
+        (${table.status} = 'queued' and ${table.attempts} = 0)
+        or (${table.status} <> 'queued' and ${table.attempts} = 1)
+      )`,
     ),
     tenantStatusIndex: index('email_outbox_tenant_status_idx').on(
       table.tenantId,

@@ -39,10 +39,7 @@ import {
   eq,
   gt,
   inArray,
-  isNotNull,
-  isNull,
   lt,
-  lte,
   or,
   sql,
 } from 'drizzle-orm';
@@ -60,7 +57,10 @@ import {
   tenants,
 } from '../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
-import { emailOutboxStaleSendingPredicate } from '../../../notifications/email-outbox-lease';
+import {
+  emailOutboxAbandonedSendingPredicate,
+  emailOutboxOverviewOrderBy,
+} from '../../../notifications/email-outbox-lease';
 import { normalizeTenantPrivacyPolicy } from '../../../onboarding/tenant-onboarding.service';
 import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
 import {
@@ -547,6 +547,29 @@ const tenantUrlMigrationBlockedReason = ({
   return "Complete or cancel every active registration transfer before changing the organization's public URL.";
 };
 
+const emailDeliveryRecordIncomplete = (row: {
+  deliveryUnknownAt: Date | null;
+  lastAttemptAt: Date | null;
+  sentAt: Date | null;
+  status:
+    'deliveryUnknown' | 'failed' | 'queued' | 'sending' | 'sent' | 'suppressed';
+  suppressedAt: Date | null;
+}): boolean => {
+  if (row.status === 'deliveryUnknown') {
+    return row.deliveryUnknownAt === null || row.lastAttemptAt === null;
+  }
+  if (row.status === 'suppressed') {
+    return row.suppressedAt === null || row.lastAttemptAt === null;
+  }
+  if (row.status === 'sent') {
+    return row.sentAt === null || row.lastAttemptAt === null;
+  }
+  return (
+    (row.status === 'failed' || row.status === 'sending') &&
+    row.lastAttemptAt === null
+  );
+};
+
 export const readGlobalAdminPlatformAuditPage = (
   cursor: GlobalAdminPlatformAuditCursor | null,
 ) =>
@@ -596,97 +619,61 @@ export const globalAdminHandlers = {
   'globalAdmin.emailOutbox.findOverview': (_payload, _options) =>
     Effect.gen(function* () {
       yield* requirePlatformAdministrator();
-      const now = new Date();
-      const [
-        statusCounts,
-        waitingForRetryRows,
-        staleSendingRows,
-        exhaustedRows,
-        itemRows,
-      ] = yield* databaseEffect((database) =>
-        Effect.all([
-          database
-            .select({
-              status: emailOutbox.status,
-              total: count(),
-            })
-            .from(emailOutbox)
-            .groupBy(emailOutbox.status),
-          database
-            .select({
-              total: count(),
-            })
-            .from(emailOutbox)
-            .where(
-              and(
-                inArray(emailOutbox.status, ['queued', 'failed']),
-                isNull(emailOutbox.exhaustedAt),
-                lte(emailOutbox.nextAttemptAt, now),
-                sql`${emailOutbox.attempts} < ${emailOutbox.maxAttempts}`,
-              ),
-            ),
-          database
-            .select({
-              total: count(),
-            })
-            .from(emailOutbox)
-            .where(emailOutboxStaleSendingPredicate()),
-          database
-            .select({
-              total: count(),
-            })
-            .from(emailOutbox)
-            .where(isNotNull(emailOutbox.exhaustedAt)),
-          database
-            .select({
-              attempts: emailOutbox.attempts,
-              createdAt: emailOutbox.createdAt,
-              deliveryUnknownAt: emailOutbox.deliveryUnknownAt,
-              exhaustedAt: emailOutbox.exhaustedAt,
-              id: emailOutbox.id,
-              kind: emailOutbox.kind,
-              lastAttemptAt: emailOutbox.lastAttemptAt,
-              lastError: emailOutbox.lastError,
-              maxAttempts: emailOutbox.maxAttempts,
-              nextAttemptAt: emailOutbox.nextAttemptAt,
-              provider: emailOutbox.provider,
-              providerMessageId: emailOutbox.providerMessageId,
-              recipient: emailOutbox.toEmail,
-              sentAt: emailOutbox.sentAt,
-              status: emailOutbox.status,
-              subject: emailOutbox.subject,
-              suppressedAt: emailOutbox.suppressedAt,
-              tenantDomain: tenants.domain,
-              tenantId: emailOutbox.tenantId,
-              tenantName: tenants.name,
-              tenantTimezone: tenants.timezone,
-              updatedAt: emailOutbox.updatedAt,
-            })
-            .from(emailOutbox)
-            .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
-            .where(
-              inArray(emailOutbox.status, [
-                'queued',
-                'sending',
-                'failed',
-                'deliveryUnknown',
-                'suppressed',
-              ]),
-            )
-            .orderBy(desc(emailOutbox.updatedAt))
-            .limit(100),
-        ]),
+      const [statusCounts, staleSendingRows, itemRows] = yield* databaseEffect(
+        (database) =>
+          Effect.all([
+            database
+              .select({
+                status: emailOutbox.status,
+                total: count(),
+              })
+              .from(emailOutbox)
+              .groupBy(emailOutbox.status),
+            database
+              .select({
+                total: count(),
+              })
+              .from(emailOutbox)
+              .where(emailOutboxAbandonedSendingPredicate()),
+            database
+              .select({
+                deliveryUnknownAt: emailOutbox.deliveryUnknownAt,
+                id: emailOutbox.id,
+                kind: emailOutbox.kind,
+                lastAttemptAt: emailOutbox.lastAttemptAt,
+                recipient: emailOutbox.toEmail,
+                sentAt: emailOutbox.sentAt,
+                status: emailOutbox.status,
+                subject: emailOutbox.subject,
+                suppressedAt: emailOutbox.suppressedAt,
+                tenantDomain: tenants.domain,
+                tenantName: tenants.name,
+                tenantTimezone: tenants.timezone,
+              })
+              .from(emailOutbox)
+              .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
+              .where(
+                inArray(emailOutbox.status, [
+                  'queued',
+                  'sending',
+                  'sent',
+                  'failed',
+                  'deliveryUnknown',
+                  'suppressed',
+                ]),
+              )
+              .orderBy(...emailOutboxOverviewOrderBy())
+              .limit(100),
+          ]),
       );
       const summary = {
         deliveryUnknown: 0,
-        exhausted: exhaustedRows[0]?.total ?? 0,
         failed: 0,
         queued: 0,
         sending: 0,
         sent: 0,
         staleSending: staleSendingRows[0]?.total ?? 0,
         suppressed: 0,
-        waitingForRetry: waitingForRetryRows[0]?.total ?? 0,
       };
       for (const row of statusCounts) {
         summary[row.status] = row.total;
@@ -694,15 +681,16 @@ export const globalAdminHandlers = {
 
       return Schema.decodeUnknownSync(GlobalAdminEmailOutboxOverview)({
         items: itemRows.map((row) => ({
-          ...row,
-          createdAt: row.createdAt.toISOString(),
-          deliveryUnknownAt: row.deliveryUnknownAt?.toISOString() ?? null,
-          exhaustedAt: row.exhaustedAt?.toISOString() ?? null,
+          id: row.id,
+          kind: row.kind,
           lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
-          nextAttemptAt: row.nextAttemptAt.toISOString(),
-          sentAt: row.sentAt?.toISOString() ?? null,
-          suppressedAt: row.suppressedAt?.toISOString() ?? null,
-          updatedAt: row.updatedAt.toISOString(),
+          recipient: row.recipient,
+          recordIncomplete: emailDeliveryRecordIncomplete(row),
+          status: row.status,
+          subject: row.subject,
+          tenantDomain: row.tenantDomain,
+          tenantName: row.tenantName,
+          tenantTimezone: row.tenantTimezone,
         })),
         summary,
       });

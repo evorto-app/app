@@ -54,7 +54,6 @@ import {
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
-import { TRANSACTIONAL_EMAIL_SENDER } from '../../../../integrations/email-delivery';
 import { RegistrationAcquisitionWriteError } from '../../../../registrations/registration-acquisition-write';
 import { RegistrationTransferMutationConflict } from '../../../../registrations/registration-transfer-mutation-guard';
 import { StripeClient } from '../../../../stripe-client';
@@ -1635,7 +1634,7 @@ const createTransferDatabase = Effect.fn(function* ({
   const transferAcquisitionInsertSql =
     'insert into "registration_acquisitions" ("acquired_at", "event_id", "id", "kind", "operation_key", "ordinal", "owner_user_id", "previous_acquisition_id", "registration_id", "spot_count", "tenant_id", "transfer_id") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, default)';
   const transferEmailInsertSql =
-    'insert into "email_outbox" ("createdAt", "id", "updatedAt", "tenantId", "attempts", "claim_lease_expires_at", "claim_lease_id", "delivery_unknown_at", "exhausted_at", "from_email", "from_name", "html", "idempotency_key", "kind", "last_attempt_at", "last_error", "max_attempts", "next_attempt_at", "provider", "provider_message_id", "reply_to_email", "reply_to_name", "sent_at", "status", "subject", "suppressed_at", "text", "to_email") values (default, $1, default, $2, default, default, default, default, default, $3, $4, $5, $6, $7, default, default, default, default, default, default, $8, $9, default, default, $10, default, $11, $12) on conflict ("idempotency_key") do nothing';
+    'insert into "email_outbox" ("createdAt", "id", "updatedAt", "tenantId", "attempts", "claim_lease_expires_at", "claim_lease_id", "delivery_unknown_at", "html", "idempotency_key", "kind", "last_attempt_at", "last_error", "provider", "provider_message_id", "reply_to_email", "reply_to_name", "sent_at", "status", "subject", "suppressed_at", "text", "to_email") values (default, $1, default, $2, default, default, default, default, $3, $4, $5, default, default, default, default, $6, $7, default, default, $8, default, $9, $10) on conflict ("idempotency_key") do nothing';
   const transferComponentInsertPrefix =
     'insert into "registration_acquisition_components" ("acquired_at", "acquisition_id", "acquisition_payment_id", "allocation_key", "application_fee_amount", "base_amount", "currency", "event_id", "gross_amount", "id", "kind", "net_amount", "purchase_id", "purchase_lot_id", "quantity", "registration_id", "stripe_fee_amount", "tax_amount", "tax_rate_name", "tax_rate_inclusive", "tax_rate_percentage", "tenant_id") values ';
 
@@ -1834,19 +1833,19 @@ const createTransferDatabase = Effect.fn(function* ({
           parameters[0],
         );
         const html = Schema.decodeUnknownSync(Schema.NonEmptyString)(
-          parameters[4],
+          parameters[2],
         );
         const idempotencyKey = Schema.decodeUnknownSync(Schema.NonEmptyString)(
-          parameters[5],
+          parameters[3],
         );
         const kind = Schema.decodeUnknownSync(
           Schema.Literal('registrationTransferred'),
-        )(parameters[6]);
+        )(parameters[4]);
         const text = Schema.decodeUnknownSync(Schema.NonEmptyString)(
-          parameters[10],
+          parameters[8],
         );
         const toEmail = Schema.decodeUnknownSync(Schema.NonEmptyString)(
-          parameters[11],
+          parameters[9],
         );
         const previousOwnerEmail = registration?.user
           ? registration.user.communicationEmail.trim() ||
@@ -1862,8 +1861,6 @@ const createTransferDatabase = Effect.fn(function* ({
         expect(parameters).toEqual([
           id,
           tenant.id,
-          TRANSACTIONAL_EMAIL_SENDER.email,
-          TRANSACTIONAL_EMAIL_SENDER.name,
           html,
           `registration-transferred/${tenant.id}/${registrationId}/direct-registration-transfer:${acquisitionRows.acquisition.id}/${previousOwner ? 'previousOwner' : 'newOwner'}/${previousOwner ? sourceUserId : targetUserId}`,
           'registrationTransferred',
@@ -4492,8 +4489,6 @@ const createFreeCancellationDatabase = ({
           const [
             id,
             tenantId,
-            fromEmail,
-            fromName,
             html,
             idempotencyKey,
             kind,
@@ -4504,11 +4499,9 @@ const createFreeCancellationDatabase = ({
             toEmail,
           ] = parameters;
           if (
-            parameters.length !== 12 ||
+            parameters.length !== 10 ||
             typeof id !== 'string' ||
             tenantId !== tenant.id ||
-            fromEmail !== 'no-reply@notifications.evorto.app' ||
-            fromName !== 'Evorto' ||
             typeof html !== 'string' ||
             typeof idempotencyKey !== 'string' ||
             (kind !== 'registrationCancelled' &&
@@ -4755,8 +4748,6 @@ const createPendingCancellationDatabase = ({
           expect(parameters).toEqual([
             expect.any(String),
             tenant.id,
-            'no-reply@notifications.evorto.app',
-            'Evorto',
             expect.any(String),
             `registration-cancelled/${tenant.id}/${registration.id}`,
             'registrationCancelled',
@@ -5372,8 +5363,6 @@ const createPaidCancellationDatabase = ({
           expect(parameters).toEqual([
             expect.any(String),
             tenant.id,
-            'no-reply@notifications.evorto.app',
-            'Evorto',
             expect.any(String),
             `registration-cancelled/${tenant.id}/${registration.id}`,
             'registrationCancelled',

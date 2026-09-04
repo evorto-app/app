@@ -6,6 +6,7 @@ import {
   Option,
   Redacted,
   Schema,
+  type Scope,
 } from 'effect';
 
 import {
@@ -19,15 +20,12 @@ export const TRANSACTIONAL_EMAIL_SENDER = {
 } as const;
 
 export type EmailDeliveryError =
-  | EmailDeliveryPermanentError
-  | EmailDeliveryRetryableError
-  | EmailDeliveryUnknownError;
+  EmailDeliveryRejectedError | EmailDeliveryUnknownError;
 
 export type EmailDeliveryProvider = 'fake' | 'mailpit' | 'tem';
 
 export interface EmailDeliveryRequest {
   readonly html: string;
-  readonly idempotencyKey: string;
   readonly replyTo: null | {
     readonly email: string;
     readonly name: string;
@@ -57,16 +55,8 @@ interface EmailDeliveryShape {
 
 const EmailDeliveryProviderSchema = Schema.Literals(['fake', 'mailpit', 'tem']);
 
-export class EmailDeliveryPermanentError extends Schema.TaggedErrorClass<EmailDeliveryPermanentError>()(
-  'EmailDeliveryPermanentError',
-  {
-    message: Schema.String,
-    provider: EmailDeliveryProviderSchema,
-  },
-) {}
-
-export class EmailDeliveryRetryableError extends Schema.TaggedErrorClass<EmailDeliveryRetryableError>()(
-  'EmailDeliveryRetryableError',
+export class EmailDeliveryRejectedError extends Schema.TaggedErrorClass<EmailDeliveryRejectedError>()(
+  'EmailDeliveryRejectedError',
   {
     message: Schema.String,
     provider: EmailDeliveryProviderSchema,
@@ -97,21 +87,33 @@ const MailpitSendMessageResponse = Schema.Struct({
 const errorMessageFromUnknown = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-const isRetryableStatus = (status: number): boolean =>
-  status === 408 || status === 425 || status === 429 || status >= 500;
-
 const requestFailure = (
   provider: EmailDeliveryProvider,
   response: Response,
-): EmailDeliveryPermanentError | EmailDeliveryRetryableError => {
-  const fields = {
-    message: `${provider} email request failed with HTTP ${response.status}`,
-    provider,
-  };
-  return isRetryableStatus(response.status)
-    ? new EmailDeliveryRetryableError(fields)
-    : new EmailDeliveryPermanentError(fields);
+): EmailDeliveryRejectedError | EmailDeliveryUnknownError => {
+  const message = `${provider} email request failed with HTTP ${response.status}`;
+  return response.status >= 400 &&
+    response.status < 500 &&
+    response.status !== 408
+    ? new EmailDeliveryRejectedError({
+        message,
+        provider,
+      })
+    : new EmailDeliveryUnknownError({
+        message: `${message}; delivery outcome is unknown`,
+        provider,
+      });
 };
+
+export const EMAIL_DELIVERY_REQUEST_TIMEOUT_MS = 30 * 1000;
+
+const requestDeadlineFailure = (
+  provider: EmailDeliveryProvider,
+): EmailDeliveryUnknownError =>
+  new EmailDeliveryUnknownError({
+    message: `${provider} delivery outcome is unknown because the provider request exceeded the ${EMAIL_DELIVERY_REQUEST_TIMEOUT_MS}ms deadline`,
+    provider,
+  });
 
 const postJson = Effect.fn('EmailDelivery.postJson')(function* (
   provider: EmailDeliveryProvider,
@@ -119,6 +121,7 @@ const postJson = Effect.fn('EmailDelivery.postJson')(function* (
   body: unknown,
   headers: Readonly<Record<string, string>>,
 ) {
+  const signal = yield* Effect.abortSignal;
   return yield* Effect.tryPromise({
     catch: (cause) =>
       new EmailDeliveryUnknownError({
@@ -126,7 +129,7 @@ const postJson = Effect.fn('EmailDelivery.postJson')(function* (
         message: `${provider} delivery outcome is unknown: ${errorMessageFromUnknown(cause)}`,
         provider,
       }),
-    try: (signal) =>
+    try: () =>
       fetch(url, {
         body: JSON.stringify(body),
         headers: {
@@ -186,10 +189,6 @@ const makeTemDeliver = (config: {
                 },
               ]
             : []),
-          {
-            key: 'X-Evorto-Idempotency-Key',
-            value: request.idempotencyKey,
-          },
         ],
         from: TRANSACTIONAL_EMAIL_SENDER,
         html: request.html,
@@ -235,7 +234,6 @@ const makeMailpitDeliver = (apiUrl: URL) =>
           Email: TRANSACTIONAL_EMAIL_SENDER.email,
           Name: TRANSACTIONAL_EMAIL_SENDER.name,
         },
-        Headers: { 'X-Evorto-Idempotency-Key': request.idempotencyKey },
         HTML: request.html,
         ...(request.replyTo && {
           ReplyTo: [
@@ -273,7 +271,9 @@ export class EmailDelivery extends Context.Service<
       Effect.provideService(ConfigProvider.ConfigProvider, configProvider),
     );
     const config = yield* validateEmailDeliveryConfig(state);
-    const providerDeliver =
+    const providerDeliver: (
+      request: EmailDeliveryRequest,
+    ) => Effect.Effect<EmailDeliveryResult, EmailDeliveryError, Scope.Scope> =
       config.provider === 'tem'
         ? makeTemDeliver({
             projectId: Option.getOrThrow(config.temProjectId),
@@ -294,7 +294,13 @@ export class EmailDelivery extends Context.Service<
           reason: 'Recipient is outside the protected staging allowlist',
         };
       }
-      return yield* providerDeliver(request);
+      return yield* providerDeliver(request).pipe(
+        Effect.scoped,
+        Effect.timeout(EMAIL_DELIVERY_REQUEST_TIMEOUT_MS),
+        Effect.catchTag('TimeoutError', () =>
+          Effect.fail(requestDeadlineFailure(config.provider)),
+        ),
+      );
     });
 
     return { deliver };

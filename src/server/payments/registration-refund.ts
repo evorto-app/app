@@ -17,12 +17,13 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { Cause, Clock, Effect, Result, Schedule, Schema } from 'effect';
+import { Clock, Effect, Result, Schedule, Schema } from 'effect';
 import { createHash } from 'node:crypto';
 
 import type { RegistrationRefundWorkerRuntimeMode } from '../config/registration-refund-worker-config';
 
 import { reconcileRegistrationTransferRefund } from '../registrations/registration-transfer-refund-reconciliation';
+import { reportPollingWorkerFailure } from '../runtime/polling-worker-supervision';
 import { StripeClient } from '../stripe-client';
 
 const refundClaimLeaseMs = 10 * 60 * 1000;
@@ -1856,12 +1857,8 @@ export const runRegistrationRefundWorker =
           )
         : Effect.void,
     ),
-    Effect.catchCause((cause) =>
-      Cause.hasInterrupts(cause)
-        ? Effect.failCause(cause)
-        : Effect.logError('Registration refund worker iteration failed').pipe(
-            Effect.annotateLogs({ cause: String(cause) }),
-          ),
+    Effect.catchCause(
+      reportPollingWorkerFailure('Registration refund worker iteration failed'),
     ),
     Effect.repeat(refundWorkerInterval),
   );
@@ -1879,13 +1876,9 @@ export const launchRegistrationRefundWorker = <A, E, R>(
   worker: Effect.Effect<A, E, R>,
 ) =>
   mode === 'enabled'
-    ? worker.pipe(
-        Effect.forkScoped,
-        Effect.tap(() =>
-          Effect.logInfo('Registration refund worker started').pipe(
-            Effect.annotateLogs({ mode }),
-          ),
-        ),
+    ? Effect.logInfo('Registration refund worker started').pipe(
+        Effect.annotateLogs({ mode }),
+        Effect.andThen(worker),
         Effect.as(registrationRefundWorkerStarted),
       )
     : Effect.logWarning(
