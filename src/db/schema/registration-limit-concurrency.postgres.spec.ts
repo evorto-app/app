@@ -39,6 +39,7 @@ interface LimitFixture {
   readonly optionIds: readonly [string, string];
   readonly templateId: string;
   readonly tenantId: string;
+  readonly tenantName: string;
   readonly userId: string;
 }
 
@@ -163,6 +164,7 @@ const seedLimitFixture = async (
   const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
   const domain = `${suffix}.limit-concurrency.example`;
   const tenantId = makeId('tenant', suffix);
+  const tenantName = `Limit concurrency ${suffix}`;
   const userId = makeId('user', suffix);
   const membershipId = makeId('member', suffix);
   const categoryId = makeId('category', suffix);
@@ -181,7 +183,7 @@ const seedLimitFixture = async (
     domain,
     id: tenantId,
     maxActiveRegistrationsPerUser: 1,
-    name: `Limit concurrency ${suffix}`,
+    name: tenantName,
   });
   await database.insert(users).values({
     auth0Id: `auth0|limit-${suffix}`,
@@ -248,6 +250,7 @@ const seedLimitFixture = async (
     optionIds,
     templateId,
     tenantId,
+    tenantName,
     userId,
   };
 };
@@ -306,6 +309,7 @@ const registrationInput = (
     domain: fixture.domain,
     id: fixture.tenantId,
     maxActiveRegistrationsPerUser: 1,
+    name: fixture.tenantName,
     stripeAccountId: null,
   },
   user: {
@@ -386,7 +390,8 @@ describe('tenant active-registration limit concurrency', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'Active registration limit reached',
+            message:
+              'This organization has reached its limit for current sign-ups. Contact an administrator.',
           }),
           status: 'failure',
         }),
