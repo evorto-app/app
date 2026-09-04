@@ -35,7 +35,9 @@ describe('local tenant request routing', () => {
 
   it('removes only its registered handler and permits repeated cleanup', async () => {
     const context = {
+      close: async () => {},
       grantPermissions: vi.fn(async () => {}),
+      isClosed: () => false,
       route: vi.fn(registerRoute),
       unroute: vi.fn(async () => {}),
     };
@@ -56,7 +58,9 @@ describe('local tenant request routing', () => {
 
   it('does not grant network permission to a non-loopback origin', async () => {
     const context = {
+      close: async () => {},
       grantPermissions: vi.fn(async () => {}),
+      isClosed: () => false,
       route: registerRoute,
       unroute: async () => {},
     };
@@ -73,6 +77,7 @@ describe('local tenant request routing', () => {
     const failure = new Error('route removal failed');
     const context = {
       grantPermissions: async () => {},
+      isClosed: () => false,
       route: registerRoute,
       unroute: async () => {
         throw failure;
@@ -93,6 +98,7 @@ describe('local tenant request routing', () => {
     const closeFailure = new Error('context close failed');
     const context = {
       grantPermissions: async () => {},
+      isClosed: () => false,
       route: registerRoute,
       unroute: async () => {
         throw routeFailure;

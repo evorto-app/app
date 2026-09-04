@@ -1,4 +1,5 @@
 import { once } from 'node:events';
+import { setImmediate } from 'node:timers/promises';
 import {
   createServer,
   type RequestListener,
@@ -273,5 +274,276 @@ test('preserves unrelated context and page handlers after tenant routing stops',
       errors,
       'Handler ownership test and cleanup failed',
       { cause: errors[0] },
+    );
+});
+
+interface FailureDatabase {
+  cleanup: () => Promise<void>;
+  events: string[];
+  startFixtureTeardown: () => void;
+}
+
+const failureTest = test.extend<{
+  failureDatabase: FailureDatabase;
+  failedRequestPage: { context: BrowserContext; origin: string };
+}>({
+  failureDatabase: async ({}, use) => {
+    const events: string[] = [];
+    let closed = false;
+    let teardownStarted = false;
+    try {
+      await use({
+        cleanup: async () => {
+          events.push('body cleanup started');
+          await setImmediate();
+          if (closed) throw new Error('Test cleanup used a closed database');
+          if (teardownStarted)
+            throw new Error('Test cleanup outlived its test body scope');
+          events.push('body cleanup completed');
+        },
+        events,
+        startFixtureTeardown: () => {
+          teardownStarted = true;
+          events.push('fixture teardown started');
+        },
+      });
+    } finally {
+      closed = true;
+      events.push('database closed');
+      expect(events).toEqual([
+        'body cleanup started',
+        'body cleanup completed',
+        'fixture teardown started',
+        'routing owner reported failure',
+        'database closed',
+      ]);
+    }
+  },
+  failedRequestPage: async ({ browser, failureDatabase }, use) => {
+    let requests = 0;
+    const local = await listen((request) => {
+      requests += 1;
+      request.socket.destroy();
+    });
+    let context: BrowserContext | undefined;
+    const errors: unknown[] = [];
+    try {
+      context = await browser.newContext();
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      await use({ context, origin: local.origin });
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      failureDatabase.startFixtureTeardown();
+      try {
+        if (context) {
+          if (requests > 0) {
+            await expect(closeTenantRequestContext(context)).rejects.toThrow(
+              'socket hang up',
+            );
+            failureDatabase.events.push('routing owner reported failure');
+            expect(requests).toBe(1);
+          } else {
+            await closeTenantRequestContext(context);
+          }
+        }
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0)
+      throw new AggregateError(
+        errors,
+        'Route failure regression cleanup failed',
+      );
+  },
+});
+
+failureTest(
+  'keeps asynchronous test cleanup inside the fixture lifetime after a failed fetch',
+  async ({ failedRequestPage, failureDatabase }) => {
+    const page = await failedRequestPage.context.newPage();
+    try {
+      await expect(page.goto(failedRequestPage.origin)).rejects.toThrow(
+        'net::ERR_FAILED',
+      );
+    } finally {
+      await failureDatabase.cleanup();
+    }
+  },
+);
+
+for (const closeFails of [false, true]) {
+  test(`retains request settlement${closeFails ? ' and context-close' : ''} failure without replaying the request`, async ({
+    browser,
+  }) => {
+    let requests = 0;
+    const local = await listen((request) => {
+      requests += 1;
+      request.socket.destroy();
+    });
+    let context: BrowserContext | undefined;
+    let originalClose: BrowserContext['close'] | undefined;
+    const settlementFailure = new Error('Synthetic request abort failure');
+    const closeFailure = new Error('Synthetic context close reporting failure');
+    let closeCalls = 0;
+    const errors: unknown[] = [];
+    try {
+      context = await browser.newContext();
+      const closeContext = context.close.bind(context);
+      originalClose = closeContext;
+      context.close = async (options) => {
+        closeCalls += 1;
+        await closeContext(options);
+        if (closeFails) throw closeFailure;
+      };
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      // A real routed request with a controlled settlement failure exercises
+      // the context-close boundary without depending on a browser protocol fault.
+      await context.route(`${local.origin}/**`, async (route) => {
+        route.abort = async () => {
+          throw settlementFailure;
+        };
+        await route.fallback();
+      });
+      const page = await context.newPage();
+      await expect(page.goto(local.origin)).rejects.toThrow();
+      await expect(stopTenantRequestRouting(context)).rejects.toMatchObject({
+        errors: [
+          expect.objectContaining({
+            message: expect.stringContaining('socket hang up'),
+          }),
+          settlementFailure,
+          ...(closeFails ? [closeFailure] : []),
+        ],
+      });
+      expect(context.isClosed()).toBe(true);
+      expect(closeCalls).toBe(1);
+      expect(requests).toBe(1);
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      try {
+        if (context) await closeTenantRequestContext(context);
+      } catch (error) {
+        errors.push(error);
+      } finally {
+        if (context && originalClose) context.close = originalClose;
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0)
+      throw new AggregateError(errors, 'Request settlement regression failed');
+    expect(closeCalls).toBe(1);
+  });
+}
+
+test('retains routing ownership when emergency close rejects before closing the context', async ({
+  browser,
+}) => {
+  let requests = 0;
+  const local = await listen((request) => {
+    requests += 1;
+    request.socket.destroy();
+  });
+  let context: BrowserContext | undefined;
+  let originalClose: BrowserContext['close'] | undefined;
+  let navigation: Promise<unknown> | undefined;
+  const closeRequested = Promise.withResolvers<void>();
+  const settlementFailure = new Error('Synthetic request abort failure');
+  const closeFailure = new Error('Synthetic context close rejection');
+  let closeCalls = 0;
+  const errors: unknown[] = [];
+  try {
+    context = await browser.newContext();
+    originalClose = context.close.bind(context);
+    context.close = async () => {
+      closeCalls += 1;
+      closeRequested.resolve();
+      throw closeFailure;
+    };
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    await context.route(`${local.origin}/**`, async (route) => {
+      route.abort = async () => {
+        throw settlementFailure;
+      };
+      await route.fallback();
+    });
+    const page = await context.newPage();
+    navigation = page.goto(local.origin).catch((error: unknown) => error);
+    await closeRequested.promise;
+    const retainedFailure = await stopTenantRequestRouting(context).catch(
+      (error: unknown) => error,
+    );
+    expect(retainedFailure).toMatchObject({
+      errors: [
+        expect.objectContaining({
+          message: expect.stringContaining('socket hang up'),
+        }),
+        settlementFailure,
+        closeFailure,
+      ],
+      message:
+        'Tenant request routing cleanup failed; context remains open and routing remains installed',
+    });
+    expect(context.isClosed()).toBe(false);
+    await expect(
+      routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'replacement.example.org',
+      }),
+    ).rejects.toThrow('Tenant request routing is already installed');
+    await expect(closeTenantRequestContext(context)).rejects.toBe(
+      retainedFailure,
+    );
+    expect(context.isClosed()).toBe(false);
+    expect(closeCalls).toBe(1);
+    expect(requests).toBe(1);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    // The probe owns this deliberately unclosed context. Restore the real
+    // close operation solely to release its browser resource after assertions.
+    try {
+      if (context && originalClose) {
+        context.close = originalClose;
+        await originalClose();
+      }
+      if (navigation) await navigation;
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0)
+    throw new AggregateError(
+      errors,
+      'Unclosed routing owner regression failed',
     );
 });

@@ -8,12 +8,15 @@ type TenantRoute = {
   active: Set<Promise<void>>;
   closing: boolean;
   draining: Promise<void> | undefined;
+  emergencyClose: Promise<void> | undefined;
   errors: unknown[];
   handler: (route: Route) => Promise<void>;
+  isContextClosed: () => boolean;
   pattern: string;
 };
 
 const tenantRoutes = new WeakMap<RoutingContext, TenantRoute>();
+const emergencyCloseAttempts = new WeakSet<RoutingContext>();
 
 export const localTenantRequestPattern = (baseUrl: string): string =>
   `${new URL(baseUrl).origin}/**`;
@@ -32,7 +35,10 @@ export const routeLocalTenantRequests = async ({
   tenantDomain,
 }: {
   baseUrl: string;
-  context: Pick<BrowserContext, 'grantPermissions' | 'route' | 'unroute'>;
+  context: Pick<
+    BrowserContext,
+    'close' | 'grantPermissions' | 'isClosed' | 'route' | 'unroute'
+  >;
   tenantDomain: string;
 }): Promise<void> => {
   if (tenantRoutes.has(context)) {
@@ -55,32 +61,55 @@ export const routeLocalTenantRequests = async ({
     active: new Set(),
     closing: false,
     draining: undefined,
+    emergencyClose: undefined,
     errors: [],
     handler: (route) => {
       const operation = (async () => {
-        if (state.closing) {
-          await route.abort('aborted');
-          return;
+        const abortOnly = state.closing;
+        try {
+          if (abortOnly) {
+            await route.abort('aborted');
+            return;
+          }
+          const response = await route.fetch({
+            headers: localTenantRequestHeaders(
+              route.request().headers(),
+              tenantDomain,
+            ),
+            maxRedirects: 0,
+          });
+          await route.fulfill({ response });
+        } catch (error) {
+          // Route callbacks are asynchronous event listeners in Playwright.
+          // Keep failures owned here instead of interrupting the test body.
+          state.errors.push(error);
+          if (!abortOnly) {
+            try {
+              await route.abort('failed');
+              return;
+            } catch (settlementError) {
+              state.errors.push(settlementError);
+            }
+          }
+          state.closing = true;
+          // If this request cannot be settled, close its owned context once.
+          // Never release it by removing interception or replaying upstream.
+          if (!state.emergencyClose) {
+            emergencyCloseAttempts.add(context);
+            state.emergencyClose = Promise.resolve()
+              .then(() => context.close())
+              .catch((closeError) => {
+                state.errors.push(closeError);
+              });
+          }
+          await state.emergencyClose;
         }
-        const response = await route.fetch({
-          headers: localTenantRequestHeaders(
-            route.request().headers(),
-            tenantDomain,
-          ),
-          maxRedirects: 0,
-        });
-        await route.fulfill({ response });
       })();
       state.active.add(operation);
-      void operation.then(
-        () => state.active.delete(operation),
-        (error) => {
-          state.errors.push(error);
-          state.active.delete(operation);
-        },
-      );
+      void operation.then(() => state.active.delete(operation));
       return operation;
     },
+    isContextClosed: () => context.isClosed(),
     pattern: localTenantRequestPattern(baseUrl),
   };
   tenantRoutes.set(context, state);
@@ -92,6 +121,9 @@ export const stopTenantRequestRouting = async (
 ): Promise<void> => {
   const state = tenantRoutes.get(context);
   if (!state) return;
+  if (state.emergencyClose && state.isContextClosed()) {
+    tenantRoutes.delete(context);
+  }
   if (!state.draining) {
     state.closing = true;
     state.draining = (async () => {
@@ -101,17 +133,23 @@ export const stopTenantRequestRouting = async (
       while (state.active.size > 0) {
         await Promise.allSettled([...state.active]);
       }
-      try {
-        await context.unroute(state.pattern, state.handler);
-      } catch (error) {
-        state.errors.push(error);
+      if (!state.emergencyClose) {
+        try {
+          await context.unroute(state.pattern, state.handler);
+        } catch (error) {
+          state.errors.push(error);
+        }
       }
-      tenantRoutes.delete(context);
+      const contextRemainsOpen =
+        state.emergencyClose !== undefined && !state.isContextClosed();
+      if (!contextRemainsOpen) tenantRoutes.delete(context);
       if (state.errors.length === 1) throw state.errors[0];
       if (state.errors.length > 1) {
         throw new AggregateError(
           state.errors,
-          'Tenant request routing cleanup failed',
+          contextRemainsOpen
+            ? 'Tenant request routing cleanup failed; context remains open and routing remains installed'
+            : 'Tenant request routing cleanup failed',
         );
       }
     })();
@@ -128,10 +166,12 @@ export const closeTenantRequestContext = async (
   } catch (error) {
     errors.push(error);
   }
-  try {
-    await context.close();
-  } catch (error) {
-    errors.push(error);
+  if (!emergencyCloseAttempts.has(context)) {
+    try {
+      await context.close();
+    } catch (error) {
+      errors.push(error);
+    }
   }
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) {
