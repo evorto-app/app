@@ -141,6 +141,11 @@ describe('evaluateRuntimePreflight', () => {
         .map(({ name }) => name)
         .filter((name) => name.endsWith('_USER_PASSWORD')),
     ).toEqual([]);
+    expect(
+      requiredByTarget.playwright
+        .map(({ name }) => name)
+        .filter((name) => name.startsWith('AUTH0_MANAGEMENT_')),
+    ).toEqual(['AUTH0_MANAGEMENT_CLIENT_ID', 'AUTH0_MANAGEMENT_CLIENT_SECRET']);
 
     const result = evaluateRuntimePreflight('playwright', {
       cwd: '/repo',
@@ -533,7 +538,10 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).toContain('E2E_RUNTIME_MODE:');
     expect(evortoService).not.toContain('E2E_RUNTIME_MODE: "playwright"');
     expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
+    expect(evortoService).toContain('APP_ENVIRONMENT: local');
     expect(evortoService).toContain('APP_ROLE: web');
+    expect(evortoService).toContain('DATABASE_TLS_REQUIRED: "false"');
+    expect(evortoService).toContain('WORKER_TRIGGER_MODE: poll');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
     );
@@ -548,6 +556,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(mailpitService).not.toContain('MAILPIT_HOST_PORT:-');
     expect(mailpitService).toContain('mailpit-data:/data');
     expect(workerService).toContain('APP_ROLE: worker');
+    expect(workerService).toContain('DATABASE_TLS_REQUIRED: "false"');
     expect(workerService).toContain('WORKER_TRIGGER_MODE: poll');
     expect(workerService).toContain('EMAIL_DELIVERY_PROVIDER: mailpit');
     expect(workerService).toContain(
@@ -582,11 +591,15 @@ describe('evaluateRuntimePreflight', () => {
     expect(runtimeEnvironment).toContain('DEFAULT_E2E_SEED_KEY');
     expect(runtimeEnvironment).toContain('E2E_NOW_ISO: e2eNowIso');
     expect(runtimeEnvironment).toContain('E2E_SEED_KEY: e2eSeedKey');
+    expect(runtimeEnvironment).toContain("APP_ENVIRONMENT: 'local'");
+    expect(runtimeEnvironment).toContain("APP_ROLE: 'web'");
+    expect(runtimeEnvironment).toContain("DATABASE_TLS_REQUIRED: 'false'");
     expect(runtimeEnvironment).toContain(
       'MAILPIT_HOST_PORT: String(mailpitHostPort)',
     );
     expect(runtimeEnvironment).toContain("NODE_ENV: 'development'");
     expect(runtimeEnvironment).toContain('SSR_RPC_ORIGIN: baseUrl');
+    expect(runtimeEnvironment).toContain("WORKER_TRIGGER_MODE: 'poll'");
 
     const baseFixture = fs.readFileSync(
       path.join(process.cwd(), 'tests/support/fixtures/base-test.ts'),

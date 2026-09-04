@@ -43,6 +43,19 @@ const e2eTestAccountPasswordVariables = e2eTestUserPasswordVariables.map(
   }),
 ) satisfies RequiredVariable[];
 
+const auth0ManagementVariables = [
+  {
+    description:
+      'Auth0 Management client id for reversible authenticated test identities',
+    name: 'AUTH0_MANAGEMENT_CLIENT_ID',
+  },
+  {
+    description:
+      'Auth0 Management secret for reversible authenticated test identities',
+    name: 'AUTH0_MANAGEMENT_CLIENT_SECRET',
+  },
+] satisfies RequiredVariable[];
+
 const dockerRequiredVariables = [
   {
     description: 'Font Awesome package registry access for the premium icons',
@@ -76,6 +89,7 @@ const dockerRequiredVariables = [
 
 const playwrightRequiredVariables = [
   ...dockerRequiredVariables,
+  ...auth0ManagementVariables,
   ...e2eTestAccountPasswordVariables,
 ] satisfies RequiredVariable[];
 

@@ -1,8 +1,18 @@
 import { describe, expect, it } from '@effect/vitest';
-import { ConfigProvider, Effect, Option } from 'effect';
+import { ConfigProvider, Effect, Option, Redacted } from 'effect';
 
 import { authConfig } from './auth-config';
 import { formatConfigError } from './config-error';
+
+const sessionSecret = 's'.repeat(32);
+const validAuthEnvironment = {
+  APP_ENVIRONMENT: 'production',
+  BASE_URL: 'https://app.example',
+  CLIENT_ID: 'client-id',
+  CLIENT_SECRET: 'client-secret',
+  ISSUER_BASE_URL: 'https://issuer.example',
+  SECRET: sessionSecret,
+};
 
 const readAuthConfig = (provider: ConfigProvider.ConfigProvider) =>
   authConfig
@@ -14,70 +24,230 @@ const readAuthConfig = (provider: ConfigProvider.ConfigProvider) =>
       ),
     );
 
-const providerFromEntries = (entries: readonly (readonly [string, string])[]) =>
-  ConfigProvider.fromEnv({ env: Object.fromEntries(entries) });
+const providerFromEnvironment = (
+  overrides: Readonly<Record<string, string>> = {},
+) =>
+  ConfigProvider.fromEnv({
+    env: {
+      ...validAuthEnvironment,
+      ...overrides,
+    },
+  });
 
 describe('auth-config', () => {
   it.effect(
     'keeps optional audience as Option.none when missing or blank',
     () =>
       Effect.gen(function* () {
-        const missingAudienceProvider = providerFromEntries([
-          ['BASE_URL', 'https://app.example'],
-          ['CLIENT_ID', 'client-id'],
-          ['CLIENT_SECRET', 'client-secret'],
-          ['ISSUER_BASE_URL', 'https://issuer.example'],
-          ['SECRET', 'super-secret'],
-        ]);
-        const blankAudienceProvider = providerFromEntries([
-          ['AUDIENCE', ' '.repeat(3)],
-          ['BASE_URL', 'https://app.example'],
-          ['CLIENT_ID', 'client-id'],
-          ['CLIENT_SECRET', 'client-secret'],
-          ['ISSUER_BASE_URL', 'https://issuer.example'],
-          ['SECRET', 'super-secret'],
-        ]);
-
-        expect(
-          (yield* readAuthConfig(missingAudienceProvider)).AUDIENCE,
-        ).toEqual(Option.none());
-        expect((yield* readAuthConfig(blankAudienceProvider)).AUDIENCE).toEqual(
-          Option.none(),
+        const missingAudience = yield* readAuthConfig(
+          providerFromEnvironment(),
         );
+        const blankAudience = yield* readAuthConfig(
+          providerFromEnvironment({
+            AUDIENCE: ' '.repeat(3),
+          }),
+        );
+
+        expect(missingAudience.AUDIENCE).toEqual(Option.none());
+        expect(blankAudience.AUDIENCE).toEqual(Option.none());
       }),
   );
 
-  it.effect(
-    'trims and keeps optional audience as Option.some when provided',
-    () =>
-      Effect.gen(function* () {
-        const provider = providerFromEntries([
-          ['AUDIENCE', '  https://api.example  '],
-          ['BASE_URL', 'https://app.example'],
-          ['CLIENT_ID', 'client-id'],
-          ['CLIENT_SECRET', 'client-secret'],
-          ['ISSUER_BASE_URL', 'https://issuer.example'],
-          ['SECRET', 'super-secret'],
-        ]);
+  it.effect('trims values, normalizes origins, and redacts secrets', () =>
+    Effect.gen(function* () {
+      const configured = yield* readAuthConfig(
+        providerFromEnvironment({
+          AUDIENCE: '  https://api.example  ',
+          BASE_URL: '  https://app.example/  ',
+          CLIENT_SECRET: '  client-secret  ',
+          ISSUER_BASE_URL: '  https://issuer.example/  ',
+          SECRET: `  ${sessionSecret}  `,
+        }),
+      );
 
-        expect((yield* readAuthConfig(provider)).AUDIENCE).toEqual(
-          Option.some('https://api.example'),
-        );
-      }),
+      expect(configured.AUDIENCE).toEqual(Option.some('https://api.example'));
+      expect(configured.BASE_URL).toBe('https://app.example');
+      expect(configured.ISSUER_BASE_URL).toBe('https://issuer.example');
+      expect(Redacted.value(configured.CLIENT_SECRET)).toBe('client-secret');
+      expect(Redacted.value(configured.SECRET)).toBe(sessionSecret);
+      expect(String(configured.CLIENT_SECRET)).not.toContain('client-secret');
+      expect(String(configured.SECRET)).not.toContain(sessionSecret);
+    }),
   );
 
   it.effect('rejects whitespace-only required values after trimming', () =>
     Effect.gen(function* () {
-      const provider = providerFromEntries([
-        ['BASE_URL', ' '.repeat(3)],
-        ['CLIENT_ID', 'client-id'],
-        ['CLIENT_SECRET', 'client-secret'],
-        ['ISSUER_BASE_URL', 'https://issuer.example'],
-        ['SECRET', 'super-secret'],
-      ]);
+      const error = yield* Effect.flip(
+        readAuthConfig(
+          providerFromEnvironment({
+            BASE_URL: ' '.repeat(3),
+          }),
+        ),
+      );
 
-      const error = yield* Effect.flip(readAuthConfig(provider));
       expect(error.message).toMatch(/BASE_URL/);
     }),
+  );
+
+  it.effect(
+    'requires at least 32 UTF-8 bytes without exposing the configured secret',
+    () =>
+      Effect.gen(function* () {
+        const weakSecret = 'sensitive-short-secret';
+        const error = yield* Effect.flip(
+          readAuthConfig(
+            providerFromEnvironment({
+              SECRET: weakSecret,
+            }),
+          ),
+        );
+
+        expect(error.message).toContain(
+          'SECRET to contain at least 32 UTF-8 bytes',
+        );
+        expect(error.message).not.toContain(weakSecret);
+
+        const multibyteSecret = 'é'.repeat(16);
+        const configured = yield* readAuthConfig(
+          providerFromEnvironment({
+            SECRET: multibyteSecret,
+          }),
+        );
+        expect(Redacted.value(configured.SECRET)).toBe(multibyteSecret);
+      }),
+  );
+
+  it.effect(
+    'rejects credentials, paths, queries, fragments, unsupported schemes, and trailing-dot hosts',
+    () =>
+      Effect.gen(function* () {
+        const invalidOrigins = [
+          'https://user:password@app.example',
+          'https://app.example/auth',
+          'https://app.example?mode=auth',
+          'https://app.example#auth',
+          'ftp://app.example',
+          'https://app.example.',
+          'not-an-origin',
+        ];
+
+        for (const field of ['BASE_URL', 'ISSUER_BASE_URL'] as const) {
+          for (const invalidOrigin of invalidOrigins) {
+            const error = yield* Effect.flip(
+              readAuthConfig(
+                providerFromEnvironment({
+                  [field]: invalidOrigin,
+                }),
+              ),
+            );
+
+            expect(error.message).toContain(field);
+          }
+        }
+      }),
+  );
+
+  it.effect('requires HTTPS for every hosted auth origin', () =>
+    Effect.gen(function* () {
+      for (const field of ['BASE_URL', 'ISSUER_BASE_URL'] as const) {
+        const error = yield* Effect.flip(
+          readAuthConfig(
+            providerFromEnvironment({
+              APP_ENVIRONMENT: 'staging',
+              [field]: 'http://hosted.example',
+            }),
+          ),
+        );
+
+        expect(error.message).toContain(
+          field === 'ISSUER_BASE_URL'
+            ? 'ISSUER_BASE_URL to use https on the default port'
+            : 'BASE_URL to use https outside local loopback development',
+        );
+      }
+    }),
+  );
+
+  it.effect(
+    'requires an HTTPS issuer on the default port in every environment',
+    () =>
+      Effect.gen(function* () {
+        for (const applicationEnvironment of [
+          'local',
+          'staging',
+          'production',
+        ]) {
+          for (const invalidIssuer of [
+            'http://127.0.0.1:4200',
+            'http://[::1]:4200',
+            'http://localhost:4200',
+            'https://issuer.example:8443',
+          ]) {
+            const error = yield* Effect.flip(
+              readAuthConfig(
+                providerFromEnvironment({
+                  APP_ENVIRONMENT: applicationEnvironment,
+                  ISSUER_BASE_URL: invalidIssuer,
+                }),
+              ),
+            );
+
+            expect(error.message).toContain(
+              'ISSUER_BASE_URL to use https on the default port',
+            );
+          }
+
+          const configured = yield* readAuthConfig(
+            providerFromEnvironment({
+              APP_ENVIRONMENT: applicationEnvironment,
+              ISSUER_BASE_URL: 'https://issuer.example:443',
+            }),
+          );
+          expect(configured.ISSUER_BASE_URL).toBe('https://issuer.example');
+        }
+      }),
+  );
+
+  it.effect(
+    'permits an HTTP base URL only for exact local loopback origins in local development',
+    () =>
+      Effect.gen(function* () {
+        for (const loopbackOrigin of [
+          'http://127.0.0.1:4200',
+          'http://[::1]:4200',
+          'http://localhost:4200',
+        ]) {
+          const configured = yield* readAuthConfig(
+            providerFromEnvironment({
+              APP_ENVIRONMENT: 'local',
+              BASE_URL: loopbackOrigin,
+            }),
+          );
+
+          expect(configured.BASE_URL).toBe(loopbackOrigin);
+          expect(configured.ISSUER_BASE_URL).toBe('https://issuer.example');
+        }
+
+        for (const disallowedOrigin of [
+          'http://127.0.0.2:4200',
+          'http://localhost.:4200',
+          'http://private-network.example:4200',
+        ]) {
+          const error = yield* Effect.flip(
+            readAuthConfig(
+              providerFromEnvironment({
+                APP_ENVIRONMENT: 'local',
+                BASE_URL: disallowedOrigin,
+              }),
+            ),
+          );
+
+          expect(error.message).toContain(
+            disallowedOrigin.includes('localhost.')
+              ? 'BASE_URL to be an absolute http(s) origin'
+              : 'BASE_URL to use https outside local loopback development',
+          );
+        }
+      }),
   );
 });

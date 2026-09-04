@@ -1,11 +1,74 @@
-import { describe, expect, it } from '@effect/vitest';
-import { Effect } from 'effect';
+import * as PgClient from '@effect/sql-pg/PgClient';
+import { describe, expect, it, layer } from '@effect/vitest';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
+import { Effect, Layer, Schema } from 'effect';
 
+import { Database } from '../../../../db';
+import { relations } from '../../../../db/relations';
+import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import { Tenant } from '../../../../types/custom/tenant';
 import {
   normalizeOnboardingProfile,
+  onboardingHandlers,
   validateOnboardingAnswers,
   verifiedOnboardingIdentity,
 } from './onboarding.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
+
+const unexpectedDatabaseAccess = Effect.die(
+  new Error('Unexpected database access before authorization'),
+);
+const noDatabaseAccessLayer = Layer.effect(
+  Database,
+  PgDrizzle.makeWithDefaults({ relations }),
+).pipe(
+  Layer.provide(
+    PgClient.layerFrom(
+      PgClient.makeWith({
+        acquirer: unexpectedDatabaseAccess,
+        config: {},
+        listenAcquirer: unexpectedDatabaseAccess,
+        transactionAcquirer: unexpectedDatabaseAccess,
+      }),
+    ),
+  ),
+);
+
+const missingSubjectContextLayer = Layer.mergeAll(
+  noDatabaseAccessLayer,
+  Layer.succeed(RpcRequestContext, {
+    authData: {},
+    authenticated: true,
+    permissions: [],
+    tenant: Schema.decodeUnknownSync(Tenant)({
+      currency: 'EUR',
+      defaultLocation: null,
+      discountProviders: {
+        esnCard: {
+          config: {},
+          status: 'disabled',
+        },
+      },
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      locale: 'de-DE',
+      name: 'Tenant',
+      receiptSettings: {
+        allowOther: false,
+        receiptCountries: ['NL'],
+      },
+      stripeAccountId: null,
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+    }),
+    user: null,
+    userAssigned: false,
+  } satisfies RpcRequestContextShape),
+  RpcAccess.Default,
+);
 
 describe('tenant onboarding completion validation', () => {
   it('accepts only an authenticated identity with an explicitly verified email', () => {
@@ -111,4 +174,29 @@ describe('tenant onboarding completion validation', () => {
       expect(longText._tag).toBe('TenantOnboardingValidationError');
     }),
   );
+});
+
+describe('tenant onboarding authorization', () => {
+  layer(missingSubjectContextLayer)((it) => {
+    it.effect(
+      'returns the same explicit unauthorized outcome for status and requirements when sub is missing',
+      () =>
+        Effect.gen(function* () {
+          const requirementsError = yield* onboardingHandlers[
+            'onboarding.requirements'
+          ]().pipe(Effect.flip);
+          const statusError = yield* onboardingHandlers[
+            'onboarding.status'
+          ]().pipe(Effect.flip);
+
+          const expectedError = {
+            _tag: 'RpcUnauthorizedError',
+            message:
+              'Your sign-in details are incomplete. Sign out and sign in again.',
+          };
+          expect(requirementsError).toMatchObject(expectedError);
+          expect(statusError).toMatchObject(expectedError);
+        }),
+    );
+  });
 });

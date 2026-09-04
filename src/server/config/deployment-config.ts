@@ -18,17 +18,17 @@ export const isDatabaseRuntimeRoleName = Schema.is(
 export const applicationEnvironmentConfig = Config.literals(
   ['local', 'staging', 'production'],
   'APP_ENVIRONMENT',
-).pipe(Config.withDefault('local'));
+);
 
 export const applicationRoleConfig = Config.literals(
   ['web', 'worker', 'ops'],
   'APP_ROLE',
-).pipe(Config.withDefault('web'));
+);
 
 export const workerTriggerModeConfig = Config.literals(
   ['poll', 'http'],
   'WORKER_TRIGGER_MODE',
-).pipe(Config.withDefault('poll'));
+);
 
 const traceSamplingRatioConfig = Config.option(
   Config.finite('TRACE_SAMPLING_RATIO').pipe(

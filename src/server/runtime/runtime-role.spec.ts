@@ -68,8 +68,10 @@ describe('runtime role configuration', () => {
           const config = yield* deploymentConfigSchema.parse(
             ConfigProvider.fromEnv({
               env: {
+                APP_ENVIRONMENT: 'local',
                 APP_ROLE: 'ops',
                 APP_SCHEMA_HASH: 'a'.repeat(64),
+                WORKER_TRIGGER_MODE: 'poll',
                 ...(role !== undefined && { DATABASE_RUNTIME_ROLE: role }),
               },
             }),
@@ -107,9 +109,11 @@ describe('runtime role configuration', () => {
         const config = yield* deploymentConfigSchema.parse(
           ConfigProvider.fromEnv({
             env: {
+              APP_ENVIRONMENT: 'local',
               APP_ROLE: 'ops',
               APP_SCHEMA_HASH: 'a'.repeat(64),
               DATABASE_RUNTIME_ROLE: 'application_runtime',
+              WORKER_TRIGGER_MODE: 'poll',
             },
           }),
         );
@@ -168,6 +172,7 @@ describe('runtime role configuration', () => {
                   APP_ENVIRONMENT: 'local',
                   APP_ROLE: 'ops',
                   APP_SCHEMA_HASH: 'a'.repeat(64),
+                  WORKER_TRIGGER_MODE: 'poll',
                 },
               }),
               provider,
@@ -210,7 +215,10 @@ describe('runtime role configuration', () => {
         const web = yield* deploymentConfigSchema.parse(
           ConfigProvider.fromEnv({
             env: {
+              APP_ENVIRONMENT: 'local',
+              APP_ROLE: 'web',
               DATABASE_RUNTIME_ROLE: 'unused-invalid-role',
+              WORKER_TRIGGER_MODE: 'poll',
             },
           }),
         );
@@ -222,6 +230,7 @@ describe('runtime role configuration', () => {
               APP_BOOTSTRAP: 'true',
               APP_ENVIRONMENT: 'staging',
               APP_ROLE: 'ops',
+              WORKER_TRIGGER_MODE: 'http',
             },
           }),
         );

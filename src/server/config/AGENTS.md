@@ -10,6 +10,16 @@
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo and should not be created or referenced.
 - In CI and other cloud environments, do not rely on tracked or generated dotenv artifacts. Use explicit environment variables provided by GitHub Actions `env`, `vars`, and `secrets`.
 
+## Explicit Runtime and Transport Settings
+
+- Require `APP_ENVIRONMENT`, `APP_ROLE`, `WORKER_TRIGGER_MODE`, and
+  `DATABASE_TLS_REQUIRED`; local environment generation supplies their local values.
+- Auth0 issuer origins must use HTTPS on its default port. Only `BASE_URL` may
+  use HTTP for local loopback development.
+- A provided database CA certificate must be nonblank; preserve its PEM bytes.
+  When configuring a CA, keep SSL settings out of `DATABASE_URL` so they cannot
+  override certificate and server-name verification in the PostgreSQL driver.
+
 ## Effect Config Shape
 
 - Prefer native Effect `Config.*` combinators in module declarations.

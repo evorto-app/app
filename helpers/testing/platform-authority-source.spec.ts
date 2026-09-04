@@ -18,11 +18,43 @@ describe('platform authority source', () => {
     );
 
     expect(resolver).toContain('resolvePlatformAuthority');
+    expect(resolver).toContain("user?.['evorto.app/app_metadata']");
+    expect(resolver).toContain(
+      "appMetadata?.['platformAdministrator'] === true",
+    );
     expect(resolver).toContain("kind: 'platformAdministrator'");
     expect(resolver).not.toContain('...ALL_PERMISSIONS');
     expect(httpContext).toContain('platformAuthority,');
     expect(httpContext).toContain('user: tenantUser');
     expect(httpContext).not.toContain('{ ...tenantUser, permissions }');
+  });
+
+  it('uses the production claim in local tests without an identity allowlist', () => {
+    const retiredAllowlistName = [
+      'E2E',
+      'GLOBAL',
+      'ADMIN',
+      'AUTH0',
+      'IDS',
+    ].join('_');
+    const authoritySources = [
+      '.env.dev.local',
+      '.env.example',
+      'docker-compose.yml',
+      'helpers/README.md',
+      'src/server/config/deployment-config.ts',
+      'src/server/config/test-runtime-config.ts',
+      'src/server/context/http-request-context.ts',
+      'src/server/context/request-context-resolver.ts',
+      'tests/setup/authentication.setup.ts',
+    ].map(readSource);
+    const setup = readSource('tests/setup/authentication.setup.ts');
+
+    for (const source of authoritySources) {
+      expect(source).not.toContain(retiredAllowlistName);
+    }
+    expect(setup).toContain('enablePlatformAdministratorClaim(');
+    expect(setup).toContain("page.goto('/global-admin/tenants')");
   });
 
   it('protects dedicated platform routes and RPCs with explicit authority', () => {

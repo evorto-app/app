@@ -7,6 +7,12 @@ import {
   isDatabaseRuntimeRoleName,
 } from './deployment-config';
 
+const explicitLocalDeployment = {
+  APP_ENVIRONMENT: 'local',
+  APP_ROLE: 'web',
+  WORKER_TRIGGER_MODE: 'poll',
+} as const;
+
 const readDeploymentConfig = (entries: Record<string, string>) =>
   deploymentConfig
     .parse(ConfigProvider.fromEnv({ env: entries }))
@@ -36,9 +42,32 @@ describe('deployment-config', () => {
     }
   });
 
+  it.effect('rejects empty or incomplete deployment identity', () =>
+    Effect.gen(function* () {
+      for (const [entries, missingField] of [
+        [{}, 'APP_ENVIRONMENT'],
+        [{ APP_ENVIRONMENT: 'local', WORKER_TRIGGER_MODE: 'poll' }, 'APP_ROLE'],
+        [{ APP_ENVIRONMENT: 'local', APP_ROLE: 'web' }, 'WORKER_TRIGGER_MODE'],
+      ] as const) {
+        const error = yield* readDeploymentConfig(entries).pipe(Effect.flip);
+        expect(error.message).toContain(missingField);
+      }
+    }),
+  );
+
+  it.effect('accepts explicit local deployment identity', () =>
+    Effect.gen(function* () {
+      const config = yield* readDeploymentConfig(explicitLocalDeployment);
+
+      expect(config.APP_ENVIRONMENT).toBe('local');
+      expect(config.APP_ROLE).toBe('web');
+      expect(config.WORKER_TRIGGER_MODE).toBe('poll');
+    }),
+  );
+
   it.effect('leaves trace sampling unconfigured by default', () =>
     Effect.gen(function* () {
-      const config = yield* readDeploymentConfig({});
+      const config = yield* readDeploymentConfig(explicitLocalDeployment);
 
       expect(config.TRACE_SAMPLING_RATIO).toEqual(Option.none());
     }),
@@ -48,6 +77,7 @@ describe('deployment-config', () => {
     Effect.gen(function* () {
       for (const ratio of ['0', '0.1', '1']) {
         const config = yield* readDeploymentConfig({
+          ...explicitLocalDeployment,
           TRACE_SAMPLING_RATIO: ratio,
         });
 
@@ -60,7 +90,10 @@ describe('deployment-config', () => {
     Effect.gen(function* () {
       for (const ratio of ['-0.01', '1.01']) {
         const error = yield* Effect.flip(
-          readDeploymentConfig({ TRACE_SAMPLING_RATIO: ratio }),
+          readDeploymentConfig({
+            ...explicitLocalDeployment,
+            TRACE_SAMPLING_RATIO: ratio,
+          }),
         );
 
         expect(error.message).toContain(

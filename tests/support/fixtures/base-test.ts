@@ -15,6 +15,7 @@ import { resolveLocalHostDatabaseEnvironment } from '../../../helpers/local-data
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
 import { formatConfigError } from '../../../src/server/config/config-error';
+import { preparePlatformAdministratorClaim } from '../auth0/platform-administrator-claim-fixture';
 import { readProtectedEnvironmentValue } from '../protected-values';
 import {
   auth0ManagementEnvironment,
@@ -51,11 +52,38 @@ const readAuth0ManagementEnvironment = () =>
       ),
     ),
   );
+const createAuth0ManagementClient = () => {
+  const auth0Environment = readAuth0ManagementEnvironment();
+  return new ManagementClient({
+    clientId: auth0Environment.AUTH0_MANAGEMENT_CLIENT_ID,
+    clientSecret: auth0Environment.AUTH0_MANAGEMENT_CLIENT_SECRET,
+    domain: new URL(environment.ISSUER_BASE_URL).hostname,
+  });
+};
+const restorePlatformAdministratorClaims = async (
+  restorations: readonly (() => Promise<void>)[],
+) => {
+  const errors: unknown[] = [];
+  for (const restore of restorations.toReversed()) {
+    try {
+      await restore();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(
+      errors,
+      'Could not restore the Auth0 platform administrator test identity',
+    );
+  }
+};
 process.env['E2E_NOW_ISO'] ??= environment.E2E_NOW_ISO;
 process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
 
 interface BaseFixtures {
   database: NodePgDatabase<typeof relations>;
+  enablePlatformAdministratorClaim: (auth0Id: string) => Promise<void>;
   falsoSeed: string;
   newUser: {
     email: string;
@@ -89,6 +117,28 @@ export const test = base.extend<BaseFixtures>({
       await pool.end();
     }
   },
+  enablePlatformAdministratorClaim: async ({}, use) => {
+    const restorations: Array<() => Promise<void>> = [];
+    try {
+      await use(async (auth0Id) => {
+        const auth0 = createAuth0ManagementClient();
+        const restore = await preparePlatformAdministratorClaim({
+          readAppMetadata: async () => {
+            const user = await auth0.users.get(auth0Id);
+            return user.app_metadata;
+          },
+          updateAppMetadata: async (appMetadata) => {
+            await auth0.users.update(auth0Id, {
+              app_metadata: appMetadata,
+            });
+          },
+        });
+        restorations.push(restore);
+      });
+    } finally {
+      await restorePlatformAdministratorClaims(restorations);
+    }
+  },
   falsoSeed: [
     async ({ seedDate }, use, testInfo) => {
       const scope = [
@@ -103,12 +153,7 @@ export const test = base.extend<BaseFixtures>({
     { auto: true },
   ],
   newUser: async ({}, use) => {
-    const auth0Environment = readAuth0ManagementEnvironment();
-    const auth0 = new ManagementClient({
-      clientId: auth0Environment.AUTH0_MANAGEMENT_CLIENT_ID,
-      clientSecret: auth0Environment.AUTH0_MANAGEMENT_CLIENT_SECRET,
-      domain: 'tumi-dev.eu.auth0.com',
-    });
+    const auth0 = createAuth0ManagementClient();
     const email = `test-${createDedupeId()}@evorto.app`;
     const password = readProtectedEnvironmentValue(
       'E2E_TRANSIENT_AUTH0_USER_PASSWORD',

@@ -2,13 +2,12 @@ import {
   type CookieHandler,
   type CookieSerializeOptions,
   CookieTransactionStore,
-  MissingSessionError,
-  MissingTransactionError,
   ServerClient,
+  type ServerClientOptions,
   type SessionData,
   StatelessStateStore,
 } from '@auth0/auth0-server-js';
-import { Duration, Effect, Option } from 'effect';
+import { Duration, Effect, Option, Redacted, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
@@ -16,15 +15,17 @@ import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
 import { sanitizeRelativeRedirectPath } from '../../shared/auth-redirect';
 import { RuntimeConfig } from '../config/runtime-config';
 
-const SESSION_COOKIE_NAME = 'appSession';
+export const AUTH_SESSION_COOKIE_IDENTIFIER = 'appSession';
+export const AUTH_TRANSACTION_COOKIE_IDENTIFIER = 'appTransaction';
 
 export interface AuthSession {
   authData: Record<string, unknown>;
 }
 
-interface AuthStoreOptions {
+export interface AuthStoreOptions {
   cookies: Record<string, string>;
   mutations: CookieMutation[];
+  secureCookies: boolean;
 }
 
 type CookieMutation = CookieMutationDelete | CookieMutationSet;
@@ -46,6 +47,18 @@ interface LoginAppState {
   redirectUrl: string;
 }
 
+export class InvalidAuthSessionError extends Schema.TaggedErrorClass<InvalidAuthSessionError>()(
+  'InvalidAuthSessionError',
+  {
+    message: Schema.String,
+    reason: Schema.Literals([
+      'missing-primary-token-set',
+      'missing-subject',
+      'missing-user',
+    ]),
+  },
+) {}
+
 // Auth0's server SDK manages encrypted session and transaction cookies via
 // pluggable stores. We bridge those mutations back into Effect Platform
 // responses so the rest of the server stays framework-agnostic.
@@ -53,14 +66,11 @@ interface LoginAppState {
 const getHeaderValue = (headers: Headers.Headers, key: string) =>
   Option.getOrUndefined(Headers.get(headers, key));
 
-const normalizeOrigin = (value: string) =>
-  value.endsWith('/') ? value.slice(0, -1) : value;
-
 const asString = (value: unknown) =>
   typeof value === 'string' ? value : undefined;
 
 const toRecord = (value: unknown) => {
-  if (typeof value !== 'object' || value === null) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return;
   }
 
@@ -79,27 +89,32 @@ const toCookieRecord = (cookies: Record<string, unknown>) => {
   return normalized;
 };
 
+const authCookieOptions = (
+  storeOptions: AuthStoreOptions,
+  options?: CookieSerializeOptions,
+): CookieSerializeOptions => ({
+  ...options,
+  httpOnly: true,
+  path: '/',
+  sameSite: 'lax',
+  secure: storeOptions.secureCookies || options?.secure === true,
+});
+
 const cookieHandler: CookieHandler<AuthStoreOptions> = {
   deleteCookie: (name, storeOptions, options) => {
     if (!storeOptions) {
       return;
     }
 
+    const cookieOptions = authCookieOptions(storeOptions, options);
     const nextCookies = { ...storeOptions.cookies };
     Reflect.deleteProperty(nextCookies, name);
     storeOptions.cookies = nextCookies;
-    storeOptions.mutations.push(
-      options
-        ? {
-            name,
-            options,
-            type: 'delete',
-          }
-        : {
-            name,
-            type: 'delete',
-          },
-    );
+    storeOptions.mutations.push({
+      name,
+      options: cookieOptions,
+      type: 'delete',
+    });
   },
   getCookie: (name, storeOptions) => storeOptions?.cookies[name],
   getCookies: (storeOptions) => storeOptions?.cookies ?? {},
@@ -108,21 +123,14 @@ const cookieHandler: CookieHandler<AuthStoreOptions> = {
       return;
     }
 
+    const cookieOptions = authCookieOptions(storeOptions, options);
     storeOptions.cookies[name] = value;
-    storeOptions.mutations.push(
-      options
-        ? {
-            name,
-            options,
-            type: 'set',
-            value,
-          }
-        : {
-            name,
-            type: 'set',
-            value,
-          },
-    );
+    storeOptions.mutations.push({
+      name,
+      options: cookieOptions,
+      type: 'set',
+      value,
+    });
   },
 };
 
@@ -175,100 +183,168 @@ const applyCookieMutations = (
     return nextResponse;
   });
 
-const isExpectedAuth0Error = (
-  error: unknown,
-): error is MissingSessionError | MissingTransactionError =>
-  error instanceof MissingSessionError ||
-  error instanceof MissingTransactionError;
-
-const runPromiseOrUndefined = <T>(operation: string, thunk: () => Promise<T>) =>
-  Effect.promise(thunk).pipe(
-    Effect.catchDefect((error) => {
-      if (isExpectedAuth0Error(error)) {
-        return Effect.succeed(undefined as T | undefined);
-      }
-
-      return Effect.logError(
-        `Unexpected Auth0 SDK failure during ${operation}`,
-      ).pipe(Effect.annotateLogs({ error }), Effect.andThen(Effect.die(error)));
-    }),
+export const runAuth0SdkOperation = <T>(
+  operation: string,
+  thunk: () => Promise<T>,
+) =>
+  Effect.tryPromise({
+    catch: (cause) => cause,
+    try: thunk,
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.logError(`Auth0 SDK failure during ${operation}`).pipe(
+        Effect.annotateLogs({ error }),
+        Effect.andThen(Effect.die(error)),
+      ),
+    ),
   );
 
-const createStoreOptions = (request: HttpServerRequest.HttpServerRequest) => ({
-  cookies: toCookieRecord(request.cookies as Record<string, unknown>),
+export const createAuthStoreOptions = (
+  cookies: Record<string, string>,
+  secureCookies: boolean,
+): AuthStoreOptions => ({
+  cookies: { ...cookies },
   mutations: [],
+  secureCookies,
 });
 
-const createAuth0Client = (request: HttpServerRequest.HttpServerRequest) =>
-  Effect.gen(function* () {
-    const { auth } = yield* RuntimeConfig;
-    const callbackOrigin = normalizeOrigin(auth.BASE_URL);
-    const requestOrigin = resolveRequestOrigin(request);
-    const callbackUrl = new URL('/callback', callbackOrigin).href;
-    const issuerHostname = yield* Effect.try({
-      catch: (cause) =>
-        new Error(
-          `Invalid ISSUER_BASE_URL configuration: ${auth.ISSUER_BASE_URL}`,
-          { cause: cause instanceof Error ? cause : new Error(String(cause)) },
-        ),
-      try: () => new URL(auth.ISSUER_BASE_URL).hostname,
-    });
-    const authorizationParameters = {
-      ...Option.match(auth.AUDIENCE, {
-        onNone: () => ({}),
-        onSome: (audience) => ({ audience }),
-      }),
-      redirect_uri: callbackUrl,
-      scope: 'openid profile email',
-    };
+export const shouldSecureAuthCookies = (
+  applicationEnvironment: 'local' | 'production' | 'staging',
+  requestIsSecure: boolean,
+) => applicationEnvironment !== 'local' || requestIsSecure;
 
-    return new ServerClient<AuthStoreOptions>({
-      authorizationParams: authorizationParameters,
-      clientId: auth.CLIENT_ID,
-      clientSecret: auth.CLIENT_SECRET,
-      domain: issuerHostname,
-      // StatelessStateStore keeps session state in encrypted cookies.
-      stateStore: new StatelessStateStore<AuthStoreOptions>(
-        {
-          cookie: {
-            name: SESSION_COOKIE_NAME,
-            path: '/',
-            sameSite: 'lax',
-            secure: requestOrigin.isSecure,
-          },
-          rolling: false,
-          secret: auth.SECRET,
-        },
-        cookieHandler,
-      ),
-      // CookieTransactionStore tracks in-flight OIDC login transactions.
-      transactionStore: new CookieTransactionStore<AuthStoreOptions>(
-        {
-          secret: auth.SECRET,
-        },
-        cookieHandler,
-      ),
-    });
+interface Auth0ServerClientOptionsInput {
+  audience: Option.Option<string>;
+  baseUrl: string;
+  clientId: string;
+  clientSecret: string;
+  issuerBaseUrl: string;
+  secret: string;
+  secureCookies: boolean;
+}
+
+export const createAuth0ServerClientOptions = ({
+  audience,
+  baseUrl,
+  clientId,
+  clientSecret,
+  issuerBaseUrl,
+  secret,
+  secureCookies,
+}: Auth0ServerClientOptionsInput): ServerClientOptions<AuthStoreOptions> => ({
+  authorizationParams: {
+    ...Option.match(audience, {
+      onNone: () => ({}),
+      onSome: (configuredAudience) => ({
+        audience: configuredAudience,
+      }),
+    }),
+    redirect_uri: new URL('/callback', baseUrl).href,
+    scope: 'openid profile email',
+  },
+  clientId,
+  clientSecret,
+  domain: new URL(issuerBaseUrl).hostname,
+  stateIdentifier: AUTH_SESSION_COOKIE_IDENTIFIER,
+  // StatelessStateStore keeps session state in encrypted cookies.
+  stateStore: new StatelessStateStore<AuthStoreOptions>(
+    {
+      cookie: {
+        path: '/',
+        sameSite: 'lax',
+        secure: secureCookies,
+      },
+      rolling: false,
+      secret,
+    },
+    cookieHandler,
+  ),
+  transactionIdentifier: AUTH_TRANSACTION_COOKIE_IDENTIFIER,
+  // CookieTransactionStore tracks in-flight OIDC login transactions.
+  transactionStore: new CookieTransactionStore<AuthStoreOptions>(
+    {
+      secret,
+    },
+    cookieHandler,
+  ),
+});
+
+const createAuth0RequestRuntime = (
+  request: HttpServerRequest.HttpServerRequest,
+) =>
+  Effect.gen(function* () {
+    const { auth, deployment } = yield* RuntimeConfig;
+    const { isSecure: requestIsSecure } = resolveRequestOrigin(request);
+    const secureCookies = shouldSecureAuthCookies(
+      deployment.APP_ENVIRONMENT,
+      requestIsSecure,
+    );
+    const storeOptions = createAuthStoreOptions(
+      toCookieRecord(request.cookies as Record<string, unknown>),
+      secureCookies,
+    );
+    const auth0Client = new ServerClient<AuthStoreOptions>(
+      createAuth0ServerClientOptions({
+        audience: auth.AUDIENCE,
+        baseUrl: auth.BASE_URL,
+        clientId: auth.CLIENT_ID,
+        clientSecret: Redacted.value(auth.CLIENT_SECRET),
+        issuerBaseUrl: auth.ISSUER_BASE_URL,
+        secret: Redacted.value(auth.SECRET),
+        secureCookies,
+      }),
+    );
+
+    return {
+      auth0Client,
+      baseUrl: auth.BASE_URL,
+      storeOptions,
+    };
   });
 
-export const toAuthSession = (sessionData: SessionData | undefined) => {
-  if (!sessionData) {
-    return;
+const invalidAuthSession = (
+  reason: 'missing-primary-token-set' | 'missing-subject' | 'missing-user',
+  message: string,
+) => new InvalidAuthSessionError({ message, reason });
+
+export const toAuthSession = (
+  sessionData: SessionData | undefined,
+): Effect.Effect<AuthSession | undefined, InvalidAuthSessionError> => {
+  if (sessionData === undefined) {
+    return Effect.succeed(undefined);
   }
 
   const primaryTokenSet = sessionData.tokenSets[0];
   if (!primaryTokenSet) {
-    return;
+    return Effect.fail(
+      invalidAuthSession(
+        'missing-primary-token-set',
+        'Auth0 returned a session without its primary token set',
+      ),
+    );
   }
 
   const authData = toRecord(sessionData.user);
-  if (!authData || !asString(authData['sub'])) {
-    return;
+  if (!authData) {
+    return Effect.fail(
+      invalidAuthSession(
+        'missing-user',
+        'Auth0 returned a session without user data',
+      ),
+    );
   }
 
-  return {
-    authData,
-  };
+  const subject = asString(authData['sub']);
+  if (!subject?.trim()) {
+    return Effect.fail(
+      invalidAuthSession(
+        'missing-subject',
+        'Auth0 returned a session without a user subject',
+      ),
+    );
+  }
+
+  return Effect.succeed({ authData });
 };
 
 export const resolveRequestOrigin = (
@@ -302,17 +378,17 @@ export const isAuthenticated = (authSession: AuthSession | undefined) =>
 
 export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
-    const storeOptions = createStoreOptions(request);
-    const auth0Client = yield* createAuth0Client(request);
+    const { auth0Client, storeOptions } =
+      yield* createAuth0RequestRuntime(request);
 
-    const sessionData = yield* runPromiseOrUndefined('loadAuthSession', () =>
+    const sessionData = yield* runAuth0SdkOperation('loadAuthSession', () =>
       auth0Client.getSession(storeOptions),
     );
 
     // The SDK has already validated the encrypted application session here.
     // OAuth access-token expiry is independent of that session lifetime; use
     // ServerClient.getAccessToken() if a downstream integration needs a token.
-    return toAuthSession(sessionData);
+    return yield* toAuthSession(sessionData);
   });
 
 export const handleLoginRequest = (
@@ -326,10 +402,10 @@ export const handleLoginRequest = (
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';
 
-    const storeOptions = createStoreOptions(request);
-    const auth0Client = yield* createAuth0Client(request);
+    const { auth0Client, storeOptions } =
+      yield* createAuth0RequestRuntime(request);
 
-    const authorizationUrl = yield* runPromiseOrUndefined(
+    const authorizationUrl = yield* runAuth0SdkOperation(
       'handleLoginRequest',
       () =>
         auth0Client.startInteractiveLogin(
@@ -341,10 +417,6 @@ export const handleLoginRequest = (
           storeOptions,
         ),
     );
-
-    if (!authorizationUrl) {
-      return HttpServerResponse.text('Unable to start login.', { status: 500 });
-    }
 
     const redirectResponse = HttpServerResponse.redirect(
       authorizationUrl.toString(),
@@ -362,13 +434,16 @@ export const handleCallbackRequest = (
     const requestUrl = toAbsoluteRequestUrl(request);
 
     if (!requestUrl.searchParams.get('code')) {
-      return HttpServerResponse.text('Missing code.', { status: 400 });
+      return HttpServerResponse.text(
+        'Sign-in could not be completed. Return to Evorto and try again.',
+        { status: 400 },
+      );
     }
 
-    const storeOptions = createStoreOptions(request);
-    const auth0Client = yield* createAuth0Client(request);
+    const { auth0Client, storeOptions } =
+      yield* createAuth0RequestRuntime(request);
 
-    const completedLogin = yield* runPromiseOrUndefined(
+    const completedLogin = yield* runAuth0SdkOperation(
       'handleCallbackRequest',
       () =>
         auth0Client.completeInteractiveLogin<LoginAppState>(
@@ -376,12 +451,6 @@ export const handleCallbackRequest = (
           storeOptions,
         ),
     );
-
-    if (!completedLogin) {
-      return HttpServerResponse.text('Unable to complete login.', {
-        status: 400,
-      });
-    }
 
     const redirectUrl =
       sanitizeRelativeRedirectPath(
@@ -399,7 +468,6 @@ export const handleLogoutRequest = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const { auth } = yield* RuntimeConfig;
     const requestUrl = toAbsoluteRequestUrl(request);
     const returnPath =
       sanitizeRelativeRedirectPath(
@@ -407,34 +475,17 @@ export const handleLogoutRequest = (
           requestUrl.searchParams.get('returnTo'),
       ) ?? '/';
 
-    const { isSecure } = resolveRequestOrigin(request);
-    const origin = normalizeOrigin(auth.BASE_URL);
-    const storeOptions = createStoreOptions(request);
-    const auth0Client = yield* createAuth0Client(request);
+    const { auth0Client, baseUrl, storeOptions } =
+      yield* createAuth0RequestRuntime(request);
 
-    const logoutUrl = yield* runPromiseOrUndefined('handleLogoutRequest', () =>
+    const logoutUrl = yield* runAuth0SdkOperation('handleLogoutRequest', () =>
       auth0Client.logout(
         {
-          returnTo: new URL(returnPath, origin).href,
+          returnTo: new URL(returnPath, baseUrl).href,
         },
         storeOptions,
       ),
     );
-
-    if (!logoutUrl) {
-      const fallbackResponse = yield* HttpServerResponse.expireCookie(
-        HttpServerResponse.redirect(returnPath),
-        SESSION_COOKIE_NAME,
-        {
-          httpOnly: true,
-          path: '/',
-          sameSite: 'lax',
-          secure: isSecure,
-        },
-      );
-
-      return fallbackResponse;
-    }
 
     const redirectResponse = HttpServerResponse.redirect(logoutUrl.toString());
     return yield* applyCookieMutations(

@@ -23,7 +23,10 @@ const makeDatabaseServiceLayer = (url: string) =>
     Layer.provide(
       ConfigProvider.layer(
         ConfigProvider.fromEnv({
-          env: Object.fromEntries([['DATABASE_URL', url]]),
+          env: Object.fromEntries([
+            ['DATABASE_TLS_REQUIRED', 'false'],
+            ['DATABASE_URL', url],
+          ]),
         }),
       ),
     ),

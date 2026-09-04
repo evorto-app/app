@@ -197,9 +197,12 @@ export const createRuntimeEnvironment = (
   const postgresIntegrationDatabaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@localhost:${postgresHostPort}/evorto_postgres_integration?sslmode=disable`;
 
   return {
+    APP_ENVIRONMENT: 'local',
     APP_HOST_PORT: String(appHostPort),
+    APP_ROLE: 'web',
     BASE_URL: baseUrl,
     COMPOSE_PROJECT_NAME: composeProjectName,
+    DATABASE_TLS_REQUIRED: 'false',
     DATABASE_URL: databaseUrl,
     DOCKER_DATABASE_URL: dockerDatabaseUrl,
     E2E_USE_DOCKER_STACK: 'true',
@@ -216,6 +219,7 @@ export const createRuntimeEnvironment = (
     POSTGRES_PASSWORD: databasePassword,
     POSTGRES_USER: databaseUser,
     SSR_RPC_ORIGIN: baseUrl,
+    WORKER_TRIGGER_MODE: 'poll',
   } as const;
 };
 

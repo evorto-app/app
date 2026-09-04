@@ -56,6 +56,16 @@ const databaseServerIdentity = (
   ) {
     throw new Error('DATABASE_URL must identify a PostgreSQL host');
   }
+  if (
+    [...parsedUrl.searchParams.keys()].some(
+      (name) => name.startsWith('ssl') || name === 'uselibpqcompat',
+    )
+  ) {
+    throw new Error(
+      'DATABASE_URL must not include SSL options when DATABASE_TLS_CA_CERTIFICATE is configured',
+    );
+  }
+
   return tlsServerName || parsedUrl.hostname;
 };
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Redacted } from 'effect';
+import { Client } from 'pg';
 
 import {
   createNodePgPoolConfig,
@@ -25,9 +26,11 @@ const expectVerifiedTlsOptions = (
 
 describe('pg-connection-config', () => {
   const databaseUrl =
-    'postgresql://evorto:local@localhost:55432/appdb?sslmode=disable';
+    'postgresql://evorto:local@localhost:55432/appdb?application_name=evorto';
 
   it('uses the URL SSL mode and bounded pool settings for both clients', () => {
+    const databaseUrl =
+      'postgresql://evorto:local@localhost:55432/appdb?sslmode=disable';
     expect(
       createNodePgPoolConfig({
         databaseUrl,
@@ -120,6 +123,63 @@ describe('pg-connection-config', () => {
         databaseUrl: ipDatabaseUrl,
       }).ssl,
     );
+  });
+
+  it('rejects URL SSL settings that can override an explicit CA configuration', () => {
+    const caCertificate =
+      '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
+    for (const parameter of [
+      'ssl',
+      'sslmode',
+      'sslcert',
+      'sslkey',
+      'sslrootcert',
+      'sslnegotiation',
+      'uselibpqcompat',
+    ]) {
+      for (const buildConfig of [
+        createNodePgPoolConfig,
+        createPgClientConfig,
+      ]) {
+        expect(() =>
+          buildConfig({
+            caCertificate,
+            databaseUrl: `${databaseUrl}&${parameter}=configured`,
+          }),
+        ).toThrowError(
+          'DATABASE_URL must not include SSL options when DATABASE_TLS_CA_CERTIFICATE is configured',
+        );
+      }
+    }
+  });
+
+  it('retains verified TLS after the PostgreSQL driver parses each client configuration', () => {
+    const caCertificate =
+      '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
+    const tlsServerName = 'rw-database.rdb.fr-par.scw.cloud';
+    const nodeConfig = createNodePgPoolConfig({
+      caCertificate,
+      databaseUrl,
+      tlsServerName,
+    });
+    const effectConfig = createPgClientConfig({
+      caCertificate,
+      databaseUrl,
+      tlsServerName,
+    });
+    if (!effectConfig.url)
+      throw new Error('Expected the Effect PostgreSQL URL');
+
+    // Construction parses the final configuration without opening a connection.
+    const nodeClient = new Client(nodeConfig);
+    const effectClient = new Client({
+      connectionString: Redacted.value(effectConfig.url),
+      ssl: effectConfig.ssl,
+    });
+    expectVerifiedTlsOptions(nodeClient.ssl, tlsServerName);
+    expectVerifiedTlsOptions(effectClient.ssl, tlsServerName);
+    expect(nodeConfig.connectionString).toBe(databaseUrl);
+    expect(Redacted.value(effectConfig.url)).toBe(databaseUrl);
   });
 
   it('rejects an inverted pool range', () => {

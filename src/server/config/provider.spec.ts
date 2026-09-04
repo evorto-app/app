@@ -15,14 +15,20 @@ const readDatabaseUrl = (cwd: string) =>
 
 describe('provider', () => {
   const originalDatabaseUrl = process.env['DATABASE_URL'];
+  const originalDatabaseTlsRequired = process.env['DATABASE_TLS_REQUIRED'];
 
   afterEach(() => {
     if (originalDatabaseUrl === undefined) {
       delete process.env['DATABASE_URL'];
-      return;
+    } else {
+      process.env['DATABASE_URL'] = originalDatabaseUrl;
     }
 
-    process.env['DATABASE_URL'] = originalDatabaseUrl;
+    if (originalDatabaseTlsRequired === undefined) {
+      delete process.env['DATABASE_TLS_REQUIRED'];
+    } else {
+      process.env['DATABASE_TLS_REQUIRED'] = originalDatabaseTlsRequired;
+    }
   });
 
   it.effect(
@@ -36,18 +42,19 @@ describe('provider', () => {
         try {
           fs.writeFileSync(
             path.join(temporaryDirectory, '.env'),
-            'DATABASE_URL=postgresql://secrets.example/app\n',
+            'DATABASE_TLS_REQUIRED=false\nDATABASE_URL=postgresql://secrets.example/app\n',
           );
           fs.writeFileSync(
             path.join(temporaryDirectory, '.env.dev'),
-            'DATABASE_URL=postgresql://worktree.example/app\n',
+            'DATABASE_TLS_REQUIRED=false\nDATABASE_URL=postgresql://worktree.example/app\n',
           );
           fs.writeFileSync(
             path.join(temporaryDirectory, '.env.dev.local'),
-            'DATABASE_URL=postgresql://shared.example/app\n',
+            'DATABASE_TLS_REQUIRED=false\nDATABASE_URL=postgresql://shared.example/app\n',
           );
 
           delete process.env['DATABASE_URL'];
+          delete process.env['DATABASE_TLS_REQUIRED'];
           expect(yield* readDatabaseUrl(temporaryDirectory)).toBe(
             'postgresql://shared.example/app',
           );
