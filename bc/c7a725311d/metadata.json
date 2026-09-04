@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "bcc7a725311d",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/complete-save-feedback-and-retain-event-pages.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "PRODUCT.md",
+    "src/app/events/event-details/event-details.component.html",
+    "src/app/events/event-details/event-details.component.spec.ts",
+    "src/app/events/event-details/event-details.component.ts",
+    "src/app/events/event-edit/event-edit.spec.ts",
+    "src/app/events/event-edit/event-edit.ts",
+    "src/app/events/event-list/event-list.component.html",
+    "src/app/events/event-list/event-list.component.spec.ts",
+    "src/app/events/event-review-dialog/event-review-dialog.component.ts",
+    "src/app/global-admin/platform-event-operations/platform-event-create.component.html",
+    "src/app/global-admin/platform-event-operations/platform-event-create.component.spec.ts",
+    "src/app/global-admin/platform-event-operations/platform-event-create.component.ts",
+    "src/app/global-admin/platform-event-operations/platform-event-detail.component.html",
+    "src/app/global-admin/platform-event-operations/platform-event-detail.component.spec.ts",
+    "src/app/global-admin/platform-event-operations/platform-event-detail.component.ts",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.spec.ts",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.ts",
+    "src/app/templates/categories/category-list/category-list.component.spec.ts",
+    "src/app/templates/categories/category-list/category-list.component.ts",
+    "src/app/templates/categories/create-edit-category-dialog/create-edit-category-dialog.component.html",
+    "src/app/templates/categories/create-edit-category-dialog/create-edit-category-dialog.component.ts",
+    "src/app/templates/template-create-event/template-create-event.component.spec.ts",
+    "src/app/templates/template-create-event/template-create-event.component.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/bc/c7a725311d/0/metadata.json",
+      "transcript": "/bc/c7a725311d/0/full.jsonl",
+      "content_hash": "/bc/c7a725311d/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 302426,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 27594368,
+    "output_tokens": 59020,
+    "api_call_count": 280
+  }
+}
