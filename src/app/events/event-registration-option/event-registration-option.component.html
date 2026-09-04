@@ -129,6 +129,13 @@
             <textarea
               matInput
               rows="3"
+              [maxLength]="maxRegistrationAnswerLength"
+              [aria-describedby]="
+                registrationQuestionAnswer(question.id).length >
+                maxRegistrationAnswerLength
+                  ? registrationOption().id + '-answer-length-error'
+                  : ''
+              "
               [disabled]="!controlsInteractive()"
               [required]="question.required"
               [value]="registrationQuestionAnswer(question.id)"
@@ -138,6 +145,16 @@
               <mat-hint>{{ question.description }}</mat-hint>
             }
           </mat-form-field>
+        }
+        @if (registrationQuestionAnswersTooLong()) {
+          <p
+            class="body-small text-error"
+            role="alert"
+            [id]="registrationOption().id + '-answer-length-error'"
+          >
+            Each answer must be {{ maxRegistrationAnswerLength }} characters or
+            fewer.
+          </p>
         }
         @if (registrationQuestionAnswersMissingRequired()) {
           <p class="body-small text-error" role="status">
@@ -170,6 +187,7 @@
                 type="button"
                 [disabled]="
                   registrationOptionWriteActionDisabled({
+                    answersTooLong: registrationQuestionAnswersTooLong(),
                     controlsInteractive: controlsInteractive(),
                     missingRequiredAnswers:
                       registrationQuestionAnswersMissingRequired(),
@@ -214,6 +232,7 @@
                 type="button"
                 [disabled]="
                   registrationOptionWriteActionDisabled({
+                    answersTooLong: registrationQuestionAnswersTooLong(),
                     controlsInteractive: controlsInteractive(),
                     missingRequiredAnswers:
                       registrationQuestionAnswersMissingRequired(),
@@ -232,6 +251,7 @@
                 type="button"
                 [disabled]="
                   registrationOptionWriteActionDisabled({
+                    answersTooLong: registrationQuestionAnswersTooLong(),
                     controlsInteractive: controlsInteractive(),
                     missingRequiredAnswers:
                       registrationQuestionAnswersMissingRequired(),

@@ -7,6 +7,9 @@
     <mat-form-field>
       <mat-label>Question</mat-label>
       <input matInput [formField]="question.title" />
+      <mat-hint
+        >Up to {{ maxRegistrationQuestionTitleLength }} characters.</mat-hint
+      >
       @for (error of question.title().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
       }
@@ -43,6 +46,13 @@
   <mat-form-field>
     <mat-label>Help text</mat-label>
     <textarea matInput rows="3" [formField]="question.description"></textarea>
+    <mat-hint
+      >Up to
+      {{ maxRegistrationQuestionDescriptionLength }} characters.</mat-hint
+    >
+    @for (error of question.description().errors(); track error) {
+      <mat-error>{{ error.message }}</mat-error>
+    }
   </mat-form-field>
   <mat-checkbox [formField]="question.required">Require an answer</mat-checkbox>
 </fieldset>

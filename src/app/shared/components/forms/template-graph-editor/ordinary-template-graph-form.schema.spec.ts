@@ -1,6 +1,15 @@
 import { Injector, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createOrdinaryTemplateGraphFormModel } from './ordinary-template-graph-form';
@@ -277,5 +286,133 @@ describe('ordinaryTemplateGraphFormSchema', () => {
       stripeTaxRateId: '',
       title: 'Retained add-on',
     });
+  });
+  it('accepts add-on quantity caps and rejects cap plus one', () => {
+    const model = createOrdinaryTemplateGraphFormModel();
+    const option = model.registrationOptions[0];
+    if (!option) throw new Error('Expected a registration option');
+    const addOn = createTemplateGraphAddonFormModel(option.key);
+    const mapping = addOn.registrationOptions[0];
+    if (!mapping) throw new Error('Expected an add-on mapping');
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    addOn.totalAvailableQuantity = 20;
+    mapping.includedQuantity = 4;
+    mapping.optionalPurchaseQuantity = MAX_REGISTRATION_ADDON_QUANTITY - 4;
+    model.addOns = [addOn];
+
+    const graph = form(signal(model), ordinaryTemplateGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(graph.addOns[0].maxQuantityPerUser().errors()).toEqual([]);
+    expect(
+      graph.addOns[0].registrationOptions[0].includedQuantity().errors(),
+    ).toEqual([]);
+
+    graph.addOns[0]
+      .maxQuantityPerUser()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY + 1);
+    expect(
+      graph.addOns[0]
+        .maxQuantityPerUser()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Each person can get at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
+    );
+
+    graph.addOns[0]
+      .maxQuantityPerUser()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY);
+    graph.addOns[0].registrationOptions[0]
+      .optionalPurchaseQuantity()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY - 3);
+    expect(
+      graph.addOns[0].registrationOptions[0]
+        .includedQuantity()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Included and optional items cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
+    );
+  });
+
+  it('enforces add-on and sign-up question limits', () => {
+    const model = createOrdinaryTemplateGraphFormModel();
+    const option = model.registrationOptions[0];
+    if (!option) throw new Error('Expected a registration option');
+    model.addOns = Array.from({ length: MAX_EVENT_ADDON_TYPES }, () =>
+      createTemplateGraphAddonFormModel(),
+    );
+    model.questions = Array.from({ length: MAX_REGISTRATION_QUESTIONS }, () =>
+      createTemplateGraphQuestionFormModel(option.key),
+    );
+    const graph = form(signal(model), ordinaryTemplateGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(graph.addOns().errors()).toEqual([]);
+    expect(graph.questions().errors()).toEqual([]);
+
+    graph
+      .addOns()
+      .value.set([...model.addOns, createTemplateGraphAddonFormModel()]);
+    graph
+      .questions()
+      .value.set([
+        ...model.questions,
+        createTemplateGraphQuestionFormModel(option.key),
+      ]);
+
+    expect(
+      graph
+        .addOns()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `A template can have at most ${MAX_EVENT_ADDON_TYPES} add-ons.`,
+    );
+    expect(
+      graph
+        .questions()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `A template can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+    );
+  });
+
+  it('enforces sign-up question text limits', () => {
+    const model = createOrdinaryTemplateGraphFormModel();
+    const option = model.registrationOptions[0];
+    if (!option) throw new Error('Expected a registration option');
+    model.questions = [createTemplateGraphQuestionFormModel(option.key)];
+    const graph = form(signal(model), ordinaryTemplateGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    graph.questions[0]
+      .title()
+      .value.set('Q'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH + 1));
+    graph.questions[0]
+      .description()
+      .value.set('D'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH + 1));
+
+    expect(
+      graph.questions[0]
+        .title()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`,
+    );
+    expect(
+      graph.questions[0]
+        .description()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
+    );
   });
 });

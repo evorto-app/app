@@ -28,6 +28,11 @@ import { ensureAnsweredEventQuestionsUnchanged } from '../../server/registration
 import { RegistrationTransferService } from '../../server/registrations/registration-transfer.service';
 import { StripeClient } from '../../server/stripe-client';
 import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+} from '../../shared/registration-question-limits';
+import {
   RpcRequestContext,
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
@@ -65,6 +70,8 @@ import {
   registrationAcquisitions,
   registrationTransferAnswers,
   registrationTransfers,
+  templateRegistrationOptions,
+  templateRegistrationQuestions,
   tenants,
   tenantStripeTaxRates,
   transactions,
@@ -217,6 +224,18 @@ const seedFixture = async (
       tenantId: fixture.tenantIds[0],
       title: 'Answer template',
     });
+    await transaction.insert(templateRegistrationOptions).values({
+      closeRegistrationOffset: 0,
+      id: fixture.optionIds[0],
+      isPaid: false,
+      openRegistrationOffset: 24,
+      organizingRegistration: false,
+      price: 0,
+      registrationMode: 'fcfs',
+      spots: 10,
+      templateId: fixture.templateId,
+      title: 'Template question option',
+    });
     await transaction.insert(eventInstances).values(
       fixture.eventIds.map(
         (eventId, index) =>
@@ -353,6 +372,12 @@ const cleanFixture = async (
   await database
     .delete(eventInstances)
     .where(inArray(eventInstances.id, fixture.eventIds));
+  await database
+    .delete(templateRegistrationQuestions)
+    .where(eq(templateRegistrationQuestions.templateId, fixture.templateId));
+  await database
+    .delete(templateRegistrationOptions)
+    .where(eq(templateRegistrationOptions.templateId, fixture.templateId));
   await database
     .delete(eventTemplates)
     .where(eq(eventTemplates.id, fixture.templateId));
@@ -508,6 +533,107 @@ describe('registration answer integrity in PostgreSQL', () => {
           ),
         );
     }
+  });
+
+  const questionStorage = [
+    {
+      insert: (title: string, description: string) =>
+        database
+          .insert(eventRegistrationQuestions)
+          .values({
+            description,
+            eventId: fixture.eventIds[0],
+            registrationOptionId: fixture.optionIds[0],
+            title,
+          })
+          .returning({
+            description: eventRegistrationQuestions.description,
+            title: eventRegistrationQuestions.title,
+          }),
+      name: 'event question',
+    },
+    {
+      insert: (title: string, description: string) =>
+        database
+          .insert(templateRegistrationQuestions)
+          .values({
+            description,
+            registrationOptionId: fixture.optionIds[0],
+            templateId: fixture.templateId,
+            title,
+          })
+          .returning({
+            description: templateRegistrationQuestions.description,
+            title: templateRegistrationQuestions.title,
+          }),
+      name: 'template question',
+    },
+  ];
+
+  it.each(questionStorage)(
+    'stores exact $name title and description limits',
+    async (storage) => {
+      const title = 'q'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH);
+      const description = 'd'.repeat(
+        MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+      );
+      await expect(storage.insert(title, description)).resolves.toEqual([
+        { description, title },
+      ]);
+    },
+  );
+
+  it.each(questionStorage)(
+    'rejects an oversized $name title',
+    async (storage) => {
+      await expect(
+        storage.insert(
+          'q'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH + 1),
+          'Description',
+        ),
+      ).rejects.toMatchObject({ cause: { code: '22001' } });
+    },
+  );
+
+  it.each(questionStorage)(
+    'rejects an oversized $name description',
+    async (storage) => {
+      await expect(
+        storage.insert(
+          'Question',
+          'd'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH + 1),
+        ),
+      ).rejects.toMatchObject({ cause: { code: '22001' } });
+    },
+  );
+
+  it('stores an answer at the exact character limit', async () => {
+    const boundedAnswer = 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH);
+    try {
+      const rows = await database
+        .insert(eventRegistrationQuestionAnswers)
+        .values({ ...answer, answer: boundedAnswer })
+        .returning({ answer: eventRegistrationQuestionAnswers.answer });
+      expect(rows).toEqual([{ answer: boundedAnswer }]);
+    } finally {
+      await database
+        .delete(eventRegistrationQuestionAnswers)
+        .where(
+          eq(
+            eventRegistrationQuestionAnswers.registrationId,
+            fixture.registrationId,
+          ),
+        );
+    }
+  });
+
+  it('rejects an answer above the character limit', async () => {
+    await expect(
+      database.insert(eventRegistrationQuestionAnswers).values({
+        ...answer,
+        answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1),
+      }),
+    ).rejects.toMatchObject({ cause: { code: '22001' } });
   });
 });
 

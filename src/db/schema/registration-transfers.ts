@@ -1,3 +1,7 @@
+import {
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
 import { registrationTransferStatuses } from '@shared/registration-transfer';
 import { sql } from 'drizzle-orm';
 import {
@@ -214,6 +218,10 @@ export const registrationTransfers = pgTable(
       ],
       name: registrationTransferSourceRegistrationOwnerForeignKeyName,
     }),
+    sourceSpotCountBounded: check(
+      'registration_transfers_source_spot_count_bounded',
+      sql`${table.sourceSpotCount} <= ${MAX_REGISTRATION_GUESTS + 1}`,
+    ),
     sourceSpotCountPositive: check(
       'registration_transfers_source_spot_count_positive',
       sql`${table.sourceSpotCount} > 0`,
@@ -296,6 +304,10 @@ export const registrationTransferBundleAddonPurchases = pgTable(
       ],
       name: 'registration_transfer_bundle_purchase_tenant_fk',
     }),
+    quantityBounded: check(
+      'registration_transfer_bundle_quantity_bounded',
+      sql`${table.quantity} <= ${MAX_REGISTRATION_ADDON_QUANTITY}`,
+    ),
     recipientTermsShape: check(
       'registration_transfer_bundle_recipient_terms_shape',
       sql`(
@@ -360,6 +372,10 @@ export const registrationTransferBundleAddonPurchaseLots = pgTable(
       ],
       name: 'registration_transfer_bundle_addon_lot_owner_fk',
     }),
+    quantityBounded: check(
+      'registration_transfer_bundle_addon_lot_quantity_bounded',
+      sql`${table.quantity} <= ${MAX_REGISTRATION_ADDON_QUANTITY}`,
+    ),
     sourceTransactionTenant: foreignKey({
       columns: [table.sourceTransactionId, table.tenantId],
       foreignColumns: [transactions.id, transactions.tenantId],

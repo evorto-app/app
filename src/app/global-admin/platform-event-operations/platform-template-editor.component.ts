@@ -43,6 +43,11 @@ import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faTrashCan } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -196,6 +201,13 @@ export class PlatformTemplateEditorOperations {
   }
 }
 
+export const platformTemplateAddonTypeLimitIssue = (
+  addOns: readonly unknown[],
+): null | string =>
+  addOns.length > MAX_EVENT_ADDON_TYPES
+    ? `Templates support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`
+    : null;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -219,7 +231,6 @@ export class PlatformTemplateEditorOperations {
 export class PlatformTemplateEditorComponent {
   readonly templateId = input<string>();
   readonly tenantId = input.required<string>();
-
   private readonly operations = inject(PlatformTemplateEditorOperations);
   protected readonly taxRatesQuery = injectQuery(() =>
     this.operations.taxRates(this.tenantId()),
@@ -231,6 +242,7 @@ export class PlatformTemplateEditorComponent {
           .filter((rate) => rate.active && rate.imported && rate.inclusive)
       : [],
   );
+
   protected readonly createMutation = injectMutation(() =>
     this.operations.create(),
   );
@@ -281,6 +293,10 @@ export class PlatformTemplateEditorComponent {
   protected readonly hasUnsavedChanges = computed(
     () => this.savedTemplateSnapshot() !== JSON.stringify(this.templateModel()),
   );
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationAddonQuantity =
+    MAX_REGISTRATION_ADDON_QUANTITY;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
   protected readonly modeBlockMessage = signal('');
   protected readonly selectedIcon = computed<IconValue>(() => ({
     iconColor: this.templateModel().iconColor,
@@ -389,6 +405,18 @@ export class PlatformTemplateEditorComponent {
       disabled(registration.stripeTaxRateId, () => !this.stripeConnected());
     });
 
+    validate(template.addOns, ({ value }) => {
+      const issue = platformTemplateAddonTypeLimitIssue(value());
+      return issue ? { kind: 'maxLength', message: issue } : undefined;
+    });
+    validate(template.questions, ({ value }) =>
+      value().length > MAX_REGISTRATION_QUESTIONS
+        ? {
+            kind: 'maxLength',
+            message: `Templates support at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+          }
+        : undefined,
+    );
     applyEach(template.addOns, (addOn) => {
       apply(addOn, templateGraphAddonFormSchema);
       disabled(addOn.isPaid, () => !this.stripeConnected());
@@ -514,6 +542,7 @@ export class PlatformTemplateEditorComponent {
   }
 
   protected addAddOn(): void {
+    if (this.templateModel().addOns.length >= MAX_EVENT_ADDON_TYPES) return;
     const registrationOptionKey = this.defaultRegistrationOptionKey();
     if (!registrationOptionKey) return;
     this.templateModel.update((model) => ({
@@ -561,7 +590,11 @@ export class PlatformTemplateEditorComponent {
 
   protected addQuestion(): void {
     const registrationOptionKey = this.defaultRegistrationOptionKey();
-    if (!registrationOptionKey) return;
+    if (
+      !registrationOptionKey ||
+      this.templateModel().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.templateModel.update((model) => ({
       ...model,
       questions: [

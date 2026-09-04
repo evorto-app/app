@@ -1,6 +1,7 @@
 import { Injector, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -309,6 +310,36 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
 });
 
 describe('transferClaimFormSchema', () => {
+  it('accepts the answer length boundary and blocks an overlong recipient answer', () => {
+    TestBed.configureTestingModule({});
+    const claimForm = form(
+      signal({
+        answers: [
+          {
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH),
+            questionId: 'question',
+            required: true,
+          },
+        ],
+      }),
+      transferClaimFormSchema,
+      { injector: TestBed.inject(Injector) },
+    );
+    expect(claimForm().valid()).toBe(true);
+    claimForm.answers[0]
+      .answer()
+      .value.set('a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1));
+    expect(claimForm().invalid()).toBe(true);
+    expect(claimForm.answers[0].answer().errors()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'maxLength',
+          message: `Keep answers to ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer.`,
+        }),
+      ]),
+    );
+  });
+
   beforeEach(() => {
     TestBed.configureTestingModule({});
   });

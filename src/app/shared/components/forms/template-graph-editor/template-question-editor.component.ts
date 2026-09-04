@@ -12,6 +12,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faTrashCan } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+} from '@shared/registration-question-limits';
 
 import { TemplateGraphOptionChoice } from './template-addon-editor.component';
 import { TemplateGraphQuestionFormModel } from './template-graph-form.model';
@@ -37,6 +41,10 @@ export class TemplateQuestionEditorComponent {
   readonly questionForm =
     input.required<FieldTree<TemplateGraphQuestionFormModel>>();
   readonly remove = output();
-
   protected readonly faTrashCan = faTrashCan;
+  protected readonly maxRegistrationQuestionDescriptionLength =
+    MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH;
+
+  protected readonly maxRegistrationQuestionTitleLength =
+    MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
 }

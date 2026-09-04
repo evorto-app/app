@@ -4,12 +4,15 @@ import {
   index,
   integer,
   pgTable,
-  text,
   timestamp,
   unique,
   varchar,
 } from 'drizzle-orm/pg-core';
 
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+} from '../../shared/registration-question-limits';
 import { createId } from '../create-id';
 import { eventRegistrationOptions } from './event-registration-options';
 import { templateRegistrationQuestions } from './template-registration-questions';
@@ -23,7 +26,9 @@ export const eventRegistrationQuestions = pgTable(
   'event_registration_questions',
   {
     createdAt: timestamp().notNull().defaultNow(),
-    description: text(),
+    description: varchar({
+      length: MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+    }),
     eventId: varchar({ length: 20 }).notNull(),
     id: varchar({ length: 20 })
       .$defaultFn(() => createId())
@@ -35,7 +40,9 @@ export const eventRegistrationQuestions = pgTable(
       () => templateRegistrationQuestions.id,
       { onDelete: 'set null' },
     ),
-    title: text().notNull(),
+    title: varchar({
+      length: MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+    }).notNull(),
     updatedAt: timestamp()
       .notNull()
       .defaultNow()

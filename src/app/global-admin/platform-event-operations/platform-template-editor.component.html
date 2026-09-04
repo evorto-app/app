@@ -616,13 +616,28 @@
               Purchase windows and quantities are saved exactly as configured.
             </p>
           </div>
-          <button mat-button type="button" (click)="addAddOn()">
+          <button
+            mat-button
+            type="button"
+            (click)="addAddOn()"
+            [disabled]="templateForm.addOns.length >= maxEventAddonTypes"
+          >
             <fa-duotone-icon [icon]="faPlus" />
             Add add-on
           </button>
+          @if (templateForm.addOns.length >= maxEventAddonTypes) {
+            <p class="body-small text-on-surface-variant" role="status">
+              Maximum of {{ maxEventAddonTypes }} add-ons reached.
+            </p>
+          }
         </div>
 
         <div class="grid gap-6">
+          @for (error of templateForm.addOns().errors(); track error) {
+            <p class="body-small text-error" role="alert">
+              {{ error.message }}
+            </p>
+          }
           @for (addOn of templateForm.addOns; track addOn; let index = $index) {
             <fieldset class="border-outline-variant grid gap-4 border-t pt-4">
               <legend class="title-small pr-3">Add-on {{ index + 1 }}</legend>
@@ -783,6 +798,10 @@
                     type="number"
                     [formField]="addOn.maxQuantityPerUser"
                   />
+                  <mat-hint
+                    >At most {{ maxRegistrationAddonQuantity }} items per
+                    sign-up.</mat-hint
+                  >
                   @for (
                     error of addOn.maxQuantityPerUser().errors();
                     track error
@@ -883,10 +902,23 @@
         <h2 id="template-questions-title" class="title-medium">
           Registration questions
         </h2>
-        <button mat-button type="button" (click)="addQuestion()">
+        <button
+          mat-button
+          type="button"
+          (click)="addQuestion()"
+          [disabled]="
+            templateForm.registrationOptions.length === 0 ||
+            templateForm.questions.length >= maxRegistrationQuestions
+          "
+        >
           <fa-duotone-icon [icon]="faPlus" />
           Add question
         </button>
+        @if (templateForm.questions.length >= maxRegistrationQuestions) {
+          <p class="body-small text-on-surface-variant" role="status">
+            Maximum of {{ maxRegistrationQuestions }} questions reached.
+          </p>
+        }
       </div>
 
       <div class="grid gap-6">
@@ -950,6 +982,9 @@
                 rows="3"
                 [formField]="question.description"
               ></textarea>
+              @for (error of question.description().errors(); track error) {
+                <mat-error>{{ error.message }}</mat-error>
+              }
             </mat-form-field>
             <mat-checkbox [formField]="question.required">
               Require an answer

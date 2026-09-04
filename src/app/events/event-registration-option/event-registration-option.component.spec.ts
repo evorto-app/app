@@ -1,8 +1,19 @@
+import { TestBed } from '@angular/core/testing';
+import { MAX_REGISTRATION_GUESTS } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
+import {
+  provideTanStackQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { APP_RPC_CLIENT, AppRpc } from '../../core/effect-rpc-angular-client';
+import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import {
+  EventRegistrationOptionComponent,
+  type EventRegistrationOptionView,
   registrationAddonIsSoldOut,
   registrationAddonMaxSelectableQuantity,
   registrationAddonPurchasePayload,
@@ -504,6 +515,7 @@ describe('registrationOptionWriteActionDisabled', () => {
   it('disables registration writes while register or waitlist mutations are pending', () => {
     expect(
       registrationOptionWriteActionDisabled({
+        answersTooLong: false,
         controlsInteractive: true,
         mutationPending: true,
       }),
@@ -513,6 +525,7 @@ describe('registrationOptionWriteActionDisabled', () => {
   it('disables registration writes before the client controls are interactive', () => {
     expect(
       registrationOptionWriteActionDisabled({
+        answersTooLong: false,
         controlsInteractive: false,
         mutationPending: false,
       }),
@@ -522,6 +535,7 @@ describe('registrationOptionWriteActionDisabled', () => {
   it('allows registration writes while no register or waitlist mutation is pending', () => {
     expect(
       registrationOptionWriteActionDisabled({
+        answersTooLong: false,
         controlsInteractive: true,
         mutationPending: false,
       }),
@@ -531,6 +545,7 @@ describe('registrationOptionWriteActionDisabled', () => {
   it('disables registration writes while required answers are missing', () => {
     expect(
       registrationOptionWriteActionDisabled({
+        answersTooLong: false,
         controlsInteractive: true,
         missingRequiredAnswers: true,
         mutationPending: false,
@@ -585,4 +600,208 @@ describe('registration question answers', () => {
       }),
     ).toBe(false);
   });
+});
+
+type AuthenticationOptions = ReturnType<
+  RegistrationClient['config']['isAuthenticated']['queryOptions']
+>;
+type RegisterOptions = ReturnType<
+  RegistrationClient['events']['registerForEvent']['mutationOptions']
+>;
+type RegistrationClient = ReturnType<typeof AppRpc.injectClient>;
+type WaitlistOptions = ReturnType<
+  RegistrationClient['events']['joinWaitlist']['mutationOptions']
+>;
+const submitRegistration = vi.fn<NonNullable<RegisterOptions['mutationFn']>>();
+const submitWaitlist = vi.fn<NonNullable<WaitlistOptions['mutationFn']>>();
+const registrationOptions = (): RegisterOptions => ({
+  mutationFn: submitRegistration,
+  mutationKey: ['register'],
+});
+const waitlistOptions = (): WaitlistOptions => ({
+  mutationFn: submitWaitlist,
+  mutationKey: ['waitlist'],
+});
+const authenticationOptions = (): AuthenticationOptions => ({
+  queryFn: async () => true,
+  queryKey: [['config', 'isAuthenticated'], { type: 'query' }],
+});
+
+const boundedRegistrationOption = (
+  overrides: Partial<EventRegistrationOptionView> = {},
+): EventRegistrationOptionView => ({
+  closeRegistrationTime: new Date(Date.now() + 60_000).toISOString(),
+  confirmedSpots: 0,
+  description: null,
+  eventId: 'bounded-event',
+  id: 'bounded-option',
+  isPaid: false,
+  openRegistrationTime: new Date(Date.now() - 60_000).toISOString(),
+  organizingRegistration: false,
+  price: 0,
+  questions: [
+    {
+      description: null,
+      id: 'bounded-question',
+      required: true,
+      sortOrder: 0,
+      title: 'Your answer',
+    },
+  ],
+  registrationMode: 'fcfs',
+  reservedSpots: 0,
+  spots: 50,
+  title: 'Participant',
+  ...overrides,
+});
+
+describe('EventRegistrationOptionComponent input limits', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(async () => {
+    submitRegistration.mockReset().mockResolvedValue(undefined);
+    submitWaitlist.mockReset().mockResolvedValue(undefined);
+    queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { gcTime: 0, retry: false },
+      },
+    });
+    await TestBed.configureTestingModule({
+      imports: [EventRegistrationOptionComponent],
+      providers: [
+        provideTanStackQuery(queryClient),
+        { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            config: {
+              isAuthenticated: { queryOptions: authenticationOptions },
+            },
+            events: {
+              canOrganize: {
+                queryKey: ({ eventId }: { eventId: string }) => [
+                  'organize',
+                  eventId,
+                ],
+              },
+              findOne: { queryKey: ({ id }: { id: string }) => ['event', id] },
+              getRegistrationStatus: {
+                queryKey: ({ eventId }: { eventId: string }) => [
+                  'registration-status',
+                  eventId,
+                ],
+              },
+              joinWaitlist: { mutationOptions: waitlistOptions },
+              registerForEvent: { mutationOptions: registrationOptions },
+            },
+            users: {
+              canUseScanner: { queryKey: () => ['scanner'] },
+              events: { queryKey: () => ['user-events'] },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    queryClient.clear();
+  });
+
+  const render = async (option: EventRegistrationOptionView) => {
+    const fixture = TestBed.createComponent(EventRegistrationOptionComponent);
+    fixture.componentRef.setInput('registrationOption', option);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const element: unknown = fixture.nativeElement;
+    if (!(element instanceof HTMLElement))
+      throw new Error('Expected an HTML registration root');
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(element.querySelector('button')).not.toBeNull();
+    });
+    return { element, fixture };
+  };
+
+  it('caps guests at the shared maximum and remaining capacity before submitting', async () => {
+    const option = boundedRegistrationOption({ questions: [] });
+    const { element, fixture } = await render(option);
+    const guests = element.querySelector('input[type="number"]');
+    if (!(guests instanceof HTMLInputElement))
+      throw new Error('Expected a guest quantity input');
+    expect(guests.max).toBe(String(MAX_REGISTRATION_GUESTS));
+    guests.value = String(MAX_REGISTRATION_GUESTS + 5);
+    guests.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    expect(guests.value).toBe(String(MAX_REGISTRATION_GUESTS));
+    guests.value = String(MAX_REGISTRATION_GUESTS + 1);
+    guests.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    expect(guests.value).toBe(String(MAX_REGISTRATION_GUESTS));
+    fixture.componentRef.setInput('registrationOption', {
+      ...option,
+      spots: 4,
+    });
+    fixture.detectChanges();
+    expect(guests.max).toBe('3');
+    const registerButton = element.querySelector('button');
+    if (!(registerButton instanceof HTMLButtonElement))
+      throw new Error('Expected a registration button');
+    registerButton.click();
+    await fixture.whenStable();
+    expect(submitRegistration).toHaveBeenCalledOnce();
+    expect(submitRegistration.mock.calls[0]?.[0]).toMatchObject({
+      guestCount: 3,
+    });
+  });
+
+  it.each([false, true])(
+    'blocks an overlong answer and accepts the boundary for waitlist=%s',
+    async (waitlist) => {
+      const option = boundedRegistrationOption({
+        confirmedSpots: waitlist ? 50 : 0,
+      });
+      const { element, fixture } = await render(option);
+      const answer = element.querySelector('textarea');
+      if (!(answer instanceof HTMLTextAreaElement))
+        throw new Error('Expected an answer textarea');
+      expect(answer.maxLength).toBe(MAX_REGISTRATION_ANSWER_LENGTH);
+      answer.value = 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1);
+      answer.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+      expect(element.textContent?.replaceAll(/\s+/g, ' ')).toContain(
+        `Each answer must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer.`,
+      );
+      expect(answer.getAttribute('aria-describedby')?.split(' ')).toContain(
+        option.id + '-answer-length-error',
+      );
+      const button = element.querySelector('button');
+      if (!(button instanceof HTMLButtonElement))
+        throw new Error('Expected a sign-up button');
+      expect(button.disabled).toBe(true);
+      if (waitlist) fixture.componentInstance.joinWaitlist(option);
+      else fixture.componentInstance.register(option);
+      expect(submitRegistration).not.toHaveBeenCalled();
+      expect(submitWaitlist).not.toHaveBeenCalled();
+      answer.value = 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH);
+      answer.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+      expect(button.disabled).toBe(false);
+      button.click();
+      await fixture.whenStable();
+      const mutation = waitlist ? submitWaitlist : submitRegistration;
+      expect(mutation).toHaveBeenCalledOnce();
+      expect(mutation.mock.calls[0]?.[0]).toMatchObject({
+        answers: [
+          {
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH),
+            questionId: 'bounded-question',
+          },
+        ],
+      });
+    },
+  );
 });

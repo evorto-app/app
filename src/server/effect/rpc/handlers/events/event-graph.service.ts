@@ -1,6 +1,15 @@
 import type { EventGraphEditRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -81,6 +90,19 @@ export const validateEventGraphStructure = ({
     'addOns' | 'questions' | 'registrationOptions' | 'simpleModeEnabled'
   >;
 }): null | RpcBadRequestError => {
+  if (input.addOns.length > MAX_EVENT_ADDON_TYPES) {
+    return invalidGraph(
+      `An event can have at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+      'eventAddonTypeLimitExceeded',
+    );
+  }
+  if (input.questions.length > MAX_REGISTRATION_QUESTIONS) {
+    return invalidGraph(
+      `An event can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+      'eventQuestionLimitExceeded',
+    );
+  }
+
   if (
     before.registrationOptions.some(
       (option) => option.registrationMode === 'random',
@@ -213,6 +235,7 @@ export const validateEventGraphStructure = ({
         !addOn.allowPurchaseDuringEvent &&
         !addOn.allowPurchaseDuringRegistration) ||
       isInvalidInteger(addOn.maxQuantityPerUser) ||
+      addOn.maxQuantityPerUser > MAX_REGISTRATION_ADDON_QUANTITY ||
       addOn.maxQuantityPerUser === 0 ||
       isInvalidInteger(addOn.price) ||
       isInvalidInteger(addOn.totalAvailableQuantity) ||
@@ -223,6 +246,8 @@ export const validateEventGraphStructure = ({
           isInvalidInteger(mapping.includedQuantity) ||
           isInvalidInteger(mapping.optionalPurchaseQuantity) ||
           mapping.includedQuantity + mapping.optionalPurchaseQuantity === 0 ||
+          mapping.includedQuantity + mapping.optionalPurchaseQuantity >
+            MAX_REGISTRATION_ADDON_QUANTITY ||
           mapping.includedQuantity + mapping.optionalPurchaseQuantity >
             addOn.totalAvailableQuantity ||
           mapping.optionalPurchaseQuantity > addOn.maxQuantityPerUser,
@@ -238,6 +263,9 @@ export const validateEventGraphStructure = ({
   for (const question of input.questions) {
     if (
       !question.title.trim() ||
+      question.title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH ||
+      (question.description?.length ?? 0) >
+        MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH ||
       !optionKeySet.has(question.registrationOptionKey) ||
       isInvalidInteger(question.sortOrder)
     ) {

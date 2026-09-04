@@ -1,3 +1,12 @@
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
@@ -377,5 +386,166 @@ describe('templates RPC full graph schemas', () => {
         ),
       }),
     ).toThrow();
+  });
+
+  it('rejects template structures beyond the supported registration limits', () => {
+    const addOn = {
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: true,
+      allowPurchaseDuringRegistration: true,
+      description: null,
+      isPaid: false,
+      key: 'addon-1',
+      maxQuantityPerUser: 1,
+      price: 0,
+      registrationOptions: [],
+      stripeTaxRateId: null,
+      title: 'Equipment',
+      totalAvailableQuantity: 10,
+    };
+
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...graphInput,
+        addOns: Array.from(
+          { length: MAX_EVENT_ADDON_TYPES + 1 },
+          (_, index) => ({ ...addOn, key: `addon-${index}` }),
+        ),
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...graphInput,
+        addOns: [
+          {
+            ...addOn,
+            maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...graphInput,
+        questions: [
+          {
+            description: null,
+            key: 'question-1',
+            registrationOptionKey: 'participant',
+            required: false,
+            sortOrder: 0,
+            title: 'q'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH + 1),
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+});
+
+describe('retained simple template input bounds', () => {
+  it('accepts exact collection and question text caps while retaining optional arrays', () => {
+    const question = {
+      ...validSimpleTemplateQuestionInput,
+      description: 'd'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+      title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+    };
+    const decode = Schema.decodeUnknownSync(TemplateSimpleInput);
+    expect(() => decode(validSimpleTemplateInput)).not.toThrow();
+    expect(() =>
+      decode({
+        ...validSimpleTemplateInput,
+        addOns: Array.from(
+          { length: MAX_EVENT_ADDON_TYPES },
+          () => validSimpleTemplateAddonInput,
+        ),
+        questions: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS },
+          () => question,
+        ),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      decode({
+        ...validSimpleTemplateInput,
+        addOns: Array.from(
+          { length: MAX_EVENT_ADDON_TYPES + 1 },
+          () => validSimpleTemplateAddonInput,
+        ),
+      }),
+    ).toThrow();
+    expect(() =>
+      decode({
+        ...validSimpleTemplateInput,
+        questions: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS + 1 },
+          () => question,
+        ),
+      }),
+    ).toThrow();
+    expect(() =>
+      decode({
+        ...validSimpleTemplateInput,
+        questions: [{ ...question, title: ` ${question.title}` }],
+      }),
+    ).toThrow();
+    expect(() =>
+      decode({
+        ...validSimpleTemplateInput,
+        questions: [{ ...question, description: `${question.description} ` }],
+      }),
+    ).toThrow();
+  });
+
+  it('accepts zero optional quantities and rejects fractional, negative, and oversized quantities', () => {
+    const decode = Schema.decodeUnknownSync(TemplateSimpleInput);
+    expect(() =>
+      decode({
+        ...validSimpleTemplateInput,
+        addOns: [
+          {
+            ...validSimpleTemplateAddonInput,
+            includedQuantity: 0,
+            maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+            optionalPurchaseQuantity: 0,
+          },
+        ],
+      }),
+    ).not.toThrow();
+    for (const quantity of [
+      -1,
+      0.5,
+      Infinity,
+      NaN,
+      MAX_REGISTRATION_ADDON_QUANTITY + 1,
+    ]) {
+      expect(() =>
+        decode({
+          ...validSimpleTemplateInput,
+          addOns: [
+            { ...validSimpleTemplateAddonInput, includedQuantity: quantity },
+          ],
+        }),
+      ).toThrow();
+      expect(() =>
+        decode({
+          ...validSimpleTemplateInput,
+          addOns: [
+            {
+              ...validSimpleTemplateAddonInput,
+              optionalPurchaseQuantity: quantity,
+            },
+          ],
+        }),
+      ).toThrow();
+      expect(() =>
+        decode({
+          ...validSimpleTemplateInput,
+          addOns: [
+            { ...validSimpleTemplateAddonInput, maxQuantityPerUser: quantity },
+          ],
+        }),
+      ).toThrow();
+    }
   });
 });

@@ -18,6 +18,7 @@ import {
   applyEach,
   form,
   FormField,
+  maxLength,
   required,
   schema,
   submit,
@@ -28,6 +29,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
   injectMutation,
   injectQuery,
@@ -61,6 +63,9 @@ export const reconcileTransferClaimAnswers = ({
   }));
 
 const answerSchema = schema<TransferClaimAnswerModel>((answer) => {
+  maxLength(answer.answer, MAX_REGISTRATION_ANSWER_LENGTH, {
+    message: `Keep answers to ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer.`,
+  });
   required(answer.answer, {
     message: 'Answer this required question.',
     when: ({ valueOf }) => valueOf(answer.required),

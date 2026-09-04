@@ -27,6 +27,15 @@ import {
   MatSelectModule,
 } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { type PlatformEventDetailRecord } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import {
   injectMutation,
@@ -179,6 +188,8 @@ export const platformEventAddOnMappingIssue = (
 ): null | string => {
   const total = includedQuantity + optionalPurchaseQuantity;
   if (total === 0) return 'Include or offer at least one unit.';
+  if (total > MAX_REGISTRATION_ADDON_QUANTITY)
+    return `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`;
   if (total > addOn.totalAvailableQuantity) {
     return 'Included and optional quantities cannot exceed available stock.';
   }
@@ -218,6 +229,8 @@ export const platformEventGraphHasIssues = (
     graph.registrationOptions.map((option) => option.id),
   );
   return (
+    platformEventAddonTypeLimitIssue(graph.addOns) !== null ||
+    platformEventQuestionCountIssue(graph.questions) !== null ||
     graph.registrationOptions.some(
       (option) =>
         platformEventTitleIssue(option.title, 'registration option') !== null ||
@@ -259,6 +272,8 @@ export const platformEventGraphHasIssues = (
         platformEventAddOnStockIssue(addOn) !== null ||
         platformEventIntegerIssue(addOn.totalAvailableQuantity, 0) !== null ||
         platformEventIntegerIssue(addOn.maxQuantityPerUser, 1) !== null ||
+        platformEventAddOnQuantityLimitIssue(addOn.maxQuantityPerUser) !==
+          null ||
         addOn.registrationOptions.some(
           (mapping) =>
             platformEventIntegerIssue(mapping.includedQuantity, 0) !== null ||
@@ -273,7 +288,8 @@ export const platformEventGraphHasIssues = (
     ) ||
     graph.questions.some(
       (question) =>
-        platformEventTitleIssue(question.title, 'question') !== null ||
+        platformEventQuestionTitleIssue(question.title) !== null ||
+        platformEventQuestionDescriptionIssue(question.description) !== null ||
         platformEventQuestionOptionIssue(
           question.registrationOptionId,
           registrationOptionIds,
@@ -432,6 +448,40 @@ export class PlatformEventDetailOperations {
   }
 }
 
+export const platformEventQuestionTitleIssue = (title: string): null | string =>
+  platformEventTitleIssue(title, 'question') ??
+  (title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH
+    ? `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`
+    : null);
+
+export const platformEventQuestionDescriptionIssue = (
+  description: null | string,
+): null | string =>
+  (description?.length ?? 0) > MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH
+    ? `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`
+    : null;
+
+export const platformEventQuestionCountIssue = (
+  questions: readonly unknown[],
+): null | string =>
+  questions.length > MAX_REGISTRATION_QUESTIONS
+    ? `Add no more than ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`
+    : null;
+
+export const platformEventAddOnQuantityLimitIssue = (
+  quantity: number,
+): null | string =>
+  quantity > MAX_REGISTRATION_ADDON_QUANTITY
+    ? `Maximum per attendee cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`
+    : null;
+
+export const platformEventAddonTypeLimitIssue = (
+  addOns: readonly unknown[],
+): null | string =>
+  addOns.length > MAX_EVENT_ADDON_TYPES
+    ? `Add no more than ${MAX_EVENT_ADDON_TYPES} different add-ons.`
+    : null;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -452,12 +502,14 @@ export class PlatformEventDetailOperations {
 export class PlatformEventDetailComponent {
   readonly eventId = input.required<string>();
   readonly tenantId = input.required<string>();
-
   protected readonly actionReason = signal('');
   protected readonly addOnAvailabilityIssue =
     platformEventAddOnAvailabilityIssue;
   protected readonly addOnMappingIssue = platformEventAddOnMappingIssue;
+  protected readonly addOnQuantityLimitIssue =
+    platformEventAddOnQuantityLimitIssue;
   protected readonly addOnStockIssue = platformEventAddOnStockIssue;
+  protected readonly addOnTypeLimitIssue = platformEventAddonTypeLimitIssue;
   protected readonly currencyAmountErrors = signal<ReadonlyMap<string, string>>(
     new Map(),
   );
@@ -465,6 +517,7 @@ export class PlatformEventDetailComponent {
   protected readonly formOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
+
   private readonly editModel = signal<PlatformEventEditFormModel>({
     description: '',
     end: '',
@@ -548,8 +601,19 @@ export class PlatformEventDetailComponent {
   protected readonly listingMutation = injectMutation(() =>
     this.operations.updateListing(),
   );
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationAddonQuantity =
+    MAX_REGISTRATION_ADDON_QUANTITY;
+  protected readonly maxRegistrationQuestionDescriptionLength =
+    MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
+  protected readonly maxRegistrationQuestionTitleLength =
+    MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
   protected readonly minorUnitsToMajorCurrencyInput =
     minorUnitsToMajorCurrencyInput;
+  protected readonly questionDescriptionIssue =
+    platformEventQuestionDescriptionIssue;
+  protected readonly questionTitleIssue = platformEventQuestionTitleIssue;
   protected readonly registrationOptionIds = computed(
     () =>
       new Set(this.graphModel().registrationOptions.map((option) => option.id)),
@@ -657,6 +721,7 @@ export class PlatformEventDetailComponent {
   }
 
   protected addAddOn(): void {
+    if (this.graphModel().addOns.length >= MAX_EVENT_ADDON_TYPES) return;
     this.graphModel.update((graph) => ({
       ...graph,
       addOns: [
@@ -712,7 +777,11 @@ export class PlatformEventDetailComponent {
 
   protected addQuestion(): void {
     const registrationOptionId = this.graphModel().registrationOptions[0]?.id;
-    if (!registrationOptionId) return;
+    if (
+      !registrationOptionId ||
+      this.graphModel().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.graphModel.update((graph) => ({
       ...graph,
       questions: [

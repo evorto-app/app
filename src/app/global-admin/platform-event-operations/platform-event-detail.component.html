@@ -640,9 +640,12 @@
               <mat-expansion-panel-header>
                 <mat-panel-title>Add-ons</mat-panel-title>
                 <mat-panel-description>
-                  {{ graph.addOns.length }} add-ons
+                  {{ graph.addOns.length }} / {{ maxEventAddonTypes }} add-ons
                 </mat-panel-description>
               </mat-expansion-panel-header>
+              @if (addOnTypeLimitIssue(graph.addOns); as error) {
+                <p class="body-small text-error" role="alert">{{ error }}</p>
+              }
 
               <div class="grid gap-6">
                 @for (
@@ -717,6 +720,7 @@
                           matInput
                           min="1"
                           type="number"
+                          [max]="maxRegistrationAddonQuantity"
                           [value]="addOn.maxQuantityPerUser"
                           (input)="
                             setAddOnNumber(
@@ -733,6 +737,13 @@
                           <mat-hint class="text-error" role="alert">
                             {{ error }}
                           </mat-hint>
+                        } @else if (
+                          addOnQuantityLimitIssue(addOn.maxQuantityPerUser);
+                          as error
+                        ) {
+                          <mat-hint class="text-error" role="alert">{{
+                            error
+                          }}</mat-hint>
                         } @else if (addOnStockIssue(addOn); as error) {
                           <mat-hint class="text-error" role="alert">
                             {{ error }}
@@ -904,6 +915,7 @@
                                   matInput
                                   min="0"
                                   type="number"
+                                  [max]="maxRegistrationAddonQuantity"
                                   [value]="quantity"
                                   (input)="
                                     setAddOnOptionQuantity(
@@ -925,6 +937,7 @@
                                   matInput
                                   min="0"
                                   type="number"
+                                  [max]="maxRegistrationAddonQuantity"
                                   [value]="optionalQuantity"
                                   (input)="
                                     setAddOnOptionOptionalQuantity(
@@ -966,9 +979,19 @@
                   </section>
                 }
 
-                <button mat-stroked-button type="button" (click)="addAddOn()">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="addAddOn()"
+                  [disabled]="graph.addOns.length >= maxEventAddonTypes"
+                >
                   Add add-on
                 </button>
+                @if (graph.addOns.length >= maxEventAddonTypes) {
+                  <p class="body-small text-on-surface-variant" role="status">
+                    Maximum of {{ maxEventAddonTypes }} add-ons reached.
+                  </p>
+                }
               </div>
             </mat-expansion-panel>
 
@@ -1004,12 +1027,13 @@
                         <mat-label>Title</mat-label>
                         <input
                           matInput
+                          [attr.maxlength]="maxRegistrationQuestionTitleLength"
                           [value]="question.title"
                           (input)="
                             setQuestionText(questionIndex, 'title', $event)
                           "
                         />
-                        @if (titleIssue(question.title, "question"); as error) {
+                        @if (questionTitleIssue(question.title); as error) {
                           <mat-hint class="text-error" role="alert">
                             {{ error }}
                           </mat-hint>
@@ -1046,6 +1070,9 @@
                         <textarea
                           matInput
                           rows="3"
+                          [attr.maxlength]="
+                            maxRegistrationQuestionDescriptionLength
+                          "
                           [value]="question.description ?? ''"
                           (input)="
                             setQuestionText(
@@ -1055,6 +1082,14 @@
                             )
                           "
                         ></textarea>
+                        @if (
+                          questionDescriptionIssue(question.description);
+                          as error
+                        ) {
+                          <mat-hint class="text-error" role="alert">{{
+                            error
+                          }}</mat-hint>
+                        }
                       </mat-form-field>
                       <mat-form-field>
                         <mat-label>Sort order</mat-label>
@@ -1087,9 +1122,18 @@
                   mat-stroked-button
                   type="button"
                   (click)="addQuestion()"
+                  [disabled]="
+                    graph.registrationOptions.length === 0 ||
+                    graph.questions.length >= maxRegistrationQuestions
+                  "
                 >
                   Add question
                 </button>
+                @if (graph.questions.length >= maxRegistrationQuestions) {
+                  <p class="body-small text-on-surface-variant" role="status">
+                    Maximum of {{ maxRegistrationQuestions }} questions reached.
+                  </p>
+                }
               </div>
             </mat-expansion-panel>
           </mat-accordion>

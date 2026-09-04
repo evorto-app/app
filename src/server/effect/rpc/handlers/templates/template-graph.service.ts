@@ -7,6 +7,15 @@ import type {
 } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Context, Effect } from 'effect';
 
@@ -182,6 +191,7 @@ const validateAddon = (
       !addOn.allowPurchaseDuringEvent &&
       !addOn.allowPurchaseDuringRegistration) ||
     invalidInteger(addOn.maxQuantityPerUser) ||
+    addOn.maxQuantityPerUser > MAX_REGISTRATION_ADDON_QUANTITY ||
     invalidInteger(addOn.price) ||
     invalidInteger(addOn.totalAvailableQuantity) ||
     hasDuplicates(mappedKeys) ||
@@ -193,6 +203,8 @@ const validateAddon = (
         invalidInteger(mapping.optionalPurchaseQuantity) ||
         mapping.optionalPurchaseQuantity < 0 ||
         mapping.includedQuantity + mapping.optionalPurchaseQuantity === 0 ||
+        mapping.includedQuantity + mapping.optionalPurchaseQuantity >
+          MAX_REGISTRATION_ADDON_QUANTITY ||
         mapping.includedQuantity + mapping.optionalPurchaseQuantity >
           addOn.totalAvailableQuantity ||
         mapping.optionalPurchaseQuantity > addOn.maxQuantityPerUser,
@@ -212,6 +224,9 @@ const validateQuestion = (
 ): null | RpcBadRequestError => {
   if (
     !question.title.trim() ||
+    question.title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH ||
+    (question.description?.length ?? 0) >
+      MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH ||
     !optionKeys.has(question.registrationOptionKey) ||
     invalidInteger(question.sortOrder)
   ) {
@@ -232,6 +247,19 @@ export const validateTemplateGraphStructure = ({
   esnCardEnabled: boolean;
   input: TemplateGraphValidationInput;
 }): null | RpcBadRequestError => {
+  if (input.addOns.length > MAX_EVENT_ADDON_TYPES) {
+    return invalidGraph(
+      `A template can have at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+      'templateAddonTypeLimitExceeded',
+    );
+  }
+  if (input.questions.length > MAX_REGISTRATION_QUESTIONS) {
+    return invalidGraph(
+      `A template can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+      'templateQuestionLimitExceeded',
+    );
+  }
+
   if (
     before?.registrationOptions.some(
       (option) => option.registrationMode === 'random',

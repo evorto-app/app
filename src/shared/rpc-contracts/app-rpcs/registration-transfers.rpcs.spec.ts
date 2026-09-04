@@ -1,3 +1,7 @@
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
@@ -342,6 +346,48 @@ describe('registration transfer claim input schema', () => {
     expect(decoded).toEqual(validClaimInput);
     expect(decoded).not.toHaveProperty('addOns');
     expect(decoded).not.toHaveProperty('guestCount');
+  });
+
+  it('accepts exact recipient answer count and text caps with current credentials', () => {
+    const answers = Array.from(
+      { length: MAX_REGISTRATION_QUESTIONS },
+      (_, index) => ({
+        answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH),
+        questionId: `question-${index}`,
+      }),
+    );
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimInput)({
+        ...validClaimInput,
+        answers,
+      }),
+    ).not.toThrow();
+  });
+
+  it('bounds recipient answer count and text', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimInput)({
+        ...validClaimInput,
+        answers: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS + 1 },
+          (_, index) => ({
+            answer: 'Answer',
+            questionId: `question-${index}`,
+          }),
+        ),
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(RegistrationTransferClaimInput)({
+        ...validClaimInput,
+        answers: [
+          {
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1),
+            questionId: 'question-1',
+          },
+        ],
+      }),
+    ).toThrow();
   });
 });
 
