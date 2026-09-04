@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7e7c28253c81",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/explain-authoring-save-outcomes.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "helpers/testing/generated-docs-source.spec.ts",
+    "src/app/events/event-edit/event-edit.html",
+    "src/app/events/event-edit/event-edit.spec.ts",
+    "src/app/events/event-edit/event-edit.ts",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.spec.ts",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.ts",
+    "src/app/templates/template-create-event/template-create-event.component.html",
+    "src/app/templates/template-create-event/template-create-event.component.spec.ts",
+    "src/app/templates/template-create-event/template-create-event.component.ts",
+    "src/app/templates/template-create/template-create.component.html",
+    "src/app/templates/template-create/template-create.component.spec.ts",
+    "src/app/templates/template-create/template-create.component.ts",
+    "src/app/templates/template-edit/template-edit.component.html",
+    "src/app/templates/template-edit/template-edit.component.spec.ts",
+    "src/app/templates/template-edit/template-edit.component.ts",
+    "src/db/schema/registration-concurrency.postgres.spec.ts",
+    "tests/docs/templates/templates.doc.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7e/7c28253c81/0/metadata.json",
+      "transcript": "/7e/7c28253c81/0/full.jsonl",
+      "content_hash": "/7e/7c28253c81/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 230802,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 22994176,
+    "output_tokens": 55176,
+    "api_call_count": 215
+  }
+}
