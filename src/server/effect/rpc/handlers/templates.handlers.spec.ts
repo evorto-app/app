@@ -339,7 +339,7 @@ describe('templateHandlers permissions', () => {
         expect(error).toMatchObject({
           _tag: 'TemplateSimpleBadRequestError',
           message:
-            'Connect Stripe before configuring paid registration options or add-ons',
+            'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
         });
       }),
   );
@@ -411,7 +411,7 @@ describe('templateHandlers permissions', () => {
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'stripeRequiredForPaidEventConfiguration',
+          reason: 'paymentSetupRequired',
         });
       }),
   );

@@ -448,7 +448,7 @@ Navigate to **Templates** and open an existing paid template. If the selector sa
 
     await testInfo.attach('markdown', {
       body: `
-Each paid registration displays the final price together with its inclusive tax label (for example “19% VAT included in the shown price”). Exclusive or inactive rates never appear in this list.
+Each paid registration displays the final price together with its inclusive tax label (for example “Incl. 19% VAT”). Exclusive or inactive rates never appear in this list.
 `,
     });
 
@@ -525,10 +525,9 @@ Paid organizer registrations require a compatible inclusive tax rate. Select the
       .getByRole('heading', { exact: true, level: 3, name: 'Organizer' })
       .locator('../..');
     await expect(
-      savedOrganizerCard.getByText(
-        `${templateTaxRate.percentage}% VAT included in the shown price`,
-        { exact: true },
-      ),
+      savedOrganizerCard.getByText(`Incl. ${templateTaxRate.percentage}% VAT`, {
+        exact: true,
+      }),
     ).toBeVisible();
 
     await page.getByRole('link', { name: 'Create event' }).click();
