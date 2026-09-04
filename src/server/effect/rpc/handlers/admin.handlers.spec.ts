@@ -5,14 +5,18 @@ import { describe, expect, it, vi } from '@effect/vitest';
 import { adminTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
 import { getTableColumns } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Effect, Layer, Schema, Stream } from 'effect';
+import { Cause, Effect, Exit, Layer, Schema, Stream } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { relations } from '../../../../db/relations';
-import { tenants } from '../../../../db/schema';
+import {
+  roleTenantNameUniqueConstraintName,
+  tenants,
+} from '../../../../db/schema';
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {
   RpcRequestContext,
@@ -20,8 +24,10 @@ import {
   type RpcRequestContextShape,
 } from '../../../../shared/rpc-contracts/app-rpcs';
 import * as AdminRpcs from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
+import { type RoleWriteInput } from '../../../../shared/rpc-contracts/app-rpcs/role-write.shared';
 import { Tenant } from '../../../../types/custom/tenant';
 import { StripeClient } from '../../../stripe-client';
+import { createRegistrationDatabaseTestLayer } from '../../../testing/registration-database';
 import { adminHandlers } from './admin.handlers';
 import { RpcAccess } from './shared/rpc-access.service';
 
@@ -370,6 +376,123 @@ const taxRateImportLayer = (database: object) =>
     ),
   );
 
+const roleWriteInput = {
+  defaultOrganizerRole: false,
+  defaultUserRole: false,
+  description: '  Member description  ',
+  displayInHub: true,
+  name: '  Member  ',
+  permissions: ['users:viewAll', 'admin:manageRoles', 'users:viewAll'],
+} satisfies RoleWriteInput;
+const canonicalRole = AdminRpcs.AdminRoleRecord.make({
+  defaultOrganizerRole: false,
+  defaultUserRole: false,
+  description: 'Member description',
+  displayInHub: true,
+  id: 'role-1',
+  name: 'Member',
+  permissions: ['admin:manageRoles', 'users:viewAll'],
+  sortOrder: 1,
+});
+const canonicalRoleRow = [
+  false,
+  false,
+  'Member description',
+  true,
+  'role-1',
+  'Member',
+  ['admin:manageRoles', 'users:viewAll'],
+  1,
+];
+const roleRequestLayer = requestContextLayer(
+  createRequestContext(['admin:manageRoles']),
+);
+const roleReadLayer = (rows: readonly (readonly unknown[])[]) =>
+  createRegistrationDatabaseTestLayer({
+    executeValues: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(statement).toContain('from "roles"');
+        expect(statement).toContain(
+          '"defaultOrganizerRole" as "defaultOrganizerRole"',
+        );
+        expect(statement).not.toContain('collapseMembers');
+        expect(parameters).toEqual(['role-1', 'tenant-1', 1]);
+        return rows;
+      }),
+  });
+const readRole = () =>
+  adminHandlers['admin.roles.findOne'](
+    { id: 'role-1' },
+    createRpcOptions(
+      AdminRpcs.AdminRolesFindOne.middleware(RpcRequestContextMiddleware),
+    ),
+  ).pipe(Effect.provide(roleRequestLayer));
+
+const roleWriteFixture = (writeFailure?: SqlError) => {
+  const transactions: string[] = [];
+  const writes: (readonly unknown[])[] = [];
+  const databaseLayer = createRegistrationDatabaseTestLayer({
+    executeValues: (statement, parameters) => {
+      if (statement.includes('pg_advisory_xact_lock')) {
+        expect(parameters).toEqual(['evorto:tenant-role-graph:tenant-1']);
+        return Effect.succeed([]);
+      }
+      if (
+        statement.startsWith('select') &&
+        statement.includes('from "roles"')
+      ) {
+        expect(statement).toContain('for update');
+        expect(parameters).toEqual(['role-1', 'tenant-1']);
+        return Effect.succeed([[false, 'role-1']]);
+      }
+      if (
+        statement.startsWith('insert into "roles"') ||
+        statement.startsWith('update "roles"')
+      ) {
+        writes.push(parameters);
+        return writeFailure
+          ? Effect.fail(writeFailure)
+          : Effect.succeed([canonicalRoleRow]);
+      }
+      return Effect.die(
+        new Error(`Unexpected admin role fixture SQL: ${statement}`),
+      );
+    },
+    transactionControl: (command) =>
+      Effect.sync(() => {
+        transactions.push(command);
+      }),
+  });
+  return {
+    layer: Layer.mergeAll(databaseLayer, roleRequestLayer),
+    transactions,
+    writes,
+  };
+};
+
+const roleMutations = [
+  {
+    name: 'create',
+    run: (input: RoleWriteInput) =>
+      adminHandlers['admin.roles.create'](
+        input,
+        createRpcOptions(
+          AdminRpcs.AdminRolesCreate.middleware(RpcRequestContextMiddleware),
+        ),
+      ),
+  },
+  {
+    name: 'update',
+    run: (input: RoleWriteInput) =>
+      adminHandlers['admin.roles.update'](
+        { ...input, id: canonicalRole.id },
+        createRpcOptions(
+          AdminRpcs.AdminRolesUpdate.middleware(RpcRequestContextMiddleware),
+        ),
+      ),
+  },
+];
+
 describe('adminHandlers role permissions', () => {
   it.effect.each([
     {
@@ -459,68 +582,180 @@ describe('adminHandlers role permissions', () => {
         createRpcOptions(
           AdminRpcs.AdminRolesFindMany.middleware(RpcRequestContextMiddleware),
         ),
-      )
-        .pipe(
-          Effect.provide(requestContextLayer(createRequestContext([]))),
-          Effect.provide(unavailableDatabaseLayer),
-        )
-        .pipe(Effect.flip);
-
+      ).pipe(
+        Effect.provide(requestContextLayer(createRequestContext([]))),
+        Effect.provide(unavailableDatabaseLayer),
+        Effect.flip,
+      );
       expect(error).toMatchObject({
         _tag: 'RpcForbiddenError',
         permission: 'admin:manageRoles',
       });
     }),
   );
-
-  it.effect('findOne returns the canonical hub visibility field only', () =>
+  it.effect('findOne returns the canonical role fields only', () =>
     Effect.gen(function* () {
-      const database = {
-        query: {
-          roles: {
-            findFirst: () =>
-              Effect.succeed({
-                collapseMembersInHub: true,
-                defaultOrganizerRole: false,
-                defaultUserRole: true,
-                description: 'Visible in the hub',
-                displayInHub: true,
-                id: 'role-1',
-                name: 'Member',
-                permissions: [
-                  'events:viewPublic',
-                  'globalAdmin:*',
-                  'globalAdmin:manageTenants',
-                ],
-                sortOrder: 1,
-              }),
-          },
-        },
-      };
-
-      const role = yield* adminHandlers['admin.roles.findOne'](
-        { id: 'role-1' },
-        createRpcOptions(
-          AdminRpcs.AdminRolesFindOne.middleware(RpcRequestContextMiddleware),
-        ),
-      )
-        .pipe(
-          Effect.provide(
-            requestContextLayer(createRequestContext(['admin:manageRoles'])),
-          ),
-        )
-        .pipe(Effect.provide(provideDatabase(database)));
-
-      expect(role).toMatchObject({
-        displayInHub: true,
-        id: 'role-1',
-        name: 'Member',
-        permissions: ['events:viewPublic'],
-      });
-      expect(role).not.toHaveProperty('showInHub');
+      const role = yield* readRole().pipe(
+        Effect.provide(roleReadLayer([canonicalRoleRow])),
+      );
+      expect(role).toEqual(canonicalRole);
+      expect(role).not.toHaveProperty('collapseMembersInHup');
     }),
   );
+  it.effect('findOne explains how to recover when a role is gone', () =>
+    Effect.gen(function* () {
+      const error = yield* readRole().pipe(
+        Effect.provide(roleReadLayer([])),
+        Effect.flip,
+      );
+      expect(error).toMatchObject({
+        _tag: 'AdminRoleNotFoundError',
+        message: 'This role no longer exists. Return to the role list.',
+      });
+    }),
+  );
+  it.effect(
+    'fails visibly when a persisted role contains platform authority',
+    () =>
+      Effect.gen(function* () {
+        const corruptRole = [
+          false,
+          false,
+          'Corrupt role',
+          true,
+          'role-1',
+          'Member',
+          ['globalAdmin:*'],
+          1,
+        ];
+        const exit = yield* readRole().pipe(
+          Effect.provide(roleReadLayer([corruptRole])),
+          Effect.exit,
+        );
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          expect(Cause.hasDies(exit.cause)).toBe(true);
+          expect(Cause.pretty(exit.cause)).toContain('globalAdmin:*');
+        }
+      }),
+  );
+  it.effect(
+    'findHubRoles requires internal page visibility before a database read',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.roles.findHubRoles'](
+          undefined,
+          createRpcOptions(
+            AdminRpcs.AdminRolesFindHubRoles.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(unavailableDatabaseLayer),
+          Effect.flip,
+        );
+        expect(error).toMatchObject({
+          _tag: 'RpcForbiddenError',
+          permission: 'internal:viewInternalPages',
+        });
+      }),
+  );
 });
+
+for (const mutation of roleMutations) {
+  describe(`admin role ${mutation.name}`, () => {
+    it.effect(
+      'normalizes role fields and commits the tenant-scoped write',
+      () =>
+        Effect.gen(function* () {
+          const fixture = roleWriteFixture();
+          const role = yield* mutation
+            .run(roleWriteInput)
+            .pipe(Effect.provide(fixture.layer));
+          expect(role).toEqual(canonicalRole);
+          expect(fixture.transactions).toEqual(['BEGIN', 'COMMIT']);
+          expect(fixture.writes).toHaveLength(1);
+          expect(fixture.writes[0]).toEqual(
+            expect.arrayContaining([
+              'Member',
+              'Member description',
+              JSON.stringify(canonicalRole.permissions),
+              'tenant-1',
+            ]),
+          );
+          expect(fixture.writes[0]).not.toContain(roleWriteInput.name);
+          expect(fixture.writes[0]).not.toContain(roleWriteInput.description);
+        }),
+    );
+    it.effect(
+      'rejects invalid fields and platform authority before a write transaction',
+      () =>
+        Effect.gen(function* () {
+          const fixture = roleWriteFixture();
+          const invalidInputs: { field: string; input: RoleWriteInput }[] = [
+            {
+              field: 'name',
+              input: { ...roleWriteInput, name: ' '.repeat(3) },
+            },
+            {
+              field: 'name',
+              input: { ...roleWriteInput, name: 'n'.repeat(101) },
+            },
+            {
+              field: 'description',
+              input: { ...roleWriteInput, description: 'd'.repeat(501) },
+            },
+            {
+              field: 'permissions',
+              input: { ...roleWriteInput, permissions: ['globalAdmin:*'] },
+            },
+            {
+              field: 'permissions',
+              input: {
+                ...roleWriteInput,
+                permissions: ['globalAdmin:manageTenants'],
+              },
+            },
+          ];
+          for (const invalid of invalidInputs) {
+            const error = yield* mutation
+              .run(invalid.input)
+              .pipe(Effect.provide(fixture.layer), Effect.flip);
+            expect(error).toMatchObject({
+              _tag: 'RoleWriteValidationError',
+              field: invalid.field,
+            });
+          }
+          expect(fixture.transactions).toEqual([]);
+          expect(fixture.writes).toEqual([]);
+        }),
+    );
+    it.effect(
+      'maps the named tenant role-name conflict and rolls the transaction back',
+      () =>
+        Effect.gen(function* () {
+          const fixture = roleWriteFixture(
+            new SqlError({
+              reason: new UniqueViolation({
+                cause: new Error('Synthetic duplicate role name'),
+                constraint: roleTenantNameUniqueConstraintName,
+              }),
+            }),
+          );
+          const error = yield* mutation
+            .run(roleWriteInput)
+            .pipe(Effect.provide(fixture.layer), Effect.flip);
+          expect(error).toMatchObject({
+            _tag: 'RoleNameAlreadyExistsError',
+            name: 'Member',
+          });
+          expect(fixture.transactions).toEqual(['BEGIN', 'ROLLBACK']);
+          expect(fixture.writes).toHaveLength(1);
+        }),
+    );
+  });
+}
 
 describe('adminHandlers Stripe tax-rate import', () => {
   it.effect(

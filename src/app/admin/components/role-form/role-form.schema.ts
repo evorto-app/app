@@ -1,13 +1,17 @@
-import { readonly, required, schema } from '@angular/forms/signals';
+import { maxLength, readonly, required, schema } from '@angular/forms/signals';
 
 import {
   ALL_PERMISSIONS,
+  includesPermission,
   PERMISSION_DEPENDENCIES,
   TenantRolePermission,
 } from '../../../../shared/permissions/permissions';
+import {
+  ROLE_DESCRIPTION_MAX_LENGTH,
+  ROLE_NAME_MAX_LENGTH,
+} from '../../../../shared/rpc-contracts/app-rpcs/role-write.shared';
 
 export interface RoleFormData {
-  collapseMembersInHup: boolean;
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: null | string;
@@ -17,12 +21,12 @@ export interface RoleFormData {
 }
 
 export interface RoleFormModel {
-  collapseMembersInHup: boolean;
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: string;
   displayInHub: boolean;
   name: string;
+  originalPermissions: TenantRolePermission[];
   permissions: Record<TenantRolePermission, boolean>;
 }
 
@@ -44,8 +48,8 @@ const buildPermissions = (
 ): Record<TenantRolePermission, boolean> => {
   const next = { ...emptyPermissions };
   if (Array.isArray(selected)) {
-    for (const permission of selected) {
-      next[permission] = true;
+    for (const permission of ALL_PERMISSIONS) {
+      next[permission] = includesPermission(permission, selected);
     }
     return next;
   }
@@ -62,12 +66,14 @@ const buildPermissions = (
 export const createRoleFormModel = (
   overrides: RoleFormOverrides = {},
 ): RoleFormModel => ({
-  collapseMembersInHup: overrides.collapseMembersInHup ?? false,
   defaultOrganizerRole: overrides.defaultOrganizerRole ?? false,
   defaultUserRole: overrides.defaultUserRole ?? false,
   description: overrides.description ?? '',
   displayInHub: overrides.displayInHub ?? false,
   name: overrides.name ?? '',
+  originalPermissions: Array.isArray(overrides.permissions)
+    ? [...overrides.permissions]
+    : [...(overrides.originalPermissions ?? [])],
   permissions: buildPermissions(overrides.permissions),
 });
 
@@ -82,6 +88,36 @@ export const mergeRoleFormOverrides = (
     description: overrides.description ?? base.description,
     permissions: overrides.permissions ?? base.permissions,
   });
+};
+
+export const roleFormPermissionsToSubmit = ({
+  originalPermissions,
+  permissions,
+}: Pick<
+  RoleFormModel,
+  'originalPermissions' | 'permissions'
+>): TenantRolePermission[] => {
+  const retainedGrants = originalPermissions.filter((grant) =>
+    ALL_PERMISSIONS.every(
+      (permission) =>
+        !includesPermission(permission, [grant]) || permissions[permission],
+    ),
+  );
+  if (
+    permissions['admin:tax'] &&
+    includesPermission('admin:manageTaxes', originalPermissions) &&
+    !includesPermission('admin:manageTaxes', retainedGrants)
+  ) {
+    retainedGrants.push('admin:manageTaxes');
+  }
+  return [
+    ...retainedGrants,
+    ...ALL_PERMISSIONS.filter(
+      (permission) =>
+        permissions[permission] &&
+        !includesPermission(permission, retainedGrants),
+    ),
+  ];
 };
 
 export const DEPENDENT_PERMISSION_PARENTS = Object.fromEntries(
@@ -100,7 +136,13 @@ for (const [permission, dependencies] of Object.entries(
 }
 
 export const roleFormSchema = schema<RoleFormModel>((form) => {
-  required(form.name);
+  required(form.name, { message: 'Enter a role name.' });
+  maxLength(form.name, ROLE_NAME_MAX_LENGTH, {
+    message: `Name must be ${ROLE_NAME_MAX_LENGTH} characters or fewer.`,
+  });
+  maxLength(form.description, ROLE_DESCRIPTION_MAX_LENGTH, {
+    message: `Description must be ${ROLE_DESCRIPTION_MAX_LENGTH} characters or fewer.`,
+  });
 
   for (const permission of ALL_PERMISSIONS) {
     const parents = DEPENDENT_PERMISSION_PARENTS[permission];

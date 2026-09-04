@@ -127,7 +127,7 @@ export class UserListComponent {
         userId,
       });
       await this.queryClient.invalidateQueries(this.operations.usersFilter());
-      this.notifications.showSuccess('User roles updated');
+      this.notifications.showSuccess('Member roles updated');
     } catch (error) {
       this.notifications.showError(
         getErrorMessage(

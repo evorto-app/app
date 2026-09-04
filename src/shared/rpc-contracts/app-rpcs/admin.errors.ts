@@ -7,6 +7,11 @@ import {
 import { TenantSettingsConflictError } from '@shared/tenant-settings-snapshot';
 import { Schema } from 'effect';
 
+import {
+  RoleNameAlreadyExistsError,
+  RoleWriteValidationError,
+} from './role-write.shared';
+
 export class AdminRoleNotFoundError extends Schema.TaggedErrorClass<AdminRoleNotFoundError>()(
   'AdminRoleNotFoundError',
   {
@@ -22,6 +27,15 @@ export const AdminRoleRpcError = Schema.Union([
   RpcUnauthorizedError,
 ]);
 export type AdminRoleRpcError = Schema.Schema.Type<typeof AdminRoleRpcError>;
+
+export const AdminRoleWriteRpcError = Schema.Union([
+  AdminRoleRpcError,
+  RoleNameAlreadyExistsError,
+  RoleWriteValidationError,
+]);
+export type AdminRoleWriteRpcError = Schema.Schema.Type<
+  typeof AdminRoleWriteRpcError
+>;
 
 export class AdminTenantNotFoundError extends Schema.TaggedErrorClass<AdminTenantNotFoundError>()(
   'AdminTenantNotFoundError',

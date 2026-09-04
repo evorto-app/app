@@ -7,6 +7,19 @@ describe('platform audit schema', () => {
   it('defines audit record constraints and lookup indexes without lifecycle columns', () => {
     const tableConfig = getTableConfig(platformAuditEntries);
 
+    const readIndexedColumn = (
+      column: (typeof tableConfig.indexes)[number]['config']['columns'][number],
+    ) => {
+      if (
+        !('name' in column) ||
+        !('indexConfig' in column) ||
+        !column.indexConfig
+      ) {
+        throw new Error('Expected an explicit audit index column');
+      }
+      return { name: column.name, order: column.indexConfig.order };
+    };
+
     expect(tableConfig.columns.map((column) => column.name)).not.toContain(
       'updated_at',
     );
@@ -18,7 +31,9 @@ describe('platform audit schema', () => {
     ]);
     expect(
       tableConfig.indexes.map((candidate) => ({
-        columns: candidate.config.columns.map((column) => column.name),
+        columns: candidate.config.columns.map(
+          (column) => readIndexedColumn(column).name,
+        ),
         name: candidate.config.name,
       })),
     ).toEqual([
@@ -30,6 +45,21 @@ describe('platform audit schema', () => {
         columns: ['actor_id', 'created_at'],
         name: 'platform_audit_actor_created_idx',
       },
+      {
+        columns: ['created_at', 'id'],
+        name: 'platform_audit_created_id_idx',
+      },
+    ]);
+    const paginationIndex = tableConfig.indexes.find(
+      (candidate) => candidate.config.name === 'platform_audit_created_id_idx',
+    );
+    expect(
+      paginationIndex?.config.columns.map((column) =>
+        readIndexedColumn(column),
+      ),
+    ).toEqual([
+      { name: 'created_at', order: 'desc' },
+      { name: 'id', order: 'asc' },
     ]);
     expect(tableConfig.columns.map((column) => column.name)).not.toContain(
       'deleted_at',

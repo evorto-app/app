@@ -2,7 +2,10 @@ import type {
   PlatformAuditSnapshot,
   PlatformTenantAuditAction,
 } from '@shared/platform-audit';
-import type { GlobalAdminTenantWriteInput } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
+import type {
+  GlobalAdminPlatformAuditCursor,
+  GlobalAdminTenantWriteInput,
+} from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
 import {
   RpcBadRequestError,
@@ -12,7 +15,11 @@ import {
 import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
 import {
   GlobalAdminEmailOutboxOverview,
+  GlobalAdminPlatformAuditPage,
   GlobalAdminPlatformAuditRecord,
+  GlobalAdminPlatformAuditSnapshot,
+  type GlobalAdminPlatformAuditSnapshot as GlobalAdminPlatformAuditSnapshotType,
+  GlobalAdminPlatformAuditState,
   GlobalAdminTenantRecord,
   type GlobalAdminTenantRecord as GlobalAdminTenantRecordType,
   GlobalAdminTenantUrlMigrationBlockedError,
@@ -26,13 +33,17 @@ import {
 } from '@shared/tenant-settings-snapshot';
 import {
   and,
+  asc,
   count,
   desc,
   eq,
+  gt,
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
+  or,
   sql,
 } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
@@ -71,6 +82,7 @@ import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
 } from '../../../tenant-currency-integrity';
+import { richTextToPlainText } from '../../../utils/rich-text-sanitize';
 import { isUniqueConstraintViolation } from './events/database-constraint-errors';
 import { RpcAccess } from './shared/rpc-access.service';
 
@@ -126,6 +138,23 @@ const databaseEffectWithTenantUpdateError = <A>(
     ),
   );
 
+export const GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE = 50;
+
+const platformAuditCursorPredicate = (
+  cursor: GlobalAdminPlatformAuditCursor | null,
+) => {
+  if (!cursor) return;
+
+  const createdAt = sql`${cursor.createdAt}::timestamp`;
+  return or(
+    lt(platformAuditEntries.createdAt, createdAt),
+    and(
+      eq(platformAuditEntries.createdAt, createdAt),
+      gt(platformAuditEntries.id, cursor.id),
+    ),
+  );
+};
+
 const requirePlatformAdministrator = Effect.fn(
   'GlobalAdmin.requirePlatformAdministrator',
 )(function* (): Effect.fn.Return<
@@ -161,22 +190,200 @@ const normalizeAuditReason = (reason: string) =>
     },
   });
 
+const PersistedGlobalAdminTaxRateAuditRecord = Schema.Struct({
+  active: Schema.Boolean,
+  country: Schema.NullOr(Schema.String),
+  displayName: Schema.NullOr(Schema.String),
+  inclusive: Schema.Boolean,
+  percentage: Schema.NullOr(Schema.String),
+  state: Schema.NullOr(Schema.String),
+  stripeTaxRateId: Schema.NonEmptyString,
+});
+
+const PersistedGlobalAdminTaxRateAuditState = Schema.Struct({
+  rates: Schema.Array(PersistedGlobalAdminTaxRateAuditRecord),
+});
+
+const PersistedGlobalAdminPlatformAuditState = Schema.Struct({
+  addOns: Schema.optional(Schema.Array(Schema.Unknown)),
+  alcoholAmount: Schema.optional(Schema.Number),
+  amount: Schema.optional(Schema.Number),
+  attendeeCheckedIn: GlobalAdminPlatformAuditState.fields.attendeeCheckedIn,
+  checkedInGuestCount: GlobalAdminPlatformAuditState.fields.checkedInGuestCount,
+  currency: GlobalAdminPlatformAuditState.fields.currency,
+  defaultOrganizerRole:
+    GlobalAdminPlatformAuditState.fields.defaultOrganizerRole,
+  defaultUserRole: GlobalAdminPlatformAuditState.fields.defaultUserRole,
+  depositAmount: Schema.optional(Schema.Number),
+  description: GlobalAdminPlatformAuditState.fields.description,
+  displayInHub: GlobalAdminPlatformAuditState.fields.displayInHub,
+  domain: GlobalAdminPlatformAuditState.fields.domain,
+  guestCount: GlobalAdminPlatformAuditState.fields.guestCount,
+  locationName: GlobalAdminPlatformAuditState.fields.locationName,
+  name: GlobalAdminPlatformAuditState.fields.name,
+  permissions: GlobalAdminPlatformAuditState.fields.permissions,
+  questions: Schema.optional(Schema.Array(Schema.Unknown)),
+  rates: Schema.optional(Schema.Array(PersistedGlobalAdminTaxRateAuditRecord)),
+  receiptCount: GlobalAdminPlatformAuditState.fields.receiptCount,
+  registrationOptions: Schema.optional(Schema.Array(Schema.Unknown)),
+  remainingGuestCount: GlobalAdminPlatformAuditState.fields.remainingGuestCount,
+  roleIds: Schema.optional(Schema.Array(Schema.Unknown)),
+  simpleModeEnabled: GlobalAdminPlatformAuditState.fields.simpleModeEnabled,
+  sortOrder: GlobalAdminPlatformAuditState.fields.sortOrder,
+  status: GlobalAdminPlatformAuditState.fields.status,
+  stripeConnected: GlobalAdminPlatformAuditState.fields.stripeConnected,
+  taxAmount: Schema.optional(Schema.Number),
+  theme: GlobalAdminPlatformAuditState.fields.theme,
+  timezone: GlobalAdminPlatformAuditState.fields.timezone,
+  title: GlobalAdminPlatformAuditState.fields.title,
+  totalAmount: Schema.optional(Schema.Number),
+  transferStatus: GlobalAdminPlatformAuditState.fields.transferStatus,
+  unlisted: GlobalAdminPlatformAuditState.fields.unlisted,
+});
+
+interface TaxRateImportAuditSummary {
+  readonly taxRateAddedCount?: number;
+  readonly taxRateUnchangedCount?: number;
+  readonly taxRateUpdatedCount?: number;
+}
+
+const toGlobalAdminPlatformAuditSnapshot = (
+  snapshot: PlatformAuditSnapshot,
+  taxRateSummary: TaxRateImportAuditSummary = {},
+): GlobalAdminPlatformAuditSnapshotType => {
+  const state = Schema.decodeUnknownSync(
+    PersistedGlobalAdminPlatformAuditState,
+  )(snapshot.state);
+
+  return Schema.decodeUnknownSync(GlobalAdminPlatformAuditSnapshot)({
+    resourceType: snapshot.resourceType,
+    state: {
+      addOnCount: state.addOns?.length,
+      attendeeCheckedIn: state.attendeeCheckedIn,
+      checkedInGuestCount: state.checkedInGuestCount,
+      currency: state.currency,
+      defaultOrganizerRole: state.defaultOrganizerRole,
+      defaultUserRole: state.defaultUserRole,
+      description:
+        state.description == null
+          ? state.description
+          : richTextToPlainText(state.description) ||
+            'The description contains no words',
+      displayInHub: state.displayInHub,
+      domain: state.domain,
+      guestCount: state.guestCount,
+      locationName: state.locationName,
+      name: state.name,
+      permissions: state.permissions,
+      questionCount: state.questions?.length,
+      receiptCount: state.receiptCount,
+      registrationOptionCount: state.registrationOptions?.length,
+      remainingGuestCount: state.remainingGuestCount,
+      roleCount: state.roleIds?.length,
+      simpleModeEnabled: state.simpleModeEnabled,
+      sortOrder: state.sortOrder,
+      status: state.status,
+      stripeConnected: state.stripeConnected,
+      ...taxRateSummary,
+      taxRateCount: state.rates?.length,
+      theme: state.theme,
+      timezone: state.timezone,
+      title: state.title,
+      transferStatus: state.transferStatus,
+      unlisted: state.unlisted,
+    },
+  });
+};
+
+const taxRateMetadataMatches = (
+  left: Schema.Schema.Type<typeof PersistedGlobalAdminTaxRateAuditRecord>,
+  right: Schema.Schema.Type<typeof PersistedGlobalAdminTaxRateAuditRecord>,
+): boolean =>
+  left.active === right.active &&
+  left.country === right.country &&
+  left.displayName === right.displayName &&
+  left.inclusive === right.inclusive &&
+  left.percentage === right.percentage &&
+  left.state === right.state;
+
+const taxRateImportAuditSummary = (
+  before: PlatformAuditSnapshot,
+  after: PlatformAuditSnapshot,
+): TaxRateImportAuditSummary => {
+  if (
+    before.resourceType !== 'taxRateBatch' ||
+    after.resourceType !== 'taxRateBatch'
+  ) {
+    throw new Error('Tax-rate imports require tax-rate batch snapshots');
+  }
+
+  const beforeRates = Schema.decodeUnknownSync(
+    PersistedGlobalAdminTaxRateAuditState,
+  )(before.state).rates;
+  const afterRates = Schema.decodeUnknownSync(
+    PersistedGlobalAdminTaxRateAuditState,
+  )(after.state).rates;
+  const beforeRatesById = new Map(
+    beforeRates.map((rate) => [rate.stripeTaxRateId, rate]),
+  );
+  let addedCount = 0;
+  let unchangedCount = 0;
+  let updatedCount = 0;
+  for (const rate of afterRates) {
+    const previousRate = beforeRatesById.get(rate.stripeTaxRateId);
+    if (!previousRate) {
+      addedCount += 1;
+    } else if (taxRateMetadataMatches(previousRate, rate)) {
+      unchangedCount += 1;
+    } else {
+      updatedCount += 1;
+    }
+  }
+
+  return {
+    ...(addedCount > 0 && { taxRateAddedCount: addedCount }),
+    ...(unchangedCount > 0 && { taxRateUnchangedCount: unchangedCount }),
+    ...(updatedCount > 0 && { taxRateUpdatedCount: updatedCount }),
+  };
+};
+
 const toGlobalAdminPlatformAuditRecord = (entry: {
   action: PlatformTenantAuditAction;
   actorEmail: null | string;
-  actorId: string;
   after: null | PlatformAuditSnapshot;
   before: null | PlatformAuditSnapshot;
   createdAt: Date;
   id: string;
   reason: string;
-  targetTenantId: string;
   targetTenantName: null | string;
-}) =>
-  Schema.decodeUnknownSync(GlobalAdminPlatformAuditRecord)({
-    ...entry,
+}) => {
+  let taxRateSummary: TaxRateImportAuditSummary = {};
+  if (entry.action === 'taxRates.import') {
+    if (entry.before === null || entry.after === null) {
+      throw new Error(
+        'Tax-rate import audits require before and after snapshots',
+      );
+    }
+    taxRateSummary = taxRateImportAuditSummary(entry.before, entry.after);
+  }
+
+  return Schema.decodeUnknownSync(GlobalAdminPlatformAuditRecord)({
+    action: entry.action,
+    actorEmail: entry.actorEmail,
+    after:
+      entry.after === null
+        ? null
+        : toGlobalAdminPlatformAuditSnapshot(entry.after, taxRateSummary),
+    before:
+      entry.before === null
+        ? null
+        : toGlobalAdminPlatformAuditSnapshot(entry.before),
     createdAt: entry.createdAt.toISOString(),
+    id: entry.id,
+    reason: entry.reason,
+    targetTenantName: entry.targetTenantName,
   });
+};
 
 const toGlobalAdminTenantRecord = (tenant: {
   currency: string;
@@ -312,6 +519,51 @@ const tenantUrlMigrationBlockedReason = ({
   return "Complete or cancel every active registration transfer before changing the organization's public URL.";
 };
 
+export const readGlobalAdminPlatformAuditPage = (
+  cursor: GlobalAdminPlatformAuditCursor | null,
+) =>
+  Effect.gen(function* () {
+    const entries = yield* databaseEffect((database) =>
+      database
+        .select({
+          action: platformAuditEntries.action,
+          actorEmail: platformAuditEntries.actorEmail,
+          after: platformAuditEntries.after,
+          before: platformAuditEntries.before,
+          createdAt: platformAuditEntries.createdAt,
+          cursorCreatedAt: sql<string>`to_char(${platformAuditEntries.createdAt}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+          id: platformAuditEntries.id,
+          reason: platformAuditEntries.reason,
+          targetTenantName: tenants.name,
+        })
+        .from(platformAuditEntries)
+        .leftJoin(tenants, eq(platformAuditEntries.targetTenantId, tenants.id))
+        .where(platformAuditCursorPredicate(cursor))
+        .orderBy(
+          desc(platformAuditEntries.createdAt),
+          asc(platformAuditEntries.id),
+        )
+        .limit(GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE + 1),
+    );
+
+    const pageEntries = entries.slice(0, GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE);
+    const items = pageEntries.map((entry) =>
+      toGlobalAdminPlatformAuditRecord(entry),
+    );
+    const lastEntry = pageEntries.at(-1);
+
+    return Schema.decodeUnknownSync(GlobalAdminPlatformAuditPage)({
+      items,
+      nextCursor:
+        entries.length > GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE && lastEntry
+          ? {
+              createdAt: lastEntry.cursorCreatedAt,
+              id: lastEntry.id,
+            }
+          : null,
+    });
+  });
+
 export const globalAdminHandlers = {
   'globalAdmin.emailOutbox.findOverview': (_payload, _options) =>
     Effect.gen(function* () {
@@ -427,33 +679,10 @@ export const globalAdminHandlers = {
         summary,
       });
     }),
-  'globalAdmin.platformAudit.findMany': (_payload, _options) =>
+  'globalAdmin.platformAudit.findMany': (input, _options) =>
     Effect.gen(function* () {
       yield* requirePlatformAdministrator();
-      const entries = yield* databaseEffect((database) =>
-        database
-          .select({
-            action: platformAuditEntries.action,
-            actorEmail: platformAuditEntries.actorEmail,
-            actorId: platformAuditEntries.actorId,
-            after: platformAuditEntries.after,
-            before: platformAuditEntries.before,
-            createdAt: platformAuditEntries.createdAt,
-            id: platformAuditEntries.id,
-            reason: platformAuditEntries.reason,
-            targetTenantId: platformAuditEntries.targetTenantId,
-            targetTenantName: tenants.name,
-          })
-          .from(platformAuditEntries)
-          .leftJoin(
-            tenants,
-            eq(platformAuditEntries.targetTenantId, tenants.id),
-          )
-          .orderBy(desc(platformAuditEntries.createdAt))
-          .limit(100),
-      );
-
-      return entries.map((entry) => toGlobalAdminPlatformAuditRecord(entry));
+      return yield* readGlobalAdminPlatformAuditPage(input.cursor);
     }),
   'globalAdmin.tenants.create': (input, _options) =>
     Effect.gen(function* () {

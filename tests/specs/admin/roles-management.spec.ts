@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import { adminStateFile } from '../../../helpers/user-data';
+import { createId } from '../../../src/db/create-id';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
@@ -8,7 +9,7 @@ test.setTimeout(120_000);
 
 test.use({ storageState: adminStateFile });
 
-test('tenant admin reviews users and manages role definitions @admin @permissions', async ({
+test('tenant admin reviews members and manages role definitions @admin @permissions', async ({
   database,
   page,
   seedDate,
@@ -19,7 +20,9 @@ test('tenant admin reviews users and manages role definitions @admin @permission
 
   await page.goto('/admin/users');
 
-  await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'All members' }),
+  ).toBeVisible();
   await expect(
     page.getByText(
       'Manage role assignments for existing members. Role changes apply only to this organization.',
@@ -38,14 +41,14 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await page.goto('/admin/roles');
 
   await expect(
-    page.getByRole('heading', { level: 1, name: 'User roles' }),
+    page.getByRole('heading', { level: 1, name: 'Member roles' }),
   ).toBeVisible();
   const createRoleAction = page.getByText('Create role', { exact: true });
   await expect(createRoleAction).toBeVisible();
 
   await createRoleAction.click();
   await expect(
-    page.getByRole('heading', { name: 'Create Role' }),
+    page.getByRole('heading', { name: 'Create role' }),
   ).toBeVisible();
   await page.waitForLoadState('networkidle');
 
@@ -66,9 +69,6 @@ test('tenant admin reviews users and manages role definitions @admin @permission
     .fill('Created by role management stabilization spec');
   await setRoleFormCheckbox('Show this role in the hub', true);
   await expect(roleFormCheckbox('Show this role in the hub')).toBeChecked();
-  await expect(
-    roleFormCheckbox('Collapse the members of this role by default'),
-  ).toBeVisible();
 
   await setRoleFormCheckbox(/^Events$/, true);
   await expect(roleFormCheckbox(/^Create events$/)).toBeChecked();
@@ -101,7 +101,7 @@ test('tenant admin reviews users and manages role definitions @admin @permission
 
   await page.goto(`/admin/roles/${createdRole.id}/edit`);
 
-  await expect(page.getByRole('heading', { name: 'Edit Role' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Edit role' })).toBeVisible();
   // The SSR form is visible before Angular attaches its submit handler.
   // Event replay removes `jsaction` once saving is safely interactive.
   await expect(roleForm.locator('form')).not.toHaveAttribute(
@@ -138,4 +138,117 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   });
   expect(updatedRole.permissions).toContain('events:create');
   expect(updatedRole.permissions).toContain('templates:view');
+});
+
+test('preserves wildcard grants through a rename and revokes only the selected capability @admin @permissions', async ({
+  database,
+  page,
+  registerDatabaseCleanup,
+  tenant,
+}) => {
+  const roleId = createId();
+  const roleName = `Wildcard review ${roleId}`;
+  const renamedRole = `${roleName} renamed`;
+  const rolePredicate = and(
+    eq(schema.roles.id, roleId),
+    eq(schema.roles.tenantId, tenant.id),
+  );
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase.delete(schema.roles).where(rolePredicate);
+  });
+  await database.insert(schema.roles).values({
+    id: roleId,
+    name: roleName,
+    permissions: ['admin:*', 'users:*'],
+    tenantId: tenant.id,
+  });
+
+  await page.goto('/admin/roles');
+  await page.getByRole('link', { exact: true, name: roleName }).click();
+  const roleDetails = page.locator('app-role-details');
+  await expect(
+    roleDetails.getByText('Change organization settings', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    roleDetails.getByText('Assign all member roles (organization admin)', {
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  await page.getByRole('link', { name: 'Edit role' }).click();
+  const roleForm = page.locator('app-role-form');
+  await expect(roleForm.locator('form')).not.toHaveAttribute(
+    'jsaction',
+    /submit/,
+  );
+  await expect(
+    roleForm.getByRole('checkbox', {
+      exact: true,
+      name: 'Change organization settings',
+    }),
+  ).toBeChecked();
+  await expect(
+    roleForm.getByRole('checkbox', {
+      exact: true,
+      name: 'Assign all member roles (organization admin)',
+    }),
+  ).toBeChecked();
+  await roleForm
+    .getByRole('textbox', { exact: true, name: 'Name' })
+    .fill(renamedRole);
+  await roleForm.getByRole('button', { name: 'Save role' }).click();
+  await expect(page.getByRole('heading', { name: renamedRole })).toBeVisible();
+
+  const renamedRows = await database
+    .select()
+    .from(schema.roles)
+    .where(rolePredicate);
+  expect(renamedRows).toHaveLength(1);
+  expect(renamedRows[0]).toMatchObject({
+    name: renamedRole,
+    permissions: ['admin:*', 'users:*'],
+  });
+  await page.reload();
+  await expect(
+    roleDetails.getByText('Change organization settings', { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole('link', { name: 'Edit role' }).click();
+  await expect(roleForm.locator('form')).not.toHaveAttribute(
+    'jsaction',
+    /submit/,
+  );
+  await roleForm
+    .getByRole('checkbox', {
+      exact: true,
+      name: 'Change organization settings',
+    })
+    .uncheck();
+  await roleForm.getByRole('button', { name: 'Save role' }).click();
+  await expect(page.getByRole('heading', { name: renamedRole })).toBeVisible();
+  const revokedRows = await database
+    .select()
+    .from(schema.roles)
+    .where(rolePredicate);
+  expect(revokedRows).toHaveLength(1);
+  expect(revokedRows[0]?.permissions.toSorted()).toEqual([
+    'admin:manageRoles',
+    'admin:manageTaxes',
+    'admin:tax',
+    'users:*',
+  ]);
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: renamedRole })).toBeVisible();
+  await expect(
+    roleDetails.getByText('Change organization settings', { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    roleDetails.getByText('Manage roles', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    roleDetails.getByText('Assign all member roles (organization admin)', {
+      exact: true,
+    }),
+  ).toBeVisible();
 });

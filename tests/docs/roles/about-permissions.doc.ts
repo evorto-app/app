@@ -16,7 +16,9 @@ const permissionLines = () =>
         '',
         `- What it allows: ${permission.description}`,
         ...(dependencies.length > 0
-          ? [`- Also includes: ${dependencies.map(permissionLabel).join(', ')}`]
+          ? [
+              `- You also receive: ${dependencies.map(permissionLabel).join(', ')}`,
+            ]
           : []),
         '',
       ];
@@ -28,13 +30,12 @@ test('About permissions', async ({}, testInfo) => {
 
   await testInfo.attach('markdown', {
     body: `
-# About permissions
 
-Permissions belong to an organization and are assigned through roles. A user has any permission that appears on at least one of their roles in the current organization.
+Permissions belong to an organization and are assigned through roles. A member receives every permission included in at least one of their roles in the current organization.
 
-Some permissions include related access so the user can reach the screens needed to use them. The reference below names those included permissions with the same labels shown in the role editor.
+Some permissions automatically provide the other permissions needed to open and use the same area. Those additions appear below as **You also receive**, using the same names shown in the role editor.
 
-Platform administrator access is separate from organization roles and cannot be granted in the role editor.
+Evorto administrator access is separate from organization roles and cannot be granted in the role editor.
 
 ${permissionLines().join('\n')}
 `,

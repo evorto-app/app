@@ -361,6 +361,30 @@ Platform administrators can review, create, and edit organizations from **Platfo
   await expect(page).toHaveURL(/\/global-admin\/audit$/);
   await expect(page.getByText(createAuditReason)).toBeVisible();
   await expect(page.getByText(updateAuditReason)).toBeVisible();
+  const updateAuditEntry = page.getByRole('article').filter({
+    has: page.getByText(updateAuditReason, { exact: true }),
+  });
+  await expect(
+    updateAuditEntry.getByRole('heading', { name: 'Changes', exact: true }),
+  ).toBeVisible();
+  await expect(
+    updateAuditEntry.getByRole('columnheader', {
+      name: 'Changed item',
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    updateAuditEntry.getByRole('cell', {
+      name: createdTenant.name,
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    updateAuditEntry.getByRole('cell', {
+      name: updatedTenantName,
+      exact: true,
+    }),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.locator('app-platform-audit'),
@@ -378,7 +402,7 @@ Create and edit manage the primary domain, name, theme, currency, timezone, and 
 
 A public-domain change is rejected while pending payments, refunds, or registration transfers still depend on existing links. Keep the old domain redirecting to the new one so issued links and QR codes continue to work.
 
-Each platform change requires an operator reason. The audit log shows who made the change, the organization, the action, the reason, and when it happened. Platform authority remains separate from organization membership.
+Each platform change requires an operator reason. The audit log shows who made the change, the organization, the action, the reason, and when it happened. The visible **Changes** table compares recorded values before and after each change, and **Load older** shows earlier entries. Platform authority remains separate from organization membership.
 
 The create journey also checks domain safeguards before saving: domains with paths are rejected, and duplicate primary domains return a visible error while keeping the form intact.
 `,

@@ -1,5 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { literalUnion } from '@shared/schema-utilities';
+import { CanonicalUtcTimestamp, literalUnion } from '@shared/schema-utilities';
 import {
   PlatformTenantSettingsSnapshot,
   TenantSettingsConflictError,
@@ -11,7 +11,7 @@ import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 import { Tenant } from '../../../types/custom/tenant';
 import { BadRequestForbiddenOrUnauthorizedRpcError } from '../../errors/rpc-errors';
 import {
-  PlatformAuditSnapshot,
+  PlatformAuditResourceType,
   PlatformTenantAuditAction,
   PlatformTenantAuditSnapshot,
 } from '../../platform-audit';
@@ -40,6 +40,55 @@ export const GlobalAdminTenantUpdateError = Schema.Union([
 
 export type GlobalAdminTenantUpdateError = Schema.Schema.Type<
   typeof GlobalAdminTenantUpdateError
+>;
+
+export const GlobalAdminPlatformAuditState = Schema.Struct({
+  addOnCount: Schema.optional(Schema.Number),
+  attendeeCheckedIn: Schema.optional(Schema.Boolean),
+  checkedInGuestCount: Schema.optional(Schema.Number),
+  currency: Schema.optional(PlatformTenantAuditSnapshot.fields.currency),
+  defaultOrganizerRole: Schema.optional(Schema.Boolean),
+  defaultUserRole: Schema.optional(Schema.Boolean),
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  displayInHub: Schema.optional(Schema.Boolean),
+  domain: Schema.optional(PlatformTenantAuditSnapshot.fields.domain),
+  guestCount: Schema.optional(Schema.Number),
+  locationName: Schema.optional(Schema.NullOr(Schema.String)),
+  name: Schema.optional(PlatformTenantAuditSnapshot.fields.name),
+  permissions: Schema.optional(Schema.Array(Schema.NonEmptyString)),
+  questionCount: Schema.optional(Schema.Number),
+  receiptCount: Schema.optional(Schema.Number),
+  registrationOptionCount: Schema.optional(Schema.Number),
+  remainingGuestCount: Schema.optional(Schema.Number),
+  roleCount: Schema.optional(Schema.Number),
+  simpleModeEnabled: Schema.optional(Schema.Boolean),
+  sortOrder: Schema.optional(Schema.Number),
+  status: Schema.optional(Schema.NonEmptyString),
+  stripeConnected: Schema.optional(
+    PlatformTenantAuditSnapshot.fields.stripeConnected,
+  ),
+  taxRateAddedCount: Schema.optional(Schema.Number),
+  taxRateCount: Schema.optional(Schema.Number),
+  taxRateUnchangedCount: Schema.optional(Schema.Number),
+  taxRateUpdatedCount: Schema.optional(Schema.Number),
+  theme: Schema.optional(PlatformTenantAuditSnapshot.fields.theme),
+  timezone: Schema.optional(PlatformTenantAuditSnapshot.fields.timezone),
+  title: Schema.optional(Schema.NonEmptyString),
+  transferStatus: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  unlisted: Schema.optional(Schema.Boolean),
+});
+
+export type GlobalAdminPlatformAuditState = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditState
+>;
+
+export const GlobalAdminPlatformAuditSnapshot = Schema.Struct({
+  resourceType: PlatformAuditResourceType,
+  state: GlobalAdminPlatformAuditState,
+});
+
+export type GlobalAdminPlatformAuditSnapshot = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditSnapshot
 >;
 
 export const GlobalAdminTenantRecord = PlatformTenantAuditSnapshot;
@@ -101,18 +150,42 @@ export type GlobalAdminTenantUpdateInput = Schema.Schema.Type<
 export const GlobalAdminPlatformAuditRecord = Schema.Struct({
   action: PlatformTenantAuditAction,
   actorEmail: Schema.NullOr(Schema.NonEmptyString),
-  actorId: Schema.NonEmptyString,
-  after: Schema.NullOr(PlatformAuditSnapshot),
-  before: Schema.NullOr(PlatformAuditSnapshot),
+  after: Schema.NullOr(GlobalAdminPlatformAuditSnapshot),
+  before: Schema.NullOr(GlobalAdminPlatformAuditSnapshot),
   createdAt: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
   reason: Schema.NonEmptyString,
-  targetTenantId: Schema.NonEmptyString,
   targetTenantName: Schema.NullOr(Schema.NonEmptyString),
 });
 
 export type GlobalAdminPlatformAuditRecord = Schema.Schema.Type<
   typeof GlobalAdminPlatformAuditRecord
+>;
+
+const AuditCursorTimestamp = Schema.String.check(
+  Schema.makeFilter((value) =>
+    Schema.is(CanonicalUtcTimestamp)(value.replace(/(\.\d{3})\d{3}Z$/u, '$1Z'))
+      ? undefined
+      : 'Expected a canonical UTC audit timestamp',
+  ),
+);
+
+export const GlobalAdminPlatformAuditCursor = Schema.Struct({
+  createdAt: AuditCursorTimestamp,
+  id: Schema.NonEmptyString,
+});
+
+export type GlobalAdminPlatformAuditCursor = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditCursor
+>;
+
+export const GlobalAdminPlatformAuditPage = Schema.Struct({
+  items: Schema.Array(GlobalAdminPlatformAuditRecord),
+  nextCursor: Schema.NullOr(GlobalAdminPlatformAuditCursor),
+});
+
+export type GlobalAdminPlatformAuditPage = Schema.Schema.Type<
+  typeof GlobalAdminPlatformAuditPage
 >;
 
 export const GlobalAdminEmailOutboxStatus = literalUnion(
@@ -216,8 +289,10 @@ export const GlobalAdminTenantsUpdate = asRpcMutation(
 export const GlobalAdminPlatformAuditFindMany = asRpcQuery(
   Rpc.make('globalAdmin.platformAudit.findMany', {
     error: GlobalAdminRpcError,
-    payload: Schema.Void,
-    success: Schema.Array(GlobalAdminPlatformAuditRecord),
+    payload: Schema.Struct({
+      cursor: Schema.NullOr(GlobalAdminPlatformAuditCursor),
+    }),
+    success: GlobalAdminPlatformAuditPage,
   }),
 );
 
