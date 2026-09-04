@@ -1905,7 +1905,7 @@ describe('generated docs source current behavior', () => {
     });`,
     );
     expect(source).toContain('await confirmScannerCheckIn.click()');
-    expect(source).toContain('Scanned registration with guest check-in');
+    expect(source).toContain('Scanned ticket with guest check-in');
     expect(source).toContain("page.getByText('Check-in complete')");
     expect(source).toContain('checkedInGuestCount: true');
     expect(source).toContain('checkedInSpots: initialCheckedInSpots + 3');
