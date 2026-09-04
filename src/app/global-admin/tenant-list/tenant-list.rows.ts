@@ -9,22 +9,21 @@ const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
   tenant.currency,
   tenant.domain,
   tenant.name,
-  tenant.stripeAccountId ?? '',
   tenant.theme,
   tenant.timezone,
-  tenant.stripeConnected ? 'connected' : 'not connected',
+  tenant.paymentsConfigured
+    ? 'paid sign-ups ready'
+    : 'paid sign-ups need attention',
 ];
 
 export const globalAdminStripeAccountLabel = (
-  tenant: Pick<GlobalAdminTenantRecord, 'stripeAccountId' | 'stripeConnected'>,
+  tenant: Pick<GlobalAdminTenantRecord, 'paymentsConfigured'>,
 ): string => {
-  if (!tenant.stripeConnected) {
-    return 'Not connected';
+  if (!tenant.paymentsConfigured) {
+    return 'Paid sign-ups need attention';
   }
 
-  return tenant.stripeAccountId
-    ? `Connected (${tenant.stripeAccountId})`
-    : 'Connected';
+  return 'Paid sign-ups ready';
 };
 
 export const filterGlobalAdminTenants = (
@@ -49,7 +48,7 @@ export const globalAdminTenantRows = (tenant: GlobalAdminTenantRecord) => [
   { label: 'Currency', value: tenant.currency },
   { label: 'Timezone', value: tenant.timezone },
   {
-    label: 'Stripe account',
+    label: 'Payments',
     value: globalAdminStripeAccountLabel(tenant),
   },
 ];

@@ -63,8 +63,7 @@ export class PlatformTenantAuditSnapshot extends Schema.Class<PlatformTenantAudi
   domain: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
-  stripeAccountId: Schema.NullOr(Schema.String),
-  stripeConnected: Schema.Boolean,
+  paymentsConfigured: Schema.Boolean,
   theme: Tenant.fields.theme,
   timezone: Tenant.fields.timezone,
 }) {}

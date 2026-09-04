@@ -1,3 +1,4 @@
+import { Component, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   RpcBadRequestError,
@@ -10,11 +11,217 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PlatformStripeTaxRateRecord } from '../../../shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
 import { NotificationService } from '../../core/notification.service';
 import {
   PlatformTaxRatesComponent,
   PlatformTaxRatesOperations,
 } from './platform-tax-rates.component';
+import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
+
+@Component({ selector: 'app-platform-tenant-page-header', template: '' })
+class PlatformTenantPageHeaderStub {
+  readonly tenantId = input.required<string>();
+  readonly title = input.required<string>();
+}
+
+describe('PlatformTaxRatesComponent', () => {
+  let queryClient: QueryClient;
+  const listRates = vi.fn();
+  const importRates = vi.fn();
+  const showError = vi.fn();
+
+  beforeEach(async () => {
+    listRates.mockReset();
+    importRates.mockReset();
+    showError.mockReset();
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { gcTime: 0, retry: false } },
+    });
+    TestBed.overrideComponent(PlatformTaxRatesComponent, {
+      add: { imports: [PlatformTenantPageHeaderStub] },
+      remove: { imports: [PlatformTenantPageHeaderComponent] },
+    });
+    await TestBed.configureTestingModule({
+      imports: [PlatformTaxRatesComponent],
+      providers: [
+        provideTanStackQuery(queryClient),
+        {
+          provide: NotificationService,
+          useValue: { showError, showSuccess: vi.fn() },
+        },
+        {
+          provide: PlatformTaxRatesOperations,
+          useValue: {
+            import: () => ({
+              mutationFn: importRates,
+              mutationKey: ['import-rates'],
+            }),
+            list: (tenantId: string) => ({
+              queryFn: listRates,
+              queryKey: ['rates', tenantId],
+            }),
+            taxRatesFilter: () => ({ queryKey: ['rates'] }),
+          },
+        },
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it.each([
+    {
+      error: {
+        _tag: 'RpcBadRequestError',
+        message: 'Paid sign-ups are not ready for this organization.',
+      },
+      expected: 'Paid sign-ups are not ready for this organization.',
+      label: 'missing account',
+    },
+    {
+      error: {
+        _tag: 'RpcInternalServerError',
+        message: 'Private provider failure details',
+      },
+      expected: 'Tax rates could not be loaded. Try again.',
+      label: 'provider failure',
+    },
+  ])(
+    'shows accurate safe guidance for a $label and supports retry',
+    async ({ error, expected }) => {
+      listRates.mockRejectedValueOnce(error).mockResolvedValue([]);
+      const fixture = TestBed.createComponent(PlatformTaxRatesComponent);
+      fixture.componentRef.setInput('tenantId', 'tenant-1');
+      const root: HTMLElement = fixture.nativeElement;
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+          expected,
+        );
+      });
+      expect(root.textContent).not.toContain(
+        'Private provider failure details',
+      );
+      expect(root.textContent).not.toContain(
+        'organization needs an online payment account',
+      );
+      root
+        .querySelector<HTMLButtonElement>(':scope [role="alert"] button')
+        ?.click();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(listRates).toHaveBeenCalledTimes(2);
+        expect(root.querySelector('[role="alert"]')).toBeNull();
+      });
+    },
+  );
+
+  it('keeps rates with a missing percentage unavailable and spells out country names', async () => {
+    listRates.mockResolvedValue([
+      new PlatformStripeTaxRateRecord({
+        active: true,
+        country: 'DE',
+        displayName: 'VAT',
+        id: 'txr_missing',
+        imported: false,
+        inclusive: true,
+        percentage: null,
+        state: null,
+      }),
+    ]);
+    const fixture = TestBed.createComponent(PlatformTaxRatesComponent);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    const root: HTMLElement = fixture.nativeElement;
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(root.textContent).toContain('Germany');
+    });
+    expect(root.textContent).toContain('Country or region');
+    root.querySelector<HTMLElement>('mat-select')?.click();
+    fixture.detectChanges();
+    const option = document.querySelector<HTMLElement>('mat-option');
+    expect(option?.getAttribute('aria-disabled')).toBe('true');
+    expect(option?.textContent).toContain('Percentage unavailable');
+  });
+
+  it.each([
+    {
+      error: {
+        _tag: 'RpcBadRequestError',
+        message:
+          'One selected tax rate is no longer available. Choose another rate.',
+      },
+      expected:
+        'One selected tax rate is no longer available. Choose another rate.',
+      label: 'expected import failure',
+    },
+    {
+      error: {
+        _tag: 'RpcInternalServerError',
+        message: 'Private provider failure details',
+      },
+      expected: 'The tax rates could not be added. Try again.',
+      label: 'provider failure',
+    },
+  ])(
+    'reports the $label without discarding the selected rate or reason',
+    async ({ error, expected }) => {
+      listRates.mockResolvedValue([
+        new PlatformStripeTaxRateRecord({
+          active: true,
+          country: 'DE',
+          displayName: 'VAT',
+          id: 'txr_vat',
+          imported: false,
+          inclusive: true,
+          percentage: 19,
+          state: null,
+        }),
+      ]);
+      importRates.mockRejectedValue(error);
+      const fixture = TestBed.createComponent(PlatformTaxRatesComponent);
+      fixture.componentRef.setInput('tenantId', 'tenant-1');
+      const root: HTMLElement = fixture.nativeElement;
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(root.querySelector('mat-select')).not.toBeNull();
+      });
+      root.querySelector<HTMLElement>('mat-select')?.click();
+      fixture.detectChanges();
+      document.querySelector<HTMLElement>('mat-option')?.click();
+      fixture.detectChanges();
+      const reason = root.querySelector<HTMLTextAreaElement>('textarea');
+      if (!reason) throw new Error('Expected the import reason field.');
+      reason.value = 'Enable registration tax';
+      reason.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+      root
+        .querySelector<HTMLFormElement>('form')
+        ?.dispatchEvent(
+          new Event('submit', { bubbles: true, cancelable: true }),
+        );
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(showError).toHaveBeenCalledWith(expected);
+      });
+      expect(importRates.mock.calls[0]?.[0]).toEqual({
+        ids: ['txr_vat'],
+        reason: 'Enable registration tax',
+        targetTenantId: 'tenant-1',
+      });
+      expect(reason.value).toBe('Enable registration tax');
+      expect(root.querySelector('mat-select')?.textContent).toContain('VAT');
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(false);
+    },
+  );
+});
 
 describe('platform tax-rate import error notifications', () => {
   const importRates = vi.fn();
@@ -84,17 +291,17 @@ describe('platform tax-rate import error notifications', () => {
       error: new RpcInternalServerError({
         message: 'private provider details',
       }),
-      expected: 'Failed to import tax rates',
+      expected: 'The tax rates could not be added. Try again.',
     },
     {
       error: new RpcForbiddenError({
         message: 'private authorization details',
       }),
-      expected: 'Failed to import tax rates',
+      expected: 'The tax rates could not be added. Try again.',
     },
     {
       error: new Error('private transport details'),
-      expected: 'Failed to import tax rates',
+      expected: 'The tax rates could not be added. Try again.',
     },
   ])(
     'reports only actionable safe import guidance: $expected',

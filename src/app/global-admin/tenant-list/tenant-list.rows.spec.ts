@@ -14,8 +14,7 @@ const tenant = {
   domain: 'tenant.example.com',
   id: 'tenant-1',
   name: 'Tenant',
-  stripeAccountId: 'acct_123',
-  stripeConnected: true,
+  paymentsConfigured: true,
   theme: 'esn',
   timezone: 'Europe/Berlin',
 } as const satisfies GlobalAdminTenantRecord;
@@ -27,7 +26,7 @@ describe('globalAdminTenantRows', () => {
       { label: 'Theme', value: 'esn' },
       { label: 'Currency', value: 'EUR' },
       { label: 'Timezone', value: 'Europe/Berlin' },
-      { label: 'Stripe account', value: 'Connected (acct_123)' },
+      { label: 'Payments', value: 'Paid sign-ups ready' },
     ]);
   });
 
@@ -37,7 +36,7 @@ describe('globalAdminTenantRows', () => {
       'Theme',
       'Currency',
       'Timezone',
-      'Stripe account',
+      'Payments',
     ]);
   });
 
@@ -48,40 +47,37 @@ describe('globalAdminTenantRows', () => {
       domain: 'tenant.example.com',
       id: 'tenant-1',
       name: 'Tenant',
-      stripeConnected: false,
+      paymentsConfigured: false,
       theme: 'evorto',
     });
 
     expect(rows.at(-1)).toEqual({
-      label: 'Stripe account',
-      value: 'Not connected',
+      label: 'Payments',
+      value: 'Paid sign-ups need attention',
     });
   });
 });
 
 describe('globalAdminStripeAccountLabel', () => {
-  it('includes the connected account id when available for support lookup', () => {
+  it('reports payment readiness without an account identifier', () => {
     expect(
       globalAdminStripeAccountLabel({
-        stripeAccountId: 'acct_123',
-        stripeConnected: true,
+        paymentsConfigured: true,
       }),
-    ).toBe('Connected (acct_123)');
+    ).toBe('Paid sign-ups ready');
   });
 
-  it('keeps connection state readable when the id is absent', () => {
+  it('keeps an unconfigured payment state readable', () => {
     expect(
       globalAdminStripeAccountLabel({
-        stripeAccountId: null,
-        stripeConnected: true,
+        paymentsConfigured: true,
       }),
-    ).toBe('Connected');
+    ).toBe('Paid sign-ups ready');
     expect(
       globalAdminStripeAccountLabel({
-        stripeAccountId: 'acct_123',
-        stripeConnected: false,
+        paymentsConfigured: false,
       }),
-    ).toBe('Not connected');
+    ).toBe('Paid sign-ups need attention');
   });
 });
 
@@ -97,8 +93,7 @@ describe('filterGlobalAdminTenants', () => {
       domain: 'north.example.com',
       id: 'tenant-2',
       name: 'North',
-      stripeAccountId: null,
-      stripeConnected: false,
+      paymentsConfigured: false,
       theme: 'evorto',
       timezone: 'Australia/Brisbane',
     } as const satisfies GlobalAdminTenantRecord;
@@ -110,11 +105,11 @@ describe('filterGlobalAdminTenants', () => {
       tenant,
     ]);
     expect(
-      filterGlobalAdminTenants([tenant, secondTenant], 'not connected'),
+      filterGlobalAdminTenants([tenant, secondTenant], 'need attention'),
     ).toEqual([secondTenant]);
     expect(
       filterGlobalAdminTenants([tenant, secondTenant], 'acct_123'),
-    ).toEqual([tenant]);
+    ).toEqual([]);
   });
 });
 

@@ -217,21 +217,19 @@ Stripe is the source of truth for payment state.
 
 Evorto should use local payment data only as application state derived from Stripe and app workflow needs.
 
-New payments belong to each tenant's currently configured Stripe Connect
-account. Each persisted payment retains its owning account across later account
-rotation, and every expiry or refund call must use that original account as the
-connected-account context. Customer, Checkout, and payment-intent calls use the
-account that owns the relevant payment workflow. Evorto adds only its
-application fee; tenant payment and cancellation settings remain tenant-owned,
-with narrower registration-option overrides where configured.
+New payments belong to the payment account attached to the organization.
+Attaching the first account is an explicitly confirmed private operation;
+changing or disconnecting it is unsupported. The same external payment account
+may be attached to more than one organization, but that does not join their
+members, events, settings, or records. Every payment action remains scoped to
+the organization where it started. Evorto adds only its application fee;
+organization payment and cancellation settings remain organization-owned, with
+narrower sign-up-option overrides where configured.
 
-Mutable event/template tax-rate bindings are scoped to the current Connect
-account. Disconnect is rejected while any binding remains. Account rotation
-preloads the replacement account's active inclusive rates, requires one exact
-normalized semantic match for each distinct source rate, then atomically
-replaces tenant tax metadata and remaps all event/template registration-option
-and add-on bindings. Missing or ambiguous matches fail before mutation, so an
-account change cannot silently drop or alter tax behavior.
+Each persisted payment and tax-rate binding retains its owning account. Every
+customer, payment-page, payment, expiry, or refund call uses that account. Do
+not add account rotation, remapping, disconnect, fallback, or compatibility
+flows.
 
 Event registrations and add-ons have no non-Stripe paid path. Without a
 connected Stripe account, persisted and editable registration options and

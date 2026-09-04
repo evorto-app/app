@@ -97,6 +97,10 @@ import {
   WORKER_EMAIL_DELIVERY_PATH,
   workerEmailDeliveryRouteLayer,
 } from './server/http/worker-email-delivery.route';
+import {
+  WORKER_PAYMENT_SETUP_PATH,
+  workerPaymentSetupRouteLayer,
+} from './server/http/worker-payment-setup.route';
 import { EmailDelivery } from './server/integrations/email-delivery';
 import { ObjectStorage } from './server/integrations/object-storage';
 import { runEmailOutboxProcessor } from './server/notifications/email-delivery';
@@ -151,6 +155,7 @@ const internalTriggerPaths = new Set([
   opsSchemaExplainPath,
   opsSeedStagingPath,
   WORKER_EMAIL_DELIVERY_PATH,
+  WORKER_PAYMENT_SETUP_PATH,
   workerExpiredCheckoutCleanupPath,
   workerReceiptOrphanCleanupPath,
   workerStripeRefundPath,
@@ -733,6 +738,7 @@ const workerRoutesLayer = Layer.mergeAll(
   healthRouteLayer,
   versionRouteLayer,
   workerEmailDeliveryRouteLayer,
+  workerPaymentSetupRouteLayer,
   workerExpiredCheckoutCleanupRouteLayer,
   workerReceiptOrphanCleanupRouteLayer,
   workerStripeRefundRouteLayer,

@@ -64,7 +64,9 @@ describe('paid event configuration', () => {
 
       expect(error).toMatchObject({
         _tag: 'RpcBadRequestError',
-        reason: 'stripeRequiredForPaidEventConfiguration',
+        message:
+          'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
+        reason: 'paymentSetupRequired',
       });
       expect(select).toHaveBeenCalledTimes(1);
     }),
@@ -78,10 +80,10 @@ describe('paid event configuration', () => {
           if (Reflect.has(selection, 'stripeAccountId')) {
             return selectResult([{ stripeAccountId: null }]);
           }
-          if (selection.id === eventInstances.id) {
+          if (selection['id'] === eventInstances.id) {
             return selectResult([{ id: 'event-1' }]);
           }
-          if (selection.id === eventRegistrationOptions.id) {
+          if (selection['id'] === eventRegistrationOptions.id) {
             return selectResult([{ id: 'option-1' }]);
           }
           throw new Error('Unexpected paid event configuration query');
@@ -95,7 +97,9 @@ describe('paid event configuration', () => {
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'stripeRequiredForPaidEventConfiguration',
+          message:
+            'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
+          reason: 'paymentSetupRequired',
         });
         expect(select).toHaveBeenCalledTimes(3);
       }),
@@ -109,7 +113,7 @@ describe('paid event configuration', () => {
           if (Reflect.has(selection, 'stripeAccountId')) {
             return selectResult([{ stripeAccountId: null }]);
           }
-          if (selection.id === eventInstances.id) {
+          if (selection['id'] === eventInstances.id) {
             return selectResult([]);
           }
           throw new Error('Cross-tenant configuration must not be queried');
@@ -145,7 +149,7 @@ describe('paid event configuration', () => {
         for (const scenario of scenarios) {
           const select = vi.fn((selection: Record<string, unknown>) =>
             selectResult(
-              selection.id === scenario.selectedId
+              selection['id'] === scenario.selectedId
                 ? [{ id: 'paid-configuration-1' }]
                 : [],
             ),
@@ -162,18 +166,20 @@ describe('paid event configuration', () => {
       }),
   );
 
-  it.effect('allows Stripe removal after every stored price is free', () =>
-    Effect.gen(function* () {
-      const select = vi.fn(() => selectResult([]));
+  it.effect(
+    'reports no paid configuration when every stored price is free',
+    () =>
+      Effect.gen(function* () {
+        const select = vi.fn(() => selectResult([]));
 
-      const hasPaidConfiguration = yield* tenantHasPaidEventConfiguration(
-        { select } as never,
-        'tenant-1',
-      );
+        const hasPaidConfiguration = yield* tenantHasPaidEventConfiguration(
+          { select } as never,
+          'tenant-1',
+        );
 
-      expect(hasPaidConfiguration).toBe(false);
-      expect(select).toHaveBeenCalledTimes(4);
-    }),
+        expect(hasPaidConfiguration).toBe(false);
+        expect(select).toHaveBeenCalledTimes(4);
+      }),
   );
 
   it.effect(
@@ -221,7 +227,7 @@ describe('paid event configuration', () => {
   );
 
   it.effect(
-    'allows account changes after every tax-rate binding is clear',
+    'reports no tax-rate configuration when every assignment is clear',
     () =>
       Effect.gen(function* () {
         const select = vi.fn(() => selectResult([]));

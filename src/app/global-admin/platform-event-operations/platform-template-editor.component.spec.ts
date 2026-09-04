@@ -21,7 +21,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { EventLocationType } from '../../../types/location';
 
@@ -246,7 +246,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
             tenant: () => ({
               queryFn: async () => ({
                 currency: 'EUR',
-                stripeConnected: true,
+                paymentsConfigured: true,
               }),
               queryKey: ['platform-template', 'tenant'],
             }),
@@ -1194,10 +1194,10 @@ describe('platform template editor graph mapping', () => {
     expect(source).toContain('persistedAdvancedToSimpleModeIssue');
     expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
     expect(source).toContain(
-      'disabled(registration.isPaid, () => !this.stripeConnected())',
+      'disabled(registration.isPaid, () => !this.paymentsConfigured())',
     );
     expect(source).toContain(
-      'disabled(addOn.isPaid, () => !this.stripeConnected())',
+      'disabled(addOn.isPaid, () => !this.paymentsConfigured())',
     );
     expect(source).toContain('resetTemplateGraphPayments');
     expect(template).toContain("requestMode('simple')");

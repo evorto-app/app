@@ -71,18 +71,19 @@
             />
             <mat-hint>Replies go to this address when configured.</mat-hint>
           </mat-form-field>
-          <mat-form-field>
-            <mat-label>Stripe account ID</mat-label>
-            <input
-              matInput
-              [formField]="settingsForm.stripeAccountId"
-              placeholder="acct_..."
-            />
-            <mat-hint>
-              Disconnecting requires every event and template option and add-on
-              to be free.
-            </mat-hint>
-          </mat-form-field>
+          <div>
+            <h3 class="title-small">Paid sign-ups</h3>
+            @if (paymentsConfigured()) {
+              <p class="text-on-surface-variant text-sm">
+                Paid sign-ups are ready.
+              </p>
+            } @else {
+              <p class="text-on-surface-variant text-sm">
+                Paid sign-ups are not ready. Contact Evorto support before
+                adding prices.
+              </p>
+            }
+          </div>
           <mat-form-field>
             <mat-label>Active registration limit</mat-label>
             <input

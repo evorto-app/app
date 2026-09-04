@@ -5,6 +5,7 @@ import {
 import { readFileSync } from 'node:fs';
 import '@angular/compiler';
 import nodePath from 'node:path';
+import { describe, expect, it } from 'vitest';
 
 import {
   platformEventAddOnQuantityLimitIssue,
@@ -126,7 +127,7 @@ describe('platform event registration-mode compatibility', () => {
     expect(template).toContain('event.simpleModeEnabled');
     expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
     expect(source).toContain('resetPlatformEventGraphPayments');
-    expect(template).toContain('[disabled]="!stripeConnected()"');
+    expect(template).toContain('[disabled]="!paymentsConfigured()"');
     expect(template).toContain('status could not be loaded');
     expect(template).toContain('Event editing settings could not be loaded');
     expect(template).toContain('(click)="formOptionsQuery.refetch()"');

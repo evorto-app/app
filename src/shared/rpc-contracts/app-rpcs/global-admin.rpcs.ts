@@ -4,7 +4,7 @@ import {
   PlatformTenantSettingsSnapshot,
   TenantSettingsConflictError,
 } from '@shared/tenant-settings-snapshot';
-import { Schema } from 'effect';
+import { Effect, Schema, SchemaTransformation } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
@@ -55,6 +55,9 @@ export const GlobalAdminPlatformAuditState = Schema.Struct({
   guestCount: Schema.optional(Schema.Number),
   locationName: Schema.optional(Schema.NullOr(Schema.String)),
   name: Schema.optional(PlatformTenantAuditSnapshot.fields.name),
+  paymentsConfigured: Schema.optional(
+    PlatformTenantAuditSnapshot.fields.paymentsConfigured,
+  ),
   permissions: Schema.optional(Schema.Array(Schema.NonEmptyString)),
   questionCount: Schema.optional(Schema.Number),
   receiptCount: Schema.optional(Schema.Number),
@@ -70,9 +73,6 @@ export const GlobalAdminPlatformAuditState = Schema.Struct({
   simpleModeEnabled: Schema.optional(Schema.Boolean),
   sortOrder: Schema.optional(Schema.Number),
   status: Schema.optional(Schema.NonEmptyString),
-  stripeConnected: Schema.optional(
-    PlatformTenantAuditSnapshot.fields.stripeConnected,
-  ),
   taxRateAddedCount: Schema.optional(Schema.Number),
   taxRateCount: Schema.optional(Schema.Number),
   taxRateUnchangedCount: Schema.optional(Schema.Number),
@@ -111,7 +111,6 @@ export const GlobalAdminTenantWriteInput = Schema.Struct({
   currency: Tenant.fields.currency,
   domain: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
-  stripeAccountId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   theme: Tenant.fields.theme,
   timezone: Tenant.fields.timezone,
 });
@@ -131,7 +130,7 @@ export type GlobalAdminTenantMutationInput = Schema.Schema.Type<
   typeof GlobalAdminTenantMutationInput
 >;
 
-export const GlobalAdminTenantCreateInput = Schema.Struct({
+const GlobalAdminTenantCreatePayload = Schema.Struct({
   ...GlobalAdminTenantMutationInput.fields,
   initialPrivacyPolicy: Schema.Struct({
     privacyPolicyText: Schema.String,
@@ -139,15 +138,41 @@ export const GlobalAdminTenantCreateInput = Schema.Struct({
   }),
 });
 
+export const GlobalAdminTenantCreateInput = Schema.Json.pipe(
+  Schema.decodeTo(
+    GlobalAdminTenantCreatePayload,
+    SchemaTransformation.transformOrFail({
+      decode: (input) =>
+        Schema.decodeUnknownEffect(GlobalAdminTenantCreatePayload)(input, {
+          onExcessProperty: 'error',
+        }).pipe(Effect.mapError((error) => error.issue)),
+      encode: (value) => Effect.succeed(value),
+    }),
+  ),
+);
+
 export type GlobalAdminTenantCreateInput = Schema.Schema.Type<
   typeof GlobalAdminTenantCreateInput
 >;
 
-export const GlobalAdminTenantUpdateInput = Schema.Struct({
+const GlobalAdminTenantUpdatePayload = Schema.Struct({
   expectedSettings: PlatformTenantSettingsSnapshot,
   id: Schema.NonEmptyString,
   ...GlobalAdminTenantMutationInput.fields,
 });
+
+export const GlobalAdminTenantUpdateInput = Schema.Json.pipe(
+  Schema.decodeTo(
+    GlobalAdminTenantUpdatePayload,
+    SchemaTransformation.transformOrFail({
+      decode: (input) =>
+        Schema.decodeUnknownEffect(GlobalAdminTenantUpdatePayload)(input, {
+          onExcessProperty: 'error',
+        }).pipe(Effect.mapError((error) => error.issue)),
+      encode: (value) => Effect.succeed(value),
+    }),
+  ),
+);
 
 export type GlobalAdminTenantUpdateInput = Schema.Schema.Type<
   typeof GlobalAdminTenantUpdateInput

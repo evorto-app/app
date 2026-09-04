@@ -19,27 +19,35 @@ test.describe('Admin Tax Rates Import', () => {
     await page.goto('.');
     await openAdminTools(page, isMobile);
 
-    await page.getByRole('link', { name: 'Tax Rates' }).click();
+    await page.getByRole('link', { name: 'Tax rates' }).click();
     await expect(page).toHaveURL(/\/admin\/tax-rates/);
     await expect(
       page
         .locator('app-tax-rates-settings')
-        .getByRole('heading', { level: 1, name: 'Tax Rates' }),
+        .getByRole('heading', { level: 1, name: 'Tax rates' }),
+    ).toBeVisible();
+    const importButton = page.getByRole('button', {
+      name: 'Add tax rates',
+      exact: true,
+    });
+    await expect(importButton).toBeEnabled({ timeout: 15_000 });
+    await expect(importButton).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
+    await importButton.click();
+    const importDialog = page.getByRole('dialog');
+    await expect(importDialog).toBeVisible({ timeout: 15_000 });
+    await expect(importDialog).toHaveAccessibleName('Add tax rates');
+    await expect(
+      importDialog.getByRole('heading', { name: 'Add tax rates' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Import Tax Rates' }),
+      importDialog.getByRole('button', { name: 'Cancel', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Import Tax Rates' }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Import Stripe tax rates' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Cancel', exact: true }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Import Stripe tax rates' }),
-    ).not.toBeVisible();
+    await importDialog
+      .getByRole('button', { name: 'Cancel', exact: true })
+      .click();
+    await expect(importDialog).not.toBeVisible();
   });
 
   test('admin without tax permission cannot open tax rates settings @finance @taxRates', async ({

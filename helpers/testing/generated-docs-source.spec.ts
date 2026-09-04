@@ -471,7 +471,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain('A **Deferred settings** summary');
     expect(source).toContain(
-      '**Operations settings** for email reply-to name/email, Stripe account id, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior.',
+      '**Operations settings** for email reply-to name/email, paid sign-up readiness, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior.',
     );
     expect(source).toContain('documentedEmailSenderName');
     expect(source).toContain('documentedEmailSenderEmail');
@@ -481,14 +481,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('documentedCancellationDeadlineHours');
     expect(source).toContain('documentedRefundFeesOnCancellation');
     expect(source).toContain("page.getByPlaceholder('Example Section')");
-    expect(source).toContain("page.getByPlaceholder('acct_...')");
+    expect(source).toContain("generalSettings.getByPlaceholder('acct_...')");
     expect(source).toContain('await page.reload()');
     expect(source).toContain('Expected generated general-settings docs tenant');
     expect(source).toContain("from '../../support/fixtures/parallel-test'");
     expect(source).not.toContain('} finally {');
     expect(source).not.toContain('.update(schema.tenants)');
     expect(source).toContain(
-      'The walkthrough below updates these values and the uploaded brand assets while preserving the connected Stripe account. It saves the form, reloads the page, and confirms that the same values remain.',
+      'The walkthrough below updates the editable operations values and uploaded brand assets while preserving the attached Stripe account. It saves the form, reloads the page, and confirms that the same values and payment readiness remain.',
     );
     expect(source).toContain("getByLabel('Upload organization logo file')");
     expect(source).toContain("getByLabel('Upload organization favicon file')");
@@ -586,10 +586,10 @@ describe('generated docs source current behavior', () => {
       'expect(tenantPrimaryDomainInput(page)).toHaveValue(',
     );
     expect(source).toContain(
-      'Create and edit manage the primary domain, name, theme, currency, timezone, and connected Stripe account.',
+      'Create and edit manage the primary domain, name, theme, currency, and timezone.',
     );
     expect(source).toContain(
-      'a connected Stripe account cannot be removed while a paid template, event option, or add-on still exists',
+      'Once attached, the account cannot be changed or removed.',
     );
     expect(source).not.toContain('The formatting locale remains fixed');
     expect(source).toContain(
@@ -957,11 +957,13 @@ describe('generated docs source current behavior', () => {
   it('keeps tax-rate documentation backed by account-scoped import and saved template/event assignments', () => {
     const source = readSource('tests/docs/finance/inclusive-tax-rates.doc.ts');
 
-    expect(source).toContain("test('Import a Stripe tax rate and verify it'");
+    expect(source).toContain(
+      "test('Add a tax rate included in the shown price'",
+    );
     expect(source).toContain('Expected the tax-rate docs tenant to use Stripe');
     expect(source).toContain('await rateCheckbox.check()');
     expect(source).toContain(
-      "page.getByRole('button', { name: 'Import selected' }).click()",
+      "page.getByRole('button', { name: 'Add selected' }).click()",
     );
     expect(source).toContain('stripeAccountId: tenantRecord.stripeAccountId');
     expect(source).toContain('documentedRate.stripeTaxRateId');
@@ -970,10 +972,12 @@ describe('generated docs source current behavior', () => {
       'await expect(importedRateCheckbox).toBeDisabled()',
     );
     expect(source).toContain(
-      "importedRateRow.getByText('imported', { exact: true })",
+      "importedRateRow.getByText('Already added', { exact: true })",
     );
-    expect(source).toContain('Failed to load rates from Stripe');
-    expect(source).toContain('imports nothing');
+    expect(source).toContain('If rates cannot be loaded, select **Try again**');
+    expect(source).toContain(
+      'nothing is added until the list loads and you confirm a selection',
+    );
     expect(source).toContain("test.describe.configure({ mode: 'default' })");
     expect(source).toContain(
       'This journey needs **View templates**, **Edit all templates**, and **Create events** access.',

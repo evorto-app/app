@@ -26,7 +26,10 @@ const priceInputForRegistrationOption = (
 
 const taxRateSelectForRegistrationOption = (
   participantOptionForm: ReturnType<Page['locator']>,
-) => participantOptionForm.getByLabel('Inclusive tax rate');
+) =>
+  participantOptionForm.getByRole('combobox', {
+    name: 'Tax included in the shown price',
+  });
 
 const waitForLastRegistrationOptionRole = async (
   page: Page,
@@ -60,7 +63,9 @@ test.describe('Template Tax Rate Validation', () => {
     });
 
     const saveButton = page.getByRole('button', { name: 'Save template' });
-    await expect(page.getByLabel('Inclusive tax rate')).toHaveCount(0);
+    await expect(
+      page.getByLabel('Tax included in the shown price'),
+    ).toHaveCount(0);
 
     await enablePaymentForLastRegistrationOption(page);
 
@@ -118,7 +123,11 @@ test.describe('Template Tax Rate Validation', () => {
       .locator('app-template-registration-option-editor')
       .last();
     await priceInputForRegistrationOption(participantOptionForm).fill('10.00');
-    await taxRateSelectForRegistrationOption(participantOptionForm).click();
+    const taxRateSelect = taxRateSelectForRegistrationOption(
+      participantOptionForm,
+    );
+    await taxRateSelect.press('Enter');
+    await expect(taxRateSelect).toHaveAttribute('aria-expanded', 'true');
     await expect(
       page.getByRole('option', { exact: true, name: taxRateLabel }),
     ).toBeVisible();

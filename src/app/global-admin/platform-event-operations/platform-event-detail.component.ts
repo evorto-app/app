@@ -611,6 +611,14 @@ export class PlatformEventDetailComponent {
     MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
   protected readonly minorUnitsToMajorCurrencyInput =
     minorUnitsToMajorCurrencyInput;
+  protected readonly targetTenantQuery = injectQuery(() =>
+    this.operations.tenant(this.tenantId()),
+  );
+  protected readonly paymentsConfigured = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.paymentsConfigured === true,
+  );
   protected readonly questionDescriptionIssue =
     platformEventQuestionDescriptionIssue;
   protected readonly questionTitleIssue = platformEventQuestionTitleIssue;
@@ -628,18 +636,10 @@ export class PlatformEventDetailComponent {
       this.graphModel().registrationOptions,
     ),
   );
-  protected readonly targetTenantQuery = injectQuery(() =>
-    this.operations.tenant(this.tenantId()),
-  );
-  protected readonly stripeConnected = computed(
-    () =>
-      this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === true,
-  );
   protected readonly stripeDisconnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === false,
+      this.targetTenantQuery.data()?.paymentsConfigured === false,
   );
   protected readonly submitMutation = injectMutation(() =>
     this.operations.submitForReview(),
@@ -1002,7 +1002,7 @@ export class PlatformEventDetailComponent {
     value: boolean,
   ): void {
     if (field === 'isPaid') {
-      if (value && !this.stripeConnected()) return;
+      if (value && !this.paymentsConfigured()) return;
       if (!value) this.clearCurrencyAmountErrors(`addOn:${index}:`);
       this.updateAddOn(index, (addOn) =>
         value ? { ...addOn, isPaid: true } : resetAddOnPayment(addOn, null),
@@ -1079,7 +1079,7 @@ export class PlatformEventDetailComponent {
   }
 
   protected setAddOnPrice(index: number, event: Event): void {
-    if (!this.stripeConnected()) return;
+    if (!this.paymentsConfigured()) return;
     const value = this.currencyAmountInputValue(
       `addOn:${index}:price`,
       event,
@@ -1090,7 +1090,7 @@ export class PlatformEventDetailComponent {
   }
 
   protected setAddOnTaxRate(index: number, event: MatSelectChange): void {
-    if (!this.stripeConnected()) return;
+    if (!this.paymentsConfigured()) return;
     const value: unknown = event.value;
     this.updateAddOn(index, (addOn) => ({
       ...addOn,
@@ -1105,7 +1105,7 @@ export class PlatformEventDetailComponent {
   ): void {
     const value = textInputValue(event);
     if (value === undefined) return;
-    if (field === 'stripeTaxRateId' && !this.stripeConnected()) return;
+    if (field === 'stripeTaxRateId' && !this.paymentsConfigured()) return;
     this.updateAddOn(index, (addOn) => {
       if (field === 'description') {
         return { ...addOn, description: value || null };
@@ -1123,7 +1123,7 @@ export class PlatformEventDetailComponent {
     value: boolean,
   ): void {
     if (field === 'isPaid') {
-      if (value && !this.stripeConnected()) return;
+      if (value && !this.paymentsConfigured()) return;
       if (!value) this.clearCurrencyAmountErrors(`option:${index}:`);
       this.updateRegistrationOption(index, (option) =>
         value
@@ -1210,7 +1210,7 @@ export class PlatformEventDetailComponent {
     field: 'esnCardDiscountedPrice' | 'price',
     event: Event,
   ): void {
-    if (!this.stripeConnected()) return;
+    if (!this.paymentsConfigured()) return;
     const value = this.currencyAmountInputValue(
       `option:${index}:${field}`,
       event,
@@ -1247,7 +1247,7 @@ export class PlatformEventDetailComponent {
   }
 
   protected setOptionTaxRate(index: number, event: MatSelectChange): void {
-    if (!this.stripeConnected()) return;
+    if (!this.paymentsConfigured()) return;
     const value: unknown = event.value;
     this.updateRegistrationOption(index, (option) => ({
       ...option,
@@ -1263,7 +1263,7 @@ export class PlatformEventDetailComponent {
   ): void {
     const value = textInputValue(event);
     if (value === undefined) return;
-    if (field === 'stripeTaxRateId' && !this.stripeConnected()) return;
+    if (field === 'stripeTaxRateId' && !this.paymentsConfigured()) return;
     this.updateRegistrationOption(index, (option) => {
       if (field === 'title') return { ...option, title: value };
       return { ...option, [field]: value || null };
