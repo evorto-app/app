@@ -1,11 +1,9 @@
-import { and, count, eq, SQL, sql } from 'drizzle-orm';
+import { SQL, sql } from 'drizzle-orm';
 import {
   foreignKey,
   index,
   pgTable,
-  pgView,
   primaryKey,
-  QueryBuilder,
   text,
   timestamp,
   unique,
@@ -13,8 +11,6 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { createId } from '../create-id';
-import { eventRegistrationOptions } from './event-registration-options';
-import { eventRegistrations } from './event-registrations';
 import { roles } from './roles';
 import { tenants } from './tenants';
 
@@ -130,41 +126,4 @@ export const rolesToTenantUsers = pgTable(
     }),
     primaryKey({ columns: [table.roleId, table.userTenantId] }),
   ],
-);
-
-const queryBuilder = new QueryBuilder();
-
-const organizingRegistration = queryBuilder
-  .select({
-    optionCount: count(eventRegistrationOptions.id)
-      .mapWith(Boolean)
-      .as('optionCount'),
-    tenantId: eventRegistrations.tenantId,
-    userId: eventRegistrations.userId,
-  })
-  .from(eventRegistrationOptions)
-  .where(eq(eventRegistrationOptions.organizingRegistration, true))
-  .innerJoin(
-    eventRegistrations,
-    eq(eventRegistrationOptions.id, eventRegistrations.registrationOptionId),
-  )
-  .groupBy(eventRegistrations.tenantId, eventRegistrations.userId)
-  .as('organizing_registration');
-
-export const userAttributes = pgView('user_attributes').as((database) =>
-  database
-    .select({
-      id: usersToTenants.id,
-      organizesSome: organizingRegistration.optionCount,
-      tenantId: usersToTenants.tenantId,
-      userId: usersToTenants.userId,
-    })
-    .from(usersToTenants)
-    .leftJoin(
-      organizingRegistration,
-      and(
-        eq(organizingRegistration.tenantId, usersToTenants.tenantId),
-        eq(organizingRegistration.userId, usersToTenants.userId),
-      ),
-    ),
 );
