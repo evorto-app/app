@@ -32,6 +32,7 @@ describe('registration policy settings schema', () => {
     ).toEqual(
       expect.arrayContaining([
         'tenants_cancellation_deadline_hours_nonnegative',
+        'tenants_max_active_registrations_per_user_nonnegative',
         'tenants_transfer_deadline_hours_nonnegative',
       ]),
     );
