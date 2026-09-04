@@ -1705,9 +1705,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('fillTestCard');
     expect(source).toContain(".toBe('successful:CONFIRMED')");
     expect(source).toContain('approvalEmailsForRegistration');
-    expect(source).toContain('Payment setup needs retry');
-    expect(source).toContain('Retry payment setup');
-    expect(source).toContain("transactionStatus: 'cancelled'");
+    expect(source).toContain('Payment needs attention');
+    expect(source).not.toContain('Retry payment setup');
+    expect(source).toContain('.toEqual(originalClaim)');
     expect(source).toContain('# Withdraw a pending application');
     expect(source).toContain(
       'This immediately withdraws your pending application. It does not release confirmed capacity or start a refund.',

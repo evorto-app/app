@@ -62,10 +62,19 @@ interface CapturedStripeRequest {
 }
 
 interface FakeStripeSession {
+  readonly amount_total: number;
+  readonly cancel_url: null | string;
+  readonly currency: null | string;
+  readonly customer_email: null | string;
+  readonly expires_at: number;
   readonly id: string;
+  readonly metadata: Record<string, string>;
+  readonly mode: 'payment';
   readonly object: 'checkout.session';
-  readonly payment_intent: string;
+  readonly payment_intent: null;
+  readonly payment_status: 'unpaid';
   readonly status: 'expired' | 'open';
+  readonly success_url: null | string;
   readonly url: null | string;
 }
 
@@ -141,7 +150,7 @@ class IdempotentStripeHttpClient extends StripeClientLibrary.HttpClient {
       const existingSession = this.sessionsByIdempotencyKey.get(idempotencyKey);
       const session =
         existingSession ??
-        this.createSession(this.sessionsByIdempotencyKey.size + 1);
+        this.createSession(this.sessionsByIdempotencyKey.size + 1, requestData);
       this.sessionsByIdempotencyKey.set(idempotencyKey, session);
       this.createRequests.push({ idempotencyKey, requestData });
 
@@ -167,8 +176,11 @@ class IdempotentStripeHttpClient extends StripeClientLibrary.HttpClient {
       const existingSession = [...this.sessionsByIdempotencyKey.values()].find(
         (session) => session.id === sessionId,
       );
+      if (!existingSession) {
+        throw new Error(`Cannot expire unknown test session ${sessionId}`);
+      }
       return new JsonStripeResponse({
-        ...(existingSession ?? this.createSession(1)),
+        ...existingSession,
         id: sessionId,
         status: 'expired',
         url: null,
@@ -178,14 +190,44 @@ class IdempotentStripeHttpClient extends StripeClientLibrary.HttpClient {
     throw new Error(`Unexpected Stripe request: ${method} ${path}`);
   }
 
-  private createSession(sequence: number): FakeStripeSession {
+  private createSession(
+    sequence: number,
+    requestData: string,
+  ): FakeStripeSession {
     const id = `cs_test_${this.sessionNamespace}_${sequence}`;
+    const form = new URLSearchParams(requestData);
+    const metadata = Object.fromEntries(
+      [...form].flatMap(([key, value]) => {
+        const match = /^metadata\[([^\]]+)\]$/.exec(key);
+        return match?.[1] ? [[match[1], value]] : [];
+      }),
+    );
+    let amount = 0;
+    for (const [key, value] of form) {
+      const match = /^line_items\[(\d+)\]\[price_data\]\[unit_amount\]$/.exec(
+        key,
+      );
+      if (match?.[1]) {
+        amount +=
+          Number(value) * Number(form.get(`line_items[${match[1]}][quantity]`));
+      }
+    }
     return {
+      amount_total: amount,
+      cancel_url: form.get('cancel_url'),
+      currency:
+        form.get('line_items[0][price_data][currency]')?.toLowerCase() ?? null,
+      customer_email: form.get('customer_email'),
+      expires_at: Number(form.get('expires_at')),
       id,
+      metadata,
+      mode: 'payment',
       object: 'checkout.session',
-      payment_intent: `pi_test_${this.sessionNamespace}_${sequence}`,
+      payment_intent: null,
+      payment_status: 'unpaid',
       status: 'open',
-      url: `https://checkout.stripe.test/${id}`,
+      success_url: form.get('success_url'),
+      url: `https://checkout.stripe.com/c/pay/${id}`,
     };
   }
 }
@@ -206,6 +248,11 @@ class JsonStripeResponse extends StripeClientLibrary.HttpClientResponse {
 
 const makeId = (prefix: string, suffix: string) =>
   `${prefix}-${suffix}`.slice(0, 20);
+
+const communicationEmailForUser = (userId: string) =>
+  `${userId}.contact@example.com`;
+
+const loginEmailForUser = (userId: string) => `${userId}.login@example.com`;
 
 const tenantDomainForFixture = (fixture: Fixture): string =>
   `${fixture.tenantId.replace(/^tenant-/, '')}.concurrency.example`;
@@ -229,8 +276,14 @@ const waitForBlockedQueries = (
   pool: Pool,
   queryFragment: string,
   minimumCount: number,
+  operationCompleted?: () => boolean,
 ) =>
   waitFor(async () => {
+    if (operationCompleted?.()) {
+      throw new Error(
+        `Operation completed before reaching its expected ${queryFragment} lock`,
+      );
+    }
     const blocked = await pool.query<{ count: string }>(
       `
         SELECT count(*)::text AS count
@@ -274,6 +327,32 @@ const runWithCleanup = async <A>(
   return outcome.value;
 };
 
+const createPendingOperationTracker = () => {
+  const settlements: Promise<void>[] = [];
+  const failures: unknown[] = [];
+  return {
+    drain: async () => {
+      await Promise.all(settlements);
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'Concurrent test operations failed');
+      }
+    },
+    track: <A>(operation: PromiseLike<A>): Promise<A> => {
+      const promise = Promise.resolve(operation);
+      settlements.push(
+        (async () => {
+          try {
+            await promise;
+          } catch (error) {
+            failures.push(error);
+          }
+        })(),
+      );
+      return promise;
+    },
+  };
+};
+
 const releaseRowLock = (
   client: Pick<PoolClient, 'query' | 'release'>,
   transactionOpen: boolean,
@@ -301,7 +380,17 @@ const withRowLock = async (
     transactionOpen = true;
     await lock(client);
 
-    return client;
+    let released = false;
+    return {
+      query: client.query.bind(client),
+      release: (destroy = false) => {
+        client.release(destroy);
+        released = true;
+      },
+      get released() {
+        return released;
+      },
+    };
   } catch (error) {
     return runWithCleanup(async () => {
       throw error;
@@ -335,6 +424,9 @@ const makeServiceLayer = (url: string, stripe: Stripe) => {
 
 type ApprovalInput = Parameters<
   typeof EventRegistrationService.approveManualRegistration
+>[0];
+type RegistrationCheckoutRetryInput = Parameters<
+  typeof EventRegistrationService.retryRegistrationCheckout
 >[0];
 type RegistrationInput = Parameters<
   typeof EventRegistrationService.registerForEvent
@@ -370,13 +462,26 @@ const runRegistration = (
     ),
   );
 
+const runRegistrationCheckoutRetry = (
+  input: RegistrationCheckoutRetryInput,
+  serviceLayer: ReturnType<typeof makeServiceLayer>,
+) =>
+  Effect.runPromise(
+    EventRegistrationService.retryRegistrationCheckout(input).pipe(
+      Effect.match({
+        onFailure: (error) => ({ error, status: 'failure' as const }),
+        onSuccess: () => ({ status: 'success' as const }),
+      }),
+      Effect.provide(EventRegistrationService.Default),
+      Effect.provide(serviceLayer),
+    ),
+  );
+
 const cancellationRpc = [...AppRpcs.requests.values()].find(
   (rpc) => rpc._tag === 'events.cancelRegistration',
 );
 if (!cancellationRpc) throw new Error('Cancellation RPC is missing');
-const cancellationOptions: Parameters<
-  (typeof eventRegistrationHandlers)['events.cancelRegistration']
->[1] = {
+const cancellationOptions = {
   client: new Rpc.ServerClient(1),
   headers: Headers.empty,
   requestId: RpcMessage.RequestId(1),
@@ -487,6 +592,7 @@ const approvalInput = (fixture: Fixture): ApprovalInput => ({
     id: fixture.tenantId,
     name: 'Concurrency test',
     stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
+    timezone: 'Europe/Berlin',
   },
 });
 
@@ -498,12 +604,16 @@ const directRegistrationInput = (fixture: Fixture): RegistrationInput => ({
   tenant: {
     currency: 'EUR',
     domain: tenantDomainForFixture(fixture),
+    emailSenderEmail: undefined,
+    emailSenderName: undefined,
     id: fixture.tenantId,
     maxActiveRegistrationsPerUser: 0,
+    name: 'Concurrency test',
     stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
   },
   user: {
-    email: `${fixture.userId}@example.com`,
+    communicationEmail: communicationEmailForUser(fixture.userId),
+    email: loginEmailForUser(fixture.userId),
     id: fixture.userId,
     roleIds: [],
   },
@@ -541,8 +651,8 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
   });
   await database.insert(users).values({
     auth0Id: `auth0|${suffix}`,
-    communicationEmail: `${suffix}@example.com`,
-    email: `${suffix}@example.com`,
+    communicationEmail: communicationEmailForUser(userId),
+    email: loginEmailForUser(userId),
     firstName: 'Concurrent',
     id: userId,
     lastName: 'Tester',
@@ -572,7 +682,8 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     end: new Date(now + 8 * 24 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
-    reviewedAt: new Date(),
+    reviewedAt: new Date(now),
+    reviewedBy: userId,
     start: new Date(now + 7 * 24 * 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -613,6 +724,8 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
+    basePriceAtRegistration: 1000,
+    discountAmount: 0,
     eventId,
     id: registrationId,
     registrationOptionId: optionId,
@@ -749,27 +862,42 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
 };
 
 const readFixtureState = async (database: TestDatabase, fixture: Fixture) => {
-  const [claims, option, addOn, emails, registration] = await Promise.all([
-    database.query.transactions.findMany({
-      where: {
-        eventRegistrationId: fixture.registrationId,
-        tenantId: fixture.tenantId,
-        type: 'registration',
-      },
-    }),
-    database.query.eventRegistrationOptions.findFirst({
-      where: { id: fixture.optionId },
-    }),
-    database.query.eventAddons.findFirst({
-      where: { id: fixture.addOnId },
-    }),
-    database.query.emailOutbox.findMany({
-      where: { tenantId: fixture.tenantId },
-    }),
-    database.query.eventRegistrations.findFirst({
-      where: { id: fixture.registrationId, tenantId: fixture.tenantId },
-    }),
-  ]);
+  const operations = createPendingOperationTracker();
+  const reads = [
+    operations.track(
+      database.query.transactions.findMany({
+        where: {
+          eventRegistrationId: fixture.registrationId,
+          tenantId: fixture.tenantId,
+          type: 'registration',
+        },
+      }),
+    ),
+    operations.track(
+      database.query.eventRegistrationOptions.findFirst({
+        where: { id: fixture.optionId },
+      }),
+    ),
+    operations.track(
+      database.query.eventAddons.findFirst({
+        where: { id: fixture.addOnId },
+      }),
+    ),
+    operations.track(
+      database.query.emailOutbox.findMany({
+        where: { tenantId: fixture.tenantId },
+      }),
+    ),
+    operations.track(
+      database.query.eventRegistrations.findFirst({
+        where: { id: fixture.registrationId, tenantId: fixture.tenantId },
+      }),
+    ),
+  ] as const;
+  const [claims, option, addOn, emails, registration] = await runWithCleanup(
+    () => Promise.all(reads),
+    [operations.drain],
+  );
   return { addOn, claims, emails, option, registration };
 };
 
@@ -777,42 +905,50 @@ const readDirectFixtureState = async (
   database: TestDatabase,
   fixture: Fixture,
 ) => {
-  const [addOn, claims, option, purchases, registrations] = await Promise.all([
-    database.query.eventAddons.findFirst({
-      where: { id: fixture.addOnId },
-    }),
-    database.query.transactions.findMany({
-      where: {
-        eventId: fixture.eventId,
-        tenantId: fixture.tenantId,
-        type: 'registration',
-      },
-    }),
-    database.query.eventRegistrationOptions.findFirst({
-      where: { id: fixture.optionId },
-    }),
-    database.query.eventRegistrationAddonPurchases.findMany({
-      where: { addonId: fixture.addOnId },
-    }),
-    database.query.eventRegistrations.findMany({
-      where: {
-        eventId: fixture.eventId,
-        tenantId: fixture.tenantId,
-        userId: fixture.userId,
-      },
-    }),
-  ]);
-  return { addOn, claims, option, purchases, registrations };
-};
-
-const assertEquivalentStripeRequests = (
-  requests: readonly CapturedStripeRequest[],
-): void => {
-  expect(requests).toHaveLength(2);
-  expect(new Set(requests.map((request) => request.idempotencyKey)).size).toBe(
-    1,
-  );
-  expect(new Set(requests.map((request) => request.requestData)).size).toBe(1);
+  const operations = createPendingOperationTracker();
+  const reads = [
+    operations.track(
+      database.query.eventAddons.findFirst({
+        where: { id: fixture.addOnId },
+      }),
+    ),
+    operations.track(
+      database.query.transactions.findMany({
+        where: {
+          eventId: fixture.eventId,
+          tenantId: fixture.tenantId,
+          type: 'registration',
+        },
+      }),
+    ),
+    operations.track(
+      database.query.emailOutbox.findMany({
+        where: { tenantId: fixture.tenantId },
+      }),
+    ),
+    operations.track(
+      database.query.eventRegistrationOptions.findFirst({
+        where: { id: fixture.optionId },
+      }),
+    ),
+    operations.track(
+      database.query.eventRegistrationAddonPurchases.findMany({
+        where: { addonId: fixture.addOnId },
+      }),
+    ),
+    operations.track(
+      database.query.eventRegistrations.findMany({
+        where: {
+          eventId: fixture.eventId,
+          tenantId: fixture.tenantId,
+          userId: fixture.userId,
+        },
+      }),
+    ),
+  ] as const;
+  const [addOn, claims, emails, option, purchases, registrations] =
+    await runWithCleanup(() => Promise.all(reads), [operations.drain]);
+  return { addOn, claims, emails, option, purchases, registrations };
 };
 
 const assertStripeRequestUsesTaxRate = (
@@ -913,6 +1049,7 @@ describe('database registration concurrency invariants', () => {
     await database.insert(transactions).values({
       amount: 1000,
       currency: 'EUR',
+      eventId: fixture.eventId,
       eventRegistrationId: fixture.registrationId,
       id: makeId('claim', randomUUID().replaceAll('-', '').slice(0, 8)),
       method: 'stripe',
@@ -933,12 +1070,13 @@ describe('database registration concurrency invariants', () => {
         pool.query(
           `
             INSERT INTO transactions
-              (id, "tenantId", amount, currency, "eventRegistrationId", method, status, type)
-            VALUES ($1, $2, 1000, 'EUR', $3, 'stripe', 'pending', 'registration')
+              (id, "tenantId", amount, currency, "eventId", "eventRegistrationId", method, status, type)
+            VALUES ($1, $2, 1000, 'EUR', $3, $4, 'stripe', 'pending', 'registration')
           `,
           [
             makeId('forged-claim', suffix),
             forgedTenantId,
+            fixture.eventId,
             fixture.registrationId,
           ],
         ),
@@ -980,12 +1118,15 @@ describe('database registration concurrency invariants', () => {
     });
     let membershipTransactionOpen = true;
 
+    const operations = createPendingOperationTracker();
+
     await runWithCleanup(async () => {
       const input = directRegistrationInput(fixture);
-      const first = runRegistration(input, serviceLayer);
-      const second = runRegistration(input, serviceLayer);
+      const first = operations.track(runRegistration(input, serviceLayer));
+      const second = operations.track(runRegistration(input, serviceLayer));
 
-      await waitForBlockedQueries(pool, 'users_to_tenants', 2);
+      await waitForBlockedQueries(pool, 'users_to_tenants', 1);
+      await waitForBlockedQueries(pool, 'event_instances', 1);
       await membershipLock.query('COMMIT');
       membershipTransactionOpen = false;
 
@@ -999,7 +1140,7 @@ describe('database registration concurrency invariants', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'User is already registered for this event',
+            message: 'You are already signed up for this event.',
           }),
         }),
       ]);
@@ -1016,7 +1157,15 @@ describe('database registration concurrency invariants', () => {
       expect(state.purchases).toEqual([
         expect.objectContaining({ quantity: 2, unitPrice: 0 }),
       ]);
-    }, [() => releaseRowLock(membershipLock, membershipTransactionOpen)]);
+      expect(state.emails).toEqual([
+        expect.objectContaining({
+          toEmail: communicationEmailForUser(fixture.userId),
+        }),
+      ]);
+    }, [
+      () => releaseRowLock(membershipLock, membershipTransactionOpen),
+      operations.drain,
+    ]);
   }, 30_000);
 
   it('keeps transfer notification reads out of inverse shared-user lock cycles', async () => {
@@ -1028,33 +1177,31 @@ describe('database registration concurrency invariants', () => {
     const sourceRegistrationId = makeId('source-reg', suffix);
     const recipientRegistrationId = makeId('recipient-reg', suffix);
 
-    await database.insert(users).values({
-      auth0Id: `auth0|recipient-${suffix}`,
-      communicationEmail: `recipient-${suffix}@example.com`,
-      email: `recipient-${suffix}@example.com`,
-      firstName: 'Recipient',
-      id: recipientUserId,
-      lastName: 'Tester',
-    });
-    await database.insert(usersToTenants).values({
-      id: recipientMembershipId,
-      tenantId: fixture.tenantId,
-      userId: recipientUserId,
-    });
-
-    const transferClient = await pool.connect();
-    let registrationClient: PoolClient;
-    try {
-      registrationClient = await pool.connect();
-    } catch (error) {
-      return runWithCleanup(async () => {
-        throw error;
-      }, [() => transferClient.release()]);
-    }
+    let transferClient: PoolClient | undefined;
+    let registrationClient: PoolClient | undefined;
     let registrationTransactionOpen = false;
     let transferTransactionOpen = false;
 
+    const operations = createPendingOperationTracker();
+
     await runWithCleanup(async () => {
+      await database.insert(users).values({
+        auth0Id: `auth0|recipient-${suffix}`,
+        communicationEmail: communicationEmailForUser(recipientUserId),
+        email: loginEmailForUser(recipientUserId),
+        firstName: 'Recipient',
+        id: recipientUserId,
+        lastName: 'Tester',
+      });
+      await database.insert(usersToTenants).values({
+        id: recipientMembershipId,
+        tenantId: fixture.tenantId,
+        userId: recipientUserId,
+      });
+
+      transferClient = await pool.connect();
+      registrationClient = await pool.connect();
+
       await transferClient.query('BEGIN');
       transferTransactionOpen = true;
       await transferClient.query("SET LOCAL lock_timeout = '5s'");
@@ -1066,24 +1213,26 @@ describe('database registration concurrency invariants', () => {
         'SELECT id FROM users WHERE id = $1 FOR UPDATE',
         [recipientUserId],
       );
-      const registrationInsert = registrationClient.query(
-        `
-          /* inverse-user-lock-regression */
-          INSERT INTO event_registrations
-            (id, "tenantId", "eventId", "registrationOptionId", status, "userId")
-          VALUES
-            ($1, $2, $3, $4, 'PENDING', $5),
-            ($6, $2, $3, $4, 'WAITLIST', $7)
-        `,
-        [
-          sourceRegistrationId,
-          fixture.tenantId,
-          fixture.eventId,
-          fixture.optionId,
-          fixture.userId,
-          recipientRegistrationId,
-          recipientUserId,
-        ],
+      const registrationInsert = operations.track(
+        registrationClient.query(
+          `
+            /* inverse-user-lock-regression */
+            INSERT INTO event_registrations
+              (id, "tenantId", "eventId", "registrationOptionId", status, "userId")
+            VALUES
+              ($1, $2, $3, $4, 'PENDING', $5),
+              ($6, $2, $3, $4, 'WAITLIST', $7)
+          `,
+          [
+            sourceRegistrationId,
+            fixture.tenantId,
+            fixture.eventId,
+            fixture.optionId,
+            fixture.userId,
+            recipientRegistrationId,
+            recipientUserId,
+          ],
+        ),
       );
 
       await waitForBlockedQueries(pool, 'inverse-user-lock-regression', 1);
@@ -1109,8 +1258,17 @@ describe('database registration concurrency invariants', () => {
         });
       expect(insertedRegistrations).toHaveLength(2);
     }, [
-      () => releaseRowLock(transferClient, transferTransactionOpen),
-      () => releaseRowLock(registrationClient, registrationTransactionOpen),
+      async () => {
+        if (transferClient) {
+          await releaseRowLock(transferClient, transferTransactionOpen);
+        }
+      },
+      async () => {
+        if (registrationClient) {
+          await releaseRowLock(registrationClient, registrationTransactionOpen);
+        }
+      },
+      operations.drain,
       async () => {
         await database
           .delete(eventRegistrations)
@@ -1154,7 +1312,107 @@ describe('paid manual approval concurrency', () => {
     await pool.end();
   });
 
-  it('shares one durable claim, reservation, email, and Stripe session across simultaneous approvals', async () => {
+  it('keeps an included-only priced add-on out of manual approval Checkout lines', async () => {
+    const fixture = await seedFixture(database);
+    fixtures.push(fixture);
+    const addOnPrice = 500;
+    await database
+      .delete(eventRegistrationAddonPurchaseLots)
+      .where(
+        eq(
+          eventRegistrationAddonPurchaseLots.registrationId,
+          fixture.registrationId,
+        ),
+      );
+    await database
+      .update(eventAddons)
+      .set({
+        isPaid: true,
+        price: addOnPrice,
+        stripeTaxRateId: fixture.taxRateId,
+      })
+      .where(eq(eventAddons.id, fixture.addOnId));
+    await database
+      .update(eventRegistrationAddonPurchases)
+      .set({
+        purchasedQuantity: 0,
+        quantity: 1,
+        unitPrice: addOnPrice,
+      })
+      .where(
+        eq(
+          eventRegistrationAddonPurchases.registrationId,
+          fixture.registrationId,
+        ),
+      );
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    expect(await runApproval(approvalInput(fixture), serviceLayer)).toEqual({
+      status: 'success',
+      value: { status: 'paymentPending' },
+    });
+    expect(fakeHttpClient.createRequests).toHaveLength(1);
+
+    const state = await readFixtureState(database, fixture);
+    const claim = state.claims[0];
+    if (!claim?.stripeCheckoutRequest) {
+      throw new Error('Expected one pending registration Checkout');
+    }
+    expect(claim).toEqual(
+      expect.objectContaining({
+        amount: 1000,
+        status: 'pending',
+      }),
+    );
+    expect(claim.stripeCheckoutRequest.lineItems).toEqual([
+      {
+        name: 'Registration fee for Concurrency fixture',
+        quantity: 1,
+        taxRateId: fixture.taxRateId,
+        unitAmount: 1000,
+      },
+    ]);
+    expect(claim.stripeCheckoutRequest).toEqual(
+      expect.objectContaining({
+        customerEmail: communicationEmailForUser(fixture.userId),
+        notificationEmail: communicationEmailForUser(fixture.userId),
+      }),
+    );
+    expect(
+      await database.query.eventRegistrationAddonPurchases.findMany({
+        where: {
+          registrationId: fixture.registrationId,
+          tenantId: fixture.tenantId,
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        includedQuantity: 1,
+        purchasedQuantity: 0,
+        quantity: 1,
+        unitPrice: addOnPrice,
+      }),
+    ]);
+
+    const checkoutRequest = fakeHttpClient.createRequests[0];
+    if (!checkoutRequest) {
+      throw new Error('Expected one Stripe Checkout request');
+    }
+    const checkoutForm = new URLSearchParams(checkoutRequest.requestData);
+    expect(
+      [...checkoutForm.keys()].filter((key) =>
+        key.endsWith('[price_data][unit_amount]'),
+      ),
+    ).toHaveLength(1);
+    expect(checkoutForm.get('line_items[1][quantity]')).toBeNull();
+  }, 30_000);
+
+  it('lets only the fresh simultaneous approval create the durable Checkout session', async () => {
     const fixture = await seedFixture(database);
     fixtures.push(fixture);
     const { promise: createGate, resolve: releaseCreates } =
@@ -1168,31 +1426,57 @@ describe('paid manual approval concurrency', () => {
     const serviceLayer = makeServiceLayer(databaseUrl, stripe);
     const registrationLock = await withRowLock(pool, async (client) => {
       await client.query(
-        'SELECT id FROM event_registrations WHERE id = $1 FOR UPDATE',
-        [fixture.registrationId],
+        `
+          SELECT id
+          FROM event_registrations
+          WHERE "tenantId" = $1 AND id = $2
+          FOR UPDATE
+        `,
+        [fixture.tenantId, fixture.registrationId],
       );
     });
     let registrationTransactionOpen = true;
 
+    const operations = createPendingOperationTracker();
+
     await runWithCleanup(async () => {
-      const first = runApproval(approvalInput(fixture), serviceLayer);
-      const second = runApproval(approvalInput(fixture), serviceLayer);
+      const approvals = {
+        first: operations.track(
+          runApproval(approvalInput(fixture), serviceLayer),
+        ),
+        second: operations.track(
+          runApproval(approvalInput(fixture), serviceLayer),
+        ),
+      };
 
       await waitForBlockedQueries(pool, 'event_registrations', 2);
+      expect(fakeHttpClient.createRequests).toHaveLength(0);
       await registrationLock.query('COMMIT');
       registrationTransactionOpen = false;
       await waitFor(
-        () => fakeHttpClient.createRequests.length === 2,
-        'Timed out waiting for both idempotent Stripe requests',
+        () => fakeHttpClient.createRequests.length === 1,
+        'Timed out waiting for the fresh approval Stripe request',
       );
+      expect(
+        await Promise.race([approvals.first, approvals.second]),
+      ).toMatchObject({
+        error: { _tag: 'EventRegistrationConflictError' },
+        status: 'failure',
+      });
       releaseCreates(true);
 
-      const outcomes = await Promise.all([first, second]);
-      expect(outcomes).toEqual([
-        { status: 'success', value: { status: 'paymentPending' } },
+      const outcomes = await Promise.all([approvals.first, approvals.second]);
+      expect(outcomes.filter(({ status }) => status === 'success')).toEqual([
         { status: 'success', value: { status: 'paymentPending' } },
       ]);
-      assertEquivalentStripeRequests(fakeHttpClient.createRequests);
+      expect(outcomes.filter(({ status }) => status === 'failure')).toEqual([
+        expect.objectContaining({
+          error: expect.objectContaining({
+            _tag: 'EventRegistrationConflictError',
+          }),
+        }),
+      ]);
+      expect(fakeHttpClient.createRequests).toHaveLength(1);
       expect(new Set(fakeHttpClient.createdSessionIds).size).toBe(1);
 
       const state = await readFixtureState(database, fixture);
@@ -1218,10 +1502,11 @@ describe('paid manual approval concurrency', () => {
         releaseCreates(true);
       },
       () => releaseRowLock(registrationLock, registrationTransactionOpen),
+      operations.drain,
     ]);
   }, 30_000);
 
-  it('reuses the original claim and checkout snapshot after an ambiguous Stripe failure', async () => {
+  it('preserves an uncertain approval claim without creating another Stripe session', async () => {
     const fixture = await seedFixture(database);
     fixtures.push(fixture);
     const fakeHttpClient = new IdempotentStripeHttpClient();
@@ -1241,7 +1526,7 @@ describe('paid manual approval concurrency', () => {
         error: expect.objectContaining({
           _tag: 'EventRegistrationInternalError',
           message:
-            'Payment setup is still pending. Retry approval or cancel the registration.',
+            'The payment could not be prepared. Contact an organizer before trying again.',
         }),
         status: 'failure',
       }),
@@ -1262,11 +1547,11 @@ describe('paid manual approval concurrency', () => {
       approvalInput(fixture),
       serviceLayer,
     );
-    expect(retryOutcome).toEqual({
-      status: 'success',
-      value: { status: 'paymentPending' },
+    expect(retryOutcome).toMatchObject({
+      error: { _tag: 'EventRegistrationConflictError' },
+      status: 'failure',
     });
-    assertEquivalentStripeRequests(fakeHttpClient.createRequests);
+    expect(fakeHttpClient.createRequests).toHaveLength(1);
     assertStripeRequestUsesTaxRate(
       fakeHttpClient.createRequests[0],
       fixture.taxRateId,
@@ -1280,12 +1565,12 @@ describe('paid manual approval concurrency', () => {
         status: 'pending',
         stripeCheckoutRequest:
           stateAfterFailure.claims[0]?.stripeCheckoutRequest,
-        stripeCheckoutSessionId: fakeHttpClient.createdSessionIds[0],
+        stripeCheckoutSessionId: null,
       }),
     ]);
     expect(finalState.option?.reservedSpots).toBe(1);
     expect(finalState.addOn?.totalAvailableQuantity).toBe(3);
-    expect(finalState.emails).toHaveLength(1);
+    expect(finalState.emails).toHaveLength(0);
   }, 30_000);
 
   it('re-reads a concurrently created claim during cancellation and expires an unbindable session', async () => {
@@ -1307,11 +1592,18 @@ describe('paid manual approval concurrency', () => {
       );
     });
     let registrationTransactionOpen = true;
+    let approval: ReturnType<typeof runApproval> | undefined;
+
+    const operations = createPendingOperationTracker();
 
     await runWithCleanup(async () => {
-      const approval = runApproval(approvalInput(fixture), serviceLayer);
+      approval = operations.track(
+        runApproval(approvalInput(fixture), serviceLayer),
+      );
       await waitForBlockedQueries(pool, 'event_registrations', 1);
-      const cancellation = runCancellation({ fixture, serviceLayer });
+      const cancellation = operations.track(
+        runCancellation({ fixture, serviceLayer }),
+      );
       await waitForBlockedQueries(pool, 'event_registrations', 2);
       await registrationLock.query('COMMIT');
       registrationTransactionOpen = false;
@@ -1325,7 +1617,7 @@ describe('paid manual approval concurrency', () => {
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
             message:
-              'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+              'The sign-up or payment changed after you confirmed. Nothing was cancelled, no refund was started, and no places or add-ons were released. Review the current sign-up, then confirm again.',
           }),
           status: 'failure',
         }),
@@ -1365,6 +1657,7 @@ describe('paid manual approval concurrency', () => {
         releaseCreates(true);
       },
       () => releaseRowLock(registrationLock, registrationTransactionOpen),
+      operations.drain,
     ]);
   }, 30_000);
 });
@@ -1390,6 +1683,85 @@ describe('direct paid registration concurrency', () => {
     await pool.end();
   });
 
+  it('keeps an included-only priced add-on out of direct Checkout lines', async () => {
+    const fixture = await prepareDirectRegistrationFixture(database);
+    fixtures.push(fixture);
+    const addOnPrice = 500;
+    await database
+      .update(eventAddons)
+      .set({
+        isPaid: true,
+        price: addOnPrice,
+        stripeTaxRateId: fixture.taxRateId,
+      })
+      .where(eq(eventAddons.id, fixture.addOnId));
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    expect(
+      await runRegistration(
+        { ...directRegistrationInput(fixture), addOns: [] },
+        serviceLayer,
+      ),
+    ).toEqual({ status: 'success' });
+    expect(fakeHttpClient.createRequests).toHaveLength(1);
+
+    const state = await readDirectFixtureState(database, fixture);
+    const registration = state.registrations[0];
+    const claim = state.claims[0];
+    if (!registration || !claim?.stripeCheckoutRequest) {
+      throw new Error('Expected one pending registration Checkout');
+    }
+    expect(claim).toEqual(
+      expect.objectContaining({
+        amount: 1000,
+        eventRegistrationId: registration.id,
+        status: 'pending',
+      }),
+    );
+    expect(claim.stripeCheckoutRequest.lineItems).toEqual([
+      {
+        name: 'Registration fee for Concurrency fixture',
+        quantity: 1,
+        taxRateId: fixture.taxRateId,
+        unitAmount: 1000,
+      },
+    ]);
+    expect(state.purchases).toEqual([
+      expect.objectContaining({
+        includedQuantity: 1,
+        purchasedQuantity: 0,
+        quantity: 1,
+        registrationId: registration.id,
+        unitPrice: addOnPrice,
+      }),
+    ]);
+    expect(
+      await database.query.eventRegistrationAddonPurchaseLots.findMany({
+        where: {
+          registrationId: registration.id,
+          tenantId: fixture.tenantId,
+        },
+      }),
+    ).toEqual([]);
+
+    const checkoutRequest = fakeHttpClient.createRequests[0];
+    if (!checkoutRequest) {
+      throw new Error('Expected one Stripe Checkout request');
+    }
+    const checkoutForm = new URLSearchParams(checkoutRequest.requestData);
+    expect(
+      [...checkoutForm.keys()].filter((key) =>
+        key.endsWith('[price_data][unit_amount]'),
+      ),
+    ).toHaveLength(1);
+    expect(checkoutForm.get('line_items[1][quantity]')).toBeNull();
+  }, 30_000);
+
   it('keeps one durable registration, reservation, add-on purchase, claim, and Stripe session across simultaneous attempts', async () => {
     const fixture = await prepareDirectRegistrationFixture(database);
     fixtures.push(fixture);
@@ -1409,10 +1781,12 @@ describe('direct paid registration concurrency', () => {
     });
     let tenantTransactionOpen = true;
 
+    const operations = createPendingOperationTracker();
+
     await runWithCleanup(async () => {
       const input = directRegistrationInput(fixture);
-      const first = runRegistration(input, serviceLayer);
-      const second = runRegistration(input, serviceLayer);
+      const first = operations.track(runRegistration(input, serviceLayer));
+      const second = operations.track(runRegistration(input, serviceLayer));
 
       await waitForBlockedQueries(pool, 'tenants', 2);
       await tenantLock.query('COMMIT');
@@ -1431,7 +1805,7 @@ describe('direct paid registration concurrency', () => {
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'User is already registered for this event',
+            message: 'You are already signed up for this event.',
           }),
           status: 'failure',
         }),
@@ -1474,10 +1848,103 @@ describe('direct paid registration concurrency', () => {
         releaseCreates(true);
       },
       () => releaseRowLock(tenantLock, tenantTransactionOpen),
+      operations.drain,
     ]);
   }, 30_000);
 
-  it('retries an ambiguous direct Checkout attempt with the same claim and request snapshot', async () => {
+  it('rejects a changed immutable payment tuple after its binding lock waits', async () => {
+    const fixture = await prepareDirectRegistrationFixture(database);
+    fixtures.push(fixture);
+    const { promise: createGate, resolve: releaseCreates } =
+      Promise.withResolvers<boolean>();
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    fakeHttpClient.holdCreatesUntil(createGate);
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    let registrationCompleted = false;
+    let paymentLock: Awaited<ReturnType<typeof withRowLock>> | undefined;
+    let paymentTransactionOpen = false;
+    const operations = createPendingOperationTracker();
+
+    await runWithCleanup(async () => {
+      const registration = operations.track(
+        runRegistration(
+          directRegistrationInput(fixture),
+          makeServiceLayer(databaseUrl, stripe),
+        ).finally(() => {
+          registrationCompleted = true;
+        }),
+      );
+
+      await waitFor(
+        () => fakeHttpClient.createRequests.length === 1,
+        'Timed out waiting for the first Checkout create',
+      );
+      const beforeBinding = await readDirectFixtureState(database, fixture);
+      const claim = beforeBinding.claims[0];
+      if (!claim)
+        throw new Error(
+          'Expected a durable claim before the provider response',
+        );
+      paymentLock = await withRowLock(pool, async (client) => {
+        await client.query(
+          'SELECT id FROM transactions WHERE id = $1 FOR UPDATE',
+          [claim.id],
+        );
+      });
+      paymentTransactionOpen = true;
+      releaseCreates(true);
+      await waitForBlockedQueries(
+        pool,
+        'transactions',
+        1,
+        () => registrationCompleted,
+      );
+      await paymentLock.query(
+        'UPDATE transactions SET amount = amount + 1 WHERE id = $1',
+        [claim.id],
+      );
+      await paymentLock.query('COMMIT');
+      paymentTransactionOpen = false;
+
+      expect(await registration).toMatchObject({
+        error: { _tag: 'EventRegistrationConflictError' },
+        status: 'failure',
+      });
+      const finalState = await readDirectFixtureState(database, fixture);
+      expect(finalState.claims).toEqual([
+        expect.objectContaining({
+          amount: claim.amount + 1,
+          id: claim.id,
+          status: 'pending',
+          stripeCheckoutIncidentSessionId: null,
+          stripeCheckoutSessionId: null,
+          stripeCheckoutUrl: null,
+        }),
+      ]);
+      expect(finalState.registrations).toEqual(beforeBinding.registrations);
+      expect(finalState.option?.reservedSpots).toBe(1);
+      expect(finalState.addOn?.totalAvailableQuantity).toBe(3);
+      expect(finalState.purchases).toEqual(beforeBinding.purchases);
+      expect(fakeHttpClient.expiredSessionIds).toEqual(
+        fakeHttpClient.createdSessionIds,
+      );
+      expect(fakeHttpClient.createRequests).toHaveLength(1);
+    }, [
+      async () => {
+        releaseCreates(true);
+      },
+      async () => {
+        if (paymentLock)
+          await releaseRowLock(paymentLock, paymentTransactionOpen);
+      },
+      operations.drain,
+    ]);
+  }, 30_000);
+
+  it('preserves an uncertain direct Checkout claim without another provider request', async () => {
     const fixture = await prepareDirectRegistrationFixture(database);
     fixtures.push(fixture);
     const fakeHttpClient = new IdempotentStripeHttpClient();
@@ -1495,7 +1962,7 @@ describe('direct paid registration concurrency', () => {
         error: expect.objectContaining({
           _tag: 'EventRegistrationInternalError',
           message:
-            'Payment setup is still pending. Retry registration or cancel it.',
+            'The payment could not be prepared. Contact an organizer before trying again.',
         }),
         status: 'failure',
       }),
@@ -1513,10 +1980,26 @@ describe('direct paid registration concurrency', () => {
     expect(stateAfterFailure.addOn?.totalAvailableQuantity).toBe(3);
     expect(stateAfterFailure.purchases).toHaveLength(1);
 
-    expect(await runRegistration(input, serviceLayer)).toEqual({
-      status: 'success',
+    const pendingRegistration = stateAfterFailure.registrations[0];
+    if (!pendingRegistration) {
+      throw new Error(
+        'Expected one pending registration after failed payment start',
+      );
+    }
+    expect(
+      await runRegistrationCheckoutRetry(
+        {
+          registrationId: pendingRegistration.id,
+          tenantId: fixture.tenantId,
+          userId: fixture.userId,
+        },
+        serviceLayer,
+      ),
+    ).toMatchObject({
+      error: { _tag: 'EventRegistrationConflictError' },
+      status: 'failure',
     });
-    assertEquivalentStripeRequests(fakeHttpClient.createRequests);
+    expect(fakeHttpClient.createRequests).toHaveLength(1);
     assertStripeRequestUsesTaxRate(
       fakeHttpClient.createRequests[0],
       fixture.taxRateId,
@@ -1530,7 +2013,7 @@ describe('direct paid registration concurrency', () => {
         id: stateAfterFailure.claims[0]?.id,
         stripeCheckoutRequest:
           stateAfterFailure.claims[0]?.stripeCheckoutRequest,
-        stripeCheckoutSessionId: fakeHttpClient.createdSessionIds[0],
+        stripeCheckoutSessionId: null,
       }),
     ]);
     expect(finalState.option?.reservedSpots).toBe(1);

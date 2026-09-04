@@ -2811,9 +2811,9 @@ describe('event registration owner add-on status', () => {
           addonPurchases: [includedPurchase],
           appliedDiscountedPrice: null,
           appliedDiscountType: null,
-          basePriceAtRegistration: null,
+          basePriceAtRegistration: 1200,
           checkInTime: null,
-          discountAmount: null,
+          discountAmount: 0,
           event: {
             end: eventEnd,
             start: eventStart,
@@ -3248,13 +3248,16 @@ describe('event registration owner add-on status', () => {
 
 type TrustedUrlPaymentClaim = Pick<
   typeof transactions.$inferSelect,
+  | 'amount'
   | 'appFee'
   | 'currency'
   | 'id'
   | 'stripeAccountId'
+  | 'stripeCheckoutIncidentSessionId'
   | 'stripeCheckoutRequest'
   | 'stripeCheckoutSessionId'
   | 'stripeCheckoutUrl'
+  | 'targetUserId'
 >;
 
 const createTrustedUrlDatabaseFixture = () => {
@@ -3273,21 +3276,30 @@ const createTrustedUrlDatabaseFixture = () => {
     return registrationId;
   };
   const claimValues = (row: TrustedUrlPaymentClaim) => [
+    row.amount,
     row.appFee,
     row.currency,
     row.id,
     row.stripeAccountId,
+    row.stripeCheckoutIncidentSessionId,
     row.stripeCheckoutRequest,
     row.stripeCheckoutSessionId,
     row.stripeCheckoutUrl,
+    row.targetUserId,
   ];
   const claimTuple = () => {
     const row = requireClaim();
     return [
       row.id,
+      1000,
+      35,
+      'EUR',
+      'event-1',
       requireRegistrationId(),
       'stripe',
-      'pending',
+      'acct_123',
+      JSON.stringify(row.stripeCheckoutRequest),
+      'attendee-1',
       'tenant-1',
       'registration',
     ];
@@ -3305,7 +3317,7 @@ const createTrustedUrlDatabaseFixture = () => {
         }
         if (
           statement ===
-          'select "id" from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for share'
+          'select "id" from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for update'
         ) {
           expect(transactionOpen).toBe(true);
           expect(parameters).toEqual(['event-1', 'tenant-1']);
@@ -3380,13 +3392,16 @@ const createTrustedUrlDatabaseFixture = () => {
           );
           expect(request.customerEmail).toBe('attendee-1@example.com');
           claim = {
+            amount: 1000,
             appFee: 35,
             currency: 'EUR',
             id,
             stripeAccountId: 'acct_123',
+            stripeCheckoutIncidentSessionId: null,
             stripeCheckoutRequest: request,
             stripeCheckoutSessionId: null,
             stripeCheckoutUrl: null,
+            targetUserId: 'attendee-1',
           };
           return [claimValues(claim)];
         }
@@ -3419,21 +3434,28 @@ const createTrustedUrlDatabaseFixture = () => {
             null,
             expect.any(String),
             'cs_test_123',
-            'https://checkout.stripe.test/cs_test_123',
+            'https://checkout.stripe.com/c/pay/cs_test_123',
             ...claimTuple(),
+            'pending',
           ]);
           expect(statement).toContain(
             `"${transactions.stripeCheckoutCancellationRequestedAt.name}" is null`,
           );
           expect(statement).toContain(
+            `"${transactions.stripeCheckoutIncidentSessionId.name}" is null`,
+          );
+          expect(statement).toContain(
             `"${transactions.stripeCheckoutSessionId.name}" is null`,
+          );
+          expect(statement).toContain(
+            `"${transactions.stripeCheckoutUrl.name}" is null`,
           );
           expect(current.stripeCheckoutSessionId).toBeNull();
           expect(current.stripeCheckoutUrl).toBeNull();
           claim = {
             ...current,
             stripeCheckoutSessionId: 'cs_test_123',
-            stripeCheckoutUrl: 'https://checkout.stripe.test/cs_test_123',
+            stripeCheckoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_123',
           };
           bindingCount += 1;
           return [[current.id]];
@@ -3497,6 +3519,19 @@ const createTrustedUrlDatabaseFixture = () => {
             ];
           }
           expect(transactionOpen).toBe(true);
+          if (statement.includes(' inner join ')) {
+            expect(parameters).toEqual(['tenant-1', 'option-1', 'event-1']);
+            return [
+              [
+                '2099-01-02T00:00:00.000',
+                'APPROVED',
+                '2000-01-01T00:00:00.000',
+                false,
+                'fcfs',
+                [],
+              ],
+            ];
+          }
           expect(parameters).toEqual(['option-1', 'event-1']);
           return [['txr_123']];
         }
@@ -3526,11 +3561,18 @@ const createTrustedUrlDatabaseFixture = () => {
           expect(transactionOpen).toBe(true);
           expect(statement).toContain(' for update');
           expect(statement).toContain(
-            `select "${transactions.stripeCheckoutCancellationRequestedAt.name}"::text, "${transactions.stripeCheckoutSessionId.name}"`,
+            `select "${transactions.stripeCheckoutCancellationRequestedAt.name}"::text, "${transactions.stripeCheckoutIncidentSessionId.name}",`,
           );
-          expect(parameters).toEqual(claimTuple());
+          expect(parameters).toEqual([...claimTuple(), 'pending']);
           const current = requireClaim();
-          return [[null, current.stripeCheckoutSessionId]];
+          return [
+            [
+              null,
+              current.stripeCheckoutIncidentSessionId,
+              current.stripeCheckoutSessionId,
+              current.stripeCheckoutUrl,
+            ],
+          ];
         }
         if (statement.includes(` from "${getTableName(eventAddons)}"`)) {
           if (transactionOpen) {
@@ -3604,6 +3646,10 @@ const createTrustedUrlDatabaseFixture = () => {
           expect(parameters).toEqual(['tenant-1', 'attendee-1']);
           return [['membership-1']];
         }
+        if (statement.includes(` from "${getTableName(rolesToTenantUsers)}"`)) {
+          expect(parameters).toEqual(['tenant-1', 'membership-1']);
+          return [];
+        }
         if (statement.includes(` from "${getTableName(tenants)}"`)) {
           expect(parameters).toEqual(['tenant-1']);
           return [['acct_123']];
@@ -3637,13 +3683,64 @@ describe('event registration trusted URLs', () => {
     'ignores forged request origins when creating Stripe checkout return URLs',
     () =>
       Effect.gen(function* () {
-        const createCheckoutSession = vi.fn(() =>
-          Promise.resolve(
-            checkoutSessionResponse({
-              id: 'cs_test_123',
-              url: 'https://checkout.stripe.test/cs_test_123',
-            }),
-          ),
+        const createCheckoutSession = vi.fn(
+          (parameters?: Stripe.Checkout.SessionCreateParams) => {
+            if (!parameters) {
+              throw new TypeError('Expected the trusted URL checkout request');
+            }
+            const metadata = parameters.metadata;
+            if (
+              typeof metadata?.['registrationId'] !== 'string' ||
+              typeof metadata['tenantId'] !== 'string' ||
+              typeof metadata['transactionId'] !== 'string' ||
+              typeof metadata['userId'] !== 'string' ||
+              typeof parameters.expires_at !== 'number' ||
+              typeof parameters.customer_email !== 'string' ||
+              typeof parameters.success_url !== 'string' ||
+              typeof parameters.cancel_url !== 'string'
+            ) {
+              throw new TypeError(
+                'Expected the complete trusted URL checkout request',
+              );
+            }
+            expect(Object.keys(metadata).toSorted()).toEqual([
+              'registrationId',
+              'tenantId',
+              'transactionId',
+              'userId',
+            ]);
+            expect(parameters.line_items).toEqual([
+              expect.objectContaining({
+                price_data: expect.objectContaining({
+                  currency: 'EUR',
+                  unit_amount: 1000,
+                }),
+                quantity: 1,
+              }),
+            ]);
+            expect(parameters.mode).toBe('payment');
+            return Promise.resolve({
+              ...checkoutSessionResponse({
+                id: 'cs_test_123',
+                url: 'https://checkout.stripe.com/c/pay/cs_test_123',
+              }),
+              amount_subtotal: 1000,
+              amount_total: 1000,
+              cancel_url: parameters.cancel_url,
+              currency: 'eur',
+              customer_email: parameters.customer_email,
+              expires_at: parameters.expires_at,
+              metadata: {
+                registrationId: metadata['registrationId'],
+                tenantId: metadata['tenantId'],
+                transactionId: metadata['transactionId'],
+                userId: metadata['userId'],
+              },
+              mode: 'payment' as const,
+              payment_status: 'unpaid' as const,
+              success_url: parameters.success_url,
+            });
+          },
         );
         const stripe = createStripeClientDouble({ createCheckoutSession });
         const fixture = createTrustedUrlDatabaseFixture();
@@ -5224,7 +5321,7 @@ const createPaidCancellationDatabase = ({
             `registration-cancel:${registration.id}:${purchase.id}`,
             purchase.id,
             3,
-            'Registration cancelled by organizer',
+            'Sign-up ended by organizer',
             'no_monetary_refund_required',
             true,
             registration.id,
@@ -5588,7 +5685,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled, no refund was started, and no places or add-ons were released',
         );
         expect(queries).toHaveLength(1);
         expect(transactionCommands).toEqual([]);
@@ -5624,7 +5721,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled, no refund was started, and no places or add-ons were released',
         );
         expect(
           queries.every(({ statement }) => statement.startsWith('select ')),
@@ -5663,7 +5760,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled, no refund was started, and no places or add-ons were released',
         );
         expect(
           queries.every(({ statement }) => statement.startsWith('select ')),
@@ -5717,7 +5814,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.',
+          'The attendee cancellation deadline has passed, so this sign-up was not cancelled, no refund was started, and no places were released.',
         );
         expect(transactionCommands).toEqual([]);
       }),
@@ -5976,9 +6073,90 @@ describe('event registration cancellation handlers', () => {
         expect(insertedEmails[0]?.['html']).toContain(
           'https://tenant.example.com/events/event-1',
         );
-        expect(insertedEmails[1]?.['text']).toContain(
-          'does not reserve a spot',
+        expect(insertedEmails[0]?.['text']).toContain(
+          'No refund was started for this cancellation.',
         );
+        expect(insertedEmails[1]?.['text']).toContain(
+          'We have not held a place for you',
+        );
+      }),
+  );
+
+  it.effect(
+    'aborts cancellation when the required registration user relation is missing',
+    () =>
+      Effect.gen(function* () {
+        const { databaseLayer, insertedEmails, transactionCommands, writes } =
+          createFreeCancellationDatabase({
+            registration: createCancellationRegistration({
+              guestCount: 2,
+              user: null,
+            }),
+            scope: { kind: 'tenant' },
+          });
+
+        const error = yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: 'organizer-1',
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(
+          Effect.flip,
+          Effect.provide(createSqlContextLayer({ databaseLayer })),
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error.message).toBe(
+          'The ticket owner could not be verified. Nothing was cancelled, no refund was started, and no places or add-ons were released. Reopen the ticket and try again.',
+        );
+        expect(transactionCommands).toEqual([]);
+        expect(insertedEmails).toEqual([]);
+        expect(writes).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    'aborts cancellation when a notified waitlist user relation is missing',
+    () =>
+      Effect.gen(function* () {
+        const registration = createCancellationRegistration({ guestCount: 2 });
+        const { databaseLayer, insertedEmails, transactionCommands, writes } =
+          createFreeCancellationDatabase({
+            registration: {
+              ...registration,
+              registrationOption: {
+                ...registration.registrationOption,
+                eventRegistrations: [
+                  {
+                    id: 'waitlist-registration-1',
+                    status: 'WAITLIST',
+                    user: null,
+                  },
+                ],
+              },
+            },
+            scope: { kind: 'tenant' },
+          });
+
+        const error = yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: 'organizer-1',
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(
+          Effect.flip,
+          Effect.provide(createSqlContextLayer({ databaseLayer })),
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error.message).toBe(
+          'A person on the waitlist could not be verified. Nothing was cancelled, no refund was started, and no places or add-ons were released. Reopen the ticket and try again.',
+        );
+        expect(transactionCommands).toEqual([]);
+        expect(insertedEmails).toEqual([]);
+        expect(writes).toEqual([]);
       }),
   );
 
@@ -6006,7 +6184,7 @@ describe('event registration cancellation handlers', () => {
         expect(transactionCommands).toEqual(['BEGIN', 'COMMIT']);
         expect(insertedEmails).toHaveLength(1);
         expect(insertedEmails[0]?.['text']).toContain(
-          'A platform administrator cancelled your registration',
+          'Evorto cancelled your ticket',
         );
       }),
   );
@@ -6294,7 +6472,7 @@ describe('event registration cancellation handlers', () => {
     'keeps an unbound pending payment claim and its reserved spot intact',
     () =>
       Effect.gen(function* () {
-        const { databaseLayer, transactionCommands } =
+        const { databaseLayer, queries, transactionCommands } =
           createCancellationReadDatabase({
             registration: createCancellationRegistration({
               status: 'PENDING',
@@ -6306,6 +6484,7 @@ describe('event registration cancellation handlers', () => {
             }),
           });
 
+        const stripe = createStripeClientDouble();
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
         ](
@@ -6317,14 +6496,21 @@ describe('event registration cancellation handlers', () => {
           handlerOptions('events.cancelRegistration'),
         ).pipe(
           Effect.flip,
-          Effect.provide(createSqlContextLayer({ databaseLayer })),
+          Effect.provide(createSqlContextLayer({ databaseLayer, stripe })),
         );
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Payment setup is still being reconciled, so this request did not cancel the registration or release its reserved spots. Retry payment setup, then retry cancellation.',
+          'Payment setup needs review, so this request did not cancel the registration or release its reserved place. Keep this sign-up and contact the event organizer or Evorto support before starting another payment.',
         );
         expect(transactionCommands).toEqual([]);
+        expect(
+          queries.every(({ statement }) => statement.startsWith('select ')),
+        ).toBe(true);
+        expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+        expect(stripe.checkout.sessions.expire).not.toHaveBeenCalled();
+        expect(stripe.checkout.sessions.retrieve).not.toHaveBeenCalled();
+        expect(stripe.refunds.create).not.toHaveBeenCalled();
       }),
   );
 
@@ -6452,7 +6638,7 @@ describe('event registration cancellation handlers', () => {
         );
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+          'The sign-up or payment changed after you confirmed. Nothing was cancelled, no refund was started, and no places or add-ons were released. Review the current sign-up, then confirm again.',
         );
         expect(
           queries.every(({ statement }) => statement.startsWith('select ')),
@@ -6501,8 +6687,11 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(error.message).toBe(
-          'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
+          'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
         );
+        expect(error).not.toHaveProperty('cause');
+        expect(stripe.checkout.sessions.expire).toHaveBeenCalledOnce();
+        expect(stripe.checkout.sessions.retrieve).toHaveBeenCalledOnce();
         expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
           'checkout-1',
           undefined,
@@ -6628,7 +6817,7 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain(
-          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+          'Nothing was cancelled, no refund was started, and no places or add-ons were released',
         );
         expect(writes).toHaveLength(1);
         expect(writes[0]?.statement).toContain(

@@ -37,6 +37,7 @@ import {
   tenantStripeTaxRates,
 } from '../../../../../db/schema';
 import { verifiedDiscountCardCoversEvent } from '../../../../discounts/verified-discount-card';
+import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { loadEventGraphDetail } from './event-graph.loader';
 import {
@@ -149,7 +150,7 @@ export const organizerRegistrationApprovalState = ({
     manualApprovalAvailable:
       registrationStatus === 'PENDING' &&
       registrationMode === 'application' &&
-      (!pendingRegistrationPayment || paymentSetupRequired),
+      !pendingRegistrationPayment,
     paymentPending: pendingRegistrationPayment !== undefined,
     paymentSetupRequired,
   };
@@ -458,10 +459,12 @@ export const eventQueryHandlers = {
                 ? undefined
                 : {
                     RAW: (table) =>
-                      sql`cardinality(${table.roleIds}) = 0 or ${arrayOverlaps(
-                        table.roleIds,
-                        [...rolesToFilterBy],
-                      )}`,
+                      rolesToFilterBy.length === 0
+                        ? sql`cardinality(${table.roleIds}) = 0`
+                        : sql`cardinality(${table.roleIds}) = 0 or ${arrayOverlaps(
+                            table.roleIds,
+                            [...rolesToFilterBy],
+                          )}`,
                   },
             },
             reviewer: {
@@ -1152,28 +1155,15 @@ export const eventQueryHandlers = {
                 registrationStatus: registration.status,
                 transactions: registration.transactions,
               });
-              const discountedPriceFromTransaction =
-                registration.transactions.find(
-                  (transaction) =>
-                    transaction.amount < registrationOption.price,
-                )?.amount;
-              const appliedDiscountedPrice =
-                registration.appliedDiscountedPrice ??
-                discountedPriceFromTransaction ??
-                null;
-              const appliedDiscountType =
-                registration.appliedDiscountType ??
-                (appliedDiscountedPrice === null ? null : ('esnCard' as const));
-              const basePriceAtRegistration =
-                registration.basePriceAtRegistration ??
-                (appliedDiscountedPrice === null
-                  ? null
-                  : registrationOption.price);
-              const discountAmount =
-                registration.discountAmount ??
-                (appliedDiscountedPrice === null
-                  ? null
-                  : registrationOption.price - appliedDiscountedPrice);
+              const priceSnapshot = readRegistrationPriceSnapshot({
+                appliedDiscountedPrice: registration.appliedDiscountedPrice,
+                appliedDiscountType: registration.appliedDiscountType,
+                basePriceAtRegistration: registration.basePriceAtRegistration,
+                discountAmount: registration.discountAmount,
+                paymentPending: approvalState.paymentPending,
+                registrationId: registration.id,
+                status: registration.status,
+              });
 
               return {
                 addonPurchases: registration.addonPurchases.flatMap(
@@ -1188,12 +1178,9 @@ export const eventQueryHandlers = {
                         ]
                       : [],
                 ),
-                appliedDiscountedPrice,
-                appliedDiscountType,
-                basePriceAtRegistration,
+                ...priceSnapshot,
                 checkedIn: registration.checkInTime !== null,
                 checkInTime: registration.checkInTime?.toISOString() ?? null,
-                discountAmount,
                 email: registration.user.email,
                 firstName: registration.user.firstName,
                 lastName: registration.user.lastName,

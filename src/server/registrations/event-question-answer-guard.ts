@@ -126,6 +126,7 @@ export const lockEventRegistrationQuestionSet = Effect.fn(
   database: Pick<DatabaseClient, 'select'>,
   input: {
     readonly eventId: string;
+    readonly eventLockMode?: 'share' | 'update';
     readonly registrationOptionId: string;
     readonly tenantId: string;
   },
@@ -150,7 +151,7 @@ export const lockEventRegistrationQuestionSet = Effect.fn(
         eq(eventInstances.tenantId, input.tenantId),
       ),
     )
-    .for('share');
+    .for(input.eventLockMode ?? 'share');
   if (events.length !== 1) return;
 
   return yield* database

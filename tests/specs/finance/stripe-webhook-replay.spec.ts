@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
 import Stripe from 'stripe';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { getId } from '../../../helpers/get-id';
@@ -9,6 +9,7 @@ import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { createSettledStripeTestPayment } from '../../support/utils/settled-stripe-test-payment';
 
 test.use({ storageState: userStateFile });
@@ -19,6 +20,95 @@ const regularUserId =
   usersToAuthenticate[0].id;
 let webhookSecret = '';
 const stripeAccountId = process.env['STRIPE_TEST_ACCOUNT_ID'] ?? '';
+
+const registerCheckoutFixtureCleanup = async ({
+  database,
+  eventId,
+  optionId,
+  registerDatabaseCleanup,
+  registrationId,
+  stripeEventId,
+  tenantId,
+  transactionId,
+}: {
+  database: NodePgDatabase<typeof relations>;
+  eventId: string;
+  optionId: string;
+  registerDatabaseCleanup: (
+    cleanup: (database: NodePgDatabase<typeof relations>) => Promise<void>,
+  ) => void;
+  registrationId: string;
+  stripeEventId: string;
+  tenantId: string;
+  transactionId: string;
+}) => {
+  const originalOption =
+    await database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        confirmedSpots: true,
+        reservedSpots: true,
+        updatedAt: true,
+      },
+      where: { eventId, id: optionId },
+    });
+  if (!originalOption) {
+    throw new Error('Expected the seeded paid registration option.');
+  }
+
+  // Cleanup runs in reverse order: dependents, owned rows, then capacity.
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    const restoredOptions = await cleanupDatabase
+      .update(schema.eventRegistrationOptions)
+      .set(originalOption)
+      .where(
+        and(
+          eq(schema.eventRegistrationOptions.eventId, eventId),
+          eq(schema.eventRegistrationOptions.id, optionId),
+        ),
+      )
+      .returning({ id: schema.eventRegistrationOptions.id });
+    expect(restoredOptions).toHaveLength(1);
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await deleteRegistrationAcquisitionLedger({
+      database: cleanupDatabase,
+      registrationIds: [registrationId],
+      tenantId,
+    });
+    await cleanupDatabase
+      .delete(schema.transactions)
+      .where(
+        and(
+          eq(schema.transactions.id, transactionId),
+          eq(schema.transactions.tenantId, tenantId),
+        ),
+      );
+    await cleanupDatabase
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.id, registrationId),
+          eq(schema.eventRegistrations.tenantId, tenantId),
+        ),
+      );
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.emailOutbox)
+      .where(
+        and(
+          eq(
+            schema.emailOutbox.idempotencyKey,
+            `registration-confirmed/${tenantId}/${registrationId}`,
+          ),
+          eq(schema.emailOutbox.tenantId, tenantId),
+        ),
+      );
+    await cleanupDatabase
+      .delete(schema.stripeWebhookEvents)
+      .where(eq(schema.stripeWebhookEvents.stripeEventId, stripeEventId));
+  });
+};
 
 type SignedCheckoutWebhookInput = {
   eventId: string;
@@ -1173,6 +1263,7 @@ test('duplicate webhook delivery is retryable while the original event claim is 
 
 test('stale webhook claims are reclaimed so Stripe retries can finish processing @finance @stripe', async ({
   database,
+  registerDatabaseCleanup,
   request,
   seeded,
   tenant,
@@ -1181,6 +1272,17 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
   const stripeEventId = `evt_test_${getId()}`;
+
+  await registerCheckoutFixtureCleanup({
+    database,
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    optionId: seeded.scenario.events.paidOpen.optionId,
+    registerDatabaseCleanup,
+    registrationId,
+    stripeEventId,
+    tenantId: tenant.id,
+    transactionId,
+  });
 
   await database.insert(schema.eventRegistrations).values({
     discountAmount: 0,
@@ -1192,6 +1294,20 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     tenantId: tenant.id,
     userId: regularUserId,
   });
+
+  const reservedOptions = await database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} + 1`,
+    })
+    .where(
+      eq(
+        schema.eventRegistrationOptions.id,
+        seeded.scenario.events.paidOpen.optionId,
+      ),
+    )
+    .returning({ id: schema.eventRegistrationOptions.id });
+  expect(reservedOptions).toHaveLength(1);
 
   await database.insert(schema.transactions).values({
     amount: 2500,
@@ -1288,8 +1404,9 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     .toBe('processed');
 });
 
-test('checkout webhook resolves registration by payment intent when metadata is missing @finance @stripe', async ({
+test('checkout webhook rejects missing ownership metadata even when the payment intent matches @finance @stripe', async ({
   database,
+  registerDatabaseCleanup,
   request,
   seeded,
   tenant,
@@ -1298,6 +1415,17 @@ test('checkout webhook resolves registration by payment intent when metadata is 
   const transactionId = getId();
   const checkoutSessionId = `cs_test_${getId()}`;
   const stripeEventId = `evt_test_${getId()}`;
+
+  await registerCheckoutFixtureCleanup({
+    database,
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    optionId: seeded.scenario.events.paidOpen.optionId,
+    registerDatabaseCleanup,
+    registrationId,
+    stripeEventId,
+    tenantId: tenant.id,
+    transactionId,
+  });
 
   const settledPayment = await createSettledStripeTestPayment({
     amount: 2500,
@@ -1318,9 +1446,23 @@ test('checkout webhook resolves registration by payment intent when metadata is 
     userId: regularUserId,
   });
 
+  const reservedOptions = await database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} + 1`,
+    })
+    .where(
+      eq(
+        schema.eventRegistrationOptions.id,
+        seeded.scenario.events.paidOpen.optionId,
+      ),
+    )
+    .returning({ id: schema.eventRegistrationOptions.id });
+  expect(reservedOptions).toHaveLength(1);
+
   await database.insert(schema.transactions).values({
     amount: 2500,
-    comment: 'Webhook payment-intent mapping test',
+    comment: 'Webhook missing ownership metadata rejection test',
     currency: 'EUR',
     eventId: seeded.scenario.events.paidOpen.eventId,
     eventRegistrationId: registrationId,
@@ -1336,6 +1478,44 @@ test('checkout webhook resolves registration by payment intent when metadata is 
     tenantId: tenant.id,
     type: 'registration',
   });
+
+  const registrationBeforeDelivery =
+    await database.query.eventRegistrations.findFirst({
+      where: { id: registrationId, tenantId: tenant.id },
+    });
+  const transactionBeforeDelivery = await database.query.transactions.findFirst(
+    {
+      where: { id: transactionId, tenantId: tenant.id },
+    },
+  );
+  const capacityBeforeDelivery =
+    await database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        checkedInSpots: true,
+        confirmedSpots: true,
+        reservedSpots: true,
+        spots: true,
+        waitlistSpots: true,
+      },
+      where: {
+        eventId: seeded.scenario.events.paidOpen.eventId,
+        id: seeded.scenario.events.paidOpen.optionId,
+      },
+    });
+  if (
+    !registrationBeforeDelivery ||
+    !transactionBeforeDelivery ||
+    !capacityBeforeDelivery
+  ) {
+    throw new Error('Expected the pending checkout fixture before delivery.');
+  }
+  expect(registrationBeforeDelivery.status).toBe('PENDING');
+  expect(transactionBeforeDelivery).toMatchObject({
+    status: 'pending',
+    stripeChargeId: null,
+    stripePaymentIntentId: settledPayment.paymentIntentId,
+  });
+  expect(capacityBeforeDelivery.reservedSpots).toBeGreaterThan(0);
 
   const payload = JSON.stringify({
     account: stripeAccountId,
@@ -1382,37 +1562,33 @@ test('checkout webhook resolves registration by payment intent when metadata is 
     method: 'POST',
   });
   const body = await delivery.text();
-  expect(
-    delivery.status(),
-    `Expected webhook delivery to return 200, received ${delivery.status()} with body "${body}"`,
-  ).toBe(200);
+  expect(delivery.status(), body).toBe(400);
+  expect(body).toBe('Invalid checkout session binding');
 
-  await expect
-    .poll(async () => {
-      const updatedRegistration =
-        await database.query.eventRegistrations.findFirst({
-          where: { id: registrationId, tenantId: tenant.id },
-        });
-      return updatedRegistration?.status;
-    })
-    .toBe('CONFIRMED');
-
-  await expect
-    .poll(async () => {
-      const updatedTransaction = await database.query.transactions.findFirst({
-        where: { id: transactionId, tenantId: tenant.id },
-      });
-      return {
-        chargeId: updatedTransaction?.stripeChargeId,
-        paymentIntentId: updatedTransaction?.stripePaymentIntentId,
-        status: updatedTransaction?.status,
-      };
-    })
-    .toEqual({
-      chargeId: settledPayment.chargeId,
-      paymentIntentId: settledPayment.paymentIntentId,
-      status: 'successful',
+  const registrationAfterDelivery =
+    await database.query.eventRegistrations.findFirst({
+      where: { id: registrationId, tenantId: tenant.id },
     });
+  const transactionAfterDelivery = await database.query.transactions.findFirst({
+    where: { id: transactionId, tenantId: tenant.id },
+  });
+  const capacityAfterDelivery =
+    await database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        checkedInSpots: true,
+        confirmedSpots: true,
+        reservedSpots: true,
+        spots: true,
+        waitlistSpots: true,
+      },
+      where: {
+        eventId: seeded.scenario.events.paidOpen.eventId,
+        id: seeded.scenario.events.paidOpen.optionId,
+      },
+    });
+  expect(registrationAfterDelivery).toEqual(registrationBeforeDelivery);
+  expect(transactionAfterDelivery).toEqual(transactionBeforeDelivery);
+  expect(capacityAfterDelivery).toEqual(capacityBeforeDelivery);
 });
 
 test('checkout webhook does not confirm unpaid completed sessions @finance @stripe', async ({

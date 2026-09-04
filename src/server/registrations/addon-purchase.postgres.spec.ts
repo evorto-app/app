@@ -1,12 +1,11 @@
-import type Stripe from 'stripe';
-
-import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { eq } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
+import { and, eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { ConfigProvider, Effect, Layer } from 'effect';
+import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
 import { Pool } from 'pg';
+import Stripe from 'stripe';
 
-import { databaseLayer } from '../../db';
+import { Database, databaseLayer } from '../../db';
 import { createId } from '../../db/create-id';
 import { createNodePgPoolConfig } from '../../db/pg-connection-config';
 import { relations } from '../../db/relations';
@@ -25,15 +24,27 @@ import {
   registrationAcquisitionPayments,
   registrationAcquisitions,
   tenants,
+  tenantStripeTaxRates,
   transactions,
   users,
 } from '../../db/schema';
+import { buildCheckoutSessionExpiresAt } from '../integrations/stripe-checkout';
 import { StripeClient } from '../stripe-client';
+import {
+  createRejectingStripeClient,
+  stripeBalanceTransactionResponse,
+  stripeChargeResponse,
+  stripePaymentIntentResponse,
+} from '../testing/stripe-test-fixtures';
 import {
   completePaidAddonPurchaseCheckout,
   expirePaidAddonPurchaseCheckout,
 } from './addon-purchase-checkout';
-import { purchaseRegistrationAddon } from './addon-purchase.service';
+import {
+  purchaseRegistrationAddon,
+  type PurchaseRegistrationAddonInput,
+} from './addon-purchase.service';
+import { expiredUnboundAddonPurchaseCheckoutPredicate } from './expired-checkout-cleanup';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -77,32 +88,46 @@ const paidFixtureIdentity = (fixture: Fixture) => ({
   ),
 });
 
-const fakeStripe = {
-  charges: {
-    retrieve: (chargeId: string) => {
-      const orderId = chargeId.replace(/^ch_/, '');
-      return Promise.resolve({
+const fakeStripe = createRejectingStripeClient();
+vi.spyOn(fakeStripe.charges, 'retrieve').mockImplementation(
+  async (chargeId) => {
+    const orderId = chargeId.replace(/^ch_/, '');
+    return stripeChargeResponse({
+      amount: 100,
+      balance_transaction: stripeBalanceTransactionResponse({
         amount: 100,
-        balance_transaction: {
-          amount: 100,
-          currency: 'eur',
-          fee_details: [
-            { amount: 4, type: 'application_fee' },
-            { amount: 3, type: 'stripe_fee' },
-          ],
-          net: 93,
-        },
-        captured: true,
         currency: 'eur',
-        id: chargeId,
-        paid: true,
-        payment_intent: `pi_${orderId}`,
-      });
-    },
+        fee: 7,
+        fee_details: [
+          {
+            amount: 4,
+            application: null,
+            currency: 'eur',
+            description: null,
+            type: 'application_fee',
+          },
+          {
+            amount: 3,
+            application: null,
+            currency: 'eur',
+            description: null,
+            type: 'stripe_fee',
+          },
+        ],
+        id: 'txn_' + orderId,
+        net: 93,
+        source: chargeId,
+      }),
+      captured: true,
+      currency: 'eur',
+      id: chargeId,
+      paid: true,
+      payment_intent: 'pi_' + orderId,
+    });
   },
-} as unknown as Stripe;
+);
 
-const makeLayer = (url: string) => {
+const makeLayer = (url: string, stripe: Stripe = fakeStripe) => {
   const config = ConfigProvider.layer(
     ConfigProvider.fromEnv({
       env: {
@@ -116,16 +141,19 @@ const makeLayer = (url: string) => {
   return Layer.mergeAll(
     config,
     databaseLayer.pipe(Layer.provide(config)),
-    Layer.succeed(StripeClient, fakeStripe),
+    Layer.succeed(StripeClient, stripe),
   );
 };
 
 const seedFixture = async (
   database: TestDatabase,
   input: {
+    readonly eventEnd?: Date;
+    readonly eventStart?: Date;
     readonly paid: boolean;
     readonly registrationCount?: number;
     readonly reservationExpiresAt?: Date;
+    readonly seedPaidReservation?: boolean;
     readonly stock: number;
   },
 ): Promise<Fixture> => {
@@ -145,220 +173,241 @@ const seedFixture = async (
     input.reservationExpiresAt ?? new Date(now + 30 * 60 * 1000);
   const creatorId = requireValue(userIds[0], 'fixture creator');
 
-  await database.insert(tenants).values({
-    domain: `${tenantId}.addon-purchase.example`,
-    id: tenantId,
-    name: 'Add-on purchase test',
-    stripeAccountId: 'acct_addon_purchase_test',
-  });
-  await database.insert(users).values(
-    userIds.map((userId, index) => ({
-      auth0Id: `auth0|${userId}`,
-      communicationEmail: `${userId}@example.com`,
-      email: `${userId}@example.com`,
-      firstName: 'Add-on',
-      id: userId,
-      lastName: `Tester ${index}`,
-    })),
-  );
-  await database.insert(eventTemplateCategories).values({
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: categoryId,
-    tenantId,
-    title: 'Add-on purchase',
-  });
-  await database.insert(eventTemplates).values({
-    categoryId,
-    description: 'Add-on purchase test',
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: templateId,
-    tenantId,
-    title: 'Add-on purchase',
-  });
-  await database.insert(eventInstances).values({
-    creatorId,
-    description: 'Add-on purchase test',
-    end: new Date(now + 2 * 60 * 60 * 1000),
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: eventId,
-    reviewedAt: new Date(),
-    start: new Date(now + 60 * 60 * 1000),
-    status: 'APPROVED',
-    templateId,
-    tenantId,
-    title: 'Add-on purchase',
-  });
-  await database.insert(eventRegistrationOptions).values({
-    closeRegistrationTime: new Date(now + 30 * 60 * 1000),
-    eventId,
-    id: optionId,
-    isPaid: false,
-    openRegistrationTime: new Date(now - 60 * 60 * 1000),
-    organizingRegistration: false,
-    price: 0,
-    registrationMode: 'fcfs',
-    spots: 10,
-    title: 'Participant',
-  });
-  await database.insert(eventAddons).values({
-    allowMultiple: true,
-    allowPurchaseBeforeEvent: true,
-    allowPurchaseDuringEvent: true,
-    allowPurchaseDuringRegistration: true,
-    eventId,
-    id: addOnId,
-    isPaid: input.paid,
-    maxQuantityPerUser: 1,
-    price: input.paid ? 100 : 0,
-    title: 'Last add-on',
-    totalAvailableQuantity: input.stock,
-  });
-  await database.insert(addonToEventRegistrationOptions).values({
-    addonId: addOnId,
-    eventId,
-    includedQuantity: 0,
-    optionalPurchaseQuantity: 1,
-    registrationOptionId: optionId,
-  });
-  await database.insert(eventRegistrations).values(
-    registrationIds.map((registrationId, index) => ({
-      basePriceAtRegistration: 0,
-      discountAmount: 0,
+  return database.transaction(async (transaction) => {
+    await transaction.insert(tenants).values({
+      domain: `${tenantId}.addon-purchase.example`,
+      id: tenantId,
+      name: 'Add-on purchase test',
+      stripeAccountId: 'acct_addon_purchase_test',
+    });
+    await transaction.insert(users).values(
+      userIds.map((userId, index) => ({
+        auth0Id: `auth0|${userId}`,
+        communicationEmail: `${userId}.contact@example.com`,
+        email: `${userId}.login@example.com`,
+        firstName: 'Add-on',
+        id: userId,
+        lastName: `Tester ${index}`,
+      })),
+    );
+    await transaction.insert(eventTemplateCategories).values({
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: categoryId,
+      tenantId,
+      title: 'Add-on purchase',
+    });
+    await transaction.insert(eventTemplates).values({
+      categoryId,
+      description: 'Add-on purchase test',
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: templateId,
+      tenantId,
+      title: 'Add-on purchase',
+    });
+    await transaction.insert(eventInstances).values({
+      creatorId,
+      description: 'Add-on purchase test',
+      end: input.eventEnd ?? new Date(now + 2 * 60 * 60 * 1000),
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: eventId,
+      reviewedAt: new Date(now),
+      reviewedBy: creatorId,
+      start: input.eventStart ?? new Date(now + 60 * 60 * 1000),
+      status: 'APPROVED',
+      templateId,
+      tenantId,
+      title: 'Add-on purchase',
+    });
+    await transaction.insert(eventRegistrationOptions).values({
+      closeRegistrationTime: new Date(now + 30 * 60 * 1000),
       eventId,
-      id: registrationId,
+      id: optionId,
+      isPaid: false,
+      openRegistrationTime: new Date(now - 60 * 60 * 1000),
+      organizingRegistration: false,
+      price: 0,
+      registrationMode: 'fcfs',
+      spots: 10,
+      title: 'Participant',
+    });
+    if (input.paid) {
+      await transaction.insert(tenantStripeTaxRates).values({
+        active: true,
+        displayName: 'Zero tax',
+        inclusive: true,
+        percentage: '0',
+        stripeAccountId: 'acct_addon_purchase_test',
+        stripeTaxRateId: `txr_addon_${eventId}`,
+        tenantId,
+      });
+    }
+    await transaction.insert(eventAddons).values({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: true,
+      allowPurchaseDuringRegistration: true,
+      eventId,
+      id: addOnId,
+      isPaid: input.paid,
+      maxQuantityPerUser: 1,
+      price: input.paid ? 100 : 0,
+      stripeTaxRateId: input.paid ? `txr_addon_${eventId}` : null,
+      title: 'Last add-on',
+      totalAvailableQuantity: input.stock,
+    });
+    await transaction.insert(addonToEventRegistrationOptions).values({
+      addonId: addOnId,
+      eventId,
+      includedQuantity: 0,
+      optionalPurchaseQuantity: 1,
       registrationOptionId: optionId,
-      status: 'CONFIRMED' as const,
-      tenantId,
-      userId: requireValue(userIds[index], 'registration user'),
-    })),
-  );
-  const acquisitionIds = registrationIds.map(() => createId());
-  await database.insert(registrationAcquisitions).values(
-    registrationIds.map((registrationId, index) => ({
-      acquiredAt: new Date(now),
+    });
+    await transaction.insert(eventRegistrations).values(
+      registrationIds.map((registrationId, index) => ({
+        basePriceAtRegistration: 0,
+        discountAmount: 0,
+        eventId,
+        id: registrationId,
+        registrationOptionId: optionId,
+        status: 'CONFIRMED' as const,
+        tenantId,
+        userId: requireValue(userIds[index], 'registration user'),
+      })),
+    );
+    const acquisitionIds = registrationIds.map(() => createId());
+    await transaction.insert(registrationAcquisitions).values(
+      registrationIds.map((registrationId, index) => ({
+        acquiredAt: new Date(now),
+        eventId,
+        id: requireValue(acquisitionIds[index], 'initial acquisition'),
+        kind: 'initial' as const,
+        operationKey: `registration-initial:${registrationId}`,
+        ordinal: 0,
+        ownerUserId: requireValue(userIds[index], 'acquisition owner'),
+        registrationId,
+        spotCount: 1,
+        tenantId,
+      })),
+    );
+    await transaction.insert(registrationAcquisitionComponents).values(
+      registrationIds.map((registrationId, index) => ({
+        acquiredAt: new Date(now),
+        acquisitionId: requireValue(
+          acquisitionIds[index],
+          'initial acquisition',
+        ),
+        allocationKey: `registration-initial:${registrationId}`,
+        applicationFeeAmount: 0,
+        baseAmount: 0,
+        currency: 'EUR' as const,
+        eventId,
+        grossAmount: 0,
+        kind: 'registration' as const,
+        netAmount: 0,
+        quantity: 1,
+        registrationId,
+        stripeFeeAmount: 0,
+        taxAmount: 0,
+        tenantId,
+      })),
+    );
+
+    if (!input.paid || input.seedPaidReservation === false) {
+      return {
+        addOnId,
+        categoryId,
+        eventId,
+        expiresAt,
+        optionId,
+        registrationIds,
+        templateId,
+        tenantId,
+        userIds,
+      };
+    }
+
+    const transactionId = createId();
+    const orderId = createId();
+    const purchaseId = createId();
+    const purchaseLotId = createId();
+    const registrationId = requireValue(
+      registrationIds[0],
+      'paid registration',
+    );
+    const userId = requireValue(userIds[0], 'paid user');
+    const expiresAtEpoch = Math.floor(expiresAt.getTime() / 1000);
+    await transaction.insert(transactions).values({
+      amount: 100,
+      appFee: 4,
+      currency: 'EUR',
       eventId,
-      id: requireValue(acquisitionIds[index], 'initial acquisition'),
-      kind: 'initial' as const,
-      operationKey: `registration-initial:${registrationId}`,
-      ordinal: 0,
-      ownerUserId: requireValue(userIds[index], 'acquisition owner'),
-      registrationId,
-      spotCount: 1,
+      eventRegistrationId: registrationId,
+      id: transactionId,
+      method: 'stripe',
+      status: 'pending',
+      stripeAccountId: 'acct_addon_purchase_test',
+      stripeCheckoutRequest: {
+        customerEmail: `${userId}.contact@example.com`,
+        eventTitle: 'Add-on purchase',
+        eventUrl: 'https://addon-purchase.example/events/test',
+        expiresAt: expiresAtEpoch,
+        lineItems: [
+          {
+            addonId: addOnId,
+            allocationKey: `addon-order:${orderId}`,
+            kind: 'addon',
+            name: 'Last add-on',
+            quantity: 1,
+            unitAmount: 100,
+          },
+        ],
+        notificationEmail: `${userId}.contact@example.com`,
+      },
+      stripeCheckoutSessionId: `cs_${orderId}`,
+      stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/cs_${orderId}`,
+      stripePaymentIntentId: `pi_${orderId}`,
+      targetUserId: userId,
       tenantId,
-    })),
-  );
-  await database.insert(registrationAcquisitionComponents).values(
-    registrationIds.map((registrationId, index) => ({
-      acquiredAt: new Date(now),
-      acquisitionId: requireValue(acquisitionIds[index], 'initial acquisition'),
-      allocationKey: `registration-initial:${registrationId}`,
-      applicationFeeAmount: 0,
-      baseAmount: 0,
-      currency: 'EUR' as const,
+      type: 'addon',
+    });
+    await transaction.insert(eventRegistrationAddonPurchaseOrders).values({
+      addonId: addOnId,
+      applicationFeeAmount: 4,
+      baseAmount: 100,
+      currency: 'EUR',
       eventId,
-      grossAmount: 0,
-      kind: 'registration' as const,
-      netAmount: 0,
+      expectedGrossAmount: 100,
+      expiresAt,
+      id: orderId,
+      operationKey: `purchase:${orderId}`,
+      purchaseId,
+      purchaseLotId,
       quantity: 1,
       registrationId,
-      stripeFeeAmount: 0,
-      taxAmount: 0,
+      registrationOptionId: optionId,
+      requestedByUserId: userId,
+      status: 'pending_payment',
       tenantId,
-    })),
-  );
-
-  if (!input.paid) {
+      transactionId,
+      unitPrice: 100,
+      window: 'before_event',
+    });
     return {
       addOnId,
       categoryId,
       eventId,
       expiresAt,
       optionId,
+      orderId,
+      purchaseId,
+      purchaseLotId,
       registrationIds,
       templateId,
       tenantId,
+      transactionId,
       userIds,
     };
-  }
-
-  const transactionId = createId();
-  const orderId = createId();
-  const purchaseId = createId();
-  const purchaseLotId = createId();
-  const registrationId = requireValue(registrationIds[0], 'paid registration');
-  const userId = requireValue(userIds[0], 'paid user');
-  const expiresAtEpoch = Math.floor(expiresAt.getTime() / 1000);
-  await database.insert(transactions).values({
-    amount: 100,
-    appFee: 4,
-    currency: 'EUR',
-    eventId,
-    eventRegistrationId: registrationId,
-    id: transactionId,
-    method: 'stripe',
-    status: 'pending',
-    stripeAccountId: 'acct_addon_purchase_test',
-    stripeCheckoutRequest: {
-      customerEmail: `${userId}@example.com`,
-      eventTitle: 'Add-on purchase',
-      eventUrl: 'https://addon-purchase.example/events/test',
-      expiresAt: expiresAtEpoch,
-      lineItems: [
-        {
-          addonId: addOnId,
-          allocationKey: `addon-order:${orderId}`,
-          kind: 'addon',
-          name: 'Last add-on',
-          quantity: 1,
-          unitAmount: 100,
-        },
-      ],
-      notificationEmail: `${userId}@example.com`,
-    },
-    stripeCheckoutSessionId: `cs_${orderId}`,
-    stripeCheckoutUrl: `https://checkout.stripe.test/cs_${orderId}`,
-    stripePaymentIntentId: `pi_${orderId}`,
-    targetUserId: userId,
-    tenantId,
-    type: 'addon',
   });
-  await database.insert(eventRegistrationAddonPurchaseOrders).values({
-    addonId: addOnId,
-    applicationFeeAmount: 4,
-    baseAmount: 100,
-    currency: 'EUR',
-    eventId,
-    expectedGrossAmount: 100,
-    expiresAt,
-    id: orderId,
-    operationKey: `purchase:${orderId}`,
-    purchaseId,
-    purchaseLotId,
-    quantity: 1,
-    registrationId,
-    registrationOptionId: optionId,
-    requestedByUserId: userId,
-    status: 'pending_payment',
-    tenantId,
-    transactionId,
-    unitPrice: 100,
-    window: 'before_event',
-  });
-  return {
-    addOnId,
-    categoryId,
-    eventId,
-    expiresAt,
-    optionId,
-    orderId,
-    purchaseId,
-    purchaseLotId,
-    registrationIds,
-    templateId,
-    tenantId,
-    transactionId,
-    userIds,
-  };
 };
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
@@ -405,6 +454,9 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   for (const userId of fixture.userIds) {
     await database.delete(users).where(eq(users.id, userId));
   }
+  await database
+    .delete(tenantStripeTaxRates)
+    .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
   await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
 };
 
@@ -412,83 +464,216 @@ const completedSession = (fixture: Fixture): Stripe.Checkout.Session => {
   const { orderId, registrationId, transactionId } =
     paidFixtureIdentity(fixture);
   return {
-    adaptive_pricing: null,
-    after_expiration: null,
-    allow_promotion_codes: null,
-    amount_subtotal: null,
+    ...checkoutSessionResponse({
+      id: `cs_${orderId}`,
+      paymentIntent: null,
+      url: `https://checkout.stripe.com/c/pay/cs_${orderId}`,
+    }),
     amount_total: 100,
-    automatic_tax: {
-      enabled: false,
-      liability: null,
-      provider: null,
-      status: null,
-    },
-    billing_address_collection: null,
-    cancel_url: null,
-    client_reference_id: null,
-    client_secret: null,
-    collected_information: null,
-    consent: null,
-    consent_collection: null,
-    created: Math.floor(fixture.expiresAt.getTime() / 1000) - 1800,
     currency: 'eur',
-    currency_conversion: null,
-    custom_fields: [],
-    custom_text: {
-      after_submit: null,
-      shipping_address: null,
-      submit: null,
-      terms_of_service_acceptance: null,
-    },
-    customer: null,
-    customer_account: null,
-    customer_creation: null,
-    customer_details: null,
-    customer_email: null,
-    discounts: null,
     expires_at: Math.floor(fixture.expiresAt.getTime() / 1000),
     id: `cs_${orderId}`,
-    integration_identifier: null,
-    invoice: null,
-    invoice_creation: null,
-    livemode: false,
-    locale: null,
-    managed_payments: null,
     metadata: {
       addonPurchaseOrderId: orderId,
       registrationId,
       tenantId: fixture.tenantId,
       transactionId,
     },
-    mode: 'payment',
     object: 'checkout.session',
-    origin_context: null,
-    payment_intent: {
+    payment_intent: stripePaymentIntentResponse({
+      amount: 100,
+      amount_received: 100,
+      currency: 'eur',
       id: `pi_${orderId}`,
       latest_charge: `ch_${orderId}`,
-    } as Stripe.PaymentIntent,
-    payment_link: null,
-    payment_method_collection: null,
-    payment_method_configuration_details: null,
-    payment_method_options: null,
-    payment_method_types: ['card'],
+    }),
     payment_status: 'paid',
-    permissions: null,
-    recovered_from: null,
-    saved_payment_method_options: null,
-    setup_intent: null,
-    shipping_address_collection: null,
-    shipping_cost: null,
-    shipping_options: [],
     status: 'complete',
-    submit_type: null,
-    subscription: null,
-    success_url: null,
-    total_details: null,
-    ui_mode: 'hosted_page',
-    url: null,
-    wallet_options: null,
   };
+};
+
+const checkoutSessionResponse = ({
+  id,
+  paymentIntent,
+  url,
+}: {
+  id: string;
+  paymentIntent: Stripe.Checkout.Session['payment_intent'];
+  url: string;
+}): Stripe.Response<Stripe.Checkout.Session> => ({
+  adaptive_pricing: null,
+  after_expiration: null,
+  allow_promotion_codes: null,
+  amount_subtotal: null,
+  amount_total: null,
+  automatic_tax: {
+    enabled: false,
+    liability: null,
+    provider: null,
+    status: null,
+  },
+  billing_address_collection: null,
+  cancel_url: null,
+  client_reference_id: null,
+  client_secret: null,
+  collected_information: null,
+  consent: null,
+  consent_collection: null,
+  created: 1_900_000_000,
+  currency: 'eur',
+  currency_conversion: null,
+  custom_fields: [],
+  custom_text: {
+    after_submit: null,
+    shipping_address: null,
+    submit: null,
+    terms_of_service_acceptance: null,
+  },
+  customer: null,
+  customer_account: null,
+  customer_creation: null,
+  customer_details: null,
+  customer_email: null,
+  discounts: null,
+  expires_at: 1_900_000_000,
+  id,
+  integration_identifier: null,
+  invoice: null,
+  invoice_creation: null,
+  lastResponse: {
+    headers: {},
+    requestId: `req_${id}`,
+    statusCode: 200,
+  },
+  livemode: false,
+  locale: null,
+  managed_payments: null,
+  metadata: null,
+  mode: 'payment',
+  object: 'checkout.session',
+  origin_context: null,
+  payment_intent: paymentIntent,
+  payment_link: null,
+  payment_method_collection: null,
+  payment_method_configuration_details: null,
+  payment_method_options: null,
+  payment_method_types: ['card'],
+  payment_status: 'unpaid',
+  permissions: null,
+  recovered_from: null,
+  saved_payment_method_options: null,
+  setup_intent: null,
+  shipping_address_collection: null,
+  shipping_cost: null,
+  shipping_options: [],
+  status: 'open',
+  submit_type: null,
+  subscription: null,
+  success_url: null,
+  total_details: null,
+  ui_mode: 'hosted_page',
+  url,
+  wallet_options: null,
+});
+
+const addonCreatedSessionResponse = (
+  parameters: Stripe.Checkout.SessionCreateParams | undefined,
+  {
+    id,
+    url,
+  }: {
+    readonly id: string;
+    readonly url: string;
+  },
+): Stripe.Response<Stripe.Checkout.Session> => {
+  if (!parameters)
+    throw new Error('Add-on Checkout fixture requires create parameters');
+  const lineItems = parameters.line_items;
+  if (!lineItems || lineItems.length === 0)
+    throw new Error('Add-on Checkout fixture requires line items');
+
+  let amountTotal = 0;
+  for (const lineItem of lineItems) {
+    const unitAmount = Schema.decodeUnknownSync(Schema.Number)(
+      lineItem.price_data?.unit_amount,
+    );
+    const quantity = Schema.decodeUnknownSync(Schema.Number)(lineItem.quantity);
+    amountTotal += unitAmount * quantity;
+  }
+  const currency = Schema.decodeUnknownSync(Schema.String)(
+    lineItems[0]?.price_data?.currency,
+  ).toLowerCase();
+  const metadata = Schema.decodeUnknownSync(
+    Schema.Record(Schema.String, Schema.String),
+  )(parameters.metadata);
+
+  return {
+    ...checkoutSessionResponse({ id, paymentIntent: null, url }),
+    amount_total: amountTotal,
+    cancel_url: Schema.decodeUnknownSync(Schema.String)(parameters.cancel_url),
+    currency,
+    customer_email: Schema.decodeUnknownSync(Schema.String)(
+      parameters.customer_email,
+    ),
+    expires_at: Schema.decodeUnknownSync(Schema.Number)(parameters.expires_at),
+    metadata,
+    success_url: Schema.decodeUnknownSync(Schema.String)(
+      parameters.success_url,
+    ),
+  };
+};
+
+const purchaseWithBindingFault = (
+  input: PurchaseRegistrationAddonInput,
+  mode: 'afterCommit' | 'rollback',
+  fault: Error,
+) =>
+  Effect.gen(function* () {
+    const database = yield* Database;
+    const transaction = database.transaction.bind(database);
+    let transactionCount = 0;
+    const interception = vi
+      .spyOn(database, 'transaction')
+      .mockImplementation((run) => {
+        transactionCount += 1;
+        if (transactionCount !== 2) return transaction(run);
+        return mode === 'afterCommit'
+          ? transaction(run).pipe(Effect.andThen(Effect.die(fault)))
+          : transaction((tx) =>
+              run(tx).pipe(Effect.andThen(Effect.die(fault))),
+            );
+      });
+    return yield* purchaseRegistrationAddon(input).pipe(
+      Effect.ensuring(Effect.sync(() => interception.mockRestore())),
+    );
+  });
+
+const addonPurchaseInput = (
+  fixture: Fixture,
+): PurchaseRegistrationAddonInput => ({
+  addonId: fixture.addOnId,
+  operationKey: `checkout-safety:${fixture.eventId}`,
+  quantity: 1,
+  registrationId: requireValue(
+    fixture.registrationIds[0],
+    'checkout registration',
+  ),
+  tenantId: fixture.tenantId,
+  userId: requireValue(fixture.userIds[0], 'checkout user'),
+});
+
+const createAddonStripeTestClient = () => {
+  const stripe = createRejectingStripeClient();
+  vi.spyOn(stripe.checkout.sessions, 'create').mockRejectedValue(
+    new Error('Unexpected Checkout create'),
+  );
+  vi.spyOn(stripe.checkout.sessions, 'expire').mockRejectedValue(
+    new Error('Unexpected Checkout expire'),
+  );
+  vi.spyOn(stripe.checkout.sessions, 'retrieve').mockRejectedValue(
+    new Error('Unexpected Checkout retrieve'),
+  );
+  return stripe;
 };
 
 describe('post-registration add-on purchase concurrency', () => {
@@ -504,13 +689,388 @@ describe('post-registration add-on purchase concurrency', () => {
   });
 
   afterAll(async () => {
+    const failures: unknown[] = [];
     for (const fixture of fixtures.toReversed()) {
-      await cleanFixture(database, fixture);
+      try {
+        await cleanFixture(database, fixture);
+      } catch (error) {
+        failures.push(error);
+      }
     }
-    await pool.end();
+    try {
+      await pool.end();
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(failures, 'Add-on fixture cleanup failures');
   });
 
-  it('keeps a paid reservation invisible until exact Checkout completion', async () => {
+  it('preserves a committed binding when its acknowledgement fails and replays without another provider create', async () => {
+    const fixture = await seedFixture(database, {
+      paid: true,
+      seedPaidReservation: false,
+      stock: 1,
+    });
+    fixtures.push(fixture);
+    const input = addonPurchaseInput(fixture);
+    const stripe = createAddonStripeTestClient();
+    const sessionId = `cs_${fixture.eventId}`;
+    const checkoutUrl = `https://checkout.stripe.com/c/pay/${sessionId}`;
+    const create = vi
+      .mocked(stripe.checkout.sessions.create)
+      .mockImplementation(async (parameters) =>
+        addonCreatedSessionResponse(parameters, {
+          id: sessionId,
+          url: checkoutUrl,
+        }),
+      );
+    const fault = new Error(
+      'Injected acknowledgement failure after addon binding commit',
+    );
+    const exit = await Effect.runPromiseExit(
+      purchaseWithBindingFault(input, 'afterCommit', fault).pipe(
+        Effect.provide(makeLayer(databaseUrl, stripe)),
+      ),
+    );
+    expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
+    const payment = await database.query.transactions.findFirst({
+      where: { eventId: fixture.eventId },
+    });
+    expect(payment).toMatchObject({
+      status: 'pending',
+      stripeCheckoutIncidentSessionId: null,
+      stripeCheckoutSessionId: sessionId,
+      stripeCheckoutUrl: checkoutUrl,
+    });
+    expect(stripe.checkout.sessions.expire).not.toHaveBeenCalled();
+    const replay = await Effect.runPromise(
+      purchaseRegistrationAddon(input).pipe(
+        Effect.provide(makeLayer(databaseUrl, stripe)),
+      ),
+    );
+    expect(replay).toMatchObject({ checkoutUrl, status: 'checkout_required' });
+    expect(create).toHaveBeenCalledOnce();
+    expect(
+      await database.query.eventRegistrationAddonPurchaseLots.findMany({
+        where: { eventId: fixture.eventId },
+      }),
+    ).toEqual([]);
+  });
+
+  it.each(['providerFailure', 'wrongIdentity', 'paidSession'] as const)(
+    'records an addon binding incident when expiry cannot be proven: %s',
+    async (expiryFailure) => {
+      const fixture = await seedFixture(database, {
+        paid: true,
+        seedPaidReservation: false,
+        stock: 1,
+      });
+      fixtures.push(fixture);
+      const input = addonPurchaseInput(fixture);
+      const stripe = createAddonStripeTestClient();
+      const sessionId = `cs_${fixture.eventId}`;
+      const checkoutUrl = `https://checkout.stripe.com/c/pay/${sessionId}`;
+      const create = vi
+        .mocked(stripe.checkout.sessions.create)
+        .mockImplementation(async (parameters) =>
+          addonCreatedSessionResponse(parameters, {
+            id: sessionId,
+            url: checkoutUrl,
+          }),
+        );
+      const expire = vi.mocked(stripe.checkout.sessions.expire);
+      if (expiryFailure === 'providerFailure') {
+        expire.mockRejectedValue(
+          new Error('Injected Stripe expiry uncertainty'),
+        );
+      } else {
+        expire.mockResolvedValue({
+          ...checkoutSessionResponse({
+            id: sessionId,
+            paymentIntent: null,
+            url: checkoutUrl,
+          }),
+          id:
+            expiryFailure === 'wrongIdentity'
+              ? 'cs_another_session'
+              : sessionId,
+          payment_status: expiryFailure === 'paidSession' ? 'paid' : 'unpaid',
+          status: 'expired',
+        });
+      }
+      const exit = await Effect.runPromiseExit(
+        purchaseWithBindingFault(
+          input,
+          'rollback',
+          new Error('Injected addon binding rollback'),
+        ).pipe(Effect.provide(makeLayer(databaseUrl, stripe))),
+      );
+      expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
+      const payment = requireValue(
+        await database.query.transactions.findFirst({
+          where: { eventId: fixture.eventId },
+        }),
+        'incident payment',
+      );
+      const order = requireValue(
+        await database.query.eventRegistrationAddonPurchaseOrders.findFirst({
+          where: { eventId: fixture.eventId },
+        }),
+        'incident order',
+      );
+      expect(payment).toMatchObject({
+        status: 'pending',
+        stripeCheckoutIncidentSessionId: sessionId,
+        stripeCheckoutSessionId: null,
+        stripeCheckoutUrl: null,
+      });
+      expect(order.status).toBe('pending_payment');
+      expect(expire).toHaveBeenCalledWith(sessionId, undefined, {
+        stripeAccount: 'acct_addon_purchase_test',
+      });
+      const replay = await Effect.runPromiseExit(
+        purchaseRegistrationAddon(input).pipe(
+          Effect.provide(makeLayer(databaseUrl, stripe)),
+        ),
+      );
+      expect(Exit.isFailure(replay)).toBe(true);
+      expect(create).toHaveBeenCalledOnce();
+      expect(expire).toHaveBeenCalledOnce();
+
+      const afterExpiry = new Date(
+        requireValue(order.expiresAt, 'incident deadline').getTime() + 1000,
+      );
+      const candidates = await database
+        .select({ id: transactions.id })
+        .from(eventRegistrationAddonPurchaseOrders)
+        .innerJoin(
+          transactions,
+          eq(
+            transactions.id,
+            eventRegistrationAddonPurchaseOrders.transactionId,
+          ),
+        )
+        .where(
+          and(
+            expiredUnboundAddonPurchaseCheckoutPredicate(afterExpiry),
+            eq(transactions.tenantId, fixture.tenantId),
+          ),
+        );
+      expect(candidates).toEqual([]);
+      const staleExpiry = await Effect.runPromiseExit(
+        expirePaidAddonPurchaseCheckout({
+          now: afterExpiry,
+          orderId: order.id,
+          registrationId: input.registrationId,
+          stripeAccountId: 'acct_addon_purchase_test',
+          stripeCheckoutSessionId: null,
+          tenantId: fixture.tenantId,
+          transactionId: payment.id,
+        }).pipe(Effect.provide(makeLayer(databaseUrl, stripe))),
+      );
+      expect(Exit.isFailure(staleExpiry)).toBe(true);
+      expect(
+        await database.query.transactions.findFirst({
+          where: { id: payment.id },
+        }),
+      ).toEqual(payment);
+      expect(
+        await database.query.eventRegistrationAddonPurchaseOrders.findFirst({
+          where: { id: order.id },
+        }),
+      ).toEqual(order);
+      expect(
+        await database.query.eventAddons.findFirst({
+          columns: { totalAvailableQuantity: true },
+          where: { id: fixture.addOnId },
+        }),
+      ).toEqual({ totalAvailableQuantity: 0 });
+      expect(
+        await database.query.eventRegistrationAddonPurchaseLots.findMany({
+          where: { eventId: fixture.eventId },
+        }),
+      ).toEqual([]);
+    },
+  );
+
+  it('rejects a payment tuple changed while Stripe creates the addon Checkout', async () => {
+    const fixture = await seedFixture(database, {
+      paid: true,
+      seedPaidReservation: false,
+      stock: 1,
+    });
+    fixtures.push(fixture);
+    const input = addonPurchaseInput(fixture);
+    const stripe = createAddonStripeTestClient();
+    const sessionId = `cs_${fixture.eventId}`;
+    const checkoutUrl = `https://checkout.stripe.com/c/pay/${sessionId}`;
+    vi.mocked(stripe.checkout.sessions.create).mockImplementation(
+      async (parameters) => {
+        const payment = requireValue(
+          await database.query.transactions.findFirst({
+            where: { eventId: fixture.eventId },
+          }),
+          'reserved payment',
+        );
+        await database
+          .update(transactions)
+          .set({ amount: payment.amount + 1 })
+          .where(eq(transactions.id, payment.id));
+        return addonCreatedSessionResponse(parameters, {
+          id: sessionId,
+          url: checkoutUrl,
+        });
+      },
+    );
+    vi.mocked(stripe.checkout.sessions.expire).mockResolvedValue({
+      ...checkoutSessionResponse({
+        id: sessionId,
+        paymentIntent: null,
+        url: checkoutUrl,
+      }),
+      status: 'expired',
+    });
+    const exit = await Effect.runPromiseExit(
+      purchaseRegistrationAddon(input).pipe(
+        Effect.provide(makeLayer(databaseUrl, stripe)),
+      ),
+    );
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledOnce();
+    expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
+      sessionId,
+      undefined,
+      { stripeAccount: 'acct_addon_purchase_test' },
+    );
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventId: fixture.eventId },
+      }),
+    ).toMatchObject([
+      {
+        amount: 101,
+        status: 'pending',
+        stripeCheckoutIncidentSessionId: null,
+        stripeCheckoutSessionId: null,
+        stripeCheckoutUrl: null,
+      },
+    ]);
+    expect(
+      await database.query.eventRegistrationAddonPurchaseLots.findMany({
+        where: { eventId: fixture.eventId },
+      }),
+    ).toEqual([]);
+  });
+
+  it('does not retry provider creation for an existing unbound claim after creation times out', async () => {
+    const fixture = await seedFixture(database, {
+      paid: true,
+      seedPaidReservation: false,
+      stock: 1,
+    });
+    fixtures.push(fixture);
+    const input = addonPurchaseInput(fixture);
+    const stripe = createAddonStripeTestClient();
+    const create = vi
+      .mocked(stripe.checkout.sessions.create)
+      .mockRejectedValue(new Error('Injected provider timeout'));
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const exit = await Effect.runPromiseExit(
+        purchaseRegistrationAddon(input).pipe(
+          Effect.provide(makeLayer(databaseUrl, stripe)),
+        ),
+      );
+      expect(Exit.isFailure(exit)).toBe(true);
+    }
+    expect(create).toHaveBeenCalledOnce();
+    expect(stripe.checkout.sessions.expire).not.toHaveBeenCalled();
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventId: fixture.eventId },
+      }),
+    ).toMatchObject([
+      {
+        status: 'pending',
+        stripeCheckoutIncidentSessionId: null,
+        stripeCheckoutSessionId: null,
+        stripeCheckoutUrl: null,
+      },
+    ]);
+    expect(
+      await database.query.eventRegistrationAddonPurchaseOrders.findMany({
+        where: { eventId: fixture.eventId },
+      }),
+    ).toHaveLength(1);
+  });
+
+  it.each(['metadata', 'url'] as const)(
+    'rejects invalid created addon Checkout %s before binding or exposing its URL',
+    async (invalidField) => {
+      const fixture = await seedFixture(database, {
+        paid: true,
+        seedPaidReservation: false,
+        stock: 1,
+      });
+      fixtures.push(fixture);
+      const input = addonPurchaseInput(fixture);
+      const stripe = createAddonStripeTestClient();
+      const sessionId = `cs_${fixture.eventId}`;
+      const checkoutUrl = `https://checkout.stripe.com/c/pay/${sessionId}`;
+      vi.mocked(stripe.checkout.sessions.create).mockImplementation(
+        async (parameters) => {
+          const response = addonCreatedSessionResponse(parameters, {
+            id: sessionId,
+            url: checkoutUrl,
+          });
+          return invalidField === 'metadata'
+            ? {
+                ...response,
+                metadata: { ...response.metadata, userId: 'different-user' },
+              }
+            : {
+                ...response,
+                url: 'https://checkout.stripe.com/c/pay/cs_different_session',
+              };
+        },
+      );
+      vi.mocked(stripe.checkout.sessions.expire).mockResolvedValue({
+        ...checkoutSessionResponse({
+          id: sessionId,
+          paymentIntent: null,
+          url: checkoutUrl,
+        }),
+        status: 'expired',
+      });
+      const exit = await Effect.runPromiseExit(
+        purchaseRegistrationAddon(input).pipe(
+          Effect.provide(makeLayer(databaseUrl, stripe)),
+        ),
+      );
+      expect(Exit.isFailure(exit)).toBe(true);
+      expect(stripe.checkout.sessions.expire).toHaveBeenCalledOnce();
+      expect(
+        await database.query.transactions.findMany({
+          where: { eventId: fixture.eventId },
+        }),
+      ).toMatchObject([
+        {
+          status: 'pending',
+          stripeCheckoutIncidentSessionId: null,
+          stripeCheckoutSessionId: null,
+          stripeCheckoutUrl: null,
+        },
+      ]);
+      expect(
+        await database.query.eventRegistrationAddonPurchaseLots.findMany({
+          where: { eventId: fixture.eventId },
+        }),
+      ).toEqual([]);
+    },
+  );
+
+  it('keeps a paid reservation invisible and finalizes payment received after the event ends', async () => {
     const fixture = await seedFixture(database, { paid: true, stock: 0 });
     fixtures.push(fixture);
     const { orderId, registrationId, transactionId } =
@@ -526,6 +1086,15 @@ describe('post-registration add-on purchase concurrency', () => {
         where: { registrationId },
       }),
     ).toHaveLength(0);
+
+    const completionNow = Date.now();
+    await database
+      .update(eventInstances)
+      .set({
+        end: new Date(completionNow - 60 * 60 * 1000),
+        start: new Date(completionNow - 2 * 60 * 60 * 1000),
+      })
+      .where(eq(eventInstances.id, fixture.eventId));
 
     const first = await Effect.runPromise(
       completePaidAddonPurchaseCheckout(
@@ -668,6 +1237,259 @@ describe('post-registration add-on purchase concurrency', () => {
         where: { id: raceFixture.addOnId },
       }),
     ).toEqual({ totalAvailableQuantity: 0 });
+  });
+
+  it('uses the communication email for a paid add-on Checkout', async () => {
+    const fixture = await seedFixture(database, {
+      paid: true,
+      seedPaidReservation: false,
+      stock: 1,
+    });
+    fixtures.push(fixture);
+    const registrationId = requireValue(
+      fixture.registrationIds[0],
+      'paid add-on registration',
+    );
+    const userId = requireValue(fixture.userIds[0], 'paid add-on user');
+    const communicationEmail = `${userId}.contact@example.com`;
+    const checkoutStripe = createRejectingStripeClient();
+    const createCheckout = vi
+      .spyOn(checkoutStripe.checkout.sessions, 'create')
+      .mockImplementation(async (parameters) =>
+        addonCreatedSessionResponse(parameters, {
+          id: 'cs_paid_addon_communication',
+          url: 'https://checkout.stripe.com/c/pay/cs_paid_addon_communication',
+        }),
+      );
+
+    const result = await Effect.runPromise(
+      purchaseRegistrationAddon({
+        addonId: fixture.addOnId,
+        operationKey: `paid-contact:${registrationId}`,
+        quantity: 1,
+        registrationId,
+        tenantId: fixture.tenantId,
+        userId,
+      }).pipe(Effect.provide(makeLayer(databaseUrl, checkoutStripe))),
+    );
+
+    expect(result.status).toBe('checkout_required');
+    const transaction = await database.query.transactions.findFirst({
+      where: {
+        eventRegistrationId: registrationId,
+        tenantId: fixture.tenantId,
+        type: 'addon',
+      },
+    });
+    expect(transaction?.stripeCheckoutRequest).toEqual(
+      expect.objectContaining({
+        customerEmail: communicationEmail,
+        notificationEmail: communicationEmail,
+      }),
+    );
+    expect(createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ customer_email: communicationEmail }),
+      expect.objectContaining({
+        stripeAccount: 'acct_addon_purchase_test',
+      }),
+    );
+  });
+
+  it('rejects paid Checkout that would expire one second after the event without mutating stock or payment state', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const now = new Date('2026-09-01T12:00:00.000Z');
+      vi.setSystemTime(now);
+      const expiresAtEpoch = buildCheckoutSessionExpiresAt(30, {
+        pinnedNowIso: now.toISOString(),
+      });
+      const fixture = await seedFixture(database, {
+        eventEnd: new Date(expiresAtEpoch * 1000 - 1000),
+        eventStart: new Date(now.getTime() - 60 * 60 * 1000),
+        paid: true,
+        seedPaidReservation: false,
+        stock: 1,
+      });
+      fixtures.push(fixture);
+      const registrationId = requireValue(
+        fixture.registrationIds[0],
+        'cutoff registration',
+      );
+      const userId = requireValue(fixture.userIds[0], 'cutoff user');
+      const checkoutStripe = createRejectingStripeClient();
+      const createCheckout = vi.spyOn(
+        checkoutStripe.checkout.sessions,
+        'create',
+      );
+
+      const outcome = await Effect.runPromise(
+        purchaseRegistrationAddon({
+          addonId: fixture.addOnId,
+          operationKey: `cutoff-rejection:${registrationId}`,
+          quantity: 1,
+          registrationId,
+          tenantId: fixture.tenantId,
+          userId,
+        }).pipe(
+          Effect.match({
+            onFailure: (error) => ({ error, status: 'failure' as const }),
+            onSuccess: (value) => ({ status: 'success' as const, value }),
+          }),
+          Effect.provide(makeLayer(databaseUrl, checkoutStripe)),
+        ),
+      );
+
+      expect(outcome.status).toBe('failure');
+      if (outcome.status === 'failure') {
+        expect(outcome.error.message).toBe(
+          'There is not enough time to finish online payment before the event ends. No purchase was started.',
+        );
+      }
+      const [addOn, orders, paymentTransactions, purchases, lots] =
+        await Promise.all([
+          database.query.eventAddons.findFirst({
+            columns: { totalAvailableQuantity: true },
+            where: { id: fixture.addOnId },
+          }),
+          database.query.eventRegistrationAddonPurchaseOrders.findMany({
+            where: { eventId: fixture.eventId },
+          }),
+          database.query.transactions.findMany({
+            where: { eventId: fixture.eventId },
+          }),
+          database.query.eventRegistrationAddonPurchases.findMany({
+            where: { eventId: fixture.eventId },
+          }),
+          database.query.eventRegistrationAddonPurchaseLots.findMany({
+            where: { eventId: fixture.eventId },
+          }),
+        ]);
+      expect(addOn).toEqual({ totalAvailableQuantity: 1 });
+      expect(orders).toHaveLength(0);
+      expect(paymentTransactions).toHaveLength(0);
+      expect(purchases).toHaveLength(0);
+      expect(lots).toHaveLength(0);
+      expect(createCheckout).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('accepts a paid Checkout ending exactly with the event and persists that expiry unchanged', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const now = new Date('2026-09-01T13:00:00.000Z');
+      vi.setSystemTime(now);
+      const expiresAtEpoch = buildCheckoutSessionExpiresAt(30, {
+        pinnedNowIso: now.toISOString(),
+      });
+      const expiresAt = new Date(expiresAtEpoch * 1000);
+      const fixture = await seedFixture(database, {
+        eventEnd: expiresAt,
+        eventStart: new Date(now.getTime() - 60 * 60 * 1000),
+        paid: true,
+        seedPaidReservation: false,
+        stock: 1,
+      });
+      fixtures.push(fixture);
+      const registrationId = requireValue(
+        fixture.registrationIds[0],
+        'exact cutoff registration',
+      );
+      const userId = requireValue(fixture.userIds[0], 'exact cutoff user');
+      const checkoutStripe = createRejectingStripeClient();
+      const createCheckout = vi
+        .spyOn(checkoutStripe.checkout.sessions, 'create')
+        .mockImplementation(async (parameters) =>
+          addonCreatedSessionResponse(parameters, {
+            id: 'cs_paid_addon_exact_cutoff',
+            url: 'https://checkout.stripe.com/c/pay/cs_paid_addon_exact_cutoff',
+          }),
+        );
+
+      const result = await Effect.runPromise(
+        purchaseRegistrationAddon({
+          addonId: fixture.addOnId,
+          operationKey: `exact-cutoff:${registrationId}`,
+          quantity: 1,
+          registrationId,
+          tenantId: fixture.tenantId,
+          userId,
+        }).pipe(Effect.provide(makeLayer(databaseUrl, checkoutStripe))),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          expiresAt,
+          status: 'checkout_required',
+        }),
+      );
+      const order =
+        await database.query.eventRegistrationAddonPurchaseOrders.findFirst({
+          where: { eventId: fixture.eventId },
+        });
+      const paymentTransaction = await database.query.transactions.findFirst({
+        where: { eventId: fixture.eventId },
+      });
+      expect(order?.expiresAt).toEqual(expiresAt);
+      expect(paymentTransaction?.stripeCheckoutRequest?.expiresAt).toBe(
+        expiresAtEpoch,
+      );
+      expect(createCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({ expires_at: expiresAtEpoch }),
+        expect.objectContaining({
+          stripeAccount: 'acct_addon_purchase_test',
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps free add-ons available immediately before the event ends', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const now = new Date('2026-09-01T14:00:00.000Z');
+      vi.setSystemTime(now);
+      const fixture = await seedFixture(database, {
+        eventEnd: new Date(now.getTime() + 1),
+        eventStart: new Date(now.getTime() - 60 * 60 * 1000),
+        paid: false,
+        stock: 1,
+      });
+      fixtures.push(fixture);
+      const registrationId = requireValue(
+        fixture.registrationIds[0],
+        'free cutoff registration',
+      );
+      const userId = requireValue(fixture.userIds[0], 'free cutoff user');
+
+      const result = await Effect.runPromise(
+        purchaseRegistrationAddon({
+          addonId: fixture.addOnId,
+          operationKey: `free-cutoff:${registrationId}`,
+          quantity: 1,
+          registrationId,
+          tenantId: fixture.tenantId,
+          userId,
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.status).toBe('completed');
+      expect(
+        await database.query.eventAddons.findFirst({
+          columns: { totalAvailableQuantity: true },
+          where: { id: fixture.addOnId },
+        }),
+      ).toEqual({ totalAvailableQuantity: 0 });
+      expect(
+        await database.query.eventRegistrationAddonPurchaseOrders.findMany({
+          where: { eventId: fixture.eventId },
+        }),
+      ).toEqual([expect.objectContaining({ status: 'completed' })]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('serializes completion against expiry without double-granting or releasing stock', async () => {

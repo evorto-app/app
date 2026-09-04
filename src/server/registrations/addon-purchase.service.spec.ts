@@ -1,13 +1,17 @@
 import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 
 import { describe, expect, it, vi } from '@effect/vitest';
+import {
+  EventRegistrationConflictError,
+  EventRegistrationInternalError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { Effect, Layer } from 'effect';
 import Stripe from 'stripe';
 
 import { type eventAddons, type tenantStripeTaxRates } from '../../db/schema';
-import { EventRegistrationConflictError } from '../../shared/rpc-contracts/app-rpcs/events.errors';
 import { StripeClient } from '../stripe-client';
 import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
+import { createRejectingStripeClient } from '../testing/stripe-test-fixtures';
 import {
   purchaseRegistrationAddon,
   registrationAddonPurchaseCapacity,
@@ -40,6 +44,14 @@ const createAddonPurchaseTaxFixture = ({
   ) =>
     Effect.sync(() => {
       if (statement.startsWith('select ')) {
+        if (
+          statement ===
+          'select "communicationEmail", "email" from "users" where "users"."id" = $1 limit $2'
+        ) {
+          expect(parameters).toEqual(['user-1', 1]);
+          return [['purchaser@example.com', 'purchaser@example.com']];
+        }
+
         if (statement.includes(' from "event_registrations"')) {
           return [['event-1', 'option-1', 'CONFIRMED', 'user-1']];
         }
@@ -157,7 +169,7 @@ describe('persisted optional add-on tax configuration', () => {
 
         expect(error).toBeInstanceOf(EventRegistrationConflictError);
         expect(error.message).toBe(
-          'This add-on has an incomplete or inactive Stripe tax configuration',
+          "Online payment cannot be started because this add-on's tax details are no longer available. No add-on purchase or payment was started. Contact the organizer.",
         );
         expect(fixture.writes).toEqual([]);
         expect(fixture.checkout).not.toHaveBeenCalled();
@@ -191,7 +203,7 @@ describe('persisted optional add-on tax configuration', () => {
       );
 
       expect(error).toBeInstanceOf(EventRegistrationConflictError);
-      expect(error.message).toBe('This add-on no longer has enough stock');
+      expect(error.message).toBe('There are not enough of this add-on left.');
       expect(fixture.writes).toHaveLength(1);
       expect(fixture.writes[0]).toContain('update "event_addons"');
       expect(fixture.checkout).not.toHaveBeenCalled();
@@ -311,6 +323,33 @@ describe('registration add-on purchase policy', () => {
     ).toBe('out_of_stock');
   });
 
+  it('accepts the product cap and rejects one unit beyond it', () => {
+    expect(
+      registrationAddonPurchaseCapacity({
+        allowMultiple: true,
+        includedQuantity: 2,
+        maxQuantityPerUser: 10,
+        optionalPurchaseQuantity: 10,
+        pendingOptionalQuantity: 0,
+        purchasedOptionalQuantity: 0,
+        requestedQuantity: 8,
+        stock: 10,
+      }),
+    ).toBe('available');
+    expect(
+      registrationAddonPurchaseCapacity({
+        allowMultiple: true,
+        includedQuantity: 2,
+        maxQuantityPerUser: 10,
+        optionalPurchaseQuantity: 10,
+        pendingOptionalQuantity: 0,
+        purchasedOptionalQuantity: 0,
+        requestedQuantity: 9,
+        stock: 10,
+      }),
+    ).toBe('user_limit_exceeded');
+  });
+
   it('derives exact no-tax and Stripe tax amounts before reserving stock', () => {
     expect(
       resolveRegistrationAddonPurchaseAmounts({
@@ -372,30 +411,61 @@ describe('registration add-on purchase policy', () => {
     ).toBeUndefined();
   });
 
-  it('accepts the product cap and rejects one unit beyond it', () => {
-    expect(
-      registrationAddonPurchaseCapacity({
-        allowMultiple: true,
-        includedQuantity: 2,
-        maxQuantityPerUser: 10,
-        optionalPurchaseQuantity: 10,
-        pendingOptionalQuantity: 0,
-        purchasedOptionalQuantity: 0,
-        requestedQuantity: 8,
-        stock: 10,
+  it.effect(
+    'aborts before add-on mutations when the required ticket owner is missing',
+    () =>
+      Effect.gen(function* () {
+        const commands: string[] = [];
+        const select = vi.fn<SqlConnection.Connection['executeValues']>(
+          (statement, parameters) =>
+            Effect.sync(() => {
+              expect(commands).toEqual(['BEGIN']);
+              if (
+                statement ===
+                'select "eventId", "registrationOptionId", "status", "userId" from "event_registrations" where (("event_registrations"."id" = $1) and ("event_registrations"."tenantId" = $2)) for update'
+              ) {
+                expect(parameters).toEqual(['registration-1', 'tenant-1']);
+                return [['event-1', 'option-1', 'CONFIRMED', 'user-1']];
+              }
+              expect(statement).toBe(
+                'select "communicationEmail", "email" from "users" where "users"."id" = $1 limit $2',
+              );
+              expect(parameters).toEqual(['user-1', 1]);
+              return [];
+            }),
+        );
+        const databaseLayer = createRegistrationDatabaseTestLayer({
+          executeValues: select,
+          transactionControl: (command) =>
+            Effect.sync(() => {
+              commands.push(command);
+            }),
+        });
+
+        const error = yield* purchaseRegistrationAddon({
+          addonId: 'addon-1',
+          operationKey: 'missing-owner',
+          quantity: 1,
+          registrationId: 'registration-1',
+          tenantId: 'tenant-1',
+          userId: 'user-1',
+        }).pipe(
+          Effect.flip,
+          Effect.provide(databaseLayer),
+          Effect.provideService(StripeClient, createRejectingStripeClient()),
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error.message).toBe(
+          'The ticket owner could not be verified. No add-on purchase was started. Reopen the ticket and try again.',
+        );
+        expect(select).toHaveBeenCalledTimes(2);
+        expect(
+          select.mock.calls.every(([statement]) =>
+            statement.startsWith('select '),
+          ),
+        ).toBe(true);
+        expect(commands).toEqual(['BEGIN', 'ROLLBACK']);
       }),
-    ).toBe('available');
-    expect(
-      registrationAddonPurchaseCapacity({
-        allowMultiple: true,
-        includedQuantity: 2,
-        maxQuantityPerUser: 10,
-        optionalPurchaseQuantity: 10,
-        pendingOptionalQuantity: 0,
-        purchasedOptionalQuantity: 0,
-        requestedQuantity: 9,
-        stock: 10,
-      }),
-    ).toBe('user_limit_exceeded');
-  });
+  );
 });
