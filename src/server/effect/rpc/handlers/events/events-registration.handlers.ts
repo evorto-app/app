@@ -3,6 +3,11 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import {
+  type EventCheckInTimingIssue,
+  eventCheckInTimingIssue,
+  eventCheckInTimingMessage,
+} from '@shared/event-check-in';
+import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
@@ -13,6 +18,7 @@ import {
   isActiveRegistrationTransferStatus,
 } from '@shared/registration-transfer';
 import {
+  EventCheckInUnavailableError,
   EventRegistrationConflictError,
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
@@ -85,6 +91,7 @@ import {
 import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
+  registrationTransferMutationBlockingStatuses,
   RegistrationTransferMutationConflict,
   registrationTransferOpenDeadlinePredicate,
 } from '../../../../registrations/registration-transfer-mutation-guard';
@@ -95,6 +102,22 @@ import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summ
 import { RpcAccess } from '../shared/rpc-access.service';
 import { EventRegistrationService } from './event-registration.service';
 import { databaseEffect } from './events.shared';
+
+type RegistrationScanRpcError =
+  | EventRegistrationConflictError
+  | EventRegistrationInternalError
+  | EventRegistrationNotFoundError
+  | RpcForbiddenError
+  | RpcUnauthorizedError;
+
+const isRegistrationScanRpcError = (
+  error: unknown,
+): error is RegistrationScanRpcError =>
+  error instanceof EventRegistrationConflictError ||
+  error instanceof EventRegistrationInternalError ||
+  error instanceof EventRegistrationNotFoundError ||
+  error instanceof RpcForbiddenError ||
+  error instanceof RpcUnauthorizedError;
 
 const failRegistrationInternalError = (
   operation: string,
@@ -122,29 +145,24 @@ const mapRegistrationInternalError =
       Effect.mapError(() => new EventRegistrationInternalError({ message })),
     );
 
-const isRegistrationScanRpcError = (
-  error: unknown,
-): error is
-  | EventRegistrationConflictError
-  | EventRegistrationInternalError
-  | EventRegistrationNotFoundError
-  | RpcForbiddenError
-  | RpcUnauthorizedError =>
-  error instanceof EventRegistrationConflictError ||
-  error instanceof EventRegistrationInternalError ||
-  error instanceof EventRegistrationNotFoundError ||
-  error instanceof RpcForbiddenError ||
-  error instanceof RpcUnauthorizedError;
-
 const mapRegistrationScanInternalError = (error: unknown) =>
   isRegistrationScanRpcError(error)
     ? Effect.fail(error)
-    : Effect.fail(
-        new EventRegistrationInternalError({
-          cause: error,
-          message: 'Internal server error',
-        }),
+    : failRegistrationInternalError(
+        'eventRegistration.scan',
+        'The ticket could not be loaded. Try again.',
+        error,
       );
+
+const mapCheckInMutationInternalError = (
+  error: unknown,
+): Effect.Effect<
+  never,
+  EventCheckInUnavailableError | RegistrationScanRpcError
+> =>
+  error instanceof EventCheckInUnavailableError
+    ? Effect.fail(error)
+    : mapRegistrationScanInternalError(error);
 
 const isRegistrationMutationRpcError = (
   error: unknown,
@@ -226,10 +244,14 @@ const registrationNotificationEmail = (user: {
   email: string;
 }): string => user.communicationEmail?.trim() || user.email;
 
-const CHECK_IN_PRE_START_WINDOW_MS = 60 * 60 * 1000;
+const checkInUnavailableError = (reason: EventCheckInTimingIssue) =>
+  new EventCheckInUnavailableError({
+    message: eventCheckInTimingMessage(reason),
+    reason,
+  });
 
-const isWithinCheckInWindow = (eventStart: Date, now: Date): boolean =>
-  eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
+const guestCheckInLimitMessage = (remainingGuestCount: number) =>
+  `Enter no more than ${remainingGuestCount} additional ${remainingGuestCount === 1 ? 'guest' : 'guests'}.`;
 
 export type RegistrationAddonPurchaseBlockedReason =
   | 'activeTransfer'
@@ -534,6 +556,20 @@ const findActiveRegistrationTransfer = (
       RAW: registrationTransferOpenDeadlinePredicate,
       sourceRegistrationId: input.registrationId,
       status: { in: [...activeRegistrationTransferStatuses] },
+      tenantId: input.tenantId,
+    },
+  });
+
+const findCheckInBlockingRegistrationTransfer = (
+  database: DatabaseClient,
+  input: { readonly registrationId: string; readonly tenantId: string },
+) =>
+  database.query.registrationTransfers.findFirst({
+    columns: { id: true },
+    where: {
+      RAW: registrationTransferOpenDeadlinePredicate,
+      sourceRegistrationId: input.registrationId,
+      status: { in: [...registrationTransferMutationBlockingStatuses] },
       tenantId: input.tenantId,
     },
   });
@@ -2316,7 +2352,7 @@ export const eventRegistrationHandlers = {
       if (!Number.isInteger(guestCheckInCount) || guestCheckInCount < 0) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Guest check-in count must be a non-negative integer',
+            message: 'Enter a whole number of guests, starting at zero.',
           }),
         );
       }
@@ -2337,20 +2373,14 @@ export const eventRegistrationHandlers = {
             id: registrationId,
             tenantId: tenant.id,
           },
-          with: {
-            event: {
-              columns: {
-                start: true,
-              },
-            },
-          },
         }),
       );
 
       if (!registration) {
         return yield* Effect.fail(
           new EventRegistrationNotFoundError({
-            message: 'Registration not found',
+            message:
+              'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
           }),
         );
       }
@@ -2364,13 +2394,13 @@ export const eventRegistrationHandlers = {
       if (registration.userId === user.id) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Users cannot check in their own registration',
+            message: 'Ask another organizer to check in this ticket.',
           }),
         );
       }
 
       const activeTransfer = yield* databaseEffect((database) =>
-        findActiveRegistrationTransfer(database, {
+        findCheckInBlockingRegistrationTransfer(database, {
           registrationId: registration.id,
           tenantId: tenant.id,
         }),
@@ -2382,7 +2412,7 @@ export const eventRegistrationHandlers = {
       if (registration.status !== 'CONFIRMED') {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Only confirmed registrations can be checked in',
+            message: 'This ticket is not ready for check-in.',
           }),
         );
       }
@@ -2394,43 +2424,25 @@ export const eventRegistrationHandlers = {
       if (guestCheckInCount > remainingGuestCount) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
-            message: 'Guest check-in count exceeds remaining guests',
+            message: guestCheckInLimitMessage(remainingGuestCount),
           }),
         );
       }
 
-      if (registration.checkInTime && remainingGuestCount === 0) {
-        return {
-          alreadyCheckedIn: true,
-          checkInTime: registration.checkInTime.toISOString(),
-        };
-      }
-      if (registration.checkInTime && guestCheckInCount === 0) {
-        return {
-          alreadyCheckedIn: true,
-          checkInTime: registration.checkInTime.toISOString(),
-        };
-      }
-      const now = yield* registrationHandlerNow;
-      if (
-        !registration.event ||
-        !isWithinCheckInWindow(registration.event.start, now)
-      ) {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message: 'Check-in is not open for this event yet',
-          }),
-        );
-      }
-
-      const checkInTime = now;
-      const checkedInSpotCount =
-        (registration.checkInTime ? 0 : 1) + guestCheckInCount;
       const checkedInRegistration = yield* Database.use((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
             const lockedRegistrations = yield* tx
-              .select({ status: eventRegistrations.status })
+              .select({
+                checkedInGuestCount: eventRegistrations.checkedInGuestCount,
+                checkInTime: eventRegistrations.checkInTime,
+                eventId: eventRegistrations.eventId,
+                guestCount: eventRegistrations.guestCount,
+                id: eventRegistrations.id,
+                registrationOptionId: eventRegistrations.registrationOptionId,
+                status: eventRegistrations.status,
+                userId: eventRegistrations.userId,
+              })
               .from(eventRegistrations)
               .where(
                 and(
@@ -2439,31 +2451,133 @@ export const eventRegistrationHandlers = {
                 ),
               )
               .for('update');
-            if (lockedRegistrations[0]?.status !== 'CONFIRMED') {
-              return {
-                alreadyCheckedIn: true,
-                checkInTime,
-              };
+            const lockedRegistration = lockedRegistrations[0];
+            if (!lockedRegistration) {
+              return yield* Effect.fail(
+                new EventRegistrationNotFoundError({
+                  message:
+                    'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
+                }),
+              );
+            }
+            if (lockedRegistration.userId === user.id) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Ask another organizer to check in this ticket.',
+                }),
+              );
+            }
+            if (lockedRegistration.status !== 'CONFIRMED') {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'This ticket is not ready for check-in.',
+                }),
+              );
             }
             yield* ensureRegistrationMutationHasNoActiveTransfer(tx, {
-              registrationId: registration.id,
+              registrationId: lockedRegistration.id,
               tenantId: tenant.id,
             }).pipe(Effect.catch(mapRegistrationTransferGuardError));
+
+            const lockedEvents = yield* tx
+              .select({
+                end: eventInstances.end,
+                start: eventInstances.start,
+              })
+              .from(eventInstances)
+              .where(
+                and(
+                  eq(eventInstances.id, lockedRegistration.eventId),
+                  eq(eventInstances.tenantId, tenant.id),
+                ),
+              )
+              .for('share');
+            const lockedEvent = lockedEvents[0];
+            if (!lockedEvent) {
+              yield* Effect.logError(
+                'Registration event was missing during check-in',
+              ).pipe(
+                Effect.annotateLogs({
+                  eventId: lockedRegistration.eventId,
+                  registrationId: lockedRegistration.id,
+                  tenantId: tenant.id,
+                }),
+              );
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'The event details are unavailable, so no check-in was recorded. Contact an Evorto administrator.',
+                }),
+              );
+            }
+
+            if (
+              lockedRegistration.checkedInGuestCount < 0 ||
+              lockedRegistration.guestCount < 0 ||
+              lockedRegistration.checkedInGuestCount >
+                lockedRegistration.guestCount
+            ) {
+              yield* Effect.logError(
+                'Registration guest counts were invalid during check-in',
+              ).pipe(
+                Effect.annotateLogs({
+                  checkedInGuestCount: lockedRegistration.checkedInGuestCount,
+                  guestCount: lockedRegistration.guestCount,
+                  registrationId: lockedRegistration.id,
+                  tenantId: tenant.id,
+                }),
+              );
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'The guest details need Evorto administrator review, so no check-in was recorded.',
+                }),
+              );
+            }
+            const lockedRemainingGuestCount =
+              lockedRegistration.guestCount -
+              lockedRegistration.checkedInGuestCount;
+            if (guestCheckInCount > lockedRemainingGuestCount) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: guestCheckInLimitMessage(lockedRemainingGuestCount),
+                }),
+              );
+            }
+            const now = yield* registrationHandlerNow;
+            const timingIssue = eventCheckInTimingIssue({
+              end: lockedEvent.end,
+              now,
+              start: lockedEvent.start,
+            });
+            if (timingIssue) {
+              return {
+                _tag: 'TimingIssue' as const,
+                reason: timingIssue,
+              };
+            }
+            if (lockedRegistration.checkInTime && guestCheckInCount === 0) {
+              return {
+                _tag: 'CheckedIn' as const,
+                alreadyCheckedIn: true,
+                checkInTime: lockedRegistration.checkInTime,
+              };
+            }
+            const checkedInSpotCount =
+              (lockedRegistration.checkInTime ? 0 : 1) + guestCheckInCount;
 
             const updatedRegistrations = yield* tx
               .update(eventRegistrations)
               .set({
-                ...(!registration.checkInTime && { checkInTime }),
+                ...(!lockedRegistration.checkInTime && { checkInTime: now }),
                 checkedInGuestCount: sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount}`,
               })
               .where(
                 and(
-                  eq(eventRegistrations.id, registration.id),
+                  eq(eventRegistrations.id, lockedRegistration.id),
                   eq(eventRegistrations.tenantId, tenant.id),
                   eq(eventRegistrations.status, 'CONFIRMED'),
-                  registration.checkInTime
-                    ? sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount} <= ${eventRegistrations.guestCount}`
-                    : isNull(eventRegistrations.checkInTime),
+                  eq(eventRegistrations.userId, lockedRegistration.userId),
                 ),
               )
               .returning({
@@ -2472,11 +2586,22 @@ export const eventRegistrationHandlers = {
                 id: eventRegistrations.id,
               });
 
-            if (updatedRegistrations.length === 0) {
-              return {
-                alreadyCheckedIn: true,
-                checkInTime,
-              };
+            const updatedRegistration = updatedRegistrations[0];
+            if (!updatedRegistration?.checkInTime) {
+              yield* Effect.logError(
+                'Locked registration check-in update did not persist',
+              ).pipe(
+                Effect.annotateLogs({
+                  registrationId: lockedRegistration.id,
+                  tenantId: tenant.id,
+                }),
+              );
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'The check-in could not be saved. Nothing was changed. Try again.',
+                }),
+              );
             }
 
             const updatedOptions = yield* tx
@@ -2488,9 +2613,12 @@ export const eventRegistrationHandlers = {
                 and(
                   eq(
                     eventRegistrationOptions.id,
-                    registration.registrationOptionId,
+                    lockedRegistration.registrationOptionId,
                   ),
-                  eq(eventRegistrationOptions.eventId, registration.eventId),
+                  eq(
+                    eventRegistrationOptions.eventId,
+                    lockedRegistration.eventId,
+                  ),
                 ),
               )
               .returning({
@@ -2498,26 +2626,43 @@ export const eventRegistrationHandlers = {
               });
 
             if (updatedOptions.length === 0) {
+              yield* Effect.logError(
+                'Registration option was missing during check-in',
+              ).pipe(
+                Effect.annotateLogs({
+                  eventId: lockedRegistration.eventId,
+                  registrationId: lockedRegistration.id,
+                  registrationOptionId: lockedRegistration.registrationOptionId,
+                  tenantId: tenant.id,
+                }),
+              );
               return yield* Effect.fail(
                 new EventRegistrationInternalError({
-                  message: 'Registration option not found for check-in',
+                  message:
+                    'The sign-up choice is unavailable, so no check-in was recorded. Contact an Evorto administrator.',
                 }),
               );
             }
 
             return {
+              _tag: 'CheckedIn' as const,
               alreadyCheckedIn: false,
-              checkInTime: updatedRegistrations[0].checkInTime ?? checkInTime,
+              checkInTime: updatedRegistration.checkInTime,
             };
           }),
         ),
       );
 
+      if (checkedInRegistration._tag === 'TimingIssue') {
+        return yield* Effect.fail(
+          checkInUnavailableError(checkedInRegistration.reason),
+        );
+      }
       return {
         alreadyCheckedIn: checkedInRegistration.alreadyCheckedIn,
         checkInTime: checkedInRegistration.checkInTime.toISOString(),
       };
-    }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+    }).pipe(Effect.catch(mapCheckInMutationInternalError)),
   'events.getRegistrationAddonFulfillment': ({ registrationId }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
@@ -3317,8 +3462,10 @@ export const eventRegistrationHandlers = {
           columns: {
             appliedDiscountedPrice: true,
             appliedDiscountType: true,
+            basePriceAtRegistration: true,
             checkedInGuestCount: true,
             checkInTime: true,
+            discountAmount: true,
             eventId: true,
             guestCount: true,
             status: true,
@@ -3328,19 +3475,20 @@ export const eventRegistrationHandlers = {
           with: {
             event: {
               columns: {
+                end: true,
                 start: true,
                 title: true,
               },
             },
             registrationOption: {
               columns: {
-                price: true,
                 title: true,
               },
             },
             transactions: {
               columns: {
-                amount: true,
+                status: true,
+                type: true,
               },
               where: {
                 type: 'registration',
@@ -3383,34 +3531,37 @@ export const eventRegistrationHandlers = {
       const isAlreadyCheckedInIssue =
         registration.checkInTime !== null && remainingGuestCount === 0;
       const now = yield* registrationHandlerNow;
-      const isTimingIssue = !isWithinCheckInWindow(
-        registration.event.start,
+      const timingIssue = eventCheckInTimingIssue({
+        end: registration.event.end,
         now,
-      );
+        start: registration.event.start,
+      });
       const isAllowCheckin =
         !isRegistrationStatusIssue &&
         !isSameUserIssue &&
-        !isTimingIssue &&
+        timingIssue === null &&
         !isAlreadyCheckedInIssue;
-      const discountedTransaction = registration.transactions.find(
-        (transaction) =>
-          transaction.amount < registration.registrationOption.price,
-      );
-      const appliedDiscountedPrice =
-        registration.appliedDiscountedPrice ??
-        discountedTransaction?.amount ??
-        null;
-      const appliedDiscountType =
-        registration.appliedDiscountType ??
-        (appliedDiscountedPrice === null ? null : ('esnCard' as const));
+      const priceSnapshot = readRegistrationPriceSnapshot({
+        appliedDiscountedPrice: registration.appliedDiscountedPrice,
+        appliedDiscountType: registration.appliedDiscountType,
+        basePriceAtRegistration: registration.basePriceAtRegistration,
+        discountAmount: registration.discountAmount,
+        paymentPending: registration.transactions.some(
+          (transaction) =>
+            transaction.status === 'pending' &&
+            transaction.type === 'registration',
+        ),
+        registrationId,
+        status: registration.status,
+      });
 
       return {
         allowCheckin: isAllowCheckin,
         alreadyCheckedInIssue: isAlreadyCheckedInIssue,
-        appliedDiscountType,
+        appliedDiscountType: priceSnapshot.appliedDiscountType,
         attendeeCheckedIn: registration.checkInTime !== null,
         checkedInGuestCount: registration.checkedInGuestCount,
-        checkInTimingIssue: isTimingIssue,
+        checkInTimingIssue: timingIssue,
         event: {
           start: registration.event.start.toISOString(),
           title: registration.event.title,

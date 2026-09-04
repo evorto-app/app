@@ -1,11 +1,7 @@
 import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import {
-  PlatformEventsUpdateInput,
-  PlatformRegistrationPageLimit,
-  PlatformRegistrationsListInput,
-} from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
+import { PlatformEventsUpdateInput } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import { PlatformOperationRpcError } from '@shared/rpc-contracts/app-rpcs/platform-operations.shared';
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { getTableColumns } from 'drizzle-orm';
@@ -115,7 +111,7 @@ const registrationRecord = {
   },
   checkedInGuestCount: 0,
   checkInTime: null,
-  checkInTimingIssue: false,
+  checkInTimingIssue: null,
   currency: 'EUR' as const,
   event: {
     id: 'event-1',
@@ -294,7 +290,6 @@ describe('platform event, template, and registration handlers', () => {
       'platform.registrations.cancel',
       'platform.registrations.checkIn',
       'platform.registrations.findOne',
-      'platform.registrations.list',
       'platform.templates.create',
       'platform.templates.findOne',
       'platform.templates.formOptions',
@@ -780,20 +775,22 @@ describe('platform event, template, and registration handlers', () => {
         status: 'PENDING',
       }).pipe(Effect.flip);
       expect(statusError.reason).toBe('registrationStateConflict');
-    }),
-  );
+      expect(statusError).toMatchObject({
+        message: 'Only confirmed tickets can be checked in.',
+        reason: 'registrationStateConflict',
+      });
 
-  it.effect('defaults and bounds platform registration result pages', () =>
-    Effect.gen(function* () {
-      const defaults = yield* Schema.decodeUnknownEffect(
-        PlatformRegistrationsListInput,
-      )({ targetTenantId: 'tenant-1' });
-      expect(defaults.limit).toBe(100);
-      expect(defaults.offset).toBe(0);
-      const oversized = yield* Schema.decodeUnknownEffect(
-        PlatformRegistrationPageLimit,
-      )(101).pipe(Effect.flip);
-      expect(oversized['_tag']).toBe('SchemaError');
+      const guestError = yield* platformRegistrationCheckInPlan({
+        checkedInGuestCount: 0,
+        checkInTime: null,
+        guestCheckInCount: 2,
+        guestCount: 1,
+        status: 'CONFIRMED',
+      }).pipe(Effect.flip);
+      expect(guestError).toMatchObject({
+        message: 'You selected more guests than remain to be checked in.',
+        reason: 'guestCheckInCountExceeded',
+      });
     }),
   );
 
@@ -863,7 +860,7 @@ describe('platform event, template, and registration handlers', () => {
     );
 
     expect(error.reason).toBe('registrationTransferActive');
-    expect(error.message).toContain('this registration');
+    expect(error.message).toContain('this ticket');
     expect(error.message).toContain('Finish or cancel');
   });
 
@@ -1042,6 +1039,17 @@ describe('platform event, template, and registration handlers', () => {
     );
     expect(secondGuardIndex).toBeGreaterThan(lockedRegistrationIndex);
     expect(secondGuardIndex).toBeLessThan(
+      checkInHandler.indexOf('const before'),
+    );
+
+    const lockedEventIndex = checkInHandler.indexOf('const lockedEvents');
+    const timingIssueIndex = checkInHandler.indexOf(
+      'const timingIssue = eventCheckInTimingIssue',
+    );
+    expect(lockedEventIndex).toBeGreaterThan(lockedRegistrationIndex);
+    expect(checkInHandler).toContain(".for('share')");
+    expect(timingIssueIndex).toBeGreaterThan(lockedEventIndex);
+    expect(timingIssueIndex).toBeLessThan(
       checkInHandler.indexOf('const before'),
     );
 

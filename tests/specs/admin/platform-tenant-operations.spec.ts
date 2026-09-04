@@ -6,22 +6,22 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 
 const platformScannerStatusGuidance = [
   {
-    body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start a second registration or payment from the scanner.',
+    body: 'This ticket is not confirmed yet and cannot be checked in. Ask the attendee to open the event or Profile to see whether organizer approval or their existing payment is still needed. Do not start another sign-up or payment here.',
     label: 'Pending',
     status: 'PENDING',
-    title: 'Registration pending',
+    title: 'Sign-up pending',
   },
   {
-    body: 'This attendee does not have a confirmed spot yet and cannot be checked in. Review the waitlist and capacity. Do not take payment or create another registration from the scanner.',
+    body: 'This attendee does not have a confirmed place yet and cannot be checked in. Review the waitlist and available places. Do not take payment or start another sign-up here.',
     label: 'On waitlist',
     status: 'WAITLIST',
-    title: 'Registration on waitlist',
+    title: 'On waitlist',
   },
   {
-    body: 'This ticket was cancelled and cannot be checked in. Do not ask the attendee to pay or register again. If the cancellation or refund looks wrong, review the existing registration and refund instead of creating a replacement.',
+    body: 'This sign-up has ended and cannot be checked in. Do not ask the attendee to pay or sign up again. If the cancellation or refund looks wrong, review the existing sign-up instead of creating a replacement.',
     label: 'Cancelled',
     status: 'CANCELLED',
-    title: 'Registration cancelled',
+    title: 'Sign-up ended',
   },
 ] as const;
 
@@ -88,12 +88,12 @@ test('platform administrator opens target operations, refund recovery, and a det
   await expect(page).toHaveURL(
     new RegExp(`/global-admin/tenants/${tenant.id}/scanner$`),
   );
-  const lookupInput = page.getByLabel('Ticket link or registration ID');
+  const lookupInput = page.getByLabel('Ticket link or ticket number');
   await expect(lookupInput).toBeEnabled();
   await lookupInput.fill(
     `http://localhost:4200/scan/registration/${registration.id}`,
   );
-  await page.getByRole('button', { name: 'Open registration' }).click();
+  await page.getByRole('button', { name: 'Open ticket' }).click();
 
   await expect(page).toHaveURL(
     new RegExp(
@@ -101,13 +101,13 @@ test('platform administrator opens target operations, refund recovery, and a det
     ),
   );
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Registration support' }),
+    page.getByRole('heading', { level: 1, name: 'Ticket support' }),
   ).toBeVisible();
 
   const scanner = page.locator('app-platform-scanner');
   const registrationDetail = scanner.locator('section').filter({
     has: page.getByRole('heading', {
-      name: 'Help with this registration',
+      name: 'Help with this ticket',
     }),
   });
   for (const guidance of platformScannerStatusGuidance) {
@@ -123,8 +123,11 @@ test('platform administrator opens target operations, refund recovery, and a det
     await page.reload();
 
     await expect(
-      registrationDetail.getByText(guidance.label, { exact: true }),
-    ).toBeVisible();
+      registrationDetail.getByRole('status', {
+        exact: true,
+        name: 'Ticket status',
+      }),
+    ).toHaveText(guidance.label);
     const statusAlert = registrationDetail.getByRole('alert');
     await expect(statusAlert).toContainText(guidance.title);
     await expect(statusAlert).toContainText(guidance.body);

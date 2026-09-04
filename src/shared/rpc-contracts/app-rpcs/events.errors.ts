@@ -6,12 +6,21 @@ import {
   RpcUnauthorizedError,
   UnauthorizedRpcError,
 } from '@shared/errors/rpc-errors';
+import { EventCheckInTimingIssue } from '@shared/event-check-in';
 import { Schema } from 'effect';
 
 export type EventRegistrationError =
   | EventRegistrationConflictError
   | EventRegistrationInternalError
   | EventRegistrationNotFoundError;
+
+export class EventCheckInUnavailableError extends Schema.TaggedErrorClass<EventCheckInUnavailableError>()(
+  'EventCheckInUnavailableError',
+  {
+    message: Schema.String,
+    reason: EventCheckInTimingIssue,
+  },
+) {}
 
 export class EventConflictError extends Schema.TaggedErrorClass<EventConflictError>()(
   'EventConflictError',
@@ -133,6 +142,18 @@ export const EventsCheckInRegistrationError = Schema.Union([
 ]);
 export type EventsCheckInRegistrationError = Schema.Schema.Type<
   typeof EventsCheckInRegistrationError
+>;
+
+export const EventsCheckInRegistrationMutationError = Schema.Union([
+  EventCheckInUnavailableError,
+  EventRegistrationConflictError,
+  EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+]);
+export type EventsCheckInRegistrationMutationError = Schema.Schema.Type<
+  typeof EventsCheckInRegistrationMutationError
 >;
 
 export const EventsRegistrationAddonFulfillmentError = Schema.Union([

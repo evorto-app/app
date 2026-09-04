@@ -1243,15 +1243,15 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
     await expect(
       scannerPage.page.getByRole('heading', {
         level: 1,
-        name: 'Registration scanned',
+        name: 'Ticket scanned',
       }),
     ).toBeVisible();
     const cancelledScannerAlert = scannerPage.page
       .getByRole('alert')
-      .filter({ hasText: 'Registration cancelled' });
+      .filter({ hasText: 'Sign-up ended' });
     await expect(cancelledScannerAlert).toBeVisible();
     await expect(cancelledScannerAlert).toContainText(
-      'Do not ask the attendee to pay or register again',
+      'Do not ask the attendee to pay or sign up again',
     );
     await waitForScannerAddonFulfillment(scannerPage.page);
     const scannerAddOn = scannerPage.page
@@ -1270,7 +1270,7 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
       scannerAddOn.getByText('Cancelled', { exact: true }).locator('..'),
     ).toContainText('1');
     await expect(
-      scannerAddOn.getByText('Refund processing', { exact: true }),
+      scannerAddOn.getByText('Refund in progress', { exact: true }),
     ).toBeVisible();
 
     const stripeAccountId = refundClaim.stripeAccountId;
@@ -1661,7 +1661,7 @@ Switch to a platform administrator account; an organization Admin role is not su
     await scannerPage.page.reload();
     await waitForScannerAddonFulfillment(scannerPage.page);
     await expect(
-      scannerAddOn.getByText('Refund processing', { exact: true }),
+      scannerAddOn.getByText('Refund in progress', { exact: true }),
     ).toBeVisible();
     await page.reload();
     profileCard = await openProfileEventCard(page, scenario.title);

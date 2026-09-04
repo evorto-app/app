@@ -29,49 +29,51 @@ export const seedScannerRegistrationAcquisition = async ({
     id: string;
   };
 }) => {
-  const registration = await database.query.eventRegistrations.findFirst({
-    columns: { guestCount: true, userId: true },
-    where: {
-      eventId,
-      id: registrationId,
-      tenantId: tenant.id,
-    },
-  });
-  if (!registration) {
-    throw new Error(
-      `Expected registration "${registrationId}" before seeding scanner acquisition ownership`,
-    );
-  }
+  await database.transaction(async (tx) => {
+    const registration = await tx.query.eventRegistrations.findFirst({
+      columns: { guestCount: true, userId: true },
+      where: {
+        eventId,
+        id: registrationId,
+        tenantId: tenant.id,
+      },
+    });
+    if (!registration) {
+      throw new Error(
+        `Expected registration "${registrationId}" before seeding scanner acquisition ownership`,
+      );
+    }
 
-  const acquiredAt = new Date();
-  await database.insert(registrationAcquisitions).values({
-    acquiredAt,
-    eventId,
-    id: acquisitionId,
-    kind: 'initial',
-    operationKey: `scanner-fixture:${registrationId}`,
-    ordinal: 0,
-    ownerUserId: registration.userId,
-    registrationId,
-    spotCount: registration.guestCount + 1,
-    tenantId: tenant.id,
-  });
-  await database.insert(registrationAcquisitionComponents).values({
-    acquiredAt,
-    acquisitionId,
-    allocationKey: 'registration',
-    applicationFeeAmount: 0,
-    baseAmount: 0,
-    currency: tenant.currency,
-    eventId,
-    grossAmount: 0,
-    kind: 'registration',
-    netAmount: 0,
-    quantity: registration.guestCount + 1,
-    registrationId,
-    stripeFeeAmount: 0,
-    taxAmount: 0,
-    tenantId: tenant.id,
+    const acquiredAt = new Date();
+    await tx.insert(registrationAcquisitions).values({
+      acquiredAt,
+      eventId,
+      id: acquisitionId,
+      kind: 'initial',
+      operationKey: `scanner-fixture:${registrationId}`,
+      ordinal: 0,
+      ownerUserId: registration.userId,
+      registrationId,
+      spotCount: registration.guestCount + 1,
+      tenantId: tenant.id,
+    });
+    await tx.insert(registrationAcquisitionComponents).values({
+      acquiredAt,
+      acquisitionId,
+      allocationKey: 'registration',
+      applicationFeeAmount: 0,
+      baseAmount: 0,
+      currency: tenant.currency,
+      eventId,
+      grossAmount: 0,
+      kind: 'registration',
+      netAmount: 0,
+      quantity: registration.guestCount + 1,
+      registrationId,
+      stripeFeeAmount: 0,
+      taxAmount: 0,
+      tenantId: tenant.id,
+    });
   });
 };
 
@@ -82,12 +84,26 @@ export const cleanupScannerRegistrationAcquisition = async ({
   acquisitionId: string;
   database: TestDatabase;
 }) => {
-  await database
-    .delete(registrationAcquisitionComponents)
-    .where(eq(registrationAcquisitionComponents.acquisitionId, acquisitionId));
-  await database
-    .delete(registrationAcquisitions)
-    .where(eq(registrationAcquisitions.id, acquisitionId));
+  const failures: unknown[] = [];
+  try {
+    await database
+      .delete(registrationAcquisitionComponents)
+      .where(
+        eq(registrationAcquisitionComponents.acquisitionId, acquisitionId),
+      );
+  } catch (error) {
+    failures.push(error);
+  }
+  try {
+    await database
+      .delete(registrationAcquisitions)
+      .where(eq(registrationAcquisitions.id, acquisitionId));
+  } catch (error) {
+    failures.push(error);
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Scanner acquisition cleanup failed');
+  }
 };
 
 export const seedScannerFulfillmentAddon = async ({
@@ -120,79 +136,81 @@ export const seedScannerFulfillmentAddon = async ({
   };
   title: string;
 }) => {
-  await database.insert(eventAddons).values({
-    allowMultiple: true,
-    allowPurchaseBeforeEvent: false,
-    allowPurchaseDuringEvent: false,
-    allowPurchaseDuringRegistration: true,
-    description: `${title} for deterministic scanner fulfillment coverage.`,
-    eventId,
-    id: addOnId,
-    isPaid: false,
-    maxQuantityPerUser: includedQuantity + optionalQuantity,
-    price: 0,
-    stripeTaxRateId: null,
-    title,
-    totalAvailableQuantity: 10 - includedQuantity - optionalQuantity,
-  });
-  await database.insert(addonToEventRegistrationOptions).values({
-    addonId: addOnId,
-    eventId,
-    includedQuantity,
-    optionalPurchaseQuantity: optionalQuantity,
-    registrationOptionId,
-  });
-  await database.insert(eventRegistrationAddonPurchases).values({
-    addonId: addOnId,
-    eventId,
-    id: purchaseId,
-    includedQuantity,
-    purchasedQuantity: optionalQuantity,
-    quantity: includedQuantity + optionalQuantity,
-    registrationId,
-    registrationOptionId,
-    tenantId: tenant.id,
-    unitPrice: 0,
-  });
-  if (optionalQuantity > 0) {
-    const acquiredAt = new Date();
-    await database.insert(eventRegistrationAddonPurchaseLots).values({
-      applicationFeeAmount: 0,
-      baseAmount: 0,
-      currency: tenant.currency,
+  await database.transaction(async (tx) => {
+    await tx.insert(eventAddons).values({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: false,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: `${title} for deterministic scanner fulfillment coverage.`,
       eventId,
-      grossAmount: 0,
-      id: purchaseLotId,
-      netAmount: 0,
-      paymentAllocationFinalizedAt: acquiredAt,
-      purchaseId,
-      quantity: optionalQuantity,
+      id: addOnId,
+      isPaid: false,
+      maxQuantityPerUser: includedQuantity + optionalQuantity,
+      price: 0,
+      stripeTaxRateId: null,
+      title,
+      totalAvailableQuantity: 10 - includedQuantity - optionalQuantity,
+    });
+    await tx.insert(addonToEventRegistrationOptions).values({
+      addonId: addOnId,
+      eventId,
+      includedQuantity,
+      optionalPurchaseQuantity: optionalQuantity,
+      registrationOptionId,
+    });
+    await tx.insert(eventRegistrationAddonPurchases).values({
+      addonId: addOnId,
+      eventId,
+      id: purchaseId,
+      includedQuantity,
+      purchasedQuantity: optionalQuantity,
+      quantity: includedQuantity + optionalQuantity,
       registrationId,
       registrationOptionId,
-      sourceLineKey: `scanner-test:${purchaseId}`,
-      stripeFeeAmount: 0,
-      taxAmount: 0,
       tenantId: tenant.id,
       unitPrice: 0,
     });
-    await database.insert(registrationAcquisitionComponents).values({
-      acquiredAt,
-      acquisitionId,
-      allocationKey: `addon-lot:${purchaseLotId}`,
-      applicationFeeAmount: 0,
-      baseAmount: 0,
-      currency: tenant.currency,
-      eventId,
-      grossAmount: 0,
-      kind: 'addon_lot',
-      netAmount: 0,
-      purchaseId,
-      purchaseLotId,
-      quantity: optionalQuantity,
-      registrationId,
-      stripeFeeAmount: 0,
-      taxAmount: 0,
-      tenantId: tenant.id,
-    });
-  }
+    if (optionalQuantity > 0) {
+      const acquiredAt = new Date();
+      await tx.insert(eventRegistrationAddonPurchaseLots).values({
+        applicationFeeAmount: 0,
+        baseAmount: 0,
+        currency: tenant.currency,
+        eventId,
+        grossAmount: 0,
+        id: purchaseLotId,
+        netAmount: 0,
+        paymentAllocationFinalizedAt: acquiredAt,
+        purchaseId,
+        quantity: optionalQuantity,
+        registrationId,
+        registrationOptionId,
+        sourceLineKey: `scanner-test:${purchaseId}`,
+        stripeFeeAmount: 0,
+        taxAmount: 0,
+        tenantId: tenant.id,
+        unitPrice: 0,
+      });
+      await tx.insert(registrationAcquisitionComponents).values({
+        acquiredAt,
+        acquisitionId,
+        allocationKey: `addon-lot:${purchaseLotId}`,
+        applicationFeeAmount: 0,
+        baseAmount: 0,
+        currency: tenant.currency,
+        eventId,
+        grossAmount: 0,
+        kind: 'addon_lot',
+        netAmount: 0,
+        purchaseId,
+        purchaseLotId,
+        quantity: optionalQuantity,
+        registrationId,
+        stripeFeeAmount: 0,
+        taxAmount: 0,
+        tenantId: tenant.id,
+      });
+    }
+  });
 };

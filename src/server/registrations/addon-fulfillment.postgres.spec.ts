@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
 import { and, DrizzleQueryError, eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { ConfigProvider, Effect, Layer } from 'effect';
+import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
 import { Pool } from 'pg';
 import Stripe from 'stripe';
 
@@ -25,6 +25,7 @@ import {
   registrationAcquisitionPayments,
   registrationAcquisitionRefundAllocations,
   registrationAcquisitions,
+  registrationTransfers,
   tenants,
   transactions,
   users,
@@ -33,6 +34,7 @@ import { StripeClient } from '../stripe-client';
 import {
   cancelRegistrationAddon,
   cancelRemainingRegistrationAddons,
+  getRegistrationAddonFulfillment,
   redeemRegistrationAddon,
 } from './addon-fulfillment.service';
 
@@ -45,6 +47,7 @@ interface Fixture {
   readonly addOnId: string;
   readonly categoryId: string;
   readonly eventId: string;
+  readonly formerOwnerUserId: null | string;
   readonly optionId: string;
   readonly purchaseId: string;
   readonly purchaseLotId: string;
@@ -55,6 +58,45 @@ interface Fixture {
 }
 
 type TestDatabase = NodePgDatabase<typeof relations>;
+
+const createPendingOperationTracker = () => {
+  const settlements: Promise<unknown>[] = [];
+  const failures: unknown[] = [];
+  return {
+    drain: async () => {
+      await Promise.all(settlements);
+      if (failures.length > 0) {
+        throw new AggregateError(
+          failures,
+          'Concurrent add-on fixture operations failed',
+        );
+      }
+    },
+    track: <A>(operation: PromiseLike<A>): Promise<A> => {
+      const promise = Promise.resolve(operation).then((value) => {
+        if (
+          Exit.isExit(value) &&
+          Exit.isFailure(value) &&
+          (Cause.hasDies(value.cause) || Cause.hasInterrupts(value.cause))
+        ) {
+          throw new Error(
+            'Concurrent add-on operation had a defect or interruption',
+            {
+              cause: value.cause,
+            },
+          );
+        }
+        return value;
+      });
+      settlements.push(
+        promise.catch((error: unknown) => {
+          failures.push(error);
+        }),
+      );
+      return promise;
+    },
+  };
+};
 
 const expectCheckViolation = async (
   operation: PromiseLike<unknown>,
@@ -93,6 +135,7 @@ const seedFixture = async (
   input: {
     readonly includedQuantity: number;
     readonly purchasedQuantity: number;
+    readonly transferStatus?: typeof registrationTransfers.$inferSelect.status;
     readonly unitPrice?: number;
   },
 ): Promise<Fixture> => {
@@ -107,174 +150,205 @@ const seedFixture = async (
   const purchaseId = createId();
   const purchaseLotId = createId();
   const acquisitionId = createId();
+  const transferId = input.transferStatus ? createId() : null;
+  const ownershipTransferred =
+    input.transferStatus === 'refund_pending' ||
+    input.transferStatus === 'refund_failed' ||
+    input.transferStatus === 'completed';
+  const formerOwnerUserId = ownershipTransferred ? createId() : null;
+  const previousAcquisitionId = ownershipTransferred ? createId() : null;
   const unitPrice = input.unitPrice ?? 0;
   const now = Date.now();
 
-  await database.insert(tenants).values({
-    domain: `${tenantId}.fulfillment.example`,
-    id: tenantId,
-    name: 'Fulfillment concurrency',
-  });
-  await database.insert(users).values({
-    auth0Id: `auth0|${userId}`,
-    communicationEmail: `${userId}@example.com`,
-    email: `${userId}@example.com`,
-    firstName: 'Fulfillment',
-    id: userId,
-    lastName: 'Tester',
-  });
-  await database.insert(eventTemplateCategories).values({
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: categoryId,
-    tenantId,
-    title: 'Fulfillment',
-  });
-  await database.insert(eventTemplates).values({
-    categoryId,
-    description: 'Fulfillment test',
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: templateId,
-    tenantId,
-    title: 'Fulfillment',
-  });
-  await database.insert(eventInstances).values({
-    creatorId: userId,
-    description: 'Fulfillment test',
-    end: new Date(now + 2 * 60 * 60 * 1000),
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: eventId,
-    reviewedAt: new Date(),
-    start: new Date(now - 60 * 60 * 1000),
-    status: 'APPROVED',
-    templateId,
-    tenantId,
-    title: 'Fulfillment',
-  });
-  await database.insert(eventRegistrationOptions).values({
-    closeRegistrationTime: new Date(now + 60 * 60 * 1000),
-    eventId,
-    id: optionId,
-    isPaid: false,
-    openRegistrationTime: new Date(now - 2 * 60 * 60 * 1000),
-    organizingRegistration: false,
-    price: 0,
-    registrationMode: 'fcfs',
-    spots: 10,
-    title: 'Participant',
-  });
-  await database.insert(eventAddons).values({
-    allowMultiple: true,
-    allowPurchaseBeforeEvent: true,
-    allowPurchaseDuringEvent: true,
-    allowPurchaseDuringRegistration: true,
-    eventId,
-    id: addOnId,
-    isPaid: unitPrice > 0,
-    maxQuantityPerUser: input.includedQuantity + input.purchasedQuantity,
-    price: unitPrice,
-    title: 'Race add-on',
-    totalAvailableQuantity: 0,
-  });
-  await database.insert(addonToEventRegistrationOptions).values({
-    addonId: addOnId,
-    eventId,
-    includedQuantity: input.includedQuantity,
-    optionalPurchaseQuantity: input.purchasedQuantity,
-    registrationOptionId: optionId,
-  });
-  await database.insert(eventRegistrations).values({
-    basePriceAtRegistration: 0,
-    discountAmount: 0,
-    eventId,
-    id: registrationId,
-    registrationOptionId: optionId,
-    status: 'CONFIRMED',
-    tenantId,
-    userId,
-  });
-  await database.insert(eventRegistrationAddonPurchases).values({
-    addonId: addOnId,
-    eventId,
-    id: purchaseId,
-    includedQuantity: input.includedQuantity,
-    purchasedQuantity: input.purchasedQuantity,
-    quantity: input.includedQuantity + input.purchasedQuantity,
-    registrationId,
-    registrationOptionId: optionId,
-    tenantId,
-    unitPrice,
-  });
-  if (input.purchasedQuantity > 0) {
-    await database.insert(eventRegistrationAddonPurchaseLots).values({
-      id: purchaseLotId,
-      ...(unitPrice === 0 && {
-        applicationFeeAmount: 0,
-        grossAmount: 0,
-        netAmount: 0,
-        paymentAllocationFinalizedAt: new Date(),
-        stripeFeeAmount: 0,
-        taxAmount: 0,
-      }),
-      baseAmount: unitPrice * input.purchasedQuantity,
-      currency: 'EUR',
+  await database.transaction(async (tx) => {
+    await tx.insert(tenants).values({
+      domain: `${tenantId}.fulfillment.example`,
+      id: tenantId,
+      name: 'Fulfillment concurrency',
+    });
+    await tx.insert(users).values({
+      auth0Id: `auth0|${userId}`,
+      communicationEmail: `${userId}@example.com`,
+      email: `${userId}@example.com`,
+      firstName: 'Fulfillment',
+      id: userId,
+      lastName: 'Tester',
+    });
+    if (formerOwnerUserId) {
+      await tx.insert(users).values({
+        auth0Id: `auth0|${formerOwnerUserId}`,
+        communicationEmail: `${formerOwnerUserId}@example.com`,
+        email: `${formerOwnerUserId}@example.com`,
+        firstName: 'Former',
+        id: formerOwnerUserId,
+        lastName: 'Owner',
+      });
+    }
+    await tx.insert(eventTemplateCategories).values({
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: categoryId,
+      tenantId,
+      title: 'Fulfillment',
+    });
+    await tx.insert(eventTemplates).values({
+      categoryId,
+      description: 'Fulfillment test',
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: templateId,
+      tenantId,
+      title: 'Fulfillment',
+    });
+    await tx.insert(eventInstances).values({
+      creatorId: userId,
+      description: 'Fulfillment test',
+      end: new Date(now + 2 * 60 * 60 * 1000),
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: eventId,
+      reviewedAt: new Date(now),
+      reviewedBy: userId,
+      start: new Date(now - 60 * 60 * 1000),
+      status: 'APPROVED',
+      templateId,
+      tenantId,
+      title: 'Fulfillment',
+    });
+    await tx.insert(eventRegistrationOptions).values({
+      closeRegistrationTime: new Date(now + 60 * 60 * 1000),
       eventId,
-      purchaseId,
-      quantity: input.purchasedQuantity,
+      id: optionId,
+      isPaid: false,
+      openRegistrationTime: new Date(now - 2 * 60 * 60 * 1000),
+      organizingRegistration: false,
+      price: 0,
+      registrationMode: 'fcfs',
+      spots: 10,
+      title: 'Participant',
+    });
+    await tx.insert(eventAddons).values({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: true,
+      allowPurchaseDuringRegistration: true,
+      eventId,
+      id: addOnId,
+      isPaid: unitPrice > 0,
+      maxQuantityPerUser: input.includedQuantity + input.purchasedQuantity,
+      price: unitPrice,
+      title: 'Race add-on',
+      totalAvailableQuantity: 0,
+    });
+    await tx.insert(addonToEventRegistrationOptions).values({
+      addonId: addOnId,
+      eventId,
+      includedQuantity: input.includedQuantity,
+      optionalPurchaseQuantity: input.purchasedQuantity,
+      registrationOptionId: optionId,
+    });
+    await tx.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
+      eventId,
+      id: registrationId,
+      registrationOptionId: optionId,
+      status: 'CONFIRMED',
+      tenantId,
+      userId,
+    });
+    await tx.insert(eventRegistrationAddonPurchases).values({
+      addonId: addOnId,
+      eventId,
+      id: purchaseId,
+      includedQuantity: input.includedQuantity,
+      purchasedQuantity: input.purchasedQuantity,
+      quantity: input.includedQuantity + input.purchasedQuantity,
       registrationId,
       registrationOptionId: optionId,
-      sourceLineKey:
-        unitPrice === 0 ? `free:${purchaseId}` : `unreconciled:${purchaseId}`,
       tenantId,
       unitPrice,
     });
-  }
-  await database.insert(registrationAcquisitions).values({
-    acquiredAt: new Date(),
-    eventId,
-    id: acquisitionId,
-    kind: 'initial',
-    operationKey: `fixture:${registrationId}`,
-    ordinal: 0,
-    ownerUserId: userId,
-    registrationId,
-    spotCount: 1,
-    tenantId,
-  });
-  await database.insert(registrationAcquisitionComponents).values({
-    acquiredAt: new Date(),
-    acquisitionId,
-    allocationKey: 'registration',
-    applicationFeeAmount: 0,
-    baseAmount: 0,
-    currency: 'EUR',
-    eventId,
-    grossAmount: 0,
-    kind: 'registration',
-    netAmount: 0,
-    quantity: 1,
-    registrationId,
-    stripeFeeAmount: 0,
-    taxAmount: 0,
-    taxRateDisplayName: null,
-    taxRateInclusive: null,
-    taxRatePercentage: null,
-    tenantId,
-  });
-  if (input.purchasedQuantity > 0 && unitPrice === 0) {
-    await database.insert(registrationAcquisitionComponents).values({
+    if (input.purchasedQuantity > 0) {
+      await tx.insert(eventRegistrationAddonPurchaseLots).values({
+        id: purchaseLotId,
+        ...(unitPrice === 0 && {
+          applicationFeeAmount: 0,
+          grossAmount: 0,
+          netAmount: 0,
+          paymentAllocationFinalizedAt: new Date(),
+          stripeFeeAmount: 0,
+          taxAmount: 0,
+        }),
+        baseAmount: unitPrice * input.purchasedQuantity,
+        currency: 'EUR',
+        eventId,
+        purchaseId,
+        quantity: input.purchasedQuantity,
+        registrationId,
+        registrationOptionId: optionId,
+        sourceLineKey:
+          unitPrice === 0 ? `free:${purchaseId}` : `unreconciled:${purchaseId}`,
+        tenantId,
+        unitPrice,
+      });
+    }
+    if (transferId && input.transferStatus) {
+      await tx.insert(registrationTransfers).values({
+        claimCodeHash: `fixture:${transferId}`,
+        completedAt:
+          input.transferStatus === 'completed' ? new Date(now) : null,
+        eventId,
+        expiresAt: new Date(now + 60 * 60 * 1000),
+        id: transferId,
+        ownershipTransferredAt: ownershipTransferred ? new Date(now) : null,
+        recipientConfirmedAt: ownershipTransferred ? new Date(now) : null,
+        recipientUserId: ownershipTransferred ? userId : null,
+        registrationOptionId: optionId,
+        sourceRegistrationId: registrationId,
+        sourceSpotCount: 1,
+        sourceUserId: formerOwnerUserId ?? userId,
+        status: input.transferStatus,
+        tenantId,
+      });
+    }
+    await tx.insert(registrationAcquisitions).values({
+      acquiredAt: new Date(),
+      eventId,
+      id: previousAcquisitionId ?? acquisitionId,
+      kind: 'initial',
+      operationKey: `fixture:${registrationId}`,
+      ordinal: 0,
+      ownerUserId: formerOwnerUserId ?? userId,
+      registrationId,
+      spotCount: 1,
+      tenantId,
+    });
+    if (previousAcquisitionId && transferId) {
+      await tx.insert(registrationAcquisitions).values({
+        acquiredAt: new Date(),
+        eventId,
+        id: acquisitionId,
+        kind: 'claim_transfer',
+        operationKey: `fixture-transfer:${registrationId}`,
+        ordinal: 1,
+        ownerUserId: userId,
+        previousAcquisitionId,
+        registrationId,
+        spotCount: 1,
+        tenantId,
+        transferId,
+      });
+    }
+    await tx.insert(registrationAcquisitionComponents).values({
       acquiredAt: new Date(),
       acquisitionId,
-      allocationKey: `addon-lot:${purchaseLotId}`,
+      allocationKey: 'registration',
       applicationFeeAmount: 0,
       baseAmount: 0,
       currency: 'EUR',
       eventId,
       grossAmount: 0,
-      kind: 'addon_lot',
+      kind: 'registration',
       netAmount: 0,
-      purchaseId,
-      purchaseLotId,
-      quantity: input.purchasedQuantity,
+      quantity: 1,
       registrationId,
       stripeFeeAmount: 0,
       taxAmount: 0,
@@ -283,12 +357,37 @@ const seedFixture = async (
       taxRatePercentage: null,
       tenantId,
     });
-  }
+    if (input.purchasedQuantity > 0 && unitPrice === 0) {
+      await tx.insert(registrationAcquisitionComponents).values({
+        acquiredAt: new Date(),
+        acquisitionId,
+        allocationKey: `addon-lot:${purchaseLotId}`,
+        applicationFeeAmount: 0,
+        baseAmount: 0,
+        currency: 'EUR',
+        eventId,
+        grossAmount: 0,
+        kind: 'addon_lot',
+        netAmount: 0,
+        purchaseId,
+        purchaseLotId,
+        quantity: input.purchasedQuantity,
+        registrationId,
+        stripeFeeAmount: 0,
+        taxAmount: 0,
+        taxRateDisplayName: null,
+        taxRateInclusive: null,
+        taxRatePercentage: null,
+        tenantId,
+      });
+    }
+  });
   return {
     acquisitionId,
     addOnId,
     categoryId,
     eventId,
+    formerOwnerUserId,
     optionId,
     purchaseId,
     purchaseLotId,
@@ -300,50 +399,103 @@ const seedFixture = async (
 };
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
-  await database
-    .delete(registrationAcquisitionRefundAllocations)
-    .where(
-      eq(registrationAcquisitionRefundAllocations.tenantId, fixture.tenantId),
+  const failures: unknown[] = [];
+  const attempt = async (cleanup: () => PromiseLike<unknown>) => {
+    try {
+      await cleanup();
+    } catch (error) {
+      failures.push(error);
+    }
+  };
+  await attempt(() =>
+    database
+      .delete(registrationAcquisitionRefundAllocations)
+      .where(
+        eq(registrationAcquisitionRefundAllocations.tenantId, fixture.tenantId),
+      ),
+  );
+  await attempt(() =>
+    database
+      .delete(registrationAcquisitionComponents)
+      .where(eq(registrationAcquisitionComponents.tenantId, fixture.tenantId)),
+  );
+  await attempt(() =>
+    database
+      .delete(registrationAcquisitionPayments)
+      .where(eq(registrationAcquisitionPayments.tenantId, fixture.tenantId)),
+  );
+  await attempt(() =>
+    database
+      .delete(registrationAcquisitions)
+      .where(eq(registrationAcquisitions.tenantId, fixture.tenantId)),
+  );
+  await attempt(() =>
+    database
+      .delete(registrationTransfers)
+      .where(eq(registrationTransfers.tenantId, fixture.tenantId)),
+  );
+  await attempt(() =>
+    database
+      .delete(eventRegistrationAddonPurchases)
+      .where(eq(eventRegistrationAddonPurchases.id, fixture.purchaseId)),
+  );
+  await attempt(() =>
+    database
+      .delete(transactions)
+      .where(eq(transactions.eventRegistrationId, fixture.registrationId)),
+  );
+  await attempt(() =>
+    database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, fixture.registrationId)),
+  );
+  await attempt(() =>
+    database
+      .delete(addonToEventRegistrationOptions)
+      .where(eq(addonToEventRegistrationOptions.addonId, fixture.addOnId)),
+  );
+  await attempt(() =>
+    database.delete(eventAddons).where(eq(eventAddons.id, fixture.addOnId)),
+  );
+  await attempt(() =>
+    database
+      .delete(eventRegistrationOptions)
+      .where(eq(eventRegistrationOptions.id, fixture.optionId)),
+  );
+  await attempt(() =>
+    database
+      .delete(eventInstances)
+      .where(eq(eventInstances.id, fixture.eventId)),
+  );
+  await attempt(() =>
+    database
+      .delete(eventTemplates)
+      .where(eq(eventTemplates.id, fixture.templateId)),
+  );
+  await attempt(() =>
+    database
+      .delete(eventTemplateCategories)
+      .where(eq(eventTemplateCategories.id, fixture.categoryId)),
+  );
+  await attempt(() =>
+    database.delete(users).where(eq(users.id, fixture.userId)),
+  );
+  if (fixture.formerOwnerUserId) {
+    const formerOwnerUserId = fixture.formerOwnerUserId;
+    await attempt(() =>
+      database.delete(users).where(eq(users.id, formerOwnerUserId)),
     );
-  await database
-    .delete(registrationAcquisitionComponents)
-    .where(eq(registrationAcquisitionComponents.tenantId, fixture.tenantId));
-  await database
-    .delete(registrationAcquisitionPayments)
-    .where(eq(registrationAcquisitionPayments.tenantId, fixture.tenantId));
-  await database
-    .delete(registrationAcquisitions)
-    .where(eq(registrationAcquisitions.tenantId, fixture.tenantId));
-  await database
-    .delete(eventRegistrationAddonPurchases)
-    .where(eq(eventRegistrationAddonPurchases.id, fixture.purchaseId));
-  await database
-    .delete(transactions)
-    .where(eq(transactions.eventRegistrationId, fixture.registrationId));
-  await database
-    .delete(eventRegistrations)
-    .where(eq(eventRegistrations.id, fixture.registrationId));
-  await database
-    .delete(addonToEventRegistrationOptions)
-    .where(eq(addonToEventRegistrationOptions.addonId, fixture.addOnId));
-  await database.delete(eventAddons).where(eq(eventAddons.id, fixture.addOnId));
-  await database
-    .delete(eventRegistrationOptions)
-    .where(eq(eventRegistrationOptions.id, fixture.optionId));
-  await database
-    .delete(eventInstances)
-    .where(eq(eventInstances.id, fixture.eventId));
-  await database
-    .delete(eventTemplates)
-    .where(eq(eventTemplates.id, fixture.templateId));
-  await database
-    .delete(eventTemplateCategories)
-    .where(eq(eventTemplateCategories.id, fixture.categoryId));
-  await database.delete(users).where(eq(users.id, fixture.userId));
-  await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
+  }
+  await attempt(() =>
+    database.delete(tenants).where(eq(tenants.id, fixture.tenantId)),
+  );
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Add-on fixture row cleanup failed');
+  }
 };
 
 describe('add-on fulfillment concurrency', () => {
+  const operations = createPendingOperationTracker();
   let database: TestDatabase;
   const fixtures: Fixture[] = [];
   let layer: ReturnType<typeof makeLayer>;
@@ -356,12 +508,135 @@ describe('add-on fulfillment concurrency', () => {
   });
 
   afterAll(async () => {
-    for (const fixture of fixtures.toReversed()) {
-      await cleanFixture(database, fixture);
+    const failures: unknown[] = [];
+    try {
+      await operations.drain();
+    } catch (error) {
+      failures.push(error);
     }
-    await pool.end();
+    for (const fixture of fixtures.toReversed()) {
+      try {
+        await cleanFixture(database, fixture);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    try {
+      await pool.end();
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Add-on fixture cleanup failed');
+    }
   });
 
+  it.each([
+    { label: 'refund pending after handoff', status: 'refund_pending' },
+    { label: 'refund failed after handoff', status: 'refund_failed' },
+    { label: 'completed handoff', status: 'completed' },
+    { label: 'no transfer', status: undefined },
+  ] as const)(
+    'loads add-on handout availability with $label',
+    async ({ status }) => {
+      const fixture = await seedFixture(database, {
+        includedQuantity: 1,
+        purchasedQuantity: 0,
+        ...(status && { transferStatus: status }),
+      });
+      fixtures.push(fixture);
+      const before =
+        await database.query.eventRegistrationAddonPurchases.findFirst({
+          where: { id: fixture.purchaseId },
+        });
+
+      const fulfillment = await operations.track(
+        Effect.runPromise(
+          getRegistrationAddonFulfillment({
+            canCancel: true,
+            registrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+          }).pipe(Effect.provide(layer)),
+        ),
+      );
+
+      expect(fulfillment.registrationId).toBe(fixture.registrationId);
+      expect(fulfillment.addOns).toHaveLength(1);
+      expect(fulfillment.addOns[0]).toMatchObject({
+        addOnId: fixture.addOnId,
+        cancellationAvailable: true,
+        cancelledQuantity: 0,
+        includedQuantity: 1,
+        purchasedQuantity: 0,
+        redeemedQuantity: 0,
+        redemptionAvailable: true,
+        registrationAddonId: fixture.purchaseId,
+        remainingQuantity: 1,
+        totalQuantity: 1,
+      });
+      expect(
+        await database.query.eventRegistrationAddonPurchases.findFirst({
+          where: { id: fixture.purchaseId },
+        }),
+      ).toEqual(before);
+      expect(
+        await database.query.registrationTransfers.findMany({
+          columns: { status: true },
+          where: {
+            sourceRegistrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+          },
+        }),
+      ).toEqual(status ? [{ status }] : []);
+    },
+  );
+
+  it.each(['open', 'checkout_pending'] as const)(
+    'blocks add-on reads while a %s transfer still owns the ticket',
+    async (status) => {
+      const fixture = await seedFixture(database, {
+        includedQuantity: 1,
+        purchasedQuantity: 0,
+        transferStatus: status,
+      });
+      fixtures.push(fixture);
+
+      const error = await operations.track(
+        Effect.runPromise(
+          getRegistrationAddonFulfillment({
+            canCancel: true,
+            registrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+          }).pipe(Effect.flip, Effect.provide(layer)),
+        ),
+      );
+
+      expect(error).toMatchObject({
+        _tag: 'EventRegistrationConflictError',
+        message:
+          'Finish or cancel the ticket transfer before changing add-ons.',
+      });
+      expect(
+        await database.query.eventRegistrationAddonPurchases.findFirst({
+          columns: {
+            cancelledQuantity: true,
+            quantity: true,
+            redeemedQuantity: true,
+          },
+          where: { id: fixture.purchaseId },
+        }),
+      ).toEqual({ cancelledQuantity: 0, quantity: 1, redeemedQuantity: 0 });
+      expect(
+        await database.query.registrationTransfers.findMany({
+          columns: { status: true },
+          where: {
+            sourceRegistrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+          },
+        }),
+      ).toEqual([{ status }]);
+    },
+  );
   it('rejects incomplete refund and fulfillment audit shapes', async () => {
     const fixture = await seedFixture(database, {
       includedQuantity: 1,
@@ -408,14 +683,16 @@ describe('add-on fulfillment concurrency', () => {
     });
     fixtures.push(fixture);
     const redeem = (operationKey: string) =>
-      Effect.runPromise(
-        redeemRegistrationAddon({
-          actorUserId: fixture.userId,
-          operationKey,
-          registrationAddonId: fixture.purchaseId,
-          registrationId: fixture.registrationId,
-          tenantId: fixture.tenantId,
-        }).pipe(Effect.provide(layer)),
+      operations.track(
+        Effect.runPromise(
+          redeemRegistrationAddon({
+            actorUserId: fixture.userId,
+            operationKey,
+            registrationAddonId: fixture.purchaseId,
+            registrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+          }).pipe(Effect.provide(layer)),
+        ),
       );
 
     const [first, second] = await Promise.all([
@@ -465,36 +742,46 @@ describe('add-on fulfillment concurrency', () => {
       purchasedQuantity: 2,
     });
     fixtures.push(fixture);
-    const redeem = Effect.runPromise(
-      redeemRegistrationAddon({
-        actorUserId: fixture.userId,
-        operationKey: `redeem:${fixture.purchaseId}:0`,
-        registrationAddonId: fixture.purchaseId,
-        registrationId: fixture.registrationId,
-        tenantId: fixture.tenantId,
-      }).pipe(Effect.provide(layer), Effect.exit),
+    const redeem = operations.track(
+      Effect.runPromise(
+        redeemRegistrationAddon({
+          actorUserId: fixture.userId,
+          operationKey: `redeem:${fixture.purchaseId}:0`,
+          registrationAddonId: fixture.purchaseId,
+          registrationId: fixture.registrationId,
+          tenantId: fixture.tenantId,
+        }).pipe(Effect.provide(layer), Effect.exit),
+      ),
     );
-    const cancel = Effect.runPromise(
-      Database.use((effectDatabase) =>
-        effectDatabase.transaction((tx) =>
-          cancelRemainingRegistrationAddons(tx, {
-            actor: { kind: 'system', subject: 'concurrency-test' },
-            eventId: fixture.eventId,
-            reason: 'Registration cancelled in concurrency test',
-            refundRequested: false,
-            registrationId: fixture.registrationId,
-            tenantId: fixture.tenantId,
-          }),
-        ),
-      ).pipe(Effect.provide(layer), Effect.exit),
+    const cancel = operations.track(
+      Effect.runPromise(
+        Database.use((effectDatabase) =>
+          effectDatabase.transaction((tx) =>
+            cancelRemainingRegistrationAddons(tx, {
+              actor: { kind: 'system', subject: 'concurrency-test' },
+              eventId: fixture.eventId,
+              reason: 'Registration cancelled in concurrency test',
+              refundRequested: false,
+              registrationId: fixture.registrationId,
+              tenantId: fixture.tenantId,
+            }),
+          ),
+        ).pipe(Effect.provide(layer), Effect.exit),
+      ),
     );
     await Promise.all([redeem, cancel]);
 
     const [purchase, addOn] = await Promise.all([
-      database.query.eventRegistrationAddonPurchases.findFirst({
-        where: { id: fixture.purchaseId },
-      }),
-      database.query.eventAddons.findFirst({ where: { id: fixture.addOnId } }),
+      operations.track(
+        database.query.eventRegistrationAddonPurchases.findFirst({
+          where: { id: fixture.purchaseId },
+        }),
+      ),
+      operations.track(
+        database.query.eventAddons.findFirst({
+          where: { id: fixture.addOnId },
+        }),
+      ),
     ]);
     expect(purchase).toBeDefined();
     expect(addOn).toBeDefined();
@@ -510,39 +797,49 @@ describe('add-on fulfillment concurrency', () => {
       purchasedQuantity: 1,
     });
     fixtures.push(fixture);
-    const direct = Effect.runPromise(
-      cancelRegistrationAddon({
-        actorUserId: fixture.userId,
-        operationKey: `cancel:${fixture.purchaseId}:0`,
-        quantity: 1,
-        reason: 'Direct cancellation race',
-        refundRequested: true,
-        registrationAddonId: fixture.purchaseId,
-        registrationId: fixture.registrationId,
-        tenantId: fixture.tenantId,
-      }).pipe(Effect.provide(layer), Effect.exit),
+    const direct = operations.track(
+      Effect.runPromise(
+        cancelRegistrationAddon({
+          actorUserId: fixture.userId,
+          operationKey: `cancel:${fixture.purchaseId}:0`,
+          quantity: 1,
+          reason: 'Direct cancellation race',
+          refundRequested: true,
+          registrationAddonId: fixture.purchaseId,
+          registrationId: fixture.registrationId,
+          tenantId: fixture.tenantId,
+        }).pipe(Effect.provide(layer), Effect.exit),
+      ),
     );
-    const whole = Effect.runPromise(
-      Database.use((effectDatabase) =>
-        effectDatabase.transaction((tx) =>
-          cancelRemainingRegistrationAddons(tx, {
-            actor: { kind: 'system', subject: 'concurrency-test' },
-            eventId: fixture.eventId,
-            reason: 'Whole registration cancellation race',
-            refundRequested: false,
-            registrationId: fixture.registrationId,
-            tenantId: fixture.tenantId,
-          }),
-        ),
-      ).pipe(Effect.provide(layer), Effect.exit),
+    const whole = operations.track(
+      Effect.runPromise(
+        Database.use((effectDatabase) =>
+          effectDatabase.transaction((tx) =>
+            cancelRemainingRegistrationAddons(tx, {
+              actor: { kind: 'system', subject: 'concurrency-test' },
+              eventId: fixture.eventId,
+              reason: 'Whole registration cancellation race',
+              refundRequested: false,
+              registrationId: fixture.registrationId,
+              tenantId: fixture.tenantId,
+            }),
+          ),
+        ).pipe(Effect.provide(layer), Effect.exit),
+      ),
     );
     await Promise.all([direct, whole]);
 
     const [purchase, addOn] = await Promise.all([
-      database.query.eventRegistrationAddonPurchases.findFirst({
-        where: { id: fixture.purchaseId },
-      }),
-      database.query.eventAddons.findFirst({ where: { id: fixture.addOnId } }),
+      operations.track(
+        database.query.eventRegistrationAddonPurchases.findFirst({
+          where: { id: fixture.purchaseId },
+        }),
+      ),
+      operations.track(
+        database.query.eventAddons.findFirst({
+          where: { id: fixture.addOnId },
+        }),
+      ),
     ]);
     expect(purchase?.redeemedQuantity).toBe(0);
     expect(purchase?.cancelledQuantity).toBe(2);
@@ -573,38 +870,46 @@ describe('add-on fulfillment concurrency', () => {
     expect(error).toMatchObject({
       _tag: 'EventRegistrationConflictError',
       message: expect.stringContaining(
-        'Current add-on acquisition components are incomplete',
+        'The saved add-on does not match its payment details',
       ),
     });
 
     const [purchase, lot, addOn, fulfillmentEvents] = await Promise.all([
-      database.query.eventRegistrationAddonPurchases.findFirst({
-        columns: {
-          cancelledQuantity: true,
-          refundAllocatedPurchasedQuantity: true,
-        },
-        where: { id: fixture.purchaseId },
-      }),
-      database.query.eventRegistrationAddonPurchaseLots.findFirst({
-        columns: {
-          cancelledQuantity: true,
-          refundAllocatedQuantity: true,
-        },
-        where: { purchaseId: fixture.purchaseId },
-      }),
-      database.query.eventAddons.findFirst({
-        columns: { totalAvailableQuantity: true },
-        where: { id: fixture.addOnId },
-      }),
-      database
-        .select({ id: eventRegistrationAddonFulfillmentEvents.id })
-        .from(eventRegistrationAddonFulfillmentEvents)
-        .where(
-          eq(
-            eventRegistrationAddonFulfillmentEvents.purchaseId,
-            fixture.purchaseId,
+      operations.track(
+        database.query.eventRegistrationAddonPurchases.findFirst({
+          columns: {
+            cancelledQuantity: true,
+            refundAllocatedPurchasedQuantity: true,
+          },
+          where: { id: fixture.purchaseId },
+        }),
+      ),
+      operations.track(
+        database.query.eventRegistrationAddonPurchaseLots.findFirst({
+          columns: {
+            cancelledQuantity: true,
+            refundAllocatedQuantity: true,
+          },
+          where: { purchaseId: fixture.purchaseId },
+        }),
+      ),
+      operations.track(
+        database.query.eventAddons.findFirst({
+          columns: { totalAvailableQuantity: true },
+          where: { id: fixture.addOnId },
+        }),
+      ),
+      operations.track(
+        database
+          .select({ id: eventRegistrationAddonFulfillmentEvents.id })
+          .from(eventRegistrationAddonFulfillmentEvents)
+          .where(
+            eq(
+              eventRegistrationAddonFulfillmentEvents.purchaseId,
+              fixture.purchaseId,
+            ),
           ),
-        ),
+      ),
     ]);
     expect(purchase).toEqual({
       cancelledQuantity: 0,
@@ -694,7 +999,9 @@ describe('add-on fulfillment concurrency', () => {
     );
     expect(error).toMatchObject({
       _tag: 'EventRegistrationConflictError',
-      message: expect.stringContaining('payment settlement no longer matches'),
+      message: expect.stringContaining(
+        'The saved payment total does not match this add-on',
+      ),
     });
     expect(
       await database
@@ -817,49 +1124,57 @@ describe('add-on fulfillment concurrency', () => {
     expect(second.refundStatus).toBe('pending');
 
     const [lot, refundClaims, allocations, events] = await Promise.all([
-      database.query.eventRegistrationAddonPurchaseLots.findFirst({
-        columns: {
-          cancelledQuantity: true,
-          refundAllocatedQuantity: true,
-        },
-        where: { id: fixture.purchaseLotId },
-      }),
-      database.query.transactions.findMany({
-        where: {
-          eventRegistrationId: fixture.registrationId,
-          tenantId: fixture.tenantId,
-          type: 'refund',
-        },
-      }),
-      database
-        .select({
-          grossEntitlementAmount:
-            registrationAcquisitionRefundAllocations.grossEntitlementAmount,
-          netEntitlementAmount:
-            registrationAcquisitionRefundAllocations.netEntitlementAmount,
-          quantity: registrationAcquisitionRefundAllocations.quantity,
-          refundAmount: registrationAcquisitionRefundAllocations.refundAmount,
-        })
-        .from(registrationAcquisitionRefundAllocations)
-        .where(
-          eq(
-            registrationAcquisitionRefundAllocations.componentId,
-            addonComponentId,
+      operations.track(
+        database.query.eventRegistrationAddonPurchaseLots.findFirst({
+          columns: {
+            cancelledQuantity: true,
+            refundAllocatedQuantity: true,
+          },
+          where: { id: fixture.purchaseLotId },
+        }),
+      ),
+      operations.track(
+        database.query.transactions.findMany({
+          where: {
+            eventRegistrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+            type: 'refund',
+          },
+        }),
+      ),
+      operations.track(
+        database
+          .select({
+            grossEntitlementAmount:
+              registrationAcquisitionRefundAllocations.grossEntitlementAmount,
+            netEntitlementAmount:
+              registrationAcquisitionRefundAllocations.netEntitlementAmount,
+            quantity: registrationAcquisitionRefundAllocations.quantity,
+            refundAmount: registrationAcquisitionRefundAllocations.refundAmount,
+          })
+          .from(registrationAcquisitionRefundAllocations)
+          .where(
+            eq(
+              registrationAcquisitionRefundAllocations.componentId,
+              addonComponentId,
+            ),
           ),
-        ),
-      database
-        .select({
-          refundDisposition:
-            eventRegistrationAddonFulfillmentEvents.refundDisposition,
-        })
-        .from(eventRegistrationAddonFulfillmentEvents)
-        .where(
-          eq(
-            eventRegistrationAddonFulfillmentEvents.purchaseId,
-            fixture.purchaseId,
-          ),
-        )
-        .orderBy(eventRegistrationAddonFulfillmentEvents.createdAt),
+      ),
+      operations.track(
+        database
+          .select({
+            refundDisposition:
+              eventRegistrationAddonFulfillmentEvents.refundDisposition,
+          })
+          .from(eventRegistrationAddonFulfillmentEvents)
+          .where(
+            eq(
+              eventRegistrationAddonFulfillmentEvents.purchaseId,
+              fixture.purchaseId,
+            ),
+          )
+          .orderBy(eventRegistrationAddonFulfillmentEvents.createdAt),
+      ),
     ]);
     expect(lot).toEqual({
       cancelledQuantity: 2,
@@ -990,28 +1305,32 @@ describe('add-on fulfillment concurrency', () => {
     expect(result.refundStatus).toBe('pending');
 
     const [refundClaims, allocations] = await Promise.all([
-      database.query.transactions.findMany({
-        where: {
-          eventRegistrationId: fixture.registrationId,
-          tenantId: fixture.tenantId,
-          type: 'refund',
-        },
-      }),
-      database
-        .select({
-          componentId: registrationAcquisitionRefundAllocations.componentId,
-          refundAmount: registrationAcquisitionRefundAllocations.refundAmount,
-          refundTransactionId:
-            registrationAcquisitionRefundAllocations.refundTransactionId,
-        })
-        .from(registrationAcquisitionRefundAllocations)
-        .where(
-          eq(
-            registrationAcquisitionRefundAllocations.acquisitionPaymentId,
-            acquisitionPaymentId,
-          ),
-        )
-        .orderBy(registrationAcquisitionRefundAllocations.componentId),
+      operations.track(
+        database.query.transactions.findMany({
+          where: {
+            eventRegistrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+            type: 'refund',
+          },
+        }),
+      ),
+      operations.track(
+        database
+          .select({
+            componentId: registrationAcquisitionRefundAllocations.componentId,
+            refundAmount: registrationAcquisitionRefundAllocations.refundAmount,
+            refundTransactionId:
+              registrationAcquisitionRefundAllocations.refundTransactionId,
+          })
+          .from(registrationAcquisitionRefundAllocations)
+          .where(
+            eq(
+              registrationAcquisitionRefundAllocations.acquisitionPaymentId,
+              acquisitionPaymentId,
+            ),
+          )
+          .orderBy(registrationAcquisitionRefundAllocations.componentId),
+      ),
     ]);
     expect(refundClaims).toHaveLength(1);
     expect(refundClaims[0]).toMatchObject({
@@ -1113,69 +1432,80 @@ describe('add-on fulfillment concurrency', () => {
     expect(result.refundStatus).toBe('pending');
     const [purchase, lot, addOn, refundClaims, refundAllocations] =
       await Promise.all([
-        database.query.eventRegistrationAddonPurchases.findFirst({
-          columns: {
-            cancelledQuantity: true,
-            refundAllocatedPurchasedQuantity: true,
-          },
-          where: { id: fixture.purchaseId },
-        }),
-        database.query.eventRegistrationAddonPurchaseLots.findFirst({
-          columns: {
-            cancelledQuantity: true,
-            refundAllocatedApplicationFeeAmount: true,
-            refundAllocatedGrossAmount: true,
-            refundAllocatedNetAmount: true,
-            refundAllocatedQuantity: true,
-          },
-          where: { purchaseId: fixture.purchaseId },
-        }),
-        database.query.eventAddons.findFirst({
-          columns: { totalAvailableQuantity: true },
-          where: { id: fixture.addOnId },
-        }),
-        database.query.transactions.findMany({
-          where: {
-            eventRegistrationId: fixture.registrationId,
-            tenantId: fixture.tenantId,
-            type: 'refund',
-          },
-        }),
-        database
-          .select({
-            acquisitionId:
-              registrationAcquisitionRefundAllocations.acquisitionId,
-            acquisitionPaymentId:
-              registrationAcquisitionRefundAllocations.acquisitionPaymentId,
-            applicationFeeAmount:
-              registrationAcquisitionRefundAllocations.applicationFeeAmount,
-            applicationFeeRefunded:
-              registrationAcquisitionRefundAllocations.applicationFeeRefunded,
-            componentId: registrationAcquisitionRefundAllocations.componentId,
-            grossEntitlementAmount:
-              registrationAcquisitionRefundAllocations.grossEntitlementAmount,
-            netEntitlementAmount:
-              registrationAcquisitionRefundAllocations.netEntitlementAmount,
-            quantity: registrationAcquisitionRefundAllocations.quantity,
-            refundAmount: registrationAcquisitionRefundAllocations.refundAmount,
-            refundTransactionId:
-              registrationAcquisitionRefundAllocations.refundTransactionId,
-            stripeFeeAmount:
-              registrationAcquisitionRefundAllocations.stripeFeeAmount,
-          })
-          .from(registrationAcquisitionRefundAllocations)
-          .where(
-            and(
-              eq(
-                registrationAcquisitionRefundAllocations.registrationId,
-                fixture.registrationId,
-              ),
-              eq(
-                registrationAcquisitionRefundAllocations.tenantId,
-                fixture.tenantId,
+        operations.track(
+          database.query.eventRegistrationAddonPurchases.findFirst({
+            columns: {
+              cancelledQuantity: true,
+              refundAllocatedPurchasedQuantity: true,
+            },
+            where: { id: fixture.purchaseId },
+          }),
+        ),
+        operations.track(
+          database.query.eventRegistrationAddonPurchaseLots.findFirst({
+            columns: {
+              cancelledQuantity: true,
+              refundAllocatedApplicationFeeAmount: true,
+              refundAllocatedGrossAmount: true,
+              refundAllocatedNetAmount: true,
+              refundAllocatedQuantity: true,
+            },
+            where: { purchaseId: fixture.purchaseId },
+          }),
+        ),
+        operations.track(
+          database.query.eventAddons.findFirst({
+            columns: { totalAvailableQuantity: true },
+            where: { id: fixture.addOnId },
+          }),
+        ),
+        operations.track(
+          database.query.transactions.findMany({
+            where: {
+              eventRegistrationId: fixture.registrationId,
+              tenantId: fixture.tenantId,
+              type: 'refund',
+            },
+          }),
+        ),
+        operations.track(
+          database
+            .select({
+              acquisitionId:
+                registrationAcquisitionRefundAllocations.acquisitionId,
+              acquisitionPaymentId:
+                registrationAcquisitionRefundAllocations.acquisitionPaymentId,
+              applicationFeeAmount:
+                registrationAcquisitionRefundAllocations.applicationFeeAmount,
+              applicationFeeRefunded:
+                registrationAcquisitionRefundAllocations.applicationFeeRefunded,
+              componentId: registrationAcquisitionRefundAllocations.componentId,
+              grossEntitlementAmount:
+                registrationAcquisitionRefundAllocations.grossEntitlementAmount,
+              netEntitlementAmount:
+                registrationAcquisitionRefundAllocations.netEntitlementAmount,
+              quantity: registrationAcquisitionRefundAllocations.quantity,
+              refundAmount:
+                registrationAcquisitionRefundAllocations.refundAmount,
+              refundTransactionId:
+                registrationAcquisitionRefundAllocations.refundTransactionId,
+              stripeFeeAmount:
+                registrationAcquisitionRefundAllocations.stripeFeeAmount,
+            })
+            .from(registrationAcquisitionRefundAllocations)
+            .where(
+              and(
+                eq(
+                  registrationAcquisitionRefundAllocations.registrationId,
+                  fixture.registrationId,
+                ),
+                eq(
+                  registrationAcquisitionRefundAllocations.tenantId,
+                  fixture.tenantId,
+                ),
               ),
             ),
-          ),
+        ),
       ]);
 
     expect(purchase).toEqual({
