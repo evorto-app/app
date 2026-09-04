@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "95b0a4c33d2a",
+  "session_id": "01a06cdc-629f-7b82-8a80-b940922d7571",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-04T19:12:07.604201Z",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/decode-audit-description-text.md",
+    ".changeset/preserve-audit-cursor-precision.md",
+    ".changeset/preserve-role-grants-when-editing.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "src/app/admin/role-details/role-details.component.spec.ts",
+    "src/app/admin/role-details/role-details.component.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.ts",
+    "src/server/effect/rpc/handlers/platform-audit-pagination.postgres.spec.ts",
+    "src/server/utils/rich-text-sanitize.spec.ts",
+    "src/server/utils/rich-text-sanitize.ts",
+    "src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.spec.ts",
+    "src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts",
+    "tests/specs/admin/roles-management.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "c3026ce215b8",
+  "checkpoint_transcript_start": 9165,
+  "transcript_lines_at_start": 9165,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-04T19:12:07.094051Z",
+    "agent_lines": 474,
+    "agent_removed": 90,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 474,
+    "total_lines_changed": 564,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "95b0a4c33d2a",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/decode-audit-description-text.md",
+    ".changeset/preserve-audit-cursor-precision.md",
+    ".changeset/preserve-role-grants-when-editing.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "src/app/admin/role-details/role-details.component.spec.ts",
+    "src/app/admin/role-details/role-details.component.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.ts",
+    "src/server/effect/rpc/handlers/platform-audit-pagination.postgres.spec.ts",
+    "src/server/utils/rich-text-sanitize.spec.ts",
+    "src/server/utils/rich-text-sanitize.ts",
+    "src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.spec.ts",
+    "src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts",
+    "tests/specs/admin/roles-management.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/95/b0a4c33d2a/0/metadata.json",
+      "transcript": "/95/b0a4c33d2a/0/full.jsonl",
+      "content_hash": "/95/b0a4c33d2a/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 1
+  }
+}
