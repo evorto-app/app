@@ -298,6 +298,14 @@ export class PlatformTemplateEditorComponent {
     MAX_REGISTRATION_ADDON_QUANTITY;
   protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
   protected readonly modeBlockMessage = signal('');
+  protected readonly targetTenantQuery = injectQuery(() =>
+    this.operations.tenant(this.tenantId()),
+  );
+  protected readonly paymentsConfigured = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.paymentsConfigured === true,
+  );
   protected readonly selectedIcon = computed<IconValue>(() => ({
     iconColor: this.templateModel().iconColor,
     iconName: this.templateModel().iconName,
@@ -317,18 +325,10 @@ export class PlatformTemplateEditorComponent {
   protected readonly selectedLocation = computed(() =>
     templateGraphLocationFormModelToValue(this.templateModel().location),
   );
-  protected readonly targetTenantQuery = injectQuery(() =>
-    this.operations.tenant(this.tenantId()),
-  );
-  protected readonly stripeConnected = computed(
-    () =>
-      this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === true,
-  );
   protected readonly stripeDisconnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.stripeConnected === false,
+      this.targetTenantQuery.data()?.paymentsConfigured === false,
   );
   protected readonly targetTenantCurrency = computed(() =>
     this.targetTenantQuery.isSuccess()
@@ -396,13 +396,13 @@ export class PlatformTemplateEditorComponent {
             }
           : undefined;
       });
-      disabled(registration.isPaid, () => !this.stripeConnected());
-      disabled(registration.price, () => !this.stripeConnected());
+      disabled(registration.isPaid, () => !this.paymentsConfigured());
+      disabled(registration.price, () => !this.paymentsConfigured());
       disabled(
         registration.esnCardDiscountedPrice,
-        () => !this.stripeConnected(),
+        () => !this.paymentsConfigured(),
       );
-      disabled(registration.stripeTaxRateId, () => !this.stripeConnected());
+      disabled(registration.stripeTaxRateId, () => !this.paymentsConfigured());
     });
 
     validate(template.addOns, ({ value }) => {
@@ -419,9 +419,9 @@ export class PlatformTemplateEditorComponent {
     );
     applyEach(template.addOns, (addOn) => {
       apply(addOn, templateGraphAddonFormSchema);
-      disabled(addOn.isPaid, () => !this.stripeConnected());
-      disabled(addOn.price, () => !this.stripeConnected());
-      disabled(addOn.stripeTaxRateId, () => !this.stripeConnected());
+      disabled(addOn.isPaid, () => !this.paymentsConfigured());
+      disabled(addOn.price, () => !this.paymentsConfigured());
+      disabled(addOn.stripeTaxRateId, () => !this.paymentsConfigured());
     });
 
     applyEach(template.questions, templateGraphQuestionFormSchema);
@@ -874,7 +874,9 @@ export class PlatformTemplateEditorComponent {
 
   protected taxRateLabel(rate: PlatformStripeTaxRateRecord): string {
     const name = rate.displayName?.trim() || 'Unnamed tax rate';
-    return rate.percentage === null ? name : `${name} · ${rate.percentage}%`;
+    return rate.percentage === null
+      ? 'Percentage unavailable; this rate cannot be selected'
+      : `${name} · ${rate.percentage}%`;
   }
 
   private defaultRegistrationOptionKey(): string {

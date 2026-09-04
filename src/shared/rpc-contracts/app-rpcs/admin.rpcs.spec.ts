@@ -94,6 +94,7 @@ const currentTenantSettingsInput = {
       name: 'Tenant',
       receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
       refundFeesOnCancellation: true,
+      stripeAccountId: 'acct_private_snapshot',
       theme: 'evorto',
       timezone: 'Europe/Berlin',
       transferDeadlineHoursBeforeStart: 0,
@@ -108,7 +109,6 @@ const currentTenantSettingsInput = {
   refundFeesOnCancellation: true,
   seoDescription: 'Public tenant description',
   seoTitle: 'Public tenant title',
-  stripeAccountId: 'acct_123',
   termsText: 'Tenant terms text',
   termsUrl: 'https://section.example.org/terms',
   theme: 'esn' as const,
@@ -117,6 +117,69 @@ const currentTenantSettingsInput = {
 };
 
 describe('AdminTenantUpdateSettingsInput', () => {
+  it('rejects payment account edits and unknown fields before a settings write', () => {
+    for (const extra of [
+      { stripeAccountId: 'acct_private' },
+      { unexpected: true },
+      {
+        expectedSettings: {
+          ...currentTenantSettingsInput.expectedSettings,
+          stripeAccountId: 'acct_private',
+        },
+      },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+          ...currentTenantSettingsInput,
+          ...extra,
+        }),
+      ).toThrow();
+    }
+  });
+
+  it('round-trips optional settings and location fields through the RPC codec', () => {
+    const defaultLocation = {
+      address: undefined,
+      coordinates: { lat: 52, lng: 13 },
+      name: 'Meeting point',
+      placeId: 'place-1',
+      type: 'google' as const,
+    };
+    const input = {
+      ...currentTenantSettingsInput,
+      buyEsnCardUrl: undefined,
+      defaultLocation,
+      expectedSettings: {
+        ...currentTenantSettingsInput.expectedSettings,
+        defaultLocation,
+      },
+    };
+    const encoded = Schema.encodeUnknownSync(AdminTenantUpdateSettingsInput)(
+      input,
+    );
+    expect(encoded).not.toHaveProperty('stripeAccountId');
+    expect(encoded).not.toHaveProperty('expectedSettings.stripeAccountId');
+    expect(JSON.stringify(encoded)).not.toContain('acct_private_snapshot');
+    expect(encoded).toMatchObject({ buyEsnCardUrl: null });
+    const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)(
+      encoded,
+    );
+    expect(
+      Schema.toEquivalence(AdminTenantSettingsSnapshot)(
+        decoded.expectedSettings,
+        input.expectedSettings,
+      ),
+    ).toBe(true);
+    expect(decoded.buyEsnCardUrl).toBeUndefined();
+    expect(decoded.defaultLocation?.address).toBeUndefined();
+    expect(decoded).toMatchObject({
+      defaultLocation: {
+        coordinates: { lat: 52, lng: 13 },
+        name: 'Meeting point',
+      },
+    });
+  });
+
   it('requires the original editable snapshot and preserves typed conflicts', () => {
     const { expectedSettings: _snapshot, ...missingSnapshot } =
       currentTenantSettingsInput;
@@ -253,12 +316,12 @@ describe('AdminTenantUpdateSettingsInput', () => {
   });
 
   it('keeps locale outside tenant-admin writes', () => {
-    const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
-      ...currentTenantSettingsInput,
-      locale: 'en-US',
-    });
-
-    expect(decoded).not.toHaveProperty('locale');
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        locale: 'en-US',
+      }),
+    ).toThrow();
   });
 
   it('rejects invalid sender email settings', () => {
@@ -295,12 +358,12 @@ describe('AdminTenantUpdateSettingsInput', () => {
   });
 
   it('keeps deferred custom-domain fields outside the current update payload', () => {
-    const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
-      ...currentTenantSettingsInput,
-      customDomain: 'section.example.org',
-    });
-
-    expect(decoded).toEqual(currentTenantSettingsInput);
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        customDomain: 'section.example.org',
+      }),
+    ).toThrow();
   });
 
   it('accepts uploaded tenant brand asset paths', () => {

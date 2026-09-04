@@ -23,7 +23,6 @@ const tenantWriteInput = {
   currency: 'EUR' as const,
   domain: 'tenant.example.com',
   name: 'Tenant',
-  stripeAccountId: 'acct_123',
   theme: 'evorto' as const,
   timezone: 'Europe/Berlin' as const,
 };
@@ -171,6 +170,16 @@ describe('GlobalAdminPlatformAuditState role assignment summary', () => {
 });
 
 describe('GlobalAdminTenantWriteInput', () => {
+  it('projects an editable snapshot without exposing a stored account identifier', () => {
+    const storedTenant = {
+      ...tenantWriteInput,
+      stripeAccountId: 'acct_private_snapshot',
+    };
+    const snapshot = platformTenantSettingsSnapshot(storedTenant);
+    expect(snapshot).toEqual(tenantWriteInput);
+    expect(JSON.stringify(snapshot)).not.toContain('acct_private_snapshot');
+  });
+
   it('requires a snapshot for edits while leaving creation independent', () => {
     const edit = {
       id: 'tenant-1',
@@ -252,6 +261,47 @@ describe('GlobalAdminTenantWriteInput', () => {
         tenant: tenantWriteInput,
       }),
     ).toThrow();
+  });
+});
+
+describe('removed payment-account write fields', () => {
+  it('rejects account identifiers and unknown fields in create and update requests', () => {
+    for (const staleField of [
+      { stripeAccountId: 'acct_private' },
+      { unexpected: true },
+    ]) {
+      const payload = {
+        reason: 'Organization support correction',
+        tenant: { ...tenantWriteInput, ...staleField },
+      };
+      expect(() =>
+        Schema.decodeUnknownSync(GlobalAdminTenantCreateInput)({
+          ...payload,
+          initialPrivacyPolicy: {
+            privacyPolicyText: 'Tenant privacy policy',
+            privacyPolicyUrl: '',
+          },
+        }),
+      ).toThrow();
+      expect(() =>
+        Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)({
+          ...payload,
+          expectedSettings: platformTenantSettingsSnapshot(tenantWriteInput),
+          id: 'tenant-1',
+        }),
+      ).toThrow();
+      expect(() =>
+        Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)({
+          expectedSettings: {
+            ...platformTenantSettingsSnapshot(tenantWriteInput),
+            ...staleField,
+          },
+          id: 'tenant-1',
+          reason: 'Organization support correction',
+          tenant: tenantWriteInput,
+        }),
+      ).toThrow();
+    }
   });
 });
 

@@ -24,7 +24,6 @@ export interface GlobalAdminTenantFormModel {
   domain: string;
   name: string;
   reason: string;
-  stripeAccountId: string;
   theme: GlobalAdminTenantWriteInput['theme'];
   timezone: GlobalAdminTenantWriteInput['timezone'];
 }
@@ -45,7 +44,6 @@ export const createGlobalAdminTenantFormModel =
     domain: '',
     name: '',
     reason: '',
-    stripeAccountId: '',
     theme: 'evorto',
     timezone: 'Europe/Berlin',
   });
@@ -57,7 +55,6 @@ export const globalAdminTenantFormModelFromRecord = (
   domain: tenant.domain,
   name: tenant.name,
   reason: '',
-  stripeAccountId: tenant.stripeAccountId ?? '',
   theme: tenant.theme,
   timezone: tenant.timezone,
 });
@@ -84,9 +81,6 @@ export const resolveGlobalAdminTenantEditFormModel = (
     ? previous.value
     : { ...createGlobalAdminTenantFormModel(), expectedSettings: null };
 };
-
-const optionalTrimmed = (value: string): string | undefined =>
-  value.trim() || undefined;
 
 export const normalizeGlobalAdminTenantDomain = (value: string): string =>
   normalizeTenantDomain(value);
@@ -129,7 +123,6 @@ export const globalAdminTenantPayloadFromForm = (
       currency: model.currency,
       domain,
       name: model.name.trim(),
-      stripeAccountId: optionalTrimmed(model.stripeAccountId),
       theme: model.theme,
       timezone: model.timezone,
     };

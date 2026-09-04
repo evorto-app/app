@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
+import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
 import { RoleLookupRecord } from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
 import { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import {
@@ -11,7 +12,6 @@ import {
 import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Tenant } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { APP_RPC_CLIENT, AppRpc } from '../../core/effect-rpc-angular-client';
 import { TemplateGraphEditorComponent } from '../../shared/components/forms/template-graph-editor/template-graph-editor.component';
@@ -107,7 +107,7 @@ const templateQueryOptions = vi.fn(
     queryKey: [['templates', 'findOne'], { input, type: 'query' }],
   }),
 );
-const tenant = new Tenant({
+const tenant = new ClientTenantConfig({
   cancellationDeadlineHoursBeforeStart: 24,
   currency: 'EUR',
   defaultLocation: undefined,
@@ -116,9 +116,9 @@ const tenant = new Tenant({
   id: 'tenant-1',
   maxActiveRegistrationsPerUser: 3,
   name: 'Tenant',
+  paymentsConfigured: true,
   receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
   refundFeesOnCancellation: false,
-  stripeAccountId: 'acct_test',
   theme: 'evorto',
   timezone: 'Europe/Berlin',
   transferDeadlineHoursBeforeStart: 24,
@@ -204,7 +204,7 @@ describe('TemplateEditComponent role catalog defaults', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenantSignal: signal<null | Tenant>(tenant),
+            tenantSignal: signal<ClientTenantConfig | null>(tenant),
           } satisfies Pick<ConfigService, 'tenantSignal'>,
         },
         {

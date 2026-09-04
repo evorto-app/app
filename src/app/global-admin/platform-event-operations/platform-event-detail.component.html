@@ -476,7 +476,7 @@
                       </mat-checkbox>
                       <mat-checkbox
                         [checked]="option.isPaid"
-                        [disabled]="!stripeConnected()"
+                        [disabled]="!paymentsConfigured()"
                         (change)="
                           setOptionBoolean(
                             optionIndex,
@@ -501,7 +501,7 @@
                           </mat-label>
                           <input
                             matInput
-                            [disabled]="!stripeConnected()"
+                            [disabled]="!paymentsConfigured()"
                             min="0.01"
                             step="0.01"
                             type="number"
@@ -522,10 +522,10 @@
                           }
                         </mat-form-field>
                         <mat-form-field>
-                          <mat-label>Inclusive tax rate</mat-label>
+                          <mat-label>Tax rate included in price</mat-label>
                           <mat-select
                             [value]="option.stripeTaxRateId"
-                            [disabled]="!stripeConnected()"
+                            [disabled]="!paymentsConfigured()"
                             (selectionChange)="
                               setOptionTaxRate(optionIndex, $event)
                             "
@@ -537,9 +537,20 @@
                               rate of formOptionsQuery.data()?.taxRates ?? [];
                               track rate.stripeTaxRateId
                             ) {
-                              <mat-option [value]="rate.stripeTaxRateId">
-                                {{ rate.displayName || "Unnamed tax rate" }} ·
-                                {{ rate.percentage ?? "?" }}%
+                              <mat-option
+                                [value]="rate.stripeTaxRateId"
+                                [disabled]="rate.percentage === null"
+                              >
+                                @if (rate.percentage === null) {
+                                  Tax rate percentage unavailable — ask someone
+                                  who manages payments to update it
+                                } @else {
+                                  {{
+                                    rate.displayName ||
+                                      "Tax rate name unavailable"
+                                  }}
+                                  · {{ rate.percentage }}%
+                                }
                               </mat-option>
                             }
                           </mat-select>
@@ -569,7 +580,7 @@
                             </mat-label>
                             <input
                               matInput
-                              [disabled]="!stripeConnected()"
+                              [disabled]="!paymentsConfigured()"
                               min="0"
                               placeholder="Disabled"
                               step="0.01"
@@ -803,7 +814,7 @@
                       </mat-checkbox>
                       <mat-checkbox
                         [checked]="addOn.isPaid"
-                        [disabled]="!stripeConnected()"
+                        [disabled]="!paymentsConfigured()"
                         (change)="
                           setAddOnBoolean(addOnIndex, 'isPaid', $event.checked)
                         "
@@ -829,7 +840,7 @@
                           </mat-label>
                           <input
                             matInput
-                            [disabled]="!stripeConnected()"
+                            [disabled]="!paymentsConfigured()"
                             min="0.01"
                             step="0.01"
                             type="number"
@@ -845,10 +856,10 @@
                           }
                         </mat-form-field>
                         <mat-form-field>
-                          <mat-label>Inclusive tax rate</mat-label>
+                          <mat-label>Tax rate included in price</mat-label>
                           <mat-select
                             [value]="addOn.stripeTaxRateId"
-                            [disabled]="!stripeConnected()"
+                            [disabled]="!paymentsConfigured()"
                             (selectionChange)="
                               setAddOnTaxRate(addOnIndex, $event)
                             "
@@ -860,9 +871,20 @@
                               rate of formOptionsQuery.data()?.taxRates ?? [];
                               track rate.stripeTaxRateId
                             ) {
-                              <mat-option [value]="rate.stripeTaxRateId">
-                                {{ rate.displayName || "Unnamed tax rate" }} ·
-                                {{ rate.percentage ?? "?" }}%
+                              <mat-option
+                                [value]="rate.stripeTaxRateId"
+                                [disabled]="rate.percentage === null"
+                              >
+                                @if (rate.percentage === null) {
+                                  Tax rate percentage unavailable — ask someone
+                                  who manages payments to update it
+                                } @else {
+                                  {{
+                                    rate.displayName ||
+                                      "Tax rate name unavailable"
+                                  }}
+                                  · {{ rate.percentage }}%
+                                }
                               </mat-option>
                             }
                           </mat-select>

@@ -1,19 +1,8 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
-
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
 import { adminTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
-import { getTableColumns } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import {
-  Cause,
-  Effect,
-  Exit,
-  Layer,
-  Schema,
-  SchemaIssue,
-  Stream,
-} from 'effect';
+import { Cause, Effect, Exit, Layer, Schema, SchemaIssue } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
@@ -21,10 +10,7 @@ import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { relations } from '../../../../db/relations';
-import {
-  roleTenantNameUniqueConstraintName,
-  tenants,
-} from '../../../../db/schema';
+import { roleTenantNameUniqueConstraintName } from '../../../../db/schema';
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {
   RpcRequestContext,
@@ -82,7 +68,6 @@ const createSettingsInput = (
   maxActiveRegistrationsPerUser: 0,
   receiptCountries: ['NL'],
   refundFeesOnCancellation: true,
-  stripeAccountId: undefined,
   theme: 'evorto' as const,
   timezone: 'Europe/Berlin' as const,
   transferDeadlineHoursBeforeStart: 0,
@@ -778,10 +763,10 @@ for (const mutation of roleMutations) {
 
 describe('adminHandlers Stripe tax-rate import', () => {
   it.effect(
-    'keeps a concurrent tenant account change in the expected channel',
+    'keeps a concurrent tenant account change in the defect channel',
     () =>
       Effect.gen(function* () {
-        const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
+        const exit = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
           { ids: ['txr_admin'] },
           createRpcOptions(
             AdminRpcs.AdminTenantImportStripeTaxRates.middleware(
@@ -804,22 +789,19 @@ describe('adminHandlers Stripe tax-rate import', () => {
                 }),
               ),
             ),
-            Effect.flip,
+            Effect.exit,
           );
 
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          message: 'Stripe account changed while tax rates were loading',
-          reason: 'Reload the page and import rates from the current account.',
-        });
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) expect(Cause.hasDies(exit.cause)).toBe(true);
       }),
   );
 
   it.effect(
-    'keeps a conflicting stored rate account in the expected channel',
+    'keeps a conflicting stored rate account in the defect channel',
     () =>
       Effect.gen(function* () {
-        const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
+        const exit = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
           { ids: ['txr_admin'] },
           createRpcOptions(
             AdminRpcs.AdminTenantImportStripeTaxRates.middleware(
@@ -843,16 +825,11 @@ describe('adminHandlers Stripe tax-rate import', () => {
                 }),
               ),
             ),
-            Effect.flip,
+            Effect.exit,
           );
 
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          message:
-            'Imported tax-rate metadata belongs to a different Stripe account',
-          reason:
-            'Change or disconnect the Stripe account before importing this rate.',
-        });
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) expect(Cause.hasDies(exit.cause)).toBe(true);
       }),
   );
 });
@@ -953,7 +930,6 @@ describe('adminHandlers tenant settings', () => {
             refundFeesOnCancellation: false,
             seoDescription: '  Public description  ',
             seoTitle: '  Public title  ',
-            stripeAccountId: ' acct_123 ',
             termsText: ' Tenant terms text ',
             termsUrl: 'https://section.example.org/terms',
             theme: 'classic',
@@ -988,7 +964,6 @@ describe('adminHandlers tenant settings', () => {
           refundFeesOnCancellation: false,
           seoDescription: 'Public description',
           seoTitle: 'Public title',
-          stripeAccountId: 'acct_123',
           termsText: 'Tenant terms text',
           termsUrl: 'https://section.example.org/terms',
           theme: 'classic',
@@ -1008,7 +983,6 @@ describe('adminHandlers tenant settings', () => {
           refundFeesOnCancellation: false,
           seoDescription: 'Public description',
           seoTitle: 'Public title',
-          stripeAccountId: 'acct_123',
           termsText: 'Tenant terms text',
           termsUrl: 'https://section.example.org/terms',
           theme: 'classic',
@@ -1016,6 +990,8 @@ describe('adminHandlers tenant settings', () => {
           transferDeadlineHoursBeforeStart: 12,
         });
         expect(capturedUpdate).not.toHaveProperty('locale');
+        expect(capturedUpdate).not.toHaveProperty('stripeAccountId');
+        expect(result).not.toHaveProperty('stripeAccountId');
       }),
   );
 
@@ -1583,280 +1559,17 @@ describe('adminHandlers tenant settings', () => {
   );
 
   it.effect(
-    'uses the locked tenant account and blocks a stale-header account clear while Stripe obligations are pending',
+    'saves other settings after payment setup changes without exposing or overwriting the account',
     () =>
       Effect.gen(function* () {
-        const database = withTenantSettingsTransaction(
-          {
-            update: () => {
-              throw new Error('database update should not be touched');
-            },
-          },
-          {
-            hasPendingStripeObligations: true,
-            lockedStripeAccountId: 'acct_existing',
-          },
-        );
-
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(
-              Schema.decodeUnknownSync(Tenant)({
-                ...createTenant(),
-                stripeAccountId: 'acct_existing',
-              }),
-            ),
-            timezone: 'Europe/Amsterdam',
-          },
-          createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        )
-          .pipe(
-            Effect.provide(
-              requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
-              ),
-            ),
-          )
-          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe(
-          'Stripe account cannot change while registration Checkouts or refunds are pending',
-        );
-      }),
-  );
-
-  it.effect(
-    'blocks Stripe account removal while paid event configuration exists',
-    () =>
-      Effect.gen(function* () {
-        const database = withTenantSettingsTransaction(
-          {
-            update: () => {
-              throw new Error('database update should not be touched');
-            },
-          },
-          {
-            hasPaidEventConfiguration: true,
-            lockedStripeAccountId: 'acct_existing',
-          },
-        );
-
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          createSettingsInput(
-            Schema.decodeUnknownSync(Tenant)({
-              ...createTenant(),
-              stripeAccountId: 'acct_existing',
-            }),
-          ),
-          createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        )
-          .pipe(
-            Effect.provide(
-              requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
-              ),
-            ),
-          )
-          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        if (error._tag !== 'RpcBadRequestError') {
-          return yield* Effect.die(error);
-        }
-        expect(error.message).toBe(
-          'Stripe account cannot be disconnected while paid event configuration exists',
-        );
-        expect(error.reason).toContain(
-          'Make every event and template registration option and add-on free',
-        );
-      }),
-  );
-
-  it.effect(
-    'allows Stripe account rotation when no tax-rate bindings exist',
-    () =>
-      Effect.gen(function* () {
-        let deletedTaxMetadata = false;
+        let capturedUpdate: Record<string, unknown> | undefined;
         const updateQuery = {
-          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
-          set: () => updateQuery,
-          where: () => updateQuery,
-        };
-        const database = withTenantSettingsTransaction(
-          {
-            delete: () => ({
-              where: () => {
-                deletedTaxMetadata = true;
-                return Effect.void;
-              },
-            }),
-            update: () => updateQuery,
-          },
-          {
-            lockedStripeAccountId: 'acct_existing',
-            rotationTargetStripeAccountId: 'acct_next',
-          },
-        );
-
-        const result = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(
-              Schema.decodeUnknownSync(Tenant)({
-                ...createTenant(),
-                stripeAccountId: 'acct_existing',
-              }),
-            ),
-            stripeAccountId: 'acct_next',
-            timezone: 'Europe/Amsterdam',
-          },
-          createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        )
-          .pipe(
-            Effect.provide(
-              requestContextLayer(
-                createRequestContext(['admin:changeSettings'], 'acct_existing'),
-              ),
-            ),
-          )
-          .pipe(Effect.provide(taxRateImportLayer(database)));
-
-        expect(deletedTaxMetadata).toBe(true);
-        expect(result.stripeAccountId).toBe('acct_next');
-      }),
-  );
-
-  it.effect(
-    'blocks Stripe disconnect while tax-rate bindings remain assigned',
-    () =>
-      Effect.gen(function* () {
-        const database = withTenantSettingsTransaction(
-          {
-            update: () => {
-              throw new Error('database update should not be touched');
-            },
-          },
-          {
-            hasStripeTaxRateConfiguration: true,
-            lockedStripeAccountId: 'acct_existing',
-          },
-        );
-
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(
-              Schema.decodeUnknownSync(Tenant)({
-                ...createTenant(),
-                stripeAccountId: 'acct_existing',
-              }),
-            ),
-            stripeAccountId: undefined,
-            timezone: 'Europe/Amsterdam',
-          },
-          createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        )
-          .pipe(
-            Effect.provide(
-              requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
-              ),
-            ),
-          )
-          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        if (error._tag !== 'RpcBadRequestError') {
-          return yield* Effect.die(error);
-        }
-        expect(error.message).toBe(
-          'Stripe account cannot be disconnected while tax rates remain assigned',
-        );
-        expect(error.reason).toContain('before disconnecting Stripe');
-      }),
-  );
-
-  it.effect(
-    'removes old-account and legacy tax metadata before rotating Stripe accounts',
-    () =>
-      Effect.gen(function* () {
-        let deletedTaxMetadata = false;
-        const updateQuery = {
-          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
-          set: () => updateQuery,
-          where: () => updateQuery,
-        };
-        const database = withTenantSettingsTransaction(
-          {
-            delete: () => ({
-              where: () => {
-                deletedTaxMetadata = true;
-                return Effect.void;
-              },
-            }),
-            update: () => updateQuery,
-          },
-          {
-            lockedStripeAccountId: 'acct_existing',
-            rotationTargetStripeAccountId: 'acct_new',
-          },
-        );
-
-        const result = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(
-              Schema.decodeUnknownSync(Tenant)({
-                ...createTenant(),
-                stripeAccountId: 'acct_existing',
-              }),
-            ),
-            stripeAccountId: 'acct_new',
-            timezone: 'Europe/Amsterdam',
-          },
-          createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        )
-          .pipe(
-            Effect.provide(
-              requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
-              ),
-            ),
-          )
-          .pipe(Effect.provide(tenantSettingsLayer(database)));
-
-        expect(deletedTaxMetadata).toBe(true);
-        expect(result.stripeAccountId).toBe('acct_new');
-      }),
-  );
-
-  it.effect(
-    'allows other tenant edits when the locked Stripe account is unchanged',
-    () =>
-      Effect.gen(function* () {
-        let updateCalled = false;
-        const updateQuery = {
-          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
-          set: () => {
-            updateCalled = true;
+          returning: () =>
+            Effect.succeed([
+              { id: 'tenant-1', stripeAccountId: 'acct_existing' },
+            ]),
+          set: (values: Record<string, unknown>) => {
+            capturedUpdate = values;
             return updateQuery;
           },
           where: () => updateQuery,
@@ -1871,14 +1584,8 @@ describe('adminHandlers tenant settings', () => {
 
         const result = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            ...createSettingsInput(
-              Schema.decodeUnknownSync(Tenant)({
-                ...createTenant(),
-                stripeAccountId: 'acct_existing',
-              }),
-            ),
+            ...createSettingsInput(),
             seoTitle: 'Updated title',
-            stripeAccountId: 'acct_existing',
             timezone: 'Europe/Amsterdam',
           },
           createRpcOptions(
@@ -1896,9 +1603,11 @@ describe('adminHandlers tenant settings', () => {
           )
           .pipe(Effect.provide(tenantSettingsLayer(database)));
 
-        expect(updateCalled).toBe(true);
+        expect(capturedUpdate).toMatchObject({ seoTitle: 'Updated title' });
+        expect(capturedUpdate).not.toHaveProperty('stripeAccountId');
         expect(result.seoTitle).toBe('Updated title');
-        expect(result.stripeAccountId).toBe('acct_existing');
+        expect(result.paymentsConfigured).toBe(true);
+        expect(result).not.toHaveProperty('stripeAccountId');
       }),
   );
   it.effect(
@@ -1934,190 +1643,6 @@ describe('adminHandlers tenant settings', () => {
         );
         expect(error._tag).toBe('TenantSettingsConflictError');
         expect(writes).toBe(0);
-      }),
-  );
-});
-
-const createRotationSnapshotDatabase = (initialTheme: 'esn' | 'evorto') => {
-  let lockedTheme = initialTheme;
-  let transactionOpen = false;
-  const transactionCommands: string[] = [];
-  const unexpected = Effect.die(
-    new Error('Unexpected rotation fixture database operation'),
-  );
-  const executeValues = vi.fn<SqlConnection.Connection['executeValues']>(
-    (statement, parameters) =>
-      Effect.sync(() => {
-        expect(transactionOpen).toBe(true);
-        expect(statement).toContain('from "tenants"');
-        expect(statement).toContain('for update');
-        expect(parameters).toEqual(['tenant-1']);
-        const row: Record<string, unknown> = {
-          ...createTenant(),
-          createdAt: '2026-09-16T00:00:00.000Z',
-          stripeAccountId: 'acct_existing',
-          theme: lockedTheme,
-          updatedAt: '2026-09-16T00:00:00.000Z',
-        };
-        return [
-          Object.keys(getTableColumns(tenants)).map((key) => row[key] ?? null),
-        ];
-      }),
-  );
-  const connection = {
-    execute: () => unexpected,
-    executeRaw: () => unexpected,
-    executeStream: () =>
-      Stream.die(new Error('Unexpected rotation fixture stream')),
-    executeUnprepared: (statement, parameters) =>
-      Effect.sync(() => {
-        expect(parameters).toEqual([]);
-        expect(['BEGIN', 'COMMIT', 'ROLLBACK']).toContain(statement);
-        transactionCommands.push(statement);
-        transactionOpen = statement === 'BEGIN';
-        return [];
-      }),
-    executeValues,
-    executeValuesUnprepared: () => unexpected,
-  } satisfies SqlConnection.Connection;
-  const databaseLayer = Layer.effect(
-    Database,
-    PgDrizzle.makeWithDefaults({ relations }),
-  ).pipe(
-    Layer.provide(
-      PgClient.layerFrom(
-        PgClient.makeWith({
-          acquirer: Effect.succeed(connection),
-          config: {},
-          listenAcquirer: unexpected,
-          transactionAcquirer: Effect.succeed(connection),
-        }),
-      ),
-    ),
-  );
-  return {
-    changeSettingsDuringProvider: () => {
-      expect(transactionOpen).toBe(false);
-      expect(transactionCommands).toEqual(['BEGIN', 'COMMIT']);
-      lockedTheme = 'esn';
-    },
-    databaseLayer,
-    executeValues,
-    transactionCommands,
-  };
-};
-
-class ObservedTaxRateStripeHttpClient extends TaxRateStripeHttpClient {
-  constructor(private readonly beforeRequest: () => void) {
-    super();
-  }
-  override makeRequest(
-    ...arguments_: StripeHttpRequestArguments
-  ): Promise<TaxRateStripeResponse> {
-    return Promise.try(() => {
-      this.beforeRequest();
-      return super.makeRequest(...arguments_);
-    });
-  }
-}
-
-describe('admin account rotation snapshot ordering', () => {
-  it.effect(
-    'rejects a stale rotation before a failing provider is called',
-    () =>
-      Effect.gen(function* () {
-        const fixture = createRotationSnapshotDatabase('esn');
-        const provider = vi.fn(() => {
-          throw new Error('Destination Stripe account unavailable');
-        });
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(
-              Schema.decodeUnknownSync(Tenant)({
-                ...createTenant(),
-                stripeAccountId: 'acct_existing',
-              }),
-            ),
-            stripeAccountId: 'acct_next',
-            timezone: 'Europe/Amsterdam',
-          },
-          createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        ).pipe(
-          Effect.provide(
-            requestContextLayer(
-              createRequestContext(['admin:changeSettings'], 'acct_existing'),
-            ),
-          ),
-          Effect.provide(fixture.databaseLayer),
-          Effect.provideService(
-            StripeClient,
-            new Stripe('sk_test_rotation_order', {
-              httpClient: new ObservedTaxRateStripeHttpClient(provider),
-              maxNetworkRetries: 0,
-              telemetry: false,
-            }),
-          ),
-          Effect.flip,
-        );
-        expect(error._tag).toBe('TenantSettingsConflictError');
-        expect(provider).not.toHaveBeenCalled();
-        expect(fixture.executeValues).toHaveBeenCalledOnce();
-        expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
-      }),
-  );
-
-  it.effect(
-    'rechecks concurrent settings changes after releasing the initial lock for Stripe',
-    () =>
-      Effect.gen(function* () {
-        const fixture = createRotationSnapshotDatabase('evorto');
-        const provider = vi.fn(fixture.changeSettingsDuringProvider);
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(
-              Schema.decodeUnknownSync(Tenant)({
-                ...createTenant(),
-                stripeAccountId: 'acct_existing',
-              }),
-            ),
-            stripeAccountId: 'acct_next',
-            timezone: 'Europe/Amsterdam',
-          },
-          createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        ).pipe(
-          Effect.provide(
-            requestContextLayer(
-              createRequestContext(['admin:changeSettings'], 'acct_existing'),
-            ),
-          ),
-          Effect.provide(fixture.databaseLayer),
-          Effect.provideService(
-            StripeClient,
-            new Stripe('sk_test_rotation_order', {
-              httpClient: new ObservedTaxRateStripeHttpClient(provider),
-              maxNetworkRetries: 0,
-              telemetry: false,
-            }),
-          ),
-          Effect.flip,
-        );
-        expect(error._tag).toBe('TenantSettingsConflictError');
-        expect(provider).toHaveBeenCalledOnce();
-        expect(fixture.executeValues).toHaveBeenCalledTimes(2);
-        expect(fixture.transactionCommands).toEqual([
-          'BEGIN',
-          'COMMIT',
-          'BEGIN',
-          'ROLLBACK',
-        ]);
       }),
   );
 });

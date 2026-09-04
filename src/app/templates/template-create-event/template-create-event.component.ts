@@ -132,7 +132,7 @@ export class TemplateCreateEventComponent {
     createEventGeneralFormModel({}, this.tenantTimezone),
   );
   protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+    Boolean(this.config.tenantSignal()?.paymentsConfigured),
   );
   protected readonly createEventForm = form(
     this.createEventModel,
