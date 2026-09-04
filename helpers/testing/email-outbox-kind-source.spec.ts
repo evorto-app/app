@@ -49,6 +49,12 @@ describe('email outbox kind source inventory', () => {
     const registrationHandlerSource = readSource(
       'src/server/effect/rpc/handlers/events/events-registration.handlers.ts',
     );
+    const transferClaimSource = readSource(
+      'src/server/registrations/registration-transfer.service.ts',
+    );
+    const transferFinalizationSource = readSource(
+      'src/server/registrations/registration-transfer-finalization.ts',
+    );
     const stripeWebhookSource = readSource(
       'src/server/http/stripe-webhook.web-handler.ts',
     );
@@ -74,9 +80,26 @@ describe('email outbox kind source inventory', () => {
     expect(registrationHandlerSource).toContain(
       'yield* enqueueRegistrationCancelledEmail(tx',
     );
-    expect(registrationHandlerSource).toContain(
-      'yield* enqueueRegistrationTransferredEmail(tx',
-    );
+    for (const transferSource of [
+      transferClaimSource,
+      transferFinalizationSource,
+    ]) {
+      const ownerUpdate = transferSource.indexOf(
+        'const transferredRegistrations =',
+      );
+      const enqueue = transferSource.indexOf(
+        'yield* enqueueRegistrationTransferredEmail(tx',
+        ownerUpdate,
+      );
+      expect(ownerUpdate).toBeGreaterThanOrEqual(0);
+      expect(enqueue).toBeGreaterThan(ownerUpdate);
+      expect(transferSource.slice(enqueue)).toContain(
+        "recipientRole: 'previousOwner'",
+      );
+      expect(transferSource.slice(enqueue)).toContain(
+        "recipientRole: 'newOwner'",
+      );
+    }
     expect(registrationHandlerSource).toContain(
       'yield* enqueueWaitlistSpotAvailableEmail(tx',
     );
