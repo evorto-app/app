@@ -1127,7 +1127,7 @@ If payment safety cannot be confirmed, an add-on Checkout is pending, or the reg
     });
     expect(cancellationEvent).toMatchObject({
       quantity: 1,
-      reason: 'Registration cancelled by participant',
+      reason: 'Sign-up ended by attendee',
       refundDisposition: 'claims_created',
       refundRequested: true,
     });

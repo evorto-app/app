@@ -1190,6 +1190,8 @@ describe('question answer history concurrency in PostgreSQL', () => {
               currency: 'EUR' as const,
               domain: `${fixture.tenantIds[0]}.answer-integrity.example`,
               id: fixture.tenantIds[0],
+              maxActiveRegistrationsPerUser: 0,
+              name: 'Question race tenant',
               stripeAccountId: null,
             },
             user: {
@@ -1992,8 +1994,10 @@ describe('registration admission snapshots in PostgreSQL', () => {
           emailSenderEmail: undefined,
           emailSenderName: undefined,
           id: fixture.tenantIds[0],
+          maxActiveRegistrationsPerUser: 0,
           name: 'Admission snapshot tenant',
           stripeAccountId,
+          timezone: 'Europe/Berlin',
         };
         const client = await pool.connect();
         const editor = drizzle({ client, relations });
@@ -2134,7 +2138,14 @@ describe('registration admission snapshots in PostgreSQL', () => {
           expect(await result).toMatchObject({
             error: {
               _tag: 'EventRegistrationConflictError',
-              message: expect.stringContaining('changed'),
+              message:
+                mutation === 'event status'
+                  ? writer === 'manual approval'
+                    ? 'This event is not open for approvals.'
+                    : 'This event is not open for sign-ups.'
+                  : mutation === 'closing window'
+                    ? 'Sign-ups are not open at this time.'
+                    : 'Sign-up details changed while this request was being processed. Nothing was saved. Review the current details and try again.',
             },
           });
           expect(await readAdmissionSnapshotEffects(database, fixture)).toEqual(

@@ -834,6 +834,7 @@ export const expirePaidAddonPurchaseCheckout = Effect.fn(
                 eq(transactions.eventRegistrationId, input.registrationId),
                 eq(transactions.method, 'stripe'),
                 eq(transactions.stripeAccountId, input.stripeAccountId),
+                isNull(transactions.stripeCheckoutIncidentSessionId),
                 input.stripeCheckoutSessionId
                   ? eq(
                       transactions.stripeCheckoutSessionId,
@@ -932,6 +933,7 @@ export const expirePaidAddonPurchaseCheckout = Effect.fn(
                 eq(transactions.id, input.transactionId),
                 eq(transactions.status, 'pending'),
                 eq(transactions.type, 'addon'),
+                isNull(transactions.stripeCheckoutIncidentSessionId),
               ),
             )
             .returning({ id: transactions.id });

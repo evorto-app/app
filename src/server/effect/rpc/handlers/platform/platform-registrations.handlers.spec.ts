@@ -139,6 +139,40 @@ describe('platform registration cancellation refund preview', () => {
     ).toContain('active registration transfer');
   });
 
+  it('requires organizer review for an unbound payment while allowing a normally bound payment to be cancelled', () => {
+    const input: Parameters<
+      typeof platformRegistrationCancellationBlockedReason
+    >[0] = {
+      activeTransfer: false,
+      checkInTime: null,
+      eventStart: new Date('2030-01-02T00:00:00.000Z'),
+      now: new Date('2030-01-01T00:00:00.000Z'),
+      pendingAddonPayment: false,
+      pendingStripePayment: {
+        stripeAccountId: 'acct_saved',
+        stripeCheckoutSessionId: null,
+      },
+      refundBlockedReason: null,
+      status: 'PENDING',
+    };
+    expect(platformRegistrationCancellationBlockedReason(input)).toBe(
+      'Payment setup needs review. Ask the event organizer or finance team to investigate. The place remains held; no changes were made.',
+    );
+    expect(input.pendingStripePayment).toEqual({
+      stripeAccountId: 'acct_saved',
+      stripeCheckoutSessionId: null,
+    });
+    expect(
+      platformRegistrationCancellationBlockedReason({
+        ...input,
+        pendingStripePayment: {
+          stripeAccountId: 'acct_saved',
+          stripeCheckoutSessionId: 'cs_bound',
+        },
+      }),
+    ).toBeNull();
+  });
+
   it('uses the recipient acquisition and only the unfulfilled add-on entitlement after transfer', () => {
     const preview = platformRegistrationCancellationRefundPreview(
       transferredRegistration(),

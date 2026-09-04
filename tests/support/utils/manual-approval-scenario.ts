@@ -23,6 +23,7 @@ export interface ManualApprovalScenario {
   optionId: string;
   optionTitle: string;
   participant: {
+    communicationEmail: null | string;
     email: string;
     firstName: string;
     id: string;
@@ -36,7 +37,9 @@ export interface ManualApprovalScenario {
     currency: 'AUD' | 'CZK' | 'EUR';
     domain: string;
     id: string;
+    name: string;
     stripeAccountId: null | string;
+    timezone: string;
   };
 }
 
@@ -80,6 +83,7 @@ export const seedManualApprovalScenario = async ({
   });
   const participant = await database.query.users.findFirst({
     columns: {
+      communicationEmail: true,
       email: true,
       firstName: true,
       id: true,
@@ -92,7 +96,9 @@ export const seedManualApprovalScenario = async ({
       currency: true,
       domain: true,
       id: true,
+      name: true,
       stripeAccountId: true,
+      timezone: true,
     },
     where: { id: seeded.tenant.id },
   });
@@ -107,6 +113,30 @@ export const seedManualApprovalScenario = async ({
   }
   if (kind === 'paid' && !tenant.stripeAccountId) {
     throw new Error('Paid manual approval scenario requires a Stripe account');
+  }
+  const selectedTaxRate =
+    option.stripeTaxRateId && tenant.stripeAccountId
+      ? await database.query.tenantStripeTaxRates.findFirst({
+          columns: {
+            displayName: true,
+            inclusive: true,
+            percentage: true,
+            stripeTaxRateId: true,
+          },
+          where: {
+            active: true,
+            inclusive: true,
+            stripeAccountId: tenant.stripeAccountId,
+            stripeTaxRateId: option.stripeTaxRateId,
+            tenantId: tenant.id,
+          },
+        })
+      : undefined;
+  if (
+    option.stripeTaxRateId &&
+    (!selectedTaxRate || selectedTaxRate.percentage === null)
+  ) {
+    throw new Error(`Seeded ${kind} scenario tax configuration is unavailable`);
   }
 
   const originalRegistrations =
@@ -125,38 +155,39 @@ export const seedManualApprovalScenario = async ({
   );
   const eventWindow = futureServerEventWindow();
 
-  if (originalRegistrations.length > 0) {
-    await database
-      .update(schema.eventRegistrations)
-      .set({ status: 'CANCELLED' })
-      .where(
-        and(
-          eq(schema.eventRegistrations.registrationOptionId, option.id),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-        ),
-      );
-  }
-  await database
-    .update(schema.eventRegistrationOptions)
-    .set({
-      checkedInSpots: 0,
-      closeRegistrationTime: eventWindow.closeRegistrationTime,
-      confirmedSpots: 0,
-      openRegistrationTime: eventWindow.openRegistrationTime,
-      registrationMode: 'application',
-      reservedSpots: 0,
-      waitlistSpots: 0,
-    })
-    .where(eq(schema.eventRegistrationOptions.id, option.id));
-  await database
-    .update(schema.eventInstances)
-    .set({
-      end: eventWindow.end,
-      start: eventWindow.start,
-      reviewedAt: new Date(),
-      status: 'APPROVED',
-    })
-    .where(eq(schema.eventInstances.id, event.id));
+  await database.transaction(async (transaction) => {
+    if (originalRegistrations.length > 0) {
+      await transaction
+        .update(schema.eventRegistrations)
+        .set({ status: 'CANCELLED' })
+        .where(
+          and(
+            eq(schema.eventRegistrations.registrationOptionId, option.id),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+          ),
+        );
+    }
+    await transaction
+      .update(schema.eventRegistrationOptions)
+      .set({
+        checkedInSpots: 0,
+        closeRegistrationTime: eventWindow.closeRegistrationTime,
+        confirmedSpots: 0,
+        openRegistrationTime: eventWindow.openRegistrationTime,
+        registrationMode: 'application',
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, option.id));
+    await transaction
+      .update(schema.eventInstances)
+      .set({
+        end: eventWindow.end,
+        start: eventWindow.start,
+        status: 'APPROVED',
+      })
+      .where(eq(schema.eventInstances.id, event.id));
+  });
 
   const cleanup = async (): Promise<void> => {
     const currentRegistrations =
@@ -243,7 +274,6 @@ export const seedManualApprovalScenario = async ({
       .update(schema.eventInstances)
       .set({
         end: event.end,
-        reviewedAt: event.reviewedAt,
         start: event.start,
         status: event.status,
       })
@@ -261,7 +291,7 @@ export const seedManualApprovalScenario = async ({
     preparePaymentSetupRetry: async ({ baseUrl, registrationId }) => {
       if (kind !== 'paid' || !tenant.stripeAccountId) {
         throw new Error(
-          'Payment setup recovery requires a paid scenario with a Stripe account',
+          'An uncertain payment claim requires a paid scenario with a Stripe account',
         );
       }
       const transactionId = createId();
@@ -270,54 +300,60 @@ export const seedManualApprovalScenario = async ({
         baseUrl,
       ).toString();
 
-      await database
-        .update(schema.eventRegistrationOptions)
-        .set({ reservedSpots: 1 })
-        .where(eq(schema.eventRegistrationOptions.id, option.id));
-      await database
-        .update(schema.eventRegistrations)
-        .set({
-          appliedDiscountedPrice: null,
-          appliedDiscountType: null,
-          basePriceAtRegistration: option.price,
-          discountAmount: 0,
-        })
-        .where(
-          and(
-            eq(schema.eventRegistrations.id, registrationId),
-            eq(schema.eventRegistrations.registrationOptionId, option.id),
-            eq(schema.eventRegistrations.tenantId, tenant.id),
-          ),
-        );
-      await database.insert(schema.transactions).values({
-        amount: option.price,
-        appFee: Math.round(option.price * 0.035),
-        comment: `Recover payment setup for ${event.title}`,
-        currency: tenant.currency,
-        eventId: event.id,
-        eventRegistrationId: registrationId,
-        executiveUserId: requiredTestUser('admin').id,
-        id: transactionId,
-        method: 'stripe',
-        status: 'pending',
-        stripeAccountId: tenant.stripeAccountId,
-        stripeCheckoutRequest: {
-          customerEmail: participant.email,
-          eventTitle: event.title,
-          eventUrl,
-          expiresAt: Math.floor(Date.now() / 1000) + 23 * 60 * 60,
-          lineItems: [
-            {
-              name: `Registration fee for ${event.title}`,
-              quantity: 1,
-              unitAmount: option.price,
-            },
-          ],
-          notificationEmail: participant.email,
-        },
-        targetUserId: participant.id,
-        tenantId: tenant.id,
-        type: 'registration',
+      await database.transaction(async (transaction) => {
+        await transaction
+          .update(schema.eventRegistrationOptions)
+          .set({ reservedSpots: 1 })
+          .where(eq(schema.eventRegistrationOptions.id, option.id));
+        await transaction
+          .update(schema.eventRegistrations)
+          .set({
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
+            basePriceAtRegistration: option.price,
+            discountAmount: 0,
+            ...(selectedTaxRate && {
+              stripeTaxRateId: selectedTaxRate.stripeTaxRateId,
+              taxRateDisplayName: selectedTaxRate.displayName,
+              taxRateInclusive: selectedTaxRate.inclusive,
+              taxRatePercentage: selectedTaxRate.percentage,
+            }),
+          })
+          .where(eq(schema.eventRegistrations.id, registrationId));
+        await transaction.insert(schema.transactions).values({
+          amount: option.price,
+          appFee: Math.round(option.price * 0.035),
+          comment: `Uncertain payment setup for ${event.title}`,
+          currency: tenant.currency,
+          eventId: event.id,
+          eventRegistrationId: registrationId,
+          executiveUserId: requiredTestUser('admin').id,
+          id: transactionId,
+          method: 'stripe',
+          status: 'pending',
+          stripeAccountId: tenant.stripeAccountId,
+          stripeCheckoutRequest: {
+            customerEmail: participant.communicationEmail ?? participant.email,
+            eventTitle: event.title,
+            eventUrl,
+            expiresAt: Math.floor(Date.now() / 1000) + 23 * 60 * 60,
+            lineItems: [
+              {
+                name: `Registration fee for ${event.title}`,
+                quantity: 1,
+                ...(option.stripeTaxRateId && {
+                  taxRateId: option.stripeTaxRateId,
+                }),
+                unitAmount: option.price,
+              },
+            ],
+            notificationEmail:
+              participant.communicationEmail ?? participant.email,
+          },
+          targetUserId: participant.id,
+          tenantId: tenant.id,
+          type: 'registration',
+        });
       });
 
       return transactionId;
@@ -326,7 +362,9 @@ export const seedManualApprovalScenario = async ({
       currency: tenant.currency,
       domain: tenant.domain,
       id: tenant.id,
+      name: tenant.name,
       stripeAccountId: tenant.stripeAccountId,
+      timezone: tenant.timezone,
     },
   };
 };

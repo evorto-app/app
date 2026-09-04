@@ -119,7 +119,7 @@ describe('organizerRegistrationApprovalState', () => {
     });
   });
 
-  it('offers payment setup recovery for a pending transaction without a Checkout session', () => {
+  it('requires review without offering approval for a pending payment with no Checkout session', () => {
     expect(
       organizerRegistrationApprovalState({
         registrationMode: 'application',
@@ -133,7 +133,7 @@ describe('organizerRegistrationApprovalState', () => {
         ],
       }),
     ).toEqual({
-      manualApprovalAvailable: true,
+      manualApprovalAvailable: false,
       paymentPending: true,
       paymentSetupRequired: true,
     });

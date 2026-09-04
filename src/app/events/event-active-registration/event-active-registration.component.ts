@@ -260,7 +260,7 @@ export const registrationTransferBlockedCopy = (
       return 'A transfer offer is already active for this ticket.';
     }
     case 'addonPaymentPending': {
-      return 'Finish or let the pending add-on checkout expire before transferring this ticket.';
+      return 'Finish an available add-on payment, or wait for that payment page to expire, before transferring this ticket. If no payment link is available, contact an organizer to review it.';
     }
     case 'deadlinePassed': {
       return 'The transfer deadline for this event has passed.';
@@ -663,10 +663,11 @@ export class EventActiveRegistrationComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Cancellation failed', [
-      'EventRegistrationConflictError',
-      'EventRegistrationNotFoundError',
-    ]);
+    return getErrorMessage(
+      error,
+      'The sign-up could not be cancelled. Check its current status and contact an organizer for help.',
+      ['EventRegistrationConflictError', 'EventRegistrationNotFoundError'],
+    );
   }
 
   protected pendingCheckoutUrlInvalid(

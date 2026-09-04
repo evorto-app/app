@@ -165,24 +165,19 @@ export const organizerRegistrationTransferDisabled = ({
 export const organizerRegistrationApprovalDisabled = ({
   manualApprovalAvailable,
   mutationPending,
+  paymentSetupRequired,
 }: {
   manualApprovalAvailable: boolean;
   mutationPending: boolean;
-}): boolean => mutationPending || !manualApprovalAvailable;
+  paymentSetupRequired: boolean;
+}): boolean =>
+  mutationPending || !manualApprovalAvailable || paymentSetupRequired;
 
 export const organizerRegistrationApprovalLabel = ({
   approvalPending,
-  paymentSetupRequired,
 }: {
   approvalPending: boolean;
-  paymentSetupRequired: boolean;
-}): string => {
-  if (approvalPending) {
-    return 'Approving…';
-  }
-
-  return paymentSetupRequired ? 'Retry payment setup' : 'Approve application';
-};
+}): string => (approvalPending ? 'Approving…' : 'Approve application');
 
 export const receiptSubmissionActionDisabled = ({
   submissionUnavailable,
@@ -316,6 +311,7 @@ export class EventOrganize {
           this.approveRegistrationMutation.isPending() ||
           this.cancelRegistrationMutation.isPending() ||
           this.transferRegistrationMutation.isPending(),
+        paymentSetupRequired: registration.paymentSetupRequired,
       })
     ) {
       return;
@@ -332,9 +328,7 @@ export class EventOrganize {
           this.notifications.showError(
             getErrorMessage(
               error,
-              registration.paymentSetupRequired
-                ? 'Failed to set up registration payment'
-                : 'Failed to approve application',
+              'Payment setup needs review. Keep the existing sign-up and contact Evorto support before starting another payment.',
               [
                 'EventRegistrationConflictError',
                 'EventRegistrationNotFoundError',

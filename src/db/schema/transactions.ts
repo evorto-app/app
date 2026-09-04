@@ -92,8 +92,19 @@ export const pendingRegistrationTransactionUniqueIndexName =
   'transactions_pending_registration_unique';
 export const paidEventTransactionMethodCheckName =
   'transactions_paid_event_method_stripe';
+export const checkoutIncidentShapeCheckName =
+  'transactions_checkout_incident_shape';
+export const checkoutSessionIdShapeCheckName =
+  'transactions_checkout_session_id_shape';
+export const checkoutUrlShapeCheckName = 'transactions_checkout_url_shape';
+export const stripeCheckoutSessionNamespaceUniqueIndexName =
+  'transactions_checkout_session_namespace_unique';
 export const refundOperationShapeCheckName =
   'transactions_refund_operation_shape';
+export const transactionCounterBoundsCheckName = 'transactions_counter_bounds';
+export const transactionLeaseShapeCheckName = 'transactions_lease_shape';
+export const transactionPaymentOwnershipCheckName =
+  'transactions_payment_ownership';
 export const registrationRefundOperationUniqueIndexName =
   'transactions_registration_refund_operation_unique';
 
@@ -119,6 +130,10 @@ export const transactions = pgTable(
     stripeChargeId: varchar().unique(),
     stripeCheckoutCancellationRequestedAt: timestamp(
       'stripe_checkout_cancellation_requested_at',
+    ),
+    stripeCheckoutIncidentSessionId: varchar(
+      'stripe_checkout_incident_session_id',
+      { length: 255 },
     ),
     stripeCheckoutReconcileAttempts: integer(
       'stripe_checkout_reconcile_attempts',
@@ -171,6 +186,58 @@ export const transactions = pgTable(
     type: transactionType().notNull(),
   },
   (table) => ({
+    checkoutIncidentShape: check(
+      checkoutIncidentShapeCheckName,
+      sql`${table.stripeCheckoutIncidentSessionId} IS NULL OR (
+        ${table.stripeCheckoutSessionId} IS NULL
+        AND ${table.stripeCheckoutUrl} IS NULL
+        AND ${table.method}::text = 'stripe'
+        AND ${table.type}::text IN ('registration', 'addon')
+        AND ${table.amount} > 0
+        AND ${table.appFee} IS NOT NULL
+        AND ${table.appFee} >= 0
+        AND ${table.appFee} <= ${table.amount}
+        AND ${table.eventId} IS NOT NULL
+        AND length(trim(${table.eventId})) > 0
+        AND ${table.eventRegistrationId} IS NOT NULL
+        AND length(trim(${table.eventRegistrationId})) > 0
+        AND ${table.stripeAccountId} IS NOT NULL
+        AND length(trim(${table.stripeAccountId})) > 0
+        AND ${table.targetUserId} IS NOT NULL
+        AND length(trim(${table.targetUserId})) > 0
+        AND ${table.stripeCheckoutRequest} IS NOT NULL
+        AND jsonb_typeof(${table.stripeCheckoutRequest}) = 'object'
+        AND ${table.stripeCheckoutRequest} <> '{}'::jsonb
+        AND ${table.stripeCheckoutReconcileLastError} IS NOT NULL
+        AND length(trim(${table.stripeCheckoutReconcileLastError})) > 0
+        AND ${table.stripeCheckoutReconcileLeaseExpiresAt} IS NULL
+        AND ${table.stripeCheckoutReconcileLeaseId} IS NULL
+        AND ${table.stripeCheckoutReconcileNextAt} IS NULL
+      )`,
+    ),
+    checkoutSessionIdShape: check(
+      checkoutSessionIdShapeCheckName,
+      sql`(
+        ${table.stripeCheckoutSessionId} IS NULL
+        OR length(trim(${table.stripeCheckoutSessionId})) > 0
+      ) AND (
+        ${table.stripeCheckoutIncidentSessionId} IS NULL
+        OR length(trim(${table.stripeCheckoutIncidentSessionId})) > 0
+      )`,
+    ),
+    checkoutSessionNamespace: uniqueIndex(
+      stripeCheckoutSessionNamespaceUniqueIndexName,
+    ).on(
+      sql`coalesce(${table.stripeCheckoutSessionId}, ${table.stripeCheckoutIncidentSessionId})`,
+    ),
+    checkoutUrlShape: check(
+      checkoutUrlShapeCheckName,
+      sql`${table.stripeCheckoutUrl} IS NULL OR (
+        length(trim(${table.stripeCheckoutUrl})) > 0
+        AND ${table.stripeCheckoutSessionId} IS NOT NULL
+        AND length(trim(${table.stripeCheckoutSessionId})) > 0
+      )`,
+    ),
     eventTenant: foreignKey({
       columns: [table.eventId, table.tenantId],
       foreignColumns: [eventInstances.id, eventInstances.tenantId],
@@ -194,6 +261,11 @@ export const transactions = pgTable(
       paidEventTransactionMethodCheckName,
       sql`${table.type}::text NOT IN ('registration', 'addon') OR (${table.method}::text = 'stripe' AND ${table.amount} > 0)`,
     ),
+    paymentOwnership: check(
+      transactionPaymentOwnershipCheckName,
+      sql`${table.type}::text NOT IN ('registration', 'addon')
+        OR (${table.eventId} IS NOT NULL AND ${table.eventRegistrationId} IS NOT NULL)`,
+    ),
     refundOperationShape: check(
       refundOperationShapeCheckName,
       sql`(
@@ -202,7 +274,7 @@ export const transactions = pgTable(
         (${table.type}::text = 'refund' AND ${table.amount} < 0 AND (
           (${table.sourceTransactionId} IS NULL AND ${table.refundOperationKey} IS NULL AND ${table.stripeRefundApplicationFee} IS NULL AND ${table.manuallyCreated} IS TRUE)
           OR
-          (${table.sourceTransactionId} IS NOT NULL AND ${table.refundOperationKey} IS NOT NULL AND length(trim(${table.refundOperationKey})) BETWEEN 1 AND 100 AND ${table.stripeRefundApplicationFee} IS NOT NULL AND ${table.manuallyCreated} IS FALSE AND ${table.method}::text = 'stripe')
+          (${table.sourceTransactionId} IS NOT NULL AND ${table.eventId} IS NOT NULL AND ${table.eventRegistrationId} IS NOT NULL AND ${table.refundOperationKey} IS NOT NULL AND length(trim(${table.refundOperationKey})) BETWEEN 1 AND 100 AND ${table.stripeRefundApplicationFee} IS NOT NULL AND ${table.manuallyCreated} IS FALSE AND ${table.method}::text = 'stripe')
         ))
       )`,
     ),
@@ -229,11 +301,37 @@ export const transactions = pgTable(
       foreignColumns: [eventRegistrations.id, eventRegistrations.tenantId],
       name: 'transactions_registration_tenant_fk',
     }),
-    sourceTenant: foreignKey({
-      columns: [table.sourceTransactionId, table.tenantId],
-      foreignColumns: [table.id, table.tenantId],
-      name: 'transactions_source_tenant_fk',
+    retryCounterBounds: check(
+      transactionCounterBoundsCheckName,
+      sql`${table.stripeCheckoutReconcileAttempts} >= 0
+        AND ${table.stripeRefundAttempts} >= 0
+        AND ${table.stripeRefundAttempts} <= ${table.stripeRefundMaxAttempts}
+        AND ${table.stripeRefundGeneration} >= 0
+        AND ${table.stripeRefundMaxAttempts} > 0`,
+    ),
+    retryLeaseShape: check(
+      transactionLeaseShapeCheckName,
+      sql`(${table.stripeCheckoutReconcileLeaseId} IS NULL) = (${table.stripeCheckoutReconcileLeaseExpiresAt} IS NULL)
+        AND (${table.stripeRefundClaimLeaseId} IS NULL) = (${table.stripeRefundClaimLeaseExpiresAt} IS NULL)`,
+    ),
+    sourcePayment: foreignKey({
+      columns: [
+        table.sourceTransactionId,
+        table.tenantId,
+        table.eventId,
+        table.eventRegistrationId,
+      ],
+      foreignColumns: [
+        table.id,
+        table.tenantId,
+        table.eventId,
+        table.eventRegistrationId,
+      ],
+      name: 'transactions_source_payment_fk',
     }),
+    sourcePaymentIdentity: unique(
+      'transactions_id_tenant_event_registration_unique',
+    ).on(table.id, table.tenantId, table.eventId, table.eventRegistrationId),
     stripeCheckoutReconcileIndex: index(
       'transactions_checkout_reconcile_idx',
     ).on(table.type, table.status, table.stripeCheckoutReconcileNextAt),

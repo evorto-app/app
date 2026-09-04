@@ -305,10 +305,25 @@ class ProductionAddonPurchaseStripeHttpClient
     };
     return new JsonStripeResponse(
       {
+        amount_total: paidUnitPrice * this.expectedQuantity,
+        cancel_url: requireFormValue(form, 'cancel_url'),
+        currency: this.expectedCurrency.toLowerCase(),
+        customer_email: this.expectedUserEmail,
+        expires_at: expiresAtEpoch,
         id: sessionId,
+        metadata: {
+          addonPurchaseOrderId: orderId,
+          registrationId: this.expectedRegistrationId,
+          tenantId: this.expectedTenantId,
+          transactionId,
+          userId: this.expectedUserId,
+        },
+        mode: 'payment',
         object: 'checkout.session',
         payment_intent: null,
+        payment_status: 'unpaid',
         status: 'open',
+        success_url: requireFormValue(form, 'success_url'),
         url: checkoutUrl,
       },
       `req_create_${transactionId}`,
@@ -522,7 +537,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
   }
 
   const user = await input.database.query.users.findFirst({
-    columns: { email: true, id: true },
+    columns: { communicationEmail: true, email: true, id: true },
     where: { id: input.userId },
   });
   if (!user) {
@@ -566,7 +581,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
     registrationId,
     stripeAccountId,
     input.tenant.id,
-    user.email,
+    user.communicationEmail ?? user.email,
     user.id,
   );
   const stripe = new StripeClientLibrary('sk_test_deterministic', {

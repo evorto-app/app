@@ -245,15 +245,43 @@ describe('answered event question history database guard', () => {
 
 describe('answer-writing question set locks', () => {
   for (const scenario of [
-    { eventExists: true, name: 'available event', tenantExists: true },
-    { eventExists: false, name: 'absent event', tenantExists: true },
-    { eventExists: true, name: 'absent tenant', tenantExists: false },
+    {
+      eventExists: true,
+      eventLockMode: 'share' as const,
+      name: 'available event',
+      tenantExists: true,
+    },
+    {
+      eventExists: true,
+      eventLockMode: 'update' as const,
+      name: 'exclusive event',
+      tenantExists: true,
+    },
+    {
+      eventExists: false,
+      eventLockMode: 'share' as const,
+      name: 'absent event',
+      tenantExists: true,
+    },
+    {
+      eventExists: true,
+      eventLockMode: 'share' as const,
+      name: 'absent tenant',
+      tenantExists: false,
+    },
   ]) {
     const lockedTables: string[] = [];
     const databaseLayer = createRegistrationDatabaseTestLayer({
       executeValues: (statement, parameters) =>
         Effect.sync(() => {
           switch (statement) {
+            case `select "id" from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for ${scenario.eventLockMode}`: {
+              expect(scenario.tenantExists).toBe(true);
+              expect(lockedTables).toEqual(['tenant']);
+              expect(parameters).toEqual(['event-1', 'tenant-1']);
+              lockedTables.push('event');
+              return scenario.eventExists ? [['event-1']] : [];
+            }
             case 'select "id", "required" from "event_registration_questions" where (("event_registration_questions"."eventId" = $1) and ("event_registration_questions"."registrationOptionId" = $2)) order by "event_registration_questions"."id" for share': {
               expect(scenario.tenantExists && scenario.eventExists).toBe(true);
               expect(lockedTables).toEqual(['tenant', 'event']);
@@ -263,13 +291,6 @@ describe('answer-writing question set locks', () => {
                 ['question-1', false],
                 ['question-2', true],
               ];
-            }
-            case 'select "id" from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for share': {
-              expect(scenario.tenantExists).toBe(true);
-              expect(lockedTables).toEqual(['tenant']);
-              expect(parameters).toEqual(['event-1', 'tenant-1']);
-              lockedTables.push('event');
-              return scenario.eventExists ? [['event-1']] : [];
             }
             case 'select "id" from "tenants" where "tenants"."id" = $1 for key share': {
               expect(lockedTables).toEqual([]);
@@ -294,6 +315,7 @@ describe('answer-writing question set locks', () => {
             const database = yield* Database;
             const result = yield* lockEventRegistrationQuestionSet(database, {
               eventId: 'event-1',
+              eventLockMode: scenario.eventLockMode,
               registrationOptionId: 'option-1',
               tenantId: 'tenant-1',
             });

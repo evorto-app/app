@@ -46,7 +46,14 @@ import {
 } from '../payments/registration-refund';
 import { StripeClient } from '../stripe-client';
 import {
-  cancelExpiredBoundRegistrationClaim,
+  createRejectingStripeClient,
+  stripeBalanceTransactionResponse,
+  stripeChargeResponse,
+  stripeCheckoutSessionResponse,
+  stripePaymentIntentResponse,
+  stripeRefundResponse,
+} from '../testing/stripe-test-fixtures';
+import {
   claimDueBoundRegistrationCheckoutCandidates,
   expiredUnboundRegistrationClaimPredicate,
   processDueBoundRegistrationCheckouts,
@@ -97,23 +104,6 @@ const runCleanup = (url: string, nowEpochSeconds: number) =>
     }).pipe(Effect.provide(makeDatabaseServiceLayer(url))),
   );
 
-const runBoundCancellation = (
-  url: string,
-  candidate: {
-    readonly registrationId: string;
-    readonly stripeAccountId: string;
-    readonly stripeCheckoutSessionId: string;
-    readonly tenantId: string;
-    readonly transactionId: string;
-  },
-  nowEpochSeconds: number,
-) =>
-  Effect.runPromise(
-    cancelExpiredBoundRegistrationClaim(candidate, nowEpochSeconds).pipe(
-      Effect.provide(makeDatabaseServiceLayer(url)),
-    ),
-  );
-
 const runDueClaim = (
   url: string,
   input: {
@@ -139,7 +129,7 @@ const bindDueCheckout = async (
     .set({
       stripeCheckoutReconcileNextAt: now,
       stripeCheckoutSessionId,
-      stripeCheckoutUrl: `https://checkout.stripe.test/${fixture.transactionId}`,
+      stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${stripeCheckoutSessionId}`,
     })
     .where(eq(transactions.id, fixture.transactionId));
   return stripeCheckoutSessionId;
@@ -174,37 +164,6 @@ const waitForBlockedRegistrationLocks = (pool: Pool, minimumCount: number) =>
     );
     return Number(blocked.rows[0]?.count ?? 0) >= minimumCount;
   }, `Timed out waiting for ${minimumCount} blocked registration locks`);
-
-const recordFailure = (failures: unknown[], error: unknown) => {
-  if (!failures.includes(error)) failures.push(error);
-};
-
-const trackCleanupWorker = <T>(
-  operation: Promise<T>,
-  settledWorkers: Promise<void>[],
-  failures: unknown[],
-) => {
-  settledWorkers.push(
-    (async () => {
-      try {
-        await operation;
-      } catch (error) {
-        recordFailure(failures, error);
-      }
-    })(),
-  );
-  return operation;
-};
-
-const throwCleanupFailures = (failures: unknown[]) => {
-  if (failures.length === 1) throw failures[0];
-  if (failures.length > 1) {
-    throw new AggregateError(
-      failures,
-      'PostgreSQL fixture and cleanup failures',
-    );
-  }
-};
 
 const lockRegistration = async (
   pool: Pool,
@@ -251,168 +210,171 @@ const seedFixture = async (
   const stripeAccountId = `acct_${suffix}`;
   const now = Date.now();
 
-  await database.insert(tenants).values({
-    domain: `${suffix}.cleanup.example`,
-    id: tenantId,
-    name: `Cleanup ${suffix}`,
-    stripeAccountId,
-  });
-  await database.insert(users).values({
-    auth0Id: `auth0|${suffix}`,
-    communicationEmail: `${suffix}@example.com`,
-    email: `${suffix}@example.com`,
-    firstName: 'Cleanup',
-    id: userId,
-    lastName: 'Tester',
-  });
-  await database.insert(usersToTenants).values({
-    id: makeId('member', suffix),
-    tenantId,
-    userId,
-  });
-  await database.insert(eventTemplateCategories).values({
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: categoryId,
-    tenantId,
-    title: 'Cleanup tests',
-  });
-  await database.insert(eventTemplates).values({
-    categoryId,
-    description: 'Cleanup fixture template',
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: templateId,
-    tenantId,
-    title: 'Cleanup fixture',
-  });
-  await database.insert(eventInstances).values({
-    creatorId: userId,
-    description: 'Cleanup fixture event',
-    end: new Date(now + 8 * 24 * 60 * 60 * 1000),
-    icon: { iconColor: 0, iconName: 'circle' },
-    id: eventId,
-    reviewedAt: new Date(),
-    start: new Date(now + 7 * 24 * 60 * 60 * 1000),
-    status: 'APPROVED',
-    templateId,
-    tenantId,
-    title: 'Cleanup fixture',
-  });
-  await database.insert(eventRegistrationOptions).values({
-    closeRegistrationTime: new Date(now + 6 * 24 * 60 * 60 * 1000),
-    eventId,
-    id: optionId,
-    isPaid: true,
-    openRegistrationTime: new Date(now - 24 * 60 * 60 * 1000),
-    organizingRegistration: false,
-    price: 1000,
-    registrationMode: 'application',
-    reservedSpots: 1,
-    spots: 2,
-    title: 'Participant',
-  });
-  await database.insert(eventAddons).values({
-    allowMultiple: true,
-    allowPurchaseBeforeEvent: false,
-    allowPurchaseDuringEvent: false,
-    allowPurchaseDuringRegistration: true,
-    eventId,
-    id: addOnId,
-    isPaid: false,
-    maxQuantityPerUser: 2,
-    price: 0,
-    title: 'Cleanup add-on',
-    totalAvailableQuantity: 3,
-  });
-  await database.insert(addonToEventRegistrationOptions).values({
-    addonId: addOnId,
-    eventId,
-    includedQuantity: 1,
-    optionalPurchaseQuantity: 1,
-    registrationOptionId: optionId,
-  });
-  await database.insert(eventRegistrations).values({
-    basePriceAtRegistration: 1000,
-    discountAmount: 0,
-    eventId,
-    id: registrationId,
-    registrationOptionId: optionId,
-    status: 'PENDING',
-    tenantId,
-    userId,
-  });
-  await database.insert(eventRegistrationAddonPurchases).values({
-    addonId: addOnId,
-    eventId,
-    id: purchaseId,
-    includedQuantity: 1,
-    purchasedQuantity: 1,
-    quantity: 2,
-    registrationId,
-    registrationOptionId: optionId,
-    tenantId,
-    unitPrice: 0,
-  });
-  await database.insert(eventRegistrationAddonPurchaseLots).values({
-    applicationFeeAmount: 0,
-    baseAmount: 0,
-    currency: 'EUR',
-    eventId,
-    grossAmount: 0,
-    id: purchaseLotId,
-    netAmount: 0,
-    paymentAllocationFinalizedAt: new Date(now),
-    purchaseId,
-    quantity: 1,
-    registrationId,
-    registrationOptionId: optionId,
-    sourceLineKey: `addon-lot:${purchaseLotId}`,
-    stripeFeeAmount: 0,
-    taxAmount: 0,
-    tenantId,
-    unitPrice: 0,
-  });
-  await database.insert(transactions).values({
-    amount: 1000,
-    appFee: 35,
-    currency: 'EUR',
-    eventId,
-    eventRegistrationId: registrationId,
-    executiveUserId: userId,
-    id: transactionId,
-    method: 'stripe',
-    status: 'pending',
-    stripeAccountId,
-    stripeCheckoutRequest: {
-      customerEmail: `${suffix}@example.com`,
-      eventTitle: 'Cleanup fixture',
-      eventUrl: 'https://cleanup.example/events/fixture',
-      expiresAt,
-      lineItems: [
-        {
-          name: 'Registration fee',
-          quantity: 1,
-          unitAmount: 1000,
-        },
-      ],
-      notificationEmail: `${suffix}@example.com`,
-    },
-    targetUserId: userId,
-    tenantId,
-    type: 'registration',
-  });
+  return database.transaction(async (transaction) => {
+    await transaction.insert(tenants).values({
+      domain: `${suffix}.cleanup.example`,
+      id: tenantId,
+      name: `Cleanup ${suffix}`,
+      stripeAccountId,
+    });
+    await transaction.insert(users).values({
+      auth0Id: `auth0|${suffix}`,
+      communicationEmail: `${suffix}@example.com`,
+      email: `${suffix}@example.com`,
+      firstName: 'Cleanup',
+      id: userId,
+      lastName: 'Tester',
+    });
+    await transaction.insert(usersToTenants).values({
+      id: makeId('member', suffix),
+      tenantId,
+      userId,
+    });
+    await transaction.insert(eventTemplateCategories).values({
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: categoryId,
+      tenantId,
+      title: 'Cleanup tests',
+    });
+    await transaction.insert(eventTemplates).values({
+      categoryId,
+      description: 'Cleanup fixture template',
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: templateId,
+      tenantId,
+      title: 'Cleanup fixture',
+    });
+    await transaction.insert(eventInstances).values({
+      creatorId: userId,
+      description: 'Cleanup fixture event',
+      end: new Date(now + 8 * 24 * 60 * 60 * 1000),
+      icon: { iconColor: 0, iconName: 'circle' },
+      id: eventId,
+      reviewedAt: new Date(now),
+      reviewedBy: userId,
+      start: new Date(now + 7 * 24 * 60 * 60 * 1000),
+      status: 'APPROVED',
+      templateId,
+      tenantId,
+      title: 'Cleanup fixture',
+    });
+    await transaction.insert(eventRegistrationOptions).values({
+      closeRegistrationTime: new Date(now + 6 * 24 * 60 * 60 * 1000),
+      eventId,
+      id: optionId,
+      isPaid: true,
+      openRegistrationTime: new Date(now - 24 * 60 * 60 * 1000),
+      organizingRegistration: false,
+      price: 1000,
+      registrationMode: 'application',
+      reservedSpots: 1,
+      spots: 2,
+      title: 'Participant',
+    });
+    await transaction.insert(eventAddons).values({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: false,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      eventId,
+      id: addOnId,
+      isPaid: false,
+      maxQuantityPerUser: 2,
+      price: 0,
+      title: 'Cleanup add-on',
+      totalAvailableQuantity: 3,
+    });
+    await transaction.insert(addonToEventRegistrationOptions).values({
+      addonId: addOnId,
+      eventId,
+      includedQuantity: 1,
+      optionalPurchaseQuantity: 1,
+      registrationOptionId: optionId,
+    });
+    await transaction.insert(eventRegistrations).values({
+      basePriceAtRegistration: 1000,
+      discountAmount: 0,
+      eventId,
+      id: registrationId,
+      registrationOptionId: optionId,
+      status: 'PENDING',
+      tenantId,
+      userId,
+    });
+    await transaction.insert(eventRegistrationAddonPurchases).values({
+      addonId: addOnId,
+      eventId,
+      id: purchaseId,
+      includedQuantity: 1,
+      purchasedQuantity: 1,
+      quantity: 2,
+      registrationId,
+      registrationOptionId: optionId,
+      tenantId,
+      unitPrice: 0,
+    });
+    await transaction.insert(eventRegistrationAddonPurchaseLots).values({
+      applicationFeeAmount: 0,
+      baseAmount: 0,
+      currency: 'EUR',
+      eventId,
+      grossAmount: 0,
+      id: purchaseLotId,
+      netAmount: 0,
+      paymentAllocationFinalizedAt: new Date(now),
+      purchaseId,
+      quantity: 1,
+      registrationId,
+      registrationOptionId: optionId,
+      sourceLineKey: `addon-lot:${purchaseLotId}`,
+      stripeFeeAmount: 0,
+      taxAmount: 0,
+      tenantId,
+      unitPrice: 0,
+    });
+    await transaction.insert(transactions).values({
+      amount: 1000,
+      appFee: 35,
+      currency: 'EUR',
+      eventId,
+      eventRegistrationId: registrationId,
+      executiveUserId: userId,
+      id: transactionId,
+      method: 'stripe',
+      status: 'pending',
+      stripeAccountId,
+      stripeCheckoutRequest: {
+        customerEmail: `${suffix}@example.com`,
+        eventTitle: 'Cleanup fixture',
+        eventUrl: 'https://cleanup.example/events/fixture',
+        expiresAt,
+        lineItems: [
+          {
+            name: 'Registration fee',
+            quantity: 1,
+            unitAmount: 1000,
+          },
+        ],
+        notificationEmail: `${suffix}@example.com`,
+      },
+      targetUserId: userId,
+      tenantId,
+      type: 'registration',
+    });
 
-  return {
-    addOnId,
-    categoryId,
-    eventId,
-    optionId,
-    registrationId,
-    stripeAccountId,
-    templateId,
-    tenantId,
-    transactionId,
-    userId,
-  };
+    return {
+      addOnId,
+      categoryId,
+      eventId,
+      optionId,
+      registrationId,
+      stripeAccountId,
+      templateId,
+      tenantId,
+      transactionId,
+      userId,
+    };
+  });
 };
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
@@ -470,22 +432,79 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
 };
 
+const awaitAllOperations = async <
+  const Operations extends readonly Promise<unknown>[],
+>(
+  operations: Operations,
+) => {
+  const settlements = await Promise.allSettled(operations);
+  const failures: unknown[] = [];
+  for (const settlement of settlements) {
+    if (settlement.status !== 'rejected') {
+      continue;
+    }
+
+    const error: unknown = settlement.reason;
+    failures.push(error);
+  }
+  throwCleanupFailures(failures);
+  return Promise.all(operations);
+};
+
 const readFixtureState = async (database: TestDatabase, fixture: Fixture) => {
-  const [claim, registration, option, addOn] = await Promise.all([
-    database.query.transactions.findFirst({
-      where: { id: fixture.transactionId },
-    }),
-    database.query.eventRegistrations.findFirst({
-      where: { id: fixture.registrationId },
-    }),
-    database.query.eventRegistrationOptions.findFirst({
-      where: { id: fixture.optionId },
-    }),
-    database.query.eventAddons.findFirst({
-      where: { id: fixture.addOnId },
-    }),
+  const [claim, registration, option, addOn] = await awaitAllOperations([
+    Promise.resolve(
+      database.query.transactions.findFirst({
+        where: { id: fixture.transactionId },
+      }),
+    ),
+    Promise.resolve(
+      database.query.eventRegistrations.findFirst({
+        where: { id: fixture.registrationId },
+      }),
+    ),
+    Promise.resolve(
+      database.query.eventRegistrationOptions.findFirst({
+        where: { id: fixture.optionId },
+      }),
+    ),
+    Promise.resolve(
+      database.query.eventAddons.findFirst({
+        where: { id: fixture.addOnId },
+      }),
+    ),
   ]);
   return { addOn, claim, option, registration };
+};
+
+const recordFailure = (failures: unknown[], error: unknown) => {
+  if (!failures.includes(error)) failures.push(error);
+};
+
+const trackCleanupWorker = <T>(
+  worker: Promise<T>,
+  settledWorkers: Promise<void>[],
+  failures: unknown[],
+) => {
+  settledWorkers.push(
+    (async () => {
+      try {
+        await worker;
+      } catch (error) {
+        recordFailure(failures, error);
+      }
+    })(),
+  );
+  return worker;
+};
+
+const throwCleanupFailures = (failures: unknown[]) => {
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1)
+    throw new AggregateError(
+      failures,
+      'Checkout fixture operation and cleanup failures',
+    );
 };
 
 describe('expired unbound checkout cleanup concurrency', () => {
@@ -499,10 +518,16 @@ describe('expired unbound checkout cleanup concurrency', () => {
   });
 
   afterEach(async () => {
+    const failures: unknown[] = [];
     for (const fixture of fixtures.toReversed()) {
-      await cleanFixture(database, fixture);
+      try {
+        await cleanFixture(database, fixture);
+      } catch (error) {
+        failures.push(error);
+      }
     }
     fixtures.length = 0;
+    throwCleanupFailures(failures);
   });
 
   afterAll(async () => {
@@ -559,7 +584,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
       await registrationLock.query('COMMIT');
       registrationLockCommitted = true;
 
-      const summaries = await Promise.all([firstCleanup, secondCleanup]);
+      const summaries = await awaitAllOperations([firstCleanup, secondCleanup]);
       expect(
         summaries.reduce((total, summary) => total + summary.cancelled, 0),
       ).toBe(1);
@@ -637,7 +662,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
         `,
         [
           stripeCheckoutSessionId,
-          `https://checkout.stripe.test/${fixture.transactionId}`,
+          `https://checkout.stripe.com/c/pay/${stripeCheckoutSessionId}`,
           fixture.transactionId,
         ],
       );
@@ -689,106 +714,18 @@ describe('expired unbound checkout cleanup concurrency', () => {
     }
   }, 30_000);
 
-  it('releases one bound expired Checkout reservation exactly once across simultaneous reconcilers', async () => {
-    const expiresAt = 4_000_000_000;
-    const fixture = await seedFixture(database, expiresAt);
-    fixtures.push(fixture);
-    const stripeCheckoutSessionId = `cs_test_${fixture.transactionId}`;
-    await database
-      .update(transactions)
-      .set({
-        stripeCheckoutSessionId,
-        stripeCheckoutUrl: `https://checkout.stripe.test/${fixture.transactionId}`,
-      })
-      .where(eq(transactions.id, fixture.transactionId));
-    const registrationLock = await lockRegistration(
-      pool,
-      fixture.registrationId,
-    );
-    let registrationLockCommitted = false;
-    let discardRegistrationLock = false;
-    const failures: unknown[] = [];
-    const settledWorkers: Promise<void>[] = [];
-    const candidate = {
-      registrationId: fixture.registrationId,
-      stripeAccountId: fixture.stripeAccountId,
-      stripeCheckoutSessionId,
-      tenantId: fixture.tenantId,
-      transactionId: fixture.transactionId,
-    };
-
-    try {
-      const firstReconciliation = trackCleanupWorker(
-        runBoundCancellation(databaseUrl, candidate, expiresAt),
-        settledWorkers,
-        failures,
-      );
-      const secondReconciliation = trackCleanupWorker(
-        runBoundCancellation(databaseUrl, candidate, expiresAt),
-        settledWorkers,
-        failures,
-      );
-      await waitForBlockedRegistrationLocks(pool, 2);
-      await registrationLock.query('COMMIT');
-      registrationLockCommitted = true;
-
-      const outcomes = await Promise.all([
-        firstReconciliation,
-        secondReconciliation,
-      ]);
-      expect(outcomes.toSorted()).toEqual(['cancelled', 'skipped']);
-
-      const state = await readFixtureState(database, fixture);
-      expect(state.registration?.status).toBe('CANCELLED');
-      expect(state.option?.reservedSpots).toBe(0);
-      expect(state.addOn?.totalAvailableQuantity).toBe(5);
-      expect(state.claim).toEqual(
-        expect.objectContaining({
-          status: 'cancelled',
-          stripeAccountId: fixture.stripeAccountId,
-          stripeCheckoutSessionId,
-        }),
-      );
-    } catch (error) {
-      recordFailure(failures, error);
-    } finally {
-      try {
-        if (!registrationLockCommitted) {
-          await registrationLock.query('ROLLBACK');
-        }
-      } catch (error) {
-        discardRegistrationLock = true;
-        recordFailure(failures, error);
-      }
-      try {
-        registrationLock.release(discardRegistrationLock);
-      } catch (error) {
-        recordFailure(failures, error);
-      }
-      await Promise.all(settledWorkers);
-    }
-    if (failures.length === 1) {
-      throw failures[0];
-    }
-    if (failures.length > 1) {
-      throw new AggregateError(
-        failures,
-        'Registration test and cleanup failures',
-      );
-    }
-  }, 30_000);
-
   it('leases fair due batches across two workers without starving later claims', async () => {
     const now = new Date('2026-07-10T12:00:00.000Z');
     const firstFixture = await seedFixture(database, 4_000_000_000);
+    fixtures.push(firstFixture);
     const secondFixture = await seedFixture(database, 4_000_000_000);
-    fixtures.push(firstFixture, secondFixture);
-    await Promise.all([
+    fixtures.push(secondFixture);
+    await awaitAllOperations([
       bindDueCheckout(database, firstFixture, now),
       bindDueCheckout(database, secondFixture, now),
     ]);
 
-    const [firstBatch, secondBatch] = await Promise.all([
+    const [firstBatch, secondBatch] = await awaitAllOperations([
       runDueClaim(databaseUrl, { limit: 1, now }),
       runDueClaim(databaseUrl, { limit: 1, now }),
     ]);
@@ -811,28 +748,36 @@ describe('expired unbound checkout cleanup concurrency', () => {
       fixture,
       now,
     );
-    const stripe = new Stripe('sk_test_123');
+    const stripe = createRejectingStripeClient();
     const { promise: retrievedSession, resolve: releaseRetrieve } =
-      Promise.withResolvers<Stripe.Checkout.Session>();
+      Promise.withResolvers<Stripe.Response<Stripe.Checkout.Session>>();
     const retrieve = vi
       .spyOn(stripe.checkout.sessions, 'retrieve')
-      .mockImplementation(() => retrievedSession as never);
-    const worker = Effect.runPromise(
-      processDueBoundRegistrationCheckouts({
-        batchSize: 1,
-        nowEpochSeconds: Math.floor(now.getTime() / 1000),
-      }).pipe(
-        Effect.provide(makeDatabaseServiceLayer(databaseUrl)),
-        Effect.provideService(StripeClient, stripe),
+      .mockImplementation(() => retrievedSession);
+    const failures: unknown[] = [];
+    const settledWorkers: Promise<void>[] = [];
+    const worker = trackCleanupWorker(
+      Effect.runPromise(
+        processDueBoundRegistrationCheckouts({
+          batchSize: 1,
+          nowEpochSeconds: Math.floor(now.getTime() / 1000),
+        }).pipe(
+          Effect.provide(makeDatabaseServiceLayer(databaseUrl)),
+          Effect.provideService(StripeClient, stripe),
+        ),
       ),
+      settledWorkers,
+      failures,
     );
 
-    await waitFor(
-      () => retrieve.mock.calls.length === 1,
-      'Timed out waiting for the Stripe retrieval probe',
-    );
-    const probe = await pool.connect();
+    let probe: PoolClient | undefined;
+    let probeCommitted = false;
     try {
+      await waitFor(
+        () => retrieve.mock.calls.length === 1,
+        'Timed out waiting for the Stripe retrieval probe',
+      );
+      probe = await pool.connect();
       await probe.query('BEGIN');
       await probe.query("SET LOCAL lock_timeout = '250ms'");
       await probe.query('UPDATE transactions SET comment = $1 WHERE id = $2', [
@@ -840,23 +785,142 @@ describe('expired unbound checkout cleanup concurrency', () => {
         fixture.transactionId,
       ]);
       await probe.query('COMMIT');
+      probeCommitted = true;
+    } catch (error) {
+      recordFailure(failures, error);
     } finally {
-      await probe.query('ROLLBACK').catch(() => null);
-      probe.release();
+      if (probe) {
+        try {
+          if (!probeCommitted) await probe.query('ROLLBACK');
+        } catch (error) {
+          recordFailure(failures, error);
+        }
+        try {
+          probe.release();
+        } catch (error) {
+          recordFailure(failures, error);
+        }
+      }
+      releaseRetrieve(
+        stripeCheckoutSessionResponse({
+          amount_total: 1000,
+          id: stripeCheckoutSessionId,
+          payment_intent: null,
+          payment_status: 'unpaid',
+          status: 'open',
+        }),
+      );
+      await Promise.all(settledWorkers);
     }
-
-    releaseRetrieve({
-      id: stripeCheckoutSessionId,
-      object: 'checkout.session',
-      payment_status: 'unpaid',
-      status: 'open',
-    } as Stripe.Checkout.Session);
+    throwCleanupFailures(failures);
     expect(await worker).toEqual({
       cancelled: 0,
       failed: 0,
       scanned: 1,
       skipped: 1,
     });
+  }, 30_000);
+
+  it('releases one bound expired Checkout reservation exactly once across simultaneous leased workers', async () => {
+    const now = new Date('2026-07-10T12:00:00.000Z');
+    const nowEpochSeconds = Math.floor(now.getTime() / 1000);
+    const fixture = await seedFixture(database, nowEpochSeconds);
+    fixtures.push(fixture);
+    const stripeCheckoutSessionId = await bindDueCheckout(
+      database,
+      fixture,
+      now,
+    );
+    const stripe = createRejectingStripeClient();
+    const { promise: retrieved, resolve: releaseRetrieve } =
+      Promise.withResolvers<Stripe.Response<Stripe.Checkout.Session>>();
+    const retrieve = vi
+      .spyOn(stripe.checkout.sessions, 'retrieve')
+      .mockImplementation(() => retrieved);
+    const expire = vi.spyOn(stripe.checkout.sessions, 'expire');
+    const failures: unknown[] = [];
+    const settledWorkers: Promise<void>[] = [];
+    let finishedWorkers = 0;
+    const runWorker = async () => {
+      try {
+        return await Effect.runPromise(
+          processDueBoundRegistrationCheckouts({
+            batchSize: 1,
+            nowEpochSeconds,
+          }).pipe(
+            Effect.provide(makeDatabaseServiceLayer(databaseUrl)),
+            Effect.provideService(StripeClient, stripe),
+          ),
+        );
+      } finally {
+        finishedWorkers += 1;
+      }
+    };
+    const firstWorker = trackCleanupWorker(
+      runWorker(),
+      settledWorkers,
+      failures,
+    );
+    const secondWorker = trackCleanupWorker(
+      runWorker(),
+      settledWorkers,
+      failures,
+    );
+    try {
+      await waitFor(
+        () => retrieve.mock.calls.length === 1 && finishedWorkers === 1,
+        'Timed out waiting for the competing leased worker to finish while Stripe retrieval is held',
+      );
+    } catch (error) {
+      recordFailure(failures, error);
+    } finally {
+      releaseRetrieve(
+        stripeCheckoutSessionResponse({
+          amount_total: 1000,
+          expires_at: nowEpochSeconds,
+          id: stripeCheckoutSessionId,
+          metadata: {
+            registrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+            transactionId: fixture.transactionId,
+          },
+          payment_intent: null,
+          payment_status: 'unpaid',
+          status: 'expired',
+        }),
+      );
+      await Promise.all(settledWorkers);
+    }
+    throwCleanupFailures(failures);
+    const summaries = await awaitAllOperations([firstWorker, secondWorker]);
+    expect(
+      summaries.reduce((total, summary) => total + summary.cancelled, 0),
+    ).toBe(1);
+    expect(
+      summaries.reduce((total, summary) => total + summary.failed, 0),
+    ).toBe(0);
+    expect(
+      summaries.reduce((total, summary) => total + summary.scanned, 0),
+    ).toBe(1);
+    expect(retrieve).toHaveBeenCalledExactlyOnceWith(
+      stripeCheckoutSessionId,
+      undefined,
+      { stripeAccount: fixture.stripeAccountId },
+    );
+    expect(expire).not.toHaveBeenCalled();
+    const state = await readFixtureState(database, fixture);
+    expect(state.registration?.status).toBe('CANCELLED');
+    expect(state.option?.reservedSpots).toBe(0);
+    expect(state.option?.confirmedSpots).toBe(0);
+    expect(state.addOn?.totalAvailableQuantity).toBe(5);
+    expect(state.claim).toMatchObject({
+      status: 'cancelled',
+      stripeAccountId: fixture.stripeAccountId,
+      stripeCheckoutSessionId,
+    });
+    const replay = await runWorker();
+    expect(replay.scanned).toBe(0);
+    expect(retrieve).toHaveBeenCalledTimes(1);
   }, 30_000);
 
   it('recovers a lost direct paid-completion webhook exactly once', async () => {
@@ -874,45 +938,66 @@ describe('expired unbound checkout cleanup concurrency', () => {
       .where(eq(transactions.id, fixture.transactionId));
     const stripePaymentIntentId = `pi_${fixture.transactionId}`;
     const stripeChargeId = `ch_${fixture.transactionId}`;
-    const stripe = new Stripe('sk_test_123');
+    const stripe = createRejectingStripeClient();
     const retrieve = vi
       .spyOn(stripe.checkout.sessions, 'retrieve')
-      .mockResolvedValue({
-        amount_total: 1000,
-        currency: 'eur',
-        id: stripeCheckoutSessionId,
-        metadata: {
-          registrationId: fixture.registrationId,
-          tenantId: fixture.tenantId,
-          transactionId: fixture.transactionId,
-        },
-        object: 'checkout.session',
-        payment_intent: {
-          id: stripePaymentIntentId,
-          latest_charge: stripeChargeId,
-        },
-        payment_status: 'paid',
-        status: 'complete',
-      } as never);
+      .mockResolvedValue(
+        stripeCheckoutSessionResponse({
+          amount_total: 1000,
+          currency: 'eur',
+          id: stripeCheckoutSessionId,
+          metadata: {
+            registrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+            transactionId: fixture.transactionId,
+          },
+          object: 'checkout.session',
+          payment_intent: stripePaymentIntentResponse({
+            amount: 1000,
+            amount_received: 1000,
+            id: stripePaymentIntentId,
+            latest_charge: stripeChargeId,
+          }),
+          payment_status: 'paid',
+          status: 'complete',
+        }),
+      );
     const retrieveCharge = vi
       .spyOn(stripe.charges, 'retrieve')
-      .mockResolvedValue({
-        amount: 1000,
-        balance_transaction: {
+      .mockResolvedValue(
+        stripeChargeResponse({
           amount: 1000,
+          balance_transaction: stripeBalanceTransactionResponse({
+            amount: 1000,
+            currency: 'eur',
+            fee: 64,
+            fee_details: [
+              {
+                amount: 35,
+                application: null,
+                currency: 'eur',
+                description: null,
+                type: 'application_fee',
+              },
+              {
+                amount: 29,
+                application: null,
+                currency: 'eur',
+                description: null,
+                type: 'stripe_fee',
+              },
+            ],
+            id: 'txn_' + stripeChargeId,
+            net: 936,
+            source: stripeChargeId,
+          }),
+          captured: true,
           currency: 'eur',
-          fee_details: [
-            { amount: 35, type: 'application_fee' },
-            { amount: 29, type: 'stripe_fee' },
-          ],
-          net: 936,
-        },
-        captured: true,
-        currency: 'eur',
-        id: stripeChargeId,
-        paid: true,
-        payment_intent: stripePaymentIntentId,
-      } as never);
+          id: stripeChargeId,
+          paid: true,
+          payment_intent: stripePaymentIntentId,
+        }),
+      );
     const configLayer = ConfigProvider.layer(
       ConfigProvider.fromEnv({
         env: {
@@ -990,8 +1075,9 @@ describe('expired unbound checkout cleanup concurrency', () => {
   it('fails closed before registration mutation when Stripe gross or currency differs', async () => {
     const now = new Date('2026-07-10T12:00:00.000Z');
     const amountMismatch = await seedFixture(database, 4_000_000_000);
+    fixtures.push(amountMismatch);
     const currencyMismatch = await seedFixture(database, 4_000_000_000);
-    fixtures.push(amountMismatch, currencyMismatch);
+    fixtures.push(currencyMismatch);
     const amountSessionId = await bindDueCheckout(
       database,
       amountMismatch,
@@ -1002,13 +1088,13 @@ describe('expired unbound checkout cleanup concurrency', () => {
       currencyMismatch,
       now,
     );
-    const stripe = new Stripe('sk_test_123');
+    const stripe = createRejectingStripeClient();
     const retrieve = vi
       .spyOn(stripe.checkout.sessions, 'retrieve')
       .mockImplementation(async (sessionId) => {
         const fixture =
           sessionId === amountSessionId ? amountMismatch : currencyMismatch;
-        return {
+        return stripeCheckoutSessionResponse({
           amount_total: sessionId === amountSessionId ? 999 : 1000,
           currency: sessionId === currencySessionId ? 'usd' : 'eur',
           id: sessionId,
@@ -1021,7 +1107,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
           payment_intent: `pi_${fixture.transactionId}`,
           payment_status: 'paid',
           status: 'complete',
-        } as never;
+        });
       });
 
     const summary = await Effect.runPromise(
@@ -1089,14 +1175,14 @@ describe('expired unbound checkout cleanup concurrency', () => {
     );
     expect(refundClaim.id).toHaveLength(20);
 
-    const stripe = new Stripe('sk_test_123');
+    const stripe = createRejectingStripeClient();
     const { promise: stripeCreateBarrier, resolve: releaseStripeCreate } =
       Promise.withResolvers<undefined>();
     const createRefund = vi
       .spyOn(stripe.refunds, 'create')
       .mockImplementation(async () => {
         await stripeCreateBarrier;
-        return {
+        return stripeRefundResponse({
           amount: 1000,
           charge: null,
           currency: 'eur',
@@ -1111,7 +1197,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
           object: 'refund',
           payment_intent: stripePaymentIntentId,
           status: 'succeeded',
-        } as never;
+        });
       });
     const runRefund = () =>
       Effect.runPromise(
@@ -1121,14 +1207,31 @@ describe('expired unbound checkout cleanup concurrency', () => {
         ),
       );
 
-    const firstWorker = runRefund();
-    const secondWorker = runRefund();
-    await waitFor(
-      () => createRefund.mock.calls.length === 1,
-      'Timed out waiting for the claimed Stripe refund',
+    const failures: unknown[] = [];
+    const settledWorkers: Promise<void>[] = [];
+    const firstWorker = trackCleanupWorker(
+      runRefund(),
+      settledWorkers,
+      failures,
     );
-    releaseStripeCreate(undefined);
-    const outcomes = await Promise.all([firstWorker, secondWorker]);
+    const secondWorker = trackCleanupWorker(
+      runRefund(),
+      settledWorkers,
+      failures,
+    );
+    try {
+      await waitFor(
+        () => createRefund.mock.calls.length === 1,
+        'Timed out waiting for the claimed Stripe refund',
+      );
+    } catch (error) {
+      recordFailure(failures, error);
+    } finally {
+      releaseStripeCreate(undefined);
+      await Promise.all(settledWorkers);
+    }
+    throwCleanupFailures(failures);
+    const outcomes = await awaitAllOperations([firstWorker, secondWorker]);
 
     expect(outcomes.map((outcome) => outcome.status).toSorted()).toEqual([
       'processed',
@@ -1218,7 +1321,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
           Effect.provide(makeDatabaseServiceLayer(databaseUrl)),
         ),
       );
-    const outcomes = await Promise.all([runRequeue(), runRequeue()]);
+    const outcomes = await awaitAllOperations([runRequeue(), runRequeue()]);
     expect(
       outcomes
         .map((outcome) =>
@@ -1252,7 +1355,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
           amount: 1000,
           balance_transaction: null,
           charge: null,
-          created: Math.floor(Date.now() / 1000),
+          created: 1_750_000_000,
           currency: 'eur',
           id: archivedRefundId,
           metadata: {

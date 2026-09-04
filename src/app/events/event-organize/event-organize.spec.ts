@@ -211,7 +211,8 @@ describe('event organizer error notifications', () => {
     },
     {
       conflict: 'Registration option has no available spots',
-      fallback: 'Failed to approve application',
+      fallback:
+        'Payment setup needs review. Keep the existing sign-up and contact Evorto support before starting another payment.',
       label: 'Approve application',
       mutation: approveRegistration,
     },
@@ -578,48 +579,43 @@ describe('organizerRegistrationApprovalDisabled', () => {
       organizerRegistrationApprovalDisabled({
         manualApprovalAvailable: false,
         mutationPending: false,
+        paymentSetupRequired: false,
       }),
     ).toBe(true);
     expect(
       organizerRegistrationApprovalDisabled({
         manualApprovalAvailable: true,
         mutationPending: true,
+        paymentSetupRequired: false,
       }),
     ).toBe(true);
     expect(
       organizerRegistrationApprovalDisabled({
         manualApprovalAvailable: true,
         mutationPending: false,
+        paymentSetupRequired: false,
       }),
     ).toBe(false);
+  });
+  it('blocks another approval request even when a stale view still grants approval access', () => {
+    expect(
+      organizerRegistrationApprovalDisabled({
+        manualApprovalAvailable: true,
+        mutationPending: false,
+        paymentSetupRequired: true,
+      }),
+    ).toBe(true);
   });
 });
 
 describe('organizerRegistrationApprovalLabel', () => {
-  it('distinguishes fresh approval from payment setup recovery', () => {
-    expect(
-      organizerRegistrationApprovalLabel({
-        approvalPending: false,
-        paymentSetupRequired: false,
-      }),
-    ).toBe('Approve application');
-    expect(
-      organizerRegistrationApprovalLabel({
-        approvalPending: false,
-        paymentSetupRequired: true,
-      }),
-    ).toBe('Retry payment setup');
-  });
-
-  it('shows the in-flight state for either approval action', () => {
-    for (const paymentSetupRequired of [false, true]) {
-      expect(
-        organizerRegistrationApprovalLabel({
-          approvalPending: true,
-          paymentSetupRequired,
-        }),
-      ).toBe('Approving…');
-    }
+  it('labels fresh approval and its pending state', () => {
+    expect(organizerRegistrationApprovalLabel({ approvalPending: false })).toBe(
+      'Approve application',
+    );
+    expect(organizerRegistrationApprovalLabel({ approvalPending: true })).toBe(
+      'Approving…',
+    );
   });
 });
 
@@ -636,7 +632,12 @@ describe('event organizer approval template', () => {
       '@if (!registrationOption.organizingRegistration)',
     );
     expect(template).toContain('[attr.aria-busy]="approvalInFlight || null"');
-    expect(template).toContain('Payment setup needs retry');
+    expect(template).toContain('Payment needs attention');
+    expect(template).not.toContain('Retry payment setup');
+    expect(template).toContain('!user.paymentSetupRequired');
+    expect(template.replaceAll(/\s+/g, ' ')).toContain(
+      'Keep this sign-up and contact Evorto support before starting another payment.',
+    );
   });
 
   it('hides transfer and cancellation actions unless their server capabilities are present', () => {

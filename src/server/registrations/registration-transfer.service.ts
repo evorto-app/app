@@ -64,10 +64,7 @@ import type { Tenant } from '../../types/custom/tenant';
 import type { User } from '../../types/custom/user';
 
 import { getServerNow } from '../clock';
-import {
-  isUserEligibleForRegistrationOption,
-  validateRegistrationQuestionAnswers,
-} from '../effect/rpc/handlers/events/event-registration.service';
+import { validateRegistrationQuestionAnswers } from '../effect/rpc/handlers/events/event-registration.service';
 import { EventRegistrationConflictError } from '../effect/rpc/handlers/events/events.errors';
 import {
   buildCheckoutSessionExpiresAt,
@@ -94,6 +91,7 @@ import {
   registrationCheckoutInitialReconcileAt,
 } from './registration-checkout-completion';
 import { registrationCheckoutHasTooManyLines } from './registration-checkout-lines';
+import { isUserEligibleForRegistrationOption } from './registration-eligibility';
 import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
 import {
   createRegistrationTransferCredentials,

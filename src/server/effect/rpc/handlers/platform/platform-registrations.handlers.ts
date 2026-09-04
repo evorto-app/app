@@ -408,7 +408,7 @@ export const platformRegistrationCancellationBlockedReason = (input: {
     return 'Resolve the active registration transfer before cancelling this registration.';
   }
   if (input.pendingStripePayment?.stripeCheckoutSessionId === null) {
-    return 'Payment setup is still being reconciled. Resume approval before cancelling.';
+    return 'Payment setup needs review. Ask the event organizer or finance team to investigate. The place remains held; no changes were made.';
   }
   if (
     input.pendingStripePayment &&
