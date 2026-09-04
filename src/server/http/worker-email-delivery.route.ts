@@ -7,8 +7,10 @@ import {
 } from 'effect/unstable/http';
 
 import { DeploymentRuntimeConfig } from '../config/deployment-config';
+import { EmailDelivery } from '../integrations/email-delivery';
 import { processDueEmailOutbox } from '../notifications/email-delivery';
 import { validateRuntimeRoleConfiguration } from '../runtime/runtime-role';
+import { APPLICATION_READINESS_PATH } from './application-readiness';
 import {
   handleInternalTriggerWebRequest,
   type InternalTriggerArguments,
@@ -16,6 +18,20 @@ import {
 
 export const WORKER_EMAIL_DELIVERY_PATH =
   '/internal/worker/email-delivery' as const;
+
+export const workerEmailDeliveryReadinessRouteLayer = HttpLayerRouter.add(
+  'GET',
+  APPLICATION_READINESS_PATH,
+  () =>
+    EmailDelivery.use(() =>
+      Effect.succeed(
+        HttpServerResponse.empty({
+          headers: { 'Cache-Control': 'no-store' },
+          status: 204,
+        }),
+      ),
+    ),
+);
 
 export const handleWorkerTrigger = <A, E, R>(
   request: HttpServerRequest.HttpServerRequest,

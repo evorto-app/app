@@ -283,11 +283,12 @@ payment transitions belong in atomic, replay-safe state changes.
 
 Customer-facing email is rendered from React Email components and committed to
 the transactional outbox before delivery through the configured provider. Do
-not bypass the outbox for template rendering, delivery, idempotency, retries, or
-failure observability.
+not bypass the outbox for template rendering, delivery, idempotency, or failure
+observability. Each queued row receives at most one dispatch attempt. An abandoned
+sending claim becomes delivery-unknown without another send.
 
-An exhausted outbox row remains stored and read-only. The current product does
-not expose an exhausted-email requeue or correction mutation.
+Failed and delivery-unknown rows remain stored and read-only. The product does
+not expose an email requeue, retry, resend, or correction mutation.
 
 ## Location and Image Provider Boundary
 

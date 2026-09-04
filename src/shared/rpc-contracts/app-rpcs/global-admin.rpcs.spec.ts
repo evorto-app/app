@@ -45,28 +45,16 @@ describe('GlobalAdminEmailOutboxKind', () => {
   it('requires the owning tenant timezone on operator records', () => {
     expect(
       Schema.decodeUnknownSync(GlobalAdminEmailOutboxRecord)({
-        attempts: 0,
-        createdAt: '2026-07-15T14:30:00.000Z',
-        deliveryUnknownAt: null,
-        exhaustedAt: null,
         id: 'email-1',
         kind: 'registrationConfirmed',
         lastAttemptAt: null,
-        lastError: null,
-        maxAttempts: 8,
-        nextAttemptAt: '2026-07-15T14:30:00.000Z',
-        provider: null,
-        providerMessageId: null,
         recipient: 'member@example.org',
-        sentAt: null,
+        recordIncomplete: false,
         status: 'queued',
         subject: 'Registration confirmed',
-        suppressedAt: null,
         tenantDomain: 'section.example.org',
-        tenantId: 'tenant-1',
         tenantName: 'Section',
         tenantTimezone: 'Australia/Brisbane',
-        updatedAt: '2026-07-15T14:30:00.000Z',
       }),
     ).toMatchObject({ tenantTimezone: 'Australia/Brisbane' });
   });

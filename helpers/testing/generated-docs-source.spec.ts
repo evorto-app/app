@@ -690,31 +690,34 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("page.goto('/global-admin')");
     expect(source).toContain("getByRole('link', { name: 'Email outbox' })");
     expect(source).toContain('Delivery details');
-    expect(source).toContain('Temporary provider timeout');
-    expect(source).toContain('Recipient address was rejected');
-    expect(source).toContain('scenario.sent.subject');
-    expect(source).toContain('await scenario.cleanup()');
+    expect(source).not.toContain('Temporary provider timeout');
+    expect(source).not.toContain('Recipient address was rejected');
+    expect(source).toContain('outboxRow(page, scenario.sent)');
+    expect(source).toContain('await expect(sentRow).toBeVisible()');
+    expect(source).toContain('registerDatabaseCleanup(scenario.cleanup)');
     expect(source).toContain(
-      'It shows the 100 most recently updated **queued**, **sending**, and **failed** rows.',
+      'The **Delivery details** list shows up to 100 recent messages:',
     );
     expect(source).toContain(
-      'It omits successfully **sent** rows even though the Sent total still includes them.',
+      'Successfully **Sent** messages are included as read-only history. This page cannot send them again.',
     );
     expect(source).toContain(
-      'Do not infer that the email is permanently stuck from a brief **Sending** state',
-    );
-    expect(source).toContain('automatic retries have stopped');
-    expect(source).toContain(
-      'There is currently no organization/status search control and no manual retry button on this page.',
+      'For **Sending**, wait briefly and select **Check again** once.',
     );
     expect(source).toContain(
-      'You must be signed in as a platform administrator.',
+      'sending failed and Evorto will not try again automatically.',
     );
     expect(source).toContain(
-      'without platform administrator authority is redirected to the forbidden page',
+      'There is currently no search or resend action on this page. **Check again** shows the latest information but does not send anything.',
     );
     expect(source).toContain(
-      "Organization roles, including an organization's ordinary Admin role, do not grant access",
+      'Only people who manage Evorto as a whole can use this page.',
+    );
+    expect(source).toContain(
+      'A signed-in member who does not manage Evorto as a whole sees the forbidden page when opening **Email delivery** directly.',
+    );
+    expect(source).toContain(
+      'Being an Admin for one organization does not open this page for all organizations.',
     );
     expect(source).not.toContain('tenant admins can review all email');
     expect(source).not.toContain('Refresh retries the email');

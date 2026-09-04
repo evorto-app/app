@@ -209,6 +209,14 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `helpers/testing/email-outbox-kind-source.spec.ts` keeps the typed kinds,
     operator labels, React Email producers, transactional transition splices,
     and page-backed coverage aligned
+  - `specs/admin/email-outbox.spec.ts` and `docs/admin/email-outbox.doc.ts`
+    cover single-dispatch outcomes, sent history, recipient/organization context,
+    and refresh without resend; scenario cleanup belongs to the database fixture
+  - email provider/dispatcher/lease units cover one attempt, explicit rejection,
+    uncertain outcomes, bounded requests, abandoned claims and settlement fencing;
+    the PostgreSQL delivery suite checks durable terminalization with a fake provider
+  - `src/server/runtime/polling-worker-supervision.spec.ts` proves failure
+    propagation, sibling interruption and shutdown finalizers
 - Finance, receipts, tax, and Stripe:
   - `docs/finance/**`
   - `specs/finance/**`
@@ -707,18 +715,18 @@ ESNcard provider credential path.
     explains the fixed notification From address, the external Stripe-account
     verification responsibility, the meaning of a zero registration limit,
     tenant boundaries, and save recovery behavior.
-  - Global Email Outbox coverage now seeds uniquely identified queued,
-    scheduled-retry, active-sending, exhausted, and sent rows on a disposable
-    tenant and deletes those rows in cleanup. Functional and generated-doc
+  - Global Email Outbox coverage seeds uniquely identified active-sending,
+    failed, delivery-unknown, and sent rows and registers their owned cleanup
+    immediately after scenario acquisition. Functional and generated-doc
     journeys navigate through the guarded global-admin shell, assert global
-    status summaries, tenant/recipient/attempt/error details, Refresh readback,
-    and the fixed server-side list scope: queued/sending/failed rows are shown
-    while sent rows remain summary-only. Permission coverage allows platform
-    admins and denies ordinary signed-in users on the direct outbox route. The
-    beginner guide distinguishes automatic queued retry, a time-limited sending
-    claim, automatic abandoned-claim recovery, and exhausted failures. Exhausted
-    rows intentionally remain stored and read-only; no requeue or edit recovery
-    action is required for the current product scope.
+    status summaries, organization/recipient details, plain outcome messages,
+    sent history, and Check again readback. The list shows up to 100 messages,
+    placing failures, unknown outcomes, and abandoned claims first, then ordering
+    each group by its most recent update. Permission coverage allows platform
+    admins and denies ordinary signed-in users on the direct outbox route.
+    Waiting messages receive one dispatch attempt; abandoned sending claims
+    become delivery-unknown without another send. Failed and unknown rows remain
+    stored and read-only; Check again does not retry or resend a message.
   - Trusted tenant URL coverage derives one secure HTTPS public origin from the
     normalized primary domain and rejects credentials, non-default ports,
     paths, fragments, alternate hosts, and absolute URL overrides. Production
