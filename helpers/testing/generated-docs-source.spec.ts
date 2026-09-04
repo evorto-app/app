@@ -306,10 +306,10 @@ describe('generated docs source current behavior', () => {
     );
     expect(journey).toContain('const cancelledScannerAlert');
     expect(journey).toContain(
-      'Do not ask the attendee to pay or register again',
+      'Do not ask the attendee to pay or sign up again',
     );
     expect(journey).toMatch(
-      /await expect\(\s*scannerAddOn\.getByText\('Refund processing', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
+      /await expect\(\s*scannerAddOn\.getByText\('Refund in progress', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
     );
     expect(journey).toMatch(
       /await expect\(\s*scannerAddOn\.getByText\('Refund needs review', \{ exact: true \}\),\s*\)\.toBeVisible\(\)/u,
@@ -1929,13 +1929,15 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('await confirmScannerCheckIn.click()');
     expect(source).toContain('Scanned registration with guest check-in');
-    expect(source).toContain("page.getByText('Check-in recorded')");
+    expect(source).toContain("page.getByText('Check-in complete')");
     expect(source).toContain('checkedInGuestCount: true');
     expect(source).toContain('checkedInSpots: initialCheckedInSpots + 3');
-    expect(source).toContain('.update(eventRegistrationOptions)');
-    expect(source).toMatch(
-      /\.set\(\{\s*checkedInSpots: initialCheckedInSpots,\s*confirmedSpots: initialConfirmedSpots,\s*\}\)/u,
+    expect(source).toContain('confirmedSpots: scannerConfirmedSpots');
+    expect(source).toContain(
+      'Check-in opens one hour before the event starts and closes two hours after it ends.',
     );
+    expect(source).toContain('.update(eventRegistrationOptions)');
+    expect(source).toContain('.set({ checkedInSpots: initialCheckedInSpots })');
     expect(source).toContain(
       "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments.",
     );
@@ -2006,25 +2008,31 @@ describe('generated docs source current behavior', () => {
   it('keeps dedicated check-in docs beginner-readable and behavior-backed', () => {
     const source = readSource('tests/docs/scanning/check-in.doc.ts');
 
-    expect(source).toContain('# Check in event attendees');
-    expect(source).toContain('Before you start');
+    expect(source).not.toMatch(/^#\s+/mu);
+    expect(source).toContain('Who can do this');
     expect(source).toContain(
       "page.getByRole('link', { exact: true, name: 'Scanner' })",
     );
     expect(source).toContain("installMockCamera(page, 'allowed')");
     expect(source).toContain('camera=(self)');
     expect(source).toContain('If the camera does not start');
-    expect(source).toContain('**Invalid QR code**');
+    expect(source).toContain('**Not an Evorto ticket**');
     expect(source).toContain("getByRole('link', { name: 'Back to scanner' })");
-    expect(source).toContain('Verify the registration');
+    expect(source).toContain('Verify the ticket');
+    expect(source).toContain(
+      'Check-in opens one hour before the event starts and closes two hours after it ends.',
+    );
+    expect(source).toContain('**Organize all events** access');
+    expect(source).not.toContain('**Organize all events** permission');
+    expect(source).toContain('**Check-in closed**');
+    expect(source).toContain("hasText: 'Check-in closed'");
     expect(source).toContain('Check in guests who arrive later');
     expect(source).toContain("page.getByText('Already checked in')");
     expect(source).toContain('checkedInSpots: optionBefore.checkedInSpots + 2');
     expect(source).toContain('optionBefore.checkedInSpots + 3');
     expect(source).toContain('.delete(eventRegistrations)');
-    expect(source).toMatch(
-      /\.set\(\{\s*checkedInSpots: optionBefore\.checkedInSpots,\s*confirmedSpots: optionBefore\.confirmedSpots,\s*\}\)/u,
-    );
+    expect(source).toContain('checkedInSpots: optionBefore.checkedInSpots,');
+    expect(source).toContain('confirmedSpots: optionBefore.confirmedSpots,');
     expect(source).not.toContain('a QR code is enough to check in');
   });
 

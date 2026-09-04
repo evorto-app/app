@@ -328,7 +328,7 @@ const runWithCleanup = async <A>(
 };
 
 const createPendingOperationTracker = () => {
-  const settlements: Promise<void>[] = [];
+  const settlements: Promise<unknown>[] = [];
   const failures: unknown[] = [];
   return {
     drain: async () => {
@@ -340,13 +340,9 @@ const createPendingOperationTracker = () => {
     track: <A>(operation: PromiseLike<A>): Promise<A> => {
       const promise = Promise.resolve(operation);
       settlements.push(
-        (async () => {
-          try {
-            await promise;
-          } catch (error) {
-            failures.push(error);
-          }
-        })(),
+        promise.catch((error: unknown) => {
+          failures.push(error);
+        }),
       );
       return promise;
     },
@@ -487,6 +483,16 @@ const cancellationOptions = {
   requestId: RpcMessage.RequestId(1),
   rpc: cancellationRpc.middleware(RpcRequestContextMiddleware),
 };
+const checkInRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'events.checkInRegistration',
+);
+if (!checkInRpc) throw new Error('Check-in RPC is missing');
+const checkInOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: checkInRpc.middleware(RpcRequestContextMiddleware),
+};
 
 const runCancellation = ({
   expectedPaymentPending = false,
@@ -580,6 +586,96 @@ const runCancellation = ({
   );
 };
 
+const runCheckIn = ({
+  fixture,
+  guestCheckInCount,
+  serviceLayer,
+}: {
+  fixture: Fixture;
+  guestCheckInCount: number;
+  serviceLayer: ReturnType<typeof makeServiceLayer>;
+}) => {
+  const permissions = ['events:organizeAll'] as const;
+  const scannerUserId = makeId('scanner', fixture.tenantId);
+  const requestContext = {
+    authData: {},
+    authenticated: true,
+    permissions,
+    tenant: {
+      cancellationDeadlineHoursBeforeStart: 120,
+      currency: 'EUR',
+      defaultLocation: undefined,
+      discountProviders: {
+        esnCard: {
+          config: {},
+          status: 'disabled',
+        },
+      },
+      domain: tenantDomainForFixture(fixture),
+      emailSenderEmail: undefined,
+      emailSenderName: undefined,
+      faviconUrl: undefined,
+      id: fixture.tenantId,
+      legalNoticeText: undefined,
+      legalNoticeUrl: undefined,
+      logoUrl: undefined,
+      maxActiveRegistrationsPerUser: 0,
+      name: 'Concurrency test',
+      receiptSettings: {
+        allowOther: false,
+        receiptCountries: ['DE'],
+      },
+      refundFeesOnCancellation: true,
+      seoDescription: undefined,
+      seoTitle: undefined,
+      stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
+      termsText: undefined,
+      termsUrl: undefined,
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+      transferDeadlineHoursBeforeStart: 0,
+    },
+    user: {
+      attributes: [],
+      auth0Id: `auth0|${scannerUserId}`,
+      communicationEmail: communicationEmailForUser(scannerUserId),
+      email: loginEmailForUser(scannerUserId),
+      firstName: 'Scanner',
+      homeTenantId: fixture.tenantId,
+      homeTenantName: 'Concurrency test',
+      iban: undefined,
+      id: scannerUserId,
+      lastName: 'Tester',
+      paypalEmail: undefined,
+      permissions,
+      roleIds: [],
+    },
+    userAssigned: true,
+  } satisfies RpcRequestContextShape;
+
+  return Effect.runPromise(
+    eventRegistrationHandlers['events.checkInRegistration'](
+      {
+        guestCheckInCount,
+        registrationId: fixture.registrationId,
+      },
+      checkInOptions,
+    ).pipe(
+      Effect.match({
+        onFailure: (error) => ({ error, status: 'failure' as const }),
+        onSuccess: (value) => ({ status: 'success' as const, value }),
+      }),
+      Effect.provide(
+        Layer.mergeAll(
+          serviceLayer,
+          RpcAccess.Default,
+          Layer.succeed(RpcRequestContext, requestContext),
+        ),
+      ),
+    ),
+  );
+};
+
 const approvalInput = (fixture: Fixture): ApprovalInput => ({
   executiveUserId: fixture.userId,
   expectedEventId: fixture.eventId,
@@ -619,7 +715,9 @@ const directRegistrationInput = (fixture: Fixture): RegistrationInput => ({
   },
 });
 
-const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
+const insertFixture = async (
+  database: Pick<TestDatabase, 'insert'>,
+): Promise<Fixture> => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
   const tenantId = makeId('tenant', suffix);
   const userId = makeId('user', suffix);
@@ -778,35 +876,72 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
   };
 };
 
-const prepareDirectRegistrationFixture = async (
+const seedFixture = (database: TestDatabase): Promise<Fixture> =>
+  database.transaction(insertFixture);
+
+const prepareDirectRegistrationFixture = (
   database: TestDatabase,
-): Promise<Fixture> => {
-  const fixture = await seedFixture(database);
-  await database
-    .delete(eventRegistrationAddonPurchaseLots)
-    .where(
-      eq(
-        eventRegistrationAddonPurchaseLots.registrationId,
-        fixture.registrationId,
-      ),
-    );
-  await database
-    .delete(eventRegistrationAddonPurchases)
-    .where(
-      eq(
-        eventRegistrationAddonPurchases.registrationId,
-        fixture.registrationId,
-      ),
-    );
-  await database
-    .delete(eventRegistrations)
-    .where(eq(eventRegistrations.id, fixture.registrationId));
-  await database
-    .update(eventRegistrationOptions)
-    .set({ registrationMode: 'fcfs' })
-    .where(eq(eventRegistrationOptions.id, fixture.optionId));
-  return fixture;
-};
+): Promise<Fixture> =>
+  database.transaction(async (transaction) => {
+    const fixture = await insertFixture(transaction);
+    await transaction
+      .delete(eventRegistrationAddonPurchaseLots)
+      .where(
+        eq(
+          eventRegistrationAddonPurchaseLots.registrationId,
+          fixture.registrationId,
+        ),
+      );
+    await transaction
+      .delete(eventRegistrationAddonPurchases)
+      .where(
+        eq(
+          eventRegistrationAddonPurchases.registrationId,
+          fixture.registrationId,
+        ),
+      );
+    await transaction
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, fixture.registrationId));
+    await transaction
+      .update(eventRegistrationOptions)
+      .set({ registrationMode: 'fcfs' })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+    return fixture;
+  });
+
+const prepareCheckInFixture = (
+  database: TestDatabase,
+  { guestCount }: { guestCount: number },
+): Promise<Fixture> =>
+  database.transaction(async (transaction) => {
+    const fixture = await insertFixture(transaction);
+    const now = Date.now();
+    await transaction
+      .update(eventInstances)
+      .set({
+        end: new Date(now + 2 * 60 * 60 * 1000),
+        start: new Date(now + 30 * 60 * 1000),
+      })
+      .where(eq(eventInstances.id, fixture.eventId));
+    await transaction
+      .update(eventRegistrations)
+      .set({
+        checkedInGuestCount: 0,
+        checkInTime: null,
+        guestCount,
+        status: 'CONFIRMED',
+      })
+      .where(eq(eventRegistrations.id, fixture.registrationId));
+    await transaction
+      .update(eventRegistrationOptions)
+      .set({
+        checkedInSpots: 0,
+        confirmedSpots: guestCount + 1,
+      })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+    return fixture;
+  });
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database
@@ -1164,6 +1299,155 @@ describe('database registration concurrency invariants', () => {
       ]);
     }, [
       () => releaseRowLock(membershipLock, membershipTransactionOpen),
+      operations.drain,
+    ]);
+  }, 30_000);
+
+  it('rejects check-in when cancellation wins the registration lock', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 0 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const registrationLock = await withRowLock(pool, async (client) => {
+      await client.query(
+        `
+          SELECT id
+          FROM event_registrations
+          WHERE id = $1
+          FOR UPDATE
+        `,
+        [fixture.registrationId],
+      );
+    });
+    let registrationTransactionOpen = true;
+
+    const operations = createPendingOperationTracker();
+
+    await runWithCleanup(async () => {
+      const checkIn = operations.track(
+        runCheckIn({
+          fixture,
+          guestCheckInCount: 0,
+          serviceLayer,
+        }),
+      );
+
+      await waitForBlockedQueries(pool, 'event_registrations', 1);
+      await registrationLock.query(
+        `
+          UPDATE event_registrations
+          SET status = 'CANCELLED'
+          WHERE id = $1
+        `,
+        [fixture.registrationId],
+      );
+      await registrationLock.query('COMMIT');
+      registrationTransactionOpen = false;
+
+      expect(await checkIn).toEqual(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            _tag: 'EventRegistrationConflictError',
+            message: 'This ticket is not ready for check-in.',
+          }),
+          status: 'failure',
+        }),
+      );
+
+      const state = await readFixtureState(database, fixture);
+      expect(state.registration).toEqual(
+        expect.objectContaining({
+          checkInTime: null,
+          status: 'CANCELLED',
+        }),
+      );
+      expect(state.option?.checkedInSpots).toBe(0);
+      expect(fakeHttpClient.createRequests).toHaveLength(0);
+    }, [
+      () => releaseRowLock(registrationLock, registrationTransactionOpen),
+      operations.drain,
+    ]);
+  }, 30_000);
+
+  it('serializes competing guest check-ins without overcounting', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 1 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const registrationLock = await withRowLock(pool, async (client) => {
+      await client.query(
+        `
+          SELECT id
+          FROM event_registrations
+          WHERE id = $1
+          FOR UPDATE
+        `,
+        [fixture.registrationId],
+      );
+    });
+    let registrationTransactionOpen = true;
+
+    const operations = createPendingOperationTracker();
+
+    await runWithCleanup(async () => {
+      const first = operations.track(
+        runCheckIn({
+          fixture,
+          guestCheckInCount: 1,
+          serviceLayer,
+        }),
+      );
+      const second = operations.track(
+        runCheckIn({
+          fixture,
+          guestCheckInCount: 1,
+          serviceLayer,
+        }),
+      );
+
+      await waitForBlockedQueries(pool, 'event_registrations', 2);
+      await registrationLock.query('COMMIT');
+      registrationTransactionOpen = false;
+
+      const outcomes = await Promise.all([first, second]);
+      const successfulOutcomes = outcomes.filter(
+        (outcome) => outcome.status === 'success',
+      );
+      expect(successfulOutcomes).toHaveLength(1);
+      expect(
+        outcomes.filter((outcome) => outcome.status === 'failure'),
+      ).toEqual([
+        expect.objectContaining({
+          error: expect.objectContaining({
+            _tag: 'EventRegistrationConflictError',
+            message: 'Enter no more than 0 additional guests.',
+          }),
+        }),
+      ]);
+
+      const successfulOutcome = successfulOutcomes[0];
+      if (!successfulOutcome || successfulOutcome.status !== 'success') {
+        throw new Error('Expected one successful guest check-in');
+      }
+      const state = await readFixtureState(database, fixture);
+      expect(state.registration?.checkedInGuestCount).toBe(1);
+      expect(state.registration?.checkInTime).toBeInstanceOf(Date);
+      expect(state.option?.checkedInSpots).toBe(2);
+      expect(successfulOutcome.value).toEqual({
+        alreadyCheckedIn: false,
+        checkInTime: state.registration?.checkInTime?.toISOString(),
+      });
+      expect(fakeHttpClient.createRequests).toHaveLength(0);
+    }, [
+      () => releaseRowLock(registrationLock, registrationTransactionOpen),
       operations.drain,
     ]);
   }, 30_000);

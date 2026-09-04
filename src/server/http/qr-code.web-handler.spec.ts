@@ -1,15 +1,18 @@
 import { describe, expect, it } from '@effect/vitest';
-import { ConfigProvider, Effect, Layer } from 'effect';
+import { ConfigProvider, Effect } from 'effect';
 import QRCode from 'qrcode';
 import { beforeEach, vi } from 'vitest';
 
 import type { Permission } from '../../shared/permissions/permissions';
-import type { Context as RequestContext } from '../../types/custom/context';
 
-import { Database } from '../../db';
+import { eventRegistrations } from '../../db/schema';
+import { Context as RequestContext } from '../../types/custom/context';
+import { Tenant } from '../../types/custom/tenant';
+import { User } from '../../types/custom/user';
+import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
 import { handleQrRegistrationCodeWebRequest } from './qr-code.web-handler';
 
-const tenant = {
+const tenant = new Tenant({
   cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
   defaultLocation: undefined,
@@ -32,7 +35,7 @@ const tenant = {
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
   transferDeadlineHoursBeforeStart: 0,
-};
+});
 
 const createUser = ({
   id = 'user-1',
@@ -40,19 +43,22 @@ const createUser = ({
 }: {
   id?: string;
   permissions?: readonly Permission[];
-} = {}) => ({
-  attributes: [],
-  auth0Id: `auth0|${id}`,
-  communicationEmail: undefined,
-  email: `${id}@example.com`,
-  firstName: 'Test',
-  iban: undefined,
-  id,
-  lastName: 'User',
-  paypalEmail: undefined,
-  permissions,
-  roleIds: [],
-});
+} = {}) =>
+  new User({
+    attributes: [],
+    auth0Id: `auth0|${id}`,
+    communicationEmail: `${id}@example.com`,
+    email: `${id}@example.com`,
+    firstName: 'Test',
+    homeTenantId: undefined,
+    homeTenantName: undefined,
+    iban: undefined,
+    id,
+    lastName: 'User',
+    paypalEmail: undefined,
+    permissions,
+    roleIds: [],
+  });
 
 const createRequestContext = ({
   authenticated = true,
@@ -63,16 +69,21 @@ const createRequestContext = ({
   permissions?: readonly Permission[];
   userId?: string;
 } = {}): RequestContext =>
-  ({
+  new RequestContext({
     authentication: {
       isAuthenticated: authenticated,
     },
     permissions,
     tenant,
     user: authenticated ? createUser({ id: userId, permissions }) : undefined,
-  }) as RequestContext;
+  });
 
-const confirmedRegistration = {
+type QrRegistration = Pick<
+  typeof eventRegistrations.$inferSelect,
+  'eventId' | 'id' | 'status' | 'tenantId' | 'userId'
+>;
+
+const confirmedRegistration: QrRegistration = {
   eventId: 'event-1',
   id: 'registration-1',
   status: 'CONFIRMED',
@@ -87,7 +98,7 @@ const runQrRequest = ({
   requestContext = createRequestContext(),
   requestUrl = 'https://tenant.example.com/qr/registration/registration-1',
 }: {
-  database: unknown;
+  database: ReturnType<typeof createRegistrationDatabaseTestLayer>;
   environment?: Record<string, string>;
   registrationId?: string;
   requestContext?: RequestContext;
@@ -98,34 +109,71 @@ const runQrRequest = ({
     registrationId,
     requestContext,
   ).pipe(
-    Effect.provide(Layer.succeed(Database, database as never)),
+    Effect.provide(database),
     Effect.provide(
       ConfigProvider.layer(ConfigProvider.fromEnv({ env: environment })),
     ),
   );
 
+const qrReadStatements = {
+  organizerRegistration:
+    'select "d0"."id" as "id", "registrationOption"."r" as "registrationOption" from "event_registrations" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."organizingRegistration" as "organizingRegistration" from "event_registration_options" as "d1" where "d0"."registrationOptionId" = "d1"."id" limit $1) as "t") as "registrationOption" on true where (("d0"."eventId" = $2) and ("d0"."status" = $3) and ("d0"."tenantId" = $4) and ("d0"."userId" = $5))',
+  registration:
+    'select "d0"."eventId" as "eventId", "d0"."id" as "id", "d0"."status" as "status", "d0"."tenantId" as "tenantId", "d0"."userId" as "userId" from "event_registrations" as "d0" where "d0"."id" = $1 limit $2',
+  tenant:
+    'select "d0"."domain" as "domain" from "tenants" as "d0" where "d0"."id" = $1 limit $2',
+};
+
 const createDatabase = ({
   organizerRegistrations = [],
+  organizerUserId = 'other-user',
   registration = confirmedRegistration,
+  tenantRecord = { domain: tenant.domain },
 }: {
   organizerRegistrations?: readonly {
     registrationOption?: { organizingRegistration: boolean };
   }[];
-  registration?: null | typeof confirmedRegistration;
-} = {}) => ({
-  query: {
-    eventRegistrations: {
-      findFirst: () => Effect.succeed(registration),
-      findMany: () => Effect.succeed(organizerRegistrations),
-    },
-    tenants: {
-      findFirst: () =>
-        Effect.succeed({
-          domain: tenant.domain,
-        }),
-    },
-  },
-});
+  organizerUserId?: string;
+  registration?: null | QrRegistration;
+  tenantRecord?: null | { domain: string };
+} = {}) =>
+  createRegistrationDatabaseTestLayer({
+    executeValues: (statement, parameters) =>
+      Effect.sync(() => {
+        if (statement === qrReadStatements.registration) {
+          expect(parameters).toEqual(['registration-1', 1]);
+          return registration
+            ? [
+                [
+                  registration.eventId,
+                  registration.id,
+                  registration.status,
+                  registration.tenantId,
+                  registration.userId,
+                ],
+              ]
+            : [];
+        }
+        if (statement === qrReadStatements.organizerRegistration) {
+          expect(parameters).toEqual([
+            1,
+            confirmedRegistration.eventId,
+            'CONFIRMED',
+            tenant.id,
+            organizerUserId,
+          ]);
+          return organizerRegistrations.map((row, index) => [
+            `organizer-registration-${index}`,
+            row.registrationOption ?? null,
+          ]);
+        }
+        if (statement === qrReadStatements.tenant) {
+          expect(parameters).toEqual([tenant.id, 1]);
+          return tenantRecord ? [[tenantRecord.domain]] : [];
+        }
+        throw new Error(`Unexpected registration QR fixture SQL: ${statement}`);
+      }),
+  });
 
 const qrCodeToBuffer = vi.spyOn(QRCode, 'toBuffer');
 
@@ -143,7 +191,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
 
       expect(response.status).toBe(401);
       expect(yield* Effect.promise(() => response.text())).toBe(
-        'Authentication required',
+        'Sign in to open this ticket.',
       );
     }),
   );
@@ -158,6 +206,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
         });
 
         expect(response.status).toBe(200);
+        expect(response.headers.get('Cache-Control')).toBe('private, no-store');
         expect(response.headers.get('Content-Type')).toBe('image/png');
         expect(
           (yield* Effect.promise(() => response.arrayBuffer())).byteLength,
@@ -216,6 +265,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
                 },
               },
             ],
+            organizerUserId: 'organizer-1',
           }),
           requestContext: createRequestContext({ userId: 'organizer-1' }),
         });
@@ -236,8 +286,57 @@ describe('handleQrRegistrationCodeWebRequest', () => {
 
         expect(response.status).toBe(404);
         expect(yield* Effect.promise(() => response.text())).toBe(
-          'Registration not found',
+          'Ticket not found.',
         );
+      }),
+  );
+
+  it.effect('gives a clear next step when the ticket cannot be opened', () =>
+    Effect.gen(function* () {
+      const response = yield* runQrRequest({
+        database: createDatabase({ tenantRecord: null }),
+      });
+
+      expect(response.status).toBe(404);
+      expect(yield* Effect.promise(() => response.text())).toBe(
+        'This ticket is unavailable. Ask the event organizer for help.',
+      );
+    }),
+  );
+
+  it.effect('allows organize-all access to fetch a confirmed ticket QR', () =>
+    Effect.gen(function* () {
+      const response = yield* runQrRequest({
+        database: createDatabase(),
+        requestContext: createRequestContext({
+          permissions: ['events:organizeAll'],
+          userId: 'organizer-1',
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    }),
+  );
+
+  it.effect(
+    'hides a ticket belonging to another tenant even from its owner',
+    () =>
+      Effect.gen(function* () {
+        const response = yield* runQrRequest({
+          database: createDatabase({
+            registration: {
+              ...confirmedRegistration,
+              tenantId: 'tenant-other',
+            },
+          }),
+        });
+
+        expect(response.status).toBe(404);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Ticket not found.',
+        );
+        expect(qrCodeToBuffer).not.toHaveBeenCalled();
       }),
   );
 
