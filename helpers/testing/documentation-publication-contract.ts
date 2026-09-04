@@ -29,9 +29,9 @@ export const documentationConsumerGuideCatalog = [
     id: 'evorto:register-for-an-event',
     slug: 'register-for-an-event',
     sourceSlugs: [
-      'register-for-events',
-      'without-eligible-roles',
-      'manual-approval-registrations',
+      'sign-up-for-events',
+      'when-you-cannot-sign-up',
+      'manual-approval-sign-ups',
     ],
     title: 'Register for an event',
   },
@@ -62,7 +62,7 @@ export const documentationConsumerGuideCatalog = [
     id: 'evorto:run-an-event',
     slug: 'run-an-event',
     sourceSlugs: [
-      'organizer-and-helper-signup',
+      'organizer-and-helper-sign-up',
       'check-in-event-attendees',
       'fulfill-scanned-registration-add-ons',
     ],
@@ -345,14 +345,10 @@ const internalDocumentationReference =
   /\/docs\/(?<slug>[a-z0-9]+(?:-[a-z0-9]+)*)(?=[/?#)"'\s]|$)/gu;
 
 const rewriteInternalDocumentationReferences = (markdown: string): string => {
-  const targetSlugs = new Set(documentationConsumerGuideSlugs);
+  const targetSlugs = new Set<string>(documentationConsumerGuideSlugs);
   const sourceTargets = new Map<string, Set<string>>();
   for (const guide of documentationConsumerGuideCatalog) {
-    const sourceReferences = [
-      ...guide.sourceSlugs,
-      ...('linkAliases' in guide ? guide.linkAliases : []),
-    ];
-    for (const sourceReference of sourceReferences) {
+    for (const sourceReference of guide.sourceSlugs) {
       const targets = sourceTargets.get(sourceReference) ?? new Set<string>();
       targets.add(guide.slug);
       sourceTargets.set(sourceReference, targets);
@@ -482,7 +478,7 @@ export const buildDocumentationConsumerBundle = (input: {
     'Documentation consumer guide slugs',
   );
   const sourceSlugs = [
-    ...new Set(
+    ...new Set<string>(
       documentationConsumerGuideCatalog.flatMap(({ sourceSlugs: sources }) => [
         ...sources,
       ]),

@@ -29,7 +29,7 @@ export interface ManualApprovalScenario {
     id: string;
     lastName: string;
   };
-  preparePaymentSetupRetry: (input: {
+  prepareUncertainPaymentClaim: (input: {
     baseUrl: string;
     registrationId: string;
   }) => Promise<string>;
@@ -288,7 +288,7 @@ export const seedManualApprovalScenario = async ({
     optionId: option.id,
     optionTitle: option.title,
     participant,
-    preparePaymentSetupRetry: async ({ baseUrl, registrationId }) => {
+    prepareUncertainPaymentClaim: async ({ baseUrl, registrationId }) => {
       if (kind !== 'paid' || !tenant.stripeAccountId) {
         throw new Error(
           'An uncertain payment claim requires a paid scenario with a Stripe account',

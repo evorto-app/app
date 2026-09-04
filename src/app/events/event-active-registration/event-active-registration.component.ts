@@ -132,22 +132,21 @@ export const registrationAudienceCopy = (
   registration.organizingRegistration
     ? {
         audienceLabel: 'Organizer/helper',
-        confirmedStatus: 'Organizer/helper registration confirmed',
+        confirmedStatus: 'Organizer/helper ticket confirmed',
         passHeading: 'Your organizer/helper pass',
         paymentPendingStatus:
-          'Complete payment to confirm your organizer/helper registration. Organizer access starts only after payment succeeds.',
+          'Complete payment to confirm your organizer/helper place. Organizer access starts only after payment succeeds.',
         pendingApprovalStatus:
           'Organizer/helper application pending. Organizer access starts only after approval and any required payment.',
-        qrAlt: 'QR code for the organizer/helper registration',
+        qrAlt: 'QR code for the organizer/helper pass',
       }
     : {
         audienceLabel: 'Participant',
-        confirmedStatus: 'Your registration is confirmed',
+        confirmedStatus: 'Your ticket is confirmed',
         passHeading: 'Your event ticket',
-        paymentPendingStatus: 'Complete payment to confirm your registration.',
-        pendingApprovalStatus:
-          'Your registration is pending organizer approval.',
-        qrAlt: 'QR code for the registration',
+        paymentPendingStatus: 'Complete payment to confirm your ticket.',
+        pendingApprovalStatus: 'Your ticket is pending organizer approval.',
+        qrAlt: 'QR code for your event ticket',
       };
 
 export const recipientTransferCheckoutPending = (registration: {
@@ -169,10 +168,10 @@ export const registrationCancellationCopy = (registration: {
   buttonLabel: null | string;
   helperText: string;
 } => {
-  const pendingSpotNoun =
-    registration.guestCount > 0 ? 'all selected spots' : 'the reserved spot';
-  const confirmedSpotNoun =
-    registration.guestCount > 0 ? 'all selected spots' : 'your spot';
+  const pendingPlaceNoun =
+    registration.guestCount > 0 ? 'all selected places' : 'the reserved place';
+  const confirmedPlaceNoun =
+    registration.guestCount > 0 ? 'all selected places' : 'your place';
 
   if (recipientTransferCheckoutPending(registration)) {
     return null;
@@ -184,28 +183,28 @@ export const registrationCancellationCopy = (registration: {
         return {
           buttonLabel: null,
           helperText:
-            'This registration has already been checked in and can no longer be cancelled.',
+            'This ticket has already been checked in and can no longer be cancelled.',
         };
       }
       case 'deadlinePassed': {
         return {
           buttonLabel: null,
           helperText:
-            'The cancellation deadline has passed. No cancellation, refund, or spot release has been made.',
+            'The cancellation deadline has passed. Your ticket is still active, no place has been released, and no refund has started.',
         };
       }
       case 'eventStarted': {
         return {
           buttonLabel: null,
           helperText:
-            'The event has started, so this registration can no longer be cancelled.',
+            'The event has started, so this ticket can no longer be cancelled.',
         };
       }
       case 'none': {
         return {
           buttonLabel: null,
           helperText:
-            'Cancellation is currently unavailable. Refresh the event page for the latest status.',
+            "Evorto could not confirm the ticket's latest status, so cancellation is unavailable. Open this event again, then try once more or ask an organizer for help.",
         };
       }
     }
@@ -213,17 +212,19 @@ export const registrationCancellationCopy = (registration: {
 
   if (registration.status === 'PENDING') {
     return {
-      buttonLabel: 'Cancel registration',
+      buttonLabel: registration.paymentPending
+        ? 'Cancel sign-up'
+        : 'Withdraw application',
       helperText: registration.paymentPending
-        ? `This cancels the pending registration and releases ${pendingSpotNoun}. It does not complete a payment.`
+        ? `This cancels the pending sign-up and releases ${pendingPlaceNoun}. It does not complete a payment.`
         : 'This withdraws your pending application before organizer approval.',
     };
   }
 
   if (registration.status === 'CONFIRMED') {
     return {
-      buttonLabel: 'Cancel registration',
-      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. If a refund applies, Evorto starts it automatically after cancellation. It may take time to appear; do not pay or register again to retry it.`,
+      buttonLabel: 'Cancel ticket',
+      helperText: `This cancels your ticket and releases ${confirmedPlaceNoun}. If a refund applies, Evorto starts it automatically after cancellation. It may take time to appear; do not pay or sign up again to retry it.`,
     };
   }
 
@@ -231,7 +232,7 @@ export const registrationCancellationCopy = (registration: {
     return {
       buttonLabel: 'Leave waitlist',
       helperText:
-        'This removes your waitlist registration and releases your waitlist position.',
+        'This removes you from the waitlist and gives up your current position.',
     };
   }
 
@@ -647,6 +648,14 @@ export class EventActiveRegistrationComponent {
     };
   }
 
+  protected cancellationErrorMessage(): string {
+    return getErrorMessage(
+      this.cancelRegistrationMutation.error(),
+      'The cancellation outcome could not be confirmed. Reload the page to check the current sign-up status before trying again.',
+      ['EventRegistrationConflictError', 'EventRegistrationNotFoundError'],
+    );
+  }
+
   protected checkoutUrl(
     registrationId: string,
     addOn: EventsRegistrationAddonRecord,
@@ -659,14 +668,6 @@ export class EventActiveRegistrationComponent {
       this.localCheckoutUrls()[
         registrationAddonKey(registrationId, addOn.addOnId)
       ] ?? null
-    );
-  }
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(
-      error,
-      'The sign-up could not be cancelled. Check its current status and contact an organizer for help.',
-      ['EventRegistrationConflictError', 'EventRegistrationNotFoundError'],
     );
   }
 
@@ -808,14 +809,14 @@ export class EventActiveRegistrationComponent {
     const refreshed = await this.invalidateOwnerQueries(true);
     const refreshCopy = refreshed
       ? ''
-      : 'The latest ticket status could not be refreshed. ';
+      : 'The latest ticket status could not be confirmed. ';
     const message = getErrorMessage(input.error, 'Add-on purchase failed', [
       'EventRegistrationConflictError',
       'EventRegistrationNotFoundError',
     ]);
     this.setPurchaseNotice(input.key, {
       kind: 'error',
-      message: `${message} ${refreshCopy}Trying again will not create a duplicate purchase. If the checkout has expired, reload this page and start the add-on purchase again.`,
+      message: `${message} ${refreshCopy}Trying again will not create a duplicate purchase. If the payment page has expired, start the add-on purchase again.`,
     });
   }
 
@@ -834,7 +835,7 @@ export class EventActiveRegistrationComponent {
         kind: 'completed',
         message: refreshed
           ? `${input.attempt.quantity} × ${input.addOn.title} added to your ticket.`
-          : `${input.attempt.quantity} × ${input.addOn.title} added to your ticket. Reload this page to refresh the displayed quantities.`,
+          : `${input.attempt.quantity} × ${input.addOn.title} added to your ticket. The displayed quantities could not be updated.`,
       });
       return;
     }
@@ -850,7 +851,7 @@ export class EventActiveRegistrationComponent {
       this.setPurchaseNotice(input.key, {
         kind: 'error',
         message:
-          'Evorto received an invalid payment link and did not open it. Refresh the status or contact an organizer.',
+          'Evorto received an invalid payment link and did not open it. Contact an organizer before trying again.',
       });
       return;
     }
@@ -862,8 +863,8 @@ export class EventActiveRegistrationComponent {
     this.setPurchaseNotice(input.key, {
       kind: 'pending',
       message: refreshed
-        ? 'Stripe checkout is ready. Your ticket updates only after Stripe confirms payment.'
-        : 'Stripe checkout is ready, but the latest ticket status could not be refreshed. Your ticket updates only after Stripe confirms payment.',
+        ? 'Payment page is ready. Your ticket updates only after the online payment is confirmed.'
+        : 'Payment page is ready, but the latest ticket status could not be confirmed. Your ticket updates only after the online payment is confirmed.',
     });
 
     try {
@@ -872,7 +873,7 @@ export class EventActiveRegistrationComponent {
       this.setPurchaseNotice(input.key, {
         kind: 'pending',
         message:
-          'Stripe checkout is ready but could not be opened automatically. Continue with the same checkout below.',
+          'Payment page is ready but could not be opened automatically. Continue with the same payment page below.',
       });
     }
   }

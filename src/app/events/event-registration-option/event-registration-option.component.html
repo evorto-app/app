@@ -7,7 +7,7 @@
 >
   @if (mutationPending()) {
     <p class="sr-only" aria-live="polite" role="status">
-      Submitting your registration choice.
+      Submitting your ticket choice.
     </p>
   }
   <div class="flex flex-row items-center gap-4">
@@ -89,7 +89,7 @@
                   </div>
                 } @else if (includedQuantity > 0) {
                   <p class="body-small text-on-surface-variant">
-                    Included in registration price
+                    Included in the ticket price
                   </p>
                 }
               } @else {
@@ -120,9 +120,7 @@
 
     @if (registrationOption().questions.length > 0) {
       <div class="border-outline-variant flex flex-col gap-2 border-t pt-3">
-        <p class="label-medium text-on-surface-variant">
-          Registration questions
-        </p>
+        <p class="label-medium text-on-surface-variant">Sign-up questions</p>
         @for (question of registrationOption().questions; track question.id) {
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>{{ question.title }}</mat-label>
@@ -173,17 +171,31 @@
       </p>
     } @else if (authenticationQuery.isError()) {
       <div
-        class="bg-error-container text-on-error-container rounded-lg p-3"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-lg p-3"
         role="alert"
       >
-        Sign-in status could not be checked. Reload the page before registering.
+        <p>
+          We could not confirm that you are signed in. Your sign-up was not
+          sent.
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="justify-self-start"
+          [disabled]="authenticationQuery.isFetching()"
+          (click)="authenticationQuery.refetch()"
+        >
+          {{
+            authenticationQuery.isFetching() ? "Checking again…" : "Check again"
+          }}
+        </button>
       </div>
     } @else if (authenticationQuery.isSuccess() && authenticationQuery.data()) {
       @switch (registrationOpen()) {
         @case ("open") {
           @if (full()) {
             @if (waitlistAvailable()) {
-              <p class="body-large">This option is full.</p>
+              <p class="body-large">This sign-up choice is full.</p>
               <button
                 (click)="joinWaitlist(registrationOption())"
                 mat-flat-button
@@ -201,7 +213,7 @@
                 Join waitlist
               </button>
             } @else {
-              <p class="body-large">This option is full.</p>
+              <p class="body-large">This sign-up choice is full.</p>
             }
           } @else {
             @if (maxGuestCount() > 0) {
@@ -220,11 +232,11 @@
                 />
                 <span aria-live="polite" matTextSuffix>
                   + you = {{ selectedSpotCount() }}
-                  {{ selectedSpotCount() === 1 ? "spot" : "spots" }}
+                  {{ selectedSpotCount() === 1 ? "place" : "places" }}
                 </span>
                 <mat-hint>
                   Guests do not need separate accounts. Each guest uses one
-                  available spot and shares your registration.
+                  available place and shares your ticket.
                 </mat-hint>
               </mat-form-field>
             }
@@ -269,26 +281,26 @@
         }
         @case ("tooEarly") {
           <p class="body-large">
-            Registration is not open yet, it will open
+            Sign-up opens
             {{ registrationOption().openRegistrationTime | date: "medium" }}
           </p>
         }
         @case ("tooLate") {
           <p class="body-large">
-            Registration is closed, it closed
+            Sign-up closed
             {{ registrationOption().closeRegistrationTime | date: "medium" }}
           </p>
         }
       }
     } @else {
-      <p class="body-large">You can only register after logging in</p>
+      <p class="body-large">Sign in before signing up.</p>
       <a
         href="/forward-login?redirectUrl=/events/{{
           registrationOption().eventId
         }}"
         mat-flat-button
       >
-        Log in now
+        Sign in now
       </a>
     }
   }

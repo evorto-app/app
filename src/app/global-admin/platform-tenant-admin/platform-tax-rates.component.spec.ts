@@ -150,26 +150,41 @@ describe('PlatformTaxRatesComponent', () => {
 
   it.each([
     {
-      error: {
-        _tag: 'RpcBadRequestError',
+      error: new RpcBadRequestError({
         message:
           'One selected tax rate is no longer available. Choose another rate.',
-      },
+      }),
       expected:
         'One selected tax rate is no longer available. Choose another rate.',
       label: 'expected import failure',
+      phase: 'mutation',
     },
     {
-      error: {
-        _tag: 'RpcInternalServerError',
+      error: new RpcInternalServerError({
         message: 'Private provider failure details',
-      },
-      expected: 'The tax rates could not be added. Try again.',
+      }),
+      expected:
+        'The import outcome could not be confirmed. Reload the page to check the current tax rates before trying again.',
       label: 'provider failure',
+      phase: 'mutation',
+    },
+    {
+      error: new Error('Response connection closed'),
+      expected:
+        'The import outcome could not be confirmed. Reload the page to check the current tax rates before trying again.',
+      label: 'lost import response',
+      phase: 'mutation',
+    },
+    {
+      error: new Error('Refresh failed after import completed'),
+      expected:
+        'Tax rates were imported, but the list could not be refreshed. Reload the page to see the current tax rates.',
+      label: 'refresh failure after import succeeded',
+      phase: 'refresh',
     },
   ])(
     'reports the $label without discarding the selected rate or reason',
-    async ({ error, expected }) => {
+    async ({ error, expected, phase }) => {
       listRates.mockResolvedValue([
         new PlatformStripeTaxRateRecord({
           active: true,
@@ -182,7 +197,12 @@ describe('PlatformTaxRatesComponent', () => {
           state: null,
         }),
       ]);
-      importRates.mockRejectedValue(error);
+      if (phase === 'refresh') {
+        importRates.mockResolvedValue(undefined);
+        vi.spyOn(queryClient, 'invalidateQueries').mockRejectedValue(error);
+      } else {
+        importRates.mockRejectedValue(error);
+      }
       const fixture = TestBed.createComponent(PlatformTaxRatesComponent);
       fixture.componentRef.setInput('tenantId', 'tenant-1');
       const root: HTMLElement = fixture.nativeElement;
@@ -208,6 +228,7 @@ describe('PlatformTaxRatesComponent', () => {
         fixture.detectChanges();
         expect(showError).toHaveBeenCalledWith(expected);
       });
+      expect(importRates).toHaveBeenCalledOnce();
       expect(importRates.mock.calls[0]?.[0]).toEqual({
         ids: ['txr_vat'],
         reason: 'Enable registration tax',

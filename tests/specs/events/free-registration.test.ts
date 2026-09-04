@@ -6,17 +6,22 @@ import { waitForRegistrationPage } from '../../support/utils/event-registration-
 import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
-test.use({
-  storageState: usersToAuthenticate.find((u) => u.roles === 'user')!.stateFile,
-});
+const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
+if (!regularUser) {
+  throw new Error('Expected the regular-user authentication fixture');
+}
+
+test.use({ storageState: regularUser.stateFile });
 
 test('register for a free event as regular user', async ({
   database,
   page,
   seeded,
   tenant,
+
+  registerDatabaseCleanup,
 }) => {
-  const user = usersToAuthenticate.find((u) => u.roles === 'user')!;
+  const user = regularUser;
   const targetEventId = seeded.scenario.events.freeOpen.eventId;
   const targetOptionId = seeded.scenario.events.freeOpen.optionId;
   const serverEventWindow = futureServerEventWindow();
@@ -57,7 +62,77 @@ test('register for a free event as regular user', async ({
       ),
     );
 
-  try {
+  registerDatabaseCleanup(async () => {
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: targetEvent.end,
+        start: targetEvent.start,
+      })
+      .where(eq(schema.eventInstances.id, targetEventId));
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        checkedInSpots: targetOption.checkedInSpots,
+        closeRegistrationTime: targetOption.closeRegistrationTime,
+        confirmedSpots: targetOption.confirmedSpots,
+        openRegistrationTime: targetOption.openRegistrationTime,
+        reservedSpots: targetOption.reservedSpots,
+        waitlistSpots: targetOption.waitlistSpots,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+  });
+  registerDatabaseCleanup(async () => {
+    if (originalRegistrations.length) {
+      await database
+        .insert(schema.eventRegistrations)
+        .values(originalRegistrations);
+    }
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, targetEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, user.id),
+        ),
+      );
+  });
+  registerDatabaseCleanup(async () => {
+    if (createdRegistrationId) {
+      await database
+        .delete(schema.emailOutbox)
+        .where(
+          eq(
+            schema.emailOutbox.idempotencyKey,
+            `registration-confirmed/${tenant.id}/${createdRegistrationId}`,
+          ),
+        );
+    }
+  });
+  registerDatabaseCleanup(async () => {
+    const createdRegistrations =
+      await database.query.eventRegistrations.findMany({
+        columns: { id: true },
+        where: {
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: user.id,
+        },
+      });
+    await deleteRegistrationAcquisitionLedger({
+      database,
+      registrationIds: createdRegistrations.map(
+        (registration) => registration.id,
+      ),
+      tenantId: tenant.id,
+    });
+  });
+  {
     await database
       .delete(schema.eventRegistrations)
       .where(
@@ -103,24 +178,24 @@ test('register for a free event as regular user', async ({
     await expect(page).toHaveURL(`/events/${targetEventId}`);
     await waitForRegistrationPage(page);
     const registerButton = page
-      .getByRole('button', { name: 'Register' })
+      .getByRole('button', { name: 'Sign up' })
       .first();
     await expect(registerButton).toBeEnabled({ timeout: 20_000 });
     await registerButton.click();
 
     // After registering, the status refetches; wait for the loading indicator
     await page
-      .getByText('Loading registration status')
+      .getByText('Loading your sign-up')
       .first()
       .waitFor({ state: 'attached', timeout: 2000 })
       .catch(() => {});
     await page
-      .getByText('Loading registration status')
+      .getByText('Loading your sign-up')
       .first()
       .waitFor({ state: 'detached' });
 
-    // Confirm success copy is rendered (seed sets registeredDescription: "You are registered")
-    await expect(page.getByText('You are registered')).toBeVisible();
+    // Confirm the attendee sees the event's success message.
+    await expect(page.getByText('Your place is confirmed')).toBeVisible();
 
     // Verify DB registration exists and counts updated
     const [registration] = await database
@@ -161,7 +236,7 @@ test('register for a free event as regular user', async ({
     });
     expect(registrationEmail?.html).toContain(`/events/${targetEventId}`);
     expect(registrationEmail?.text).toContain(
-      'The ticket owner must sign in to Evorto',
+      'The ticket owner must sign in to Evorto before this link opens the ticket.',
     );
 
     const [after] = await database
@@ -175,64 +250,5 @@ test('register for a free event as regular user', async ({
       );
     }
     expect(after.confirmedSpots).toBeGreaterThanOrEqual(confirmedBefore + 1);
-  } finally {
-    const createdRegistrations =
-      await database.query.eventRegistrations.findMany({
-        columns: { id: true },
-        where: {
-          eventId: targetEventId,
-          tenantId: tenant.id,
-          userId: user.id,
-        },
-      });
-    await deleteRegistrationAcquisitionLedger({
-      database,
-      registrationIds: createdRegistrations.map(
-        (registration) => registration.id,
-      ),
-      tenantId: tenant.id,
-    });
-    if (createdRegistrationId) {
-      await database
-        .delete(schema.emailOutbox)
-        .where(
-          eq(
-            schema.emailOutbox.idempotencyKey,
-            `registration-confirmed/${tenant.id}/${createdRegistrationId}`,
-          ),
-        );
-    }
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, targetEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, user.id),
-        ),
-      );
-    if (originalRegistrations.length) {
-      await database
-        .insert(schema.eventRegistrations)
-        .values(originalRegistrations);
-    }
-    await database
-      .update(schema.eventRegistrationOptions)
-      .set({
-        checkedInSpots: targetOption.checkedInSpots,
-        closeRegistrationTime: targetOption.closeRegistrationTime,
-        confirmedSpots: targetOption.confirmedSpots,
-        openRegistrationTime: targetOption.openRegistrationTime,
-        reservedSpots: targetOption.reservedSpots,
-        waitlistSpots: targetOption.waitlistSpots,
-      })
-      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: targetEvent.end,
-        start: targetEvent.start,
-      })
-      .where(eq(schema.eventInstances.id, targetEventId));
   }
 });

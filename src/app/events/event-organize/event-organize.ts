@@ -1,4 +1,7 @@
-import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import type {
+  EventsCancellableRegistrationStatus,
+  EventsRegistrationStatus,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
 import { PercentPipe } from '@angular/common';
 import {
@@ -19,6 +22,10 @@ import {
   buildSelectableReceiptCountries,
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
+import {
+  registrationCancellationActionLabel,
+  registrationCancellationKind,
+} from '@shared/registration-cancellation';
 import {
   injectMutation,
   injectQuery,
@@ -112,7 +119,7 @@ export const groupEventOrganizeRegistrationOptions = <
 ) =>
   [
     {
-      emptyMessage: 'No organizer/helper registrations yet.',
+      emptyMessage: 'No organizer/helper sign-ups yet.',
       id: 'organizer-helper-team',
       options: registrationOptions.filter(
         (option) => option.organizingRegistration,
@@ -120,12 +127,12 @@ export const groupEventOrganizeRegistrationOptions = <
       title: 'Organizer/helper team',
     },
     {
-      emptyMessage: 'No participant registrations yet.',
+      emptyMessage: 'No attendee sign-ups yet.',
       id: 'participant-registrations',
       options: registrationOptions.filter(
         (option) => !option.organizingRegistration,
       ),
-      title: 'Participant registrations',
+      title: 'Attendee sign-ups',
     },
   ] as const;
 
@@ -179,6 +186,17 @@ export const organizerRegistrationApprovalLabel = ({
   approvalPending: boolean;
 }): string => (approvalPending ? 'Approving…' : 'Approve application');
 
+export const organizerRegistrationCancellationActionLabel = ({
+  paymentPending,
+  status,
+}: {
+  readonly paymentPending: boolean;
+  readonly status: EventsCancellableRegistrationStatus;
+}): string =>
+  registrationCancellationActionLabel(
+    registrationCancellationKind({ paymentPending, status }),
+  );
+
 export const receiptSubmissionActionDisabled = ({
   submissionUnavailable,
   submitPending,
@@ -228,6 +246,8 @@ export class EventOrganize {
     organizerRegistrationApprovalDisabled;
   protected readonly organizerRegistrationApprovalLabel =
     organizerRegistrationApprovalLabel;
+  protected readonly organizerRegistrationCancellationActionLabel =
+    organizerRegistrationCancellationActionLabel;
   protected readonly organizerRegistrationTransferDisabled =
     organizerRegistrationTransferDisabled;
   protected readonly receiptCreateUploadMutation = injectMutation(() =>
@@ -346,7 +366,7 @@ export class EventOrganize {
         onSuccess: (result) => {
           this.notifications.showSuccess(
             result.status === 'confirmed'
-              ? 'Registration confirmed'
+              ? 'Ticket confirmed'
               : 'Application approved. Payment is required before confirmation.',
           );
         },
@@ -427,16 +447,20 @@ export class EventOrganize {
             await this.invalidateOrganizerState();
           } finally {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to cancel registration', [
-                'EventRegistrationConflictError',
-                'EventRegistrationNotFoundError',
-              ]),
+              getErrorMessage(
+                error,
+                'The cancellation outcome could not be confirmed. Reload the page to check the current sign-up status before trying again.',
+                [
+                  'EventRegistrationConflictError',
+                  'EventRegistrationNotFoundError',
+                ],
+              ),
             );
           }
         },
         onSuccess: async () => {
           await this.invalidateOrganizerState();
-          this.notifications.showSuccess('Registration cancelled');
+          this.notifications.showSuccess('Ticket cancelled');
         },
       },
     );
