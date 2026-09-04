@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "449e884790bf",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/validate-auth-and-database-runtime-settings.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "helpers/testing/platform-administrator-claim-fixture.spec.ts",
+    "src/db/database-config.spec.ts",
+    "src/db/database-config.ts",
+    "src/db/pg-connection-config.spec.ts",
+    "src/db/pg-connection-config.ts",
+    "src/server/config/AGENTS.md",
+    "src/server/config/auth-config.spec.ts",
+    "src/server/config/auth-config.ts",
+    "tests/support/auth0/platform-administrator-claim-fixture.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/44/9e884790bf/0/metadata.json",
+      "transcript": "/44/9e884790bf/0/full.jsonl",
+      "content_hash": "/44/9e884790bf/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 88864,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 5404800,
+    "output_tokens": 16104,
+    "api_call_count": 63
+  }
+}
