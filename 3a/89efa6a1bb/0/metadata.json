@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "3a89efa6a1bb",
+  "session_id": "01a06cdc-629f-7b82-8a80-b940922d7571",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-04T20:10:05.519825Z",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/cancel-complete-email-provider-requests.md",
+    ".changeset/validate-participant-registration-limits.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "src/app/events/event-registration-option/event-registration-option.component.html",
+    "src/app/events/event-registration-option/event-registration-option.component.spec.ts",
+    "src/app/events/event-registration-option/event-registration-option.component.ts",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.html",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.spec.ts",
+    "src/server/integrations/email-delivery.spec.ts",
+    "src/server/integrations/email-delivery.ts",
+    "tests/specs/events/registration-addons.test.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "c3026ce215b8",
+  "checkpoint_transcript_start": 9172,
+  "transcript_lines_at_start": 9172,
+  "token_usage": {
+    "input_tokens": 290067,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 21504256,
+    "output_tokens": 68830,
+    "api_call_count": 262
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-04T20:10:04.948405Z",
+    "agent_lines": 466,
+    "agent_removed": 47,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 466,
+    "total_lines_changed": 513,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
