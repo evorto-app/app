@@ -1906,7 +1906,7 @@ describe('generated docs source current behavior', () => {
       'Expected seeded event-management docs draft event "${draftEvent.title}" to have an unselected role for autocomplete',
     );
     expect(source).toContain(
-      "registrationOptionEditor.getByPlaceholder('Add Role...')",
+      "registrationOptionEditor.getByPlaceholder('Add role…')",
     );
     expect(source).toContain('Event edit role picker duplicate prevention');
     expect(source).toContain('## Edit an existing draft event');
