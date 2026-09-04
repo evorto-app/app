@@ -1,3 +1,12 @@
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
@@ -717,5 +726,101 @@ describe('events RPC registration question answer schema', () => {
         registrationOptionId: 'option-1',
       }),
     ).not.toThrow();
+  });
+
+  it('rejects registration inputs that exceed practical checkout limits', () => {
+    const registrationPayload = {
+      addOns: [],
+      answers: [],
+      eventId: 'event-1',
+      guestCount: 0,
+      registrationOptionId: 'option-1',
+    };
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...registrationPayload,
+        guestCount: MAX_REGISTRATION_GUESTS + 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...registrationPayload,
+        addOns: [
+          {
+            addOnId: 'addon-1',
+            quantity: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...registrationPayload,
+        addOns: Array.from(
+          { length: MAX_EVENT_ADDON_TYPES + 1 },
+          (_, index) => ({ addOnId: `addon-${index}`, quantity: 1 }),
+        ),
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsJoinWaitlistPayload)({
+        answers: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS + 1 },
+          (_, index) => ({
+            answer: 'Answer',
+            questionId: `question-${index}`,
+          }),
+        ),
+        eventId: 'event-1',
+        registrationOptionId: 'option-1',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        ...registrationPayload,
+        answers: [
+          {
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1),
+            questionId: 'question-1',
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+});
+
+describe('registration input boundary maxima', () => {
+  it('accepts the guest, add-on, and answer caps together', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+        addOns: Array.from({ length: MAX_EVENT_ADDON_TYPES }, (_, index) => ({
+          addOnId: `addon-${index}`,
+          quantity: MAX_REGISTRATION_ADDON_QUANTITY,
+        })),
+        answers: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS },
+          (_, index) => ({
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH),
+            questionId: `question-${index}`,
+          }),
+        ),
+        eventId: 'event-1',
+        guestCount: MAX_REGISTRATION_GUESTS,
+        registrationOptionId: 'option-1',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects fractional and nonfinite guest quantities at the RPC boundary', () => {
+    for (const guestCount of [-1, 0.5, Infinity, NaN]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsRegisterForEventPayload)({
+          eventId: 'event-1',
+          guestCount,
+          registrationOptionId: 'option-1',
+        }),
+      ).toThrow();
+    }
   });
 });

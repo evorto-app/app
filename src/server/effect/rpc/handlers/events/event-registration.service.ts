@@ -1,3 +1,12 @@
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { registrationSpotCount } from '@shared/registration-spots';
 import {
   resolveTenantDiscountProviders,
@@ -52,6 +61,7 @@ import {
   settleAcquisitionComponentTerms,
 } from '../../../../registrations/registration-acquisition-write';
 import { registrationCheckoutInitialReconcileAt } from '../../../../registrations/registration-checkout-completion';
+import { registrationCheckoutHasTooManyLines } from '../../../../registrations/registration-checkout-lines';
 import { StripeClient } from '../../../../stripe-client';
 import {
   tenantOutboundRootUrl,
@@ -1395,8 +1405,18 @@ export const validateRegistrationQuestionAnswers = ({
   answers: readonly RegistrationQuestionAnswerInput[] | undefined;
   questions: readonly RegistrationQuestionRecord[];
 }): readonly { answer: string; questionId: string }[] => {
+  if ((answers?.length ?? 0) > MAX_REGISTRATION_QUESTIONS) {
+    throw new EventRegistrationConflictError({
+      message: `You can answer up to ${MAX_REGISTRATION_QUESTIONS} sign-up questions`,
+    });
+  }
   const normalizedAnswers = new Map<string, string>();
   for (const answer of answers ?? []) {
+    if (answer.answer.length > MAX_REGISTRATION_ANSWER_LENGTH) {
+      throw new EventRegistrationConflictError({
+        message: `Each answer must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer`,
+      });
+    }
     normalizedAnswers.set(answer.questionId, answer.answer.trim());
   }
 
@@ -1435,15 +1455,24 @@ export const validateRegistrationAddons = ({
   fulfilledQuantity: number;
   selectedQuantity: number;
 })[] => {
+  if ((addOns?.length ?? 0) > MAX_EVENT_ADDON_TYPES) {
+    throw new EventRegistrationConflictError({
+      message: `Choose no more than ${MAX_EVENT_ADDON_TYPES} different add-ons`,
+    });
+  }
   const availableAddOnById = new Map(
     availableAddOns.map((addOn) => [addOn.addOnId, addOn]),
   );
   const selectedAddOns = new Map<string, number>();
 
   for (const addOn of addOns ?? []) {
-    if (!Number.isInteger(addOn.quantity) || addOn.quantity < 0) {
+    if (
+      !Number.isInteger(addOn.quantity) ||
+      addOn.quantity < 0 ||
+      addOn.quantity > MAX_REGISTRATION_ADDON_QUANTITY
+    ) {
       throw new EventRegistrationConflictError({
-        message: 'Add-on quantity must be a non-negative integer',
+        message: `Choose between 0 and ${MAX_REGISTRATION_ADDON_QUANTITY} of each add-on`,
       });
     }
     if (addOn.quantity === 0) {
@@ -1497,6 +1526,11 @@ export const validateRegistrationAddons = ({
       }
       const fulfilledQuantity =
         availableAddOn.includedQuantity + selectedQuantity;
+      if (fulfilledQuantity > MAX_REGISTRATION_ADDON_QUANTITY) {
+        throw new EventRegistrationConflictError({
+          message: `Choose no more than ${MAX_REGISTRATION_ADDON_QUANTITY} of the same add-on`,
+        });
+      }
       if (fulfilledQuantity > availableAddOn.totalAvailableQuantity) {
         throw new EventRegistrationConflictError({
           message: 'Add-on quantity is no longer available',
@@ -1676,6 +1710,21 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const orderedAddonPurchases = orderRegistrationAddonPurchases(
           registration.addonPurchases,
         );
+        if (
+          registration.guestCount > MAX_REGISTRATION_GUESTS ||
+          orderedAddonPurchases.some(
+            (purchase) =>
+              purchase.quantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+              purchase.purchasedQuantity > MAX_REGISTRATION_ADDON_QUANTITY,
+          )
+        ) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'This sign-up includes too many items for one online payment. Reduce the guest or add-on quantities and try again.',
+            }),
+          );
+        }
         const registeredSpotCount = registrationSpotCount(
           registration.guestCount,
         );
@@ -1868,6 +1917,21 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
             unitAmount: addOnPurchase.unitPrice,
           });
+        }
+        if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'This sign-up includes too many different charges for one payment. Reduce the selected add-ons and try again.',
+            }),
+          );
+        }
+        if (orderedAddonPurchases.length > MAX_EVENT_ADDON_TYPES) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: `Choose no more than ${MAX_EVENT_ADDON_TYPES} different add-ons`,
+            }),
+          );
         }
         const checkoutRequest = {
           customerEmail: registration.user.email,
@@ -2911,10 +2975,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           ),
         );
         const now = yield* registrationServiceNow(pinnedNowIso);
-        if (!Number.isInteger(guestCount) || guestCount < 0) {
+        if (
+          !Number.isInteger(guestCount) ||
+          guestCount < 0 ||
+          guestCount > MAX_REGISTRATION_GUESTS
+        ) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
-              message: 'Guest count must be a non-negative integer',
+              message: `Choose between 0 and ${MAX_REGISTRATION_GUESTS} guests`,
             }),
           );
         }
@@ -3352,6 +3420,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               }),
               unitAmount: addOn.price,
             });
+          }
+          if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message:
+                  'This sign-up includes too many different charges for one payment. Reduce the selected add-ons and try again.',
+              }),
+            );
           }
           directCheckout = {
             appFee: Math.round(effectiveTotalPrice * 0.035),

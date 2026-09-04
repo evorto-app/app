@@ -1,4 +1,13 @@
 import { describe, expect, it } from '@effect/vitest';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../../db';
@@ -11,6 +20,7 @@ import {
   buildTemplateQuestionInsert,
   requireSimpleTemplateRegistrationOptionIds,
   SimpleTemplateService,
+  validateSimpleTemplateInputBounds,
 } from './simple-template.service';
 
 const validTemplateInput = {
@@ -904,4 +914,109 @@ describe('SimpleTemplateService', () => {
       expect(error.message).toBe('Template question title is required');
     }),
   );
+});
+
+describe('simple template registration input bounds', () => {
+  it('keeps omitted optional collections valid and accepts their exact caps', () => {
+    expect(validateSimpleTemplateInputBounds({})).toBeNull();
+    expect(
+      validateSimpleTemplateInputBounds({
+        addOns: Array.from(
+          { length: MAX_EVENT_ADDON_TYPES },
+          () => validTemplateAddonInput,
+        ),
+        questions: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS },
+          () => validTemplateQuestionInput,
+        ),
+      }),
+    ).toBeNull();
+    expect(
+      validateSimpleTemplateInputBounds({
+        addOns: Array.from(
+          { length: MAX_EVENT_ADDON_TYPES + 1 },
+          () => validTemplateAddonInput,
+        ),
+      }),
+    ).toMatchObject({ _tag: 'TemplateSimpleBadRequestError' });
+    expect(
+      validateSimpleTemplateInputBounds({
+        questions: Array.from(
+          { length: MAX_REGISTRATION_QUESTIONS + 1 },
+          () => validTemplateQuestionInput,
+        ),
+      }),
+    ).toMatchObject({ _tag: 'TemplateSimpleBadRequestError' });
+  });
+
+  it('counts included and optional items together at the per-registration cap', () => {
+    const addOn = {
+      ...validTemplateAddonInput,
+      includedQuantity: 2,
+      maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+      optionalPurchaseQuantity: MAX_REGISTRATION_ADDON_QUANTITY - 2,
+    };
+    expect(validateSimpleTemplateInputBounds({ addOns: [addOn] })).toBeNull();
+    expect(
+      validateSimpleTemplateInputBounds({
+        addOns: [
+          {
+            ...addOn,
+            optionalPurchaseQuantity: addOn.optionalPurchaseQuantity + 1,
+          },
+        ],
+      }),
+    ).toMatchObject({ _tag: 'TemplateSimpleBadRequestError' });
+  });
+
+  it('rejects invalid bounded quantities before persistence', () => {
+    for (const quantity of [
+      -1,
+      0.5,
+      Infinity,
+      NaN,
+      MAX_REGISTRATION_ADDON_QUANTITY + 1,
+    ]) {
+      expect(
+        validateSimpleTemplateInputBounds({
+          addOns: [
+            { ...validTemplateAddonInput, maxQuantityPerUser: quantity },
+          ],
+        }),
+      ).toMatchObject({ _tag: 'TemplateSimpleBadRequestError' });
+      expect(
+        validateSimpleTemplateInputBounds({
+          addOns: [{ ...validTemplateAddonInput, includedQuantity: quantity }],
+        }),
+      ).toMatchObject({ _tag: 'TemplateSimpleBadRequestError' });
+      expect(
+        validateSimpleTemplateInputBounds({
+          addOns: [
+            { ...validTemplateAddonInput, optionalPurchaseQuantity: quantity },
+          ],
+        }),
+      ).toMatchObject({ _tag: 'TemplateSimpleBadRequestError' });
+    }
+  });
+
+  it('bounds raw question text before whitespace normalization', () => {
+    const question = {
+      ...validTemplateQuestionInput,
+      description: 'd'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+      title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+    };
+    expect(
+      validateSimpleTemplateInputBounds({ questions: [question] }),
+    ).toBeNull();
+    expect(
+      validateSimpleTemplateInputBounds({
+        questions: [{ ...question, title: ` ${question.title}` }],
+      }),
+    ).toMatchObject({ _tag: 'TemplateSimpleBadRequestError' });
+    expect(
+      validateSimpleTemplateInputBounds({
+        questions: [{ ...question, description: `${question.description} ` }],
+      }),
+    ).toMatchObject({ _tag: 'TemplateSimpleBadRequestError' });
+  });
 });

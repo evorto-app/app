@@ -108,12 +108,25 @@
             purchases.
           </p>
         </div>
-        <button mat-button type="button" (click)="addAddOn()">
+        <button
+          mat-button
+          type="button"
+          (click)="addAddOn()"
+          [disabled]="form.addOns.length >= maxEventAddonTypes"
+        >
           <fa-duotone-icon [icon]="faPlus" />
           Add add-on
         </button>
+        @if (form.addOns.length >= maxEventAddonTypes) {
+          <p class="body-small text-on-surface-variant" role="status">
+            Maximum of {{ maxEventAddonTypes }} add-ons reached.
+          </p>
+        }
       </div>
       <div class="grid gap-6">
+        @for (error of form.addOns().errors(); track error) {
+          <p class="body-small text-error" role="alert">{{ error.message }}</p>
+        }
         @for (addOn of form.addOns; track addOn; let index = $index) {
           <app-template-addon-editor
             [addOnForm]="addOn"
@@ -150,12 +163,20 @@
       <button
         mat-button
         type="button"
-        [disabled]="optionChoices().length === 0"
+        [disabled]="
+          optionChoices().length === 0 ||
+          form.questions().value().length >= maxRegistrationQuestions
+        "
         (click)="addQuestion()"
       >
         <fa-duotone-icon [icon]="faPlus" />
         Add question
       </button>
+      @if (form.questions.length >= maxRegistrationQuestions) {
+        <p class="body-small text-on-surface-variant" role="status">
+          Maximum of {{ maxRegistrationQuestions }} questions reached.
+        </p>
+      }
     </div>
     @if (optionChoices().length === 0) {
       <p class="body-small text-on-surface-variant">

@@ -1,4 +1,13 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { nonNegativeNumber } from '@shared/schema-utilities';
 import { Effect, Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
@@ -21,6 +30,17 @@ import {
 } from './templates.rpcs';
 
 const nonNegativeInteger = nonNegativeNumber.check(Schema.isInt());
+const registrationAddonQuantity = nonNegativeInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
+);
+const registrationQuestionDescription = Schema.NullOr(
+  Schema.String.check(
+    Schema.isMaxLength(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+  ),
+);
+const registrationQuestionTitle = Schema.NonEmptyString.check(
+  Schema.isMaxLength(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+);
 
 export const PlatformEventListRecord = Schema.Struct({
   end: Schema.NonEmptyString,
@@ -63,8 +83,8 @@ export const PlatformEventWritableRegistrationOptionInput = Schema.Struct({
 });
 
 export const PlatformEventAddonRegistrationOptionRecord = Schema.Struct({
-  includedQuantity: nonNegativeInteger,
-  optionalPurchaseQuantity: nonNegativeInteger,
+  includedQuantity: registrationAddonQuantity,
+  optionalPurchaseQuantity: registrationAddonQuantity,
   registrationOptionId: Schema.NonEmptyString,
 });
 
@@ -79,6 +99,7 @@ export const PlatformEventAddonRecord = Schema.Struct({
   maxQuantityPerUser: Schema.Number.check(
     Schema.isInt(),
     Schema.isGreaterThan(0),
+    Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
   ),
   price: nonNegativeInteger,
   registrationOptions: Schema.Array(PlatformEventAddonRegistrationOptionRecord),
@@ -88,12 +109,12 @@ export const PlatformEventAddonRecord = Schema.Struct({
 });
 
 export const PlatformEventQuestionRecord = Schema.Struct({
-  description: Schema.NullOr(Schema.String),
+  description: registrationQuestionDescription,
   id: Schema.NonEmptyString,
   registrationOptionId: Schema.NonEmptyString,
   required: Schema.Boolean,
   sortOrder: nonNegativeInteger,
-  title: Schema.NonEmptyString,
+  title: registrationQuestionTitle,
 });
 
 export const PlatformEventDetailRecord = Schema.Struct({
@@ -220,7 +241,7 @@ export const PlatformEventsUpdateInput = Schema.Struct({
       ...PlatformEventAddonRecord.fields,
       id: Schema.optional(Schema.NonEmptyString),
     }),
-  ),
+  ).check(Schema.isMaxLength(MAX_EVENT_ADDON_TYPES)),
   description: Schema.NonEmptyString,
   end: Schema.NonEmptyString,
   icon: iconSchema,
@@ -230,7 +251,7 @@ export const PlatformEventsUpdateInput = Schema.Struct({
       ...PlatformEventQuestionRecord.fields,
       id: Schema.optional(Schema.NonEmptyString),
     }),
-  ),
+  ).check(Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS)),
   registrationOptions: Schema.Array(
     PlatformEventWritableRegistrationOptionInput,
   ),

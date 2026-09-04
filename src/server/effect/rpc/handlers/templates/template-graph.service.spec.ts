@@ -5,10 +5,21 @@ import type {
 
 import { describe, expect, it } from '@effect/vitest';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 
 import { validateTemplateGraphStructure } from './template-graph.service';
 
-const validGraph = (): TemplateGraphInput => ({
+type MutableFixture<T> = { -readonly [Key in keyof T]: MutableFixture<T[Key]> };
+
+const validGraph = (): MutableFixture<TemplateGraphInput> => ({
   addOns: [
     {
       allowMultiple: true,
@@ -97,11 +108,14 @@ const validGraph = (): TemplateGraphInput => ({
   unlisted: false,
 });
 
-const persistedGraph = (simpleModeEnabled: boolean): TemplateGraphRecord => {
+const persistedGraph = (
+  simpleModeEnabled: boolean,
+): MutableFixture<TemplateGraphRecord> => {
   const source = validGraph();
   return {
     ...source,
     addOns: [],
+    id: 'template-1',
     questions: [],
     registrationOptions: source.registrationOptions.map((option, index) => {
       const { key: _key, ...record } = option;
@@ -115,7 +129,9 @@ const persistedGraph = (simpleModeEnabled: boolean): TemplateGraphRecord => {
   };
 };
 
-const updateInputFrom = (before: TemplateGraphRecord): TemplateGraphInput => ({
+const updateInputFrom = (
+  before: TemplateGraphRecord,
+): MutableFixture<TemplateGraphInput> => ({
   ...validGraph(),
   addOns: [],
   questions: [],
@@ -126,6 +142,7 @@ const updateInputFrom = (before: TemplateGraphRecord): TemplateGraphInput => ({
       key: option.id,
       registrationMode:
         option.registrationMode === 'random' ? 'fcfs' : option.registrationMode,
+      roleIds: [...option.roleIds],
     };
   }),
   simpleModeEnabled: before.simpleModeEnabled,
@@ -169,10 +186,8 @@ describe('TemplateGraphService structural validation', () => {
     const input = updateInputFrom(before);
 
     expect(
-      input.registrationOptions.every(
-        (option) => option.registrationMode !== 'random',
-      ),
-    ).toBe(true);
+      input.registrationOptions.map((option) => option.registrationMode),
+    ).not.toContain('random');
     const error = validateTemplateGraphStructure({
       before,
       esnCardEnabled: false,
@@ -381,5 +396,101 @@ describe('TemplateGraphService structural validation', () => {
     ).toMatchObject({
       reason: 'invalidTemplateAddon',
     });
+  });
+
+  it('accepts the add-on type cap and rejects cap plus one', () => {
+    const input = validGraph();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    input.addOns = Array.from(
+      { length: MAX_EVENT_ADDON_TYPES },
+      (_, index) => ({
+        ...addOn,
+        key: `addon-${index}`,
+      }),
+    );
+
+    expect(
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input,
+      }),
+    ).toBeNull();
+    input.addOns.push({ ...addOn, key: 'addon-over-limit' });
+    expect(
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input,
+      }),
+    ).toMatchObject({ reason: 'templateAddonTypeLimitExceeded' });
+  });
+
+  it('rejects a mapped add-on quantity above the per-registration cap', () => {
+    const input = validGraph();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    addOn.registrationOptions = [
+      {
+        includedQuantity: MAX_REGISTRATION_ADDON_QUANTITY,
+        optionalPurchaseQuantity: 1,
+        registrationOptionKey: 'participant-key',
+      },
+    ];
+
+    expect(
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input,
+      }),
+    ).toMatchObject({ reason: 'invalidTemplateAddon' });
+  });
+});
+
+describe('template question input bounds', () => {
+  it('accepts exact count and raw text caps and rejects cap plus one', () => {
+    const input = validGraph();
+    const question = {
+      ...input.questions[0],
+      description: 'd'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+      title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+    };
+    const questions = Array.from(
+      { length: MAX_REGISTRATION_QUESTIONS },
+      (_, index) => ({ ...question, key: `question-${index}` }),
+    );
+    expect(
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input: { ...input, questions },
+      }),
+    ).toBeNull();
+    expect(
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input: {
+          ...input,
+          questions: [...questions, { ...question, key: 'question-overflow' }],
+        },
+      }),
+    ).toBeInstanceOf(RpcBadRequestError);
+    expect(
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input: {
+          ...input,
+          questions: [{ ...question, title: ` ${question.title}` }],
+        },
+      }),
+    ).toBeInstanceOf(RpcBadRequestError);
+    expect(
+      validateTemplateGraphStructure({
+        esnCardEnabled: false,
+        input: {
+          ...input,
+          questions: [{ ...question, description: `${question.description} ` }],
+        },
+      }),
+    ).toBeInstanceOf(RpcBadRequestError);
   });
 });
