@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7ec250284367",
+  "session_id": "01a06cdc-629f-7b82-8a80-b940922d7571",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-04T18:15:07.387436Z",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/preserve-routed-test-cleanup-lifetime.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "helpers/testing/tenant-request-routing.spec.ts",
+    "tests/docs/admin/global-admin.doc.ts",
+    "tests/specs/smoke/tenant-request-routing.test.ts",
+    "tests/support/utils/tenant-request-routing.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "c3026ce215b8",
+  "checkpoint_transcript_start": 6843,
+  "transcript_lines_at_start": 6843,
+  "token_usage": {
+    "input_tokens": 46611,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3330560,
+    "output_tokens": 8979,
+    "api_call_count": 35
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-04T18:15:07.024656Z",
+    "agent_lines": 623,
+    "agent_removed": 285,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 623,
+    "total_lines_changed": 908,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
