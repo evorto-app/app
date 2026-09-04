@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ef30b9a46159",
+  "session_id": "01a06cdc-629f-7b82-8a80-b940922d7571",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-04T17:02:07.872505Z",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "helpers/testing/tenant-request-routing.spec.ts",
+    "src/server.ts",
+    "src/server/config/server-config.spec.ts",
+    "src/server/config/server-config.ts",
+    "tests/README.md",
+    "tests/specs/events/event-discovery-eligibility.test.ts",
+    "tests/specs/reporting/reporter-paths.test.ts",
+    "tests/specs/smoke/tenant-request-routing.test.ts",
+    "tests/support/fixtures/base-test.ts",
+    "tests/support/utils/receipt-submission.ts",
+    "tests/support/utils/tenant-request-routing.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "c3026ce215b8",
+  "checkpoint_transcript_start": 3652,
+  "transcript_lines_at_start": 3652,
+  "token_usage": {
+    "input_tokens": 183044,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 14247552,
+    "output_tokens": 42569,
+    "api_call_count": 159
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-04T17:02:07.44371Z",
+    "agent_lines": 671,
+    "agent_removed": 186,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 671,
+    "total_lines_changed": 857,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
