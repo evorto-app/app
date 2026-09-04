@@ -1,6 +1,7 @@
 import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 
 import { describe, expect, it, vi } from '@effect/vitest';
+import { getTableName } from 'drizzle-orm';
 import {
   Cause,
   ConfigProvider,
@@ -12,7 +13,7 @@ import {
 } from 'effect';
 import Stripe from 'stripe';
 
-import { Database } from '../../db';
+import { transactions } from '../../db/schema';
 import { MAX_EVENT_ADDON_TYPES } from '../../shared/registration-quantity-limits';
 import {
   RegistrationTransferConflictError,
@@ -23,11 +24,170 @@ import { createDefaultTenantDiscountProviders } from '../../shared/tenant-config
 import { StripeClient } from '../stripe-client';
 import { createDatabaseTestLayer } from '../testing/database-test-layer';
 import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
+import { hashRegistrationTransferClaimCode } from './registration-transfer-claim-code';
+import { RegistrationTransferPricingError } from './registration-transfer-pricing';
+import { RegistrationTransferStateError } from './registration-transfer-state';
 import {
+  registrationTransferDeadlineFailure,
   registrationTransferGuestCheckoutLine,
+  registrationTransferPricingFailure,
   RegistrationTransferService,
   resumeRegistrationTransferCheckout,
 } from './registration-transfer.service';
+
+const checkoutSessionResponse = ({
+  id,
+  status = 'open',
+  url = null,
+}: {
+  id: string;
+  status?: Stripe.Checkout.Session['status'];
+  url?: Stripe.Checkout.Session['url'];
+}): Stripe.Response<Stripe.Checkout.Session> => ({
+  adaptive_pricing: null,
+  after_expiration: null,
+  allow_promotion_codes: null,
+  amount_subtotal: null,
+  amount_total: null,
+  automatic_tax: {
+    enabled: false,
+    liability: null,
+    provider: null,
+    status: null,
+  },
+  billing_address_collection: null,
+  cancel_url: null,
+  client_reference_id: null,
+  client_secret: null,
+  collected_information: null,
+  consent: null,
+  consent_collection: null,
+  created: 1_900_000_000,
+  currency: 'eur',
+  currency_conversion: null,
+  custom_fields: [],
+  custom_text: {
+    after_submit: null,
+    shipping_address: null,
+    submit: null,
+    terms_of_service_acceptance: null,
+  },
+  customer: null,
+  customer_account: null,
+  customer_creation: null,
+  customer_details: null,
+  customer_email: null,
+  discounts: null,
+  expires_at: 1_900_000_000,
+  id,
+  integration_identifier: null,
+  invoice: null,
+  invoice_creation: null,
+  lastResponse: {
+    headers: {},
+    requestId: `req_${id}`,
+    statusCode: 200,
+  },
+  livemode: false,
+  locale: null,
+  managed_payments: null,
+  metadata: null,
+  mode: 'payment',
+  object: 'checkout.session',
+  origin_context: null,
+  payment_intent: null,
+  payment_link: null,
+  payment_method_collection: null,
+  payment_method_configuration_details: null,
+  payment_method_options: null,
+  payment_method_types: ['card'],
+  payment_status: 'unpaid',
+  permissions: null,
+  recovered_from: null,
+  saved_payment_method_options: null,
+  setup_intent: null,
+  shipping_address_collection: null,
+  shipping_cost: null,
+  shipping_options: [],
+  status,
+  submit_type: null,
+  subscription: null,
+  success_url: null,
+  total_details: null,
+  ui_mode: 'hosted_page',
+  url,
+  wallet_options: null,
+});
+
+class UnusedTransferStripeHttpClient extends Stripe.HttpClient {
+  override getClientName() {
+    return 'evorto-transfer-test';
+  }
+  override makeRequest(): Promise<never> {
+    return Promise.reject(
+      new Error('Unexpected transfer test provider request'),
+    );
+  }
+}
+
+describe('registration transfer invariant failures', () => {
+  it('keeps an elapsed deadline as an expected conflict', () => {
+    const failure = registrationTransferDeadlineFailure(
+      new RegistrationTransferStateError({
+        message:
+          'This ticket can no longer be transferred because the deadline has passed.',
+        reason: 'deadlinePassed',
+      }),
+    );
+
+    expect(failure).toBeInstanceOf(RegistrationTransferConflictError);
+    expect(failure.message).toBe(
+      'The ticket transfer deadline has passed. No ticket transfer was started.',
+    );
+  });
+
+  it('treats an invalid saved deadline as an internal defect without exposing details', () => {
+    const failure = registrationTransferDeadlineFailure(
+      new RegistrationTransferStateError({
+        message: 'Transfer deadline must be a non-negative integer',
+        reason: 'invalidDeadlinePolicy',
+      }),
+    );
+
+    expect(failure).toBeInstanceOf(RegistrationTransferInternalError);
+    expect(failure.message).toBe(
+      'The transfer deadline settings are invalid. No transfer was started. Ask an organizer to review them.',
+    );
+    expect(failure.message).not.toContain('non-negative integer');
+  });
+
+  it.each([
+    {
+      expected:
+        'The saved price for this transfer is invalid. No payment was started. Ask an organizer for help.',
+      reason: 'invalidAmount' as const,
+    },
+    {
+      expected:
+        'The total price for this transfer is too high. No payment was started. Ask an organizer for help.',
+      reason: 'amountTooLarge' as const,
+    },
+  ])(
+    'maps $reason pricing to a plain internal failure',
+    ({ expected, reason }) => {
+      const failure = registrationTransferPricingFailure(
+        new RegistrationTransferPricingError({
+          message: 'sensitive saved pricing details',
+          reason,
+        }),
+      );
+
+      expect(failure).toBeInstanceOf(RegistrationTransferInternalError);
+      expect(failure.message).toBe(expected);
+      expect(failure.message).not.toContain('sensitive saved pricing details');
+    },
+  );
+});
 
 describe('RegistrationTransferService.getClaim tenant settings', () => {
   const createClaimDatabase = (
@@ -39,7 +199,14 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
         Effect.sync(() => {
           expect(statement.startsWith('select ')).toBe(true);
           if (statement.includes('from "registration_transfers"')) {
-            expect(parameters).toContain('tenant-1');
+            expect(parameters).toEqual([
+              'tenant-1',
+              hashRegistrationTransferClaimCode(
+                'ABCD-1234-ABCD-1234-ABCD-1234-ABCD-1234',
+              ),
+              1,
+            ]);
+            expect(statement).toContain('"claim_code_hash"');
             // Match the public claim query's selected column order.
             return [
               [
@@ -115,7 +282,7 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
   const getClaim = Effect.gen(function* () {
     const service = yield* RegistrationTransferService;
     return yield* service.getClaim({
-      credential: 'claim-token',
+      claimCode: ' abcd-1234-abcd-1234-abcd-1234-abcd-1234 ',
       tenant: {
         cancellationDeadlineHoursBeforeStart: 24,
         currency: 'EUR',
@@ -296,45 +463,70 @@ describe('resumeRegistrationTransferCheckout', () => {
     'preserves a failed unbound Checkout expiry as an internal error',
     () =>
       Effect.gen(function* () {
-        const transaction = {
-          select: () => ({
-            from: () => ({
-              where: () => ({
-                limit: () => Effect.succeed([]),
-              }),
+        const transactionCommands: string[] = [];
+        const statements: string[] = [];
+        const databaseLayer = createRegistrationDatabaseTestLayer({
+          executeValues: (statement, parameters) =>
+            Effect.sync(() => {
+              statements.push(statement);
+              expect(transactionCommands).toEqual(['BEGIN']);
+              if (
+                statement.startsWith(`update "${getTableName(transactions)}"`)
+              ) {
+                expect(parameters).toEqual([
+                  expect.any(String),
+                  0,
+                  null,
+                  null,
+                  null,
+                  expect.any(String),
+                  'cs_unbound',
+                  'https://checkout.stripe.com/c/pay/cs_unbound',
+                  'transaction-1',
+                  'registration-1',
+                  'pending',
+                  'tenant-1',
+                  'registration',
+                ]);
+                expect(statement).toContain(
+                  `"${transactions.stripeCheckoutSessionId.name}" is null`,
+                );
+                expect(statement).toContain('returning "id"');
+                return [];
+              }
+              if (
+                statement.startsWith('select ') &&
+                statement.includes(` from "${getTableName(transactions)}"`)
+              ) {
+                expect(parameters).toEqual([
+                  'transaction-1',
+                  'registration-1',
+                  'pending',
+                  'tenant-1',
+                  1,
+                ]);
+                expect(statement).toContain(
+                  `"${transactions.stripeCheckoutSessionId.name}", "${transactions.stripeCheckoutUrl.name}"`,
+                );
+                return [];
+              }
+              throw new Error(`Unexpected transfer fixture SQL: ${statement}`);
             }),
-          }),
-          update: () => ({
-            set: () => ({
-              where: () => ({
-                returning: () => Effect.succeed([]),
-              }),
+          transactionControl: (command) =>
+            Effect.sync(() => {
+              transactionCommands.push(command);
             }),
-          }),
-        };
-        const database = {
-          transaction: (
-            run: (
-              currentTransaction: typeof transaction,
-            ) => Effect.Effect<unknown>,
-          ) => run(transaction),
-        };
-        const stripe = new Stripe('sk_test_transfer_cleanup', {
-          httpClient: Stripe.createFetchHttpClient(
-            Object.assign(
-              async () =>
-                Response.json({
-                  id: 'cs_unbound',
-                  url: 'https://checkout.stripe.test/cs_unbound',
-                }),
-              {
-                preconnect: () => {
-                  throw new Error('Unexpected Stripe fixture preconnect');
-                },
-              },
-            ),
-          ),
         });
+        const stripe = new Stripe('sk_test_transfer_cleanup', {
+          httpClient: new UnusedTransferStripeHttpClient(),
+          maxNetworkRetries: 0,
+        });
+        vi.spyOn(stripe.checkout.sessions, 'create').mockResolvedValue(
+          checkoutSessionResponse({
+            id: 'cs_unbound',
+            url: 'https://checkout.stripe.com/c/pay/cs_unbound',
+          }),
+        );
         const expiryCause = new Error('Stripe expiry unavailable');
         const expire = vi
           .spyOn(stripe.checkout.sessions, 'expire')
@@ -366,10 +558,7 @@ describe('resumeRegistrationTransferCheckout', () => {
           transferId: 'transfer-1',
         }).pipe(
           Effect.provide(
-            Layer.mergeAll(
-              Layer.succeed(Database, database as never),
-              Layer.succeed(StripeClient, stripe),
-            ),
+            Layer.mergeAll(databaseLayer, Layer.succeed(StripeClient, stripe)),
           ),
           Effect.flip,
         );
@@ -377,12 +566,11 @@ describe('resumeRegistrationTransferCheckout', () => {
         expect(expire).toHaveBeenCalledWith('cs_unbound', undefined, {
           stripeAccount: 'acct_tenant',
         });
+        expect(statements).toHaveLength(2);
+        expect(transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        expect(error).not.toHaveProperty('cause');
         expect(error).toBeInstanceOf(RegistrationTransferInternalError);
         expect(error).toMatchObject({
-          cause: {
-            _tag: 'StripeCheckoutError',
-            cause: expiryCause,
-          },
           message: expect.stringContaining(
             'unbound Checkout session could not be expired',
           ),
@@ -395,7 +583,7 @@ type TransferService = Effect.Success<typeof RegistrationTransferService.make>;
 
 const transferInput: Parameters<TransferService['claim']>[0] = {
   answers: [],
-  credential: 'transfer-credential',
+  claimCode: '0123-4567-89AB-CDEF-0123-4567-89AB-CDEF',
   tenant: {
     cancellationDeadlineHoursBeforeStart: 24,
     currency: 'EUR',
@@ -421,7 +609,10 @@ const eventEnd = '2099-08-01 22:00:00';
 const transferExpiry = '2099-07-31 18:00:00';
 
 const checkoutFixture = () => {
-  const stripe = new Stripe('sk_test_transfer_persisted_boundaries');
+  const stripe = new Stripe('sk_test_transfer_persisted_boundaries', {
+    httpClient: new UnusedTransferStripeHttpClient(),
+    maxNetworkRetries: 0,
+  });
   const providerCause = new Error('Stopped at the synthetic Checkout boundary');
   const checkout = vi
     .spyOn(stripe.checkout.sessions, 'create')
@@ -443,6 +634,7 @@ describe('persisted transfer claim questions', () => {
         const statements: string[] = [];
         const executeValues: SqlConnection.Connection['executeValues'] = (
           statement,
+          parameters,
         ) =>
           Effect.sync(() => {
             statements.push(statement);
@@ -450,6 +642,12 @@ describe('persisted transfer claim questions', () => {
               statement.startsWith('select ') &&
               statement.includes(' from "registration_transfers"')
             ) {
+              expect(parameters).toEqual([
+                'tenant-1',
+                '7237d20f656f12c2e8bf7e9240be0e4d1d50cddbe7dd9b7696ffc4b835d4d1f0',
+                1,
+              ]);
+              expect(parameters).not.toContain(transferInput.claimCode);
               return [
                 [
                   null,
@@ -631,6 +829,14 @@ const createTransferTaxFixture = ({
         return [];
       }
       if (statement.includes(' from "registration_transfers"')) {
+        if (!statement.includes(' for update')) {
+          expect(parameters).toEqual([
+            'tenant-1',
+            '7237d20f656f12c2e8bf7e9240be0e4d1d50cddbe7dd9b7696ffc4b835d4d1f0',
+            1,
+          ]);
+          expect(parameters).not.toContain(transferInput.claimCode);
+        }
         return statement.includes(' for update')
           ? [[transferExpiry, 'registration-1', 'source-1', 'open']]
           : [
@@ -648,7 +854,6 @@ const createTransferTaxFixture = ({
                 optionTaxId,
                 null,
                 null,
-                null,
                 'registration-1',
                 1,
                 'CONFIRMED',
@@ -661,7 +866,7 @@ const createTransferTaxFixture = ({
       if (statement.includes(' from "event_registrations"')) {
         return statement.includes(' for update')
           ? [[0, 'CONFIRMED', 'source-1']]
-          : [['existing-recipient-registration']];
+          : [['CONFIRMED']];
       }
       if (statement.includes(' from "registration_acquisitions"'))
         return [['event-1', 'acquisition-1', 1, 'source-1']];
@@ -692,6 +897,7 @@ const createTransferTaxFixture = ({
                 'tenant-1',
                 0,
                 'Tenant',
+                24,
               ],
             ];
       }
@@ -717,6 +923,7 @@ const createTransferTaxFixture = ({
             optionPrice,
             [],
             optionTaxId,
+            null,
           ],
         ];
       if (statement.includes(' from "event_addons"')) {
@@ -780,7 +987,7 @@ describe('persisted transfer bundle type bounds', () => {
           expect(fixture.pricedAddonIds).toEqual([]);
         } else {
           expect(error.message).toBe(
-            'You already have an active registration for this event',
+            'You already have a ticket for this event. This transfer was not accepted, and no payment or refund was started.',
           );
           expect(fixture.pricedAddonIds).toEqual(
             Array.from({ length: count }, (_, index) => `addon-${index + 1}`),
@@ -846,7 +1053,7 @@ describe('persisted transfer tax configuration', () => {
         .pipe(Effect.provide(fixture.layer), Effect.flip);
       expect(error).toBeInstanceOf(RegistrationTransferConflictError);
       expect(error.message).toBe(
-        'Registration pricing or tax terms changed while claiming. Review the current details and retry.',
+        'The price or tax for this ticket changed while you were accepting it. No payment or refund was started. Review the latest total and try again.',
       );
       expect(fixture.writes).toEqual([]);
       expect(fixture.checkout).not.toHaveBeenCalled();
@@ -886,7 +1093,7 @@ describe('persisted transfer tax configuration', () => {
           .pipe(Effect.provide(fixture.layer), Effect.flip);
         expect(error).toBeInstanceOf(RegistrationTransferConflictError);
         expect(error.message).toBe(
-          'You already have an active registration for this event',
+          'You already have a ticket for this event. This transfer was not accepted, and no payment or refund was started.',
         );
         expect(fixture.writes).toEqual([]);
         expect(fixture.checkout).not.toHaveBeenCalled();
@@ -977,10 +1184,10 @@ describe('persisted transfer Checkout resume', () => {
         .retryCheckout({ ...transferInput, transferId: 'transfer-1' })
         .pipe(Effect.flip, Effect.provide(fixture.layer));
       expect(error).toBeInstanceOf(RegistrationTransferInternalError);
-      expect(error).toMatchObject({
-        cause: { _tag: 'SchemaError' },
-        message: 'Persisted transfer Checkout snapshot is invalid',
-      });
+      expect(error).not.toHaveProperty('cause');
+      expect(error.message).toBe(
+        'The saved payment details for this transfer are invalid. No payment was started. Contact Evorto support.',
+      );
       expect(fixture.checkout).not.toHaveBeenCalled();
       expect(fixture.writes).toEqual([]);
     }),
@@ -996,10 +1203,11 @@ describe('persisted transfer Checkout resume', () => {
         const result = yield* service
           .retryCheckout({ ...transferInput, transferId: 'transfer-1' })
           .pipe(Effect.provide(fixture.layer), Effect.flip);
-        expect(result).toMatchObject({
-          _tag: 'RegistrationTransferInternalError',
-          cause: { _tag: 'StripeCheckoutError', cause: fixture.providerCause },
-        });
+        expect(result).toBeInstanceOf(RegistrationTransferInternalError);
+        expect(result).not.toHaveProperty('cause');
+        expect(result.message).toBe(
+          'Transfer payment setup is still pending. Retry without creating another transfer.',
+        );
         expect(fixture.checkout).toHaveBeenCalledExactlyOnceWith(
           expect.objectContaining({
             customer_email: snapshot.customerEmail,

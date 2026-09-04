@@ -13,17 +13,7 @@ import {
   type PlatformRegistrationsCancelInput,
   type PlatformRegistrationsCheckInInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  exists,
-  inArray,
-  isNull,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, isNull, sql } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -48,6 +38,7 @@ import { allocateAcquisitionComponentQuantity } from '../../../../registrations/
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
   RegistrationTransferMutationConflict,
+  registrationTransferOpenDeadlinePredicate,
 } from '../../../../registrations/registration-transfer-mutation-guard';
 import {
   EventRegistrationService,
@@ -124,7 +115,7 @@ export const platformRegistrationActiveTransferError = (
   });
 
 const ensurePlatformRegistrationMutationHasNoActiveTransfer = (
-  database: Pick<DatabaseClient, 'select'>,
+  database: Pick<DatabaseClient, 'insert' | 'select' | 'update'>,
   input: { registrationId: string; tenantId: string },
 ) =>
   ensureRegistrationMutationHasNoActiveTransfer(database, input).pipe(
@@ -372,18 +363,11 @@ export const platformRegistrationActiveTransferPredicate = (input: {
 }) =>
   and(
     eq(registrationTransfers.tenantId, input.tenantId),
-    or(
-      and(
-        eq(registrationTransfers.sourceRegistrationId, input.registrationId),
-        inArray(registrationTransfers.status, [
-          ...activeRegistrationTransferStatuses,
-        ]),
-      ),
-      and(
-        eq(registrationTransfers.recipientRegistrationId, input.registrationId),
-        eq(registrationTransfers.status, 'checkout_pending'),
-      ),
-    ),
+    eq(registrationTransfers.sourceRegistrationId, input.registrationId),
+    inArray(registrationTransfers.status, [
+      ...activeRegistrationTransferStatuses,
+    ]),
+    registrationTransferOpenDeadlinePredicate(registrationTransfers),
   );
 
 export const platformRegistrationCancellationBlockedReason = (input: {

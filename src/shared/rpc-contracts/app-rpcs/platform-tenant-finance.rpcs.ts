@@ -119,7 +119,6 @@ export class PlatformFinanceRefundTransferRecord extends Schema.Class<PlatformFi
 )({
   eventId: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
-  recipientRegistrationId: Schema.NullOr(Schema.NonEmptyString),
   sourceRegistrationId: Schema.NonEmptyString,
   status: RegistrationTransferStatus,
 }) {}

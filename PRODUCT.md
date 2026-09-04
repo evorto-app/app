@@ -328,8 +328,9 @@ post-launch enhancement.
 
 The intended workflow:
 
-1. Existing participant creates a transfer link or code.
-2. New participant signs in and uses the link/code.
+1. The current participant creates a private transfer code.
+2. The intended recipient signs in and enters the code on the transfer page.
+   The code is never part of the page URL.
 3. Evorto shows the registration plus every included, free, and purchased
    add-on as one fixed bundle. The recipient cannot omit add-ons, change guest
    count, or alter any quantity or fulfillment/check-in history.
@@ -348,11 +349,10 @@ The intended workflow:
    and purchased-add-on payment after prior successful refunds.
 
 Previous participant-question answers are never part of the transfer bundle.
-An immediate organizer or participant reassignment is available only when the
-whole bundle is free, no source refund is required, and the registration option
-has no participant questions. When current questions exist, the recipient must
-use the private link/code claim so they can provide their own answers before
-ownership changes.
+Every transfer uses the recipient's private claim, including a free bundle with
+no refund or questions. Organizers cannot reassign someone else's ticket around
+that review. The recipient answers current questions before ownership changes;
+a wholly free bundle with no refund obligation then completes immediately.
 
 The goal is to let users transfer spots without trusting each other directly.
 

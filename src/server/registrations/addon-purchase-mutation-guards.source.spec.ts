@@ -123,59 +123,110 @@ describe('post-registration add-on mutation guards', () => {
     );
   });
 
-  it('blocks direct ownership transfer before changing the registration user', () => {
-    const source = readSource(
-      '../effect/rpc/handlers/events/events-registration.handlers.ts',
+  it('blocks pending add-on payment before opening an offer without changing ownership', () => {
+    const source = readSource('registration-transfer.service.ts');
+    const offerStart = source.indexOf(
+      "const createOffer = Effect.fn('RegistrationTransferService.createOffer')",
     );
-    const directTransfer = source.indexOf('const transferResult =');
-    const acquisitionLock = source.indexOf(
-      'lockCurrentRegistrationAcquisition(tx, {',
-      directTransfer,
-    );
-    const pendingOrder = source.indexOf(
-      'const pendingAddonOrderCandidates =',
-      directTransfer,
-    );
-    const pendingTransactionLock = source.indexOf(
+    const offerEnd = source.indexOf('const getClaim =', offerStart);
+    const offer = source.slice(offerStart, offerEnd);
+    const registrationLock = offer.indexOf('const lockedSources =');
+    const acquisitionLock = offer.indexOf('const acquisitionRows =');
+    const pendingOrder = offer.indexOf('const pendingAddonOrderCandidates =');
+    const pendingTransactionLock = offer.indexOf(
       'const pendingAddonTransactions =',
       pendingOrder,
     );
-    const pendingOrderLock = source.indexOf(
+    const pendingOrderLock = offer.indexOf(
       'const lockedAddonOrders =',
       pendingTransactionLock,
     );
-    const sourcePaymentLock = source.indexOf(
-      'const successfulPaidSourceTransactions =',
+    const entitlementLock = offer.indexOf(
+      'const sourceAddOnEntitlements =',
       pendingOrderLock,
     );
-    const ownerUpdate = source.indexOf(
-      'const transferredRegistrations =',
-      sourcePaymentLock,
-    );
+    const offerInsert = offer.indexOf('.insert(registrationTransfers)');
 
-    expect(directTransfer).toBeGreaterThanOrEqual(0);
-    expect(acquisitionLock).toBeGreaterThan(directTransfer);
+    expect(offerStart).toBeGreaterThanOrEqual(0);
+    expect(offerEnd).toBeGreaterThan(offerStart);
+    expect(registrationLock).toBeGreaterThanOrEqual(0);
+    expect(acquisitionLock).toBeGreaterThan(registrationLock);
     expect(pendingOrder).toBeGreaterThan(acquisitionLock);
     expect(pendingTransactionLock).toBeGreaterThan(pendingOrder);
     expect(pendingOrderLock).toBeGreaterThan(pendingTransactionLock);
-    expect(sourcePaymentLock).toBeGreaterThan(pendingOrderLock);
-    expect(ownerUpdate).toBeGreaterThan(sourcePaymentLock);
-    expect(source.slice(sourcePaymentLock, ownerUpdate)).toContain(
-      'sourceRefundAmountDue > 0 || recipientBundlePrice > 0',
+    expect(entitlementLock).toBeGreaterThan(pendingOrderLock);
+    expect(offerInsert).toBeGreaterThan(entitlementLock);
+    const pendingGuard = offer.slice(pendingOrder, entitlementLock);
+    expect(pendingGuard).toContain('pendingAddonTransactions.length !== 1');
+    expect(pendingGuard).toContain('lockedAddonOrders.length !== 1');
+    expect(pendingGuard).toContain(
+      'transactions.eventRegistrationId, lockedSource.id',
     );
+    expect(pendingGuard).toContain('transactions.tenantId, tenant.id');
+    expect(pendingGuard).toContain("transactions.status, 'pending'");
+    expect(pendingGuard).toContain(
+      'return yield* new RegistrationTransferConflictError',
+    );
+    expect(offer).not.toContain('.update(eventRegistrations)');
   });
 
-  it('routes any currently paid acquisition or recipient bundle through a private offer', () => {
-    const source = readSource(
-      '../effect/rpc/handlers/events/events-registration.handlers.ts',
+  it('keeps paid and free ownership changes in the authenticated private claim flow', () => {
+    const source = readSource('registration-transfer.service.ts');
+    const claimStart = source.indexOf(
+      "const claim = Effect.fn('RegistrationTransferService.claim')",
     );
-
-    expect(source).toContain('currentAcquisitionState.payments');
-    expect(source).toContain('successfulPaidSourceTransactions');
-    expect(source).toContain(
-      'sourceRefundAmountDue > 0 || recipientBundlePrice > 0',
+    const claim = source.slice(claimStart);
+    const paymentStart = claim.indexOf('if (paymentClaim) {');
+    const sourcePayments = claim.indexOf('const currentAcquisitionPayments =');
+    const ownerUpdate = claim.indexOf('const transferredRegistrations =');
+    expect(claimStart).toBeGreaterThanOrEqual(0);
+    expect(paymentStart).toBeGreaterThanOrEqual(0);
+    expect(sourcePayments).toBeGreaterThan(paymentStart);
+    expect(ownerUpdate).toBeGreaterThan(sourcePayments);
+    expect(claim).toContain('const requiresCheckout = totalPrice > 0');
+    expect(claim.slice(paymentStart, sourcePayments)).toContain(
+      'yield* tx.insert(transactions)',
     );
-    expect(source).toContain('privateRegistrationTransferRequiredMessage');
+    expect(claim.slice(paymentStart, sourcePayments)).toContain(
+      "_tag: 'PaymentPending'",
+    );
+    expect(claim.slice(paymentStart, sourcePayments)).not.toContain(
+      '.update(eventRegistrations)',
+    );
+    expect(claim.slice(sourcePayments, ownerUpdate)).toContain(
+      '.from(registrationAcquisitionPayments)',
+    );
+    expect(claim.slice(sourcePayments, ownerUpdate)).toContain(
+      '.from(registrationTransferRefundPlanItems)',
+    );
+    const handlerSource = readSource(
+      '../effect/rpc/handlers/registration-transfers.handlers.ts',
+    );
+    const handlerStart = handlerSource.indexOf(
+      "'registrationTransfers.claim':",
+    );
+    const handlerEnd = handlerSource.indexOf(
+      "'registrationTransfers.createOffer':",
+      handlerStart,
+    );
+    const handler = handlerSource.slice(handlerStart, handlerEnd);
+    expect(handlerStart).toBeGreaterThanOrEqual(0);
+    expect(handlerEnd).toBeGreaterThan(handlerStart);
+    expect(handler).toContain('const user = yield* requireTransferUser');
+    expect(handler).toContain('claimCode: input.claimCode');
+    expect(handler).toContain('tenant: context.tenant');
+    expect(handler).toContain('user,');
+    const eventsContract = readSource(
+      '../../shared/rpc-contracts/app-rpcs/events.rpcs.ts',
+    );
+    for (const retiredRpc of [
+      'events.transferEventRegistration',
+      'events.transferMyRegistration',
+      'events.findTransferTargets',
+      'events.previewEventRegistrationTransfer',
+    ]) {
+      expect(eventsContract).not.toContain(retiredRpc);
+    }
   });
 
   it('rechecks the locked offer deadline immediately before insert', () => {
@@ -188,7 +239,7 @@ describe('post-registration add-on mutation guards', () => {
     const registrationLock = createOffer.indexOf('const lockedSources =');
     const termsLock = createOffer.indexOf('const lockedTransferTerms =');
     const deadlineSampleTime = createOffer.indexOf('const mutationNow =');
-    const claimUrl = createOffer.indexOf('const claimUrl =');
+    const claimPageUrl = createOffer.indexOf('const claimPageUrl =');
     const insertSampleTime = createOffer.indexOf('const offerInsertNow =');
     const transferInsert = createOffer.indexOf(
       '.insert(registrationTransfers)',
@@ -197,8 +248,8 @@ describe('post-registration add-on mutation guards', () => {
     expect(registrationLock).toBeGreaterThanOrEqual(0);
     expect(termsLock).toBeGreaterThan(registrationLock);
     expect(deadlineSampleTime).toBeGreaterThan(termsLock);
-    expect(claimUrl).toBeGreaterThan(deadlineSampleTime);
-    expect(insertSampleTime).toBeGreaterThan(claimUrl);
+    expect(claimPageUrl).toBeGreaterThan(deadlineSampleTime);
+    expect(insertSampleTime).toBeGreaterThan(claimPageUrl);
     expect(transferInsert).toBeGreaterThan(insertSampleTime);
     const tenantLock = createOffer.indexOf('.from(tenants)');
     const eventLock = createOffer.indexOf('.from(eventInstances)', tenantLock);
@@ -236,6 +287,15 @@ describe('post-registration add-on mutation guards', () => {
     const registrationLock = claim.indexOf('const lockedSources =');
     const transferLock = claim.indexOf('const lockedTransfers =');
     const initialSampleTime = claim.indexOf('const lockedNow =');
+    const currentDeadline = claim.indexOf('const currentExpiresAt =');
+    const effectiveDeadline = claim.indexOf('const effectiveExpiresAt =');
+    const questionsLock = claim.indexOf(
+      'const questionRows = yield* lockEventRegistrationQuestionSet(',
+    );
+    const answerValidation = claim.indexOf(
+      'const answerInserts =',
+      effectiveDeadline,
+    );
     const discountLock = claim.indexOf('const lockedDiscounts =');
     const paymentMutationTime = claim.indexOf('const paymentMutationNow =');
     const paymentInsert = claim.indexOf(
@@ -259,11 +319,24 @@ describe('post-registration add-on mutation guards', () => {
     expect(registrationLock).toBeGreaterThanOrEqual(0);
     expect(transferLock).toBeGreaterThan(registrationLock);
     expect(initialSampleTime).toBeGreaterThan(transferLock);
-    expect(discountLock).toBeGreaterThan(initialSampleTime);
+    expect(questionsLock).toBeGreaterThan(initialSampleTime);
+    expect(currentDeadline).toBeGreaterThan(questionsLock);
+    expect(effectiveDeadline).toBeGreaterThan(currentDeadline);
+    expect(answerValidation).toBeGreaterThan(effectiveDeadline);
+    expect(discountLock).toBeGreaterThan(answerValidation);
+    const effectiveDeadlineSource = claim.slice(
+      effectiveDeadline,
+      answerValidation,
+    );
+    expect(effectiveDeadlineSource).toContain('Math.min(');
+    expect(effectiveDeadlineSource).toContain(
+      'lockedTransfer.expiresAt.getTime()',
+    );
+    expect(effectiveDeadlineSource).toContain('currentExpiresAt.getTime()');
     expect(paymentMutationTime).toBeGreaterThan(discountLock);
     expect(paymentInsert).toBeGreaterThan(paymentMutationTime);
     expect(claim.slice(paymentMutationTime, paymentInsert)).toContain(
-      'lockedTransfer.expiresAt <= paymentMutationNow',
+      'effectiveExpiresAt <= paymentMutationNow',
     );
     expect(refundPlanLock).toBeGreaterThan(paymentInsert);
     expect(priorRefundLock).toBeGreaterThan(refundPlanLock);
@@ -273,7 +346,7 @@ describe('post-registration add-on mutation guards', () => {
       ".for('update')",
     );
     expect(claim.slice(ownershipMutationTime, ownershipUpdate)).toContain(
-      'lockedTransfer.expiresAt <= ownershipMutationNow',
+      'effectiveExpiresAt <= ownershipMutationNow',
     );
     expect(claim).toContain('const completedAt = ownershipMutationNow');
     expect(claim).toContain('lockedTransfer.expiresAt <= lockedNow');

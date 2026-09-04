@@ -120,7 +120,11 @@ const expectUniqueIndex = ({
   );
 
   expect(index?.config.unique).toBe(true);
-  expect(index?.config.columns.map((column) => column.name)).toEqual(columns);
+  expect(
+    index?.config.columns.map((column) =>
+      'name' in column ? column.name : undefined,
+    ),
+  ).toEqual(columns);
   expect(index?.config.where).toBeDefined();
   if (!index?.config.where) {
     throw new Error(`Expected ${name} index predicate`);
@@ -163,7 +167,6 @@ describe('registration acquisition schema', () => {
     expect(registrationAcquisitionKind.enumValues).toEqual([
       'initial',
       'claim_transfer',
-      'direct_transfer',
     ]);
 
     expectCheckSql({
@@ -177,10 +180,6 @@ describe('registration acquisition schema', () => {
           AND "registration_acquisitions"."previous_acquisition_id" IS NOT NULL
           AND "registration_acquisitions"."kind" = 'claim_transfer'
           AND "registration_acquisitions"."transfer_id" IS NOT NULL)
-        OR ("registration_acquisitions"."ordinal" > 0
-          AND "registration_acquisitions"."previous_acquisition_id" IS NOT NULL
-          AND "registration_acquisitions"."kind" = 'direct_transfer'
-          AND "registration_acquisitions"."transfer_id" IS NULL)
       `,
       table: registrationAcquisitions,
     });

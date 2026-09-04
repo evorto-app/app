@@ -20,12 +20,12 @@ import { TenantDatePipe } from '../../core/tenant-date.pipe';
 
 export interface EventRegistrationTransferDialogData {
   readonly claimCode: string;
-  readonly claimUrl: string;
+  readonly claimPageUrl: string;
   readonly expiresAt: string;
   readonly status: 'open';
 }
 
-type CopiedTransferCredential = 'code' | 'link';
+type CopiedTransferValue = 'code' | 'page';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -43,19 +43,19 @@ type CopiedTransferCredential = 'code' | 'link';
   templateUrl: './event-registration-transfer-dialog.component.html',
 })
 export class EventRegistrationTransferDialogComponent {
-  protected readonly copied = signal<CopiedTransferCredential | null>(null);
+  protected readonly copied = signal<CopiedTransferValue | null>(null);
   protected readonly copyError = signal(false);
   protected readonly data =
     inject<EventRegistrationTransferDialogData>(MAT_DIALOG_DATA);
   private readonly clipboard = inject(Clipboard);
 
-  protected copy(value: string, credential: CopiedTransferCredential): void {
+  protected copy(value: string, copiedValue: CopiedTransferValue): void {
     this.copyError.set(false);
     if (!this.clipboard.copy(value)) {
       this.copied.set(null);
       this.copyError.set(true);
       return;
     }
-    this.copied.set(credential);
+    this.copied.set(copiedValue);
   }
 }

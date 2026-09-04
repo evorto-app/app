@@ -44,6 +44,13 @@ export class RegistrationTransferStateError extends Schema.TaggedErrorClass<Regi
   'RegistrationTransferStateError',
   {
     message: Schema.String,
+    reason: Schema.Literals([
+      'deadlinePassed',
+      'invalidDeadlinePolicy',
+      'invalidSourcePayment',
+      'invalidTransition',
+      'sourcePaymentSettlementPending',
+    ]),
   },
 ) {}
 
@@ -54,6 +61,7 @@ const validateDeadlineHours = Effect.fn('validateDeadlineHours')(function* (
   if (!Number.isInteger(value) || value < 0) {
     return yield* new RegistrationTransferStateError({
       message: `${policyName} must be a non-negative integer number of hours`,
+      reason: 'invalidDeadlinePolicy',
     });
   }
   return value;
@@ -64,7 +72,9 @@ export const ensureRegistrationTransferTransition = Effect.fn(
 )(function* (from: RegistrationTransferStatus, to: RegistrationTransferStatus) {
   if (!allowedTransitions[from].includes(to)) {
     return yield* new RegistrationTransferStateError({
-      message: `Registration transfer cannot move from ${from} to ${to}`,
+      message:
+        'The ticket transfer changed unexpectedly. Nothing was changed. Reopen the ticket and review the current transfer.',
+      reason: 'invalidTransition',
     });
   }
 });
@@ -91,7 +101,9 @@ export const resolveRegistrationTransferDeadline = Effect.fn(
   );
   if (expiresAt <= now) {
     return yield* new RegistrationTransferStateError({
-      message: 'Registration can no longer be transferred',
+      message:
+        'This ticket can no longer be transferred because the deadline has passed.',
+      reason: 'deadlinePassed',
     });
   }
   return expiresAt;
@@ -132,6 +144,7 @@ export const resolveRegistrationTransferRefundPlan = Effect.fn(
   if (!Number.isInteger(sourcePayment.amount) || sourcePayment.amount <= 0) {
     return yield* new RegistrationTransferStateError({
       message: 'Source payment gross amount is unavailable',
+      reason: 'invalidSourcePayment',
     });
   }
 
@@ -151,7 +164,8 @@ export const resolveRegistrationTransferRefundPlan = Effect.fn(
   ) {
     return yield* new RegistrationTransferStateError({
       message:
-        'Source payment fee settlement is unavailable; retry after Stripe fee reconciliation',
+        'The earlier payment is not ready for a refund yet. The transfer was not accepted. Open the ticket and review the current payment before trying again.',
+      reason: 'sourcePaymentSettlementPending',
     });
   }
 

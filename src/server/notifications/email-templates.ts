@@ -62,6 +62,7 @@ export interface RegistrationTransferredEmailProps {
   readonly eventTitle: string;
   readonly eventUrl: string;
   readonly recipientRole: 'newOwner' | 'previousOwner';
+  readonly refundOutcome: 'notStarted' | 'pending';
   readonly tenantName: string;
 }
 
@@ -403,6 +404,7 @@ export const RegistrationTransferredEmail = ({
   eventTitle,
   eventUrl,
   recipientRole,
+  refundOutcome,
   tenantName,
 }: RegistrationTransferredEmailProps): ReactElement => {
   const newOwner = recipientRole === 'newOwner';
@@ -426,6 +428,16 @@ export const RegistrationTransferredEmail = ({
           ? 'Sign in to Evorto to review the registration and open its ticket.'
           : 'You no longer have access to this registration or its ticket.',
       ),
+      ...(newOwner
+        ? []
+        : [
+            paragraph(
+              'refund',
+              refundOutcome === 'pending'
+                ? 'A refund to your original payment method is in progress.'
+                : 'No refund was started for this transfer.',
+            ),
+          ]),
     ],
     preview: newOwner
       ? `The registration for ${eventTitle} was transferred to you.`
@@ -441,5 +453,6 @@ RegistrationTransferredEmail.PreviewProps = {
   eventTitle: 'City tour',
   eventUrl: 'https://example.org/events/event-1',
   recipientRole: 'newOwner',
+  refundOutcome: 'notStarted',
   tenantName: 'Example Section',
 } satisfies RegistrationTransferredEmailProps;

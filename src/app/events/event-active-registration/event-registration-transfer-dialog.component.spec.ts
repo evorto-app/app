@@ -26,8 +26,8 @@ describe('EventRegistrationTransferDialogComponent', () => {
         {
           provide: MAT_DIALOG_DATA,
           useValue: {
-            claimCode: 'claim-code',
-            claimUrl: 'https://example.test/registration-transfers/claim-code',
+            claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
+            claimPageUrl: 'https://example.test/registration-transfers',
             expiresAt: '2030-05-01T12:00:00.000Z',
             status: 'open',
           } satisfies EventRegistrationTransferDialogData,
@@ -37,14 +37,17 @@ describe('EventRegistrationTransferDialogComponent', () => {
   });
 
   it.each([
-    ['Copy link', 'Claim link copied to clipboard.'],
-    ['Copy code', 'Claim code copied to clipboard.'],
+    ['Copy code', 'Transfer code copied to clipboard.'],
+    ['Copy transfer page link', 'Transfer page link copied to clipboard.'],
   ])('announces successful %s actions', (buttonLabel, announcement) => {
     const fixture = TestBed.createComponent(
       EventRegistrationTransferDialogComponent,
     );
     fixture.detectChanges();
-    const nativeElement = fixture.nativeElement as HTMLElement;
+    const nativeElement: unknown = fixture.nativeElement;
+    if (!(nativeElement instanceof HTMLElement)) {
+      throw new TypeError('Expected the transfer dialog element');
+    }
 
     const button = [
       ...nativeElement.querySelectorAll<HTMLButtonElement>('button'),
@@ -56,5 +59,35 @@ describe('EventRegistrationTransferDialogComponent', () => {
     expect(button).toBeDefined();
     expect(status?.getAttribute('aria-live')).toBe('polite');
     expect(status?.textContent).toContain(announcement);
+  });
+
+  it('copies the transfer page without displaying its address', () => {
+    const fixture = TestBed.createComponent(
+      EventRegistrationTransferDialogComponent,
+    );
+    fixture.detectChanges();
+    const nativeElement: unknown = fixture.nativeElement;
+    if (!(nativeElement instanceof HTMLElement)) {
+      throw new TypeError('Expected the transfer dialog element');
+    }
+    const claimCode = nativeElement.querySelector<HTMLInputElement>('input');
+    const copyPageLink = [
+      ...nativeElement.querySelectorAll<HTMLButtonElement>('button'),
+    ].find((candidate) =>
+      candidate.textContent?.includes('Copy transfer page link'),
+    );
+    copyPageLink?.click();
+
+    expect(claimCode?.value).toBe('ABCD-1234-EF56-7890-ABCD-1234-EF56-7890');
+    expect(nativeElement.textContent).not.toContain(
+      'https://example.test/registration-transfers',
+    );
+    expect(copyPageLink).toBeDefined();
+    expect(clipboard.copy).toHaveBeenCalledWith(
+      'https://example.test/registration-transfers',
+    );
+    expect('https://example.test/registration-transfers').not.toContain(
+      claimCode?.value,
+    );
   });
 });

@@ -49,11 +49,6 @@ import {
   ReceiptSubmitDialogComponent,
   ReceiptSubmitDialogResult,
 } from './receipt-submit-dialog.component';
-import {
-  RegistrationTransferDialogComponent,
-  RegistrationTransferDialogData,
-  RegistrationTransferDialogResult,
-} from './registration-transfer-dialog.component';
 
 interface EventOrganizeStatsInput {
   capacity: number;
@@ -162,14 +157,6 @@ export const organizerRegistrationActionDisabled = ({
   mutationPending: boolean;
 }): boolean => checkedIn || mutationPending;
 
-export const organizerRegistrationTransferDisabled = ({
-  mutationPending,
-  status,
-}: {
-  mutationPending: boolean;
-  status: EventsRegistrationStatus;
-}): boolean => mutationPending || status !== 'CONFIRMED';
-
 export const organizerRegistrationApprovalDisabled = ({
   manualApprovalAvailable,
   mutationPending,
@@ -249,8 +236,6 @@ export class EventOrganize {
     organizerRegistrationApprovalLabel;
   protected readonly organizerRegistrationCancellationActionLabel =
     organizerRegistrationCancellationActionLabel;
-  protected readonly organizerRegistrationTransferDisabled =
-    organizerRegistrationTransferDisabled;
   protected readonly receiptCreateUploadMutation = injectMutation(() =>
     this.rpc.finance.receiptMedia.createUpload.mutationOptions(),
   );
@@ -295,9 +280,6 @@ export class EventOrganize {
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
   );
-  protected readonly transferRegistrationMutation = injectMutation(() =>
-    this.rpc.events.transferEventRegistration.mutationOptions(),
-  );
   private readonly approvalPendingRegistrationId = signal<null | string>(null);
   private readonly config = inject(ConfigService);
 
@@ -330,8 +312,7 @@ export class EventOrganize {
         manualApprovalAvailable: registration.manualApprovalAvailable,
         mutationPending:
           this.approveRegistrationMutation.isPending() ||
-          this.cancelRegistrationMutation.isPending() ||
-          this.transferRegistrationMutation.isPending(),
+          this.cancelRegistrationMutation.isPending(),
         paymentSetupRequired: registration.paymentSetupRequired,
       })
     ) {
@@ -396,8 +377,7 @@ export class EventOrganize {
         checkedIn: registration.checkedIn,
         mutationPending:
           this.approveRegistrationMutation.isPending() ||
-          this.cancelRegistrationMutation.isPending() ||
-          this.transferRegistrationMutation.isPending(),
+          this.cancelRegistrationMutation.isPending(),
       })
     ) {
       return;
@@ -428,8 +408,7 @@ export class EventOrganize {
         checkedIn: registration.checkedIn,
         mutationPending:
           this.approveRegistrationMutation.isPending() ||
-          this.cancelRegistrationMutation.isPending() ||
-          this.transferRegistrationMutation.isPending(),
+          this.cancelRegistrationMutation.isPending(),
       })
     ) {
       return;
@@ -560,67 +539,6 @@ export class EventOrganize {
         ]),
       );
     }
-  }
-
-  protected async openTransferDialog(
-    registration: EventOrganizeParticipant,
-  ): Promise<void> {
-    if (
-      organizerRegistrationTransferDisabled({
-        mutationPending:
-          this.approveRegistrationMutation.isPending() ||
-          this.transferRegistrationMutation.isPending() ||
-          this.cancelRegistrationMutation.isPending(),
-        status: registration.status,
-      })
-    ) {
-      return;
-    }
-
-    const dialogReference = this.dialog.open<
-      RegistrationTransferDialogComponent,
-      RegistrationTransferDialogData,
-      RegistrationTransferDialogResult
-    >(RegistrationTransferDialogComponent, {
-      data: {
-        currentUser: {
-          email: registration.email,
-          firstName: registration.firstName,
-          lastName: registration.lastName,
-        },
-        eventId: this.eventId(),
-        registrationId: registration.registrationId,
-      },
-      width: '560px',
-    });
-
-    const result = await firstValueFrom(dialogReference.afterClosed());
-    if (!result) {
-      return;
-    }
-
-    this.transferRegistrationMutation.mutate(
-      {
-        eventId: this.eventId(),
-        previewVersion: result.previewVersion,
-        registrationId: registration.registrationId,
-        targetUserId: result.targetUserId,
-      },
-      {
-        onError: (error) => {
-          this.notifications.showError(
-            getErrorMessage(error, 'Failed to transfer registration', [
-              'EventRegistrationConflictError',
-              'EventRegistrationNotFoundError',
-            ]),
-          );
-        },
-        onSuccess: async () => {
-          await this.invalidateOrganizerState();
-          this.notifications.showSuccess('Registration transferred');
-        },
-      },
-    );
   }
 
   protected readonly showOrganizerRow = (

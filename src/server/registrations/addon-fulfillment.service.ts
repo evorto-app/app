@@ -26,14 +26,17 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, asc, desc, eq, inArray, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, notExists, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
 
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import { allocateAcquisitionComponentQuantity } from './registration-acquisition-refund';
 import { lockCurrentRegistrationAcquisition } from './registration-acquisition-write';
-import { ensureRegistrationMutationHasNoActiveTransfer } from './registration-transfer-mutation-guard';
+import {
+  ensureRegistrationMutationHasNoActiveTransfer,
+  registrationTransferOpenDeadlinePredicate,
+} from './registration-transfer-mutation-guard';
 
 export interface RegistrationAddonCancellationAllocation {
   readonly fulfillmentEventId: string;
@@ -373,24 +376,16 @@ export const getRegistrationAddonFulfillment = Effect.fn(
             .where(
               and(
                 eq(registrationTransfers.tenantId, input.tenantId),
-                or(
-                  and(
-                    eq(
-                      registrationTransfers.sourceRegistrationId,
-                      input.registrationId,
-                    ),
-                    inArray(
-                      registrationTransfers.status,
-                      activeRegistrationTransferStatuses,
-                    ),
-                  ),
-                  and(
-                    eq(
-                      registrationTransfers.recipientRegistrationId,
-                      input.registrationId,
-                    ),
-                    eq(registrationTransfers.status, 'checkout_pending'),
-                  ),
+                eq(
+                  registrationTransfers.sourceRegistrationId,
+                  input.registrationId,
+                ),
+                inArray(
+                  registrationTransfers.status,
+                  activeRegistrationTransferStatuses,
+                ),
+                registrationTransferOpenDeadlinePredicate(
+                  registrationTransfers,
                 ),
               ),
             )
@@ -735,7 +730,7 @@ export const getRegistrationAddonFulfillment = Effect.fn(
 });
 
 const lockFulfillmentRows = Effect.fn('lockFulfillmentRows')(function* (
-  tx: Pick<DatabaseClient, 'select'>,
+  tx: Pick<DatabaseClient, 'insert' | 'select' | 'update'>,
   input: Pick<
     FulfillmentIdentity,
     'registrationAddonId' | 'registrationId' | 'tenantId'

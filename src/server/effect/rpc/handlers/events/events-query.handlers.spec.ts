@@ -41,7 +41,6 @@ describe('organizeOverviewAccessAllowed', () => {
     ).toEqual({
       canApproveRegistrations: false,
       canCancelRegistrations: false,
-      canTransferRegistrations: false,
       canViewOverview: true,
     });
   });
@@ -55,7 +54,6 @@ describe('organizeOverviewAccessAllowed', () => {
     ).toEqual({
       canApproveRegistrations: true,
       canCancelRegistrations: false,
-      canTransferRegistrations: true,
       canViewOverview: true,
     });
     expect(

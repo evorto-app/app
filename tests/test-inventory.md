@@ -311,7 +311,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   readback with exact cleanup. Handler/RPC unit and source coverage separately
   pins authenticated current-user and tenant forwarding into that service.
 - `specs/events/registration-transfer.spec.ts` owns the functional private
-  bearer-link offer/claim flow. Its fixed-bundle candidate keeps one confirmed
+  code-based offer/claim flow. Its fixed-bundle candidate keeps one confirmed
   registration id while ownership changes, preserves guest count, every
   included/free/purchased add-on quantity and fulfillment/check-in history,
   keeps capacity and stock unchanged, recalculates the recipient payment
@@ -333,7 +333,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   cancelled registration plus released waitlist counter, then restores touched
   registrations, generated questions, and option counters.
 - `docs/events/registration-transfer.doc.ts` generates the dedicated private
-  transfer-link guide, including bearer-credential handling, recipient review,
+  transfer-code guide, including private code entry without URL credentials, recipient review,
   persisted in-place ownership transition, and page-backed paid-transfer states
   for pending Checkout, successful ownership transfer with refund processing,
   terminal source-refund failure, safe operator requeue, and completed refunds.
@@ -651,9 +651,10 @@ ESNcard provider credential path.
     checked-in aggregate after scanner writes, and restore the seeded counter,
     so docs assert guest progress and the buyer-plus-guests check-in action
     instead of only describing it in Markdown.
-    Organizer overview read-model and app coverage now also pin that
-    organizer-assisted transfer is unavailable before opening the dialog when a
-    confirmed registration is checked in, paid, or tied to a past event.
+    Organizer overview read-model and app coverage remove direct reassignment;
+    the current participant creates the private offer and the recipient reviews
+    and accepts it. The retired organizer dialog and direct-transfer handlers
+    have no remaining callers.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,

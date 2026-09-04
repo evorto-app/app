@@ -246,11 +246,13 @@ refundable amount after prior successful refunds, and calculate the recipient
 payment independently. Only a wholly free bundle with no refund obligation may
 complete database-only.
 
-Participant-question answers are recipient-owned data, not bundle state. The
-server permits immediate direct reassignment only when the free/no-refund
-bundle's registration option has no participant questions. Otherwise it routes
-the transfer through the private recipient claim, which validates current
+Participant-question answers are recipient-owned data, not bundle state. Every
+transfer uses the authenticated private recipient claim, which validates current
 questions and atomically replaces any source answers with the recipient's own.
+The current owner creates a code; its hash is persisted and the raw code is never
+included in a page URL. There is no direct organizer or participant reassignment.
+The source registration ID remains the identity throughout payment and handoff;
+no separate recipient-registration alias or direct-transfer acquisition exists.
 
 Transfer ownership and refund provenance use an application-append-only
 acquisition ledger. Production server code inserts ownership epochs,
