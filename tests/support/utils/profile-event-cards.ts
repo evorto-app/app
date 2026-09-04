@@ -82,11 +82,10 @@ export const seedProfileEventCards = async ({
   const waitlistTitle = `Profile docs waitlist ${seedDate.getTime()}`;
   const sourceEventId = seeded.scenario.events.freeOpen.eventId;
   const sourceEvent = await database.query.eventInstances.findFirst({
-    where: (eventInstance) =>
-      and(
-        eq(eventInstance.id, sourceEventId),
-        eq(eventInstance.tenantId, seeded.tenant.id),
-      ),
+    where: {
+      id: sourceEventId,
+      tenantId: seeded.tenant.id,
+    },
   });
   if (!sourceEvent) {
     throw new Error('Expected seeded profile source event');
@@ -101,6 +100,7 @@ export const seedProfileEventCards = async ({
       id: confirmedEventId,
       location: sourceEvent.location,
       start: new Date(seedDate.getTime() + 6 * 60 * 60 * 1000),
+      reviewedAt: new Date(),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
       tenantId: seeded.tenant.id,
@@ -114,6 +114,7 @@ export const seedProfileEventCards = async ({
       id: checkedInEventId,
       location: sourceEvent.location,
       start: new Date(seedDate.getTime() - 2 * 60 * 60 * 1000),
+      reviewedAt: new Date(),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
       tenantId: seeded.tenant.id,
@@ -128,6 +129,7 @@ export const seedProfileEventCards = async ({
       id: pendingCheckoutEventId,
       location: sourceEvent.location,
       start: new Date(seedDate.getTime() + 2 * 60 * 60 * 1000),
+      reviewedAt: new Date(),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
       tenantId: seeded.tenant.id,
@@ -141,6 +143,7 @@ export const seedProfileEventCards = async ({
       id: waitlistEventId,
       location: sourceEvent.location,
       start: new Date(seedDate.getTime() + 4 * 60 * 60 * 1000),
+      reviewedAt: new Date(),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
       tenantId: seeded.tenant.id,
@@ -217,6 +220,8 @@ export const seedProfileEventCards = async ({
   });
   await database.insert(schema.eventRegistrations).values([
     {
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       eventId: confirmedEventId,
       guestCount: 1,
       id: confirmedRegistrationId,
@@ -226,6 +231,8 @@ export const seedProfileEventCards = async ({
       userId,
     },
     {
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkInTime: seedDate,
       eventId: checkedInEventId,
       id: checkedInRegistrationId,

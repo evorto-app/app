@@ -50,6 +50,8 @@ test('Fulfill scanned registration add-ons', async ({
 
   try {
     await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkedInGuestCount: 0,
       eventId,
       guestCount: 0,

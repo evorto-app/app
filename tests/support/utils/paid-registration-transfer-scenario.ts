@@ -346,6 +346,7 @@ export const seedPaidRegistrationTransferScenario = async (
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
+    reviewedAt: new Date(),
     status: 'APPROVED',
     templateId: input.templateId,
     tenantId: input.tenant.id,

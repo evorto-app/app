@@ -8,6 +8,15 @@ import {
 } from './index';
 
 describe('event registration schema', () => {
+  it('requires complete pricing terms for confirmed registrations', () => {
+    const checks = getTableConfig(eventRegistrations).checks.map(
+      ({ name }) => name,
+    );
+    expect(checks).toContain('event_registrations_price_snapshot_complete');
+    expect(checks).toContain('event_registrations_price_snapshot_consistent');
+    expect(checks).toContain('event_registrations_confirmed_price_snapshot');
+  });
+
   it('does not expose legacy paymentStatus state', () => {
     const eventRegistrationsSource = readFileSync(
       new URL('event-registrations.ts', import.meta.url),
@@ -134,7 +143,9 @@ describe('event registration schema', () => {
     expect(activeRegistrationIndex).toBeDefined();
     expect(activeRegistrationIndex?.config.unique).toBe(true);
     expect(
-      activeRegistrationIndex?.config.columns.map((column) => column.name),
+      activeRegistrationIndex?.config.columns.map((column) =>
+        'name' in column ? column.name : undefined,
+      ),
     ).toEqual(['eventId', 'userId']);
 
     const predicate = activeRegistrationIndex?.config.where;

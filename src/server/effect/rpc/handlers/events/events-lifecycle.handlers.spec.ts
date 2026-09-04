@@ -767,6 +767,7 @@ describe('eventLifecycleHandlers', () => {
           {
             discountedPrice: 500,
             discountType: 'esnCard',
+            eventId: 'event-1',
             registrationOptionId: 'event-option-2',
           },
         ]);

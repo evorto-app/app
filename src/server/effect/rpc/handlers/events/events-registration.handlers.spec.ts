@@ -1679,8 +1679,8 @@ const createTransferDatabase = Effect.fn(function* ({
           expectedBasePrice > 0 ? 'esnCard' : null,
           expectedBasePrice,
           updatedAt,
-          // Current layer07 pricing uses null when no discount was applied.
-          expectedBasePrice > 0 ? expectedBasePrice : null,
+          // Persist zero when the recipient has no discount.
+          expectedBasePrice,
           null,
           targetUserId,
           registrationId,
@@ -3313,7 +3313,7 @@ const createTrustedUrlDatabaseFixture = () => {
             1000,
             id,
             'tenant-1',
-            null,
+            0,
             'event-1',
             0,
             'option-1',

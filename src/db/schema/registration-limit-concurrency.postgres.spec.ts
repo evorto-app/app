@@ -121,16 +121,38 @@ const waitForBlockedMembershipLocks = (pool: Pool, minimumCount: number) =>
 
 const lockMembership = async (pool: Pool, fixture: LimitFixture) => {
   const client = await pool.connect();
-  await client.query('BEGIN');
+  let transactionOpen = false;
   try {
+    await client.query('BEGIN');
+    transactionOpen = true;
     await client.query(
       'SELECT id FROM users_to_tenants WHERE id = $1 FOR UPDATE',
       [fixture.membershipId],
     );
     return client;
   } catch (error) {
-    await client.query('ROLLBACK');
-    client.release();
+    const failures: unknown[] = [error];
+    let discardClient = !transactionOpen;
+    if (transactionOpen) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        failures.push(rollbackError);
+        discardClient = true;
+      }
+    }
+    try {
+      client.release(discardClient);
+    } catch (releaseError) {
+      failures.push(releaseError);
+    }
+    if (failures.length > 1) {
+      throw new AggregateError(
+        failures,
+        'Failed to acquire and release membership lock',
+        { cause: error },
+      );
+    }
     throw error;
   }
 };
@@ -195,6 +217,7 @@ const seedLimitFixture = async (
       end: new Date(now + (9 + index) * 24 * 60 * 60 * 1000),
       icon: { iconColor: 0, iconName: 'circle' },
       id,
+      reviewedAt: new Date(),
       start: new Date(now + (7 + index) * 24 * 60 * 60 * 1000),
       status: 'APPROVED' as const,
       templateId,
@@ -303,17 +326,42 @@ describe('tenant active-registration limit concurrency', () => {
   });
 
   afterAll(async () => {
+    const failures: unknown[] = [];
     for (const fixture of fixtures.toReversed()) {
-      await cleanLimitFixture(database, fixture);
+      try {
+        await cleanLimitFixture(database, fixture);
+      } catch (error) {
+        failures.push(error);
+      }
     }
-    await pool.end();
+    try {
+      await pool.end();
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        'Failed to release registration limit fixtures',
+        { cause: failures[0] },
+      );
+    }
   });
 
   it('allows only one simultaneous registration across different events at a limit of one', async () => {
-    const fixture = await seedLimitFixture(database);
+    const fixture = await database.transaction((transaction) =>
+      seedLimitFixture(transaction),
+    );
     fixtures.push(fixture);
     const serviceLayer = makeServiceLayer(databaseUrl);
     const membershipLock: PoolClient = await lockMembership(pool, fixture);
+    let transactionOpen = true;
+    const failures: unknown[] = [];
+    let pendingRegistrations:
+      | Promise<
+          PromiseSettledResult<Awaited<ReturnType<typeof runRegistration>>>[]
+        >
+      | undefined;
 
     try {
       const first = runRegistration(
@@ -325,8 +373,10 @@ describe('tenant active-registration limit concurrency', () => {
         serviceLayer,
       );
 
+      pendingRegistrations = Promise.allSettled([first, second]);
       await waitForBlockedMembershipLocks(pool, 2);
       await membershipLock.query('COMMIT');
+      transactionOpen = false;
 
       const outcomes = await Promise.all([first, second]);
       expect(
@@ -357,11 +407,39 @@ describe('tenant active-registration limit concurrency', () => {
       expect(
         options.reduce((total, option) => total + option.confirmedSpots, 0),
       ).toBe(1);
-    } finally {
-      if (!membershipLock.released) {
-        await membershipLock.query('ROLLBACK').catch(() => null);
+    } catch (error) {
+      failures.push(error);
+    }
+    let discardClient = false;
+    if (transactionOpen) {
+      try {
+        await membershipLock.query('ROLLBACK');
+      } catch (error) {
+        failures.push(error);
+        discardClient = true;
       }
-      membershipLock.release();
+    }
+    try {
+      membershipLock.release(discardClient);
+    } catch (error) {
+      failures.push(error);
+    }
+    if (pendingRegistrations) {
+      for (const result of await pendingRegistrations) {
+        if (result.status === 'rejected' && !failures.includes(result.reason)) {
+          failures.push(result.reason);
+        }
+      }
+    }
+    if (failures.length === 1) {
+      throw failures[0];
+    }
+    if (failures.length > 1) {
+      throw new AggregateError(
+        failures,
+        'Registration concurrency assertion or cleanup failed',
+        { cause: failures[0] },
+      );
     }
   }, 30_000);
 });

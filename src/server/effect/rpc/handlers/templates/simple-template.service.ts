@@ -139,9 +139,11 @@ export const buildRegistrationOptionInsert = ({
 export const buildTemplateOptionDiscountInsert = ({
   input,
   registrationOptionId,
+  templateId,
 }: {
   input: SimpleTemplateRegistrationInput;
   registrationOptionId: string;
+  templateId: string;
 }): null | TemplateRegistrationOptionDiscountInsert => {
   if (
     !input.isPaid ||
@@ -155,6 +157,7 @@ export const buildTemplateOptionDiscountInsert = ({
     discountedPrice: input.esnCardDiscountedPrice,
     discountType: 'esnCard',
     registrationOptionId,
+    templateId,
   };
 };
 
@@ -778,6 +781,7 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
                 ? input.organizerRegistration
                 : input.participantRegistration,
               registrationOptionId: option.id,
+              templateId: template.id,
             }),
           )
           .filter(
@@ -993,6 +997,7 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           const discountInsert = buildTemplateOptionDiscountInsert({
             input: optionDiscount.input,
             registrationOptionId: optionDiscount.optionId,
+            templateId: template.id,
           });
           if (!discountInsert) {
             continue;

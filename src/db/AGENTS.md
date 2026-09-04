@@ -5,7 +5,7 @@
 - For relation behavior, query builders, dialect details, and type inference, prefer upstream tests in `repos/drizzle/drizzle-orm/tests/**`, `repos/drizzle/drizzle-orm/type-tests/**`, and `repos/drizzle/integration-tests/**` over stale examples.
 - Treat `repos/drizzle` as read-only reference material. Do not import from it; app code should keep importing from normal Drizzle packages.
 - Prefer inferred Drizzle types across callers; avoid duplicate handwritten DB model types.
-- Keep migrations explicit and committed when schema changes.
+- Apply the current Drizzle schema directly for the relaunch using local `db:push` or `db:reset` against the isolated worktree database. Do not add incremental migration artifacts for this cutover.
 - Avoid `any`/unchecked casts in query helpers.
 - Server-side Effect authorization is authoritative; no PostgreSQL RLS layer is
   planned.

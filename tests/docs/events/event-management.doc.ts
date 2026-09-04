@@ -807,6 +807,8 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
 
   try {
     await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkedInGuestCount: 0,
       eventId: scannerEventId,
       guestCount: 2,

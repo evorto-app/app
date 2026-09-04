@@ -131,6 +131,7 @@ test.describe('Participant registration cancellation', () => {
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
         start: eventWindow.start,
+        reviewedAt: new Date(),
         status: 'APPROVED',
         templateId: template.id,
         tenantId: tenant.id,
@@ -156,6 +157,7 @@ test.describe('Participant registration cancellation', () => {
       // Keep shared authenticated-user FK locks in separate autocommit
       // statements so parallel guides cannot form a cross-user lock cycle.
       await database.insert(schema.eventRegistrations).values({
+        discountAmount: 0,
         basePriceAtRegistration: 0,
         eventId,
         guestCount: 1,
@@ -1802,6 +1804,7 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
         start: eventWindow.start,
+        reviewedAt: new Date(),
         status: 'APPROVED',
         templateId: template.id,
         tenantId: tenant.id,
@@ -1824,6 +1827,7 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
         title: 'Free deadline-controlled participant',
       });
       await database.insert(schema.eventRegistrations).values({
+        discountAmount: 0,
         basePriceAtRegistration: 0,
         eventId,
         id: registrationId,
@@ -1980,6 +1984,7 @@ test.describe('Organizer registration cancellation', () => {
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
         start: eventWindow.start,
+        reviewedAt: new Date(),
         status: 'APPROVED',
         templateId: template.id,
         tenantId: tenant.id,
@@ -2002,6 +2007,7 @@ test.describe('Organizer registration cancellation', () => {
         title: 'Participant',
       });
       await database.insert(schema.eventRegistrations).values({
+        discountAmount: 0,
         basePriceAtRegistration: 0,
         eventId,
         guestCount: 1,

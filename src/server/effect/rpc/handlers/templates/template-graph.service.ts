@@ -541,6 +541,7 @@ export class TemplateGraphService extends Context.Service<TemplateGraphService>(
                 discountedPrice: esnCardDiscountedPrice,
                 discountType: 'esnCard',
                 registrationOptionId: optionId,
+                templateId,
               }),
             );
           }

@@ -169,6 +169,8 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
 
   try {
     await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkedInGuestCount: 0,
       eventId: scannerFixture.eventId,
       guestCount: 0,
@@ -659,6 +661,8 @@ test.describe('organizer add-on cancellation permissions', () => {
         roleName: 'Section member',
       });
       await database.insert(eventRegistrations).values({
+        basePriceAtRegistration: 0,
+        discountAmount: 0,
         checkedInGuestCount: 0,
         eventId: scannerFixture.eventId,
         guestCount: 0,
@@ -744,6 +748,8 @@ test('scan confirmed registration records check-in', async ({
 
   try {
     await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkedInGuestCount: 0,
       eventId: scannerFixture.eventId,
       guestCount: 2,
@@ -831,6 +837,8 @@ test('scan checked-in registration records remaining guest arrival', async ({
 
   try {
     await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkedInGuestCount: 1,
       checkInTime: seedDate,
       eventId: scannerFixture.eventId,

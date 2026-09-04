@@ -220,6 +220,7 @@ const seedTransferLimitFixture = async (
       end: new Date(now + (9 + index) * 24 * 60 * 60 * 1000),
       icon: { iconColor: 0, iconName: 'circle' },
       id: eventId,
+      reviewedAt: new Date(),
       start: new Date(now + (7 + index) * 24 * 60 * 60 * 1000),
       status: 'APPROVED',
       templateId,
@@ -247,6 +248,8 @@ const seedTransferLimitFixture = async (
 
   const registrationValues: (typeof eventRegistrations.$inferInsert)[] =
     candidates.map(({ eventId, optionId, registrationId, sourceUserId }) => ({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       eventId,
       id: registrationId,
       registrationOptionId: optionId,
@@ -474,6 +477,7 @@ describe('registration transfer finalization tenant limit', () => {
       pool,
       fixture,
     );
+    let membershipLockCommitted = false;
 
     try {
       const finalizations = fixture.candidates.map((candidate) =>
@@ -481,6 +485,7 @@ describe('registration transfer finalization tenant limit', () => {
       );
       await waitForBlockedRecipientLocks(pool, 2);
       await membershipLock.query('COMMIT');
+      membershipLockCommitted = true;
 
       const outcomes = await Promise.all(finalizations);
       expect(
@@ -524,7 +529,7 @@ describe('registration transfer finalization tenant limit', () => {
       expect(compensationClaims).toEqual([{ amount: -1000 }]);
     } finally {
       try {
-        if (!membershipLock.released) {
+        if (!membershipLockCommitted) {
           await membershipLock.query('ROLLBACK');
         }
       } finally {

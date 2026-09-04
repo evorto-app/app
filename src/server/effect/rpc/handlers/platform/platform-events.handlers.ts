@@ -29,7 +29,6 @@ import {
   eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
-  eventRegistrationQuestionAnswers,
   eventRegistrationQuestions,
   eventRegistrations,
   eventTemplates,
@@ -43,6 +42,10 @@ import {
   ensureStripeForStoredEventConfiguration,
 } from '../../../../payments/paid-event-configuration';
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
+import {
+  ensureAnsweredEventQuestionsUnchanged,
+  normalizeEventQuestionValues,
+} from '../../../../registrations/event-question-answer-guard';
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
@@ -709,6 +712,7 @@ const updatePlatformEventGraph = Effect.fn(
         .values({
           discountedPrice: option.esnCardDiscountedPrice,
           discountType: 'esnCard',
+          eventId: input.eventId,
           registrationOptionId: option.id,
         })
         .pipe(Effect.orDie);
@@ -950,45 +954,25 @@ const updatePlatformEventGraph = Effect.fn(
       }),
     );
   }
+  const submittedPersistedQuestions = input.questions.flatMap((question) =>
+    question.id
+      ? [
+          {
+            id: question.id,
+            ...normalizeEventQuestionValues(question),
+          },
+        ]
+      : [],
+  );
+  yield* ensureAnsweredEventQuestionsUnchanged(database, {
+    before: before.questions,
+    submitted: submittedPersistedQuestions,
+  });
   const removedQuestionIds: string[] = [];
   for (const id of existingQuestionIds) {
     if (!submittedExistingQuestionIds.has(id)) removedQuestionIds.push(id);
   }
   if (removedQuestionIds.length > 0) {
-    const answers = yield* database
-      .select({ id: eventRegistrationQuestionAnswers.id })
-      .from(eventRegistrationQuestionAnswers)
-      .innerJoin(
-        eventRegistrationQuestions,
-        eq(
-          eventRegistrationQuestions.id,
-          eventRegistrationQuestionAnswers.questionId,
-        ),
-      )
-      .innerJoin(
-        eventInstances,
-        eq(eventInstances.id, eventRegistrationQuestions.eventId),
-      )
-      .where(
-        and(
-          eq(eventInstances.id, input.eventId),
-          eq(eventInstances.tenantId, input.targetTenantId),
-          inArray(
-            eventRegistrationQuestionAnswers.questionId,
-            removedQuestionIds,
-          ),
-        ),
-      )
-      .limit(1)
-      .pipe(Effect.orDie);
-    if (answers.length > 0) {
-      return yield* Effect.fail(
-        new RpcBadRequestError({
-          message: 'Answered event questions cannot be removed',
-          reason: 'eventQuestionInUse',
-        }),
-      );
-    }
     yield* database
       .delete(eventRegistrationQuestions)
       .where(
@@ -1012,13 +996,7 @@ const updatePlatformEventGraph = Effect.fn(
         }),
       );
     }
-    const values = {
-      description: question.description?.trim() || null,
-      registrationOptionId: question.registrationOptionId,
-      required: question.required,
-      sortOrder: question.sortOrder,
-      title: question.title.trim(),
-    };
+    const values = normalizeEventQuestionValues(question);
     if (question.id) {
       yield* database
         .update(eventRegistrationQuestions)

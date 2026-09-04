@@ -1866,7 +1866,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     appliedDiscountedPrice,
                     appliedDiscountType,
                     basePriceAtRegistration: basePrice,
-                    discountAmount,
+                    discountAmount: discountAmount ?? 0,
                     status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
                     ...(selectedTaxRateId && {
                       stripeTaxRateId: selectedTaxRateId,
@@ -3210,13 +3210,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 const createdRegistrations = yield* tx
                   .insert(eventRegistrations)
                   .values({
-                    ...(!manualApproval &&
-                      mayRequireCheckout && {
-                        appliedDiscountedPrice,
-                        appliedDiscountType,
-                        basePriceAtRegistration: basePrice,
-                        discountAmount,
-                      }),
+                    ...(!manualApproval && {
+                      appliedDiscountedPrice,
+                      appliedDiscountType,
+                      basePriceAtRegistration: basePrice,
+                      discountAmount: discountAmount ?? 0,
+                    }),
                     eventId,
                     guestCount,
                     registrationOptionId: registrationOption.id,
@@ -3249,8 +3248,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   yield* tx.insert(eventRegistrationQuestionAnswers).values(
                     answerInserts.map((answer) => ({
                       answer: answer.answer,
+                      eventId,
                       questionId: answer.questionId,
                       registrationId: userRegistration.id,
+                      registrationOptionId: registrationOption.id,
+                      tenantId: tenant.id,
                     })),
                   );
                 }
@@ -3826,8 +3828,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     yield* tx.insert(eventRegistrationQuestionAnswers).values(
                       answerInserts.map((answer) => ({
                         answer: answer.answer,
+                        eventId,
                         questionId: answer.questionId,
                         registrationId: createdRegistrations[0].id,
+                        registrationOptionId: registrationOption.id,
+                        tenantId: tenant.id,
                       })),
                     );
                   }

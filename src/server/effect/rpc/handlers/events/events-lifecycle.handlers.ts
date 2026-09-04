@@ -668,6 +668,7 @@ export const createEventGraph = (input: EventCreateInput) =>
           discountInserts.push({
             discountedPrice: discount.discountedPrice,
             discountType: discount.discountType,
+            eventId: event.id,
             registrationOptionId: createdOptionSource.createdOptionId,
           });
         }
@@ -1178,6 +1179,7 @@ export const eventLifecycleHandlers = {
               yield* tx.insert(eventRegistrationOptionDiscounts).values({
                 discountedPrice,
                 discountType: 'esnCard',
+                eventId: input.eventId,
                 registrationOptionId: option.id,
               });
             }

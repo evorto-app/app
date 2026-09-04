@@ -3197,7 +3197,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               appliedDiscountedPrice: discountResolution.appliedDiscountedPrice,
               appliedDiscountType: discountResolution.appliedDiscountType,
               basePriceAtRegistration: optionBasePrice,
-              discountAmount: discountResolution.discountAmount,
+              discountAmount: discountResolution.discountAmount ?? 0,
               stripeTaxRateId: lockedOption.optionStripeTaxRateId,
               taxRateDisplayName: selectedTaxRate?.displayName,
               taxRateInclusive: selectedTaxRate?.inclusive,
@@ -3252,8 +3252,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             yield* tx.insert(eventRegistrationQuestionAnswers).values(
               answerInserts.map((answer) => ({
                 answer: answer.answer,
+                eventId: transfer.eventId,
                 questionId: answer.questionId,
                 registrationId: recipientRegistrationId,
+                registrationOptionId: transfer.optionId,
+                tenantId: tenant.id,
               })),
             );
           }
