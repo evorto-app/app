@@ -2,6 +2,7 @@ import type * as Types from 'effect/Types';
 
 import { Effect } from 'effect';
 import {
+  HttpMiddleware,
   HttpServerError,
   HttpServerRequest,
   HttpServerResponse,
@@ -13,10 +14,28 @@ import {
   InvalidAuthSessionError,
   invalidAuthSessionRecoveryResponse,
 } from '../auth/auth-session';
+import {
+  isUntracedServerRequestUrl,
+  serverRequestPathname,
+} from '../effect/server-trace-policy';
 import { applySecurityHeaders } from './security-headers';
 
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 const requestIdPattern = /^[a-zA-Z0-9_-]{1,64}$/u;
+const qrRegistrationPath = /^\/qr\/registration\/[^/]+$/u;
+const tenantBrandAssetPath = /^\/tenant-assets\/[^/]+\/[^/]+\/[^/]+$/u;
+
+export const safeServerRequestRoute = (requestUrl: string): string => {
+  const pathname = serverRequestPathname(requestUrl) ?? '/';
+
+  if (qrRegistrationPath.test(pathname)) {
+    return '/qr/registration/:registrationId';
+  }
+  if (tenantBrandAssetPath.test(pathname)) {
+    return '/tenant-assets/:tenantId/:kind/:fileName';
+  }
+  return pathname;
+};
 
 export const resolveRequestId = (configuredRequestId: string | undefined) =>
   configuredRequestId && requestIdPattern.test(configuredRequestId)
@@ -55,8 +74,14 @@ export const makeServerResponseMiddleware = <E, R>(
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const requestId = resolveRequestId(request.headers['x-request-id']);
+    const safeRoute = safeServerRequestRoute(request.url);
+    const traceAnnotations = {
+      'http.request.method': request.method,
+      'http.route': safeRoute,
+      'server.request.id': requestId,
+    };
 
-    return yield* effect.pipe(
+    const handledEffect = effect.pipe(
       Effect.catch((error) =>
         Effect.gen(function* () {
           if (error instanceof InvalidAuthSessionError) {
@@ -119,10 +144,24 @@ export const makeServerResponseMiddleware = <E, R>(
         );
       }),
       Effect.annotateLogs({ requestId }),
-      Effect.annotateSpans({
-        'http.request.method': request.method,
-        'http.route.request_target': request.url,
-        'server.request.id': requestId,
-      }),
+      Effect.annotateSpans(traceAnnotations),
+    );
+
+    if (isUntracedServerRequestUrl(request.url)) {
+      return yield* handledEffect;
+    }
+
+    const safeTraceRequest = request.modify({ url: safeRoute });
+    return yield* HttpMiddleware.tracer(
+      Effect.annotateCurrentSpan(traceAnnotations).pipe(
+        Effect.andThen(handledEffect),
+        Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+      ),
+    ).pipe(
+      Effect.provideService(
+        HttpServerRequest.HttpServerRequest,
+        safeTraceRequest,
+      ),
+      Effect.provideService(HttpMiddleware.TracerDisabledWhen, () => false),
     );
   });

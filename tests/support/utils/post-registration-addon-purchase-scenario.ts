@@ -446,6 +446,7 @@ interface SeedPostRegistrationAddonPurchaseScenarioInput {
   readonly paidIncludedQuantity?: number;
   readonly templateId: string;
   readonly tenant: {
+    readonly currency: (typeof schema.tenants.$inferSelect)['currency'];
     readonly domain: string;
     readonly id: string;
   };

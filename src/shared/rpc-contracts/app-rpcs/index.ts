@@ -1,6 +1,5 @@
 export { AppRpcs } from './app-rpcs.group';
 export {
-  type RpcHeaders,
   RpcRequestContext,
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,

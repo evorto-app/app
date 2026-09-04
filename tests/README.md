@@ -41,6 +41,19 @@ not replace it with aspirational documentation.
 - Specs should consume deterministic scenario handles from `seeded.scenario`
 - Do not discover test entities by template title fragments, fuzzy event searches, or wall-clock checks
 
+Local tenant selection uses the scoped routing helper in
+`tests/support/utils/tenant-request-routing.ts`. Use the returned `close()`
+method for pages created with `openAuthenticatedTestPage`. The base page
+fixture stops its tenant routing before Playwright closes its context; custom
+contexts use `closeTenantRequestContext`. These helpers drain their active
+requests before removing the exact owned route. Do not replace this with
+`unrouteAll`, which can release other active requests before their handlers
+finish.
+
+Register database cleanup through `registerDatabaseCleanup` before the first
+write. Its callbacks run in reverse order while the owning database pool is
+still available, and cleanup failures remain visible.
+
 ## Platform Operation Coverage
 
 - `specs/admin/platform-tenant-operations.spec.ts` follows the guarded tenant

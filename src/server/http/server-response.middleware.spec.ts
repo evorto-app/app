@@ -1,16 +1,20 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Cause, Effect, Exit, Layer } from 'effect';
+import { Cause, Effect, Exit, Layer, Tracer } from 'effect';
 import {
   HttpRouter,
   HttpServerError,
   HttpServerRequest,
   HttpServerResponse,
 } from 'effect/unstable/http';
+import { readFileSync } from 'node:fs';
 
 import type { DeploymentConfig } from '../config/deployment-config';
 
 import { runAuth0SdkOperation, toAuthSession } from '../auth/auth-session';
-import { makeServerResponseMiddleware } from './server-response.middleware';
+import {
+  makeServerResponseMiddleware,
+  safeServerRequestRoute,
+} from './server-response.middleware';
 
 const makeTestHandler = Effect.fn('makeTestHandler')(function* (
   routeLayer: Layer.Layer<
@@ -159,6 +163,7 @@ describe('server response middleware', () => {
                     accept: 'text/html',
                     cookie:
                       'appSession=unusable; appSession.0=first-fragment; appSession.1=second-fragment; appSession.preference=keep; appTransaction=keep-transaction; unrelated=keep',
+                    host: new URL(url).host,
                     'x-forwarded-proto': new URL(url).protocol.slice(0, -1),
                   },
                 }),
@@ -214,6 +219,8 @@ describe('server response middleware', () => {
               headers: {
                 'content-type': 'application/json',
                 cookie: 'appSession.0=unusable',
+                host: 'localhost',
+                'x-forwarded-proto': 'http',
               },
               method: 'POST',
             }),
@@ -260,6 +267,103 @@ describe('server response middleware', () => {
         expect(response.headers.getSetCookie()).toEqual([]);
       }),
   );
+
+  it('derives stable trace routes without query values or sensitive identifiers', () => {
+    const callbackCode = 'callback-code-sentinel';
+
+    expect(
+      safeServerRequestRoute(
+        `https://tenant.example.com/callback?code=${callbackCode}`,
+      ),
+    ).toBe('/callback');
+    expect(
+      safeServerRequestRoute('/qr/registration/sensitive-registration-id'),
+    ).toBe('/qr/registration/:registrationId');
+    expect(
+      safeServerRequestRoute('/tenant-assets/tenant-1/logo/file-name.png'),
+    ).toBe('/tenant-assets/:tenantId/:kind/:fileName');
+  });
+
+  it.effect(
+    'records a sanitized request trace while handlers keep the original URL',
+    () =>
+      Effect.gen(function* () {
+        const callbackCode = 'callback-code-sentinel';
+        let serverSpan: Tracer.NativeSpan | undefined;
+        const tracer = Tracer.make({
+          span(options) {
+            serverSpan = new Tracer.NativeSpan(options);
+            return serverSpan;
+          },
+        });
+        const request = HttpServerRequest.fromWeb(
+          new Request(
+            `https://tenant.example.com/registration-transfers?code=${callbackCode}`,
+            {
+              headers: {
+                host: 'tenant.example.com',
+                'x-forwarded-proto': 'https',
+              },
+            },
+          ),
+        );
+        let routeRequestUrl: string | undefined;
+
+        yield* makeServerResponseMiddleware(
+          HttpServerRequest.HttpServerRequest.pipe(
+            Effect.tap((routeRequest) =>
+              Effect.sync(() => {
+                routeRequestUrl = routeRequest.url;
+              }),
+            ),
+            Effect.as(HttpServerResponse.empty({ status: 204 })),
+          ),
+        ).pipe(
+          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+          Effect.provideService(Tracer.Tracer, tracer),
+        );
+        yield* Effect.yieldNow;
+
+        expect(routeRequestUrl).toContain(callbackCode);
+        expect(serverSpan).toBeDefined();
+        expect(serverSpan?.attributes.get('http.route')).toBe(
+          '/registration-transfers',
+        );
+        expect(serverSpan?.attributes.get('url.path')).toBe(
+          '/registration-transfers',
+        );
+        expect(serverSpan?.attributes.has('url.query')).toBe(false);
+        expect(serverSpan?.attributes.get('url.full')).not.toContain(
+          callbackCode,
+        );
+      }),
+  );
+
+  it('disables raw request logging at every server boundary', () => {
+    const serverSource = readFileSync(
+      new URL('../../server.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(serverSource).toMatch(
+      /HttpLayerRouter\.toWebHandler\(\s*handlerAppLayer,\s*\{ disableLogger: true \},\s*\)/u,
+    );
+    expect(serverSource).toContain(
+      'const bunServeOptions = { disableLogger: true } as const;',
+    );
+    expect(serverSource).toContain(
+      'HttpLayerRouter.serve(bootstrapRoutesLayer, bunServeOptions)',
+    );
+    expect(serverSource).toContain(
+      'HttpLayerRouter.serve(webRoutesLayer, bunServeOptions)',
+    );
+    expect(serverSource).toMatch(
+      /HttpLayerRouter\.serve\(\s*configuredWorkerRoutesLayer,\s*bunServeOptions,\s*\)/u,
+    );
+    expect(serverSource).toContain(
+      'HttpLayerRouter.serve(opsRoutesLayer, bunServeOptions)',
+    );
+  });
 
   it.effect('returns a sanitized JSON response for a route defect', () =>
     Effect.gen(function* () {

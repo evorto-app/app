@@ -3,18 +3,30 @@ import { HttpMiddleware } from 'effect/unstable/http';
 
 const untracedOperationalPaths = new Set(['/healthz', '/readyz', '/version']);
 
-const requestPathname = (url: string) => {
+export const serverRequestPathname = (url: string): string | undefined => {
   try {
-    return (
-      new URL(url, 'http://localhost').pathname.replace(/\/+$/u, '') || '/'
-    );
+    const pathname = url.startsWith('/')
+      ? (() => {
+          if (url.startsWith('//')) {
+            return;
+          }
+          const queryIndex = url.indexOf('?');
+          const fragmentIndex = url.indexOf('#');
+          const pathEnd = Math.min(
+            queryIndex === -1 ? url.length : queryIndex,
+            fragmentIndex === -1 ? url.length : fragmentIndex,
+          );
+          return url.slice(0, pathEnd);
+        })()
+      : new URL(url).pathname;
+    return pathname?.replace(/\/+$/u, '') || '/';
   } catch {
     return;
   }
 };
 
 export const isUntracedServerRequestUrl = (url: string) => {
-  const pathname = requestPathname(url);
+  const pathname = serverRequestPathname(url);
   return pathname !== undefined && untracedOperationalPaths.has(pathname);
 };
 

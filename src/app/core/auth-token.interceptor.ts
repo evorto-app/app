@@ -2,6 +2,11 @@ import { isPlatformServer } from '@angular/common';
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject, PLATFORM_ID, REQUEST, REQUEST_CONTEXT } from '@angular/core';
 
+import {
+  trustedSsrSourceHeader,
+  trustedSsrSourceValue,
+  trustedTenantDomainHeader,
+} from '../../shared/request-routing';
 import { type Context } from '../../types/custom/context';
 import { resolveTrustedServerRpcOrigin } from './effect-rpc-angular-client';
 
@@ -25,31 +30,6 @@ const isInternalServerRpcRequest = (outgoingUrl: string): boolean => {
   }
 };
 
-const tenantCookieName = 'evorto-tenant';
-
-const withTrustedTenantCookie = (
-  cookieHeader: null | string | undefined,
-  trustedTenantDomain: string,
-): string => {
-  const cookies = cookieHeader
-    ? cookieHeader
-        .split(';')
-        .map((cookie) => cookie.trim())
-        .filter((cookie) => {
-          if (!cookie) {
-            return false;
-          }
-
-          const equalsIndex = cookie.indexOf('=');
-          const cookieName =
-            equalsIndex === -1 ? cookie : cookie.slice(0, equalsIndex).trim();
-          return cookieName !== tenantCookieName;
-        })
-    : [];
-
-  return [...cookies, `${tenantCookieName}=${trustedTenantDomain}`].join('; ');
-};
-
 export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
   const requestContext = inject(REQUEST_CONTEXT) as Context | null;
   const platformId = inject(PLATFORM_ID);
@@ -66,17 +46,14 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
       const cookieHeader = incomingRequest?.headers.get('cookie');
 
       // Auth0 sessions can span multiple encrypted, chunked cookies. Preserve
-      // those chunks when present, and always attach the trusted request-context
-      // tenant to this app's exact internal RPC URL for anonymous SSR requests.
+      // those chunks when present and pass the already resolved tenant through
+      // the separately gated internal SSR route.
       if (incomingRequest && isInternalServerRpcRequest(request.url)) {
         request = request.clone({
           setHeaders: {
-            Cookie: withTrustedTenantCookie(
-              cookieHeader,
-              requestContext.tenant.domain,
-            ),
-            'x-forwarded-from': 'ssr',
-            'x-tenant-id': requestContext.tenant.id,
+            ...(cookieHeader && { Cookie: cookieHeader }),
+            [trustedSsrSourceHeader]: trustedSsrSourceValue,
+            [trustedTenantDomainHeader]: requestContext.tenant.domain,
           },
         });
       }

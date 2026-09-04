@@ -1,0 +1,246 @@
+import { Effect, Result } from 'effect';
+import {
+  Headers as EffectHeaders,
+  HttpMiddleware,
+  HttpServerRequest,
+  HttpServerResponse,
+} from 'effect/unstable/http';
+
+import {
+  readRequestBody,
+  type RequestBodyInvalidContentLengthError,
+  type RequestBodyReadError,
+  requestBodyStreamFromBuffer,
+  type RequestBodyTooLargeError,
+} from './request-body';
+import { applySecurityHeaders } from './security-headers';
+
+const validHost =
+  /^(?:[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:]+\])(?::[0-9]{1,5})?$/u;
+
+export interface NodeRequestBoundaryInput {
+  readonly encryptedTransport: boolean;
+  readonly headers: Headers;
+  readonly requestTarget: string | undefined;
+  readonly trustPlatformProxy: boolean;
+}
+
+export interface RequestBoundary {
+  readonly headers: Headers;
+  readonly protocol: RequestProtocol;
+  readonly requestTarget: string;
+  readonly url: string;
+}
+
+export interface RequestBoundaryInput {
+  readonly headers: Headers;
+  readonly requestTarget: string | undefined;
+  readonly transportProtocol: RequestProtocol;
+  readonly trustPlatformProxy: boolean;
+}
+
+type RequestProtocol = 'http' | 'https';
+
+const resolveForwardedProtocol = (
+  headers: Headers,
+  trustPlatformProxy: boolean,
+): RequestProtocol | undefined => {
+  const forwardedProtocol = headers.get('x-forwarded-proto');
+  if (!trustPlatformProxy || forwardedProtocol === null) {
+    return;
+  }
+
+  const normalized = forwardedProtocol.trim().toLowerCase();
+  return normalized === 'http' || normalized === 'https'
+    ? normalized
+    : undefined;
+};
+
+export const resolveRequestBoundary = ({
+  headers: sourceHeaders,
+  requestTarget,
+  transportProtocol,
+  trustPlatformProxy,
+}: RequestBoundaryInput): RequestBoundary | undefined => {
+  const headers = new Headers(sourceHeaders);
+  const host = headers.get('host')?.trim();
+  const target = requestTarget ?? '/';
+  const suppliedForwardedProtocol = headers.has('x-forwarded-proto');
+
+  headers.delete('x-forwarded-host');
+  headers.delete('forwarded');
+  headers.delete('x-forwarded-protocol');
+
+  const forwardedProtocol = resolveForwardedProtocol(
+    headers,
+    trustPlatformProxy,
+  );
+  if (
+    trustPlatformProxy &&
+    suppliedForwardedProtocol &&
+    forwardedProtocol === undefined
+  ) {
+    return;
+  }
+  const protocol = forwardedProtocol ?? transportProtocol;
+  headers.set('x-forwarded-proto', protocol);
+
+  if (
+    !host ||
+    !validHost.test(host) ||
+    host.includes('..') ||
+    !target.startsWith('/') ||
+    target.startsWith('//')
+  ) {
+    return;
+  }
+
+  try {
+    const origin = new URL(`${protocol}://${host}`);
+    if (
+      origin.username ||
+      origin.password ||
+      origin.pathname !== '/' ||
+      origin.hostname.endsWith('.')
+    ) {
+      return;
+    }
+    const url = new URL(target, origin);
+    if (url.origin !== origin.origin || url.hash !== '') {
+      return;
+    }
+    headers.set('host', origin.host);
+
+    return {
+      headers,
+      protocol,
+      requestTarget: `${url.pathname}${url.search}`,
+      url: url.toString(),
+    };
+  } catch {
+    return;
+  }
+};
+
+export const resolveNodeRequestBoundary = ({
+  encryptedTransport,
+  headers,
+  requestTarget,
+  trustPlatformProxy,
+}: NodeRequestBoundaryInput): RequestBoundary | undefined =>
+  resolveRequestBoundary({
+    headers,
+    requestTarget,
+    transportProtocol: encryptedTransport ? 'https' : 'http',
+    trustPlatformProxy,
+  });
+
+export interface RequestBoundaryMiddlewareOptions {
+  readonly requestBodyLimit?: (
+    method: string,
+    pathname: string,
+  ) => number | undefined;
+  readonly transportProtocol: RequestProtocol;
+  readonly trustPlatformProxy: boolean;
+}
+
+export const INVALID_REQUEST_ADDRESS_MESSAGE =
+  'This address cannot be opened. Check the link and try again.';
+
+export const requestBoundaryRouteLayers = <
+  ApplicationRoutes,
+  RequestBoundaryLayer,
+  ResponseMiddleware,
+>(
+  applicationRoutes: ApplicationRoutes,
+  requestBoundary: RequestBoundaryLayer,
+  responseMiddleware: ResponseMiddleware,
+) => ({
+  bun: [applicationRoutes, requestBoundary, responseMiddleware] as const,
+  normalizedNode: [applicationRoutes, responseMiddleware] as const,
+});
+
+const invalidRequestResponse = applySecurityHeaders(
+  HttpServerResponse.text(INVALID_REQUEST_ADDRESS_MESSAGE, { status: 400 }),
+);
+
+const requestBodyErrorResponse = (
+  error:
+    | RequestBodyInvalidContentLengthError
+    | RequestBodyReadError
+    | RequestBodyTooLargeError,
+) =>
+  applySecurityHeaders(
+    HttpServerResponse.text(
+      error._tag === 'RequestBodyTooLargeError'
+        ? 'This request is too large.'
+        : 'This request could not be read.',
+      { status: error._tag === 'RequestBodyTooLargeError' ? 413 : 400 },
+    ),
+  );
+
+const toWebHeaders = (headers: EffectHeaders.Headers): Headers =>
+  new Headers(Object.entries(headers));
+
+export const makeRequestBoundaryMiddleware = (
+  options: RequestBoundaryMiddlewareOptions,
+) =>
+  HttpMiddleware.make(
+    <E, R>(
+      effect: Effect.Effect<
+        HttpServerResponse.HttpServerResponse,
+        E,
+        HttpServerRequest.HttpServerRequest | R
+      >,
+    ): Effect.Effect<
+      HttpServerResponse.HttpServerResponse,
+      E,
+      HttpServerRequest.HttpServerRequest | R
+    > =>
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const boundary = resolveRequestBoundary({
+          ...options,
+          headers: toWebHeaders(request.headers),
+          requestTarget: request.url,
+        });
+        if (!boundary) {
+          return invalidRequestResponse;
+        }
+
+        const sourceRequest = yield* HttpServerRequest.toWeb(request).pipe(
+          Effect.orDie,
+        );
+        let body = sourceRequest.body;
+        const maxBodyBytes = options.requestBodyLimit?.(
+          sourceRequest.method,
+          new URL(boundary.url).pathname,
+        );
+        if (body && maxBodyBytes !== undefined) {
+          const bodyResult = yield* readRequestBody(
+            sourceRequest,
+            maxBodyBytes,
+          ).pipe(Effect.result);
+          if (Result.isFailure(bodyResult)) {
+            return requestBodyErrorResponse(bodyResult.failure);
+          }
+          body = requestBodyStreamFromBuffer(bodyResult.success);
+        }
+        const requestInit = {
+          headers: boundary.headers,
+          method: sourceRequest.method,
+          redirect: sourceRequest.redirect,
+          signal: sourceRequest.signal,
+          ...(body && { body, duplex: 'half' as const }),
+        } satisfies RequestInit & { duplex?: 'half' };
+        const normalizedRequest = HttpServerRequest.fromWeb(
+          new Request(boundary.url, requestInit),
+        ).modify({ remoteAddress: request.remoteAddress });
+
+        return yield* Effect.provideService(
+          effect,
+          HttpServerRequest.HttpServerRequest,
+          normalizedRequest,
+        );
+      }),
+  );

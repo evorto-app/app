@@ -1,15 +1,18 @@
 import type * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
-import { Effect, Schema } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 
 import type { AuthSession } from '../auth/auth-session';
 
 import { Database } from '../../db';
+import { localTestTenantDomainHeader } from '../../shared/request-routing';
 import { Context as RequestContext } from '../../types/custom/context';
 import { isAuthenticated, resolveRequestOrigin } from '../auth/auth-session';
+import { RuntimeConfig } from '../config/runtime-config';
 import {
   resolveAuthenticationContext,
+  resolveExplicitTenantDomain,
   resolvePlatformAuthority,
   resolveRequestPermissions,
   resolveTenantContext,
@@ -21,32 +24,46 @@ export class HttpRequestTenantNotFoundError extends Schema.TaggedErrorClass<Http
   {
     domain: Schema.String,
     message: Schema.String,
-    tenantCookie: Schema.String,
   },
 ) {}
 
-const resolveRequestHost = (
+const resolveRequestHeader = (
   request: HttpServerRequest.HttpServerRequest,
-): readonly string[] | string | undefined => request.headers['host'];
+  name: string,
+): string | undefined => {
+  const value = request.headers[name];
+  if (typeof value === 'string') return value;
+  return;
+};
 
 export const resolveHttpRequestContext = (
   request: HttpServerRequest.HttpServerRequest,
   authSession: AuthSession | undefined,
+  routing: {
+    readonly trustedTenantDomain?: string | undefined;
+  } = {},
 ): Effect.Effect<
   Schema.Schema.Type<typeof RequestContext>,
   EffectDrizzleQueryError | HttpRequestTenantNotFoundError,
-  Database
+  Database | RuntimeConfig
 > =>
   Effect.gen(function* () {
+    const { deployment, testRuntime } = yield* RuntimeConfig;
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
       isAuthenticated: isAuthenticated(authSession),
     });
 
     const { cause, tenant } = yield* resolveTenantContext({
-      cookies: request.cookies,
       protocol: requestOrigin.protocol,
-      requestHost: resolveRequestHost(request),
+      requestHost: resolveRequestHeader(request, 'host'),
+      routedTenantDomain: resolveExplicitTenantDomain({
+        applicationEnvironment: deployment.APP_ENVIRONMENT,
+        localTestTenantDomain:
+          resolveRequestHeader(request, localTestTenantDomainHeader) ??
+          Option.getOrUndefined(testRuntime.TENANT_DOMAIN),
+        trustedTenantDomain: routing.trustedTenantDomain,
+      }),
     });
 
     if (!tenant) {
@@ -56,7 +73,6 @@ export const resolveHttpRequestContext = (
       yield* new HttpRequestTenantNotFoundError({
         domain: cause.domain,
         message: 'Tenant not found',
-        tenantCookie: cause.tenantCookie,
       });
     }
 

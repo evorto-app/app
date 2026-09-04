@@ -20,7 +20,6 @@ import {
   HttpServerRequest,
   HttpServerResponse,
 } from 'effect/unstable/http';
-import { KeyValueStore } from 'effect/unstable/persistence';
 
 import { databaseLayer } from './db';
 import {
@@ -29,6 +28,7 @@ import {
   handleLoginRequest,
   handleLogoutRequest,
   loadAuthSession,
+  resolveRequestOrigin,
   toAbsoluteRequestUrl,
 } from './server/auth/auth-session';
 import { formatConfigError } from './server/config/config-error';
@@ -41,13 +41,11 @@ import { registrationRefundWorkerRuntimeModeConfig } from './server/config/regis
 import { RuntimeConfig } from './server/config/runtime-config';
 import { serverNetworkConfig } from './server/config/server-config';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
-import {
-  MAX_RPC_BODY_SIZE_BYTES,
-  toRpcHttpServerRequest,
-} from './server/effect/rpc/app-rpcs.request-handler';
+import { toRpcRequestContext } from './server/effect/rpc/app-rpcs.request-handler';
 import {
   appRpcHttpAppLayer,
   handleAppRpcHttpRequest,
+  MAX_RPC_BODY_SIZE_BYTES,
 } from './server/effect/rpc/app-rpcs.web-handler';
 import { serverLoggerLayer } from './server/effect/server-logger.layer';
 import { serverTelemetryLayer } from './server/effect/server-telemetry.layer';
@@ -64,21 +62,31 @@ import {
   handleBrowserErrorTelemetryWebRequest,
   MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES,
 } from './server/http/browser-error-telemetry.web-handler';
+import { applyDynamicSsrCacheControl } from './server/http/dynamic-ssr-cache-control';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES } from './server/http/internal-trigger.web-handler';
-import { resolveNodeRequestBoundary } from './server/http/node-request-boundary';
 import { handleOpsJsonTriggerWebRequest } from './server/http/ops-trigger.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import {
   discardNodeRequestBody,
   readNodeRequestBody,
-  registerPrebufferedRequestBody,
   RequestBodyInvalidContentLengthError,
   RequestBodyReadError,
   requestBodyStreamFromBuffer,
   RequestBodyTooLargeError,
 } from './server/http/request-body';
+import {
+  INVALID_REQUEST_ADDRESS_MESSAGE,
+  makeRequestBoundaryMiddleware,
+  requestBoundaryRouteLayers,
+  resolveNodeRequestBoundary,
+} from './server/http/request-boundary';
+import { runRpcIngressPolicy } from './server/http/rpc-ingress-policy';
 import { applySecurityHeaders } from './server/http/security-headers';
+import {
+  createRobotsWebResponse,
+  createSitemapWebResponse,
+} from './server/http/seo-metadata.web-handler';
 import { makeServerResponseMiddleware } from './server/http/server-response.middleware';
 import {
   handleStripeWebhookWebRequest,
@@ -115,10 +123,11 @@ import { validateRuntimeRoleConfiguration } from './server/runtime/runtime-role'
 import { stripeClientLayer } from './server/stripe-client';
 import { sanitizeRelativeRedirectPath } from './shared/auth-redirect';
 
-const angularApp = new AngularAppEngine();
+const angularApp = new AngularAppEngine({
+  trustProxyHeaders: ['x-forwarded-proto'],
+});
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
-const keyValueStoreDirectory = '.cache/evorto/server-kv';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 const rpcPath = '/rpc';
 const stripeWebhookPath = '/webhooks/stripe';
@@ -302,7 +311,9 @@ const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   renderSsrWeb(request).pipe(
     Effect.map((renderedResponse) =>
       renderedResponse
-        ? HttpServerResponse.fromWeb(renderedResponse)
+        ? applyDynamicSsrCacheControl(
+            HttpServerResponse.fromWeb(renderedResponse),
+          )
         : createUnknownTenantResponse(request.method),
     ),
   );
@@ -366,6 +377,26 @@ const versionRouteLayer = HttpLayerRouter.add('GET', '/version', () =>
       }),
     );
   }).pipe(withoutServerTracing),
+);
+
+const robotsRouteLayer = HttpLayerRouter.add('GET', '/robots.txt', () =>
+  RuntimeConfig.use((runtime) =>
+    Effect.succeed(
+      HttpServerResponse.fromWeb(
+        createRobotsWebResponse(runtime.auth.BASE_URL),
+      ),
+    ),
+  ),
+);
+
+const sitemapRouteLayer = HttpLayerRouter.add('GET', '/sitemap.xml', () =>
+  RuntimeConfig.use((runtime) =>
+    Effect.succeed(
+      HttpServerResponse.fromWeb(
+        createSitemapWebResponse(runtime.auth.BASE_URL),
+      ),
+    ),
+  ),
 );
 
 const browserErrorTelemetryRouteLayer = HttpLayerRouter.add(
@@ -593,61 +624,42 @@ const stripeWebhookRouteLayer = HttpLayerRouter.add(
 
 const rpcRouteLayer = HttpLayerRouter.add('POST', rpcPath, (request) =>
   Effect.gen(function* () {
-    const authSession = yield* loadAuthSession(request);
-    const requestContextOption = yield* resolveHttpRequestContext(
-      request,
-      authSession,
-    ).pipe(
-      Effect.map((context) => Option.fromNullishOr(context)),
-      Effect.catchTag('HttpRequestTenantNotFoundError', () =>
-        Effect.succeed(Option.none()),
-      ),
-    );
-    if (Option.isNone(requestContextOption)) {
-      return notFoundServerResponse;
-    }
-    const requestContext = requestContextOption.value;
-
+    const { server } = yield* RuntimeConfig;
     const webRequest = yield* HttpServerRequest.toWeb(request);
-    return yield* toRpcHttpServerRequest(
+    const ingress = runRpcIngressPolicy(
       webRequest,
-      requestContext,
-      getRequestAuthData(authSession),
-    ).pipe(
-      Effect.flatMap((rpcRequest) => handleAppRpcHttpRequest(rpcRequest)),
-      Effect.catchTags({
-        RequestBodyInvalidContentLengthError: (error) =>
-          Effect.logWarning('RPC request has invalid Content-Length').pipe(
-            Effect.annotateLogs({ contentLength: error.contentLength }),
-            Effect.as(
-              HttpServerResponse.text('Invalid Content-Length', {
-                status: 400,
-              }),
+      ({ trustedTenantDomain }) =>
+        Effect.gen(function* () {
+          const authSession = yield* loadAuthSession(request);
+          const requestContextOption = yield* resolveHttpRequestContext(
+            request,
+            authSession,
+            { trustedTenantDomain },
+          ).pipe(
+            Effect.map((context) => Option.fromNullishOr(context)),
+            Effect.catchTag('HttpRequestTenantNotFoundError', () =>
+              Effect.succeed(Option.none()),
             ),
-          ),
-        RequestBodyReadError: (error) =>
-          Effect.logWarning('Failed to read RPC request body').pipe(
-            Effect.annotateLogs({
-              error:
-                error.cause instanceof Error
-                  ? error.cause.message
-                  : String(error.cause),
-            }),
-            Effect.as(
-              HttpServerResponse.text('Unable to read request body', {
-                status: 400,
-              }),
-            ),
-          ),
-        RequestBodyTooLargeError: (error) =>
-          Effect.logWarning('RPC request body exceeded route limit').pipe(
-            Effect.annotateLogs({ maxBytes: error.maxBytes }),
-            Effect.as(
-              HttpServerResponse.text('Payload too large', { status: 413 }),
-            ),
-          ),
-      }),
+          );
+          if (Option.isNone(requestContextOption)) {
+            return notFoundServerResponse;
+          }
+          const requestContext = requestContextOption.value;
+          const rpcRequestContext = toRpcRequestContext(
+            requestContext,
+            getRequestAuthData(authSession),
+          );
+          return yield* handleAppRpcHttpRequest(request, rpcRequestContext);
+        }),
+      {
+        applicationOrigin: resolveRequestOrigin(request).origin,
+        ssrRpcOrigin: Option.getOrUndefined(server.SSR_RPC_ORIGIN),
+      },
     );
+
+    return ingress.accepted
+      ? yield* ingress.value
+      : HttpServerResponse.fromWeb(ingress.response);
   }),
 );
 
@@ -676,6 +688,15 @@ const responseMiddlewareLayer = HttpLayerRouter.middleware<{
   { global: true },
 );
 
+const requestBoundaryLayer = HttpLayerRouter.middleware()(
+  makeRequestBoundaryMiddleware({
+    requestBodyLimit,
+    transportProtocol: 'http',
+    trustPlatformProxy: requestBoundaryDeployment.TRUST_PLATFORM_PROXY,
+  }),
+  { global: true },
+);
+
 const bootstrapReadinessRouteLayer = HttpLayerRouter.add(
   'GET',
   APPLICATION_READINESS_PATH,
@@ -691,13 +712,16 @@ const bootstrapReadinessRouteLayer = HttpLayerRouter.add(
 const bootstrapRoutesLayer = Layer.mergeAll(
   healthRouteLayer,
   bootstrapReadinessRouteLayer,
+  requestBoundaryLayer,
   responseMiddlewareLayer,
 );
 
-const webRoutesLayer = Layer.mergeAll(
+const webApplicationRoutesLayer = Layer.mergeAll(
   healthRouteLayer,
   applicationReadinessRouteLayer,
   versionRouteLayer,
+  robotsRouteLayer,
+  sitemapRouteLayer,
   browserErrorTelemetryRouteLayer,
   loginRouteLayer,
   callbackRouteLayer,
@@ -708,7 +732,18 @@ const webRoutesLayer = Layer.mergeAll(
   stripeWebhookRouteLayer,
   rpcRouteLayer,
   staticAndAngularCatchAllLayer,
+);
+
+const webRouteLayers = requestBoundaryRouteLayers(
+  webApplicationRoutesLayer,
+  requestBoundaryLayer,
   responseMiddlewareLayer,
+);
+
+const webRoutesLayer = Layer.mergeAll(...webRouteLayers.bun);
+
+const normalizedNodeWebRoutesLayer = Layer.mergeAll(
+  ...webRouteLayers.normalizedNode,
 );
 
 const workerRoutesLayer = Layer.mergeAll(
@@ -718,6 +753,7 @@ const workerRoutesLayer = Layer.mergeAll(
   workerExpiredCheckoutCleanupRouteLayer,
   workerReceiptOrphanCleanupRouteLayer,
   workerStripeRefundRouteLayer,
+  requestBoundaryLayer,
   responseMiddlewareLayer,
 );
 const configuredWorkerRoutesLayer = workerRoutesLayer.pipe(
@@ -730,12 +766,10 @@ const opsRoutesLayer = Layer.mergeAll(
   opsSchemaExplainRouteLayer,
   opsSchemaApplyRouteLayer,
   opsSeedStagingRouteLayer,
+  requestBoundaryLayer,
   responseMiddlewareLayer,
 );
 
-const keyValueStoreLayer = KeyValueStore.layerFileSystem(
-  keyValueStoreDirectory,
-).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, Path.layer)));
 const otelLayer = serverTelemetryLayer;
 
 let cachedRequestHandler: ((request: Request) => Promise<Response>) | undefined;
@@ -752,7 +786,6 @@ const getRequestHandler = () => {
     BunHttpServer.layerHttpServices,
     BunFileSystem.layer,
     Path.layer,
-    keyValueStoreLayer,
     ObjectStorage.Default,
     otelLayer,
     serverTracePolicyLayer,
@@ -766,26 +799,20 @@ const getRequestHandler = () => {
   const requestRuntimeLayer = handlerRuntimeLayer.pipe(
     Layer.provideMerge(configuredDatabaseLayer),
   );
-  const handlerAppLayer = webRoutesLayer.pipe(
+  const handlerAppLayer = normalizedNodeWebRoutesLayer.pipe(
     HttpLayerRouter.provideRequest(requestRuntimeLayer),
   );
-  const { handler: serverHandler } =
-    HttpLayerRouter.toWebHandler(handlerAppLayer);
+  const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
+    handlerAppLayer,
+    { disableLogger: true },
+  );
 
   cachedRequestHandler = (request: Request) => serverHandler(request);
 
   return cachedRequestHandler;
 };
 
-const requestPathname = (url: string | undefined) => {
-  try {
-    return new URL(url ?? '/', 'http://localhost').pathname;
-  } catch {
-    return '/';
-  }
-};
-
-const requestBodyLimit = (method: string, pathname: string) => {
+function requestBodyLimit(method: string, pathname: string) {
   if (method !== 'POST') {
     return;
   }
@@ -803,20 +830,21 @@ const requestBodyLimit = (method: string, pathname: string) => {
     return MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES;
   }
   return;
-};
+}
 
 const requestBodyErrorResponse = (error: unknown) => {
   let response: HttpServerResponse.HttpServerResponse | undefined;
-  if (error instanceof RequestBodyInvalidContentLengthError) {
-    response = HttpServerResponse.text('Invalid Content-Length', {
-      status: 400,
-    });
-  } else if (error instanceof RequestBodyReadError) {
-    response = HttpServerResponse.text('Unable to read request body', {
+  if (
+    error instanceof RequestBodyInvalidContentLengthError ||
+    error instanceof RequestBodyReadError
+  ) {
+    response = HttpServerResponse.text('This request could not be read.', {
       status: 400,
     });
   } else if (error instanceof RequestBodyTooLargeError) {
-    response = HttpServerResponse.text('Payload too large', { status: 413 });
+    response = HttpServerResponse.text('This request is too large.', {
+      status: 413,
+    });
   }
 
   return response
@@ -842,17 +870,17 @@ const toNodeWebRequest = async (request: IncomingMessage) => {
   const method = request.method ?? 'GET';
   const headers = nodeRequestHeaders(request);
   const requestBoundary = resolveNodeRequestBoundary({
+    encryptedTransport:
+      'encrypted' in request.socket && request.socket.encrypted === true,
     headers,
     requestTarget: request.url,
-    socketEncrypted:
-      'encrypted' in request.socket && request.socket.encrypted === true,
     trustPlatformProxy: requestBoundaryDeployment.TRUST_PLATFORM_PROXY,
   });
   if (!requestBoundary) {
     discardNodeRequestBody(request);
     return HttpServerResponse.toWeb(
       applySecurityHeaders(
-        HttpServerResponse.text('Invalid Host or request target', {
+        HttpServerResponse.text(INVALID_REQUEST_ADDRESS_MESSAGE, {
           status: 400,
         }),
       ),
@@ -866,7 +894,10 @@ const toNodeWebRequest = async (request: IncomingMessage) => {
     });
   }
 
-  const maxBytes = requestBodyLimit(method, requestPathname(request.url));
+  const maxBytes = requestBodyLimit(
+    method,
+    new URL(requestBoundary.url).pathname,
+  );
   if (maxBytes === undefined) {
     // The Effect router has no other body-bearing routes. Fail closed before
     // adapting the raw Node stream, and never wait for an untrusted body to
@@ -886,10 +917,7 @@ const toNodeWebRequest = async (request: IncomingMessage) => {
     method,
   } satisfies RequestInit & { duplex: 'half' };
 
-  return registerPrebufferedRequestBody(
-    new Request(requestBoundary.url, webRequestInit),
-    body,
-  );
+  return new Request(requestBoundary.url, webRequestInit);
 };
 
 const requestHandler = createNodeRequestHandler(
@@ -1009,18 +1037,18 @@ const serveEffect = Effect.gen(function* () {
     DeploymentRuntimeConfig.Default,
     ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
   );
+  const bunServeOptions = { disableLogger: true } as const;
   const serverLayer = runtimeRole.bootstrap
-    ? HttpLayerRouter.serve(bootstrapRoutesLayer).pipe(
+    ? HttpLayerRouter.serve(bootstrapRoutesLayer, bunServeOptions).pipe(
         Layer.provide(commonRuntimeLayer),
       )
     : runtimeRole.role === 'web'
-      ? HttpLayerRouter.serve(webRoutesLayer).pipe(
+      ? HttpLayerRouter.serve(webRoutesLayer, bunServeOptions).pipe(
           Layer.provide(
             Layer.mergeAll(
               commonRuntimeLayer,
               BunFileSystem.layer,
               Path.layer,
-              keyValueStoreLayer,
               ObjectStorage.Default,
               appRpcHttpAppLayer,
               stripeClientLayer,
@@ -1029,7 +1057,10 @@ const serveEffect = Effect.gen(function* () {
           ),
         )
       : runtimeRole.role === 'worker'
-        ? HttpLayerRouter.serve(configuredWorkerRoutesLayer).pipe(
+        ? HttpLayerRouter.serve(
+            configuredWorkerRoutesLayer,
+            bunServeOptions,
+          ).pipe(
             Layer.provide(
               Layer.mergeAll(
                 commonRuntimeLayer,
@@ -1038,7 +1069,7 @@ const serveEffect = Effect.gen(function* () {
               ),
             ),
           )
-        : HttpLayerRouter.serve(opsRoutesLayer).pipe(
+        : HttpLayerRouter.serve(opsRoutesLayer, bunServeOptions).pipe(
             Layer.provide(commonRuntimeLayer),
           );
 

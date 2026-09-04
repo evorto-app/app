@@ -145,6 +145,7 @@
     "eslint-plugin-unused-imports": "^4.4.1",
     "happy-dom": "^20.14.5",
     "playwright-ng-schematics": "22.1.2",
+    "playwright-core": "1.63.0",
     "postcss": "^8.5.28",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",

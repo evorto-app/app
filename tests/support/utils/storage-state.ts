@@ -10,43 +10,68 @@ export type StorageState = {
   origins?: unknown[];
 };
 
-export function readStorageState(pathname: string): StorageState | null {
-  try {
-    const raw = fs.readFileSync(pathname, 'utf-8');
-    return JSON.parse(raw) as StorageState;
-  } catch {
-    return null;
-  }
-}
+const isMissingFileError = (error: unknown): boolean =>
+  error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
-export function hasTenantCookie(
-  state: StorageState | null,
-  tenantDomain: string | undefined,
-): boolean {
-  if (!state || !tenantDomain) return false;
-  const cookies = state.cookies ?? [];
-  return cookies.some(
-    (c) => c.name === 'evorto-tenant' && c.value === tenantDomain,
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isStorageCookie = (
+  value: unknown,
+): value is Record<string, unknown> & { name: string; value: string } =>
+  isRecord(value) &&
+  typeof value['name'] === 'string' &&
+  typeof value['value'] === 'string' &&
+  (value['domain'] === undefined || typeof value['domain'] === 'string') &&
+  (value['path'] === undefined || typeof value['path'] === 'string');
+
+const isStorageState = (value: unknown): value is StorageState => {
+  if (!isRecord(value)) return false;
+  const cookies = value['cookies'];
+  const origins = value['origins'];
+  return (
+    (cookies === undefined ||
+      (Array.isArray(cookies) && cookies.every(isStorageCookie))) &&
+    (origins === undefined || Array.isArray(origins))
   );
+};
+
+export function readStorageState(pathname: string): StorageState | null {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(pathname, 'utf8');
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return null;
+    }
+    throw error;
+  }
+
+  const parsed: unknown = JSON.parse(raw);
+  if (!isStorageState(parsed)) {
+    throw new Error(`Playwright storage state ${pathname} is invalid`);
+  }
+  return parsed;
 }
 
 export function isFreshByMtime(pathname: string, maxAgeMs: number): boolean {
   try {
     const stat = fs.statSync(pathname);
     return stat.mtimeMs > Date.now() - maxAgeMs;
-  } catch {
-    return false;
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return false;
+    }
+    throw error;
   }
 }
 
 export function isStorageStateFresh(params: {
   pathname: string;
-  tenantDomain?: string;
   maxAgeMs: number;
 }): boolean {
-  const { pathname, tenantDomain, maxAgeMs } = params;
-  const ageFresh = isFreshByMtime(pathname, maxAgeMs);
-  if (!ageFresh) return false;
+  const { pathname, maxAgeMs } = params;
   const state = readStorageState(pathname);
-  return hasTenantCookie(state, tenantDomain);
+  if (!state) return false;
+  return isFreshByMtime(pathname, maxAgeMs);
 }

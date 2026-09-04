@@ -96,6 +96,7 @@
         "eslint-plugin-unicorn": "^74.0.0",
         "eslint-plugin-unused-imports": "^4.4.1",
         "happy-dom": "^20.14.5",
+        "playwright-core": "1.63.0",
         "playwright-ng-schematics": "22.1.2",
         "postcss": "^8.5.28",
         "prettier": "^3.9.6",

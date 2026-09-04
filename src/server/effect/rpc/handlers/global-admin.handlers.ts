@@ -3,7 +3,6 @@ import type {
   PlatformTenantAuditAction,
 } from '@shared/platform-audit';
 import type { GlobalAdminTenantWriteInput } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
-import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcBadRequestError,
@@ -67,10 +66,7 @@ import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
 } from '../../../tenant-currency-integrity';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -95,41 +91,15 @@ const databaseEffectWithTenantUpdateError = <A>(
     ),
   );
 
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, RpcUnauthorizedError> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-
-const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
-  value: string | undefined,
-  schema: S,
-): S['Type'] =>
-  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
-
 const requirePlatformAdministrator = Effect.fn(
   'GlobalAdmin.requirePlatformAdministrator',
-)(function* (
-  headers: Headers.Headers,
-): Effect.fn.Return<
+)(function* (): Effect.fn.Return<
   PlatformAdministratorAuthority,
-  RpcForbiddenError | RpcUnauthorizedError
+  RpcForbiddenError | RpcUnauthorizedError,
+  RpcAccess
 > {
-  yield* ensureAuthenticated(headers);
-  const authority = yield* Effect.try({
-    catch: () =>
-      new RpcForbiddenError({
-        message: 'Platform administrator authority required',
-      }),
-    try: () =>
-      decodeHeaderJson(
-        headers[RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY],
-        Schema.NullOr(PlatformAdministratorAuthority),
-      ),
-  });
+  yield* RpcAccess.ensureAuthenticated();
+  const { platformAuthority: authority } = yield* RpcAccess.current();
 
   if (!authority) {
     return yield* new RpcForbiddenError({
@@ -312,9 +282,9 @@ const tenantUrlMigrationBlockedReason = ({
 };
 
 export const globalAdminHandlers = {
-  'globalAdmin.emailOutbox.findOverview': (_payload, options) =>
+  'globalAdmin.emailOutbox.findOverview': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* requirePlatformAdministrator(options.headers);
+      yield* requirePlatformAdministrator();
       const now = new Date();
       const [
         statusCounts,
@@ -426,9 +396,9 @@ export const globalAdminHandlers = {
         summary,
       });
     }),
-  'globalAdmin.platformAudit.findMany': (_payload, options) =>
+  'globalAdmin.platformAudit.findMany': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* requirePlatformAdministrator(options.headers);
+      yield* requirePlatformAdministrator();
       const entries = yield* databaseEffect((database) =>
         database
           .select({
@@ -454,9 +424,9 @@ export const globalAdminHandlers = {
 
       return entries.map((entry) => toGlobalAdminPlatformAuditRecord(entry));
     }),
-  'globalAdmin.tenants.create': (input, options) =>
+  'globalAdmin.tenants.create': (input, _options) =>
     Effect.gen(function* () {
-      const authority = yield* requirePlatformAdministrator(options.headers);
+      const authority = yield* requirePlatformAdministrator();
       const tenantInput = yield* normalizeTenantWritePayload(input.tenant);
       const reason = yield* normalizeAuditReason(input.reason);
       const initialPrivacyPolicy = yield* normalizeTenantPrivacyPolicy(
@@ -541,9 +511,9 @@ export const globalAdminHandlers = {
         ),
       );
     }),
-  'globalAdmin.tenants.findMany': (_payload, options) =>
+  'globalAdmin.tenants.findMany': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* requirePlatformAdministrator(options.headers);
+      yield* requirePlatformAdministrator();
       const allTenants = yield* databaseEffect((database) =>
         database.query.tenants.findMany({
           columns: globalAdminTenantColumns,
@@ -553,9 +523,9 @@ export const globalAdminHandlers = {
 
       return allTenants.map((tenant) => toGlobalAdminTenantRecord(tenant));
     }),
-  'globalAdmin.tenants.findOne': (input, options) =>
+  'globalAdmin.tenants.findOne': (input, _options) =>
     Effect.gen(function* () {
-      yield* requirePlatformAdministrator(options.headers);
+      yield* requirePlatformAdministrator();
       const tenant = yield* databaseEffect((database) =>
         database.query.tenants.findFirst({
           columns: globalAdminTenantColumns,
@@ -567,9 +537,9 @@ export const globalAdminHandlers = {
 
       return tenant ? toGlobalAdminTenantRecord(tenant) : null;
     }),
-  'globalAdmin.tenants.update': (input, options) =>
+  'globalAdmin.tenants.update': (input, _options) =>
     Effect.gen(function* () {
-      const authority = yield* requirePlatformAdministrator(options.headers);
+      const authority = yield* requirePlatformAdministrator();
       const { id } = input;
       const tenantInput = yield* normalizeTenantWritePayload(input.tenant);
       const reason = yield* normalizeAuditReason(input.reason);

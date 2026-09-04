@@ -1,13 +1,34 @@
+import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+
+import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
-import { Effect, Layer } from 'effect';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
+import { Effect, Layer, Schema, Stream } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
+import * as Rpc from 'effect/unstable/rpc/Rpc';
+import * as RpcMessage from 'effect/unstable/rpc/RpcMessage';
 import { DateTime } from 'luxon';
 
-import { Database, type DatabaseClient } from '../../../../db';
-import { rolesToTenantUsers, users } from '../../../../db/schema';
+import { Database } from '../../../../db';
+import { relations } from '../../../../db/relations';
+import { users } from '../../../../db/schema';
+import { type Permission } from '../../../../shared/permissions/permissions';
 import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import {
+  UsersAssignRoles,
+  UsersCanUseScanner,
+  UsersEventsFindMany,
+  UsersFindMany,
+  UsersUpdateProfile,
+  UsersUserAssigned,
+} from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
+import { Tenant } from '../../../../types/custom/tenant';
+import { User } from '../../../../types/custom/user';
+import { RpcAccess } from './shared/rpc-access.service';
 import {
   normalizeUsersFindManySearch,
   resolveProfileRefundState,
@@ -15,81 +36,216 @@ import {
   userHandlers,
 } from './users.handlers';
 
-const createTenant = () => ({
-  currency: 'EUR' as const,
-  defaultLocation: null,
-  discountProviders: {
-    esnCard: {
-      config: {},
-      status: 'disabled' as const,
+const createTenant = () =>
+  Schema.decodeUnknownSync(Tenant)({
+    currency: 'EUR',
+    defaultLocation: null,
+    discountProviders: {
+      esnCard: {
+        config: {},
+        status: 'disabled',
+      },
     },
-  },
-  domain: 'tenant.example.com',
-  id: 'tenant-1',
-  locale: 'en',
-  name: 'Tenant',
-  receiptSettings: {
-    allowOther: false,
-    receiptCountries: ['NL'],
-  },
-  stripeAccountId: null,
-  theme: 'evorto' as const,
-  timezone: 'Europe/Amsterdam',
-});
+    domain: 'tenant.example.com',
+    id: 'tenant-1',
+    locale: 'en',
+    name: 'Tenant',
+    receiptSettings: {
+      allowOther: false,
+      receiptCountries: ['NL'],
+    },
+    stripeAccountId: null,
+    theme: 'evorto',
+    timezone: 'Europe/Amsterdam',
+  });
 
-const createUser = () => ({
-  attributes: [],
-  auth0Id: 'auth0|user-1',
-  communicationEmail: 'notify@example.com',
-  email: 'alice@example.com',
-  firstName: 'Alice',
-  iban: null,
-  id: 'user-1',
-  lastName: 'Doe',
-  paypalEmail: null,
-  permissions: [] as string[],
-  roleIds: [],
-});
+const createUser = () =>
+  Schema.decodeUnknownSync(User)({
+    attributes: [],
+    auth0Id: 'auth0|user-1',
+    communicationEmail: 'notify@example.com',
+    email: 'alice@example.com',
+    firstName: 'Alice',
+    iban: null,
+    id: 'user-1',
+    lastName: 'Doe',
+    paypalEmail: null,
+    permissions: [],
+    roleIds: [],
+  });
 
-const createUserHandlerHeaders = ({
+const createUserHandlerContext = ({
+  authenticated = true,
   permissions = [],
   tenant = createTenant(),
   user = createUser(),
+  userAssigned = user !== null,
 }: {
-  permissions?: string[];
-  tenant?: ReturnType<typeof createTenant>;
-  user?: ReturnType<typeof createUser>;
-} = {}) => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(permissions),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-  [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson({
-    ...user,
-    permissions,
-  }),
+  authenticated?: boolean;
+  permissions?: readonly Permission[];
+  tenant?: Tenant;
+  user?: null | User;
+  userAssigned?: boolean;
+} = {}): RpcRequestContextShape => ({
+  authData: {},
+  authenticated,
+  permissions,
+  platformAuthority: null,
+  tenant,
+  user:
+    user === null
+      ? null
+      : Schema.decodeUnknownSync(User)({
+          ...user,
+          permissions,
+        }),
+  userAssigned,
 });
 
-const membershipLockSelect = (membershipId?: string) => () => ({
-  from: () => ({
-    where: () => ({
-      for: () => Effect.succeed(membershipId ? [{ id: membershipId }] : []),
-    }),
-  }),
+const provideUserHandlerContext = (context = createUserHandlerContext()) =>
+  Effect.provide(
+    Layer.mergeAll(
+      RpcAccess.Default,
+      Layer.succeed(RpcRequestContext, context),
+    ),
+  );
+
+const userHandlerOptions = <R extends Rpc.Any>(rpc: R) => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc,
 });
+
+const createUserDatabaseFixture = ({
+  allowRoleChanges = false,
+  membershipId,
+  roleIds,
+  scannerRegistrationIds,
+}: {
+  allowRoleChanges?: boolean;
+  membershipId?: null | string;
+  roleIds?: readonly string[];
+  scannerRegistrationIds?: readonly string[];
+} = {}) => {
+  const unexpectedDatabaseAccess = Effect.die(
+    new Error('Unexpected database operation in user handler fixture'),
+  );
+  const transactionCommands: string[] = [];
+  const deleteWhere = vi.fn<SqlConnection.Connection['executeRaw']>(() =>
+    allowRoleChanges ? Effect.succeed([]) : unexpectedDatabaseAccess,
+  );
+  const insertValues = vi.fn<SqlConnection.Connection['executeRaw']>(() =>
+    allowRoleChanges ? Effect.succeed([]) : unexpectedDatabaseAccess,
+  );
+  const executeValues = vi.fn<SqlConnection.Connection['executeValues']>(
+    (statement, parameters) =>
+      Effect.sync(() => {
+        if (
+          membershipId !== undefined &&
+          statement.includes('from "users_to_tenants"')
+        ) {
+          expect(statement).toContain('for update');
+          expect(parameters).toContain('tenant-1');
+          return membershipId === null ? [] : [[membershipId]];
+        }
+        if (roleIds !== undefined && statement.includes('from "roles"')) {
+          expect(parameters).toContain('tenant-1');
+          return roleIds.map((id) => [id]);
+        }
+        if (
+          scannerRegistrationIds !== undefined &&
+          statement.includes('from "event_registrations"')
+        ) {
+          expect(statement).toContain(
+            'inner join "event_registration_options"',
+          );
+          expect(statement).toContain('inner join "event_instances"');
+          expect(parameters).toEqual(
+            expect.arrayContaining(['tenant-1', 'user-1']),
+          );
+          return scannerRegistrationIds.map((id) => [id]);
+        }
+        throw new Error(
+          `Unexpected values query in user handler fixture: ${statement}`,
+        );
+      }),
+  );
+  const connection = {
+    execute: () => unexpectedDatabaseAccess,
+    executeRaw: (statement, parameters) => {
+      if (
+        membershipId !== undefined &&
+        statement.startsWith('select pg_advisory_xact_lock(')
+      ) {
+        return Effect.sync(() => {
+          expect(parameters).toEqual(['evorto:tenant-role-graph:tenant-1']);
+          return [];
+        });
+      }
+      if (statement.startsWith('delete from "roles_to_tenant_users"')) {
+        return deleteWhere(statement, parameters);
+      }
+      if (statement.startsWith('insert into "roles_to_tenant_users"')) {
+        return insertValues(statement, parameters);
+      }
+      return unexpectedDatabaseAccess;
+    },
+    executeStream: () =>
+      Stream.die(
+        new Error('Unexpected database stream in user handler fixture'),
+      ),
+    executeUnprepared: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(['BEGIN', 'COMMIT', 'ROLLBACK']).toContain(statement);
+        expect(parameters).toEqual([]);
+        transactionCommands.push(statement);
+        return [];
+      }),
+    executeValues,
+    executeValuesUnprepared: () => unexpectedDatabaseAccess,
+  } satisfies SqlConnection.Connection;
+  const databaseLayer = Layer.effect(
+    Database,
+    PgDrizzle.makeWithDefaults({ relations }),
+  ).pipe(
+    Layer.provide(
+      PgClient.layerFrom(
+        PgClient.makeWith({
+          acquirer: Effect.succeed(connection),
+          config: {},
+          listenAcquirer: unexpectedDatabaseAccess,
+          transactionAcquirer:
+            membershipId === undefined
+              ? unexpectedDatabaseAccess
+              : Effect.succeed(connection),
+        }),
+      ),
+    ),
+  );
+  return {
+    databaseLayer,
+    deleteWhere,
+    executeValues,
+    insertValues,
+    transactionCommands,
+  };
+};
+
+const noDatabaseAccessLayer = createUserDatabaseFixture().databaseLayer;
 
 describe('userHandlers', () => {
   it('uses tenant-local DST boundaries for scanner business days', () => {
-    const { end, start } = tenantDayBounds(
-      'Europe/Berlin',
-      DateTime.fromISO('2026-03-29T12:00:00.000Z', { zone: 'utc' }),
-    );
+    const now = DateTime.fromISO('2026-03-29T12:00:00.000Z', { zone: 'utc' });
+    if (!now.isValid) throw new Error('Expected a valid DST test instant');
+    const { end, start } = tenantDayBounds('Europe/Berlin', now);
 
     expect(start.toISOString()).toBe('2026-03-28T23:00:00.000Z');
     expect(end.toISOString()).toBe('2026-03-29T21:59:59.999Z');
   });
 
   it('normalizes user-list search input for the server query', () => {
-    expect(normalizeUsersFindManySearch()).toBeUndefined();
+    expect(normalizeUsersFindManySearch(undefined)).toBeUndefined();
     expect(normalizeUsersFindManySearch(' '.repeat(3))).toBeUndefined();
     expect(normalizeUsersFindManySearch(' alice@example.com ')).toBe(
       '%alice@example.com%',
@@ -197,8 +353,14 @@ describe('userHandlers', () => {
           roleIds: ['role-1'],
           userId: 'user-2',
         },
-        { headers: createUserHandlerHeaders() } as never,
-      ).pipe(Effect.flip);
+        userHandlerOptions(
+          UsersAssignRoles.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(),
+        Effect.provide(noDatabaseAccessLayer),
+        Effect.flip,
+      );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
     }),
@@ -206,32 +368,24 @@ describe('userHandlers', () => {
 
   it.effect('assignRoles rejects users outside the current tenant', () =>
     Effect.gen(function* () {
-      const database = {
-        transaction: (
-          callback: (tx: {
-            execute: () => Effect.Effect<void>;
-            select: ReturnType<typeof membershipLockSelect>;
-          }) => Effect.Effect<unknown>,
-        ) =>
-          callback({
-            execute: () => Effect.void,
-            select: membershipLockSelect(),
-          }),
-      };
+      const fixture = createUserDatabaseFixture({ membershipId: null });
 
       const error = yield* userHandlers['users.assignRoles'](
         {
           roleIds: ['role-1'],
           userId: 'user-2',
         },
-        {
-          headers: createUserHandlerHeaders({
+        userHandlerOptions(
+          UsersAssignRoles.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
             permissions: ['users:assignRoles'],
           }),
-        } as never,
-      ).pipe(
+        ),
         Effect.flip,
-        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        Effect.provide(fixture.databaseLayer),
       );
 
       expect(error['_tag']).toBe('UserRoleAssignmentNotFoundError');
@@ -241,42 +395,27 @@ describe('userHandlers', () => {
 
   it.effect('assignRoles rejects roles outside the current tenant', () =>
     Effect.gen(function* () {
-      const database = {
-        transaction: (
-          callback: (tx: {
-            execute: () => Effect.Effect<void>;
-            query: {
-              roles: {
-                findMany: () => Effect.Effect<{ id: string }[]>;
-              };
-            };
-            select: ReturnType<typeof membershipLockSelect>;
-          }) => Effect.Effect<unknown>,
-        ) =>
-          callback({
-            execute: () => Effect.void,
-            query: {
-              roles: {
-                findMany: () => Effect.succeed([{ id: 'role-1' }]),
-              },
-            },
-            select: membershipLockSelect('membership-2'),
-          }),
-      };
+      const fixture = createUserDatabaseFixture({
+        membershipId: 'membership-2',
+        roleIds: ['role-1'],
+      });
 
       const error = yield* userHandlers['users.assignRoles'](
         {
           roleIds: ['role-1', 'role-missing'],
           userId: 'user-2',
         },
-        {
-          headers: createUserHandlerHeaders({
+        userHandlerOptions(
+          UsersAssignRoles.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
             permissions: ['users:assignRoles'],
           }),
-        } as never,
-      ).pipe(
+        ),
         Effect.flip,
-        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        Effect.provide(fixture.databaseLayer),
       );
 
       expect(error['_tag']).toBe('UserRoleAssignmentNotFoundError');
@@ -288,42 +427,32 @@ describe('userHandlers', () => {
     'assignRoles prevents removing all of the current users own roles',
     () =>
       Effect.gen(function* () {
-        const deleteRoles = vi.fn(() => ({
-          where: () => Effect.void,
-        }));
-        const database = {
-          transaction: (
-            callback: (tx: {
-              delete: typeof deleteRoles;
-              execute: () => Effect.Effect<void>;
-              select: ReturnType<typeof membershipLockSelect>;
-            }) => Effect.Effect<unknown>,
-          ) =>
-            callback({
-              delete: deleteRoles,
-              execute: () => Effect.void,
-              select: membershipLockSelect('membership-1'),
-            }),
-        };
+        const fixture = createUserDatabaseFixture({
+          membershipId: 'membership-1',
+        });
 
         const error = yield* userHandlers['users.assignRoles'](
           {
             roleIds: [],
             userId: 'user-1',
           },
-          {
-            headers: createUserHandlerHeaders({
+          userHandlerOptions(
+            UsersAssignRoles.middleware(RpcRequestContextMiddleware),
+          ),
+        ).pipe(
+          provideUserHandlerContext(
+            createUserHandlerContext({
               permissions: ['users:assignRoles'],
             }),
-          } as never,
-        ).pipe(
+          ),
           Effect.flip,
-          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provide(fixture.databaseLayer),
         );
 
         expect(error['_tag']).toBe('UserSelfRoleRemovalError');
         expect(error.message).toBe('You cannot remove all of your own roles');
-        expect(deleteRoles).not.toHaveBeenCalled();
+        expect(fixture.deleteWhere).not.toHaveBeenCalled();
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
       }),
   );
 
@@ -331,81 +460,66 @@ describe('userHandlers', () => {
     'assignRoles allows full tenant-admin self-assignment transactionally',
     () =>
       Effect.gen(function* () {
-        const deleteWhere = vi.fn(() => Effect.void);
-        const insertValues = vi.fn(() => Effect.void);
-        const database = {
-          transaction: (
-            callback: (tx: {
-              delete: (table: unknown) => {
-                where: typeof deleteWhere;
-              };
-              execute: () => Effect.Effect<void>;
-              insert: (table: unknown) => {
-                values: typeof insertValues;
-              };
-              query: {
-                roles: {
-                  findMany: () => Effect.Effect<{ id: string }[]>;
-                };
-              };
-              select: ReturnType<typeof membershipLockSelect>;
-            }) => Effect.Effect<unknown>,
-          ) =>
-            callback({
-              delete: (table) => {
-                expect(table).toBe(rolesToTenantUsers);
-                return { where: deleteWhere };
-              },
-              execute: () => Effect.void,
-              insert: (table) => {
-                expect(table).toBe(rolesToTenantUsers);
-                return { values: insertValues };
-              },
-              query: {
-                roles: {
-                  findMany: () =>
-                    Effect.succeed([{ id: 'role-1' }, { id: 'role-2' }]),
-                },
-              },
-              select: membershipLockSelect('membership-2'),
-            }),
-        };
+        const fixture = createUserDatabaseFixture({
+          allowRoleChanges: true,
+          membershipId: 'membership-2',
+          roleIds: ['role-1', 'role-2'],
+        });
 
         yield* userHandlers['users.assignRoles'](
           {
             roleIds: ['role-1', 'role-2', 'role-1'],
             userId: 'user-1',
           },
-          {
-            headers: createUserHandlerHeaders({
+          userHandlerOptions(
+            UsersAssignRoles.middleware(RpcRequestContextMiddleware),
+          ),
+        ).pipe(
+          provideUserHandlerContext(
+            createUserHandlerContext({
               permissions: ['users:assignRoles'],
             }),
-          } as never,
-        ).pipe(
-          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          ),
+          Effect.provide(fixture.databaseLayer),
         );
 
-        expect(deleteWhere).toHaveBeenCalledOnce();
-        expect(insertValues).toHaveBeenCalledWith([
-          {
-            roleId: 'role-1',
-            tenantId: 'tenant-1',
-            userTenantId: 'membership-2',
-          },
-          {
-            roleId: 'role-2',
-            tenantId: 'tenant-1',
-            userTenantId: 'membership-2',
-          },
-        ]);
+        expect(fixture.deleteWhere).toHaveBeenCalledOnce();
+        expect(fixture.deleteWhere).toHaveBeenCalledWith(
+          expect.stringContaining('delete from "roles_to_tenant_users"'),
+          ['tenant-1', 'membership-2'],
+        );
+        expect(fixture.insertValues).toHaveBeenCalledWith(
+          expect.stringContaining('insert into "roles_to_tenant_users"'),
+          [
+            'role-1',
+            'tenant-1',
+            'membership-2',
+            'role-2',
+            'tenant-1',
+            'membership-2',
+          ],
+        );
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
       }),
   );
 
   it.effect('canUseScanner returns false for anonymous users', () =>
     Effect.gen(function* () {
-      const result = yield* userHandlers['users.canUseScanner'](undefined, {
-        headers: {},
-      } as never);
+      const result = yield* userHandlers['users.canUseScanner'](
+        undefined,
+        userHandlerOptions(
+          UsersCanUseScanner.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            authenticated: false,
+            user: null,
+            userAssigned: false,
+          }),
+        ),
+        Effect.provide(noDatabaseAccessLayer),
+      );
 
       expect(result).toBe(false);
     }),
@@ -415,11 +529,19 @@ describe('userHandlers', () => {
     'canUseScanner allows tenant-wide event organizers without a query',
     () =>
       Effect.gen(function* () {
-        const result = yield* userHandlers['users.canUseScanner'](undefined, {
-          headers: createUserHandlerHeaders({
-            permissions: ['events:organizeAll'],
-          }),
-        } as never);
+        const result = yield* userHandlers['users.canUseScanner'](
+          undefined,
+          userHandlerOptions(
+            UsersCanUseScanner.middleware(RpcRequestContextMiddleware),
+          ),
+        ).pipe(
+          provideUserHandlerContext(
+            createUserHandlerContext({
+              permissions: ['events:organizeAll'],
+            }),
+          ),
+          Effect.provide(noDatabaseAccessLayer),
+        );
 
         expect(result).toBe(true);
       }),
@@ -429,29 +551,26 @@ describe('userHandlers', () => {
     'canUseScanner allows users with an organizing registration today',
     () =>
       Effect.gen(function* () {
-        const limit = vi.fn(() => Effect.succeed([{ id: 'registration-1' }]));
-        const database = {
-          select: () => ({
-            from: () => ({
-              innerJoin: () => ({
-                innerJoin: () => ({
-                  where: () => ({
-                    limit,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        };
+        const fixture = createUserDatabaseFixture({
+          scannerRegistrationIds: ['registration-1'],
+        });
 
-        const result = yield* userHandlers['users.canUseScanner'](undefined, {
-          headers: createUserHandlerHeaders(),
-        } as never).pipe(
-          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        const result = yield* userHandlers['users.canUseScanner'](
+          undefined,
+          userHandlerOptions(
+            UsersCanUseScanner.middleware(RpcRequestContextMiddleware),
+          ),
+        ).pipe(
+          provideUserHandlerContext(),
+          Effect.provide(fixture.databaseLayer),
         );
 
         expect(result).toBe(true);
-        expect(limit).toHaveBeenCalledWith(1);
+        expect(fixture.executeValues).toHaveBeenCalledOnce();
+        expect(fixture.executeValues.mock.calls[0]?.[0]).toMatch(
+          /limit \$\d+$/u,
+        );
+        expect(fixture.executeValues.mock.calls[0]?.[1].at(-1)).toBe(1);
       }),
   );
 
@@ -459,29 +578,26 @@ describe('userHandlers', () => {
     'canUseScanner rejects users without an organizing registration today',
     () =>
       Effect.gen(function* () {
-        const limit = vi.fn(() => Effect.succeed([]));
-        const database = {
-          select: () => ({
-            from: () => ({
-              innerJoin: () => ({
-                innerJoin: () => ({
-                  where: () => ({
-                    limit,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        };
+        const fixture = createUserDatabaseFixture({
+          scannerRegistrationIds: [],
+        });
 
-        const result = yield* userHandlers['users.canUseScanner'](undefined, {
-          headers: createUserHandlerHeaders(),
-        } as never).pipe(
-          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        const result = yield* userHandlers['users.canUseScanner'](
+          undefined,
+          userHandlerOptions(
+            UsersCanUseScanner.middleware(RpcRequestContextMiddleware),
+          ),
+        ).pipe(
+          provideUserHandlerContext(),
+          Effect.provide(fixture.databaseLayer),
         );
 
         expect(result).toBe(false);
-        expect(limit).toHaveBeenCalledWith(1);
+        expect(fixture.executeValues).toHaveBeenCalledOnce();
+        expect(fixture.executeValues.mock.calls[0]?.[0]).toMatch(
+          /limit \$\d+$/u,
+        );
+        expect(fixture.executeValues.mock.calls[0]?.[1].at(-1)).toBe(1);
       }),
   );
 
@@ -489,11 +605,6 @@ describe('userHandlers', () => {
     Effect.gen(function* () {
       const tenant = createTenant();
       const user = createUser();
-      const headers = {
-        [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-        [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-        [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-      };
       const findRegistrations = vi.fn(() =>
         Effect.succeed([
           {
@@ -682,11 +793,19 @@ describe('userHandlers', () => {
       };
 
       const result = yield* userHandlers['users.events'](
-        undefined as never,
-        {
-          headers,
-        } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
+        undefined,
+        userHandlerOptions(
+          UsersEventsFindMany.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            tenant,
+            user,
+          }),
+        ),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+      );
 
       expect(findRegistrations).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -822,11 +941,6 @@ describe('userHandlers', () => {
       Effect.gen(function* () {
         const tenant = createTenant();
         const user = createUser();
-        const headers = {
-          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-          [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-          [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-        };
         const mockDatabase = {
           query: {
             eventRegistrations: {
@@ -854,11 +968,17 @@ describe('userHandlers', () => {
         };
 
         const exit = yield* userHandlers['users.events'](
-          undefined as never,
-          {
-            headers,
-          } as never,
+          undefined,
+          userHandlerOptions(
+            UsersEventsFindMany.middleware(RpcRequestContextMiddleware),
+          ),
         ).pipe(
+          provideUserHandlerContext(
+            createUserHandlerContext({
+              tenant,
+              user,
+            }),
+          ),
           Effect.provide(Layer.succeed(Database, mockDatabase as never)),
           Effect.exit,
         );
@@ -881,13 +1001,6 @@ describe('userHandlers', () => {
     () =>
       Effect.gen(function* () {
         const tenant = createTenant();
-        const headers = {
-          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-          [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-            'users:viewAll',
-          ]),
-          [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-        };
         const select = vi
           .fn()
           .mockImplementationOnce(() => ({
@@ -960,8 +1073,18 @@ describe('userHandlers', () => {
             offset: 0,
             search: 'Alice',
           },
-          { headers } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
+          userHandlerOptions(
+            UsersFindMany.middleware(RpcRequestContextMiddleware),
+          ),
+        ).pipe(
+          provideUserHandlerContext(
+            createUserHandlerContext({
+              permissions: ['users:viewAll'],
+              tenant,
+            }),
+          ),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        );
 
         expect(result.usersCount).toBe(2);
         expect(result.users).toEqual([
@@ -996,10 +1119,6 @@ describe('userHandlers', () => {
   it.effect('updateProfile updates notification and payout fields', () =>
     Effect.gen(function* () {
       const user = createUser();
-      const headers = {
-        [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-        [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-      };
       const updateSet = vi.fn((_value: unknown) => ({
         where: vi.fn(() => Effect.void),
       }));
@@ -1017,8 +1136,17 @@ describe('userHandlers', () => {
           lastName: 'Updated',
           paypalEmail: 'paypal@example.com',
         },
-        { headers } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
+        userHandlerOptions(
+          UsersUpdateProfile.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            user,
+          }),
+        ),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+      );
 
       expect(mockDatabase.update).toHaveBeenCalledWith(users);
       expect(updateSet).toHaveBeenCalledWith({
@@ -1031,32 +1159,54 @@ describe('userHandlers', () => {
     }),
   );
 
-  it.effect('userAssigned reflects the current tenant assignment header', () =>
+  it.effect('userAssigned reflects the current tenant assignment context', () =>
     Effect.gen(function* () {
-      const assigned = yield* userHandlers['users.userAssigned'](undefined, {
-        headers: {
-          [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'true',
-        },
-      } as never);
+      const assigned = yield* userHandlers['users.userAssigned'](
+        undefined,
+        userHandlerOptions(
+          UsersUserAssigned.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            userAssigned: true,
+          }),
+        ),
+      );
       expect(assigned).toBe(true);
 
-      const unassigned = yield* userHandlers['users.userAssigned'](undefined, {
-        headers: {
-          [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'false',
-        },
-      } as never);
+      const unassigned = yield* userHandlers['users.userAssigned'](
+        undefined,
+        userHandlerOptions(
+          UsersUserAssigned.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            userAssigned: false,
+          }),
+        ),
+      );
       expect(unassigned).toBe(false);
     }),
   );
 
-  it.effect(
-    'userAssigned fails closed when the assignment header is absent',
-    () =>
-      Effect.gen(function* () {
-        const assigned = yield* userHandlers['users.userAssigned'](undefined, {
-          headers: {},
-        } as never);
-        expect(assigned).toBe(false);
-      }),
+  it.effect('userAssigned returns false for a trusted unassigned context', () =>
+    Effect.gen(function* () {
+      const assigned = yield* userHandlers['users.userAssigned'](
+        undefined,
+        userHandlerOptions(
+          UsersUserAssigned.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        provideUserHandlerContext(
+          createUserHandlerContext({
+            user: null,
+            userAssigned: false,
+          }),
+        ),
+      );
+      expect(assigned).toBe(false);
+    }),
   );
 });

@@ -27,6 +27,9 @@ const normalizePermissions = (permissions: readonly Permission[]) =>
     permissions.flatMap((permission) => expandPermissionAliases(permission)),
   );
 
+const normalizedRequestHost =
+  /^(?:[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?|\[[0-9a-f:]+\])(?::[0-9]{1,5})?$/u;
+
 export const resolvePlatformAuthority = (
   oidcUser: unknown,
 ): PlatformAdministratorAuthority | undefined => {
@@ -77,31 +80,75 @@ const resolveHostHeader = (
   input: readonly string[] | string | undefined,
 ): string | undefined => {
   if (typeof input === 'string') return input;
-  if (Array.isArray(input)) return input[0];
+  if (Array.isArray(input) && input.length === 1) return input[0];
   return;
 };
 
-const toHostDomain = (
+const toNormalizedHostDomain = (
   protocol: string,
   requestHost: readonly string[] | string | undefined,
 ): string | undefined => {
   const host = resolveHostHeader(requestHost);
-  if (!host) {
+  if (
+    (protocol !== 'http' && protocol !== 'https') ||
+    !host ||
+    host.trim() !== host ||
+    !normalizedRequestHost.test(host) ||
+    host.includes('..')
+  ) {
     return;
   }
 
   try {
-    return new URL(`${protocol}://${host}`).hostname;
+    const url = new URL(`${protocol}://${host}`);
+    if (
+      url.host !== host ||
+      url.username !== '' ||
+      url.password !== '' ||
+      url.pathname !== '/' ||
+      url.search !== '' ||
+      url.hash !== '' ||
+      url.hostname.endsWith('.')
+    ) {
+      return;
+    }
+
+    return url.hostname;
   } catch {
     return;
   }
 };
 
-const isLocalRequestHost = (domain: string): boolean =>
-  domain === 'localhost' ||
-  domain === '127.0.0.1' ||
-  domain === '::1' ||
-  domain === '[::1]';
+const toNormalizedTenantDomain = (domain: string): string | undefined => {
+  if (
+    domain.trim() !== domain ||
+    !normalizedRequestHost.test(domain) ||
+    domain.includes('..')
+  ) {
+    return;
+  }
+
+  try {
+    const url = new URL(`https://${domain}`);
+    if (
+      url.host !== domain ||
+      url.hostname !== domain ||
+      url.port !== '' ||
+      url.username !== '' ||
+      url.password !== '' ||
+      url.pathname !== '/' ||
+      url.search !== '' ||
+      url.hash !== '' ||
+      url.hostname.endsWith('.')
+    ) {
+      return;
+    }
+
+    return url.hostname;
+  } catch {
+    return;
+  }
+};
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
@@ -120,43 +167,37 @@ export const resolveAuthenticationContext = (input: {
   isAuthenticated: input.isAuthenticated,
 });
 
+export const resolveExplicitTenantDomain = (input: {
+  applicationEnvironment: 'local' | 'production' | 'staging';
+  localTestTenantDomain: string | undefined;
+  trustedTenantDomain: string | undefined;
+}): string | undefined =>
+  input.trustedTenantDomain ??
+  (input.applicationEnvironment === 'local'
+    ? input.localTestTenantDomain
+    : undefined);
+
 export const resolveTenantContext = (input: {
-  cookies: Record<string, unknown> | undefined;
   protocol: string;
   requestHost: readonly string[] | string | undefined;
+  routedTenantDomain?: string | undefined;
 }) =>
   Effect.gen(function* () {
-    // Resolution order:
-    // 1) request host header
-    // 2) plain tenant cookie fallback
-    // Host-first prevents client-controlled cookies from overriding a valid host
-    // tenant, while still supporting local/dev fallback when host resolution
-    // does not map to a tenant.
-    const cause = { domain: '', tenantCookie: '' };
-    let tenantRecord: unknown;
-    const hostDomain = toHostDomain(input.protocol, input.requestHost);
-    const tenantCookie = asString(input.cookies?.['evorto-tenant']);
-
-    if (hostDomain) {
-      cause.domain = hostDomain;
-    }
-    if (tenantCookie) {
-      cause.tenantCookie = tenantCookie;
+    const domain =
+      input.routedTenantDomain === undefined
+        ? toNormalizedHostDomain(input.protocol, input.requestHost)
+        : toNormalizedTenantDomain(input.routedTenantDomain);
+    if (!domain) {
+      return {
+        cause: { domain: '' },
+        tenant: undefined,
+      };
     }
 
-    if (hostDomain && isLocalRequestHost(hostDomain) && tenantCookie) {
-      tenantRecord = yield* findTenantByDomain(tenantCookie);
-      if (!tenantRecord) {
-        tenantRecord = yield* findTenantByDomain(hostDomain);
-      }
-    } else if (hostDomain) {
-      tenantRecord = yield* findTenantByDomain(hostDomain);
-    } else if (tenantCookie) {
-      tenantRecord = yield* findTenantByDomain(tenantCookie);
-    }
+    const tenantRecord = yield* findTenantByDomain(domain);
 
     return {
-      cause,
+      cause: { domain },
       tenant: tenantRecord
         ? Schema.decodeUnknownSync(Tenant)(tenantRecord)
         : undefined,
@@ -269,7 +310,6 @@ export const resolveUserContext = (
 export interface TenantContextResolution {
   cause: {
     domain: string;
-    tenantCookie: string;
   };
   tenant: Tenant | undefined;
 }

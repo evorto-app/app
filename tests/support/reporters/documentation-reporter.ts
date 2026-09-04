@@ -65,7 +65,9 @@ class DocumentationReporter implements Reporter {
     console.log(`[docs-reporter] docsRoot=${docs} imagesRoot=${images}`);
   }
 
-  onEnd(result: FullResult) {
+  async onEnd(
+    result: FullResult,
+  ): Promise<void | { status: FullResult['status'] }> {
     if (this.listOnly) {
       return;
     }
@@ -80,7 +82,7 @@ class DocumentationReporter implements Reporter {
       console.error(
         `[docs-reporter] ${incompleteDocuments.length} selected documentation group(s) produced no product documentation: ${incompleteDocuments.map((doc) => doc.filePath ?? doc.folderName).join(', ')}`,
       );
-      return { status: 'failed' as const };
+      return { status: 'failed' };
     }
 
     for (const doc of documents) {
@@ -112,6 +114,7 @@ class DocumentationReporter implements Reporter {
       );
       writeFile(path.join(pageDir, 'page.md'), pageLines.join('\n'));
     }
+    return undefined;
   }
 
   onTestBegin(test: TestCase, result: TestResult) {}

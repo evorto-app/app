@@ -22,6 +22,7 @@ import {
   InvalidAuthSessionError,
   isAuthenticated,
   loadAuthSession,
+  resolveRequestOrigin,
   runAuth0SdkOperation,
   shouldSecureAuthCookies,
   toAuthSession,
@@ -67,6 +68,11 @@ const clientOptions = (secureCookies: boolean) =>
     secret: 's'.repeat(32),
     secureCookies,
   });
+
+const requestWithHeaders = (headers: HeadersInit) =>
+  HttpServerRequest.fromWeb(
+    new Request('https://request.invalid/login', { headers }),
+  );
 
 describe('Auth0 application sessions', () => {
   it.effect(
@@ -256,6 +262,59 @@ describe('Auth0 application sessions', () => {
         type: 'set',
       }),
     );
+  });
+
+  it('uses only the normalized request protocol and required Host', () => {
+    expect(
+      resolveRequestOrigin(
+        requestWithHeaders({
+          host: 'tenant.example.test',
+          'x-forwarded-proto': 'https',
+        }),
+      ),
+    ).toEqual({
+      isSecure: true,
+      origin: 'https://tenant.example.test',
+      protocol: 'https',
+    });
+    expect(
+      resolveRequestOrigin(
+        requestWithHeaders({
+          host: 'localhost:4100',
+          'x-forwarded-proto': 'http',
+        }),
+      ),
+    ).toEqual({
+      isSecure: false,
+      origin: 'http://localhost:4100',
+      protocol: 'http',
+    });
+  });
+
+  it('fails visibly without normalized origin headers', () => {
+    expect(() =>
+      resolveRequestOrigin(
+        requestWithHeaders({
+          host: 'tenant.example.test',
+          'x-forwarded-protocol': 'https',
+        }),
+      ),
+    ).toThrow('Normalized request protocol is missing or invalid');
+    expect(() =>
+      resolveRequestOrigin(
+        requestWithHeaders({
+          'x-forwarded-proto': 'https',
+        }),
+      ),
+    ).toThrow('Normalized request Host is missing');
+    expect(() =>
+      resolveRequestOrigin(
+        requestWithHeaders({
+          host: 'tenant.example.test',
+          'x-forwarded-proto': 'ftp',
+        }),
+      ),
+    ).toThrow('Normalized request protocol is missing or invalid');
   });
 
   it('keeps an absent SDK session explicit and surfaces every rejected SDK operation', async () => {

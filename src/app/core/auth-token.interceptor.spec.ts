@@ -11,6 +11,11 @@ import { PLATFORM_ID, REQUEST, REQUEST_CONTEXT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import {
+  trustedSsrSourceHeader,
+  trustedSsrSourceValue,
+  trustedTenantDomainHeader,
+} from '../../shared/request-routing';
 import { authTokenInterceptor } from './auth-token.interceptor';
 import { resolveServerRpcOrigin } from './effect-rpc-angular-client';
 
@@ -20,12 +25,6 @@ const sessionCookies = [
   'evorto-tenant=stale.example.com',
   'appSession.1=chunk-one',
 ].join('; ');
-const trustedSessionCookies = [
-  'appSession.0=chunk-zero',
-  'appSession.1=chunk-one',
-  `evorto-tenant=${trustedTenantDomain}`,
-].join('; ');
-
 class ServerRequest extends Request {
   override readonly headers: Headers;
   override readonly url: string;
@@ -103,7 +102,7 @@ describe('authTokenInterceptor', () => {
   });
 
   it.each(['/rpc', '/rpc/'])(
-    'forwards every Auth0 session chunk with a trusted tenant cookie to the configured internal SSR request at %s',
+    'forwards the session and explicit trusted tenant route to internal SSR at %s',
     (path) => {
       process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
       const { http, httpTesting } = configureServerHttp();
@@ -112,20 +111,19 @@ describe('authTokenInterceptor', () => {
       http.post(rpcUrl, {}).subscribe();
 
       const rpcRequest = httpTesting.expectOne(rpcUrl);
-      expect(rpcRequest.request.headers.get('Cookie')).toBe(
-        trustedSessionCookies,
+      expect(rpcRequest.request.headers.get('Cookie')).toBe(sessionCookies);
+      expect(rpcRequest.request.headers.get(trustedSsrSourceHeader)).toBe(
+        trustedSsrSourceValue,
       );
-      expect(rpcRequest.request.headers.get('Cookie')).not.toContain(
-        'stale.example.com',
+      expect(rpcRequest.request.headers.get(trustedTenantDomainHeader)).toBe(
+        trustedTenantDomain,
       );
-      expect(rpcRequest.request.headers.get('x-forwarded-from')).toBe('ssr');
-      expect(rpcRequest.request.headers.get('x-tenant-id')).toBe('tenant-1');
       rpcRequest.flush({});
       httpTesting.verify();
     },
   );
 
-  it('adds the trusted tenant cookie to an internal SSR RPC request without incoming cookies', () => {
+  it('routes anonymous internal SSR without inventing a tenant cookie', () => {
     process.env['SSR_RPC_ORIGIN'] = 'http://127.0.0.1:4200';
     const anonymousRequest = new ServerRequest(
       'https://tenant.example.com/events',
@@ -137,11 +135,13 @@ describe('authTokenInterceptor', () => {
     http.post(rpcUrl, {}).subscribe();
 
     const rpcRequest = httpTesting.expectOne(rpcUrl);
-    expect(rpcRequest.request.headers.get('Cookie')).toBe(
-      `evorto-tenant=${trustedTenantDomain}`,
+    expect(rpcRequest.request.headers.has('Cookie')).toBe(false);
+    expect(rpcRequest.request.headers.get(trustedSsrSourceHeader)).toBe(
+      trustedSsrSourceValue,
     );
-    expect(rpcRequest.request.headers.get('x-forwarded-from')).toBe('ssr');
-    expect(rpcRequest.request.headers.get('x-tenant-id')).toBe('tenant-1');
+    expect(rpcRequest.request.headers.get(trustedTenantDomainHeader)).toBe(
+      trustedTenantDomain,
+    );
     rpcRequest.flush({});
     httpTesting.verify();
   });
@@ -169,8 +169,12 @@ describe('authTokenInterceptor', () => {
 
       const rpcRequest = httpTesting.expectOne(outgoingUrl);
       expect(rpcRequest.request.headers.has('Cookie')).toBe(false);
-      expect(rpcRequest.request.headers.has('x-forwarded-from')).toBe(false);
-      expect(rpcRequest.request.headers.has('x-tenant-id')).toBe(false);
+      expect(rpcRequest.request.headers.has(trustedSsrSourceHeader)).toBe(
+        false,
+      );
+      expect(rpcRequest.request.headers.has(trustedTenantDomainHeader)).toBe(
+        false,
+      );
       rpcRequest.flush({});
       httpTesting.verify();
     },
