@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "eb8e77a123fc",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "helpers/testing/docker-stack.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/eb/8e77a123fc/0/metadata.json",
+      "transcript": "/eb/8e77a123fc/0/full.jsonl",
+      "content_hash": "/eb/8e77a123fc/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 329092,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 20703360,
+    "output_tokens": 59523,
+    "api_call_count": 193
+  }
+}
