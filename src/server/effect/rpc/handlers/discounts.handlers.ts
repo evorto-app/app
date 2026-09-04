@@ -5,6 +5,7 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import {
+  DiscountCardChangedError,
   DiscountCardConflictError,
   DiscountCardNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
@@ -16,15 +17,15 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { userDiscountCards } from '../../../../db/schema';
-import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
   Adapters,
+  PROVIDER_TYPES,
   type ProviderAdapter,
-  PROVIDERS,
   type ProviderType,
   ProviderValidationUnavailableError,
   type ValidationResult,
 } from '../../../discounts/providers';
+import { safeServerErrorSummary } from '../../../utils/safe-server-error-summary';
 import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
@@ -47,36 +48,53 @@ const normalizeUserDiscountCardRecord = (
 
 const validateDiscountCard = ({
   adapter,
-  config,
+  failureMessage,
   identifier,
 }: {
-  adapter: ProviderAdapter<unknown>;
-  config: unknown;
+  adapter: ProviderAdapter;
+  failureMessage: string;
   identifier: string;
 }): Effect.Effect<
   ValidationResult,
   RpcBadRequestError | RpcInternalServerError
 > =>
-  Effect.tryPromise({
-    catch: (cause) => {
-      if (cause instanceof ProviderValidationUnavailableError) {
-        return new RpcBadRequestError({
-          message: 'Could not validate ESN card right now. Try again later.',
-          reason: `provider-${cause.reason}`,
-        });
-      }
-
-      return new RpcInternalServerError({
-        cause,
-        message: 'Discount card validation failed unexpectedly',
-      });
-    },
-    try: () =>
+  Effect.tryPromise<ValidationResult, unknown>({
+    catch: (cause) => cause,
+    try: (): Promise<ValidationResult> =>
       adapter.validate({
-        config,
         identifier,
       }),
-  });
+  }).pipe(
+    Effect.catch(
+      (
+        error,
+      ): Effect.Effect<never, RpcBadRequestError | RpcInternalServerError> => {
+        if (error instanceof ProviderValidationUnavailableError) {
+          return Effect.fail(
+            new RpcBadRequestError({
+              message: failureMessage,
+              reason: `provider-${error.reason}`,
+            }),
+          );
+        }
+
+        return Effect.logError(
+          'Discount card validation failed unexpectedly',
+        ).pipe(
+          Effect.annotateLogs(
+            safeServerErrorSummary('discountCard.validate', error),
+          ),
+          Effect.andThen(
+            Effect.fail(
+              new RpcInternalServerError({
+                message: failureMessage,
+              }),
+            ),
+          ),
+        );
+      },
+    ),
+  );
 
 export const discountHandlers = {
   'discounts.deleteMyCard': (input, _options) =>
@@ -143,8 +161,8 @@ export const discountHandlers = {
         resolvedTenant.discountProviders,
       );
 
-      return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
-        config: normalizeEsnCardConfig(config[type].config),
+      return PROVIDER_TYPES.map((type: ProviderType) => ({
+        config: config[type].config,
         status: config[type].status,
         type,
       }));
@@ -176,9 +194,12 @@ export const discountHandlers = {
         tenantRecord.discountProviders,
       );
       const provider = providers[input.type];
-      if (!provider || provider.status !== 'enabled') {
+      if (provider.status !== 'enabled') {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message:
+              'ESNcard discounts are not available for this organization.',
+          }),
         );
       }
 
@@ -200,18 +221,18 @@ export const discountHandlers = {
       );
       if (!card) {
         return yield* Effect.fail(
-          new DiscountCardNotFoundError({ message: 'Discount card not found' }),
+          new DiscountCardNotFoundError({
+            message:
+              'This ESNcard is no longer saved. No card was changed. Add it again if you still use it.',
+          }),
         );
       }
 
       const adapter = Adapters[input.type];
-      if (!adapter) {
-        return normalizeUserDiscountCardRecord(card);
-      }
-
       const result = yield* validateDiscountCard({
         adapter,
-        config: provider.config,
+        failureMessage:
+          'We could not check this ESNcard, so it was not changed. Select Check again to try once more.',
         identifier: card.identifier,
       });
       const updatedCards = yield* databaseEffect((database) =>
@@ -224,7 +245,15 @@ export const discountHandlers = {
             validFrom: result.validFrom ?? undefined,
             validTo: result.validTo ?? undefined,
           })
-          .where(eq(userDiscountCards.id, card.id))
+          .where(
+            and(
+              eq(userDiscountCards.id, card.id),
+              eq(userDiscountCards.tenantId, tenant.id),
+              eq(userDiscountCards.userId, user.id),
+              eq(userDiscountCards.type, input.type),
+              eq(userDiscountCards.identifier, card.identifier),
+            ),
+          )
           .returning({
             id: userDiscountCards.id,
             identifier: userDiscountCards.identifier,
@@ -236,8 +265,9 @@ export const discountHandlers = {
       const updatedCard = updatedCards[0];
       if (!updatedCard) {
         return yield* Effect.fail(
-          new RpcInternalServerError({
-            message: 'Discount card update returned no rows',
+          new DiscountCardChangedError({
+            message:
+              'Your saved ESNcard changed or was removed while it was being checked. Review your current card and try again.',
           }),
         );
       }
@@ -271,9 +301,12 @@ export const discountHandlers = {
         tenantRecord.discountProviders,
       );
       const provider = providers[input.type];
-      if (!provider || provider.status !== 'enabled') {
+      if (provider.status !== 'enabled') {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message:
+              'ESNcard discounts are not available for this organization.',
+          }),
         );
       }
 
@@ -292,7 +325,8 @@ export const discountHandlers = {
       if (existingIdentifier && existingIdentifier.userId !== user.id) {
         return yield* Effect.fail(
           new DiscountCardConflictError({
-            message: 'Discount card identifier already exists',
+            message:
+              'This ESNcard is already linked to another account in this organization.',
           }),
         );
       }
@@ -315,23 +349,19 @@ export const discountHandlers = {
       );
 
       const adapter = Adapters[input.type];
-      const validationResult = adapter
-        ? yield* validateDiscountCard({
-            adapter,
-            config: provider.config,
-            identifier: input.identifier,
-          })
-        : null;
-      const validatedCardFields =
-        validationResult === null
-          ? {}
-          : {
-              lastCheckedAt: new Date(),
-              metadata: validationResult.metadata,
-              status: validationResult.status,
-              validFrom: validationResult.validFrom ?? undefined,
-              validTo: validationResult.validTo ?? undefined,
-            };
+      const validationResult = yield* validateDiscountCard({
+        adapter,
+        failureMessage:
+          'We could not check this ESNcard, so it was not saved or changed. Select Save ESNcard to try once more.',
+        identifier: input.identifier,
+      });
+      const validatedCardFields = {
+        lastCheckedAt: new Date(),
+        metadata: validationResult.metadata,
+        status: validationResult.status,
+        validFrom: validationResult.validFrom ?? undefined,
+        validTo: validationResult.validTo ?? undefined,
+      };
       const upsertedCards = existingCard
         ? yield* databaseEffect((database) =>
             database

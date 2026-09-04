@@ -1,16 +1,22 @@
 import type { DiscountsCardMutationError } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
+import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 
+import * as PgClient from '@effect/sql-pg/PgClient';
 import { expect, layer, vi } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import {
   RpcBadRequestError,
+  RpcForbiddenError,
+  RpcInternalServerError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
-import { Cause, Effect, Exit, Layer, Schema } from 'effect';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
+import { Cause, Effect, Exit, Layer, Result, Schema, Stream } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
 import { Database } from '../../../../db';
+import { relations } from '../../../../db/relations';
 import { userDiscountCards } from '../../../../db/schema';
 import {
   RpcRequestContext,
@@ -22,7 +28,9 @@ import { Tenant } from '../../../../types/custom/tenant';
 import { User } from '../../../../types/custom/user';
 import {
   Adapters,
+  type ProviderAdapter,
   ProviderValidationUnavailableError,
+  type ValidationResult,
 } from '../../../discounts/providers';
 import { discountHandlers } from './discounts.handlers';
 import { RpcAccess } from './shared/rpc-access.service';
@@ -30,12 +38,12 @@ import { RpcAccess } from './shared/rpc-access.service';
 const createTenant = (id = 'tenant-1') =>
   Schema.decodeUnknownSync(Tenant)({
     cancellationDeadlineHoursBeforeStart: 120,
-    currency: 'EUR' as const,
+    currency: 'EUR',
     defaultLocation: null,
     discountProviders: {
       esnCard: {
         config: {},
-        status: 'enabled' as const,
+        status: 'enabled',
       },
     },
     domain: `${id}.example.com`,
@@ -48,7 +56,7 @@ const createTenant = (id = 'tenant-1') =>
     },
     refundFeesOnCancellation: true,
     stripeAccountId: null,
-    theme: 'evorto' as const,
+    theme: 'evorto',
     timezone: 'Europe/Amsterdam',
     transferDeadlineHoursBeforeStart: 0,
   });
@@ -63,7 +71,7 @@ const createUser = () =>
     id: 'user-1',
     lastName: 'Doe',
     paypalEmail: null,
-    permissions: [] as string[],
+    permissions: [],
     roleIds: [],
   });
 
@@ -88,6 +96,331 @@ const discountHandlerLayer = Layer.mergeAll(
   RpcAccess.Default,
   Layer.succeed(RpcRequestContext, discountRequestContext),
 );
+
+type StoredCard = Pick<
+  typeof userDiscountCards.$inferSelect,
+  | 'id'
+  | 'identifier'
+  | 'lastCheckedAt'
+  | 'metadata'
+  | 'status'
+  | 'tenantId'
+  | 'type'
+  | 'userId'
+  | 'validFrom'
+  | 'validTo'
+>;
+
+const createCard = (overrides: Partial<StoredCard> = {}): StoredCard => ({
+  id: 'card-1',
+  identifier: 'ESN-123',
+  lastCheckedAt: null,
+  metadata: { provider: 'saved' },
+  status: 'unverified',
+  tenantId: 'tenant-2',
+  type: 'esnCard',
+  userId: 'user-1',
+  validFrom: null,
+  validTo: null,
+  ...overrides,
+});
+
+const validFrom = new Date('2026-01-01T00:00:00.000Z');
+const validTo = new Date('2026-12-31T00:00:00.000Z');
+const verifiedResult = {
+  metadata: { provider: 'esncard' },
+  status: 'verified',
+  validFrom,
+  validTo,
+} satisfies ValidationResult;
+
+const tenantReadSql =
+  'select "d0"."discount_providers" as "discountProviders" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
+const cardProjectionSql =
+  'select "d0"."id" as "id", "d0"."identifier" as "identifier", "d0"."status" as "status", "d0"."type" as "type", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0"';
+const cardListSql = `${cardProjectionSql} where (("d0"."tenantId" = $1) and ("d0"."userId" = $2))`;
+const currentCardSql = `${cardProjectionSql} where (("d0"."tenantId" = $1) and ("d0"."type" = $2) and ("d0"."userId" = $3)) limit $4`;
+const identifierOwnerSql =
+  'select "d0"."userId" as "userId" from "user_discount_cards" as "d0" where (("d0"."identifier" = $1) and ("d0"."tenantId" = $2) and ("d0"."type" = $3)) limit $4';
+const cardReturningSql =
+  'returning "id", "identifier", "status", "type", "validTo"::text';
+const upsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "metadata" = $4, "status" = $5, "validFrom" = $6, "validTo" = $7 where "user_discount_cards"."id" = $8 ${cardReturningSql}`;
+const refreshUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "lastCheckedAt" = $2, "metadata" = $3, "status" = $4, "validFrom" = $5, "validTo" = $6 where (("user_discount_cards"."id" = $7) and ("user_discount_cards"."tenantId" = $8) and ("user_discount_cards"."userId" = $9) and ("user_discount_cards"."type" = $10) and ("user_discount_cards"."identifier" = $11)) ${cardReturningSql}`;
+const insertCardSql = `insert into "user_discount_cards" ("createdAt", "id", "updatedAt", "identifier", "lastCheckedAt", "metadata", "status", "tenantId", "type", "userId", "validFrom", "validTo") values (default, $1, default, $2, $3, $4, $5, $6, $7, $8, $9, $10) ${cardReturningSql}`;
+const deleteCardSql =
+  'delete from "user_discount_cards" where (("user_discount_cards"."tenantId" = $1) and ("user_discount_cards"."userId" = $2) and ("user_discount_cards"."type" = $3))';
+
+const decodeString = Schema.decodeUnknownSync(Schema.NonEmptyString);
+const decodeStatus = Schema.decodeUnknownSync(
+  Schema.Literals(['expired', 'verified']),
+);
+const decodeMetadata = Schema.decodeUnknownSync(
+  Schema.fromJsonString(Schema.Struct({ provider: Schema.String })),
+);
+const decodeTimestamp = (value: unknown): Date => {
+  const date = new Date(decodeString(value));
+  expect(Number.isNaN(date.getTime())).toBe(false);
+  return date;
+};
+const cardRow = (card: StoredCard) => [
+  card.id,
+  card.identifier,
+  card.status,
+  card.type,
+  card.validTo?.toISOString().replace('Z', '') ?? null,
+];
+
+const createDiscountDatabase = ({
+  initialCards = [],
+  providerStatus = 'enabled',
+}: {
+  initialCards?: StoredCard[];
+  providerStatus?: 'disabled' | 'enabled';
+} = {}) => {
+  let cards = initialCards.map((card) => ({ ...card }));
+  const operations: string[] = [];
+
+  const readTenantProviders = (parameters: readonly unknown[]) => {
+    operations.push('readTenantProviders');
+    expect(parameters).toEqual(['tenant-2', 1]);
+    return [[{ esnCard: { config: {}, status: providerStatus } }]];
+  };
+  const readCardList = (parameters: readonly unknown[]) => {
+    operations.push('readCardList');
+    expect(parameters).toEqual(['tenant-2', 'user-1']);
+    return cards
+      .filter(
+        (card) =>
+          card.tenantId === parameters[0] && card.userId === parameters[1],
+      )
+      .map((card) => cardRow(card));
+  };
+  const readCurrentCard = (parameters: readonly unknown[]) => {
+    operations.push('readCurrentCard');
+    expect(parameters).toEqual(['tenant-2', 'esnCard', 'user-1', 1]);
+    const card = cards.find(
+      (candidate) =>
+        candidate.tenantId === parameters[0] &&
+        candidate.type === parameters[1] &&
+        candidate.userId === parameters[2],
+    );
+    return card ? [cardRow(card)] : [];
+  };
+  const readIdentifierOwner = (parameters: readonly unknown[]) => {
+    operations.push('readIdentifierOwner');
+    expect(parameters).toEqual(['ESN-123', 'tenant-2', 'esnCard', 1]);
+    const card = cards.find(
+      (candidate) =>
+        candidate.identifier === parameters[0] &&
+        candidate.tenantId === parameters[1] &&
+        candidate.type === parameters[2],
+    );
+    return card ? [[card.userId]] : [];
+  };
+  const updateExistingCard = (parameters: readonly unknown[]) => {
+    operations.push('updateExistingCard');
+    expect(parameters).toHaveLength(8);
+    decodeTimestamp(parameters[0]);
+    expect(parameters[1]).toBe('ESN-123');
+    expect(parameters[7]).toBe('card-1');
+    const card = cards.find((candidate) => candidate.id === parameters[7]);
+    if (!card) throw new Error('Expected the existing card to update');
+    const updated = {
+      ...card,
+      identifier: decodeString(parameters[1]),
+      lastCheckedAt: decodeTimestamp(parameters[2]),
+      metadata: decodeMetadata(parameters[3]),
+      status: decodeStatus(parameters[4]),
+      validFrom: decodeTimestamp(parameters[5]),
+      validTo: decodeTimestamp(parameters[6]),
+    };
+    cards = cards.map((candidate) =>
+      candidate.id === card.id ? updated : candidate,
+    );
+    return [cardRow(updated)];
+  };
+  const refreshOriginalCard = (parameters: readonly unknown[]) => {
+    operations.push('refreshOriginalCard');
+    expect(parameters).toHaveLength(11);
+    decodeTimestamp(parameters[0]);
+    const fields = {
+      lastCheckedAt: decodeTimestamp(parameters[1]),
+      metadata: decodeMetadata(parameters[2]),
+      status: decodeStatus(parameters[3]),
+      validFrom: decodeTimestamp(parameters[4]),
+      validTo: decodeTimestamp(parameters[5]),
+    };
+    expect(parameters.slice(6)).toEqual([
+      'card-1',
+      'tenant-2',
+      'user-1',
+      'esnCard',
+      'ESN-123',
+    ]);
+    const original = cards.find(
+      (card) =>
+        card.id === parameters[6] &&
+        card.tenantId === parameters[7] &&
+        card.userId === parameters[8] &&
+        card.type === parameters[9] &&
+        card.identifier === parameters[10],
+    );
+    if (!original) return [];
+    const refreshed = { ...original, ...fields };
+    cards = cards.map((card) => (card.id === original.id ? refreshed : card));
+    return [cardRow(refreshed)];
+  };
+  const insertNewCard = (parameters: readonly unknown[]) => {
+    operations.push('insertNewCard');
+    expect(parameters).toHaveLength(10);
+    expect(parameters.slice(5, 8)).toEqual(['tenant-2', 'esnCard', 'user-1']);
+    const card = createCard({
+      id: decodeString(parameters[0]),
+      identifier: decodeString(parameters[1]),
+      lastCheckedAt: decodeTimestamp(parameters[2]),
+      metadata: decodeMetadata(parameters[3]),
+      status: decodeStatus(parameters[4]),
+      tenantId: decodeString(parameters[5]),
+      userId: decodeString(parameters[7]),
+      validFrom: decodeTimestamp(parameters[8]),
+      validTo: decodeTimestamp(parameters[9]),
+    });
+    cards.push(card);
+    return [cardRow(card)];
+  };
+  const deleteCurrentCard = (parameters: readonly unknown[]) => {
+    operations.push('deleteCurrentCard');
+    expect(parameters).toEqual(['tenant-2', 'user-1', 'esnCard']);
+    cards = cards.filter(
+      (card) =>
+        card.tenantId !== parameters[0] ||
+        card.userId !== parameters[1] ||
+        card.type !== parameters[2],
+    );
+    return [];
+  };
+
+  const executeValues: SqlConnection.Connection['executeValues'] = (
+    statement,
+    parameters,
+  ) =>
+    Effect.sync(() => {
+      switch (statement) {
+        case cardListSql: {
+          return readCardList(parameters);
+        }
+        case currentCardSql: {
+          return readCurrentCard(parameters);
+        }
+        case identifierOwnerSql: {
+          return readIdentifierOwner(parameters);
+        }
+        case insertCardSql: {
+          return insertNewCard(parameters);
+        }
+        case refreshUpdateSql: {
+          return refreshOriginalCard(parameters);
+        }
+        case tenantReadSql: {
+          return readTenantProviders(parameters);
+        }
+        case upsertUpdateSql: {
+          return updateExistingCard(parameters);
+        }
+        default: {
+          throw new Error(`Unexpected discount card SQL: ${statement}`);
+        }
+      }
+    });
+  const unexpectedDatabaseAccess = Effect.die(
+    new Error('Unexpected discount card database operation'),
+  );
+  const connection = {
+    execute: () => unexpectedDatabaseAccess,
+    executeRaw: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(statement).toBe(deleteCardSql);
+        return deleteCurrentCard(parameters);
+      }),
+    executeStream: () =>
+      Stream.die(new Error('Unexpected discount card query stream')),
+    executeUnprepared: () => unexpectedDatabaseAccess,
+    executeValues,
+    executeValuesUnprepared: () => unexpectedDatabaseAccess,
+  } satisfies SqlConnection.Connection;
+  const databaseLayer = Layer.effect(
+    Database,
+    PgDrizzle.makeWithDefaults({ relations }),
+  ).pipe(
+    Layer.provide(
+      PgClient.layerFrom(
+        PgClient.makeWith({
+          acquirer: Effect.succeed(connection),
+          config: {},
+          listenAcquirer: unexpectedDatabaseAccess,
+          transactionAcquirer: unexpectedDatabaseAccess,
+        }),
+      ),
+    ),
+  );
+
+  return {
+    databaseLayer,
+    getCards: () => cards.map((card) => ({ ...card })),
+    operations,
+    removeOriginalCard: () => {
+      cards = cards.filter((card) => card.id !== 'card-1');
+    },
+    replaceOriginalCard: () => {
+      cards = cards.map((card) =>
+        card.id === 'card-1' ? { ...card, identifier: 'ESN-456' } : card,
+      );
+    },
+  };
+};
+
+const withEsnCardAdapter = <A, E, R>(
+  validate: ProviderAdapter['validate'],
+  operation: Effect.Effect<A, E, R>,
+) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const original = Adapters.esnCard;
+      Adapters.esnCard = { validate };
+      return original;
+    }),
+    () => operation,
+    (original) =>
+      Effect.sync(() => {
+        Adapters.esnCard = original;
+      }),
+  );
+
+const getMyCards = () =>
+  discountHandlers['discounts.getMyCards'](
+    undefined,
+    createRpcOptions(
+      DiscountRpcs.DiscountsGetMyCards.middleware(RpcRequestContextMiddleware),
+    ),
+  );
+const upsertMyCard = () =>
+  discountHandlers['discounts.upsertMyCard'](
+    { identifier: 'ESN-123', type: 'esnCard' },
+    createRpcOptions(
+      DiscountRpcs.DiscountsUpsertMyCard.middleware(
+        RpcRequestContextMiddleware,
+      ),
+    ),
+  );
+const refreshMyCard = () =>
+  discountHandlers['discounts.refreshMyCard'](
+    { type: 'esnCard' },
+    createRpcOptions(
+      DiscountRpcs.DiscountsRefreshMyCard.middleware(
+        RpcRequestContextMiddleware,
+      ),
+    ),
+  );
 
 layer(discountHandlerLayer)('discountHandlers', (it) => {
   const tenantProviderOperations: {
@@ -202,255 +535,224 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
 
   it.effect('getMyCards reads discount cards for the current tenant', () =>
     Effect.gen(function* () {
-      const findMany = vi.fn(() =>
-        Effect.succeed([
-          {
-            id: 'card-1',
-            identifier: 'ESN-123',
-            status: 'verified' as const,
-            type: 'esnCard' as const,
-            validTo: new Date('2026-12-31T00:00:00.000Z'),
-          },
-        ]),
+      const fixture = createDiscountDatabase({
+        initialCards: [
+          createCard({ status: 'verified', validFrom, validTo }),
+          createCard({ id: 'other-tenant', tenantId: 'tenant-1' }),
+          createCard({ id: 'other-user', userId: 'user-2' }),
+        ],
+      });
+      const cards = yield* getMyCards().pipe(
+        Effect.provide(fixture.databaseLayer),
       );
-      const database = {
-        query: {
-          userDiscountCards: {
-            findMany,
-          },
-        },
-      };
-
-      const cards = yield* discountHandlers['discounts.getMyCards'](
-        undefined,
-        createRpcOptions(
-          DiscountRpcs.DiscountsGetMyCards.middleware(
-            RpcRequestContextMiddleware,
-          ),
-        ),
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
       expect(cards).toEqual([
         {
           id: 'card-1',
           identifier: 'ESN-123',
           status: 'verified',
           type: 'esnCard',
-          validTo: '2026-12-31T00:00:00.000Z',
+          validTo: validTo.toISOString(),
         },
       ]);
-      expect(findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            tenantId: 'tenant-2',
-            userId: 'user-1',
-          },
-        }),
-      );
+      expect(fixture.operations).toEqual(['readCardList']);
     }),
   );
 
   it.effect('upsertMyCard returns an expired provider state', () => {
-    const originalAdapter = Adapters.esnCard;
-    const validate = vi.fn(async () => ({
-      status: 'expired' as const,
+    const expiredFrom = new Date('2024-01-01T00:00:00.000Z');
+    const expiredTo = new Date('2024-12-31T00:00:00.000Z');
+    const validate = vi.fn(async (): Promise<ValidationResult> => ({
+      metadata: { provider: 'esncard' },
+      status: 'expired',
+      validFrom: expiredFrom,
+      validTo: expiredTo,
     }));
-    Adapters.esnCard = { validate };
-
-    return Effect.gen(function* () {
-      const findFirst = vi
-        .fn()
-        .mockReturnValueOnce(Effect.succeed({ userId: 'user-1' }))
-        .mockReturnValueOnce(
-          Effect.succeed({
-            id: 'card-1',
-            identifier: 'OLD-ESN',
-            status: 'verified' as const,
-            type: 'esnCard' as const,
-            validTo: null,
-          }),
+    return withEsnCardAdapter(
+      validate,
+      Effect.gen(function* () {
+        const fixture = createDiscountDatabase({
+          initialCards: [createCard({ identifier: 'OLD-ESN' })],
+        });
+        const card = yield* upsertMyCard().pipe(
+          Effect.provide(fixture.databaseLayer),
         );
-      const insertedValues = vi.fn(() => {
-        throw new Error('Expected existing global card to be updated');
-      });
-      const updateSet = vi.fn(() => ({
-        where: () => ({
-          returning: () =>
-            Effect.succeed([
-              {
-                id: 'card-1',
-                identifier: 'ESN-123',
-                status: 'expired' as const,
-                type: 'esnCard' as const,
-                validTo: null,
-              },
-            ]),
-        }),
-      }));
-      const database = {
-        insert: vi.fn((table: unknown) => {
-          expect(table).toBe(userDiscountCards);
-          return {
-            values: insertedValues,
-          };
-        }),
-        query: {
-          tenants: {
-            findFirst: () =>
-              Effect.succeed({
-                discountProviders: {
-                  esnCard: {
-                    config: {},
-                    status: 'enabled',
-                  },
-                },
-              }),
-          },
-          userDiscountCards: {
-            findFirst,
-          },
-        },
-        update: vi.fn((table: unknown) => {
-          expect(table).toBe(userDiscountCards);
-          return {
-            set: updateSet,
-          };
-        }),
-      };
-
-      const card = yield* discountHandlers['discounts.upsertMyCard'](
-        {
-          identifier: 'ESN-123',
-          type: 'esnCard',
-        },
-        createRpcOptions(
-          DiscountRpcs.DiscountsUpsertMyCard.middleware(
-            RpcRequestContextMiddleware,
-          ),
-        ),
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-      expect(card).toEqual({
-        id: 'card-1',
-        identifier: 'ESN-123',
-        status: 'expired',
-        type: 'esnCard',
-        validTo: null,
-      });
-      expect(insertedValues).not.toHaveBeenCalled();
-      expect(validate).toHaveBeenCalledWith({
-        config: {},
-        identifier: 'ESN-123',
-      });
-      expect(updateSet).toHaveBeenCalledWith(
-        expect.objectContaining({
+        expect(card).toEqual({
+          id: 'card-1',
           identifier: 'ESN-123',
           status: 'expired',
-          validTo: undefined,
-        }),
-      );
-      expect(findFirst).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({
-          where: {
-            tenantId: 'tenant-2',
-            type: 'esnCard',
-            userId: 'user-1',
-          },
-        }),
-      );
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          if (originalAdapter) Adapters.esnCard = originalAdapter;
-          else delete Adapters.esnCard;
-        }),
-      ),
+          type: 'esnCard',
+          validTo: expiredTo.toISOString(),
+        });
+        expect(fixture.getCards()).toEqual([
+          expect.objectContaining({
+            identifier: 'ESN-123',
+            lastCheckedAt: expect.any(Date),
+            status: 'expired',
+            validFrom: expiredFrom,
+            validTo: expiredTo,
+          }),
+        ]);
+        expect(fixture.operations).toEqual([
+          'readTenantProviders',
+          'readIdentifierOwner',
+          'readCurrentCard',
+          'updateExistingCard',
+        ]);
+        expect(validate).toHaveBeenCalledExactlyOnceWith({
+          identifier: 'ESN-123',
+        });
+      }),
     );
   });
 
-  it.effect(
-    'upsertMyCard reports provider outages without changing the stored card',
-    () => {
-      const originalAdapter = Adapters.esnCard;
-      const validate = vi.fn(async () => {
-        throw new ProviderValidationUnavailableError(
-          'ESNcard validation provider is unavailable',
-          'unavailable',
+  it.effect('upsertMyCard validates before inserting a new card', () => {
+    const validate = vi.fn(async () => verifiedResult);
+    return withEsnCardAdapter(
+      validate,
+      Effect.gen(function* () {
+        const fixture = createDiscountDatabase();
+        const card = yield* upsertMyCard().pipe(
+          Effect.provide(fixture.databaseLayer),
         );
-      });
-      Adapters.esnCard = { validate };
-
-      return Effect.gen(function* () {
-        const findFirst = vi
-          .fn()
-          .mockReturnValueOnce(Effect.succeed({ userId: 'user-1' }))
-          .mockReturnValueOnce(
-            Effect.succeed({
-              id: 'card-1',
-              identifier: 'OLD-ESN',
-              status: 'verified' as const,
-              type: 'esnCard' as const,
-              validTo: null,
-            }),
-          );
-        const database = {
-          insert: vi.fn(() => {
-            throw new Error('Provider outages must not insert cards');
-          }),
-          query: {
-            tenants: {
-              findFirst: () =>
-                Effect.succeed({
-                  discountProviders: {
-                    esnCard: {
-                      config: {},
-                      status: 'enabled',
-                    },
-                  },
-                }),
-            },
-            userDiscountCards: {
-              findFirst,
-            },
-          },
-          update: vi.fn(() => {
-            throw new Error('Provider outages must not update cards');
-          }),
-        };
-
-        const error = yield* Effect.flip(
-          discountHandlers['discounts.upsertMyCard'](
-            {
-              identifier: 'ESN-123',
-              type: 'esnCard',
-            },
-            createRpcOptions(
-              DiscountRpcs.DiscountsUpsertMyCard.middleware(
-                RpcRequestContextMiddleware,
-              ),
-            ),
-          ).pipe(Effect.provide(Layer.succeed(Database, database as never))),
-        );
-
-        expect(error).toBeInstanceOf(RpcBadRequestError);
-        expect(error).toMatchObject({
-          message: 'Could not validate ESN card right now. Try again later.',
-          reason: 'provider-unavailable',
+        expect(card).toMatchObject({
+          identifier: 'ESN-123',
+          status: 'verified',
+          validTo: validTo.toISOString(),
         });
-        expect(validate).toHaveBeenCalledWith({
-          config: {},
+        expect(fixture.getCards()).toEqual([
+          expect.objectContaining({
+            id: card.id,
+            identifier: 'ESN-123',
+            metadata: { provider: 'esncard' },
+            status: 'verified',
+            tenantId: 'tenant-2',
+            userId: 'user-1',
+            validFrom,
+            validTo,
+          }),
+        ]);
+        expect(fixture.operations).toEqual([
+          'readTenantProviders',
+          'readIdentifierOwner',
+          'readCurrentCard',
+          'insertNewCard',
+        ]);
+        expect(validate).toHaveBeenCalledExactlyOnceWith({
           identifier: 'ESN-123',
         });
-        expect(database.insert).not.toHaveBeenCalled();
-        expect(database.update).not.toHaveBeenCalled();
-      }).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (originalAdapter) Adapters.esnCard = originalAdapter;
-            else delete Adapters.esnCard;
+      }),
+    );
+  });
+
+  for (const existing of [false, true]) {
+    it.effect(
+      existing
+        ? 'upsertMyCard reports provider outages without changing the stored card'
+        : 'upsertMyCard reports provider outages without inserting a card',
+      () => {
+        const validate = vi.fn(async () => {
+          throw new ProviderValidationUnavailableError(
+            'provider details',
+            'unavailable',
+          );
+        });
+        return withEsnCardAdapter(
+          validate,
+          Effect.gen(function* () {
+            const initialCards = existing
+              ? [
+                  createCard({
+                    identifier: 'OLD-ESN',
+                    status: 'verified',
+                    validFrom,
+                    validTo,
+                  }),
+                ]
+              : [];
+            const fixture = createDiscountDatabase({ initialCards });
+            const error = yield* upsertMyCard().pipe(
+              Effect.flip,
+              Effect.provide(fixture.databaseLayer),
+            );
+            expect(error).toBeInstanceOf(RpcBadRequestError);
+            expect(error).toMatchObject({
+              message:
+                'We could not check this ESNcard, so it was not saved or changed. Select Save ESNcard to try once more.',
+              reason: 'provider-unavailable',
+            });
+            expect(error).not.toHaveProperty('cause');
+            expect(fixture.getCards()).toEqual(initialCards);
+            expect(fixture.operations).toEqual([
+              'readTenantProviders',
+              'readIdentifierOwner',
+              'readCurrentCard',
+            ]);
+            expect(validate).toHaveBeenCalledExactlyOnceWith({
+              identifier: 'ESN-123',
+            });
           }),
-        ),
+        );
+      },
+    );
+  }
+
+  for (const action of ['save', 'refresh']) {
+    it.effect(
+      `rejects ${action} when the tenant ESNcard program is disabled`,
+      () => {
+        const validate = vi.fn(async () => verifiedResult);
+        return withEsnCardAdapter(
+          validate,
+          Effect.gen(function* () {
+            const original = createCard();
+            const fixture = createDiscountDatabase({
+              initialCards: [original],
+              providerStatus: 'disabled',
+            });
+            const error =
+              action === 'save'
+                ? yield* upsertMyCard().pipe(
+                    Effect.flip,
+                    Effect.provide(fixture.databaseLayer),
+                  )
+                : yield* refreshMyCard().pipe(
+                    Effect.flip,
+                    Effect.provide(fixture.databaseLayer),
+                  );
+            expect(error).toBeInstanceOf(RpcForbiddenError);
+            expect(error.message).toBe(
+              'ESNcard discounts are not available for this organization.',
+            );
+            expect(validate).not.toHaveBeenCalled();
+            expect(fixture.getCards()).toEqual([original]);
+            expect(fixture.operations).toEqual(['readTenantProviders']);
+          }),
+        );
+      },
+    );
+  }
+
+  it.effect(
+    'upsertMyCard rejects an identifier owned by another tenant member',
+    () => {
+      const validate = vi.fn(async () => verifiedResult);
+      return withEsnCardAdapter(
+        validate,
+        Effect.gen(function* () {
+          const initialCards = [createCard({ userId: 'user-2' })];
+          const fixture = createDiscountDatabase({ initialCards });
+          const error = yield* upsertMyCard().pipe(
+            Effect.flip,
+            Effect.provide(fixture.databaseLayer),
+          );
+          expect(error).toMatchObject({ _tag: 'DiscountCardConflictError' });
+          expect(validate).not.toHaveBeenCalled();
+          expect(fixture.getCards()).toEqual(initialCards);
+          expect(fixture.operations).toEqual([
+            'readTenantProviders',
+            'readIdentifierOwner',
+          ]);
+        }),
       );
     },
   );
@@ -458,118 +760,182 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
   it.effect(
     'refreshMyCard revalidates and updates the current user card',
     () => {
-      const originalAdapter = Adapters.esnCard;
-      const validTo = new Date('2026-12-31T00:00:00.000Z');
-      const validate = vi.fn(async () => ({
-        metadata: { provider: 'esncard' },
-        status: 'verified' as const,
-        validTo,
-      }));
-      Adapters.esnCard = { validate };
-
-      return Effect.gen(function* () {
-        const card = {
-          id: 'card-1',
-          identifier: 'ESN-123',
-          status: 'unverified' as const,
-          type: 'esnCard' as const,
-          validTo: null,
-        };
-        const updateSet = vi.fn(() => ({
-          where: () => ({
-            returning: () =>
-              Effect.succeed([
-                {
-                  ...card,
-                  status: 'verified' as const,
-                  validTo,
-                },
-              ]),
-          }),
-        }));
-        const findFirst = vi.fn(() => Effect.succeed(card));
-        const database = {
-          query: {
-            tenants: {
-              findFirst: () =>
-                Effect.succeed({
-                  discountProviders: {
-                    esnCard: {
-                      config: {},
-                      status: 'enabled',
-                    },
-                  },
-                }),
-            },
-            userDiscountCards: {
-              findFirst,
-            },
-          },
-          update: vi.fn((table: unknown) => {
-            expect(table).toBe(userDiscountCards);
-            return {
-              set: updateSet,
-            };
-          }),
-        };
-
-        const refreshed = yield* discountHandlers['discounts.refreshMyCard'](
-          { type: 'esnCard' },
-          createRpcOptions(
-            DiscountRpcs.DiscountsRefreshMyCard.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-        expect(refreshed).toEqual({
-          id: 'card-1',
-          identifier: 'ESN-123',
-          status: 'verified',
-          type: 'esnCard',
-          validTo: '2026-12-31T00:00:00.000Z',
-        });
-        expect(findFirst).toHaveBeenCalledWith(
-          expect.objectContaining({
-            where: {
-              tenantId: 'tenant-2',
-              type: 'esnCard',
-              userId: 'user-1',
-            },
-          }),
-        );
-        expect(validate).toHaveBeenCalledWith({
-          config: {},
-          identifier: 'ESN-123',
-        });
-        expect(updateSet).toHaveBeenCalledWith(
-          expect.objectContaining({
-            metadata: { provider: 'esncard' },
+      const validate = vi.fn(async () => verifiedResult);
+      return withEsnCardAdapter(
+        validate,
+        Effect.gen(function* () {
+          const fixture = createDiscountDatabase({
+            initialCards: [createCard()],
+          });
+          const refreshed = yield* refreshMyCard().pipe(
+            Effect.provide(fixture.databaseLayer),
+          );
+          expect(refreshed).toEqual({
+            id: 'card-1',
+            identifier: 'ESN-123',
             status: 'verified',
-            validTo,
-          }),
-        );
-      }).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (originalAdapter) Adapters.esnCard = originalAdapter;
-            else delete Adapters.esnCard;
-          }),
-        ),
+            type: 'esnCard',
+            validTo: validTo.toISOString(),
+          });
+          expect(fixture.getCards()).toEqual([
+            expect.objectContaining({
+              lastCheckedAt: expect.any(Date),
+              metadata: { provider: 'esncard' },
+              status: 'verified',
+              validFrom,
+              validTo,
+            }),
+          ]);
+          expect(validate).toHaveBeenCalledExactlyOnceWith({
+            identifier: 'ESN-123',
+          });
+          expect(fixture.operations).toEqual([
+            'readTenantProviders',
+            'readCurrentCard',
+            'refreshOriginalCard',
+          ]);
+        }),
       );
     },
   );
 
+  it.effect(
+    'refreshMyCard reports unexpected provider failures without changing the card',
+    () => {
+      const validate = vi.fn(async () => {
+        throw new Error('private-provider-detail');
+      });
+      return withEsnCardAdapter(
+        validate,
+        Effect.gen(function* () {
+          const original = createCard({
+            status: 'verified',
+            validFrom,
+            validTo,
+          });
+          const fixture = createDiscountDatabase({ initialCards: [original] });
+          const error = yield* refreshMyCard().pipe(
+            Effect.flip,
+            Effect.provide(fixture.databaseLayer),
+          );
+          expect(error).toBeInstanceOf(RpcInternalServerError);
+          expect(error).toMatchObject({
+            message:
+              'We could not check this ESNcard, so it was not changed. Select Check again to try once more.',
+          });
+          expect(error).not.toHaveProperty('cause');
+          expect(JSON.stringify(error)).not.toContain(
+            'private-provider-detail',
+          );
+          expect(fixture.getCards()).toEqual([original]);
+          expect(fixture.operations).toEqual([
+            'readTenantProviders',
+            'readCurrentCard',
+          ]);
+          expect(validate).toHaveBeenCalledExactlyOnceWith({
+            identifier: 'ESN-123',
+          });
+        }),
+      );
+    },
+  );
+
+  for (const scenario of ['unchanged', 'replaced', 'removed']) {
+    it.effect(
+      `refreshMyCard handles a card that is ${scenario} during validation`,
+      () => {
+        const original = createCard();
+        const fixture = createDiscountDatabase({ initialCards: [original] });
+        const validate = vi.fn(async () => {
+          await Promise.resolve();
+          if (scenario === 'replaced') fixture.replaceOriginalCard();
+          else if (scenario === 'removed') fixture.removeOriginalCard();
+          return verifiedResult;
+        });
+        return withEsnCardAdapter(
+          validate,
+          Effect.gen(function* () {
+            const result = yield* refreshMyCard().pipe(
+              Effect.result,
+              Effect.provide(fixture.databaseLayer),
+            );
+            if (scenario === 'unchanged') {
+              expect(Result.isSuccess(result)).toBe(true);
+              if (Result.isFailure(result)) return;
+              expect(result.success).toEqual({
+                id: original.id,
+                identifier: original.identifier,
+                status: 'verified',
+                type: 'esnCard',
+                validTo: validTo.toISOString(),
+              });
+              expect(fixture.getCards()).toEqual([
+                expect.objectContaining({
+                  status: 'verified',
+                  validFrom,
+                  validTo,
+                }),
+              ]);
+            } else {
+              expect(Result.isFailure(result)).toBe(true);
+              if (Result.isSuccess(result)) return;
+              expect(result.failure).toMatchObject({
+                _tag: 'DiscountCardChangedError',
+              });
+              expect(fixture.getCards()).toEqual(
+                scenario === 'removed'
+                  ? []
+                  : [{ ...original, identifier: 'ESN-456' }],
+              );
+            }
+            expect(validate).toHaveBeenCalledExactlyOnceWith({
+              identifier: 'ESN-123',
+            });
+            expect(fixture.operations).toEqual([
+              'readTenantProviders',
+              'readCurrentCard',
+              'refreshOriginalCard',
+            ]);
+          }),
+        );
+      },
+    );
+  }
+
+  it.effect('explains when the saved ESNcard is no longer available', () => {
+    const validate = vi.fn(async () => verifiedResult);
+    return withEsnCardAdapter(
+      validate,
+      Effect.gen(function* () {
+        const fixture = createDiscountDatabase();
+        const error = yield* refreshMyCard().pipe(
+          Effect.flip,
+          Effect.provide(fixture.databaseLayer),
+        );
+        expect(error).toMatchObject({
+          _tag: 'DiscountCardNotFoundError',
+          message:
+            'This ESNcard is no longer saved. No card was changed. Add it again if you still use it.',
+        });
+        expect(validate).not.toHaveBeenCalled();
+        expect(fixture.operations).toEqual([
+          'readTenantProviders',
+          'readCurrentCard',
+        ]);
+      }),
+    );
+  });
+
   it.effect('deleteMyCard removes only the current user card type', () =>
     Effect.gen(function* () {
-      const where = vi.fn((_condition: unknown) => Effect.void);
-      const database = {
-        delete: vi.fn((table: unknown) => {
-          expect(table).toBe(userDiscountCards);
-          return { where };
-        }),
-      };
-
+      const otherTenantCard = createCard({
+        id: 'other-tenant',
+        tenantId: 'tenant-1',
+      });
+      const otherUserCard = createCard({ id: 'other-user', userId: 'user-2' });
+      const fixture = createDiscountDatabase({
+        initialCards: [createCard(), otherTenantCard, otherUserCard],
+      });
       yield* discountHandlers['discounts.deleteMyCard'](
         { type: 'esnCard' },
         createRpcOptions(
@@ -577,29 +943,9 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
             RpcRequestContextMiddleware,
           ),
         ),
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-      const condition = where.mock.calls[0]?.[0];
-      const collectValues = (
-        value: unknown,
-        seen = new WeakSet<object>(),
-      ): unknown[] => {
-        if (value === null || value === undefined) return [];
-        if (typeof value !== 'object') return [value];
-        if (seen.has(value)) return [];
-        seen.add(value);
-        if (Array.isArray(value)) {
-          return value.flatMap((item) => collectValues(item, seen));
-        }
-        return Object.values(value).flatMap((item) =>
-          collectValues(item, seen),
-        );
-      };
-      const conditionValues = collectValues(condition);
-
-      expect(conditionValues).toContain('tenant-2');
-      expect(conditionValues).toContain('user-1');
-      expect(conditionValues).toContain('esnCard');
+      ).pipe(Effect.provide(fixture.databaseLayer));
+      expect(fixture.getCards()).toEqual([otherTenantCard, otherUserCard]);
+      expect(fixture.operations).toEqual(['deleteCurrentCard']);
     }),
   );
 });

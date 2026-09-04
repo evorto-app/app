@@ -23,42 +23,15 @@ const parseBuyEsnCardUrl = (value: string): string | undefined => {
 };
 
 export const normalizeEsnCardConfig = (
-  config: unknown,
-  options?: { rejectInvalidUrl?: boolean },
+  buyEsnCardUrl: null | string | undefined,
 ): EsnCardProviderConfig => {
-  if (!config || typeof config !== 'object') {
-    return {};
-  }
-
-  const maybeBuyUrl = (
-    config as {
-      buyEsnCardUrl?: unknown;
-    }
-  ).buyEsnCardUrl;
-  if (maybeBuyUrl === undefined || maybeBuyUrl === null) {
-    return {};
-  }
-
-  const rejectInvalidUrl = options?.rejectInvalidUrl ?? false;
-  if (typeof maybeBuyUrl !== 'string') {
-    if (rejectInvalidUrl) {
-      throw new InvalidDiscountProviderConfigError();
-    }
-    return {};
-  }
-
-  const trimmedBuyUrl = maybeBuyUrl.trim();
+  const trimmedBuyUrl = buyEsnCardUrl?.trim() ?? '';
   if (trimmedBuyUrl.length === 0) {
     return {};
   }
 
   const normalizedBuyUrl = parseBuyEsnCardUrl(trimmedBuyUrl);
-  if (!normalizedBuyUrl) {
-    if (rejectInvalidUrl) {
-      throw new InvalidDiscountProviderConfigError();
-    }
-    return {};
-  }
+  if (!normalizedBuyUrl) throw new InvalidDiscountProviderConfigError();
 
   return { buyEsnCardUrl: normalizedBuyUrl };
 };

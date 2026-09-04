@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { assert, beforeEach, describe, it, vi } from '@effect/vitest';
+import { assert, beforeEach, describe, expect, it, vi } from '@effect/vitest';
 import {
   importLibrary as googleMapsImportLibrary,
   setOptions as googleMapsSetOptions,
@@ -8,19 +8,19 @@ import { Effect } from 'effect';
 
 import { ConfigService } from './config.service';
 import {
+  decodeLocationSuggestions,
   GOOGLE_MAPS_LOADER,
   GooglePlaceReference,
-  LocationConfigurationError,
   LocationProviderError,
   LocationSearch,
 } from './location-search';
 
 describe('LocationSearch', () => {
   const config: {
-    publicConfig: { googleMapsApiKey: null | string };
+    publicConfig: { googleMapsApiKey: string };
   } = {
     publicConfig: {
-      googleMapsApiKey: null,
+      googleMapsApiKey: 'maps-key',
     },
   };
   const loader = {
@@ -30,7 +30,7 @@ describe('LocationSearch', () => {
   let locationSearch: LocationSearch;
 
   beforeEach(() => {
-    config.publicConfig.googleMapsApiKey = null;
+    config.publicConfig.googleMapsApiKey = 'maps-key';
     loader.importLibrary.mockReset();
     loader.setOptions.mockReset();
     TestBed.configureTestingModule({
@@ -43,21 +43,9 @@ describe('LocationSearch', () => {
     locationSearch = TestBed.inject(LocationSearch);
   });
 
-  it.effect('returns a typed configuration failure before loading Maps', () =>
-    Effect.gen(function* () {
-      const failure = yield* locationSearch.search('Berlin').pipe(Effect.flip);
-
-      assert.instanceOf(failure, LocationConfigurationError);
-      assert.strictEqual(failure.setting, 'PUBLIC_GOOGLE_MAPS_API_KEY');
-      assert.strictEqual(loader.setOptions.mock.calls.length, 0);
-      assert.strictEqual(loader.importLibrary.mock.calls.length, 0);
-    }),
-  );
-
   it.effect('preserves the provider cause when the Places library fails', () =>
     Effect.gen(function* () {
       const providerCause = new Error('provider unavailable');
-      config.publicConfig.googleMapsApiKey = 'maps-key';
       loader.importLibrary.mockRejectedValue(providerCause);
 
       const failure = yield* locationSearch.search('Berlin').pipe(Effect.flip);
@@ -91,4 +79,56 @@ describe('LocationSearch', () => {
       assert.strictEqual(failure.cause, providerCause);
     }),
   );
+
+  it('accepts unloaded place details without hiding malformed suggestions', () => {
+    const place: GooglePlaceReference = {
+      displayName: undefined,
+      fetchFields: vi.fn<GooglePlaceReference['fetchFields']>(),
+      formattedAddress: undefined,
+      id: 'place-1',
+      location: undefined,
+    };
+
+    expect(
+      decodeLocationSuggestions({
+        suggestions: [
+          {
+            placePrediction: {
+              mainText: { text: ' Berlin ' },
+              placeId: ' place-1 ',
+              secondaryText: { text: ' Germany ' },
+              toPlace: () => place,
+            },
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        mainText: 'Berlin',
+        place,
+        placeId: 'place-1',
+        secondaryText: 'Germany',
+      },
+    ]);
+
+    for (const malformed of [
+      {},
+      { suggestions: null },
+      { suggestions: [{}] },
+      { suggestions: [{ placePrediction: {} }] },
+      {
+        suggestions: [
+          {
+            placePrediction: {
+              mainText: { text: 'Berlin' },
+              placeId: 'place-1',
+              toPlace: () => ({}),
+            },
+          },
+        ],
+      },
+    ]) {
+      expect(() => decodeLocationSuggestions(malformed)).toThrow(TypeError);
+    }
+  });
 });

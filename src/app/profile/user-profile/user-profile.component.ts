@@ -57,6 +57,7 @@ import {
   esnCardSaveDisabled,
   esnCardStatusLabel,
   esnCardSubmitPayloadFromIdentifier,
+  isEsnCardChangedError,
 } from './user-profile.esn-card';
 
 type ProfileEventRefund = UsersEventSummaryRecord['refunds'][number];
@@ -595,9 +596,19 @@ export class UserProfileComponent {
     this.refreshCardMutation.mutate(
       { type: 'esnCard' },
       {
-        onError: (error) => {
+        onError: async (error) => {
           this.esnCardErrorMessage.set(
             esnCardMutationErrorMessage('refresh', error),
+          );
+          if (!isEsnCardChangedError(error)) {
+            return;
+          }
+
+          const result = await this.myCardsQuery.refetch();
+          this.esnCardErrorMessage.set(
+            result.isSuccess
+              ? 'Your saved ESN card changed while it was being checked. The old check was not saved. Review your current card before checking again.'
+              : 'Your saved ESN card changed while it was being checked. The old check was not saved, and your card list could not be updated. Reload the page to see your current cards.',
           );
         },
         onSuccess: async () => {

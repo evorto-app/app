@@ -37,7 +37,6 @@ import {
 import { GoogleLocationType } from '../../../../../../types/location';
 import { ConfigService } from '../../../../../core/config.service';
 import {
-  LocationConfigurationError,
   LocationProviderError,
   LocationSearch,
   LocationSearchError,
@@ -45,10 +44,6 @@ import {
 } from '../../../../../core/location-search';
 
 type LocationSearchState =
-  | {
-      readonly failure: LocationConfigurationError;
-      readonly status: 'configuration-error';
-    }
   | {
       readonly failure: LocationProviderError;
       readonly status: 'provider-error';
@@ -208,11 +203,6 @@ export class LocationSelectorDialog {
   }
 
   private failedSearchState(failure: LocationSearchError): LocationSearchState {
-    if (failure._tag === 'LocationConfigurationError') {
-      consola.error('Location search is not configured', failure);
-      return { failure, status: 'configuration-error' };
-    }
-
     consola.error('Location provider search failed', failure);
     return { failure, status: 'provider-error' };
   }

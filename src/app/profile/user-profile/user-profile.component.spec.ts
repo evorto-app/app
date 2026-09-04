@@ -44,6 +44,7 @@ import {
   esnCardSaveDisabled,
   esnCardStatusLabel,
   esnCardSubmitPayloadFromIdentifier,
+  isEsnCardChangedError,
 } from './user-profile.esn-card';
 
 describe('profile event labels', () => {
@@ -350,6 +351,21 @@ describe('profile event labels', () => {
 });
 
 describe('profile ESN card messages', () => {
+  it('explains a changed card and identifies when the card list must be refreshed', () => {
+    const error = { _tag: 'DiscountCardChangedError' };
+    expect(isEsnCardChangedError(error)).toBe(true);
+    expect(isEsnCardChangedError({ _tag: 'DiscountCardConflictError' })).toBe(
+      false,
+    );
+    expect(isEsnCardChangedError({ _tag: 'DiscountCardNotFoundError' })).toBe(
+      false,
+    );
+    expect(isEsnCardChangedError(null)).toBe(false);
+    expect(esnCardMutationErrorMessage('refresh', error)).toBe(
+      'Your saved ESN card changed while it was being checked. Checking your current cards…',
+    );
+  });
+
   it('keeps ESN card action labels aligned with pending states', () => {
     expect(esnCardActionLabel('refresh', false)).toBe('Refresh');
     expect(esnCardActionLabel('refresh', true)).toBe('Refreshing...');

@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm';
 import {
+  check,
   jsonb,
   pgEnum,
   pgTable,
@@ -18,6 +20,9 @@ export const discountCardStatus = pgEnum('discount_card_status', [
   'expired',
   'invalid',
 ]);
+
+export const userDiscountCardValidityWindowCheckName =
+  'user_discount_cards_valid_status_requires_window';
 
 export const userDiscountCards = pgTable(
   'user_discount_cards',
@@ -40,5 +45,9 @@ export const userDiscountCards = pgTable(
   (table) => ({
     uniqueByUser: unique().on(table.userId, table.tenantId, table.type),
     uniqueIdentifier: unique().on(table.tenantId, table.type, table.identifier),
+    validStatusRequiresWindow: check(
+      userDiscountCardValidityWindowCheckName,
+      sql`${table.status} not in ('verified', 'expired') or (${table.validFrom} is not null and ${table.validTo} is not null and ${table.validFrom} <= ${table.validTo})`,
+    ),
   }),
 );

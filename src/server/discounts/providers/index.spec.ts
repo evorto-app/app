@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from '@effect/vitest';
 
 import { ProviderValidationUnavailableError, validateEsnCard } from './index';
 
-const createFetchMock = (body: unknown, init?: ResponseInit): typeof fetch =>
+const createFetchMock = (
+  body: unknown,
+  init?: ResponseInit,
+): NonNullable<Parameters<typeof validateEsnCard>[0]['fetchImpl']> =>
   vi.fn(async () =>
     Response.json(body, {
       headers: { 'content-type': 'application/json' },
@@ -15,7 +18,8 @@ describe('validateEsnCard', () => {
   it('validates active cards and preserves provider metadata', async () => {
     const fetchImpl = createFetchMock([
       {
-        'expiration-date': '2026-12-31T00:00:00.000Z',
+        'activation date': '2026-01-01',
+        'expiration-date': '2026-12-31',
         status: 'active',
       },
     ]);
@@ -24,10 +28,12 @@ describe('validateEsnCard', () => {
       validateEsnCard({ fetchImpl, identifier: 'ESN-123' }),
     ).resolves.toMatchObject({
       metadata: {
-        'expiration-date': '2026-12-31T00:00:00.000Z',
+        'activation date': '2026-01-01',
+        'expiration-date': '2026-12-31',
         status: 'active',
       },
       status: 'verified',
+      validFrom: new Date('2026-01-01T00:00:00.000Z'),
       validTo: new Date('2026-12-31T00:00:00.000Z'),
     });
     expect(fetchImpl).toHaveBeenCalledWith(
@@ -47,13 +53,94 @@ describe('validateEsnCard', () => {
   });
 
   it('preserves an expired provider status as an ineligible card state', async () => {
-    const fetchImpl = createFetchMock([{ status: 'expired' }]);
+    const fetchImpl = createFetchMock([
+      {
+        'activation date': '2025-01-01',
+        'expiration-date': '2025-12-31',
+        status: 'expired',
+      },
+    ]);
 
     await expect(
       validateEsnCard({ fetchImpl, identifier: 'EXPIRED-ESN-123' }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       status: 'expired',
+      validFrom: new Date('2025-01-01T00:00:00.000Z'),
+      validTo: new Date('2025-12-31T00:00:00.000Z'),
     });
+  });
+
+  it('rejects unsupported or incomplete provider payloads', async () => {
+    const activation = '2026-01-01';
+    const expiration = '2026-12-31';
+    const malformedPayloads: unknown[] = [
+      {},
+      [
+        {
+          'activation date': activation,
+          expiration_date: expiration,
+          status: 'active',
+        },
+      ],
+      [
+        {
+          'activation date': activation,
+          'expiration-date': expiration,
+        },
+      ],
+      [
+        {
+          'activation date': activation,
+          'expiration-date': expiration,
+          status: 'inactive',
+        },
+      ],
+      [
+        {
+          'activation date': activation,
+          'expiration-date': '2026-02-31',
+          status: 'active',
+        },
+      ],
+      [
+        {
+          'activation date': '2026-01-01T00:00:00.000Z',
+          'expiration-date': expiration,
+          status: 'active',
+        },
+      ],
+      [
+        {
+          'activation date': '2027-01-01',
+          'expiration-date': expiration,
+          status: 'active',
+        },
+      ],
+      [
+        {
+          'activation date': activation,
+          'expiration-date': expiration,
+          status: 'active',
+        },
+        {
+          'activation date': activation,
+          'expiration-date': expiration,
+          status: 'active',
+        },
+      ],
+    ];
+
+    for (const body of malformedPayloads) {
+      await expect(
+        validateEsnCard({
+          fetchImpl: createFetchMock(body),
+          identifier: 'ESN-123',
+        }),
+      ).rejects.toMatchObject({
+        name: 'ProviderValidationUnavailableError',
+        reason: 'invalidResponse',
+      } satisfies Partial<ProviderValidationUnavailableError>);
+    }
   });
 
   it('distinguishes provider failures from invalid cards', async () => {
@@ -67,6 +154,23 @@ describe('validateEsnCard', () => {
     ).rejects.toMatchObject({
       name: 'ProviderValidationUnavailableError',
       reason: 'unavailable',
+    } satisfies Partial<ProviderValidationUnavailableError>);
+  });
+
+  it('classifies unreadable provider JSON as an invalid response', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response('not-json', {
+          headers: { 'content-type': 'application/json' },
+          status: 200,
+        }),
+    );
+
+    await expect(
+      validateEsnCard({ fetchImpl, identifier: 'ESN-123' }),
+    ).rejects.toMatchObject({
+      name: 'ProviderValidationUnavailableError',
+      reason: 'invalidResponse',
     } satisfies Partial<ProviderValidationUnavailableError>);
   });
 });

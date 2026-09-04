@@ -11,8 +11,7 @@ export type GooglePlaceReference = Pick<
   'displayName' | 'fetchFields' | 'formattedAddress' | 'id' | 'location'
 >;
 
-export type LocationSearchError =
-  LocationConfigurationError | LocationProviderError;
+export type LocationSearchError = LocationProviderError;
 
 export interface LocationSuggestion {
   readonly mainText: string;
@@ -34,13 +33,6 @@ const LocationProviderOperation = Schema.Literals([
   'search',
 ]);
 
-export class LocationConfigurationError extends Schema.TaggedErrorClass<LocationConfigurationError>()(
-  'LocationConfigurationError',
-  {
-    setting: Schema.Literal('PUBLIC_GOOGLE_MAPS_API_KEY'),
-  },
-) {}
-
 export class LocationProviderError extends Schema.TaggedErrorClass<LocationProviderError>()(
   'LocationProviderError',
   {
@@ -61,6 +53,89 @@ const isPlacesLibrary = (
   library: GoogleMapsLibrary,
 ): library is google.maps.PlacesLibrary =>
   'AutocompleteSuggestion' in library && 'AutocompleteSessionToken' in library;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isGooglePlaceReference = (
+  value: unknown,
+): value is GooglePlaceReference => {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value['fetchFields'] === 'function' &&
+    typeof value['id'] === 'string'
+  );
+};
+
+export const decodeLocationSuggestions = (
+  result: unknown,
+): LocationSuggestion[] => {
+  if (!isRecord(result) || !Array.isArray(result['suggestions'])) {
+    throw new TypeError(
+      'Google Maps returned an invalid location suggestion list',
+    );
+  }
+
+  return result['suggestions'].map((suggestion, index) => {
+    if (!isRecord(suggestion) || !isRecord(suggestion['placePrediction'])) {
+      throw new TypeError(
+        `Google Maps location suggestion ${index + 1} has no place`,
+      );
+    }
+
+    const prediction = suggestion['placePrediction'];
+    const mainTextValue = prediction['mainText'];
+    const placeIdValue = prediction['placeId'];
+    const toPlace = prediction['toPlace'];
+    if (
+      !isRecord(mainTextValue) ||
+      typeof mainTextValue['text'] !== 'string' ||
+      typeof placeIdValue !== 'string' ||
+      typeof toPlace !== 'function'
+    ) {
+      throw new TypeError(
+        `Google Maps location suggestion ${index + 1} is incomplete`,
+      );
+    }
+
+    const mainText = mainTextValue['text'].trim();
+    const placeId = placeIdValue.trim();
+    if (!mainText || !placeId) {
+      throw new TypeError(
+        `Google Maps location suggestion ${index + 1} is incomplete`,
+      );
+    }
+
+    const secondaryTextValue = prediction['secondaryText'];
+    let secondaryText = '';
+    if (secondaryTextValue !== null && secondaryTextValue !== undefined) {
+      if (
+        !isRecord(secondaryTextValue) ||
+        typeof secondaryTextValue['text'] !== 'string'
+      ) {
+        throw new TypeError(
+          `Google Maps location suggestion ${index + 1} is incomplete`,
+        );
+      }
+      secondaryText = secondaryTextValue['text'].trim();
+    }
+
+    const place: unknown = toPlace.call(prediction);
+    if (!isGooglePlaceReference(place)) {
+      throw new TypeError(
+        `Google Maps location suggestion ${index + 1} has invalid details`,
+      );
+    }
+
+    return {
+      mainText,
+      place,
+      placeId,
+      ...(secondaryText && { secondaryText }),
+    };
+  });
+};
 
 const makeLocationSearchOperations = (
   config: ConfigService,
@@ -124,12 +199,7 @@ const makeLocationSearchOperations = (
       },
       LocationSearchError
     > {
-      const mapsApiKey = config.publicConfig.googleMapsApiKey?.trim();
-      if (!mapsApiKey) {
-        return yield* new LocationConfigurationError({
-          setting: 'PUBLIC_GOOGLE_MAPS_API_KEY',
-        });
-      }
+      const mapsApiKey = config.publicConfig.googleMapsApiKey;
 
       if (!optionsSet) {
         yield* Effect.try({
@@ -211,24 +281,7 @@ const makeLocationSearchOperations = (
     return yield* Effect.try({
       catch: (cause) =>
         new LocationProviderError({ cause, operation: 'search' }),
-      try: () =>
-        (result.suggestions ?? []).flatMap((suggestion) => {
-          const prediction = suggestion.placePrediction;
-          if (!prediction) return [];
-
-          const mainText = prediction.mainText?.text.trim();
-          if (!mainText) return [];
-
-          const secondaryText = prediction.secondaryText?.text.trim();
-          return [
-            {
-              mainText,
-              place: prediction.toPlace(),
-              placeId: prediction.placeId,
-              ...(secondaryText && { secondaryText }),
-            },
-          ];
-        }),
+      try: () => decodeLocationSuggestions(result),
     });
   });
 
