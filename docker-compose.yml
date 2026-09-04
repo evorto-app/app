@@ -233,7 +233,7 @@ services:
       - dist/evorto/server/server.mjs
 
   stripe:
-    image: stripe/stripe-cli:v1.41.1@sha256:f1e91acd11134c1589c13f35b315f648e274a19074d9bfd2c2a5e39552eef620
+    image: stripe/stripe-cli:v1.50.10@sha256:32a9201b067bae8be1f95d8cc501bec4b01f78e40dd9568678552ca153838d53
     restart: always
     environment:
       STRIPE_API_KEY:
