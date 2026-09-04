@@ -44,7 +44,6 @@ import {
   tenantStripeTaxRates,
 } from '../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
-import { TENANT_FORMATTING_LOCALE } from '../../../../types/custom/tenant';
 import { emailOutboxStaleSendingPredicate } from '../../../notifications/email-outbox-lease';
 import { normalizeTenantPrivacyPolicy } from '../../../onboarding/tenant-onboarding.service';
 import {
@@ -147,7 +146,6 @@ const toGlobalAdminTenantRecord = (tenant: {
   currency: string;
   domain: string;
   id: string;
-  locale: string;
   name: string;
   stripeAccountId: null | string;
   theme: string;
@@ -172,7 +170,6 @@ const toPlatformTenantAuditSnapshot = (
     currency: tenant.currency,
     domain: tenant.domain,
     id: tenant.id,
-    locale: tenant.locale,
     name: tenant.name,
     ...privacyPolicy,
     stripeAccountId: tenant.stripeAccountId,
@@ -227,7 +224,6 @@ const globalAdminTenantColumns = {
   currency: true,
   domain: true,
   id: true,
-  locale: true,
   name: true,
   stripeAccountId: true,
   theme: true,
@@ -238,7 +234,6 @@ const globalAdminTenantReturningColumns = {
   currency: tenants.currency,
   domain: tenants.domain,
   id: tenants.id,
-  locale: tenants.locale,
   name: tenants.name,
   stripeAccountId: tenants.stripeAccountId,
   theme: tenants.theme,
@@ -462,9 +457,6 @@ export const globalAdminHandlers = {
               .insert(tenants)
               .values({
                 ...tenantInput,
-                locale: TENANT_FORMATTING_LOCALE,
-                privacyPolicyText: initialPrivacyPolicy.privacyPolicyText,
-                privacyPolicyUrl: initialPrivacyPolicy.privacyPolicyUrl,
                 stripeAccountId: tenantInput.stripeAccountId ?? null,
               })
               .returning(globalAdminTenantReturningColumns);
@@ -697,7 +689,6 @@ export const globalAdminHandlers = {
               .update(tenants)
               .set({
                 ...tenantInput,
-                locale: TENANT_FORMATTING_LOCALE,
                 stripeAccountId: nextStripeAccountId,
               })
               .where(eq(tenants.id, id))

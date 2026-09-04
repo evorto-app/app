@@ -11,7 +11,6 @@ import {
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
-import consola from 'consola/browser';
 
 import { Permission } from '../../shared/permissions/permissions';
 import { Context } from '../../types/custom/context';
@@ -21,6 +20,7 @@ import { AppRpc } from './effect-rpc-angular-client';
 
 // Material surface colors, shared by standard and increased-contrast modes.
 const themeColors = {
+  classic: { dark: '#0f1416', light: '#f6fafd' },
   esn: { dark: '#0f1418', light: '#f5faff' },
   evorto: { dark: '#131410', light: '#fcf9f2' },
 } satisfies Record<Tenant['theme'], { dark: string; light: string }>;
@@ -33,10 +33,6 @@ export class ConfigService {
   public readonly platformAuthoritySignal =
     signal<null | PlatformAdministratorAuthority>(null);
   public readonly tenantSignal = signal<null | Tenant>(null);
-
-  public get missingContext() {
-    return this._missingContext;
-  }
 
   public get permissions(): Permission[] {
     return this.permissionsSignal();
@@ -53,7 +49,6 @@ export class ConfigService {
   public get tenant(): Tenant {
     return this._tenant;
   }
-  private _missingContext = false;
 
   private _publicConfig: {
     googleMapsApiKey: null | string;
@@ -89,9 +84,7 @@ export class ConfigService {
 
   public async initialize() {
     if (this.requestContext === null && isPlatformServer(this.platformId)) {
-      this._missingContext = true;
-      consola.warn('Missing context on server. Skipping config loading.');
-      return;
+      throw new ServerRequestContextRequiredError();
     }
 
     if (this.requestContext !== null && isPlatformServer(this.platformId)) {
@@ -171,5 +164,14 @@ export class ConfigService {
     if (!existingIcon) {
       this.renderer.appendChild(this.document.head, icon);
     }
+  }
+}
+
+export class ServerRequestContextRequiredError extends Error {
+  public constructor() {
+    super(
+      'ConfigService requires Angular REQUEST_CONTEXT during server-side initialization',
+    );
+    this.name = 'ServerRequestContextRequiredError';
   }
 }

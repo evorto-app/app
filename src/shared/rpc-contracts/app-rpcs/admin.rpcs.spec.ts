@@ -78,6 +78,37 @@ const currentTenantSettingsInput = {
 };
 
 describe('AdminTenantUpdateSettingsInput', () => {
+  it('accepts the Classic theme and rejects fractional or out-of-range policy counts', () => {
+    expect(
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        theme: 'classic',
+      }).theme,
+    ).toBe('classic');
+    for (const field of [
+      'cancellationDeadlineHoursBeforeStart',
+      'maxActiveRegistrationsPerUser',
+      'transferDeadlineHoursBeforeStart',
+    ]) {
+      for (const value of [-1, 1.5, 2_147_483_648])
+        expect(() =>
+          Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+            ...currentTenantSettingsInput,
+            [field]: value,
+          }),
+        ).toThrow();
+    }
+  });
+  it('rejects empty, duplicate and unsupported receipt countries', () => {
+    for (const receiptCountries of [[], ['DE', 'DE'], ['de'], ['invalid']])
+      expect(() =>
+        Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+          ...currentTenantSettingsInput,
+          receiptCountries,
+        }),
+      ).toThrow();
+  });
+
   it('accepts the current tenant general-settings surface', () => {
     expect(() =>
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)(

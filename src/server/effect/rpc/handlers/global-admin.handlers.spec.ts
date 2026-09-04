@@ -43,14 +43,19 @@ const createRequestContext = (
     platformAuthority:
       options.platformAdministrator === false ? null : platformAuthority,
     tenant: Schema.decodeUnknownSync(Tenant)({
+      cancellationDeadlineHoursBeforeStart: 120,
       currency: 'EUR',
+      discountProviders: { esnCard: { config: {}, status: 'disabled' } },
       domain: 'tenant.example.com',
       id: 'tenant-1',
-      locale: 'de-DE',
+      maxActiveRegistrationsPerUser: 0,
       name: 'Tenant',
+      receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
+      refundFeesOnCancellation: true,
       stripeAccountId: null,
       theme: 'evorto',
       timezone: 'Europe/Berlin',
+      transferDeadlineHoursBeforeStart: 0,
     }),
     user: null,
     userAssigned: false,
@@ -174,7 +179,6 @@ const createStripeAccountChangeDatabase = ({
     currency: 'EUR',
     domain: 'tenant.example.com',
     id: 'tenant-1',
-    locale: 'de-DE',
     name: 'Tenant',
     stripeAccountId: 'acct_current',
     theme: 'evorto',
@@ -350,7 +354,6 @@ describe('globalAdminHandlers', () => {
                   currency: 'EUR',
                   domain: 'tenant.example.com',
                   id: 'tenant-1',
-                  locale: 'de-DE',
                   name: 'Tenant',
                   stripeAccountId: 'acct_123',
                   theme: 'esn',
@@ -379,7 +382,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: 'acct_123',
           stripeConnected: true,
@@ -402,7 +404,6 @@ describe('globalAdminHandlers', () => {
                       currency: 'EUR',
                       domain: 'tenant.example.com',
                       id: 'tenant-1',
-                      locale: 'de-DE',
                       name: 'Tenant',
                       stripeAccountId: null,
                       theme: 'evorto',
@@ -435,7 +436,6 @@ describe('globalAdminHandlers', () => {
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: null,
         stripeConnected: false,
@@ -659,7 +659,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'section.example.org',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Section',
           stripeAccountId: null,
           stripeConnected: false,
@@ -761,7 +760,6 @@ describe('globalAdminHandlers', () => {
               currency: 'CZK',
               domain: 'section.example.org',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Example Section',
               stripeAccountId: 'acct_123',
               theme: 'esn',
@@ -840,10 +838,7 @@ describe('globalAdminHandlers', () => {
       expect(capturedInsert).toMatchObject({
         currency: 'CZK',
         domain: 'section.example.org',
-        locale: 'de-DE',
         name: 'Example Section',
-        privacyPolicyText: 'Section privacy policy',
-        privacyPolicyUrl: null,
         stripeAccountId: 'acct_123',
         theme: 'esn',
         timezone: 'Europe/Prague',
@@ -995,7 +990,6 @@ describe('globalAdminHandlers', () => {
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'de-DE',
         name: 'Tenant before update',
         stripeAccountId: 'acct_previous',
         theme: 'evorto',
@@ -1008,7 +1002,6 @@ describe('globalAdminHandlers', () => {
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Tenant',
               stripeAccountId: null,
               theme: 'evorto',
@@ -1089,7 +1082,6 @@ describe('globalAdminHandlers', () => {
 
       expect(capturedUpdate).toMatchObject({
         domain: 'tenant.example.com',
-        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: null,
       });
@@ -1113,7 +1105,6 @@ describe('globalAdminHandlers', () => {
         resourceId: 'tenant-1',
         resourceType: 'tenant',
         state: {
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: null,
         },
@@ -1131,7 +1122,6 @@ describe('globalAdminHandlers', () => {
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Tenant',
               stripeAccountId: 'acct_current',
               theme: 'evorto',
@@ -1324,7 +1314,6 @@ describe('globalAdminHandlers', () => {
             currency: 'EUR' as const,
             domain: 'tenant.example.com',
             id: 'tenant-1',
-            locale: 'de-DE',
             name: 'Tenant',
             stripeAccountId: 'acct_current',
             theme: 'evorto' as const,
@@ -1435,7 +1424,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR' as const,
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: null,
           theme: 'evorto',
@@ -1512,14 +1500,16 @@ describe('globalAdminHandlers', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
-          'Tenant currency is locked by existing financial configuration',
+          'Currency cannot be changed after financial information has been added.',
         );
         if (error._tag !== 'RpcBadRequestError') {
           return yield* Effect.die(
             new Error('Expected a typed bad-request error'),
           );
         }
-        expect(error.reason).toContain('dedicated currency migration');
+        expect(error.reason).toContain(
+          'Keep the current currency to save these settings.',
+        );
         expect(update).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
       }),
@@ -1533,7 +1523,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant before update',
           stripeAccountId: 'acct_current',
           theme: 'evorto',

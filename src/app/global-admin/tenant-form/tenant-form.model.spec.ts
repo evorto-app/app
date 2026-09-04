@@ -31,7 +31,6 @@ describe('global admin tenant form model', () => {
         currency: 'AUD',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: 'acct_123',
         stripeConnected: true,
@@ -54,7 +53,6 @@ describe('global admin tenant form model', () => {
       currency: 'EUR' as const,
       domain: 'tenant.example.com',
       id: 'tenant-1',
-      locale: 'de-DE' as const,
       name: 'Tenant',
       stripeAccountId: null,
       stripeConnected: false,
@@ -83,7 +81,6 @@ describe('global admin tenant form model', () => {
       currency: 'EUR' as const,
       domain: 'tenant.example.com',
       id: 'tenant-1',
-      locale: 'de-DE' as const,
       name: 'Tenant',
       stripeAccountId: null,
       stripeConnected: false,
@@ -107,7 +104,6 @@ describe('global admin tenant form model', () => {
       currency: 'EUR' as const,
       domain: 'first.example.com',
       id: 'tenant-1',
-      locale: 'de-DE' as const,
       name: 'First tenant',
       stripeAccountId: null,
       stripeConnected: false,
@@ -214,6 +210,37 @@ describe('global admin tenant form model', () => {
     ).toThrow(
       'Enter the main website address only, for example section.example.org.',
     );
+  });
+
+  it('shows the typed website-address correction produced by the form payload', () => {
+    let validationMessage: string | undefined;
+    try {
+      globalAdminTenantPayloadFromForm({
+        ...createGlobalAdminTenantFormModel(),
+        domain: 'section.example.org/path',
+        name: 'Section',
+        reason: 'Create a production tenant',
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(TenantDomainValidationError);
+      validationMessage = globalAdminTenantDomainValidationMessage(error);
+    }
+
+    expect(validationMessage).toBe(
+      'Enter the main website address only, for example section.example.org.',
+    );
+  });
+
+  it('propagates the original unexpected form-boundary error', () => {
+    const unexpected = new Error('Unexpected parser failure');
+    let propagated: unknown;
+    try {
+      globalAdminTenantDomainValidationMessage(unexpected);
+    } catch (error) {
+      propagated = error;
+    }
+
+    expect(propagated).toBe(unexpected);
   });
 
   it('preserves a typed organization validation reason', () => {

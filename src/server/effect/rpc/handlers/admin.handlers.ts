@@ -3,10 +3,7 @@ import {
   AdminRoleNotFoundError,
   AdminTenantNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/admin.errors';
-import {
-  resolveTenantReceiptSettings,
-  type TenantDiscountProviders,
-} from '@shared/tenant-config';
+import { type TenantDiscountProviders } from '@shared/tenant-config';
 import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -214,9 +211,6 @@ const normalizeTenantBrandAssets = (
     tenantId,
   }),
 });
-
-const normalizeMaxActiveRegistrationsPerUser = (value: number): number =>
-  Math.max(0, Math.trunc(value));
 
 type TenantRuntimeDependentDataDatabase = Pick<DatabaseClient, 'query'>;
 
@@ -784,13 +778,11 @@ export const adminHandlers = {
         emailSenderEmail: input.emailSenderEmail?.trim() || null,
         emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
-        maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
-          input.maxActiveRegistrationsPerUser,
-        ),
-        receiptSettings: resolveTenantReceiptSettings({
+        maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
+        receiptSettings: {
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
-        }),
+        },
         refundFeesOnCancellation: input.refundFeesOnCancellation,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
@@ -820,13 +812,8 @@ export const adminHandlers = {
         emailSenderEmail: input.emailSenderEmail?.trim() || null,
         emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
-        maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
-          input.maxActiveRegistrationsPerUser,
-        ),
-        receiptSettings: resolveTenantReceiptSettings({
-          allowOther: input.allowOther,
-          receiptCountries: input.receiptCountries,
-        }),
+        maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
+        receiptSettings: validatedTenant.receiptSettings,
         refundFeesOnCancellation: input.refundFeesOnCancellation,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,

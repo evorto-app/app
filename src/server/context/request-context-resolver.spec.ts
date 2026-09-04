@@ -8,7 +8,7 @@ import { Cause, Effect, Exit, Layer, Stream } from 'effect';
 
 import { Database } from '../../db';
 import { relations } from '../../db/relations';
-import { tenants } from '../../db/schema';
+import { tenantPrivacyPolicyVersions, tenants } from '../../db/schema';
 import {
   resolveAuthenticationContext,
   resolveExplicitTenantDomain,
@@ -17,6 +17,13 @@ import {
   resolveTenantContext,
   resolveUserContext,
 } from './request-context-resolver';
+
+type TenantReadResult = typeof tenants.$inferSelect & {
+  privacyPolicyVersions: Pick<
+    typeof tenantPrivacyPolicyVersions.$inferSelect,
+    'privacyPolicyText' | 'privacyPolicyUrl'
+  >[];
+};
 
 const createTenant = (domain: string) =>
   ({
@@ -32,12 +39,15 @@ const createTenant = (domain: string) =>
     id: 'tenant-fixture',
     legalNoticeText: null,
     legalNoticeUrl: null,
-    locale: 'de-DE',
     logoUrl: null,
     maxActiveRegistrationsPerUser: 0,
     name: domain,
-    privacyPolicyText: null,
-    privacyPolicyUrl: null,
+    privacyPolicyVersions: [
+      {
+        privacyPolicyText: 'Current organization privacy policy',
+        privacyPolicyUrl: null,
+      },
+    ],
     receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
     refundFeesOnCancellation: true,
     seoDescription: null,
@@ -49,12 +59,12 @@ const createTenant = (domain: string) =>
     timezone: 'Europe/Berlin',
     transferDeadlineHoursBeforeStart: 0,
     updatedAt: new Date('2026-07-01T12:00:00.000Z'),
-  }) satisfies typeof tenants.$inferSelect;
+  }) satisfies TenantReadResult;
 
 const createTenantDatabaseLayer = (
   findTenant: (input: {
     domain: string;
-  }) => Effect.Effect<typeof tenants.$inferSelect | undefined>,
+  }) => Effect.Effect<TenantReadResult | undefined>,
 ) => {
   const unexpectedDatabaseAccess = Effect.die(
     new Error('Unexpected database operation in tenant routing fixture'),
@@ -65,19 +75,31 @@ const createTenantDatabaseLayer = (
   ) =>
     Effect.gen(function* () {
       expect(statement).toContain('from "tenants"');
-      const domain = parameters[0];
+      expect(statement).toContain('tenant_privacy_policy_versions');
+      expect(statement).toContain('"version" desc');
+      const domains = parameters.filter(
+        (value): value is string => typeof value === 'string',
+      );
+      expect(domains).toHaveLength(1);
+      const domain = domains[0];
       if (typeof domain !== 'string') {
         return yield* Effect.die(new Error('Expected the bound tenant domain'));
       }
       const tenant = yield* findTenant({ domain });
       if (!tenant) return [];
-      expect(Object.keys(tenant)).toEqual(
+      const { privacyPolicyVersions, ...tenantFields } = tenant;
+      expect(Object.keys(tenantFields)).toEqual(
         Object.keys(getTableColumns(tenants)),
       );
       return [
-        Object.values(tenant).map((value) =>
-          value instanceof Date ? value.toISOString().replace('Z', '') : value,
-        ),
+        [
+          ...Object.values(tenantFields).map((value) =>
+            value instanceof Date
+              ? value.toISOString().replace('Z', '')
+              : value,
+          ),
+          privacyPolicyVersions.map((policy) => ({ ...policy })),
+        ],
       ];
     });
   const connection = {
@@ -142,6 +164,47 @@ const createPreparedDatabase = ({
 });
 
 describe('request-context-resolver', () => {
+  it.effect(
+    'projects the current versioned privacy policy into request context',
+    () =>
+      Effect.gen(function* () {
+        const databaseLayer = createTenantDatabaseLayer(({ domain }) =>
+          Effect.succeed(createTenant(domain)),
+        );
+        const result = yield* resolveTenantContext({
+          protocol: 'https',
+          requestHost: 'tenant.example.com',
+        }).pipe(Effect.provide(databaseLayer));
+        expect(result.tenant).toMatchObject({
+          privacyPolicyText: 'Current organization privacy policy',
+          privacyPolicyUrl: null,
+        });
+        expect(result.tenant).not.toHaveProperty('privacyPolicyVersions');
+      }),
+  );
+
+  it.effect(
+    'fails when a persisted tenant has no required privacy policy version',
+    () =>
+      Effect.gen(function* () {
+        const databaseLayer = createTenantDatabaseLayer(({ domain }) =>
+          Effect.succeed({
+            ...createTenant(domain),
+            privacyPolicyVersions: [],
+          }),
+        );
+        const result = yield* resolveTenantContext({
+          protocol: 'https',
+          requestHost: 'tenant.example.com',
+        }).pipe(Effect.provide(databaseLayer), Effect.exit);
+        expect(Exit.isFailure(result)).toBe(true);
+        if (Exit.isFailure(result))
+          expect(Cause.pretty(result.cause)).toContain(
+            'missing its required privacy policy version',
+          );
+      }),
+  );
+
   it('keeps session cookies out of the request context authentication state', () => {
     expect(resolveAuthenticationContext({ isAuthenticated: true })).toEqual({
       isAuthenticated: true,

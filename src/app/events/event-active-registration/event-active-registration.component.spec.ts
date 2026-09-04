@@ -25,6 +25,7 @@ import nodePath from 'node:path';
 import { of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import {
   clampRegistrationAddonQuantity,
   reconcileRegistrationAddonPurchaseAttempts,
@@ -580,6 +581,10 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       imports: [EventActiveRegistrationComponent],
       providers: [
         provideTanStackQuery(queryClient),
+        {
+          provide: TENANT_DATE_PIPE_TIMEZONE,
+          useValue: 'Europe/Berlin',
+        },
         {
           provide: EventActiveRegistrationOperations,
           useValue: {

@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import {
   EventRegistrationTransferDialogComponent,
   EventRegistrationTransferDialogData,
@@ -18,6 +19,10 @@ describe('EventRegistrationTransferDialogComponent', () => {
       imports: [EventRegistrationTransferDialogComponent],
       providers: [
         { provide: Clipboard, useValue: clipboard },
+        {
+          provide: TENANT_DATE_PIPE_TIMEZONE,
+          useValue: 'Europe/Berlin',
+        },
         {
           provide: MAT_DIALOG_DATA,
           useValue: {

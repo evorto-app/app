@@ -62,7 +62,6 @@ export class PlatformTenantAuditSnapshot extends Schema.Class<PlatformTenantAudi
   currency: Tenant.fields.currency,
   domain: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
-  locale: Tenant.fields.locale,
   name: Schema.NonEmptyString,
   stripeAccountId: Schema.NullOr(Schema.String),
   stripeConnected: Schema.Boolean,

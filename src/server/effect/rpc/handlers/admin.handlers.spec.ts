@@ -33,8 +33,8 @@ const createTenant = (id = 'tenant-1') => ({
   domain: `${id}.example.com`,
   faviconUrl: null,
   id,
-  locale: 'en',
   logoUrl: null,
+  maxActiveRegistrationsPerUser: 0,
   name: id,
   privacyPolicyText: 'Current tenant privacy policy',
   privacyPolicyUrl: null,
@@ -642,7 +642,7 @@ describe('adminHandlers tenant settings', () => {
             legalNoticeText: '  Tenant imprint text  ',
             legalNoticeUrl: ' https://section.example.org/imprint ',
             logoUrl: 'https://cdn.example.org/logo.svg',
-            maxActiveRegistrationsPerUser: 4.8,
+            maxActiveRegistrationsPerUser: 4,
             receiptCountries: ['NL'],
             refundFeesOnCancellation: false,
             seoDescription: '  Public description  ',
@@ -650,7 +650,7 @@ describe('adminHandlers tenant settings', () => {
             stripeAccountId: ' acct_123 ',
             termsText: ' Tenant terms text ',
             termsUrl: 'https://section.example.org/terms',
-            theme: 'evorto',
+            theme: 'classic',
             timezone: 'Australia/Brisbane',
             transferDeadlineHoursBeforeStart: 12,
           },
@@ -685,6 +685,7 @@ describe('adminHandlers tenant settings', () => {
           stripeAccountId: 'acct_123',
           termsText: 'Tenant terms text',
           termsUrl: 'https://section.example.org/terms',
+          theme: 'classic',
           timezone: 'Australia/Brisbane',
           transferDeadlineHoursBeforeStart: 12,
         });
@@ -696,7 +697,6 @@ describe('adminHandlers tenant settings', () => {
           faviconUrl: 'https://cdn.example.org/favicon.ico',
           legalNoticeText: 'Tenant imprint text',
           legalNoticeUrl: 'https://section.example.org/imprint',
-          locale: 'de-DE',
           logoUrl: 'https://cdn.example.org/logo.svg',
           maxActiveRegistrationsPerUser: 4,
           refundFeesOnCancellation: false,
@@ -705,10 +705,57 @@ describe('adminHandlers tenant settings', () => {
           stripeAccountId: 'acct_123',
           termsText: 'Tenant terms text',
           termsUrl: 'https://section.example.org/terms',
+          theme: 'classic',
           timezone: 'Australia/Brisbane',
           transferDeadlineHoursBeforeStart: 12,
         });
         expect(capturedUpdate).not.toHaveProperty('locale');
+      }),
+  );
+
+  it.effect(
+    'rejects invalid settings before opening a database transaction',
+    () =>
+      Effect.gen(function* () {
+        const noNetworkLayer = Layer.mergeAll(
+          unavailableDatabaseLayer,
+          Layer.succeed(
+            StripeClient,
+            new Stripe('sk_test_admin_no_stripe', {
+              httpClient: new UnexpectedStripeHttpClient(),
+              maxNetworkRetries: 0,
+            }),
+          ),
+        );
+        for (const patch of [
+          { maxActiveRegistrationsPerUser: 1.5 },
+          { cancellationDeadlineHoursBeforeStart: -1 },
+          { transferDeadlineHoursBeforeStart: 2_147_483_648 },
+          { receiptCountries: [] },
+          { receiptCountries: ['DE', 'DE'] },
+          { receiptCountries: ['invalid'] },
+        ]) {
+          const result = yield* adminHandlers['admin.tenant.updateSettings'](
+            { ...createSettingsInput(), ...patch },
+            createRpcOptions(
+              AdminRpcs.AdminTenantUpdateSettings.middleware(
+                RpcRequestContextMiddleware,
+              ),
+            ),
+          ).pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+            Effect.provide(noNetworkLayer),
+            Effect.flip,
+          );
+          expect(result).toMatchObject({
+            _tag: 'RpcBadRequestError',
+            message: 'Updated tenant settings failed validation',
+          });
+        }
       }),
   );
 
@@ -1008,7 +1055,7 @@ describe('adminHandlers tenant settings', () => {
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe(
-        'Tenant currency is locked by existing financial configuration',
+        'Currency cannot be changed after financial information has been added.',
       );
     }),
   );
@@ -1063,7 +1110,9 @@ describe('adminHandlers tenant settings', () => {
       if (error._tag !== 'RpcBadRequestError') {
         return yield* Effect.die(error);
       }
-      expect(error.reason).toContain('dedicated currency migration');
+      expect(error.reason).toContain(
+        'Keep the current currency to save these settings.',
+      );
     }),
   );
 
@@ -1123,7 +1172,9 @@ describe('adminHandlers tenant settings', () => {
         if (error._tag !== 'RpcBadRequestError') {
           return yield* Effect.die(error);
         }
-        expect(error.reason).toContain('dedicated currency migration');
+        expect(error.reason).toContain(
+          'Keep the current currency to save these settings.',
+        );
       }),
   );
 

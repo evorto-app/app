@@ -7,7 +7,10 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Tenant } from '../../types/custom/tenant';
-import { ConfigService } from './config.service';
+import {
+  ConfigService,
+  ServerRequestContextRequiredError,
+} from './config.service';
 import { APP_RPC_CLIENT } from './effect-rpc-angular-client';
 
 const createTenant = (theme: Tenant['theme']) =>
@@ -20,7 +23,6 @@ const createTenant = (theme: Tenant['theme']) =>
     },
     domain: 'section.example.test',
     id: `tenant-${theme}`,
-    locale: 'de-DE',
     maxActiveRegistrationsPerUser: 3,
     name: 'Section',
     receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
@@ -40,6 +42,7 @@ describe('ConfigService theme initialization', () => {
     const tenantCall = vi
       .fn()
       .mockResolvedValueOnce(createTenant('evorto'))
+      .mockResolvedValueOnce(createTenant('classic'))
       .mockResolvedValueOnce(createTenant('esn'));
 
     TestBed.configureTestingModule({
@@ -85,7 +88,7 @@ describe('ConfigService theme initialization', () => {
   };
 
   const configuredThemeClasses = () =>
-    ['theme-evorto', 'theme-esn'].filter((themeClass) =>
+    ['theme-evorto', 'theme-classic', 'theme-esn'].filter((themeClass) =>
       TestBed.inject(DOCUMENT).documentElement.classList.contains(themeClass),
     );
 
@@ -98,12 +101,61 @@ describe('ConfigService theme initialization', () => {
     );
 
   afterEach(() => {
-    document.documentElement.classList.remove('theme-evorto', 'theme-esn');
+    document.documentElement.classList.remove(
+      'theme-evorto',
+      'theme-classic',
+      'theme-esn',
+    );
     for (const tag of document.querySelectorAll('meta[name="theme-color"]')) {
       tag.remove();
     }
     queryClient.clear();
     TestBed.resetTestingModule();
+  });
+
+  it('fails visibly when Angular did not provide request context', async () => {
+    const publicConfigCall = vi.fn();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    TestBed.configureTestingModule({
+      providers: [
+        ConfigService,
+        provideTanStackQuery(queryClient),
+        { provide: PLATFORM_ID, useValue: 'server' },
+        { provide: REQUEST_CONTEXT, useValue: null },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            config: {
+              public: {
+                call: publicConfigCall,
+              },
+              tenant: {
+                queryOptions: () => ({
+                  enabled: false,
+                  queryFn: vi.fn(),
+                  queryKey: ['config', 'tenant'],
+                }),
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const config = TestBed.inject(ConfigService);
+
+    await expect(config.initialize()).rejects.toBeInstanceOf(
+      ServerRequestContextRequiredError,
+    );
+    expect(publicConfigCall).not.toHaveBeenCalled();
+    queryClient.clear();
   });
 
   it('applies exactly the current theme without waiting for the tenant query', async () => {
@@ -117,6 +169,13 @@ describe('ConfigService theme initialization', () => {
     ]);
 
     await config.initialize();
+    expect(configuredThemeClasses()).toEqual(['theme-classic']);
+    expect(configuredThemeColors()).toEqual([
+      { content: '#f6fafd', media: '(prefers-color-scheme: light)' },
+      { content: '#0f1416', media: '(prefers-color-scheme: dark)' },
+    ]);
+
+    await config.initialize();
     expect(configuredThemeClasses()).toEqual(['theme-esn']);
     expect(configuredThemeColors()).toEqual([
       { content: '#f5faff', media: '(prefers-color-scheme: light)' },
@@ -125,6 +184,7 @@ describe('ConfigService theme initialization', () => {
   });
 
   it.each([
+    { dark: '#0f1416', light: '#f6fafd', theme: 'classic' },
     { dark: '#131410', light: '#fcf9f2', theme: 'evorto' },
     { dark: '#0f1418', light: '#f5faff', theme: 'esn' },
   ] as const)(

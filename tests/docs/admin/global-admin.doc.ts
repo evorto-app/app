@@ -28,7 +28,6 @@ type GlobalAdminTenantDocRow = Pick<
   | 'currency'
   | 'domain'
   | 'id'
-  | 'locale'
   | 'name'
   | 'stripeAccountId'
   | 'theme'
@@ -41,13 +40,11 @@ const expectGlobalAdminTenantRows = async (
 ) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
-  await expect(page.getByText('Locale').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText(tenant.domain).first()).toBeVisible();
   await expect(page.getByText(tenant.theme).first()).toBeVisible();
-  await expect(page.getByText(tenant.locale).first()).toBeVisible();
   await expect(page.getByText(tenant.currency).first()).toBeVisible();
   await expect(page.getByText(tenant.timezone).first()).toBeVisible();
   if (tenant.stripeAccountId) {
@@ -226,7 +223,6 @@ Platform administrators can review, create, and edit organizations from **Platfo
       expect.objectContaining({
         currency: 'EUR',
         domain: createdTenantDomain,
-        locale: 'de-DE',
         name: createdTenantName,
         stripeAccountId: null,
         theme: 'evorto',

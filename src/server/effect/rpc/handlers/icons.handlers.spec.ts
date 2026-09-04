@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { type Permission } from '../../../../shared/permissions/permissions';
@@ -7,9 +9,12 @@ import {
   CategoryManagementIconUsage,
   EventCreateIconUsage,
   EventEditIconUsage,
+  IconsAdd,
+  IconsSearch,
 } from '../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   RpcRequestContext,
+  RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import {
@@ -21,9 +26,17 @@ import {
 } from './icons.handlers';
 import { RpcAccess } from './shared/rpc-access.service';
 
+const createRpcOptions = <R extends Rpc.Any>(rpc: R) => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc,
+});
+
 const tenant = {
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
-  defaultLocation: null,
+  defaultLocation: undefined,
   discountProviders: {
     esnCard: {
       config: {},
@@ -32,26 +45,31 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en-GB' as const,
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Berlin' as const,
+  transferDeadlineHoursBeforeStart: 0,
 } satisfies RpcRequestContextShape['tenant'];
 
 const createUser = (permissions: readonly Permission[]) => ({
   attributes: [],
   auth0Id: 'auth0|user-1',
+  communicationEmail: undefined,
   email: 'alice@example.com',
   firstName: 'Alice',
-  iban: null,
+  homeTenantId: undefined,
+  homeTenantName: undefined,
+  iban: undefined,
   id: 'user-1',
   lastName: 'Doe',
-  paypalEmail: null,
+  paypalEmail: undefined,
   permissions,
   roleIds: [],
 });
@@ -98,7 +116,7 @@ describe('icon authoring authorization', () => {
             icon: 'calendar',
             usage: EventCreateIconUsage.make({}),
           },
-          { headers: {} },
+          createRpcOptions(IconsAdd.middleware(RpcRequestContextMiddleware)),
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error._tag).toBe('RpcUnauthorizedError');
@@ -118,7 +136,7 @@ describe('icon authoring authorization', () => {
       );
 
       expect(error._tag).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('events:create');
+      expect(error).toMatchObject({ permission: 'events:create' });
     }),
   );
 
@@ -177,7 +195,7 @@ describe('icon search bounds', () => {
 
         const error = yield* iconHandlers['icons.search'](
           { search: 'calendar' },
-          { headers: {} },
+          createRpcOptions(IconsSearch.middleware(RpcRequestContextMiddleware)),
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error._tag).toBe('RpcUnauthorizedError');
@@ -227,7 +245,7 @@ describe('icon search bounds', () => {
 
       const result = yield* iconHandlers['icons.search'](
         { search: ' Icon ' },
-        { headers: {} },
+        createRpcOptions(IconsSearch.middleware(RpcRequestContextMiddleware)),
       ).pipe(
         Effect.provide(createContextLayer({ database, user: createUser([]) })),
       );

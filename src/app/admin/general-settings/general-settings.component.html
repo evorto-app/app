@@ -80,6 +80,14 @@
               [formField]="settingsForm.maxActiveRegistrationsPerUser"
             />
             <mat-hint>Use 0 for no organization-wide limit.</mat-hint>
+            @if (
+              settingsForm.maxActiveRegistrationsPerUser().touched() &&
+              settingsForm.maxActiveRegistrationsPerUser().invalid()
+            ) {
+              <mat-error
+                >Enter a whole number from 0 to 2,147,483,647.</mat-error
+              >
+            }
           </mat-form-field>
           <mat-form-field>
             <mat-label>Transfer deadline before event (hours)</mat-label>
@@ -96,7 +104,9 @@
               settingsForm.transferDeadlineHoursBeforeStart().touched() &&
               settingsForm.transferDeadlineHoursBeforeStart().invalid()
             ) {
-              <mat-error>Enter zero or more hours.</mat-error>
+              <mat-error
+                >Enter a whole number from 0 to 2,147,483,647.</mat-error
+              >
             }
           </mat-form-field>
           <mat-form-field>
@@ -114,7 +124,9 @@
               settingsForm.cancellationDeadlineHoursBeforeStart().touched() &&
               settingsForm.cancellationDeadlineHoursBeforeStart().invalid()
             ) {
-              <mat-error>Enter zero or more hours.</mat-error>
+              <mat-error
+                >Enter a whole number from 0 to 2,147,483,647.</mat-error
+              >
             }
           </mat-form-field>
         </div>
@@ -144,6 +156,7 @@
         <mat-label>Site theme</mat-label>
         <mat-select [formField]="settingsForm.theme">
           <mat-option value="evorto">Default theme</mat-option>
+          <mat-option value="classic">Classic theme</mat-option>
           <mat-option value="esn">ESN theme</mat-option>
         </mat-select>
       </mat-form-field>
@@ -332,6 +345,12 @@
             </mat-option>
           }
         </mat-select>
+        @if (
+          settingsForm.receiptCountries().touched() &&
+          settingsForm.receiptCountries().invalid()
+        ) {
+          <mat-error>Select at least one supported receipt country.</mat-error>
+        }
       </mat-form-field>
       <mat-checkbox [formField]="settingsForm.allowOther">
         Allow other

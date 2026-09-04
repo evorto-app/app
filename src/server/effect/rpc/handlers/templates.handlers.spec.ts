@@ -13,8 +13,9 @@ import { templateHandlers } from './templates.handlers';
 import { SimpleTemplateService } from './templates/simple-template.service';
 
 const tenant = {
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
-  defaultLocation: null,
+  defaultLocation: undefined,
   discountProviders: {
     esnCard: {
       config: {},
@@ -23,26 +24,31 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 };
 
 const createUser = (permissions: readonly Permission[]) => ({
   attributes: [],
   auth0Id: 'auth0|user-1',
+  communicationEmail: undefined,
   email: 'alice@example.com',
   firstName: 'Alice',
-  iban: null,
+  homeTenantId: undefined,
+  homeTenantName: undefined,
+  iban: undefined,
   id: 'user-1',
   lastName: 'Doe',
-  paypalEmail: null,
+  paypalEmail: undefined,
   permissions,
   roleIds: [],
 });
@@ -253,11 +259,11 @@ describe('templateHandlers permissions', () => {
         { headers: {} } as never,
       ).pipe(
         Effect.flip,
-        Effect.provide(createContextLayer(['templates:view'])),
+        Effect.provide(createSimpleHandlerLayer(['templates:view'], {})),
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('templates:create');
+      expect(error).toMatchObject({ permission: 'templates:create' });
     }),
   );
 
@@ -271,11 +277,11 @@ describe('templateHandlers permissions', () => {
         { headers: {} } as never,
       ).pipe(
         Effect.flip,
-        Effect.provide(createContextLayer(['templates:create'])),
+        Effect.provide(createSimpleHandlerLayer(['templates:create'], {})),
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('templates:editAll');
+      expect(error).toMatchObject({ permission: 'templates:editAll' });
     }),
   );
 
@@ -372,11 +378,11 @@ describe('templateHandlers permissions', () => {
         headers: {},
       } as never).pipe(
         Effect.flip,
-        Effect.provide(createContextLayer(['templates:view'])),
+        Effect.provide(createSimpleHandlerLayer(['templates:view'], {})),
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('templates:create');
+      expect(error).toMatchObject({ permission: 'templates:create' });
     }),
   );
 
@@ -417,11 +423,11 @@ describe('templateHandlers permissions', () => {
         { headers: {} } as never,
       ).pipe(
         Effect.flip,
-        Effect.provide(createContextLayer(['templates:create'])),
+        Effect.provide(createSimpleHandlerLayer(['templates:create'], {})),
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('templates:editAll');
+      expect(error).toMatchObject({ permission: 'templates:editAll' });
     }),
   );
 
@@ -433,7 +439,7 @@ describe('templateHandlers permissions', () => {
       ).pipe(Effect.flip, Effect.provide(createContextLayer([])));
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('templates:view');
+      expect(error).toMatchObject({ permission: 'templates:view' });
     }),
   );
 

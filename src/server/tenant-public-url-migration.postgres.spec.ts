@@ -110,7 +110,6 @@ const createPlatformRequestContext = (tenant: {
     },
     domain: tenant.domain,
     id: tenant.id,
-    locale: 'de-DE',
     maxActiveRegistrationsPerUser: 0,
     name: tenant.name,
     receiptSettings: {

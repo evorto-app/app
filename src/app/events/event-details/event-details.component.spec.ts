@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../core/config.service';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
+import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
 import {
   eventAddonPurchaseTiming,
@@ -437,6 +438,10 @@ describe('EventDetailsComponent load recovery', () => {
       providers: [
         provideRouter([]),
         provideTanStackQuery(queryClient),
+        {
+          provide: TENANT_DATE_PIPE_TIMEZONE,
+          useValue: 'Europe/Berlin',
+        },
         {
           provide: ConfigService,
           useValue: {

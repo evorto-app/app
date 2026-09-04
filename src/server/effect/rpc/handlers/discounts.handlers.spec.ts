@@ -23,6 +23,7 @@ import { RpcAccess } from './shared/rpc-access.service';
 
 const createTenant = (id = 'tenant-1') =>
   Schema.decodeUnknownSync(Tenant)({
+    cancellationDeadlineHoursBeforeStart: 120,
     currency: 'EUR' as const,
     defaultLocation: null,
     discountProviders: {
@@ -33,15 +34,17 @@ const createTenant = (id = 'tenant-1') =>
     },
     domain: `${id}.example.com`,
     id,
-    locale: 'en',
+    maxActiveRegistrationsPerUser: 0,
     name: id,
     receiptSettings: {
       allowOther: false,
       receiptCountries: ['NL'],
     },
+    refundFeesOnCancellation: true,
     stripeAccountId: null,
     theme: 'evorto' as const,
     timezone: 'Europe/Amsterdam',
+    transferDeadlineHoursBeforeStart: 0,
   });
 
 const createUser = () =>

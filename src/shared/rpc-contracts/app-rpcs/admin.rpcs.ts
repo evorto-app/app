@@ -1,6 +1,6 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
-import { literalUnion, nonNegativeNumber } from '@shared/schema-utilities';
+import { literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -233,7 +233,8 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
 export const AdminTenantUpdateSettingsInput = Schema.Struct({
   allowOther: Schema.Boolean,
   buyEsnCardUrl: Schema.optional(UrlString),
-  cancellationDeadlineHoursBeforeStart: nonNegativeNumber,
+  cancellationDeadlineHoursBeforeStart:
+    Tenant.fields.cancellationDeadlineHoursBeforeStart,
   currency: Tenant.fields.currency,
   defaultLocation: Schema.NullOr(GoogleLocation),
   emailSenderEmail: Schema.optional(OptionalSenderEmail),
@@ -243,17 +244,18 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   legalNoticeText: Schema.optional(Schema.String),
   legalNoticeUrl: Schema.optional(UrlString),
   logoUrl: Schema.optional(TenantBrandAssetUrlString),
-  maxActiveRegistrationsPerUser: nonNegativeNumber,
-  receiptCountries: Schema.Array(Schema.NonEmptyString),
+  maxActiveRegistrationsPerUser: Tenant.fields.maxActiveRegistrationsPerUser,
+  receiptCountries: Tenant.fields.receiptSettings.fields.receiptCountries,
   refundFeesOnCancellation: Schema.Boolean,
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
   stripeAccountId: Schema.optional(Schema.NonEmptyString),
   termsText: Schema.optional(Schema.String),
   termsUrl: Schema.optional(UrlString),
-  theme: literalUnion('evorto', 'esn'),
+  theme: Tenant.fields.theme,
   timezone: Tenant.fields.timezone,
-  transferDeadlineHoursBeforeStart: nonNegativeNumber,
+  transferDeadlineHoursBeforeStart:
+    Tenant.fields.transferDeadlineHoursBeforeStart,
 });
 
 export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<

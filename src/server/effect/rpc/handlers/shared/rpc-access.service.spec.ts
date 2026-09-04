@@ -11,8 +11,9 @@ import { PlatformOperationContext } from './platform-operation-context';
 import { RpcAccess } from './rpc-access.service';
 
 const tenant = {
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
-  defaultLocation: null,
+  defaultLocation: undefined,
   discountProviders: {
     esnCard: {
       config: {},
@@ -21,15 +22,17 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 };
 
 const platformAuthority = PlatformAdministratorAuthority.make({
@@ -107,7 +110,7 @@ describe('RpcAccess.ensurePermission', () => {
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('templates:create');
+      expect(error).toMatchObject({ permission: 'templates:create' });
     }),
   );
 

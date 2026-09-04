@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeFinanceTransactionRecord } from './finance.shared';
+import {
+  normalizeFinanceTransactionRecord,
+  resolveTenantSelectableReceiptCountries,
+  validateReceiptCountryForTenant,
+} from './finance.shared';
 
 describe('normalizeFinanceTransactionRecord', () => {
   it('retains the currency recorded with the immutable transaction', () => {
@@ -21,5 +25,42 @@ describe('normalizeFinanceTransactionRecord', () => {
       currency: 'CZK',
       id: 'transaction-1',
     });
+  });
+});
+
+describe('required tenant receipt settings', () => {
+  it('fails instead of inventing countries or the Other policy', () => {
+    for (const receiptSettings of [
+      undefined,
+      null,
+      {},
+      { allowOther: false },
+      { receiptCountries: ['DE'] },
+      { allowOther: false, receiptCountries: [] },
+      { allowOther: false, receiptCountries: ['DE', 'DE'] },
+      { allowOther: false, receiptCountries: ['de'] },
+    ]) {
+      expect(() =>
+        resolveTenantSelectableReceiptCountries({ receiptSettings }),
+      ).toThrow();
+    }
+  });
+  it('uses the explicit country list and Other policy', () => {
+    const tenant = {
+      receiptSettings: { allowOther: true, receiptCountries: ['NL', 'DE'] },
+    };
+    expect(resolveTenantSelectableReceiptCountries(tenant)).toEqual([
+      'NL',
+      'DE',
+      'OTHER',
+    ]);
+    expect(validateReceiptCountryForTenant(tenant, 'nl')).toBe('NL');
+    expect(validateReceiptCountryForTenant(tenant, 'US')).toBeNull();
+    expect(
+      validateReceiptCountryForTenant(
+        { receiptSettings: { ...tenant.receiptSettings, allowOther: false } },
+        'OTHER',
+      ),
+    ).toBeNull();
   });
 });

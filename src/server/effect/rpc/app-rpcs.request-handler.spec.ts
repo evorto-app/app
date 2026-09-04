@@ -1,4 +1,9 @@
 import { describe, expect, it } from '@effect/vitest';
+import {
+  createDefaultTenantDiscountProviders,
+  DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+  DEFAULT_TENANT_RECEIPT_COUNTRIES,
+} from '@shared/tenant-config';
 import { Effect, Schema } from 'effect';
 
 import { Context as RequestContext } from '../../../types/custom/context';
@@ -15,13 +20,21 @@ const anonymousContext = Schema.decodeUnknownSync(RequestContext)({
   authentication: { isAuthenticated: false },
   permissions: [],
   tenant: {
+    cancellationDeadlineHoursBeforeStart: 120,
     currency: 'EUR',
+    discountProviders: createDefaultTenantDiscountProviders(),
     domain: 'tenant.example.com',
     id: 'tenant-1',
-    locale: 'en-GB',
+    maxActiveRegistrationsPerUser: 0,
     name: 'Tenant',
+    receiptSettings: {
+      allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+      receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
+    },
+    refundFeesOnCancellation: true,
     theme: 'evorto',
     timezone: 'Europe/Berlin',
+    transferDeadlineHoursBeforeStart: 0,
   },
 });
 

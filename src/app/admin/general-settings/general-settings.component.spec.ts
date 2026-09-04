@@ -22,6 +22,7 @@ import {
   GeneralSettingsComponent,
   generalSettingsFormSchema,
   generalSettingsSaveDisabled,
+  generalSettingsUpdateErrorMessage,
   tenantTimezoneValidationError,
 } from './general-settings.component';
 
@@ -145,7 +146,10 @@ describe('general settings error notifications', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenant: createGeneralSettingsFormModel(),
+            tenant: {
+              ...createGeneralSettingsFormModel(),
+              receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
+            },
             tenantSignal: signal(null),
           },
         },
@@ -235,4 +239,57 @@ describe('general settings error notifications', () => {
       expect(upload).toHaveBeenCalledOnce();
     },
   );
+});
+
+describe('complete organization settings validation', () => {
+  it('rejects invalid policy counts and incomplete receipt country choices', () => {
+    const model = signal(createGeneralSettingsFormModel());
+    const settings = form(model, generalSettingsFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+    for (const field of [
+      'cancellationDeadlineHoursBeforeStart',
+      'maxActiveRegistrationsPerUser',
+      'transferDeadlineHoursBeforeStart',
+    ] as const) {
+      for (const value of [-1, 1.5, 2_147_483_648]) {
+        model.set({ ...createGeneralSettingsFormModel(), [field]: value });
+        expect(settings[field]().invalid()).toBe(true);
+      }
+    }
+    for (const receiptCountries of [[], ['DE', 'DE'], ['invalid']]) {
+      model.set({ ...createGeneralSettingsFormModel(), receiptCountries });
+      expect(settings.receiptCountries().invalid()).toBe(true);
+    }
+    model.set({
+      ...createGeneralSettingsFormModel(),
+      receiptCountries: ['DE', 'NL'],
+      theme: 'classic',
+    });
+    expect(settings().valid()).toBe(true);
+  });
+});
+
+describe('organization settings expected outcomes', () => {
+  it('shows a safe rejected-save message while keeping unexpected details private', () => {
+    const message =
+      'Currency cannot be changed after financial information has been added.';
+    expect(
+      generalSettingsUpdateErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message,
+        reason:
+          'This organization already has templates, events, receipts, or payments.',
+      }),
+    ).toBe(message);
+    expect(
+      generalSettingsUpdateErrorMessage(new Error('private database details')),
+    ).toBe('Failed to update organization settings');
+    expect(
+      generalSettingsUpdateErrorMessage({
+        _tag: 'RpcInternalError',
+        message: 'private database details',
+      }),
+    ).toBe('Failed to update organization settings');
+  });
 });
