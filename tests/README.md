@@ -152,6 +152,11 @@ still available, and cleanup failures remain visible.
   closed while rejection remains available. These helpers require the
   generated `MINIO_HOST_PORT` and never use developer or remote `S3_ENDPOINT`
   values.
+- The tenant-routing fixture grants Chromium local-network access only to the
+  exact loopback application origin, allowing its PDF iframe to load the
+  separate local MinIO origin. This accounts for Chromium treating Playwright's
+  fulfilled application document as an unknown network address space. The
+  permission ends with the test context; external origins receive no grant.
 - The documentation readback accepts any configured HTTP(S) S3-compatible
   endpoint while requiring the exact tenant/event/user-bound bucket-key suffix.
   Receipt/upload database rows are deleted by the journey. The Docker MinIO

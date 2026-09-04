@@ -35,6 +35,7 @@ describe('local tenant request routing', () => {
 
   it('removes only its registered handler and permits repeated cleanup', async () => {
     const context = {
+      grantPermissions: vi.fn(async () => {}),
       route: vi.fn(registerRoute),
       unroute: vi.fn(async () => {}),
     };
@@ -47,11 +48,31 @@ describe('local tenant request routing', () => {
     await stopTenantRequestRouting(context);
     expect(context.unroute.mock.calls).toEqual(context.route.mock.calls);
     expect(context.unroute).toHaveBeenCalledOnce();
+    expect(context.grantPermissions).toHaveBeenCalledExactlyOnceWith(
+      ['local-network-access'],
+      { origin: 'http://localhost:4200' },
+    );
+  });
+
+  it('does not grant network permission to a non-loopback origin', async () => {
+    const context = {
+      grantPermissions: vi.fn(async () => {}),
+      route: registerRoute,
+      unroute: async () => {},
+    };
+    await routeLocalTenantRequests({
+      baseUrl: 'https://preview.example.test',
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    await stopTenantRequestRouting(context);
+    expect(context.grantPermissions).not.toHaveBeenCalled();
   });
 
   it('preserves a route removal failure and still closes the owned context', async () => {
     const failure = new Error('route removal failed');
     const context = {
+      grantPermissions: async () => {},
       route: registerRoute,
       unroute: async () => {
         throw failure;
@@ -71,6 +92,7 @@ describe('local tenant request routing', () => {
     const routeFailure = new Error('route removal failed');
     const closeFailure = new Error('context close failed');
     const context = {
+      grantPermissions: async () => {},
       route: registerRoute,
       unroute: async () => {
         throw routeFailure;

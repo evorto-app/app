@@ -66,6 +66,13 @@ test('keeps the local tenant header away from external requests', async ({
 
   try {
     local = await listen((request, response) => {
+      if (request.url === '/iframe') {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(
+          `<iframe title="Local storage" src="${external.origin}/embedded"></iframe>`,
+        );
+        return;
+      }
       if (request.url === '/redirect') {
         response.writeHead(302, { location: `${external.origin}/redirected` });
         response.end();
@@ -83,6 +90,15 @@ test('keeps the local tenant header away from external requests', async ({
 
     await page.goto(`${local.origin}/tenant`);
     await expect(page.locator('body')).toHaveText('north-river.evorto.app');
+
+    const embeddedResponse = page.waitForResponse(
+      `${external.origin}/embedded`,
+    );
+    await page.goto(`${local.origin}/iframe`);
+    expect((await embeddedResponse).status()).toBe(200);
+    await expect(
+      page.frameLocator('iframe[title="Local storage"]').locator('body'),
+    ).toHaveText('none');
 
     await page.goto(`${external.origin}/direct`);
     await expect(page.locator('body')).toHaveText('none');

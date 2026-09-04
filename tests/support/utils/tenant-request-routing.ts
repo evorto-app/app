@@ -32,13 +32,24 @@ export const routeLocalTenantRequests = async ({
   tenantDomain,
 }: {
   baseUrl: string;
-  context: Pick<BrowserContext, 'route' | 'unroute'>;
+  context: Pick<BrowserContext, 'grantPermissions' | 'route' | 'unroute'>;
   tenantDomain: string;
 }): Promise<void> => {
   if (tenantRoutes.has(context)) {
     throw new Error(
       'Tenant request routing is already installed for this context',
     );
+  }
+  const applicationUrl = new URL(baseUrl);
+  if (
+    ['localhost', '127.0.0.1', '[::1]'].includes(applicationUrl.hostname) &&
+    ['http:', 'https:'].includes(applicationUrl.protocol)
+  ) {
+    // Chromium treats fulfilled documents as an unknown network address space.
+    // Allow this local test origin to load the separate loopback storage origin.
+    await context.grantPermissions(['local-network-access'], {
+      origin: applicationUrl.origin,
+    });
   }
   const state: TenantRoute = {
     active: new Set(),
