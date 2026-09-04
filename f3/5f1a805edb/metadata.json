@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "f35f1a805edb",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/forward-playwright-wrapper-arguments.md",
+    "helpers/testing/playwright-wrapper-arguments.spec.ts",
+    "package.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f3/5f1a805edb/0/metadata.json",
+      "transcript": "/f3/5f1a805edb/0/full.jsonl",
+      "content_hash": "/f3/5f1a805edb/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 110455,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 5511040,
+    "output_tokens": 16185,
+    "api_call_count": 59
+  }
+}
