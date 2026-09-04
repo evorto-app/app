@@ -39,7 +39,7 @@ export const taxRateCatalogErrorMessage = (error: unknown): string =>
 export const taxRateImportErrorMessage = (error: unknown): string =>
   getErrorMessage(
     error,
-    'The import outcome could not be confirmed. Reload the page to check the current tax rates before trying again.',
+    'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
     ['RpcBadRequestError'],
   );
 

@@ -712,7 +712,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
         'Review cancellation',
       );
       expect(alert?.textContent).toContain(
-        'The cancellation outcome could not be confirmed. Reload the page to check the current sign-up status before trying again.',
+        'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
       );
       expect(alert?.textContent).not.toContain('Nothing changed');
     });

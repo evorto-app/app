@@ -98,7 +98,7 @@ describe('unconfirmed tax-rate import feedback', () => {
   ])('keeps the persisted outcome uncertain for $name', ({ error }) => {
     const message = taxRateImportErrorMessage(error);
     expect(message).toBe(
-      'The import outcome could not be confirmed. Reload the page to check the current tax rates before trying again.',
+      'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
     );
     expect(message).not.toContain('Nothing changed');
     expect(message).not.toContain(error.message);

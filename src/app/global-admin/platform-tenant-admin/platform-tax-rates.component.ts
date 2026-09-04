@@ -139,10 +139,10 @@ export class PlatformTaxRatesComponent {
       } catch (error) {
         this.notifications.showError(
           importCompleted
-            ? 'Tax rates were imported, but the list could not be refreshed. Reload the page to see the current tax rates.'
+            ? 'Tax rates were imported, but the list could not be updated. Load the page again to see the current tax rates.'
             : getErrorMessage(
                 error,
-                'The import outcome could not be confirmed. Reload the page to check the current tax rates before trying again.',
+                'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
                 ['RpcBadRequestError'],
               ),
         );
