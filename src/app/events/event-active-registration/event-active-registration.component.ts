@@ -20,10 +20,12 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { RegistrationTransfersRpcError } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import {
   injectMutation,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { Schema } from 'effect';
 import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -70,6 +72,48 @@ interface RegistrationStatusQueryData {
 
 type RegistrationTransferBlockedReason =
   EventsRegistrationStatusRecord['transferBlockedReason'];
+
+const isRegistrationTransferRpcError = Schema.is(RegistrationTransfersRpcError);
+
+export const registrationTransferCancellationErrorCopy = (
+  error: unknown,
+): string => {
+  if (!isRegistrationTransferRpcError(error)) {
+    return 'We could not confirm whether the transfer was cancelled. Load the page again to check its current status before trying again.';
+  }
+
+  switch (error._tag) {
+    case 'RegistrationTransferConflictError':
+    case 'RegistrationTransferNotFoundError': {
+      return error.message;
+    }
+    case 'RegistrationTransferInternalError': {
+      return 'We could not confirm whether the transfer was cancelled. Load the page again to check its current status before trying again.';
+    }
+    case 'RegistrationTransferUnauthorizedError': {
+      return 'Sign in to cancel this transfer. Nothing changed.';
+    }
+  }
+};
+
+export const registrationTransferOfferErrorCopy = (error: unknown): string => {
+  if (!isRegistrationTransferRpcError(error)) {
+    return 'We could not confirm whether the transfer offer was created. Load the page again to check for an existing offer before trying again.';
+  }
+
+  switch (error._tag) {
+    case 'RegistrationTransferConflictError':
+    case 'RegistrationTransferNotFoundError': {
+      return error.message;
+    }
+    case 'RegistrationTransferInternalError': {
+      return 'We could not confirm whether the transfer offer was created. Load the page again to check for an existing offer before trying again.';
+    }
+    case 'RegistrationTransferUnauthorizedError': {
+      return 'Sign in to create a transfer offer. Nothing changed.';
+    }
+  }
+};
 
 @Injectable({ providedIn: 'root' })
 export class EventActiveRegistrationOperations {
@@ -474,6 +518,10 @@ export class EventActiveRegistrationComponent {
     registrationHasPendingAddonPayment;
   protected readonly registrationTransferActionDisabled =
     registrationTransferActionDisabled;
+  protected readonly registrationTransferCancellationErrorCopy =
+    registrationTransferCancellationErrorCopy;
+  protected readonly registrationTransferOfferErrorCopy =
+    registrationTransferOfferErrorCopy;
 
   protected readonly transferActionCopy = registrationTransferActionCopy;
   protected readonly transferRegistrationMutation = injectMutation(() =>
@@ -748,13 +796,6 @@ export class EventActiveRegistrationComponent {
       this.selectedAddonQuantities()[key] ?? 1,
       addOn.maxPurchasableQuantity,
     );
-  }
-
-  protected transferErrorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Transfer failed', [
-      'RegistrationTransferConflictError',
-      'RegistrationTransferNotFoundError',
-    ]);
   }
 
   protected updateAddonQuantity(

@@ -495,40 +495,44 @@ describe('email delivery', () => {
           eventUrl,
           recipientRole: 'newOwner',
           recipientUserId: 'user-2',
+          refundOutcome: 'notStarted',
           registrationId: 'registration-1',
           tenant,
           to: 'new-owner@example.com',
-          transferOperationId: 'direct-registration-transfer:acquisition-1',
+          transferOperationId: 'registration-transfer:transfer-1',
         });
         yield* enqueueRegistrationTransferredEmail(database, {
           eventTitle,
           eventUrl,
           recipientRole: 'newOwner',
           recipientUserId: 'user-2',
+          refundOutcome: 'notStarted',
           registrationId: 'registration-1',
           tenant,
           to: 'new-owner@example.com',
-          transferOperationId: 'direct-registration-transfer:acquisition-1',
+          transferOperationId: 'registration-transfer:transfer-1',
         });
         yield* enqueueRegistrationTransferredEmail(database, {
           eventTitle,
           eventUrl,
           recipientRole: 'previousOwner',
           recipientUserId: 'user-1',
+          refundOutcome: 'pending',
           registrationId: 'registration-1',
           tenant,
           to: 'previous-owner@example.com',
-          transferOperationId: 'direct-registration-transfer:acquisition-1',
+          transferOperationId: 'registration-transfer:transfer-1',
         });
         yield* enqueueRegistrationTransferredEmail(database, {
           eventTitle,
           eventUrl,
           recipientRole: 'newOwner',
           recipientUserId: 'user-2',
+          refundOutcome: 'notStarted',
           registrationId: 'registration-1',
           tenant,
           to: 'new-owner@example.com',
-          transferOperationId: 'direct-registration-transfer:acquisition-2',
+          transferOperationId: 'registration-transfer:transfer-2',
         });
 
         expect(insertedValues.map((value) => value.idempotencyKey)).toEqual([
@@ -536,10 +540,10 @@ describe('email delivery', () => {
           'registration-confirmed/tenant-1/registration-1',
           'registration-cancelled/tenant-1/registration-1',
           'waitlist-spot-available/tenant-1/waitlist-1/cancellation-registration-1',
-          'registration-transferred/tenant-1/registration-1/direct-registration-transfer:acquisition-1/newOwner/user-2',
-          'registration-transferred/tenant-1/registration-1/direct-registration-transfer:acquisition-1/newOwner/user-2',
-          'registration-transferred/tenant-1/registration-1/direct-registration-transfer:acquisition-1/previousOwner/user-1',
-          'registration-transferred/tenant-1/registration-1/direct-registration-transfer:acquisition-2/newOwner/user-2',
+          'registration-transferred/tenant-1/registration-1/registration-transfer:transfer-1/newOwner/user-2',
+          'registration-transferred/tenant-1/registration-1/registration-transfer:transfer-1/newOwner/user-2',
+          'registration-transferred/tenant-1/registration-1/registration-transfer:transfer-1/previousOwner/user-1',
+          'registration-transferred/tenant-1/registration-1/registration-transfer:transfer-2/newOwner/user-2',
         ]);
         expect(insertedValues.map((value) => value.kind)).toEqual([
           'registrationConfirmed',

@@ -53,6 +53,18 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
 }
 
+type AcquisitionCleanupFixture = Pick<
+  AcquisitionFixture,
+  | 'addonId'
+  | 'categoryId'
+  | 'eventId'
+  | 'ownerUserIds'
+  | 'purchaseId'
+  | 'registrationId'
+  | 'templateId'
+  | 'tenantId'
+>;
+
 interface AcquisitionFixture {
   readonly acquisitionIds: readonly [string, string, string];
   readonly acquisitionPaymentIds: readonly [string, string, string];
@@ -86,6 +98,8 @@ const makeLayer = (url: string) => {
 
 type TestLayer = ReturnType<typeof makeLayer>;
 
+const paymentAccountId = 'acct_payment_owner';
+
 const requireValue = <A>(value: A | null | undefined, label: string): A => {
   if (value === null || value === undefined) {
     throw new Error(`Missing ${label}`);
@@ -96,6 +110,7 @@ const requireValue = <A>(value: A | null | undefined, label: string): A => {
 const seedAcquisitionFixture = async (
   database: TestDatabase,
   layer: TestLayer,
+  registerCleanup: (fixture: AcquisitionCleanupFixture) => void,
   input: {
     readonly addonQuantity?: number;
     readonly priorCancelledQuantity?: number;
@@ -136,11 +151,22 @@ const seedAcquisitionFixture = async (
   const firstTransferredAt = new Date(now - 20_000);
   const secondTransferredAt = new Date(now - 10_000);
 
+  registerCleanup({
+    addonId,
+    categoryId,
+    eventId,
+    ownerUserIds: [sourceUserId, firstRecipientUserId, secondRecipientUserId],
+    purchaseId,
+    registrationId,
+    templateId,
+    tenantId,
+  });
+
   await database.insert(tenants).values({
     domain: `${tenantId}.acquisition.example`,
     id: tenantId,
     name: 'Registration acquisition ledger',
-    stripeAccountId: 'acct_current_second_recipient',
+    stripeAccountId: paymentAccountId,
   });
   await database.insert(users).values(
     [sourceUserId, firstRecipientUserId, secondRecipientUserId].map(
@@ -182,7 +208,8 @@ const seedAcquisitionFixture = async (
     end: new Date(now + 2 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
-    reviewedAt: new Date(),
+    reviewedAt: new Date(now - 2 * 60 * 60 * 1000),
+    reviewedBy: sourceUserId,
     start: new Date(now + 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -244,7 +271,7 @@ const seedAcquisitionFixture = async (
       id: sourceTransactionId,
       method: 'stripe',
       status: 'successful',
-      stripeAccountId: 'acct_historical_source',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${sourceTransactionId}`,
       stripeFee: 10,
       stripeNetAmount: sourceAddonAmount - 30,
@@ -262,7 +289,7 @@ const seedAcquisitionFixture = async (
       id: firstRecipientTransactionId,
       method: 'stripe',
       status: 'successful',
-      stripeAccountId: 'acct_first_recipient',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${firstRecipientTransactionId}`,
       stripeFee: 15,
       stripeNetAmount: firstRecipientAmount - 40,
@@ -280,7 +307,7 @@ const seedAcquisitionFixture = async (
       id: secondRecipientTransactionId,
       method: 'stripe',
       status: 'successful',
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${secondRecipientTransactionId}`,
       stripeFee: secondRecipientStripeFee,
       stripeNetAmount:
@@ -380,7 +407,6 @@ const seedAcquisitionFixture = async (
   await database.insert(registrationTransfers).values([
     {
       claimCodeHash: `code-${firstTransferId}`,
-      claimTokenHash: `token-${firstTransferId}`,
       completedAt: firstTransferredAt,
       eventId,
       expiresAt: new Date(now + 60 * 60 * 1000),
@@ -389,8 +415,6 @@ const seedAcquisitionFixture = async (
       recipientBasePrice: 1000,
       recipientCheckoutTransactionId: firstRecipientTransactionId,
       recipientConfirmedAt: firstTransferredAt,
-      recipientRegistrationId: registrationId,
-      recipientSpotCount: 2,
       recipientUserId: firstRecipientUserId,
       registrationOptionId: optionId,
       sourceRegistrationId: registrationId,
@@ -401,7 +425,6 @@ const seedAcquisitionFixture = async (
     },
     {
       claimCodeHash: `code-${secondTransferId}`,
-      claimTokenHash: `token-${secondTransferId}`,
       completedAt: secondTransferredAt,
       eventId,
       expiresAt: new Date(now + 60 * 60 * 1000),
@@ -410,8 +433,6 @@ const seedAcquisitionFixture = async (
       recipientBasePrice: 1100,
       recipientCheckoutTransactionId: secondRecipientTransactionId,
       recipientConfirmedAt: secondTransferredAt,
-      recipientRegistrationId: registrationId,
-      recipientSpotCount: 2,
       recipientUserId: secondRecipientUserId,
       registrationOptionId: optionId,
       sourceRegistrationId: registrationId,
@@ -495,7 +516,7 @@ const seedAcquisitionFixture = async (
     ownerUserId: sourceUserId,
     payment: {
       settlement: initialSettlement,
-      stripeAccountId: 'acct_historical_source',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${sourceTransactionId}`,
       stripePaymentIntentId: `pi_${sourceTransactionId}`,
       transactionId: sourceTransactionId,
@@ -527,7 +548,7 @@ const seedAcquisitionFixture = async (
     ownerUserId: firstRecipientUserId,
     payment: {
       settlement: firstSettlement,
-      stripeAccountId: 'acct_first_recipient',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${firstRecipientTransactionId}`,
       stripePaymentIntentId: `pi_${firstRecipientTransactionId}`,
       transactionId: firstRecipientTransactionId,
@@ -563,7 +584,7 @@ const seedAcquisitionFixture = async (
     ownerUserId: secondRecipientUserId,
     payment: {
       settlement: secondSettlement,
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       stripeChargeId: `ch_${secondRecipientTransactionId}`,
       stripePaymentIntentId: `pi_${secondRecipientTransactionId}`,
       transactionId: secondRecipientTransactionId,
@@ -613,7 +634,7 @@ const seedAcquisitionFixture = async (
       sourceRegistrationId: registrationId,
       sourceTransactionId,
       sourceTransactionType: 'addon',
-      stripeAccountId: 'acct_historical_source',
+      stripeAccountId: paymentAccountId,
       tenantId,
       transferId: firstTransferId,
     },
@@ -628,7 +649,7 @@ const seedAcquisitionFixture = async (
       sourceRegistrationId: registrationId,
       sourceTransactionId: firstRecipientTransactionId,
       sourceTransactionType: 'registration',
-      stripeAccountId: 'acct_first_recipient',
+      stripeAccountId: paymentAccountId,
       tenantId,
       transferId: secondTransferId,
     },
@@ -688,7 +709,10 @@ const seedPaidRepeatTransferCheckout = async (
   database: TestDatabase,
   layer: TestLayer,
   fixture: AcquisitionFixture,
-  input: { readonly linkRefundPlan?: boolean } = {},
+  input: {
+    readonly linkRefundPlan?: boolean;
+    readonly recipientStripeAccountId?: string;
+  } = {},
 ) => {
   const transferId = createId();
   const recipientTransactionId = createId();
@@ -734,7 +758,7 @@ const seedPaidRepeatTransferCheckout = async (
     id: recipientTransactionId,
     method: 'stripe',
     status: 'successful',
-    stripeAccountId: 'acct_current_second_recipient',
+    stripeAccountId: input.recipientStripeAccountId ?? paymentAccountId,
     stripeChargeId: `ch_${recipientTransactionId}`,
     stripeCheckoutRequest: checkoutRequest,
     stripeFee: 20,
@@ -746,14 +770,11 @@ const seedPaidRepeatTransferCheckout = async (
   });
   await database.insert(registrationTransfers).values({
     claimCodeHash: `code-${transferId}`,
-    claimTokenHash: `token-${transferId}`,
     eventId: fixture.eventId,
     expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     id: transferId,
     recipientBasePrice: 1200,
     recipientCheckoutTransactionId: recipientTransactionId,
-    recipientRegistrationId: fixture.registrationId,
-    recipientSpotCount: 2,
     recipientUserId,
     registrationOptionId: requireValue(
       await database
@@ -826,7 +847,7 @@ const seedPaidRepeatTransferCheckout = async (
     sourceRegistrationId: fixture.registrationId,
     sourceTransactionId,
     sourceTransactionType: 'registration',
-    stripeAccountId: 'acct_current_second_recipient',
+    stripeAccountId: paymentAccountId,
     tenantId: fixture.tenantId,
     transferId,
   });
@@ -869,81 +890,126 @@ const seedPaidRepeatTransferCheckout = async (
 
 const cleanFixture = async (
   database: TestDatabase,
-  fixture: AcquisitionFixture,
+  fixture: AcquisitionCleanupFixture,
 ) => {
-  await database
-    .delete(emailOutbox)
-    .where(eq(emailOutbox.tenantId, fixture.tenantId));
-  await database
-    .delete(registrationAcquisitionRefundAllocations)
-    .where(
-      eq(registrationAcquisitionRefundAllocations.tenantId, fixture.tenantId),
-    );
-  await database
-    .delete(eventRegistrationAddonFulfillmentEvents)
-    .where(
-      eq(eventRegistrationAddonFulfillmentEvents.tenantId, fixture.tenantId),
-    );
-  await database
-    .delete(registrationTransferRefundPlanAcquisitionLinks)
-    .where(
-      eq(
-        registrationTransferRefundPlanAcquisitionLinks.tenantId,
-        fixture.tenantId,
-      ),
-    );
-  await database
-    .delete(registrationTransferRefundPlanItems)
-    .where(eq(registrationTransferRefundPlanItems.tenantId, fixture.tenantId));
-  await database
-    .delete(registrationAcquisitionComponents)
-    .where(eq(registrationAcquisitionComponents.tenantId, fixture.tenantId));
-  await database
-    .delete(registrationAcquisitionPayments)
-    .where(eq(registrationAcquisitionPayments.tenantId, fixture.tenantId));
-  await database
-    .delete(registrationAcquisitions)
-    .where(eq(registrationAcquisitions.tenantId, fixture.tenantId));
-  await database
-    .delete(registrationTransfers)
-    .where(eq(registrationTransfers.tenantId, fixture.tenantId));
-  await database
-    .delete(eventRegistrationAddonPurchases)
-    .where(eq(eventRegistrationAddonPurchases.id, fixture.purchaseId));
-  await database
-    .delete(transactions)
-    .where(eq(transactions.tenantId, fixture.tenantId));
-  await database
-    .delete(eventRegistrations)
-    .where(eq(eventRegistrations.id, fixture.registrationId));
-  await database
-    .delete(addonToEventRegistrationOptions)
-    .where(eq(addonToEventRegistrationOptions.addonId, fixture.addonId));
-  await database.delete(eventAddons).where(eq(eventAddons.id, fixture.addonId));
-  await database
-    .delete(eventRegistrationOptions)
-    .where(eq(eventRegistrationOptions.eventId, fixture.eventId));
-  await database
-    .delete(eventInstances)
-    .where(eq(eventInstances.id, fixture.eventId));
-  await database
-    .delete(eventTemplates)
-    .where(eq(eventTemplates.id, fixture.templateId));
-  await database
-    .delete(eventTemplateCategories)
-    .where(eq(eventTemplateCategories.id, fixture.categoryId));
-  await database
-    .delete(usersToTenants)
-    .where(eq(usersToTenants.tenantId, fixture.tenantId));
-  await database.delete(users).where(eq(users.id, fixture.ownerUserIds[0]));
-  await database.delete(users).where(eq(users.id, fixture.ownerUserIds[1]));
-  await database.delete(users).where(eq(users.id, fixture.ownerUserIds[2]));
-  await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
+  const cleanupSteps = [
+    () =>
+      database
+        .delete(emailOutbox)
+        .where(eq(emailOutbox.tenantId, fixture.tenantId)),
+    () =>
+      database
+        .delete(registrationAcquisitionRefundAllocations)
+        .where(
+          eq(
+            registrationAcquisitionRefundAllocations.tenantId,
+            fixture.tenantId,
+          ),
+        ),
+    () =>
+      database
+        .delete(eventRegistrationAddonFulfillmentEvents)
+        .where(
+          eq(
+            eventRegistrationAddonFulfillmentEvents.tenantId,
+            fixture.tenantId,
+          ),
+        ),
+    () =>
+      database
+        .delete(registrationTransferRefundPlanAcquisitionLinks)
+        .where(
+          eq(
+            registrationTransferRefundPlanAcquisitionLinks.tenantId,
+            fixture.tenantId,
+          ),
+        ),
+    () =>
+      database
+        .delete(registrationTransferRefundPlanItems)
+        .where(
+          eq(registrationTransferRefundPlanItems.tenantId, fixture.tenantId),
+        ),
+    () =>
+      database
+        .delete(registrationAcquisitionComponents)
+        .where(
+          eq(registrationAcquisitionComponents.tenantId, fixture.tenantId),
+        ),
+    () =>
+      database
+        .delete(registrationAcquisitionPayments)
+        .where(eq(registrationAcquisitionPayments.tenantId, fixture.tenantId)),
+    () =>
+      database
+        .delete(registrationAcquisitions)
+        .where(eq(registrationAcquisitions.tenantId, fixture.tenantId)),
+    () =>
+      database
+        .delete(registrationTransfers)
+        .where(eq(registrationTransfers.tenantId, fixture.tenantId)),
+    () =>
+      database
+        .delete(eventRegistrationAddonPurchases)
+        .where(eq(eventRegistrationAddonPurchases.id, fixture.purchaseId)),
+    () =>
+      database
+        .delete(transactions)
+        .where(eq(transactions.tenantId, fixture.tenantId)),
+    () =>
+      database
+        .delete(eventRegistrations)
+        .where(eq(eventRegistrations.id, fixture.registrationId)),
+    () =>
+      database
+        .delete(addonToEventRegistrationOptions)
+        .where(eq(addonToEventRegistrationOptions.addonId, fixture.addonId)),
+    () =>
+      database.delete(eventAddons).where(eq(eventAddons.id, fixture.addonId)),
+    () =>
+      database
+        .delete(eventRegistrationOptions)
+        .where(eq(eventRegistrationOptions.eventId, fixture.eventId)),
+    () =>
+      database
+        .delete(eventInstances)
+        .where(eq(eventInstances.id, fixture.eventId)),
+    () =>
+      database
+        .delete(eventTemplates)
+        .where(eq(eventTemplates.id, fixture.templateId)),
+    () =>
+      database
+        .delete(eventTemplateCategories)
+        .where(eq(eventTemplateCategories.id, fixture.categoryId)),
+    () =>
+      database
+        .delete(usersToTenants)
+        .where(eq(usersToTenants.tenantId, fixture.tenantId)),
+    () => database.delete(users).where(eq(users.id, fixture.ownerUserIds[0])),
+    () => database.delete(users).where(eq(users.id, fixture.ownerUserIds[1])),
+    () => database.delete(users).where(eq(users.id, fixture.ownerUserIds[2])),
+    () => database.delete(tenants).where(eq(tenants.id, fixture.tenantId)),
+  ];
+  const failures: unknown[] = [];
+  for (const cleanup of cleanupSteps) {
+    try {
+      await cleanup();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Acquisition fixture cleanup failed');
+  }
 };
 
 describe('registration acquisition ledger', () => {
   let database: TestDatabase;
-  const fixtures: AcquisitionFixture[] = [];
+  const fixtures: AcquisitionCleanupFixture[] = [];
+  const registerFixture = (fixture: AcquisitionCleanupFixture) => {
+    fixtures.push(fixture);
+  };
   let layer: TestLayer;
   let pool: Pool;
 
@@ -954,15 +1020,30 @@ describe('registration acquisition ledger', () => {
   });
 
   afterAll(async () => {
+    const failures: unknown[] = [];
     for (const fixture of fixtures.toReversed()) {
-      await cleanFixture(database, fixture);
+      try {
+        await cleanFixture(database, fixture);
+      } catch (error) {
+        failures.push(error);
+      }
     }
-    await pool.end();
+    try {
+      await pool.end();
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Acquisition suite cleanup failed');
+    }
   });
 
   it('keeps one linear current ownership epoch across repeated transfers', async () => {
-    const fixture = await seedAcquisitionFixture(database, layer);
-    fixtures.push(fixture);
+    const fixture = await seedAcquisitionFixture(
+      database,
+      layer,
+      registerFixture,
+    );
     const [initialAcquisitionId, firstAcquisitionId, currentAcquisitionId] =
       fixture.acquisitionIds;
 
@@ -1033,28 +1114,65 @@ describe('registration acquisition ledger', () => {
       },
     ]);
 
-    const appendCandidate = () =>
+    const sourceRegistration = requireValue(
+      await database.query.eventRegistrations.findFirst({
+        columns: { registrationOptionId: true },
+        where: { id: fixture.registrationId, tenantId: fixture.tenantId },
+      }),
+      'current source registration',
+    );
+    const candidateTransferIds = [createId(), createId()];
+    const candidateTransfers: (typeof registrationTransfers.$inferInsert)[] =
+      candidateTransferIds.map((transferId) => ({
+        claimCodeHash: `code-${transferId}`,
+        completedAt: new Date(),
+        eventId: fixture.eventId,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        id: transferId,
+        recipientUserId: fixture.ownerUserIds[0],
+        registrationOptionId: sourceRegistration.registrationOptionId,
+        sourceRegistrationId: fixture.registrationId,
+        sourceSpotCount: 2,
+        sourceUserId: fixture.ownerUserIds[2],
+        status: 'completed',
+        tenantId: fixture.tenantId,
+      }));
+    await database.insert(registrationTransfers).values(candidateTransfers);
+
+    const appendCandidate = (transferId: string) =>
       database
         .insert(registrationAcquisitions)
         .values({
           acquiredAt: new Date(),
           eventId: fixture.eventId,
           id: createId(),
-          kind: 'direct_transfer',
-          operationKey: `direct-transfer:${createId()}`,
+          kind: 'claim_transfer',
+          operationKey: `registration-transfer:${transferId}`,
           ordinal: 3,
           ownerUserId: fixture.ownerUserIds[0],
           previousAcquisitionId: currentAcquisitionId,
           registrationId: fixture.registrationId,
           spotCount: 2,
           tenantId: fixture.tenantId,
+          transferId,
         })
         .onConflictDoNothing()
         .returning({ id: registrationAcquisitions.id });
-    const appendResults = await Promise.all([
-      appendCandidate(),
-      appendCandidate(),
-    ]);
+    const appendOutcomes = await Promise.allSettled(
+      candidateTransferIds.map((transferId) => appendCandidate(transferId)),
+    );
+    const appendFailures = appendOutcomes.flatMap((outcome) =>
+      outcome.status === 'rejected' ? [outcome.reason] : [],
+    );
+    if (appendFailures.length > 0) {
+      throw new AggregateError(
+        appendFailures,
+        'Concurrent acquisition append failed',
+      );
+    }
+    const appendResults = appendOutcomes.flatMap((outcome) =>
+      outcome.status === 'fulfilled' ? [outcome.value] : [],
+    );
     const appended = appendResults.flat();
     expect(appended).toHaveLength(1);
     expect(
@@ -1072,8 +1190,11 @@ describe('registration acquisition ledger', () => {
   });
 
   it('locks a refund-linked transfer without locking an outer join', async () => {
-    const fixture = await seedAcquisitionFixture(database, layer);
-    fixtures.push(fixture);
+    const fixture = await seedAcquisitionFixture(
+      database,
+      layer,
+      registerFixture,
+    );
     const refundTransactionId = createId();
     const sourceTransactionId = fixture.registrationTransactionIds[0];
     const transferId = fixture.transferIds[0];
@@ -1088,7 +1209,7 @@ describe('registration acquisition ledger', () => {
       refundOperationKey: `refund-recovery:${refundTransactionId}`,
       sourceTransactionId,
       status: 'pending',
-      stripeAccountId: 'acct_historical_source',
+      stripeAccountId: paymentAccountId,
       stripeRefundApplicationFee: true,
       stripeRefundAttempts: 8,
       stripeRefundId: `re_${refundTransactionId}`,
@@ -1183,9 +1304,12 @@ describe('registration acquisition ledger', () => {
     expect(await lookupTransfer()).toEqual({ status: 'ambiguous' });
   });
 
-  it('links exact payments and the same immutable add-on lot through account rotation', async () => {
-    const fixture = await seedAcquisitionFixture(database, layer);
-    fixtures.push(fixture);
+  it('links each exact payment and the same immutable add-on lot across transfers', async () => {
+    const fixture = await seedAcquisitionFixture(
+      database,
+      layer,
+      registerFixture,
+    );
 
     const lineage = await database
       .select({
@@ -1212,7 +1336,7 @@ describe('registration acquisition ledger', () => {
       .orderBy(asc(registrationAcquisitions.ordinal));
     expect(lineage).toEqual([
       {
-        accountId: 'acct_historical_source',
+        accountId: paymentAccountId,
         acquisitionId: fixture.acquisitionIds[0],
         amount: 1000,
         ordinal: 0,
@@ -1220,7 +1344,7 @@ describe('registration acquisition ledger', () => {
         transactionId: fixture.registrationTransactionIds[0],
       },
       {
-        accountId: 'acct_first_recipient',
+        accountId: paymentAccountId,
         acquisitionId: fixture.acquisitionIds[1],
         amount: 1200,
         ordinal: 1,
@@ -1228,7 +1352,7 @@ describe('registration acquisition ledger', () => {
         transactionId: fixture.registrationTransactionIds[1],
       },
       {
-        accountId: 'acct_current_second_recipient',
+        accountId: paymentAccountId,
         acquisitionId: fixture.acquisitionIds[2],
         amount: 1400,
         ordinal: 2,
@@ -1343,13 +1467,13 @@ describe('registration acquisition ledger', () => {
       .orderBy(asc(registrationTransferRefundPlanItems.createdAt));
     expect(sourceLinks).toEqual([
       {
-        accountId: 'acct_historical_source',
+        accountId: paymentAccountId,
         sourceAcquisitionId: fixture.acquisitionIds[0],
         sourceAcquisitionPaymentId: fixture.acquisitionPaymentIds[0],
         sourceTransactionId: fixture.registrationTransactionIds[0],
       },
       {
-        accountId: 'acct_first_recipient',
+        accountId: paymentAccountId,
         sourceAcquisitionId: fixture.acquisitionIds[1],
         sourceAcquisitionPaymentId: fixture.acquisitionPaymentIds[1],
         sourceTransactionId: fixture.registrationTransactionIds[1],
@@ -1369,8 +1493,11 @@ describe('registration acquisition ledger', () => {
   });
 
   it('finalizes a paid repeat transfer into one new acquisition without rewriting lot history', async () => {
-    const fixture = await seedAcquisitionFixture(database, layer);
-    fixtures.push(fixture);
+    const fixture = await seedAcquisitionFixture(
+      database,
+      layer,
+      registerFixture,
+    );
     const {
       finalize,
       lotBefore,
@@ -1382,70 +1509,96 @@ describe('registration acquisition ledger', () => {
     expect(await finalize()).toBe('finalized');
     expect(await finalize()).toBe('alreadyFinalized');
 
-    const [registration, acquisitions, acquiredComponents, lotAfter, refunds] =
-      await Promise.all([
-        database.query.eventRegistrations.findFirst({
-          columns: {
-            checkedInGuestCount: true,
-            checkInTime: true,
-            guestCount: true,
-            id: true,
-            userId: true,
-          },
-          where: { id: fixture.registrationId },
-        }),
-        database
-          .select({
-            id: registrationAcquisitions.id,
-            ordinal: registrationAcquisitions.ordinal,
-            ownerUserId: registrationAcquisitions.ownerUserId,
-            previousAcquisitionId:
-              registrationAcquisitions.previousAcquisitionId,
-            transferId: registrationAcquisitions.transferId,
-          })
-          .from(registrationAcquisitions)
-          .where(
-            and(
-              eq(registrationAcquisitions.tenantId, fixture.tenantId),
-              eq(
-                registrationAcquisitions.registrationId,
-                fixture.registrationId,
-              ),
-            ),
-          )
-          .orderBy(asc(registrationAcquisitions.ordinal)),
-        database
-          .select({
-            acquisitionId: registrationAcquisitionComponents.acquisitionId,
-            acquisitionPaymentId:
-              registrationAcquisitionComponents.acquisitionPaymentId,
-            baseAmount: registrationAcquisitionComponents.baseAmount,
-            grossAmount: registrationAcquisitionComponents.grossAmount,
-            kind: registrationAcquisitionComponents.kind,
-            purchaseLotId: registrationAcquisitionComponents.purchaseLotId,
-            quantity: registrationAcquisitionComponents.quantity,
-          })
-          .from(registrationAcquisitionComponents)
-          .innerJoin(
-            registrationAcquisitions,
-            eq(
-              registrationAcquisitions.id,
-              registrationAcquisitionComponents.acquisitionId,
-            ),
-          )
-          .where(eq(registrationAcquisitions.transferId, transferId))
-          .orderBy(asc(registrationAcquisitionComponents.kind)),
-        database.query.eventRegistrationAddonPurchaseLots.findFirst({
-          where: { id: fixture.purchaseLotId },
-        }),
-        database.query.transactions.findMany({
-          where: {
-            sourceTransactionId,
-            tenantId: fixture.tenantId,
-            type: 'refund',
-          },
-        }),
-      ]);
+    const [
+      registrationOutcome,
+      acquisitionsOutcome,
+      acquiredComponentsOutcome,
+      lotAfterOutcome,
+      refundsOutcome,
+    ] = await Promise.allSettled([
+      database.query.eventRegistrations.findFirst({
+        columns: {
+          checkedInGuestCount: true,
+          checkInTime: true,
+          guestCount: true,
+          id: true,
+          userId: true,
+        },
+        where: { id: fixture.registrationId },
+      }),
+      database
+        .select({
+          id: registrationAcquisitions.id,
+          ordinal: registrationAcquisitions.ordinal,
+          ownerUserId: registrationAcquisitions.ownerUserId,
+          previousAcquisitionId: registrationAcquisitions.previousAcquisitionId,
+          transferId: registrationAcquisitions.transferId,
+        })
+        .from(registrationAcquisitions)
+        .where(
+          and(
+            eq(registrationAcquisitions.tenantId, fixture.tenantId),
+            eq(registrationAcquisitions.registrationId, fixture.registrationId),
+          ),
+        )
+        .orderBy(asc(registrationAcquisitions.ordinal)),
+      database
+        .select({
+          acquisitionId: registrationAcquisitionComponents.acquisitionId,
+          acquisitionPaymentId:
+            registrationAcquisitionComponents.acquisitionPaymentId,
+          baseAmount: registrationAcquisitionComponents.baseAmount,
+          grossAmount: registrationAcquisitionComponents.grossAmount,
+          kind: registrationAcquisitionComponents.kind,
+          purchaseLotId: registrationAcquisitionComponents.purchaseLotId,
+          quantity: registrationAcquisitionComponents.quantity,
+        })
+        .from(registrationAcquisitionComponents)
+        .innerJoin(
+          registrationAcquisitions,
+          eq(
+            registrationAcquisitions.id,
+            registrationAcquisitionComponents.acquisitionId,
+          ),
+        )
+        .where(eq(registrationAcquisitions.transferId, transferId))
+        .orderBy(asc(registrationAcquisitionComponents.kind)),
+      database.query.eventRegistrationAddonPurchaseLots.findFirst({
+        where: { id: fixture.purchaseLotId },
+      }),
+      database.query.transactions.findMany({
+        where: {
+          sourceTransactionId,
+          tenantId: fixture.tenantId,
+          type: 'refund',
+        },
+      }),
+    ]);
+    if (
+      registrationOutcome.status === 'rejected' ||
+      acquisitionsOutcome.status === 'rejected' ||
+      acquiredComponentsOutcome.status === 'rejected' ||
+      lotAfterOutcome.status === 'rejected' ||
+      refundsOutcome.status === 'rejected'
+    ) {
+      throw new AggregateError(
+        [
+          registrationOutcome,
+          acquisitionsOutcome,
+          acquiredComponentsOutcome,
+          lotAfterOutcome,
+          refundsOutcome,
+        ].flatMap((outcome) =>
+          outcome.status === 'rejected' ? [outcome.reason] : [],
+        ),
+        'Acquisition fixture verification reads failed',
+      );
+    }
+    const registration = registrationOutcome.value;
+    const acquisitions = acquisitionsOutcome.value;
+    const acquiredComponents = acquiredComponentsOutcome.value;
+    const lotAfter = lotAfterOutcome.value;
+    const refunds = refundsOutcome.value;
     expect(registration).toMatchObject({
       checkedInGuestCount: 1,
       guestCount: 1,
@@ -1488,15 +1641,107 @@ describe('registration acquisition ledger', () => {
       amount: -1400,
       sourceTransactionId,
       status: 'pending',
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       targetUserId: sourceUserId,
       type: 'refund',
     });
   });
 
+  it('keeps source and inherited add-on refunds on their saved payment accounts after account rotation', async () => {
+    const fixture = await seedAcquisitionFixture(
+      database,
+      layer,
+      registerFixture,
+    );
+    const recipientStripeAccountId = 'acct_payment_recipient';
+    await database
+      .update(tenants)
+      .set({ stripeAccountId: recipientStripeAccountId })
+      .where(eq(tenants.id, fixture.tenantId));
+    const {
+      finalize,
+      lotBefore,
+      recipientTransactionId,
+      recipientUserId,
+      sourceTransactionId,
+      sourceUserId,
+    } = await seedPaidRepeatTransferCheckout(database, layer, fixture, {
+      recipientStripeAccountId,
+    });
+
+    expect(recipientStripeAccountId).not.toBe(paymentAccountId);
+    expect(await finalize()).toBe('finalized');
+    expect(await finalize()).toBe('alreadyFinalized');
+
+    const sourceRefunds = await database.query.transactions.findMany({
+      where: {
+        sourceTransactionId,
+        tenantId: fixture.tenantId,
+        type: 'refund',
+      },
+    });
+    expect(sourceRefunds).toHaveLength(1);
+    expect(sourceRefunds[0]).toMatchObject({
+      amount: -1400,
+      sourceTransactionId,
+      status: 'pending',
+      stripeAccountId: paymentAccountId,
+      targetUserId: sourceUserId,
+    });
+    expect(
+      await database.query.transactions.findFirst({
+        columns: { stripeAccountId: true },
+        where: { id: recipientTransactionId, tenantId: fixture.tenantId },
+      }),
+    ).toEqual({ stripeAccountId: recipientStripeAccountId });
+    expect(
+      await database.query.eventRegistrationAddonPurchaseLots.findFirst({
+        where: { id: fixture.purchaseLotId, tenantId: fixture.tenantId },
+      }),
+    ).toEqual(lotBefore);
+
+    const cancellation = await Effect.runPromise(
+      cancelRegistrationAddon({
+        actorUserId: recipientUserId,
+        operationKey: `addon-cancel:${fixture.purchaseId}:rotated-account`,
+        quantity: 1,
+        reason: 'Refund an inherited unit after account rotation',
+        refundRequested: true,
+        registrationAddonId: fixture.purchaseId,
+        registrationId: fixture.registrationId,
+        tenantId: fixture.tenantId,
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(cancellation.refundStatus).toBe('pending');
+    const inheritedAddonRefunds = await database.query.transactions.findMany({
+      where: {
+        sourceTransactionId: recipientTransactionId,
+        tenantId: fixture.tenantId,
+        type: 'refund',
+      },
+    });
+    expect(inheritedAddonRefunds).toHaveLength(1);
+    expect(inheritedAddonRefunds[0]).toMatchObject({
+      amount: -200,
+      sourceTransactionId: recipientTransactionId,
+      status: 'pending',
+      stripeAccountId: recipientStripeAccountId,
+      targetUserId: recipientUserId,
+    });
+    expect(
+      await database.query.eventRegistrationAddonPurchaseLots.findFirst({
+        columns: { sourceTransactionId: true },
+        where: { id: fixture.purchaseLotId, tenantId: fixture.tenantId },
+      }),
+    ).toEqual({ sourceTransactionId: fixture.registrationTransactionIds[0] });
+  });
+
   it('compensates exactly once when a current acquisition payment is missing its refund-plan link', async () => {
-    const fixture = await seedAcquisitionFixture(database, layer);
-    fixtures.push(fixture);
+    const fixture = await seedAcquisitionFixture(
+      database,
+      layer,
+      registerFixture,
+    );
     const {
       finalize,
       planItemId,
@@ -1525,15 +1770,15 @@ describe('registration acquisition ledger', () => {
     expect(await finalize()).toBe('alreadyFinalized');
 
     const [
-      registration,
-      transfer,
-      acquisitions,
-      sourcePaymentsAfter,
-      sourcePlan,
-      recipientPayment,
-      sourceRefunds,
-      compensationClaims,
-    ] = await Promise.all([
+      registrationOutcome,
+      transferOutcome,
+      acquisitionsOutcome,
+      sourcePaymentsAfterOutcome,
+      sourcePlanOutcome,
+      recipientPaymentOutcome,
+      sourceRefundsOutcome,
+      compensationClaimsOutcome,
+    ] = await Promise.allSettled([
       database.query.eventRegistrations.findFirst({
         columns: { userId: true },
         where: { id: fixture.registrationId },
@@ -1596,6 +1841,40 @@ describe('registration acquisition ledger', () => {
         },
       }),
     ]);
+    if (
+      registrationOutcome.status === 'rejected' ||
+      transferOutcome.status === 'rejected' ||
+      acquisitionsOutcome.status === 'rejected' ||
+      sourcePaymentsAfterOutcome.status === 'rejected' ||
+      sourcePlanOutcome.status === 'rejected' ||
+      recipientPaymentOutcome.status === 'rejected' ||
+      sourceRefundsOutcome.status === 'rejected' ||
+      compensationClaimsOutcome.status === 'rejected'
+    ) {
+      throw new AggregateError(
+        [
+          registrationOutcome,
+          transferOutcome,
+          acquisitionsOutcome,
+          sourcePaymentsAfterOutcome,
+          sourcePlanOutcome,
+          recipientPaymentOutcome,
+          sourceRefundsOutcome,
+          compensationClaimsOutcome,
+        ].flatMap((outcome) =>
+          outcome.status === 'rejected' ? [outcome.reason] : [],
+        ),
+        'Acquisition fixture verification reads failed',
+      );
+    }
+    const registration = registrationOutcome.value;
+    const transfer = transferOutcome.value;
+    const acquisitions = acquisitionsOutcome.value;
+    const sourcePaymentsAfter = sourcePaymentsAfterOutcome.value;
+    const sourcePlan = sourcePlanOutcome.value;
+    const recipientPayment = recipientPaymentOutcome.value;
+    const sourceRefunds = sourceRefundsOutcome.value;
+    const compensationClaims = compensationClaimsOutcome.value;
 
     expect(registration).toEqual({ userId: sourceUserId });
     expect(acquisitions).toHaveLength(3);
@@ -1618,7 +1897,7 @@ describe('registration acquisition ledger', () => {
       amount: -1600,
       sourceTransactionId: recipientTransactionId,
       status: 'pending',
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       type: 'refund',
     });
     expect(transfer).toEqual({
@@ -1628,12 +1907,16 @@ describe('registration acquisition ledger', () => {
   });
 
   it('serializes concurrent add-on cancellation retries into one current-owner refund', async () => {
-    const fixture = await seedAcquisitionFixture(database, layer, {
-      addonQuantity: 3,
-      priorCancelledQuantity: 1,
-      priorRedeemedQuantity: 1,
-    });
-    fixtures.push(fixture);
+    const fixture = await seedAcquisitionFixture(
+      database,
+      layer,
+      registerFixture,
+      {
+        addonQuantity: 3,
+        priorCancelledQuantity: 1,
+        priorRedeemedQuantity: 1,
+      },
+    );
     const operationKey = `addon-cancel:${fixture.purchaseId}:current-owner`;
     const currentComponentBefore = requireValue(
       await database.query.registrationAcquisitionComponents.findFirst({
@@ -1663,7 +1946,25 @@ describe('registration acquisition ledger', () => {
         }).pipe(Effect.provide(layer)),
       );
 
-    const concurrentResults = await Promise.all([cancel(), cancel()]);
+    const [firstCancellation, secondCancellation] = await Promise.allSettled([
+      cancel(),
+      cancel(),
+    ]);
+    if (
+      firstCancellation.status === 'rejected' ||
+      secondCancellation.status === 'rejected'
+    ) {
+      throw new AggregateError(
+        [firstCancellation, secondCancellation].flatMap((outcome) =>
+          outcome.status === 'rejected' ? [outcome.reason] : [],
+        ),
+        'Concurrent add-on cancellations failed',
+      );
+    }
+    const concurrentResults = [
+      firstCancellation.value,
+      secondCancellation.value,
+    ];
     expect(concurrentResults[0]).toEqual(concurrentResults[1]);
     expect(concurrentResults[0]?.refundStatus).toBe('pending');
     expect(await cancel()).toEqual(concurrentResults[0]);
@@ -1724,7 +2025,13 @@ describe('registration acquisition ledger', () => {
       },
     ]);
 
-    const [purchase, lot, addOn, events, refundClaims] = await Promise.all([
+    const [
+      purchaseOutcome,
+      lotOutcome,
+      addOnOutcome,
+      eventsOutcome,
+      refundClaimsOutcome,
+    ] = await Promise.allSettled([
       database.query.eventRegistrationAddonPurchases.findFirst({
         columns: { cancelledQuantity: true, redeemedQuantity: true },
         where: { id: fixture.purchaseId },
@@ -1766,6 +2073,31 @@ describe('registration acquisition ledger', () => {
         },
       }),
     ]);
+    if (
+      purchaseOutcome.status === 'rejected' ||
+      lotOutcome.status === 'rejected' ||
+      addOnOutcome.status === 'rejected' ||
+      eventsOutcome.status === 'rejected' ||
+      refundClaimsOutcome.status === 'rejected'
+    ) {
+      throw new AggregateError(
+        [
+          purchaseOutcome,
+          lotOutcome,
+          addOnOutcome,
+          eventsOutcome,
+          refundClaimsOutcome,
+        ].flatMap((outcome) =>
+          outcome.status === 'rejected' ? [outcome.reason] : [],
+        ),
+        'Acquisition fixture verification reads failed',
+      );
+    }
+    const purchase = purchaseOutcome.value;
+    const lot = lotOutcome.value;
+    const addOn = addOnOutcome.value;
+    const events = eventsOutcome.value;
+    const refundClaims = refundClaimsOutcome.value;
     expect(purchase).toEqual({ cancelledQuantity: 2, redeemedQuantity: 1 });
     expect(lot).toEqual({
       cancelledQuantity: 2,
@@ -1781,7 +2113,7 @@ describe('registration acquisition ledger', () => {
       amount: -finalSlotAmounts.grossAmount,
       sourceTransactionId: fixture.registrationTransactionIds[2],
       status: 'pending',
-      stripeAccountId: 'acct_current_second_recipient',
+      stripeAccountId: paymentAccountId,
       stripeRefundApplicationFee: true,
       targetUserId: fixture.ownerUserIds[2],
       type: 'refund',

@@ -40,10 +40,8 @@ import {
   organizerRegistrationApprovalDisabled,
   organizerRegistrationApprovalLabel,
   organizerRegistrationCancellationActionLabel,
-  organizerRegistrationTransferDisabled,
   receiptSubmissionActionDisabled,
 } from './event-organize';
-import { transferParticipantLabel } from './registration-transfer-dialog.component';
 
 const readSource = (sourcePath: string): string =>
   readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
@@ -57,7 +55,6 @@ describe('event organizer error notifications', () => {
   const showError = vi.fn();
   const showSuccess = vi.fn();
   const submitReceipt = vi.fn();
-  const transferRegistration = vi.fn();
   let queryClient: QueryClient;
 
   const inactiveQuery = (name: string) => ({
@@ -77,7 +74,6 @@ describe('event organizer error notifications', () => {
     showError.mockReset();
     showSuccess.mockReset();
     submitReceipt.mockReset();
-    transferRegistration.mockReset();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
     queryClient = new QueryClient({
       defaultOptions: {
@@ -97,12 +93,6 @@ describe('event organizer error notifications', () => {
             manualApprovalAvailable: true, paymentSetupRequired: false,
             registrationId: 'registration-1'
           })">Approve application</button>
-          <button type="button" (click)="openTransferDialog({
-            addonPurchases: [], checkedIn: false, email: 'alex@example.com',
-            firstName: 'Alex', lastName: 'Able', manualApprovalAvailable: false,
-            paymentPending: false, paymentSetupRequired: false,
-            registrationId: 'registration-1', status: 'CONFIRMED'
-          })">Transfer registration</button>
           <button type="button" (click)="openReceiptDialog()">Submit receipt</button>
         `,
       },
@@ -149,9 +139,6 @@ describe('event organizer error notifications', () => {
               },
               getOrganizeOverview: inactiveQuery('organizer-overview'),
               getRegistrationStatus: inactiveQuery('registration-status'),
-              transferEventRegistration: {
-                mutationOptions: () => ({ mutationFn: transferRegistration }),
-              },
             },
             finance: {
               receiptMedia: {
@@ -220,13 +207,6 @@ describe('event organizer error notifications', () => {
       label: 'Approve application',
       mutation: approveRegistration,
     },
-    {
-      conflict:
-        'The registration changed before it could be transferred. Review it again.',
-      fallback: 'Failed to transfer registration',
-      label: 'Transfer registration',
-      mutation: transferRegistration,
-    },
   ]) {
     it.each([
       {
@@ -267,12 +247,6 @@ describe('event organizer error notifications', () => {
       `${action.label} shows safe feedback for $name`,
       async ({ error, expectedMessage }) => {
         action.mutation.mockRejectedValue(error);
-        if (action.mutation === transferRegistration) {
-          dialogOpen.mockReturnValue({
-            afterClosed: () =>
-              of({ previewVersion: 'preview-1', targetUserId: 'user-2' }),
-          });
-        }
         clickAction(action.label);
 
         await vi.waitFor(() => {
@@ -489,7 +463,7 @@ describe('invalidateEventOrganizeStateQueries', () => {
     );
     expect(
       source.match(/await this\.invalidateOrganizerState\(\)/g),
-    ).toHaveLength(4);
+    ).toHaveLength(3);
   });
 });
 
@@ -531,18 +505,6 @@ describe('groupEventOrganizeRegistrationOptions', () => {
   });
 });
 
-describe('transferParticipantLabel', () => {
-  it('shows the participant identity before organizer-assisted transfer', () => {
-    expect(
-      transferParticipantLabel({
-        email: 'alex@example.com',
-        firstName: 'Alex',
-        lastName: 'Able',
-      }),
-    ).toBe('Alex Able (alex@example.com)');
-  });
-});
-
 describe('organizerRegistrationActionDisabled', () => {
   it('blocks organizer participant mutations for checked-in rows or in-flight writes', () => {
     expect(
@@ -563,35 +525,6 @@ describe('organizerRegistrationActionDisabled', () => {
         mutationPending: false,
       }),
     ).toBe(false);
-  });
-});
-
-describe('organizerRegistrationTransferDisabled', () => {
-  it('allows confirmed rows into authoritative review regardless of prior fulfillment or payment history', () => {
-    expect(
-      organizerRegistrationTransferDisabled({
-        mutationPending: false,
-        status: 'CONFIRMED',
-      }),
-    ).toBe(false);
-    expect(
-      organizerRegistrationTransferDisabled({
-        mutationPending: true,
-        status: 'CONFIRMED',
-      }),
-    ).toBe(true);
-    expect(
-      organizerRegistrationTransferDisabled({
-        mutationPending: false,
-        status: 'PENDING',
-      }),
-    ).toBe(true);
-    expect(
-      organizerRegistrationTransferDisabled({
-        mutationPending: false,
-        status: 'WAITLIST',
-      }),
-    ).toBe(true);
   });
 });
 
@@ -662,20 +595,17 @@ describe('event organizer approval template', () => {
     );
   });
 
-  it('hides transfer and cancellation actions unless their server capabilities are present', () => {
+  it('hides cancellation without its server capability and retires organizer reassignment', () => {
     const template = readSource(
       'src/app/events/event-organize/event-organize.html',
     );
 
-    expect(template).toContain(
-      '@if (registrationOption.canTransferRegistrations)',
-    );
+    expect(template).not.toContain('openTransferDialog');
+    expect(template).not.toContain('canTransferRegistrations');
     expect(template).toContain(
       '@if (registrationOption.canCancelRegistrations)',
     );
-    expect(template.replaceAll(/\s+/g, ' ')).toContain(
-      'Only confirmed registrations can be transferred.',
-    );
+    expect(template).not.toContain('Review transfer');
   });
 });
 

@@ -63,7 +63,6 @@ export const eventOrganizeCapabilities = ({
     canCancelRegistrations:
       canManageRegistrations &&
       includesPermission('events:cancelRegistrations', permissions),
-    canTransferRegistrations: canManageRegistrations,
     canViewOverview:
       canManageRegistrations ||
       includesPermission('finance:manageReceipts', permissions),
@@ -1194,7 +1193,6 @@ export const eventQueryHandlers = {
           return {
             canApproveRegistrations: capabilities.canApproveRegistrations,
             canCancelRegistrations: capabilities.canCancelRegistrations,
-            canTransferRegistrations: capabilities.canTransferRegistrations,
             organizingRegistration:
               registrationRows[0].registrationOption.organizingRegistration,
             registrationOptionId,

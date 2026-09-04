@@ -1255,7 +1255,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(addOnScenarioSource).not.toContain('.insert(schema.transactions)');
     expect(addOnScenarioSource).not.toContain('.update(schema.eventAddons)');
-    expect(transferSource).toContain('# Transfer a registration');
+    expect(transferSource).toContain(
+      "test('Transfer a registration with a private offer'",
+    );
     expect(transferSource).toContain('waitForRegistrationPage');
     expect(transferSource).toContain(
       'This guide uses two signed-in participant accounts that belong to the same organization:',
@@ -1267,26 +1269,28 @@ describe('generated docs source current behavior', () => {
       '/docs/transfer-a-registration-with-a-private-offer',
     );
     expect(transferSource).toContain(
-      'The private link and manual code grant access to the transfer offer.',
+      'The private transfer code grants access to the offer.',
     );
     expect(freeTransferSource).toContain(
-      "getByRole('link', { exact: true, name: 'Profile' })",
+      "recipientPage.page.goto('/registration-transfers')",
     );
     expect(freeTransferSource).toContain(
-      "getByRole('link', { exact: true, name: 'Claim transfer' })",
+      'The page link does not include the code.',
     );
-    expect(freeTransferSource).toContain("getByLabel('Manual claim code')");
+    expect(freeTransferSource).toContain("getByLabel('Transfer code')");
     expect(freeTransferSource).toContain(
       "getByRole('button', { name: 'Cancel transfer offer' })",
     );
     expect(freeTransferSource).toContain(".toBe('cancelled')");
     expect(freeTransferSource).toContain(
-      'Cancelling the offer invalidates its private link and manual code; it does not cancel or transfer the registration.',
+      'Cancelling the offer invalidates its private code; it does not cancel or transfer the registration.',
     );
     expect(freeTransferSource).toContain("getByLabel('Claim code')");
-    expect(freeTransferSource).toContain('NOT-A-VALID-TRANSFER-CODE');
     expect(freeTransferSource).toContain(
-      "getByRole('link', { name: 'Enter another code' })",
+      '0000-0000-0000-0000-0000-0000-0000-0000',
+    );
+    expect(freeTransferSource).toContain(
+      "getByRole('button', { name: 'Enter another code' })",
     );
     expect(freeTransferSource).toContain(
       'If Evorto says the transfer could not be opened, select **Enter another code**',
@@ -1443,12 +1447,14 @@ describe('generated docs source current behavior', () => {
     expect(paidTransferScenarioSource).toContain(
       'sourceTransactionIds: [sourceTransactionId, sourceAddonTransactionId]',
     );
-    expect(paidTransferScenarioSource).toContain(
+    expect(paidTransferScenarioSource).not.toContain(
       'recipientRegistrationId: sourceRegistrationId',
     );
-    expect(paidTransferScenarioSource).toContain('recipientSpotCount: 2');
+    expect(paidTransferScenarioSource).not.toContain('recipientSpotCount: 2');
     expect(paidTransferScenarioSource).toContain('sourceSpotCount: 2');
-    expect(paidTransferScenarioSource).toContain('reservedAdditionalSpots: 0');
+    expect(paidTransferScenarioSource).not.toContain(
+      'reservedAdditionalSpots: 0',
+    );
     expect(paidTransferScenarioSource).not.toContain(
       'sourcePaymentTransactionId',
     );

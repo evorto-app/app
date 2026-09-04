@@ -4,6 +4,7 @@ import {
   PlatformFinanceReceiptApprovalDetailRecord,
   PlatformFinanceReceiptApprovalGroup,
   PlatformFinanceReceiptApprovalQueue,
+  PlatformFinanceReceiptReview,
   PlatformFinanceReceiptWithSubmitterRecord,
   PlatformFinanceRefundRecoveryQueue,
   PlatformFinanceReimbursementGroup,
@@ -12,15 +13,23 @@ import {
   PlatformFinanceTenantContext,
   PlatformFinanceTransactionsFindMany,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-finance.rpcs';
-import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
-import { Cause, Effect, Exit, Layer, Schema } from 'effect';
+import {
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+} from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import { type GetColumnData } from 'drizzle-orm';
+import { Cause, type Context, Effect, Exit, Layer, Schema } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { readFileSync } from 'node:fs';
 
-import { Database } from '../../../../../db';
+import { tenants } from '../../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { RegistrationRefundRequeueError } from '../../../../payments/registration-refund';
+import { createRegistrationDatabaseTestLayer } from '../../../../testing/registration-database';
 import { ReceiptMediaServiceUnavailableError } from '../finance/finance.errors';
+import { type financeReceiptView } from '../finance/finance.shared';
 import { ReceiptMediaService } from '../finance/receipt-media.service';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
@@ -112,6 +121,12 @@ const targetTenant = Tenant.make({
   transferDeadlineHoursBeforeStart: 0,
 });
 
+type ReceiptEvidenceRow = {
+  [Key in keyof typeof financeReceiptView]: GetColumnData<
+    (typeof financeReceiptView)[Key]
+  >;
+};
+
 const submittedReceiptEvidence = {
   alcoholAmount: 0,
   attachmentFileName: 'receipt.pdf',
@@ -123,6 +138,7 @@ const submittedReceiptEvidence = {
   attachmentUploadedByUserId: 'user-1',
   attachmentUploadEventId: 'event-1',
   attachmentUploadId: 'upload-1',
+  attachmentUploadStatus: 'consumed',
   attachmentUploadTenantId: 'tenant-1',
   createdAt: new Date('2026-07-10T08:00:00.000Z'),
   currency: 'EUR' as const,
@@ -144,6 +160,136 @@ const submittedReceiptEvidence = {
   tenantId: 'tenant-1',
   totalAmount: 1190,
   updatedAt: new Date('2026-07-10T08:00:00.000Z'),
+} satisfies ReceiptEvidenceRow;
+
+const platformTargetTenantSql =
+  'select "d0"."cancellation_deadline_hours_before_start" as "cancellationDeadlineHoursBeforeStart", "d0"."createdAt"::text as "createdAt", "d0"."currency" as "currency", "d0"."default_location" as "defaultLocation", "d0"."discount_providers" as "discountProviders", "d0"."domain" as "domain", "d0"."email_sender_email" as "emailSenderEmail", "d0"."email_sender_name" as "emailSenderName", "d0"."favicon_url" as "faviconUrl", "d0"."id" as "id", "d0"."legal_notice_text" as "legalNoticeText", "d0"."legal_notice_url" as "legalNoticeUrl", "d0"."logo_url" as "logoUrl", "d0"."max_active_registrations_per_user" as "maxActiveRegistrationsPerUser", "d0"."name" as "name", "d0"."receipt_settings" as "receiptSettings", "d0"."refund_fees_on_cancellation" as "refundFeesOnCancellation", "d0"."seoDescription" as "seoDescription", "d0"."seoTitle" as "seoTitle", "d0"."stripeAccountId" as "stripeAccountId", "d0"."terms_text" as "termsText", "d0"."terms_url" as "termsUrl", "d0"."theme" as "theme", "d0"."timezone" as "timezone", "d0"."transfer_deadline_hours_before_start" as "transferDeadlineHoursBeforeStart", "d0"."updatedAt"::text as "updatedAt" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
+const receiptApprovalEvidenceSql =
+  'select "finance_receipts"."alcoholAmount", "finance_receipts"."attachmentFileName", "finance_receipt_uploads"."mimeType", "finance_receipt_uploads"."storageKey", "finance_receipt_uploads"."storageUrl", "finance_receipt_uploads"."consumedAt"::text, "finance_receipt_uploads"."uploadedAt"::text, "finance_receipt_uploads"."uploadedByUserId", "finance_receipt_uploads"."eventId", "finance_receipt_uploads"."id", "finance_receipt_uploads"."status", "finance_receipt_uploads"."tenantId", "finance_receipts"."createdAt"::text, "finance_receipts"."currency", "finance_receipts"."depositAmount", "finance_receipts"."eventId", "finance_receipts"."hasAlcohol", "finance_receipts"."hasDeposit", "finance_receipts"."id", "finance_receipts"."previewImageUrl", "finance_receipts"."purchaseCountry", "finance_receipts"."receiptDate"::text, "finance_receipts"."refundedAt"::text, "finance_receipts"."refundTransactionId", "finance_receipts"."rejectionReason", "finance_receipts"."reviewedAt"::text, "finance_receipts"."status", "finance_receipts"."submittedByUserId", "finance_receipts"."taxAmount", "finance_receipts"."tenantId", "finance_receipts"."totalAmount", "finance_receipts"."updatedAt"::text from "finance_receipts" inner join "finance_receipt_uploads" on (("finance_receipts"."attachmentUploadId" = "finance_receipt_uploads"."id") and ("finance_receipts"."tenantId" = "finance_receipt_uploads"."tenantId") and ("finance_receipts"."eventId" = "finance_receipt_uploads"."eventId") and ("finance_receipts"."submittedByUserId" = "finance_receipt_uploads"."uploadedByUserId")) where (("finance_receipts"."id" = $1) and ("finance_receipts"."tenantId" = $2)) limit $3';
+
+const financeDatabaseTimestamp = (value: Date | null) =>
+  value === null
+    ? null
+    : value.toISOString().replace('T', ' ').replace('Z', '');
+
+const createReceiptApprovalDatabase = () => {
+  const targetTenantRecord = {
+    ...targetTenant,
+    createdAt: new Date('2026-07-10T08:00:00.000Z'),
+    defaultLocation: targetTenant.defaultLocation ?? null,
+    emailSenderEmail: targetTenant.emailSenderEmail ?? null,
+    emailSenderName: targetTenant.emailSenderName ?? null,
+    faviconUrl: targetTenant.faviconUrl ?? null,
+    legalNoticeText: targetTenant.legalNoticeText ?? null,
+    legalNoticeUrl: targetTenant.legalNoticeUrl ?? null,
+    logoUrl: targetTenant.logoUrl ?? null,
+    seoDescription: targetTenant.seoDescription ?? null,
+    seoTitle: targetTenant.seoTitle ?? null,
+    stripeAccountId: targetTenant.stripeAccountId ?? null,
+    termsText: targetTenant.termsText ?? null,
+    termsUrl: targetTenant.termsUrl ?? null,
+    updatedAt: new Date('2026-07-10T08:00:00.000Z'),
+  } satisfies typeof tenants.$inferSelect;
+  const transaction = vi.fn<
+    NonNullable<
+      Parameters<
+        typeof createRegistrationDatabaseTestLayer
+      >[0]['transactionControl']
+    >
+  >(() =>
+    Effect.die(new Error('Receipt signing failure must precede a transaction')),
+  );
+  const databaseLayer = createRegistrationDatabaseTestLayer({
+    executeValues: (statement, parameters) =>
+      Effect.sync(() => {
+        if (statement === platformTargetTenantSql) {
+          expect(parameters).toEqual([targetTenant.id, 1]);
+          return [
+            [
+              targetTenantRecord.cancellationDeadlineHoursBeforeStart,
+              financeDatabaseTimestamp(targetTenantRecord.createdAt),
+              targetTenantRecord.currency,
+              targetTenantRecord.defaultLocation,
+              targetTenantRecord.discountProviders,
+              targetTenantRecord.domain,
+              targetTenantRecord.emailSenderEmail,
+              targetTenantRecord.emailSenderName,
+              targetTenantRecord.faviconUrl,
+              targetTenantRecord.id,
+              targetTenantRecord.legalNoticeText,
+              targetTenantRecord.legalNoticeUrl,
+              targetTenantRecord.logoUrl,
+              targetTenantRecord.maxActiveRegistrationsPerUser,
+              targetTenantRecord.name,
+              targetTenantRecord.receiptSettings,
+              targetTenantRecord.refundFeesOnCancellation,
+              targetTenantRecord.seoDescription,
+              targetTenantRecord.seoTitle,
+              targetTenantRecord.stripeAccountId,
+              targetTenantRecord.termsText,
+              targetTenantRecord.termsUrl,
+              targetTenantRecord.theme,
+              targetTenantRecord.timezone,
+              targetTenantRecord.transferDeadlineHoursBeforeStart,
+              financeDatabaseTimestamp(targetTenantRecord.updatedAt),
+            ],
+          ];
+        }
+        if (statement === receiptApprovalEvidenceSql) {
+          expect(parameters).toEqual([
+            submittedReceiptEvidence.id,
+            targetTenant.id,
+            1,
+          ]);
+          return [
+            [
+              submittedReceiptEvidence.alcoholAmount,
+              submittedReceiptEvidence.attachmentFileName,
+              submittedReceiptEvidence.attachmentMimeType,
+              submittedReceiptEvidence.attachmentStorageKey,
+              submittedReceiptEvidence.attachmentStorageUrl,
+              financeDatabaseTimestamp(
+                submittedReceiptEvidence.attachmentUploadConsumedAt,
+              ),
+              financeDatabaseTimestamp(
+                submittedReceiptEvidence.attachmentUploadedAt,
+              ),
+              submittedReceiptEvidence.attachmentUploadedByUserId,
+              submittedReceiptEvidence.attachmentUploadEventId,
+              submittedReceiptEvidence.attachmentUploadId,
+              submittedReceiptEvidence.attachmentUploadStatus,
+              submittedReceiptEvidence.attachmentUploadTenantId,
+              financeDatabaseTimestamp(submittedReceiptEvidence.createdAt),
+              submittedReceiptEvidence.currency,
+              submittedReceiptEvidence.depositAmount,
+              submittedReceiptEvidence.eventId,
+              submittedReceiptEvidence.hasAlcohol,
+              submittedReceiptEvidence.hasDeposit,
+              submittedReceiptEvidence.id,
+              submittedReceiptEvidence.previewImageUrl,
+              submittedReceiptEvidence.purchaseCountry,
+              financeDatabaseTimestamp(submittedReceiptEvidence.receiptDate),
+              financeDatabaseTimestamp(submittedReceiptEvidence.refundedAt),
+              submittedReceiptEvidence.refundTransactionId,
+              submittedReceiptEvidence.rejectionReason,
+              financeDatabaseTimestamp(submittedReceiptEvidence.reviewedAt),
+              submittedReceiptEvidence.status,
+              submittedReceiptEvidence.submittedByUserId,
+              submittedReceiptEvidence.taxAmount,
+              submittedReceiptEvidence.tenantId,
+              submittedReceiptEvidence.totalAmount,
+              financeDatabaseTimestamp(submittedReceiptEvidence.updatedAt),
+            ],
+          ];
+        }
+        throw new Error(
+          `Unexpected platform receipt approval SQL: ${statement}`,
+        );
+      }),
+    transactionControl: transaction,
+  });
+
+  return { databaseLayer, transaction };
 };
 
 type PlatformTransactionRow = Parameters<
@@ -327,24 +473,19 @@ describe('platform tenant finance handlers', () => {
     'blocks platform approval before mutation when evidence cannot be signed',
     () =>
       Effect.gen(function* () {
-        const transaction = vi.fn();
-        const database = {
-          query: {
-            tenants: {
-              findFirst: () => Effect.succeed(targetTenant),
-            },
-          },
-          select: () => ({
-            from: () => ({
-              innerJoin: () => ({
-                where: () => ({
-                  limit: () => Effect.succeed([submittedReceiptEvidence]),
-                }),
-              }),
+        const { databaseLayer, transaction } = createReceiptApprovalDatabase();
+        const objectExists = vi.fn<
+          Context.Service.Shape<typeof ReceiptMediaService>['objectExists']
+        >(() => Effect.succeed(true));
+        const signedPreviewUrl = vi.fn<
+          Context.Service.Shape<typeof ReceiptMediaService>['signedPreviewUrl']
+        >(() =>
+          Effect.fail(
+            new ReceiptMediaServiceUnavailableError({
+              message: 'Receipt storage is unavailable',
             }),
-          }),
-          transaction,
-        };
+          ),
+        );
         const error = yield* platformTenantFinanceHandlers[
           'platform.finance.receipts.review'
         ](
@@ -362,7 +503,14 @@ describe('platform tenant finance handlers', () => {
             taxAmount: 190,
             totalAmount: 1190,
           },
-          { headers: {} } as never,
+          {
+            client: new Rpc.ServerClient(1),
+            headers: Headers.empty,
+            requestId: RpcMessage.RequestId(1),
+            rpc: PlatformFinanceReceiptReview.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          },
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -377,7 +525,7 @@ describe('platform tenant finance handlers', () => {
                 user: null,
                 userAssigned: false,
               }),
-              Layer.succeed(Database, database as never),
+              databaseLayer,
               Layer.succeed(ReceiptMediaService, {
                 createUploadPolicy: () =>
                   Effect.die(new Error('Unexpected receipt upload')),
@@ -385,13 +533,8 @@ describe('platform tenant finance handlers', () => {
                   Effect.die(new Error('Unexpected promoted upload discard')),
                 inspectUpload: () =>
                   Effect.die(new Error('Unexpected receipt inspection')),
-                objectExists: () => Effect.succeed(true),
-                signedPreviewUrl: () =>
-                  Effect.fail(
-                    new ReceiptMediaServiceUnavailableError({
-                      message: 'Receipt storage is unavailable',
-                    }),
-                  ),
+                objectExists,
+                signedPreviewUrl,
               }),
             ),
           ),
@@ -400,6 +543,15 @@ describe('platform tenant finance handlers', () => {
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
         expect(transaction).not.toHaveBeenCalled();
+        expect(objectExists).toHaveBeenCalledOnce();
+        expect(objectExists).toHaveBeenCalledWith({
+          storageKey: submittedReceiptEvidence.attachmentStorageKey,
+        });
+        expect(signedPreviewUrl).toHaveBeenCalledOnce();
+        expect(signedPreviewUrl).toHaveBeenCalledWith({
+          expiresInSeconds: 900,
+          storageKey: submittedReceiptEvidence.attachmentStorageKey,
+        });
       }),
   );
 
@@ -618,7 +770,6 @@ describe('platform tenant finance handlers', () => {
       stripeRefundStatus: 'failed',
       transferEventId: 'event-1',
       transferId: 'transfer-1',
-      transferRecipientRegistrationId: 'recipient-registration-1',
       transferSourceRegistrationId: 'source-registration-1',
       transferStatus: 'refund_failed',
       updatedAt: new Date('2026-07-10T11:00:00.000Z'),
@@ -661,7 +812,6 @@ describe('platform tenant finance handlers', () => {
           transfer: {
             eventId: 'event-1',
             id: 'transfer-1',
-            recipientRegistrationId: 'recipient-registration-1',
             sourceRegistrationId: 'source-registration-1',
             status: 'refund_failed',
           },
@@ -699,7 +849,6 @@ describe('platform tenant finance handlers', () => {
       stripeRefundStatus: null,
       transferEventId: null,
       transferId: null,
-      transferRecipientRegistrationId: null,
       transferSourceRegistrationId: null,
       transferStatus: null,
       updatedAt: new Date('2026-07-10T11:00:00.000Z'),

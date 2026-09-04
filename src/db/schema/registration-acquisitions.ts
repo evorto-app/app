@@ -33,7 +33,7 @@ import { users } from './users';
 
 export const registrationAcquisitionKind = pgEnum(
   'registration_acquisition_kind',
-  ['initial', 'claim_transfer', 'direct_transfer'],
+  ['initial', 'claim_transfer'],
 );
 
 export const registrationAcquisitionComponentKind = pgEnum(
@@ -81,8 +81,6 @@ export const registrationAcquisitions = pgTable(
         ${table.ordinal} = 0 AND ${table.previousAcquisitionId} IS NULL AND ${table.kind} = 'initial' AND ${table.transferId} IS NULL
       ) OR (
         ${table.ordinal} > 0 AND ${table.previousAcquisitionId} IS NOT NULL AND ${table.kind} = 'claim_transfer' AND ${table.transferId} IS NOT NULL
-      ) OR (
-        ${table.ordinal} > 0 AND ${table.previousAcquisitionId} IS NOT NULL AND ${table.kind} = 'direct_transfer' AND ${table.transferId} IS NULL
       )`,
     ),
     eventOwner: foreignKey({

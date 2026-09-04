@@ -122,9 +122,14 @@ describe('platform registration cancellation refund preview', () => {
       'checkout_pending',
       'refund_pending',
       'refund_failed',
-      'registration-1',
-      'checkout_pending',
     ]);
+    expect(query.sql).toContain(
+      '"registration_transfers"."source_registration_id" = $2',
+    );
+    expect(query.sql).not.toContain('"recipient_registration_id"');
+    expect(query.sql).toContain(
+      `("registration_transfers"."status" <> 'open' OR "registration_transfers"."expires_at" > statement_timestamp())`,
+    );
     expect(
       platformRegistrationCancellationBlockedReason({
         activeTransfer: true,

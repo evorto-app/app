@@ -11,7 +11,8 @@ const requireTransferUser = RpcAccess.requireUser().pipe(
   Effect.mapError((error) =>
     error instanceof RpcUnauthorizedError
       ? new RegistrationTransferUnauthorizedError({
-          message: 'Authenticated participant account required',
+          message:
+            'Sign in to open or manage a ticket transfer. No ticket, payment, or refund was changed.',
         })
       : error,
   ),
@@ -37,7 +38,7 @@ export const registrationTransferHandlers = {
       const service = yield* RegistrationTransferService;
       return yield* service.claim({
         answers: input.answers,
-        credential: input.credential,
+        claimCode: input.claimCode,
         tenant: context.tenant,
         user,
       });
@@ -55,13 +56,13 @@ export const registrationTransferHandlers = {
       });
     }),
 
-  'registrationTransfers.getClaim': ({ credential }) =>
+  'registrationTransfers.getClaim': ({ claimCode }) =>
     Effect.gen(function* () {
       const context = yield* RpcAccess.current();
       const user = yield* requireTransferUser;
       const service = yield* RegistrationTransferService;
       return yield* service.getClaim({
-        credential,
+        claimCode,
         tenant: context.tenant,
         user,
       });

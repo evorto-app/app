@@ -80,6 +80,7 @@ export interface EnqueueRegistrationTransferredEmailInput {
   eventUrl: string;
   recipientRole: 'newOwner' | 'previousOwner';
   recipientUserId: string;
+  refundOutcome: 'notStarted' | 'pending';
   registrationId: string;
   tenant: TenantEmailContext;
   to: string;
@@ -366,6 +367,7 @@ export const enqueueRegistrationTransferredEmail = (
       eventTitle: input.eventTitle,
       eventUrl: input.eventUrl,
       recipientRole: input.recipientRole,
+      refundOutcome: input.refundOutcome,
       tenantName: input.tenant.name,
     }),
     tenant: input.tenant,

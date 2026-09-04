@@ -270,7 +270,6 @@ const seedFixture = async (database: TestDatabase, fixture: Fixture) => {
     ]);
     await transaction.insert(registrationTransfers).values({
       claimCodeHash: fixture.transferId.padEnd(64, 'c'),
-      claimTokenHash: fixture.transferId.padEnd(64, 't'),
       eventId: fixture.eventId,
       expiresAt: later,
       id: fixture.transferId,

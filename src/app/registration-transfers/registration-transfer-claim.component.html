@@ -22,7 +22,14 @@
       <h2 class="title-medium">{{ lookupError.title }}</h2>
       <p>{{ lookupError.body }}</p>
       <div class="flex flex-wrap gap-2">
-        @if (lookupError.retryable) {
+        @if (lookupError.signInRequired) {
+          <a
+            href="/forward-login?redirectUrl=/registration-transfers"
+            mat-flat-button
+          >
+            Sign in
+          </a>
+        } @else if (lookupError.retryable) {
           <button
             mat-stroked-button
             type="button"
@@ -32,12 +39,17 @@
             {{ claimQuery.isFetching() ? "Trying again…" : "Try again" }}
           </button>
         }
-        <a mat-stroked-button routerLink="/registration-transfers">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="enterAnotherCode.emit()"
+        >
           Enter another code
-        </a>
+        </button>
       </div>
     </section>
-  } @else if (claimQuery.data(); as claim) {
+  } @else if (claimQuery.isSuccess()) {
+    @let claim = claimQuery.data();
     <section class="bg-surface-container-low grid gap-4 rounded-xl p-5">
       <div class="grid gap-1">
         <h2 class="title-large">{{ claim.event.title }}</h2>
@@ -247,7 +259,11 @@
       >
         <h2 class="title-medium">{{ state.title }}</h2>
         <p class="body-medium">{{ state.body }}</p>
-        @if (claim.status === "checkout_pending") {
+        @if (
+          claim.status === "checkout_pending" &&
+          !unsafeCheckout() &&
+          !retryMutation.isError()
+        ) {
           <button
             mat-flat-button
             type="button"
@@ -353,15 +369,34 @@
     }
 
     @if (claimMutation.isError()) {
+      @let claimError = claimErrorCopy(claimMutation.error());
       <section
-        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-5"
         role="alert"
       >
-        <h2 class="title-medium">Claim did not complete</h2>
-        <p>We could not complete the transfer. Nothing changed.</p>
-        <p class="body-small">
-          Refresh to check the transfer's current status before trying again.
-        </p>
+        <h2 class="title-medium">{{ claimError.title }}</h2>
+        <p>{{ claimError.body }}</p>
+        @if (claimError.signInRequired) {
+          <a
+            href="/forward-login?redirectUrl=/registration-transfers"
+            mat-flat-button
+          >
+            Sign in
+          </a>
+        } @else {
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="checkTransferStatus()"
+            [disabled]="claimQuery.isFetching()"
+          >
+            {{
+              claimQuery.isFetching()
+                ? "Checking transfer status…"
+                : "Check transfer status"
+            }}
+          </button>
+        }
       </section>
     }
     @if (unsafeCheckout()) {
@@ -369,27 +404,48 @@
         class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
         role="alert"
       >
-        <h2 class="title-medium">Checkout could not be opened</h2>
+        <h2 class="title-medium">Payment page was not opened</h2>
         <p>
-          The payment link could not be verified as Stripe Checkout. For your
-          security, nothing was opened.
+          The payment link could not be verified. For your security, nothing was
+          opened.
         </p>
         <p class="body-small">
-          Refresh to check the latest status before trying again.
+          Select Check transfer status. If payment is still required, ask the
+          sender for a new transfer.
         </p>
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="checkTransferStatus()"
+          [disabled]="claimQuery.isFetching()"
+        >
+          {{
+            claimQuery.isFetching()
+              ? "Checking transfer status…"
+              : "Check transfer status"
+          }}
+        </button>
       </section>
     } @else if (retryMutation.isError()) {
+      @let retryError = retryErrorCopy(retryMutation.error());
       <section
-        class="bg-error-container text-on-error-container grid gap-2 rounded-xl p-5"
+        class="bg-error-container text-on-error-container grid gap-3 rounded-xl p-5"
         role="alert"
       >
-        <h2 class="title-medium">Checkout could not be reopened</h2>
-        <p>
-          We could not reopen Stripe Checkout. Your transfer has not changed.
-        </p>
-        <p class="body-small">
-          Select Continue payment again, or refresh to check the latest status.
-        </p>
+        <h2 class="title-medium">{{ retryError.title }}</h2>
+        <p>{{ retryError.body }}</p>
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="checkTransferStatus()"
+          [disabled]="claimQuery.isFetching()"
+        >
+          {{
+            claimQuery.isFetching()
+              ? "Checking transfer status…"
+              : "Check transfer status"
+          }}
+        </button>
       </section>
     }
   }

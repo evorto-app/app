@@ -6,6 +6,7 @@ import {
   MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
 import {
+  registrationTransferClaimCodePattern,
   RegistrationTransferRefundLifecycle,
   RegistrationTransferStatus,
   registrationTransferStatuses,
@@ -18,8 +19,8 @@ import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 import { Tenant } from '../../../types/custom/tenant';
 import { RegistrationTransfersRpcError } from './registration-transfers.errors';
 
-export const RegistrationTransferCredential = Schema.NonEmptyString.check(
-  Schema.isMaxLength(512),
+export const RegistrationTransferClaimCode = Schema.String.check(
+  Schema.isPattern(registrationTransferClaimCodePattern),
 );
 
 const NonNegativeQuantity = nonNegativeNumber.check(Schema.isInt());
@@ -65,7 +66,7 @@ export class RegistrationTransferClaimInput extends Schema.Class<RegistrationTra
   answers: Schema.Array(RegistrationTransferAnswerInput).check(
     Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
   ),
-  credential: RegistrationTransferCredential,
+  claimCode: RegistrationTransferClaimCode,
 }) {}
 
 export class RegistrationTransferEventRecord extends Schema.Class<RegistrationTransferEventRecord>(
@@ -123,8 +124,8 @@ export class RegistrationTransferClaimRecord extends Schema.Class<RegistrationTr
 export class RegistrationTransferOfferResult extends Schema.Class<RegistrationTransferOfferResult>(
   'RegistrationTransferOfferResult',
 )({
-  claimCode: RegistrationTransferCredential,
-  claimUrl: Schema.NonEmptyString,
+  claimCode: RegistrationTransferClaimCode,
+  claimPageUrl: Schema.NonEmptyString,
   expiresAt: Schema.NonEmptyString,
   status: Schema.Literal(registrationTransferStatuses[0]),
 }) {}
@@ -164,7 +165,7 @@ export const RegistrationTransfersGetClaim = asRpcQuery(
   Rpc.make('registrationTransfers.getClaim', {
     error: RegistrationTransfersRpcError,
     payload: Schema.Struct({
-      credential: RegistrationTransferCredential,
+      claimCode: RegistrationTransferClaimCode,
     }),
     success: RegistrationTransferClaimRecord,
   }),

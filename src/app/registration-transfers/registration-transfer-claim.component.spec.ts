@@ -3,6 +3,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
 import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
+  RegistrationTransferConflictError,
+  RegistrationTransferInternalError,
+  RegistrationTransferNotFoundError,
+  RegistrationTransferUnauthorizedError,
+} from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
+import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
@@ -10,13 +16,15 @@ import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { normalizeStripeCheckoutUrl } from '../core/stripe-checkout-url';
 import {
   reconcileTransferClaimAnswers,
-  registrationTransferCheckoutUrl,
   RegistrationTransferClaimComponent,
+  registrationTransferClaimErrorCopy,
   RegistrationTransferClaimOperations,
   registrationTransferClaimPayload,
   registrationTransferLookupErrorCopy,
+  registrationTransferRetryErrorCopy,
   registrationTransferStatusCopy,
   transferClaimFormSchema,
 } from './registration-transfer-claim.component';
@@ -57,6 +65,13 @@ const retryCheckoutButton = (
   return root.querySelector('[data-retry-checkout]');
 };
 
+const checkTransferStatusButton = (
+  fixture: ComponentFixture<RegistrationTransferClaimComponent>,
+): HTMLButtonElement | null => {
+  const root: HTMLElement = fixture.nativeElement;
+  return root.querySelector('[data-check-transfer-status]');
+};
+
 const unsafeCheckoutText = (
   fixture: ComponentFixture<RegistrationTransferClaimComponent>,
 ): null | string => {
@@ -81,8 +96,8 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       status: 'confirmed',
     });
     loadClaim.mockReset();
-    loadClaim.mockImplementation(async (credential: string) =>
-      credential === 'offer-b'
+    loadClaim.mockImplementation(async (claimCode: string) =>
+      claimCode === 'offer-b'
         ? transferClaim('transfer-b', 'question-b')
         : transferClaim('transfer-a', 'question-a'),
     );
@@ -106,6 +121,9 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
               <button data-submit-claim type="submit">Claim</button>
             </form>
             <button data-retry-checkout (click)="retryCheckout()">Retry</button>
+            <button data-check-transfer-status (click)="checkTransferStatus()">
+              Check transfer status
+            </button>
             <span data-claim-status>{{ claimQuery.data()?.status }}</span>
             <span data-unsafe-checkout>{{ unsafeCheckout() }}</span>
           }
@@ -124,9 +142,9 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
               mutationFn: claimMutation,
               mutationKey: ['transfer-claim', 'claim'],
             }),
-            getClaim: (credential: string) => ({
-              queryFn: () => loadClaim(credential),
-              queryKey: ['transfer-claim', credential],
+            getClaim: (claimCode: string) => ({
+              queryFn: () => loadClaim(claimCode),
+              queryKey: ['transfer-claim', claimCode],
             }),
             retryCheckout: () => ({
               mutationFn: retryCheckoutMutation,
@@ -146,7 +164,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
 
   it('preserves same-transfer edits but resets them when the reused route loads another transfer', async () => {
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -186,7 +204,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       expect(currentInputs[1]?.value).toBe('');
     });
 
-    fixture.componentRef.setInput('credential', 'offer-b');
+    fixture.componentRef.setInput('claimCode', 'offer-b');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -198,15 +216,13 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
     });
   });
 
-  it('clears an unsafe checkout warning before retrying and when the claim leaves checkout', async () => {
-    retryCheckoutMutation
-      .mockResolvedValueOnce({
-        checkoutUrl: 'https://payments.example.test/not-stripe',
-        status: 'paymentPending',
-      })
-      .mockResolvedValueOnce({ status: 'reconciled' });
+  it('requires a status check after an unsafe payment link and clears the warning when the claim leaves checkout', async () => {
+    retryCheckoutMutation.mockResolvedValueOnce({
+      checkoutUrl: 'https://payments.example.test/not-stripe',
+      status: 'paymentPending',
+    });
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -221,6 +237,13 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
     });
 
     retryCheckoutButton(fixture)?.click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(unsafeCheckoutText(fixture)).toContain('true');
+      expect(retryCheckoutMutation).toHaveBeenCalledOnce();
+    });
+
+    checkTransferStatusButton(fixture)?.click();
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(unsafeCheckoutText(fixture)).toContain('false');
@@ -259,7 +282,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       expect(unsafeCheckoutText(fixture)).toContain('true');
     });
 
-    fixture.componentRef.setInput('credential', 'offer-b');
+    fixture.componentRef.setInput('claimCode', 'offer-b');
     fixture.detectChanges();
     await vi.waitFor(() => {
       fixture.detectChanges();
@@ -277,7 +300,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
       new Error('Registration transfer is no longer available'),
     );
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
-    fixture.componentRef.setInput('credential', 'offer-a');
+    fixture.componentRef.setInput('claimCode', 'offer-a');
     fixture.detectChanges();
 
     await vi.waitFor(() => {
@@ -396,7 +419,7 @@ describe('reconcileTransferClaimAnswers', () => {
 });
 
 describe('registrationTransferClaimPayload', () => {
-  it('submits only recipient answers and the claim credential', () => {
+  it('submits only recipient answers and the claim code', () => {
     const payload = registrationTransferClaimPayload({
       answers: [
         {
@@ -404,7 +427,7 @@ describe('registrationTransferClaimPayload', () => {
           questionId: 'question-1',
         },
       ],
-      credential: 'claim-token',
+      claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
     });
 
     expect(payload).toEqual({
@@ -414,54 +437,169 @@ describe('registrationTransferClaimPayload', () => {
           questionId: 'question-1',
         },
       ],
-      credential: 'claim-token',
+      claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
     });
     expect(payload).not.toHaveProperty('addOns');
     expect(payload).not.toHaveProperty('guestCount');
   });
 });
 
-describe('registrationTransferCheckoutUrl', () => {
+describe('normalizeStripeCheckoutUrl', () => {
   it('accepts only an exact HTTPS Stripe Checkout host', () => {
     expect(
-      registrationTransferCheckoutUrl(
+      normalizeStripeCheckoutUrl(
         'https://checkout.stripe.com/c/pay/cs_test_123',
       ),
     ).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
     expect(
-      registrationTransferCheckoutUrl(
+      normalizeStripeCheckoutUrl(
         'https://checkout.stripe.com.evil.example/cs_test_123',
       ),
-    ).toBeUndefined();
+    ).toBeNull();
     expect(
-      registrationTransferCheckoutUrl('javascript:alert(document.domain)'),
-    ).toBeUndefined();
+      normalizeStripeCheckoutUrl('javascript:alert(document.domain)'),
+    ).toBeNull();
   });
 });
 
 describe('registrationTransferLookupErrorCopy', () => {
-  it('keeps missing and unauthorized credentials indistinguishable', () => {
-    const notFound = registrationTransferLookupErrorCopy({
-      _tag: 'RegistrationTransferNotFoundError',
-    });
-    const unauthorized = registrationTransferLookupErrorCopy({
-      _tag: 'RegistrationTransferUnauthorizedError',
-    });
+  it('keeps missing-code guidance specific without exposing server details', () => {
+    const notFound = registrationTransferLookupErrorCopy(
+      new RegistrationTransferNotFoundError({
+        message: 'private lookup details',
+      }),
+    );
 
-    expect(notFound).toEqual(unauthorized);
     expect(notFound.retryable).toBe(false);
+    expect(notFound.signInRequired).toBe(false);
     expect(notFound.body).toContain('complete code');
+    expect(notFound.body).not.toContain('private lookup details');
+  });
+
+  it('turns a signed-out lookup into an explicit sign-in step', () => {
+    const unauthorized = registrationTransferLookupErrorCopy(
+      new RegistrationTransferUnauthorizedError({
+        message: 'private sign-in details',
+      }),
+    );
+
+    expect(unauthorized).toEqual({
+      body: 'Sign in, then return here and enter the transfer code. Nothing changed.',
+      retryable: false,
+      signInRequired: true,
+      title: 'Sign in to continue',
+    });
   });
 
   it('offers a retry without exposing internal lookup details', () => {
-    const copy = registrationTransferLookupErrorCopy({
-      _tag: 'RegistrationTransferInternalError',
-      message: 'database connection string leaked here',
-    });
+    const copy = registrationTransferLookupErrorCopy(
+      new RegistrationTransferInternalError({
+        message: 'database connection string leaked here',
+      }),
+    );
 
     expect(copy.retryable).toBe(true);
+    expect(copy.signInRequired).toBe(false);
     expect(copy.body).toContain('Nothing changed');
     expect(copy.body).not.toContain('database connection');
+  });
+});
+
+describe('registrationTransferClaimErrorCopy', () => {
+  it('shows safe transfer conflicts without hiding the reason', () => {
+    expect(
+      registrationTransferClaimErrorCopy(
+        new RegistrationTransferConflictError({
+          message: 'This ticket is no longer available to transfer.',
+        }),
+      ),
+    ).toEqual({
+      body: 'This ticket is no longer available to transfer.',
+      signInRequired: false,
+      title: 'Ticket could not be accepted',
+    });
+  });
+
+  it('keeps uncertain failures private and requires a status check', () => {
+    const copy = registrationTransferClaimErrorCopy(
+      new RegistrationTransferInternalError({
+        message: 'database connection string leaked here',
+      }),
+    );
+
+    expect(copy.title).toBe('Transfer outcome could not be confirmed');
+    expect(copy.signInRequired).toBe(false);
+    expect(copy.body).toContain('check the transfer');
+    expect(copy.body).not.toContain('database connection');
+  });
+
+  it('turns typed unauthorized acceptance into an explicit sign-in step', () => {
+    const copy = registrationTransferClaimErrorCopy(
+      new RegistrationTransferUnauthorizedError({
+        message: 'private sign-in details',
+      }),
+    );
+
+    expect(copy).toEqual({
+      body: 'Sign in, then return here and enter the transfer code before accepting the ticket. Nothing changed.',
+      signInRequired: true,
+      title: 'Sign in to continue',
+    });
+  });
+});
+
+describe('registrationTransferRetryErrorCopy', () => {
+  it('preserves changed and missing-payment recovery guidance', () => {
+    const changed = new RegistrationTransferConflictError({
+      message:
+        'The payment link expired. Ask the sender to create a new ticket transfer.',
+    });
+    const missing = new RegistrationTransferNotFoundError({
+      message:
+        'There is no unfinished payment. Select Check transfer status to review the current outcome.',
+    });
+
+    expect(registrationTransferRetryErrorCopy(changed)).toEqual({
+      body: changed.message,
+      title: 'Payment cannot be continued',
+    });
+    expect(registrationTransferRetryErrorCopy(missing)).toEqual({
+      body: missing.message,
+      title: 'No payment to continue',
+    });
+  });
+
+  it('directs signed-out people through a status check', () => {
+    const copy = registrationTransferRetryErrorCopy(
+      new RegistrationTransferUnauthorizedError({
+        message: 'private sign-in details',
+      }),
+    );
+
+    expect(copy.title).toBe('Sign in to continue');
+    expect(copy.body).toContain('Check transfer status');
+    expect(copy.body).toContain('ask the sender for a new transfer');
+    expect(copy.body).not.toContain('private sign-in details');
+  });
+
+  it('keeps uncertain failures private and avoids another blind payment attempt', () => {
+    const internal = registrationTransferRetryErrorCopy(
+      new RegistrationTransferInternalError({
+        message: 'database connection string leaked here',
+      }),
+    );
+    const unexpected = registrationTransferRetryErrorCopy(
+      new Error('session cookie leaked here'),
+    );
+
+    for (const copy of [internal, unexpected]) {
+      expect(copy.title).toBe('Payment status could not be confirmed');
+      expect(copy.body).toContain('Check transfer status once');
+      expect(copy.body).toContain('ask the sender for a new transfer');
+      expect(copy.body).not.toContain('database connection');
+      expect(copy.body).not.toContain('session cookie');
+      expect(copy.body).not.toContain('Continue payment again');
+    }
   });
 });
 
@@ -559,12 +697,17 @@ describe('registration transfer bundle review template', () => {
     expect(template).not.toContain('errorMessage(claimMutation.error()');
     expect(template).not.toContain('errorMessage(retryMutation.error()');
     expect(template).toContain('lookupErrorCopy(claimQuery.error())');
+    expect(template).toContain('claimErrorCopy(claimMutation.error())');
+    expect(template).toContain('retryErrorCopy(retryMutation.error())');
+    expect(template).toContain('(click)="checkTransferStatus()"');
     expect(template).toContain('(click)="claimQuery.refetch()"');
-    expect(template).toContain('routerLink="/registration-transfers"');
+    expect(template).toContain('(click)="enterAnotherCode.emit()"');
     expect(template).toContain('Enter another code');
     expect(template).toContain('@if (unsafeCheckout())');
     expect(template).toContain('@else if (retryMutation.isError())');
-    expect(template).toContain('Your transfer has not changed');
+    expect(template).toContain('Select Check transfer status');
+    expect(template).toContain('ask the\n          sender for a new transfer');
+    expect(template).not.toContain('Continue payment again');
   });
 
   it('announces transfer error states as alerts', () => {

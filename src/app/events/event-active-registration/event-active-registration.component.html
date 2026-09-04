@@ -511,8 +511,12 @@
     class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
     role="alert"
   >
-    <h3 class="title-medium">Registration transfer failed</h3>
-    <p>{{ transferErrorMessage(transferRegistrationMutation.error()) }}</p>
+    <h3 class="title-medium">Review transfer offer</h3>
+    <p>
+      {{
+        registrationTransferOfferErrorCopy(transferRegistrationMutation.error())
+      }}
+    </p>
   </div>
 }
 @if (cancelTransferMutation.isError()) {
@@ -520,7 +524,13 @@
     class="bg-error-container text-on-error-container mt-4 flex flex-col gap-2 rounded-lg p-4"
     role="alert"
   >
-    <h3 class="title-medium">Transfer cancellation failed</h3>
-    <p>{{ transferErrorMessage(cancelTransferMutation.error()) }}</p>
+    <h3 class="title-medium">Review transfer cancellation</h3>
+    <p>
+      {{
+        registrationTransferCancellationErrorCopy(
+          cancelTransferMutation.error()
+        )
+      }}
+    </p>
   </div>
 }

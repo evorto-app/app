@@ -574,9 +574,6 @@ describe('tenant public URL migration serialization', () => {
                   claimCodeHash: createHash('sha256')
                     .update(`code-${suffix}`)
                     .digest('hex'),
-                  claimTokenHash: createHash('sha256')
-                    .update(`token-${suffix}`)
-                    .digest('hex'),
                   eventId,
                   expiresAt: new Date(now + 24 * 60 * 60 * 1000),
                   id: transferId,

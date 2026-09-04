@@ -15,6 +15,7 @@ import {
   RegistrationTransferConflictError,
   RegistrationTransferInternalError,
   RegistrationTransferNotFoundError,
+  RegistrationTransferUnauthorizedError,
 } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import {
   provideTanStackQuery,
@@ -44,6 +45,8 @@ import {
   registrationTransferActionCopy,
   registrationTransferActionDisabled,
   registrationTransferBlockedCopy,
+  registrationTransferCancellationErrorCopy,
+  registrationTransferOfferErrorCopy,
 } from './event-active-registration.component';
 
 const readSource = (sourcePath: string): string =>
@@ -112,6 +115,84 @@ const registrationStatus = (
   transferAvailable: true,
   transferBlockedReason: 'none',
   ...overrides,
+});
+
+describe('registration transfer owner error copy', () => {
+  it('preserves specific transfer conflicts and missing-ticket guidance', () => {
+    const conflict = new RegistrationTransferConflictError({
+      message:
+        'An add-on payment is still open. Finish it before starting the ticket transfer.',
+    });
+    const notFound = new RegistrationTransferNotFoundError({
+      message:
+        'This ticket is no longer available to transfer. Review your current ticket.',
+    });
+
+    expect(registrationTransferOfferErrorCopy(conflict)).toBe(conflict.message);
+    expect(registrationTransferCancellationErrorCopy(conflict)).toBe(
+      conflict.message,
+    );
+    expect(registrationTransferOfferErrorCopy(notFound)).toBe(notFound.message);
+    expect(registrationTransferCancellationErrorCopy(notFound)).toBe(
+      notFound.message,
+    );
+  });
+
+  it('gives each signed-out action its own next step', () => {
+    const error = new RegistrationTransferUnauthorizedError({
+      message: 'private sign-in details',
+    });
+
+    expect(registrationTransferOfferErrorCopy(error)).toBe(
+      'Sign in to create a transfer offer. Nothing changed.',
+    );
+    expect(registrationTransferCancellationErrorCopy(error)).toBe(
+      'Sign in to cancel this transfer. Nothing changed.',
+    );
+  });
+
+  it('keeps internal and unexpected details private with action-specific guidance', () => {
+    const internal = new RegistrationTransferInternalError({
+      message: 'database connection string leaked here',
+    });
+    const unexpected = new Error('session cookie leaked here');
+
+    for (const error of [internal, unexpected]) {
+      const offerCopy = registrationTransferOfferErrorCopy(error);
+      const cancellationCopy = registrationTransferCancellationErrorCopy(error);
+
+      expect(offerCopy).toBe(
+        'We could not confirm whether the transfer offer was created. Load the page again to check for an existing offer before trying again.',
+      );
+      expect(cancellationCopy).toBe(
+        'We could not confirm whether the transfer was cancelled. Load the page again to check its current status before trying again.',
+      );
+      for (const copy of [offerCopy, cancellationCopy]) {
+        expect(copy).not.toContain('Nothing changed');
+        expect(copy).not.toContain('database connection');
+        expect(copy).not.toContain('session cookie');
+      }
+    }
+  });
+
+  it('uses distinct typed copy functions in each transfer error alert', () => {
+    const template = readSource(
+      'src/app/events/event-active-registration/event-active-registration.component.html',
+    );
+    const normalizedTemplate = template.replaceAll(/\s+/gu, ' ');
+
+    expect(normalizedTemplate).toContain(
+      'registrationTransferOfferErrorCopy(transferRegistrationMutation.error())',
+    );
+    expect(normalizedTemplate).toContain(
+      'registrationTransferCancellationErrorCopy( cancelTransferMutation.error() )',
+    );
+    expect(template).not.toContain('transferErrorMessage(');
+    expect(template).toContain('Review transfer offer');
+    expect(template).toContain('Review transfer cancellation');
+    expect(template).not.toContain('Transfer offer could not be created');
+    expect(template).not.toContain('Transfer could not be cancelled');
+  });
 });
 
 describe('registrationCancellationCopy', () => {
@@ -788,7 +869,8 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       error: new RegistrationTransferInternalError({
         message: 'Private transfer infrastructure detail',
       }),
-      expectedMessage: 'Transfer failed',
+      expectedMessage:
+        'We could not confirm whether the transfer offer was created. Load the page again to check for an existing offer before trying again.',
     },
   ])(
     'shows only safe transfer details for $error._tag',
@@ -1344,14 +1426,18 @@ describe('registration transfer offer dialog source', () => {
     );
     const normalizedTemplate = template.replaceAll(/\s+/gu, ' ');
 
-    expect(normalizedTemplate).toContain('Claim link');
-    expect(normalizedTemplate).toContain('Manual claim code');
+    expect(normalizedTemplate).toContain('Copy transfer page link');
+    expect(normalizedTemplate).toContain('Transfer code');
     expect(normalizedTemplate).toContain(
-      'Send either the link or code to one person you trust.',
+      'Send the code to the person who should receive your ticket.',
     );
-    expect(normalizedTemplate).toContain('Keep both private.');
     expect(normalizedTemplate).toContain(
-      'stays active until the recipient is confirmed.',
+      'The code works once, so keep it private.',
     );
+    expect(normalizedTemplate).toContain(
+      "The ticket stays with you until the new attendee's transfer is complete.",
+    );
+    expect(normalizedTemplate).toContain("copy(data.claimPageUrl, 'page')");
+    expect(normalizedTemplate).not.toContain('data.claimUrl');
   });
 });
