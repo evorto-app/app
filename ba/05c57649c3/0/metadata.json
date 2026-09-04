@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ba05c57649c3",
+  "session_id": "01a06cdc-629f-7b82-8a80-b940922d7571",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-04T18:08:04.414396Z",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/redact-formatted-test-request-headers.md",
+    "helpers/testing/protected-value-sanitizer-reporter.spec.ts",
+    "tests/support/reporters/protected-value-sanitizer-reporter.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "c3026ce215b8",
+  "checkpoint_transcript_start": 6623,
+  "transcript_lines_at_start": 6623,
+  "token_usage": {
+    "input_tokens": 40234,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2619904,
+    "output_tokens": 7930,
+    "api_call_count": 33
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-04T18:08:04.056154Z",
+    "agent_lines": 147,
+    "agent_removed": 3,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 147,
+    "total_lines_changed": 150,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
