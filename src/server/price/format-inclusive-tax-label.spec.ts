@@ -1,5 +1,6 @@
 import {
   formatInclusiveTaxLabel,
+  formatPriceWithTax,
   hasValidTaxRateInfo,
   isZeroTaxRate,
 } from '@shared/price/format-inclusive-tax-label';
@@ -12,7 +13,7 @@ describe('formatInclusiveTaxLabel', () => {
         displayName: 'VAT',
         percentage: '19',
       }),
-    ).toBe('19% VAT included in the shown price');
+    ).toBe('Incl. 19% VAT');
   });
 
   it('uses Tax free for zero percent tax rates', () => {
@@ -24,11 +25,22 @@ describe('formatInclusiveTaxLabel', () => {
     ).toBe('Tax free');
   });
 
-  it('surfaces unavailable tax details instead of implying a tax result', () => {
-    expect(formatInclusiveTaxLabel(null)).toBe('Tax details unavailable');
+  it('falls back when tax rate details are unavailable', () => {
+    expect(formatInclusiveTaxLabel(null)).toBe('Incl. Tax');
     expect(formatInclusiveTaxLabel({ stripeTaxRateId: 'txr_1' })).toBe(
-      'Tax details unavailable',
+      'Incl. Tax',
     );
+  });
+});
+
+describe('formatPriceWithTax', () => {
+  it('formats cents with the inclusive tax label', () => {
+    expect(
+      formatPriceWithTax(2500, 'EUR', {
+        displayName: 'VAT',
+        percentage: '19',
+      }),
+    ).toBe('€25.00 Incl. 19% VAT');
   });
 });
 

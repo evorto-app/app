@@ -47,9 +47,7 @@ describe('PriceWithTaxComponent', () => {
     });
 
     expect(fixture.nativeElement.textContent).toContain('CZK25.00');
-    expect(fixture.nativeElement.textContent).toContain(
-      '19% VAT included in the shown price',
-    );
+    expect(fixture.nativeElement.textContent).toContain('Incl. 19% VAT');
   });
 
   it('allows explicit currency overrides', async () => {
@@ -76,9 +74,7 @@ describe('PriceWithTaxComponent', () => {
     });
 
     expect(fixture.nativeElement.textContent).toContain('Free');
-    expect(fixture.nativeElement.textContent).not.toContain(
-      'included in the shown price',
-    );
+    expect(fixture.nativeElement.textContent).not.toContain('Incl.');
     expect(fixture.nativeElement.textContent).not.toContain('VAT');
   });
 
@@ -104,8 +100,6 @@ describe('PriceWithTaxComponent', () => {
     });
 
     expect(fixture.nativeElement.textContent).toContain('CZK12.00');
-    expect(fixture.nativeElement.textContent).toContain(
-      'Tax details unavailable',
-    );
+    expect(fixture.nativeElement.textContent).toContain('Incl. Tax');
   });
 });

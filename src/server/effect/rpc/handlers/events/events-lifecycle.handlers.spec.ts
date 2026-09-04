@@ -451,7 +451,7 @@ describe('eventLifecycleHandlers', () => {
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'stripeRequiredForPaidEventConfiguration',
+          reason: 'paymentSetupRequired',
         });
       }),
   );
