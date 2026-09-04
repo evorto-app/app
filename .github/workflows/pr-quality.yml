@@ -263,7 +263,6 @@ jobs:
           version: v0.70.0
           format: table
           severity: HIGH,CRITICAL
-          ignore-unfixed: true
           exit-code: "1"
           hide-progress: true
 

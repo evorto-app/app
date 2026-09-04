@@ -37,7 +37,6 @@ test -s "${temporary_directory}/sbom.spdx.json"
 
 trivy image \
   --exit-code 1 \
-  --ignore-unfixed \
   --quiet \
   --severity HIGH,CRITICAL \
   "${image}"
