@@ -164,21 +164,21 @@ describe('PlatformTaxRatesComponent', () => {
         message: 'Private provider failure details',
       }),
       expected:
-        'The import outcome could not be confirmed. Reload the page to check the current tax rates before trying again.',
+        'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
       label: 'provider failure',
       phase: 'mutation',
     },
     {
       error: new Error('Response connection closed'),
       expected:
-        'The import outcome could not be confirmed. Reload the page to check the current tax rates before trying again.',
+        'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
       label: 'lost import response',
       phase: 'mutation',
     },
     {
       error: new Error('Refresh failed after import completed'),
       expected:
-        'Tax rates were imported, but the list could not be refreshed. Reload the page to see the current tax rates.',
+        'Tax rates were imported, but the list could not be updated. Load the page again to see the current tax rates.',
       label: 'refresh failure after import succeeded',
       phase: 'refresh',
     },

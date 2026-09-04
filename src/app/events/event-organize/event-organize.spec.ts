@@ -731,7 +731,7 @@ describe('event organizer query-state template', () => {
     );
     expect(source).toContain('const expectedStatus = registration.status');
     expect(source).toContain(
-      'The cancellation outcome could not be confirmed. Reload the page to check the current sign-up status before trying again.',
+      'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
     );
   });
 });
@@ -802,7 +802,7 @@ const cancellationOptions = (): OrganizerCancellationOptions => ({
 });
 
 const cancellationFallback =
-  'The cancellation outcome could not be confirmed. Reload the page to check the current sign-up status before trying again.';
+  'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.';
 
 describe('organizer cancellation outcome feedback', () => {
   let queryClient: QueryClient;
