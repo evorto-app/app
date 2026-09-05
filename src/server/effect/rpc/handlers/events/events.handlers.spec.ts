@@ -437,7 +437,6 @@ describe('eventHandlers composition', () => {
       'events.reviewEvent',
       'events.submitForReview',
       'events.undoRegistrationAddonRedemption',
-      'events.update',
       'events.updateAnnouncementDiscovery',
       'events.updateGraph',
     ]);

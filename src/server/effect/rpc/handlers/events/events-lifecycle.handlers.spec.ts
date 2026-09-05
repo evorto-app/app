@@ -1,17 +1,11 @@
+import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+
 import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { createRegistrationDatabaseTestLayer } from '@server/testing/registration-database';
 import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
-import {
-  EventsCreateRpcError,
-  EventsUpdateRpcError,
-} from '@shared/rpc-contracts/app-rpcs/events.errors';
-import {
-  EventsCreate,
-  EventsUpdate,
-} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
-import { TransactionRollbackError } from 'drizzle-orm';
+import { EventsCreateRpcError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { Effect, Layer, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
@@ -33,8 +27,11 @@ import {
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
-import { EventsUpdateAnnouncementDiscovery } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
-import { createRegistrationDatabaseTestLayer } from '../../../../testing/registration-database';
+import {
+  EventsCreate,
+  EventsUpdateAnnouncementDiscovery,
+  EventsUpdateGraph,
+} from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   buildEventAddonInsert,
@@ -158,6 +155,300 @@ const updateInput = {
     ...option,
     id: 'option-1',
   })),
+};
+
+type GraphSqlCall = (
+  ...args: Parameters<SqlConnection.Connection['executeValues']>
+) => void;
+type GraphUpdateInput = Parameters<
+  (typeof eventLifecycleHandlers)['events.updateGraph']
+>[0];
+
+const graphUpdateInput = {
+  addOns: [],
+  description: updateInput.description,
+  end: updateInput.end,
+  eventId: updateInput.eventId,
+  icon: updateInput.icon,
+  location: updateInput.location,
+  questions: [],
+  registrationOptions: updateInput.registrationOptions.flatMap((option) => [
+    {
+      ...option,
+      esnCardDiscountedPrice: null,
+      key: option.id,
+    },
+    {
+      ...option,
+      esnCardDiscountedPrice: null,
+      id: 'organizer-1',
+      key: 'organizer-1',
+      organizingRegistration: true,
+      title: 'Organizer',
+    },
+  ]),
+  simpleModeEnabled: false,
+  start: updateInput.start,
+  title: updateInput.title,
+} satisfies GraphUpdateInput;
+
+const graphUpdateRpcOptions = () => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: EventsUpdateGraph.middleware(RpcRequestContextMiddleware),
+});
+
+const graphDatabaseTimestamp = (value: Date) =>
+  value.toISOString().replace('T', ' ').replace('Z', '');
+
+const createGraphUpdateDatabase = ({
+  simpleModeEnabled = false,
+}: {
+  simpleModeEnabled?: boolean;
+} = {}) => {
+  const event = {
+    creatorId: user.id,
+    description: graphUpdateInput.description,
+    end: new Date(graphUpdateInput.end),
+    icon: graphUpdateInput.icon,
+    id: graphUpdateInput.eventId,
+    location: graphUpdateInput.location,
+    simpleModeEnabled,
+    start: new Date(graphUpdateInput.start),
+    status: 'DRAFT',
+    title: graphUpdateInput.title,
+  } satisfies Pick<
+    typeof eventInstances.$inferSelect,
+    | 'creatorId'
+    | 'description'
+    | 'end'
+    | 'icon'
+    | 'id'
+    | 'location'
+    | 'simpleModeEnabled'
+    | 'start'
+    | 'status'
+    | 'title'
+  >;
+  const options = graphUpdateInput.registrationOptions.map(
+    (option) =>
+      ({
+        cancellationDeadlineHoursBeforeStart:
+          option.cancellationDeadlineHoursBeforeStart,
+        closeRegistrationTime: new Date(option.closeRegistrationTime),
+        description: option.description,
+        id: option.id,
+        isPaid: option.isPaid,
+        openRegistrationTime: new Date(option.openRegistrationTime),
+        organizingRegistration: option.organizingRegistration,
+        price: option.price,
+        refundFeesOnCancellation: option.refundFeesOnCancellation,
+        registeredDescription: option.registeredDescription,
+        registrationMode: option.registrationMode,
+        roleIds: option.roleIds,
+        spots: option.spots,
+        stripeTaxRateId: option.stripeTaxRateId,
+        title: option.title,
+        transferDeadlineHoursBeforeStart:
+          option.transferDeadlineHoursBeforeStart,
+      }) satisfies Pick<
+        typeof eventRegistrationOptions.$inferSelect,
+        | 'cancellationDeadlineHoursBeforeStart'
+        | 'closeRegistrationTime'
+        | 'description'
+        | 'id'
+        | 'isPaid'
+        | 'openRegistrationTime'
+        | 'organizingRegistration'
+        | 'price'
+        | 'refundFeesOnCancellation'
+        | 'registeredDescription'
+        | 'registrationMode'
+        | 'roleIds'
+        | 'spots'
+        | 'stripeTaxRateId'
+        | 'title'
+        | 'transferDeadlineHoursBeforeStart'
+      >,
+  );
+  const sqlCalls = vi.fn<GraphSqlCall>();
+  const eventWrites = vi.fn<GraphSqlCall>();
+  const optionWrites = vi.fn<GraphSqlCall>();
+  const operationOrder: string[] = [];
+  const transactionCommands: string[] = [];
+  const databaseLayer = createRegistrationDatabaseTestLayer({
+    executeValues: (statement, parameters) =>
+      Effect.sync(() => {
+        sqlCalls(statement, parameters);
+        if (
+          statement.startsWith(
+            'select "d0"."creatorId" as "creatorId", "d0"."status" as "status"',
+          )
+        ) {
+          expect(statement).toContain('from "event_instances" as "d0"');
+          expect(statement).toContain('"d0"."id" = $1');
+          expect(statement).toContain('"d0"."tenantId" = $2');
+          expect(parameters).toEqual([event.id, tenant.id, 1]);
+          return [[event.creatorId, event.status]];
+        }
+        if (
+          statement ===
+          'select "stripeAccountId" from "tenants" where "tenants"."id" = $1 for update'
+        ) {
+          expect(parameters).toEqual([tenant.id]);
+          operationOrder.push('lock-account');
+          return [['acct_replacement']];
+        }
+        if (
+          statement.startsWith('select "id" from "event_instances"') &&
+          statement.endsWith(' for update')
+        ) {
+          expect(statement).toContain('"event_instances"."id" = $1');
+          expect(statement).toContain('"event_instances"."tenantId" = $2');
+          expect(statement).toContain('"event_instances"."status" = $3');
+          expect(parameters).toEqual([event.id, tenant.id, 'DRAFT']);
+          operationOrder.push('lock-event');
+          return [[event.id]];
+        }
+        if (
+          statement.startsWith(
+            'select "description", "end"::text, "icon", "id", "location", "simpleModeEnabled", "start"::text, "title" from "event_instances"',
+          )
+        ) {
+          expect(statement).toContain('"event_instances"."id" = $1');
+          expect(statement).toContain('"event_instances"."tenantId" = $2');
+          expect(parameters).toEqual([event.id, tenant.id, 1]);
+          return [
+            [
+              event.description,
+              graphDatabaseTimestamp(event.end),
+              event.icon,
+              event.id,
+              event.location,
+              event.simpleModeEnabled,
+              graphDatabaseTimestamp(event.start),
+              event.title,
+            ],
+          ];
+        }
+        if (
+          statement.includes(
+            'from "event_registration_options" inner join "event_instances"',
+          )
+        ) {
+          expect(statement).toContain(
+            '"event_registration_options"."eventId" = $1',
+          );
+          expect(statement).toContain('"event_instances"."tenantId" = $2');
+          expect(parameters).toEqual([event.id, tenant.id]);
+          return options.map((option) => [
+            option.cancellationDeadlineHoursBeforeStart,
+            graphDatabaseTimestamp(option.closeRegistrationTime),
+            option.description,
+            option.id,
+            option.isPaid,
+            graphDatabaseTimestamp(option.openRegistrationTime),
+            option.organizingRegistration,
+            option.price,
+            option.refundFeesOnCancellation,
+            option.registeredDescription,
+            option.registrationMode,
+            option.roleIds,
+            option.spots,
+            option.stripeTaxRateId,
+            option.title,
+            option.transferDeadlineHoursBeforeStart,
+          ]);
+        }
+        if (
+          statement.startsWith('select ') &&
+          statement.includes('from "event_registration_option_discounts"')
+        ) {
+          expect(parameters).toEqual([
+            'esnCard',
+            ...options.map((option) => option.id),
+          ]);
+          return [];
+        }
+        if (
+          statement.startsWith('select ') &&
+          (statement.includes(
+            'from "event_addons" inner join "event_instances"',
+          ) ||
+            statement.includes(
+              'from "event_registration_questions" inner join "event_instances"',
+            ))
+        ) {
+          expect(statement).toContain('"event_instances"."tenantId" = $2');
+          expect(parameters).toEqual([event.id, tenant.id]);
+          return [];
+        }
+        if (statement.startsWith('update "event_instances" set ')) {
+          expect(statement).toContain('"event_instances"."id" = $');
+          expect(statement).toContain('"event_instances"."tenantId" = $');
+          expect(statement).toContain('"event_instances"."status" = $');
+          expect(parameters.slice(-3)).toEqual([event.id, tenant.id, 'DRAFT']);
+          operationOrder.push('write-event');
+          eventWrites(statement, parameters);
+          return [[event.id]];
+        }
+        if (statement.startsWith('select pg_advisory_xact_lock(')) {
+          expect(parameters).toEqual(['evorto:tenant-role-graph:tenant-1']);
+          operationOrder.push('lock-role-graph');
+          return [];
+        }
+        if (statement.startsWith('select "id" from "roles"')) {
+          expect(statement).toContain('"roles"."tenantId" = $1');
+          expect(parameters).toEqual([tenant.id, 'role-1']);
+          return [['role-1']];
+        }
+        if (
+          statement.startsWith(
+            'select "d0"."stripeAccountId" as "stripeAccountId"',
+          )
+        ) {
+          expect(statement).toContain('from "tenants" as "d0"');
+          expect(parameters).toEqual([tenant.id, 1]);
+          operationOrder.push('locked-tenant');
+          return [['acct_replacement']];
+        }
+        if (statement.includes('from "tenant_stripe_tax_rates" as "d0"')) {
+          expect(statement).toContain('"d0"."stripeAccountId" = $1');
+          expect(statement).toContain('"d0"."stripeTaxRateId" = $2');
+          expect(statement).toContain('"d0"."tenantId" = $3');
+          expect(parameters).toEqual([
+            'acct_replacement',
+            'txr_original',
+            tenant.id,
+            1,
+          ]);
+          operationOrder.push('locked-tax-rate');
+          return [];
+        }
+        if (
+          /^(?:insert into|update|delete from) "event_registration/.test(
+            statement,
+          )
+        ) {
+          optionWrites(statement, parameters);
+        }
+        throw new Error(`Unexpected graph update SQL: ${statement}`);
+      }),
+    transactionControl: (command) =>
+      Effect.sync(() => {
+        transactionCommands.push(command);
+        operationOrder.push(command);
+      }),
+  });
+  return {
+    databaseLayer,
+    eventWrites,
+    operationOrder,
+    optionWrites,
+    sqlCalls,
+    transactionCommands,
+  };
 };
 
 const withTransaction = <DatabaseMock extends object>(
@@ -344,7 +635,7 @@ describe('eventLifecycleHandlers', () => {
       reason: 'freeEventRegistrationOptionRequiresZeroPrice',
     },
   ]) {
-    for (const operation of ['create', 'sharedCreate', 'update'] as const) {
+    for (const operation of ['create', 'sharedCreate'] as const) {
       it.effect(
         `${operation} returns a contract-valid pricing error before database access for isPaid=${pair.isPaid}, price=${pair.price}`,
         () =>
@@ -365,25 +656,10 @@ describe('eventLifecycleHandlers', () => {
               ...createInput,
               registrationOptions: [option],
             });
-            const effect: Effect.Effect<
-              { id: string },
-              EventsCreateRpcError | EventsUpdateRpcError,
-              Database | RpcAccess
-            > =
-              operation === 'update'
-                ? eventLifecycleHandlers['events.update'](
-                    Schema.decodeUnknownSync(EventsUpdate.payloadSchema)({
-                      ...updateInput,
-                      registrationOptions: [{ ...option, id: 'option-1' }],
-                    }),
-                    {
-                      ...options,
-                      rpc: EventsUpdate.middleware(RpcRequestContextMiddleware),
-                    },
-                  )
-                : operation === 'sharedCreate'
-                  ? createEventGraph(input)
-                  : eventLifecycleHandlers['events.create'](input, options);
+            const effect =
+              operation === 'sharedCreate'
+                ? createEventGraph(input)
+                : eventLifecycleHandlers['events.create'](input, options);
             const error = yield* effect.pipe(
               Effect.flip,
               Effect.provide(
@@ -401,13 +677,7 @@ describe('eventLifecycleHandlers', () => {
               _tag: 'RpcBadRequestError',
               reason: pair.reason,
             });
-            expect(
-              Schema.is(
-                operation === 'update'
-                  ? EventsUpdateRpcError
-                  : EventsCreateRpcError,
-              )(error),
-            ).toBe(true);
+            expect(Schema.is(EventsCreateRpcError)(error)).toBe(true);
           }),
       );
     }
@@ -495,209 +765,146 @@ describe('eventLifecycleHandlers', () => {
   );
 
   it.effect(
-    'events.update rejects an event end before its start before loading the event',
+    'events.updateGraph rejects an event end before its start before loading the event',
     () =>
       Effect.gen(function* () {
-        const error = yield* eventLifecycleHandlers['events.update'](
-          {
-            ...updateInput,
-            end: '2026-09-20T09:00:00.000Z',
-          },
-          { headers: {} } as never,
+        const fixture = createGraphUpdateDatabase();
+        const error = yield* eventLifecycleHandlers['events.updateGraph'](
+          { ...graphUpdateInput, end: '2026-09-20T09:00:00.000Z' },
+          graphUpdateRpcOptions(),
         ).pipe(
           Effect.flip,
           Effect.provide(
-            Layer.mergeAll(requestContextLayer, createDatabaseTestLayer()),
+            Layer.mergeAll(requestContextLayer, fixture.databaseLayer),
           ),
         );
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error).toMatchObject({ reason: 'invalidDates' });
-      }),
-  );
-
-  it.effect(
-    'events.update rejects a registration window that closes before it opens before loading the event',
-    () =>
-      Effect.gen(function* () {
-        const error = yield* eventLifecycleHandlers['events.update'](
-          {
-            ...updateInput,
-            registrationOptions: [
-              {
-                ...updateInput.registrationOptions[0],
-                closeRegistrationTime: '2026-09-01T12:00:00.000Z',
-                openRegistrationTime: '2026-09-19T12:00:00.000Z',
-              },
-            ],
-          },
-          { headers: {} } as never,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            Layer.mergeAll(requestContextLayer, createDatabaseTestLayer()),
-          ),
-        );
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error).toMatchObject({
-          reason: 'invalidRegistrationOptionTimes',
-        });
-      }),
-  );
-
-  it.effect(
-    'events.update preserves the persisted simple event option shape',
-    () =>
-      Effect.gen(function* () {
-        const findFirst = vi.fn(() =>
-          Effect.succeed({
-            creatorId: user.id,
-            simpleModeEnabled: true,
-            status: 'DRAFT' as const,
-          }),
-        );
-        const layer = Layer.mergeAll(
-          requestContextLayer,
-          Layer.succeed(Database, {
-            query: { eventInstances: { findFirst } },
-          } as never),
-        );
-
-        const error = yield* eventLifecycleHandlers['events.update'](
-          {
-            ...updateInput,
-            registrationOptions: [
-              {
-                ...updateInput.registrationOptions[0],
-                organizingRegistration: true,
-              },
-              {
-                ...updateInput.registrationOptions[0],
-                id: 'option-2',
-                organizingRegistration: true,
-              },
-            ],
-          },
-          { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(layer));
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'invalidSimpleEventConfiguration',
+          reason: 'invalidDates',
         });
+        expect(fixture.sqlCalls).not.toHaveBeenCalled();
+        expect(fixture.transactionCommands).toEqual([]);
       }),
   );
 
   it.effect(
-    'events.update rejects a tax rate that belongs to the account replaced before the write lock',
+    'events.updateGraph rolls back a registration window that closes before it opens',
     () =>
       Effect.gen(function* () {
-        const operationOrder: string[] = [];
-        const update = vi.fn(() =>
-          Effect.die(
-            new Error('Event write must not run after tax-rate drift'),
-          ),
-        );
-        const transactionDatabase = {
-          query: {
-            tenants: {
-              findFirst: vi.fn(() => {
-                operationOrder.push('locked-tenant');
-                return Effect.succeed({
-                  stripeAccountId: 'acct_replacement',
-                });
+        const fixture = createGraphUpdateDatabase();
+        const error = yield* eventLifecycleHandlers['events.updateGraph'](
+          {
+            ...graphUpdateInput,
+            registrationOptions: graphUpdateInput.registrationOptions.map(
+              (option) => ({
+                ...option,
+                closeRegistrationTime: '2026-09-01T12:00:00.000Z',
+                openRegistrationTime: '2026-09-19T12:00:00.000Z',
               }),
-            },
-            tenantStripeTaxRates: {
-              findFirst: vi.fn(() => {
-                operationOrder.push('locked-tax-rate');
-                return Effect.succeed(undefined);
-              }),
-            },
+            ),
           },
-          rollback: vi.fn(() => {
-            operationOrder.push('rollback');
-            return Effect.die(new TransactionRollbackError());
-          }),
-          select: vi.fn(() => ({
-            from: vi.fn(() => ({
-              where: vi.fn(() => ({
-                for: vi.fn(() => {
-                  operationOrder.push('lock-account');
-                  return Effect.succeed([
-                    { stripeAccountId: 'acct_replacement' },
-                  ]);
-                }),
-              })),
-            })),
-          })),
-          update,
-        };
-        const database = {
-          $client: {},
-          query: {
-            eventInstances: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  creatorId: user.id,
-                  simpleModeEnabled: false,
-                  status: 'DRAFT' as const,
-                }),
-              ),
-            },
-            tenants: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({ stripeAccountId: 'acct_original' }),
-              ),
-            },
-            tenantStripeTaxRates: {
-              findFirst: vi.fn(() => {
-                operationOrder.push('preflight-tax-rate');
-                return Effect.succeed({ active: true, inclusive: true });
-              }),
-            },
-          },
-          transaction: vi.fn(
-            (
-              run: (
-                transaction: typeof transactionDatabase,
-              ) => Effect.Effect<unknown>,
-            ) => run(transactionDatabase),
+          graphUpdateRpcOptions(),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(requestContextLayer, fixture.databaseLayer),
           ),
-        };
-        const layer = Layer.mergeAll(
-          requestContextLayer,
-          Layer.succeed(Database, database as never),
         );
 
-        const error = yield* eventLifecycleHandlers['events.update'](
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'invalidEventRegistrationOption',
+        });
+        expect(fixture.eventWrites).toHaveBeenCalledOnce();
+        expect(fixture.optionWrites).not.toHaveBeenCalled();
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+      }),
+  );
+
+  it.effect(
+    'events.updateGraph preserves the persisted simple event option shape by rolling back an invalid graph',
+    () =>
+      Effect.gen(function* () {
+        const fixture = createGraphUpdateDatabase({ simpleModeEnabled: true });
+        const error = yield* eventLifecycleHandlers['events.updateGraph'](
           {
-            ...updateInput,
-            registrationOptions: [
-              {
-                ...updateInput.registrationOptions[0],
+            ...graphUpdateInput,
+            registrationOptions: graphUpdateInput.registrationOptions.map(
+              (option) => ({
+                ...option,
+                organizingRegistration: true,
+              }),
+            ),
+            simpleModeEnabled: true,
+          },
+          graphUpdateRpcOptions(),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(requestContextLayer, fixture.databaseLayer),
+          ),
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'simpleEventGraphRequiresTwoOptions',
+        });
+        expect(fixture.eventWrites).toHaveBeenCalledOnce();
+        expect(fixture.optionWrites).not.toHaveBeenCalled();
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+      }),
+  );
+
+  it.effect(
+    'events.updateGraph rejects a tax rate that belongs to the account replaced before the write lock',
+    () =>
+      Effect.gen(function* () {
+        const fixture = createGraphUpdateDatabase();
+        const error = yield* eventLifecycleHandlers['events.updateGraph'](
+          {
+            ...graphUpdateInput,
+            registrationOptions: graphUpdateInput.registrationOptions.map(
+              (option) => ({
+                ...option,
                 isPaid: true,
                 price: 1000,
                 stripeTaxRateId: 'txr_original',
-              },
-            ],
+              }),
+            ),
           },
-          { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(layer));
+          graphUpdateRpcOptions(),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              RpcAccess.Default,
+              Layer.succeed(RpcRequestContext, {
+                ...requestContext,
+                tenant: { ...tenant, stripeAccountId: 'acct_original' },
+              }),
+              fixture.databaseLayer,
+            ),
+          ),
+        );
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
-          reason: 'invalidRegistrationOptionTaxRate',
+          reason: 'invalidEventRegistrationOptionTaxRate',
         });
-        expect(operationOrder).toEqual([
-          'preflight-tax-rate',
+        expect(fixture.operationOrder).toEqual([
+          'BEGIN',
           'lock-account',
+          'lock-event',
+          'write-event',
+          'lock-role-graph',
           'locked-tenant',
           'locked-tax-rate',
-          'rollback',
+          'ROLLBACK',
         ]);
-        expect(update).not.toHaveBeenCalled();
+        expect(fixture.eventWrites).toHaveBeenCalledOnce();
+        expect(fixture.optionWrites).not.toHaveBeenCalled();
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
       }),
   );
 
