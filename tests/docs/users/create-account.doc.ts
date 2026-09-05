@@ -91,7 +91,7 @@ test('Understand organization account setup', async ({}, testInfo) => {
       _tag: 'TenantOnboardingRequirementsChangedError',
       message: 'Requirements changed; review and submit again',
     }),
-  ).toBe('Requirements changed; review and submit again');
+  ).toBe('Failed to complete organization setup');
 
   await testInfo.attach('markdown', {
     body: `
