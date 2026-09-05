@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7c89be899e16",
+  "session_id": "01a06cdc-629f-7b82-8a80-b940922d7571",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-05T01:26:24.947569Z",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "APPLICATION_REVIEW_QUEUE.md",
+    "src/server/effect/rpc/handlers/events/events-query.handlers.postgres.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "c3026ce215b8",
+  "checkpoint_transcript_start": 18777,
+  "transcript_lines_at_start": 18777,
+  "token_usage": {
+    "input_tokens": 346305,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 23587328,
+    "output_tokens": 71844,
+    "api_call_count": 208
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-05T01:26:23.88994Z",
+    "agent_lines": 231,
+    "agent_removed": 99,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 231,
+    "total_lines_changed": 330,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
