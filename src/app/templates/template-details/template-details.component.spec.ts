@@ -1,21 +1,26 @@
 import type { TemplateFindOneRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
 import { TestBed } from '@angular/core/testing';
-import { RpcForbiddenError } from '@shared/errors/rpc-errors';
+import { provideRouter } from '@angular/router';
 import {
-  TemplateSimpleInternalError,
-  TemplateSimpleNotFoundError,
-} from '@shared/rpc-contracts/app-rpcs/templates.errors';
+  RpcBadRequestError,
+  RpcForbiddenError,
+  RpcInternalServerError,
+} from '@shared/errors/rpc-errors';
 import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { APP_RPC_CLIENT } from '../../core/effect-rpc-angular-client';
+import { PermissionsService } from '../../core/permissions.service';
 import {
   templateAddonPurchaseTiming,
   TemplateDetailsComponent,
+  templateDetailsErrorMessage,
   templateRegistrationOptionTitle,
 } from './template-details.component';
 
@@ -57,6 +62,19 @@ const createTemplate = (): TemplateFindOneRecord => ({
 });
 
 describe('template detail add-on helpers', () => {
+  it('uses sign-up wording in the template overview', () => {
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/templates/template-details/template-details.component.html',
+      ),
+      'utf8',
+    );
+
+    expect(template).toContain('Sign-up questions');
+    expect(template).not.toContain('Registration questions');
+  });
+
   it('shows registration-time purchase timing only', () => {
     expect(
       templateAddonPurchaseTiming({
@@ -106,7 +124,36 @@ describe('template detail add-on helpers', () => {
   it('keeps missing add-on registration option labels explicit', () => {
     expect(
       templateRegistrationOptionTitle(createTemplate(), 'missing-option'),
-    ).toBe('Broken registration option configuration');
+    ).toBe('Sign-up choice unavailable');
+  });
+  it('shows a missing template without exposing internal failures', () => {
+    expect(
+      templateDetailsErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Template not found for the target tenant',
+        reason: 'templateNotFound',
+      }),
+    ).toBe('This template could not be found.');
+  });
+
+  it.each([
+    {
+      _tag: 'RpcBadRequestError',
+      message: 'A different request failed',
+      reason: 'invalidTemplate',
+    },
+    {
+      _tag: 'RpcInternalServerError',
+      message: 'database failed',
+    },
+    {
+      _tag: 'UnrecognizedTemplateError',
+      message: 'stale error',
+    },
+  ])('keeps other failures behind plain recovery copy', (error) => {
+    expect(templateDetailsErrorMessage(error)).toBe(
+      'The template could not be loaded. Try again.',
+    );
   });
 });
 
@@ -119,17 +166,15 @@ describe('template detail error state', () => {
     queryClient = new QueryClient({
       defaultOptions: { queries: { gcTime: 0, retry: false } },
     });
-    TestBed.overrideComponent(TemplateDetailsComponent, {
-      set: {
-        template: `
-      @if (templateQuery.isError()) { <p role="alert">{{ errorMessage(templateQuery.error()) }}</p> }
-    `,
-      },
-    });
     await TestBed.configureTestingModule({
       imports: [TemplateDetailsComponent],
       providers: [
         provideTanStackQuery(queryClient),
+        provideRouter([]),
+        {
+          provide: PermissionsService,
+          useValue: { hasPermissionSync: () => false },
+        },
         {
           provide: APP_RPC_CLIENT,
           useValue: {
@@ -162,24 +207,35 @@ describe('template detail error state', () => {
 
   it.each([
     {
-      error: new TemplateSimpleNotFoundError({ message: 'Template not found' }),
-      expected: 'Template not found',
+      error: new RpcBadRequestError({
+        message:
+          'This template no longer exists in this organization. No changes were made. Return to Templates and choose an existing template.',
+        reason: 'templateNotFound',
+      }),
+      expected: 'This template could not be found.',
+    },
+    {
+      error: new RpcBadRequestError({
+        message: 'Private request detail',
+        reason: 'invalidTemplate',
+      }),
+      expected: 'The template could not be loaded. Try again.',
     },
     {
       error: new RpcForbiddenError({
         message: 'private authorization details',
       }),
-      expected: 'Unknown error',
+      expected: 'The template could not be loaded. Try again.',
     },
     {
-      error: new TemplateSimpleInternalError({
+      error: new RpcInternalServerError({
         message: 'private database details',
       }),
-      expected: 'Unknown error',
+      expected: 'The template could not be loaded. Try again.',
     },
     {
       error: new Error('private transport details'),
-      expected: 'Unknown error',
+      expected: 'The template could not be loaded. Try again.',
     },
   ])(
     'distinguishes a deleted template without exposing unsafe failures: $expected',
@@ -191,8 +247,8 @@ describe('template detail error state', () => {
       await vi.waitFor(() => {
         fixture.detectChanges();
         expect(
-          fixture.nativeElement.querySelector('[role="alert"]')?.textContent,
-        ).toBe(expected);
+          fixture.nativeElement.querySelector('p')?.textContent?.trim(),
+        ).toBe(`Error: ${expected}`);
       });
     },
   );

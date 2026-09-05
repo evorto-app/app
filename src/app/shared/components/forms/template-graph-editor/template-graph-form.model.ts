@@ -33,7 +33,6 @@ export interface TemplateGraphFormModel {
   registrationOptions: TemplateGraphRegistrationOptionFormModel[];
   simpleModeEnabled: boolean;
   title: string;
-  unlisted: boolean;
 }
 
 export interface TemplateGraphLocationFormModel {
@@ -152,7 +151,6 @@ export const createTemplateGraphFormModel = (): TemplateGraphFormModel => ({
   ],
   simpleModeEnabled: true,
   title: '',
-  unlisted: false,
 });
 
 export const createTemplateGraphAddonFormModel = (

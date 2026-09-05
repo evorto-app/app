@@ -13,7 +13,7 @@ export const getSportsTemplates = (sportsCategory: {
     tenantId: sportsCategory.tenantId,
     title: 'Soccer Match',
     planningTips:
-      '<h3>Planning Tips</h3><ul><li>Coordinate with local sports clubs for venue and equipment.</li><li>Ensure participants have appropriate sports attire.</li><li>Plan for refreshments and first aid.</li></ul>',
+      '<h3>Planning Tips</h3><ul><li>Coordinate with local sports clubs for venue and equipment.</li><li>Ensure attendees have appropriate sports attire.</li><li>Plan for refreshments and first aid.</li></ul>',
   },
   {
     categoryId: sportsCategory.id,
@@ -24,7 +24,7 @@ export const getSportsTemplates = (sportsCategory: {
     tenantId: sportsCategory.tenantId,
     title: 'Basketball Game',
     planningTips:
-      '<h3>Planning Tips</h3><ul><li>Coordinate with local sports clubs for venue and equipment.</li><li>Ensure participants have appropriate sports attire.</li><li>Plan for refreshments and first aid.</li></ul>',
+      '<h3>Planning Tips</h3><ul><li>Coordinate with local sports clubs for venue and equipment.</li><li>Ensure attendees have appropriate sports attire.</li><li>Plan for refreshments and first aid.</li></ul>',
   },
   {
     categoryId: sportsCategory.id,

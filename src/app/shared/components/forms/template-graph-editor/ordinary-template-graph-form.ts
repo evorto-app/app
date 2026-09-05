@@ -28,7 +28,6 @@ export interface OrdinaryTemplateGraphFormModel extends TemplateGeneralFormModel
   questions: TemplateGraphQuestionFormModel[];
   registrationOptions: TemplateGraphRegistrationOptionFormModel[];
   simpleModeEnabled: boolean;
-  unlisted: boolean;
 }
 
 export type OrdinaryTemplateGraphSubmitModel = Omit<
@@ -49,7 +48,6 @@ export const createOrdinaryTemplateGraphFormModel = (
     questions: graph.questions,
     registrationOptions: graph.registrationOptions,
     simpleModeEnabled: true,
-    unlisted: false,
     ...overrides,
   };
 };
@@ -72,7 +70,6 @@ export const ordinaryTemplateGraphRecordToFormModel = (
       registrationOptions: graphResult.model.registrationOptions,
       simpleModeEnabled: template.simpleModeEnabled,
       title: template.title,
-      unlisted: template.unlisted,
     }),
   };
 };
@@ -94,7 +91,6 @@ export const ordinaryTemplateGraphFormToPayload = (
       registrationOptions: model.registrationOptions,
       simpleModeEnabled: model.simpleModeEnabled,
       title: model.title,
-      unlisted: model.unlisted,
     },
     esnCardEnabled,
   );

@@ -11,7 +11,7 @@ export const getCityTripTemplates = (cityTripsCategory: {
     icon: 'bus',
     id: getId(),
     planningTips:
-      '<h3>Planning Tips</h3><ul><li>Coordinate with local guides for an informative tour.</li><li>Ensure participants have comfortable walking shoes.</li><li>Plan for a break at a local café or park.</li></ul>',
+      '<h3>Planning Tips</h3><ul><li>Coordinate with local guides for an informative tour.</li><li>Ensure attendees have comfortable walking shoes.</li><li>Plan for a break at a local café or park.</li></ul>',
     tenantId: cityTripsCategory.tenantId,
     title: 'Augsburg Trip',
   },
@@ -22,7 +22,7 @@ export const getCityTripTemplates = (cityTripsCategory: {
     icon: 'bus',
     id: getId(),
     planningTips:
-      '<h3>Planning Tips</h3><ul><li>Plan the itinerary to include major landmarks and attractions.</li><li>Ensure participants have a map and emergency contact information.</li><li>Schedule free time for participants to explore on their own.</li></ul>',
+      '<h3>Planning Tips</h3><ul><li>Plan the itinerary to include major landmarks and attractions.</li><li>Ensure attendees have a map and emergency contact information.</li><li>Schedule free time for attendees to explore on their own.</li></ul>',
     tenantId: cityTripsCategory.tenantId,
     title: 'Nuremberg Trip',
   },

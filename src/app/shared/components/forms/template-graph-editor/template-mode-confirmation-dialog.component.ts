@@ -36,8 +36,9 @@ export interface TemplateModeConfirmationData {
       } @else {
         <p>
           Simple setup shows one organizer choice and one attendee choice.
-          Questions, add-ons, and which choices can use each add-on stay saved.
-          Those controls are hidden until you switch back to advanced setup.
+          Sign-up questions stay available. Add-ons and which choices can use
+          each add-on are kept, but those controls are hidden until you return
+          to advanced setup.
         </p>
       }
       <p class="mt-3">

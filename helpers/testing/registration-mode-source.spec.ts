@@ -29,7 +29,7 @@ describe('registration mode source constraints', () => {
   it('keeps persisted unsupported modes readable but out of the authoring default', () => {
     const labelSource = readSource('src/shared/registration-modes.ts');
     const formSource = readSource(
-      'src/app/templates/shared/template-form/template-registration-option-form.utilities.ts',
+      'src/app/shared/components/forms/template-graph-editor/template-graph-form.model.ts',
     );
 
     expect(labelSource).toContain("application: 'Manual approval'");

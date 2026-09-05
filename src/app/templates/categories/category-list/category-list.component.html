@@ -1,8 +1,13 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
+  <a
+    routerLink="/templates"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to templates"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
-  <h1 class="title-large">Template Categories</h1>
+  <h1 class="title-large">Template categories</h1>
 </div>
 
 @if (canManageCategories()) {
@@ -21,8 +26,8 @@
     role="status"
     class="bg-surface-container text-on-surface mb-4 rounded-xl p-4"
   >
-    You can view template categories. To create or edit them, ask an
-    administrator for the Manage template categories permission.
+    You can view template categories. Ask an administrator if you need to create
+    or edit them.
   </p>
 }
 
@@ -31,13 +36,27 @@
     <div
       class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
     >
-      <h2 class="title-medium">Loading ...</h2>
+      <h2 class="title-medium">Loading template categories…</h2>
     </div>
   } @else if (templateCategoryGroupsQuery.isError()) {
-    <p>Error: {{ templateCategoryGroupsErrorMessage() }}</p>
+    <div class="flex flex-col items-start gap-2">
+      <p role="alert">{{ templateCategoryGroupsErrorMessage() }}</p>
+      <button
+        mat-button
+        type="button"
+        [disabled]="templateCategoryGroupsQuery.isFetching()"
+        (click)="templateCategoryGroupsQuery.refetch()"
+      >
+        {{
+          templateCategoryGroupsQuery.isFetching()
+            ? "Trying again…"
+            : "Try again"
+        }}
+      </button>
+    </div>
   } @else if (templateCategoryGroupsQuery.isSuccess()) {
     @if (templateCategoryGroupsQuery.data().length === 0) {
-      <p>No categories found</p>
+      <p>No template categories yet.</p>
       @if (canManageCategories()) {
         <button
           mat-flat-button
@@ -45,7 +64,7 @@
           (click)="openCategoryCreationDialog()"
           [disabled]="categoryActionDisabled()"
         >
-          Create a new category
+          Create the first category
         </button>
       }
     } @else {

@@ -49,7 +49,7 @@ test('template pages present a deliberate read-only experience without write cap
   await expect(
     page.getByRole('status').filter({
       hasText:
-        'You can view template categories. To create or edit them, ask an administrator',
+        'You can view template categories. Ask an administrator if you need to create or edit them.',
     }),
   ).toBeVisible();
   await expect(

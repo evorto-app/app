@@ -77,20 +77,6 @@ export const ensureIconUsageAuthorized = Effect.fn(
 )(function* (usage: IconAddUsage) {
   yield* RpcAccess.ensureAuthenticated();
   const context = yield* RpcAccess.current();
-
-  if (includesPermission('globalAdmin:manageTenants', context.permissions)) {
-    const actorAuth0Id = context.authData['sub'];
-    yield* Effect.logWarning('Global administrator added a tenant icon').pipe(
-      Effect.annotateLogs({
-        actorAuth0Id:
-          typeof actorAuth0Id === 'string' ? actorAuth0Id : 'unknown',
-        tenantId: context.tenant.id,
-        usage: usage._tag,
-      }),
-    );
-    return;
-  }
-
   const user = yield* RpcAccess.requireUser();
   switch (usage._tag) {
     case 'categoryManagement': {

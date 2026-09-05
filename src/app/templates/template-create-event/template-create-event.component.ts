@@ -105,7 +105,7 @@ export const legacyRandomTemplateEventMessage =
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
-    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards for registration-time purchase.`
+    ? `This template includes ${addOnCount} add-on${addOnCount === 1 ? '' : 's'}. They will be available when people sign up for the new event.`
     : null;
 
 export const templateCreateEventErrorMessage = (error: unknown): string =>
