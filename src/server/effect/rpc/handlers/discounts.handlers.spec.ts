@@ -69,8 +69,8 @@ const createTenant = (id = 'tenant-1') =>
 
 const createUser = () =>
   Schema.decodeUnknownSync(User)({
-    attributes: [],
     auth0Id: 'auth0|user-1',
+    communicationEmail: 'alice@example.com',
     email: 'alice@example.com',
     firstName: 'Alice',
     iban: null,

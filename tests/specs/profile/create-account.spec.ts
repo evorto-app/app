@@ -19,6 +19,7 @@ const hasManagementEnvironment = Effect.runSync(
 test.use({ screenshot: 'off', trace: 'off', video: 'off' });
 
 test('creates tenant account for a new Auth0 user @needs-auth0-management', async ({
+  registerDatabaseCleanup,
   database,
   newUser,
   page,
@@ -32,7 +33,109 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
   let createdUserId: string | undefined;
   let createdTenantUserId: string | undefined;
 
-  try {
+  const existingAccounts = await database.query.users.findMany({
+    columns: { id: true },
+    where: { email: newUser.email },
+  });
+  if (existingAccounts.length > 0) {
+    throw new Error(
+      'Transient account email already exists in the application',
+    );
+  }
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    if (createdUserId) {
+      await cleanupDatabase
+        .delete(schema.users)
+        .where(
+          and(
+            eq(schema.users.id, createdUserId),
+            eq(schema.users.email, newUser.email),
+          ),
+        );
+    }
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    const tenantUsers = createdUserId
+      ? await cleanupDatabase.query.usersToTenants.findMany({
+          columns: { id: true },
+          where: { userId: createdUserId },
+        })
+      : createdTenantUserId
+        ? [{ id: createdTenantUserId }]
+        : [];
+    const cleanupErrors: unknown[] = [];
+    for (const tenantUser of tenantUsers) {
+      try {
+        await cleanupDatabase
+          .delete(schema.usersToTenants)
+          .where(eq(schema.usersToTenants.id, tenantUser.id));
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        cleanupErrors,
+        'Transient account membership cleanup failed',
+      );
+    }
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    const tenantUsers = createdUserId
+      ? await cleanupDatabase.query.usersToTenants.findMany({
+          columns: { id: true },
+          where: { userId: createdUserId },
+        })
+      : createdTenantUserId
+        ? [{ id: createdTenantUserId }]
+        : [];
+    const cleanupErrors: unknown[] = [];
+    for (const tenantUser of tenantUsers) {
+      try {
+        await cleanupDatabase
+          .delete(schema.rolesToTenantUsers)
+          .where(eq(schema.rolesToTenantUsers.userTenantId, tenantUser.id));
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        cleanupErrors,
+        'Transient account role cleanup failed',
+      );
+    }
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    if (createdUserId) {
+      await cleanupDatabase
+        .delete(schema.tenantPrivacyPolicyAcceptances)
+        .where(eq(schema.tenantPrivacyPolicyAcceptances.userId, createdUserId));
+    }
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    if (createdUserId) {
+      await cleanupDatabase
+        .delete(schema.tenantOnboardingQuestionAnswers)
+        .where(
+          eq(schema.tenantOnboardingQuestionAnswers.userId, createdUserId),
+        );
+    }
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    if (createdUserId) return;
+    const accounts = await cleanupDatabase.query.users.findMany({
+      columns: { id: true },
+      where: { email: newUser.email },
+    });
+    if (accounts.length > 1) {
+      throw new Error(
+        'Transient account cleanup found multiple application users',
+      );
+    }
+    createdUserId = accounts[0]?.id;
+  });
+  {
     await page.context().clearCookies();
     await page.goto('/logout');
     await page.goto('.');
@@ -85,7 +188,7 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       createAccountForm.getByRole('textbox', { name: 'Last name' }),
     ).toHaveValue(newUser.lastName);
     await expect(
-      createAccountForm.getByRole('textbox', { name: 'Notification email' }),
+      createAccountForm.getByRole('textbox', { name: 'Email for updates' }),
     ).toHaveValue(newUser.email);
 
     await createAccountForm
@@ -95,8 +198,15 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     await expect(
       page.getByRole('heading', {
         level: 1,
-        name: `${newUser.firstName} ${newUser.lastName}`,
+        name: 'Profile',
       }),
+    ).toBeVisible();
+    await expect(
+      page
+        .locator('app-user-profile')
+        .getByText(`${newUser.firstName} ${newUser.lastName}`, {
+          exact: true,
+        }),
     ).toBeVisible();
 
     const createdUser = await database.query.users.findFirst({
@@ -152,42 +262,5 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       where: { userTenantId: tenantUser.id },
     });
     expect(roleAssignments.length).toBeGreaterThan(0);
-  } finally {
-    if (createdUserId) {
-      await database
-        .delete(schema.tenantOnboardingQuestionAnswers)
-        .where(
-          eq(schema.tenantOnboardingQuestionAnswers.userId, createdUserId),
-        );
-      await database
-        .delete(schema.tenantPrivacyPolicyAcceptances)
-        .where(eq(schema.tenantPrivacyPolicyAcceptances.userId, createdUserId));
-      const tenantUsers = await database.query.usersToTenants.findMany({
-        where: { userId: createdUserId },
-      });
-      for (const tenantUser of tenantUsers) {
-        await database
-          .delete(schema.rolesToTenantUsers)
-          .where(eq(schema.rolesToTenantUsers.userTenantId, tenantUser.id));
-        await database
-          .delete(schema.usersToTenants)
-          .where(eq(schema.usersToTenants.id, tenantUser.id));
-      }
-      await database
-        .delete(schema.users)
-        .where(
-          and(
-            eq(schema.users.id, createdUserId),
-            eq(schema.users.email, newUser.email),
-          ),
-        );
-    } else if (createdTenantUserId) {
-      await database
-        .delete(schema.rolesToTenantUsers)
-        .where(eq(schema.rolesToTenantUsers.userTenantId, createdTenantUserId));
-      await database
-        .delete(schema.usersToTenants)
-        .where(eq(schema.usersToTenants.id, createdTenantUserId));
-    }
   }
 });

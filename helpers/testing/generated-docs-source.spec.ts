@@ -324,16 +324,16 @@ describe('generated docs source current behavior', () => {
     );
     expect(journey).toContain('openProfileEventCard(page, scenario.title)');
     expect(journey).toMatch(
-      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund retrying\//u,
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund delayed\//u,
     );
     expect(journey).toMatch(
-      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Contact organizer for refund update\//u,
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Contact the organizer\//u,
     );
     expect(journey).toMatch(
-      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Contact organizer for refund update\//u,
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Contact the organizer\//u,
     );
     expect(journey).toMatch(
-      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund completed\//u,
+      /await expect\(profileCard\)\.toContainText\(\s*\/Add-on payment:\\s\*Refund complete\//u,
     );
 
     expect(journey).toContain('storageState: gaStateFile');
@@ -370,7 +370,7 @@ describe('generated docs source current behavior', () => {
     expect(journey).toContain("action: 'refundClaim.requeue'");
     expect(journey).toContain("status: 'successful'");
     expect(journey).toContain("toEqual({ status: 'CANCELLED' })");
-    expect(journey).toContain('Money has not necessarily been returned yet');
+    expect(journey).toContain('money may not have arrived yet');
     expect(journey).toContain(
       "This local walkthrough verifies Evorto's refund workflow but not settlement by the card network or bank.",
     );
@@ -764,41 +764,66 @@ describe('generated docs source current behavior', () => {
   it('keeps profile docs aligned with implemented account and event-card behavior', () => {
     const source = readSource('tests/docs/profile/user-profile.doc.ts');
 
+    expect(source).toContain('Sign-in email address and email for updates');
     expect(source).toContain(
-      'Login email address and notification email address',
+      'IBAN and PayPal details are optional reimbursement details shared across your organizations.',
     );
     expect(source).toContain(
-      'IBAN and PayPal details are optional global reimbursement details, not organization-specific payout instructions.',
+      'IBAN or PayPal details used when finance teams reimburse receipts',
     );
     expect(source).toContain(
-      'The notification email is user-managed and may differ from the sign-in email.',
+      'You can use a different address for updates than for signing in.',
     );
     expect(source).toContain(
-      'Optional IBAN and PayPal fields store global reimbursement details for finance teams.',
+      'Optional IBAN and PayPal fields tell finance teams where to send reimbursements.',
     );
-    expect(source).toContain('## Claiming a private registration transfer');
+    expect(source).toContain('## Use a private transfer code');
     expect(source).toContain(
-      'review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it',
+      'Review the complete fixed registration/add-on bundle before accepting it',
     );
     expect(source).toContain(
-      "getByRole('link', { exact: true, name: 'Claim transfer' })",
+      'review the event, questions you need to answer, price, guests, add-ons, check-ins, and handed-out items before accepting it',
+    );
+    expect(source).toContain(
+      "const useTransferCode = page.getByRole('link', {",
+    );
+    expect(source).toContain("name: 'Use transfer code'");
+    expect(source).toContain(
+      "ticketTransfers.getByRole('heading', { name: 'Ticket transfers' })",
+    );
+    expect(source).toContain(
+      'Private transfer code guidance and Use transfer code action',
+    );
+    expect(source).toContain('Profile contact details and available actions');
+    expect(source).toContain(
+      "page.getByRole('heading', { name: 'Account details' })",
+    );
+    expect(source).toContain(
+      "expect(editProfileButton).not.toHaveAttribute('jsaction', /click/)",
+    );
+    expect(source).toContain('expect(editProfileButton).toBeEnabled()');
+    expect(source).toContain(
+      'The bundle includes guests, add-ons, and existing attendee and guest check-in and fulfillment history.',
+    );
+    expect(source).toContain(
+      "The code is not included in the transfer page's web address.",
     );
     expect(source).toContain('documentedIban');
     expect(source).toContain('documentedPaypalEmail');
-    expect(source).toContain("getByRole('textbox', { name: 'IBAN' })");
-    expect(source).toContain("getByRole('textbox', { name: 'PayPal email' })");
+    expect(source).toContain("name: 'IBAN (for reimbursements)'");
+    expect(source).toContain("name: 'PayPal email (for reimbursements)'");
     expect(source).toContain('updatedProfileUser.iban).toBe(documentedIban)');
     expect(source).toContain(
       'updatedProfileUser.paypalEmail).toBe(documentedPaypalEmail)',
     );
     expect(source).toContain(
-      'From an event card, you can continue a pending payment or open the event to view the ticket, cancellation, transfer, or waitlist details',
+      'From an event card, you can continue a payment or open the event to view its ticket, cancellation, transfer, or waitlist details.',
     );
     expect(source).toContain(
-      'Continue payment from this card, or open the event page for registration details.',
+      'Finish payment here, or open the event page for your sign-up details.',
     );
     expect(source).toContain(
-      'Open the event page for waitlist details and current cancellation status.',
+      'Open the event page for waitlist details and whether you can leave it.',
     );
     expect(source).toContain(
       '`/events/${profileEventCards.confirmed.eventId}`',
@@ -814,9 +839,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('pendingCheckoutRegistration');
     expect(source).toContain('checkedInAddonPurchase');
     expect(source).toContain(
-      'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
+      'You are checked in. Open the event page for ticket details. You can no longer cancel, but you can still transfer the ticket and its existing check-ins.',
     );
-    expect(source).toContain('Submitted receipts');
+    expect(source).toContain('Your receipts');
     expect(source).toContain('profile-docs-receipt-');
     expect(source).toContain('schema.financeReceipts');
     expect(source).toContain('profileReceiptCard.getByText');
@@ -842,16 +867,16 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/users/create-account.doc.ts');
 
     expect(source).toContain(
-      'The account form pre-fills first name, last name, and **Notification email** from the sign-in account when available.',
+      'The form already fills in the first name, last name, and **Email for updates** from the sign-in account when available.',
     );
     expect(source).toContain(
-      'The button stays unavailable until every required field is valid and the current policy is accepted.',
+      '**Join organization** for a new membership, or **Finish setup** for an existing member, stays unavailable until every required field is valid and the current policy is accepted.',
     );
     expect(source).toContain(
-      'If your login already belongs to another organization, Evorto adds the same account here instead of creating a duplicate.',
+      'If your account already belongs to another organization, this step adds the same account here instead of creating a duplicate.',
     );
     expect(source).toContain(
-      'If requirements change while the page is open, Evorto keeps matching answers and asks you to review the latest version.',
+      'If the policy or questions change while the page is open, Evorto keeps answers that still apply and asks you to review the changes.',
     );
     expect(source).toContain('accepted privacy-policy version');
     expect(source).toContain('original home organization stays unchanged');
@@ -874,7 +899,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('takeScreenshot');
     expect(source).toContain('Publishing a policy takes effect immediately');
     expect(source).toContain('every existing member');
-    expect(source).toContain('Confirm and continue');
+    expect(source).toContain('Finish setup');
     expect(source).toContain('tenantPrivacyPolicyAcceptances.findFirst');
     expect(source).toContain('tenantOnboardingQuestionAnswers.findFirst');
     expect(source).toContain('Make this my home organization');
@@ -2263,29 +2288,41 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('esnCardSubmitPayloadFromIdentifier');
     expect(source).toContain('esnCardMutationErrorMessage');
     expect(source).toContain(
-      'The profile discount-card form accepts one ESN card per person and ignores spaces around the card number before validation.',
+      'You can save one ESNcard for your account in each organization that enables ESNcard discounts.',
     );
     expect(source).toContain(
-      'Save, refresh, and remove stay disabled while any ESNcard action is pending',
+      'Save, check again, and remove remain unavailable until the current check or change finishes.',
     );
     expect(source).toContain(
-      'A temporary verification problem is not treated as an invalid card.',
+      "If Evorto rejects a new card, it shows **We couldn't check this ESNcard, so it was not saved.",
+    );
+    expect(source).toContain('it keeps the saved card unchanged');
+    expect(source).toContain('If the save outcome cannot be confirmed');
+    expect(source).toContain(
+      'Evorto keeps the card number and all card changes unavailable until you load your current cards successfully.',
     );
     expect(source).toContain(
-      'leaves the saved ESNcard unchanged so you can try again later.',
+      'Select **Try again** to load your current cards without saving, checking, or removing a card.',
     );
-    expect(source).toContain("page.goto('/profile#discounts')");
+    expect(source).toContain(
+      'A failed or paused read keeps further changes unavailable.',
+    );
+    expect(source).toContain(
+      'Select **Try again** to load your current cards; this only reloads the list.',
+    );
+    expect(source).toContain("page.goto('/profile/discounts')");
     expect(source).toContain(
       'const clickHydratedAction = async (action: Locator)',
     );
     expect(source).toContain("not.toHaveAttribute('jsaction', /click/, {");
     expect(source.match(/await clickHydratedAction\(/g)).toHaveLength(8);
-    expect(source).toContain(
-      "page.getByRole('heading', { level: 2, name: 'Discount Cards' })",
-    );
+    expect(source).toContain("name: 'Discount cards'");
+    expect(source).not.toContain("name: 'Discount Cards'");
+    expect(source).toContain("_tag: 'RpcInternalServerError'");
+    expect(source).toContain("_tag: 'RpcBadRequestError'");
     expect(source).toContain('unchangedSeededEsnCard');
     expect(source).toContain(
-      "page.getByRole('button', { name: 'Save ESN card' })",
+      "page.getByRole('button', { name: 'Save ESNcard' })",
     );
     expect(source).toContain('ESNcard validation provider is unavailable');
     expect(source).not.toContain('provider outages mark the card invalid');

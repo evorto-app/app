@@ -1,12 +1,9 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { IbanInput } from '@shared/iban';
-import {
-  EmailAddressInput,
-  notificationEmailPattern,
-} from '@shared/notification-email';
+import { EmailAddressInput } from '@shared/notification-email';
 import {
   literalUnion,
+  nonNegativeNumber,
   PageLimit,
   PageOffset,
   positiveNumber,
@@ -21,11 +18,8 @@ import {
   UserRpcError,
   UsersAssignRolesError,
   UsersFindManyError,
+  UsersUpdateProfileError,
 } from './users.errors';
-
-const NotificationEmail = Schema.NonEmptyString.check(
-  Schema.isPattern(notificationEmailPattern),
-);
 
 export const UsersAuthData = Schema.Struct({
   email: Schema.optional(Schema.NullOr(Schema.String)),
@@ -127,7 +121,7 @@ export const UsersSetHomeTenant = asRpcMutation(
 );
 
 export const UsersUpdateProfileInput = Schema.Struct({
-  communicationEmail: NotificationEmail,
+  communicationEmail: EmailAddressInput,
   firstName: Schema.NonEmptyString,
   iban: Schema.optional(Schema.NullOr(IbanInput)),
   lastName: Schema.NonEmptyString,
@@ -140,7 +134,7 @@ export type UsersUpdateProfileInput = Schema.Schema.Type<
 
 export const UsersUpdateProfile = asRpcMutation(
   Rpc.make('users.updateProfile', {
-    error: Schema.Union([UserRpcError, RpcBadRequestError]),
+    error: UsersUpdateProfileError,
     payload: UsersUpdateProfileInput,
     success: Schema.Void,
   }),
@@ -149,10 +143,15 @@ export const UsersUpdateProfile = asRpcMutation(
 export const UsersEventSummaryRecord = Schema.Struct({
   addonPurchases: Schema.Array(
     Schema.Struct({
-      quantity: Schema.Number,
+      currency: Tenant.fields.currency,
+      purchasedQuantity: nonNegativeNumber.check(Schema.isInt()),
+      quantity: nonNegativeNumber.check(Schema.isInt()),
       title: Schema.NonEmptyString,
-      unitPrice: Schema.Number,
+      unitPrice: nonNegativeNumber.check(Schema.isInt()),
     }),
+  ),
+  cancellationReason: Schema.NullOr(
+    literalUnion('eligibilityChangedAfterPayment'),
   ),
   checkInTime: Schema.NullOr(Schema.String),
   checkoutUrl: Schema.NullOr(Schema.String),

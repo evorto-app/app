@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 
 import {
+  BadRequestOrUnauthorizedRpcError,
   ForbiddenOrUnauthorizedRpcError,
   UnauthorizedRpcError,
 } from '../../errors/rpc-errors';
@@ -24,6 +25,9 @@ export type UserRpcError = UnauthorizedRpcError;
 
 export const UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
 export type UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
+
+export const UsersUpdateProfileError = BadRequestOrUnauthorizedRpcError;
+export type UsersUpdateProfileError = BadRequestOrUnauthorizedRpcError;
 
 export const UsersAssignRolesError = Schema.Union([
   ForbiddenOrUnauthorizedRpcError,

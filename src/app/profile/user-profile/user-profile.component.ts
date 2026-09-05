@@ -1,36 +1,20 @@
-import type { UsersEventSummaryRecord } from '@shared/rpc-contracts/app-rpcs/users.rpcs';
-
-import { CurrencyPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   inject,
   signal,
 } from '@angular/core';
-import {
-  form,
-  FormField,
-  pattern,
-  required,
-  submit,
-} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
-  faCalendarDays,
   faPencil,
-  faReceipt,
   faRightFromBracket,
-  faTags,
   faTicket,
-  faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
 import {
   injectMutation,
   injectQuery,
@@ -42,32 +26,12 @@ import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
-import { TenantDatePipe } from '../../core/tenant-date.pipe';
-import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
-import { receiptStatusLabel } from '../../finance/shared/receipt-status-label';
 import {
   EditProfileDialogComponent,
   EditProfileDialogData,
   EditProfileDialogResult,
+  type EditProfileSaveOutcome,
 } from './edit-profile-dialog.component';
-import {
-  esnCardActionDisabled,
-  esnCardActionLabel,
-  esnCardMutationErrorMessage,
-  esnCardSaveDisabled,
-  esnCardStatusLabel,
-  esnCardSubmitPayloadFromIdentifier,
-  isEsnCardChangedError,
-} from './user-profile.esn-card';
-
-type ProfileEventRefund = UsersEventSummaryRecord['refunds'][number];
-type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
-
-export const profileEditActionDisabled = ({
-  mutationPending,
-}: {
-  mutationPending: boolean;
-}): boolean => mutationPending;
 
 export const isBrowsingOutsideHomeTenant = (
   homeTenantId: string | undefined,
@@ -77,9 +41,28 @@ export const isBrowsingOutsideHomeTenant = (
   currentTenantId !== undefined &&
   homeTenantId !== currentTenantId;
 
+export const profileReimbursementReadiness = ({
+  iban,
+  paypalEmail,
+}: {
+  iban?: null | string | undefined;
+  paypalEmail?: null | string | undefined;
+}): string => {
+  if (iban && paypalEmail) {
+    return 'IBAN and PayPal details added.';
+  }
+  if (iban) {
+    return 'IBAN added.';
+  }
+  if (paypalEmail) {
+    return 'PayPal account added.';
+  }
+  return 'No reimbursement details added.';
+};
+
 export const profileUserAfterEdit = <
   T extends {
-    communicationEmail?: null | string | undefined;
+    communicationEmail: string;
     firstName: string;
     iban?: null | string | undefined;
     lastName: string;
@@ -90,284 +73,33 @@ export const profileUserAfterEdit = <
   result: EditProfileDialogResult,
 ): T => ({
   ...user,
-  communicationEmail: result.communicationEmail?.trim() || null,
+  communicationEmail: result.communicationEmail,
   firstName: result.firstName,
   iban: result.iban ?? null,
   lastName: result.lastName,
   paypalEmail: result.paypalEmail ?? null,
 });
 
-export const profileEventDetailActionLabel = (): string => 'Open event page';
+export const profileUpdateErrorMessage = (error: unknown): string => {
+  if (error instanceof RpcUnauthorizedError) {
+    return 'Your profile was not changed. Sign in again and complete your organization setup before saving. Your entries are still here.';
+  }
+  return getErrorMessage(
+    error,
+    "We couldn't confirm whether your profile was saved. Open your profile in another tab to check before trying again. Your entries are still here.",
+    ['RpcBadRequestError'],
+  );
+};
 
 export const profileTransferClaimPath = '/registration-transfers';
 
-export const profileEventGuestLabel = (guestCount: number): null | string => {
-  if (guestCount <= 0) {
-    return null;
-  }
-
-  return guestCount === 1
-    ? 'Includes 1 guest'
-    : `Includes ${guestCount} guests`;
-};
-
-export const profileEventAudienceLabel = (event: {
-  organizingRegistration: boolean;
-}): string =>
-  event.organizingRegistration ? 'Organizer/helper' : 'Participant';
-
-export const profileEventPassLabel = (event: {
-  organizingRegistration: boolean;
-}): string => (event.organizingRegistration ? 'Pass' : 'Ticket');
-
-export const profileEventNextStepLabel = (event: {
-  checkoutUrl: null | string;
-  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
-  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
-}): null | string => {
-  if (event.status === 'CANCELLED') {
-    return null;
-  }
-
-  if (profileEventContinuePaymentUrl(event)) {
-    return 'Finish the checkout payment to confirm your spot.';
-  }
-
-  if (event.paymentState === 'pending') {
-    return 'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.';
-  }
-
-  return null;
-};
-
-export const isStripeCheckoutUrl = (value: string): boolean => {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname === 'checkout.stripe.com';
-  } catch {
-    return false;
-  }
-};
-
-export const profileEventContinuePaymentUrl = (event: {
-  checkoutUrl: null | string;
-  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
-  status?: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
-}): null | string => {
-  if (
-    event.status === 'CANCELLED' ||
-    event.paymentState !== 'pending' ||
-    !event.checkoutUrl ||
-    !isStripeCheckoutUrl(event.checkoutUrl)
-  ) {
-    return null;
-  }
-
-  return event.checkoutUrl;
-};
-
-export const profileEventActionNote = (event: {
-  checkInTime?: null | string;
-  checkoutUrl: null | string;
-  organizingRegistration: boolean;
-  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
-  refunds?: readonly ProfileEventRefund[];
-  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
-}): string => {
-  if (event.status === 'CANCELLED') {
-    const refunds = event.refunds ?? [];
-    const completedClaims = refunds.filter(
-      ({ state }) => state === 'succeeded',
-    ).length;
-    const progress =
-      refunds.length > 1
-        ? ` ${completedClaims} of ${refunds.length} refunds ${completedClaims === 1 ? 'is' : 'are'} complete.`
-        : '';
-    if (
-      refunds.length > 0 &&
-      refunds.every(({ state }) => state === 'succeeded')
-    ) {
-      return 'Your registration is cancelled and every recorded refund completed.';
-    }
-
-    const guidance: string[] = [];
-    const needsOrganizerFollowUp = refunds.some(
-      ({ state }) => state === 'actionRequired' || state === 'needsAttention',
-    );
-    if (needsOrganizerFollowUp) {
-      guidance.push('at least one refund needs organizer follow-up');
-    }
-    if (refunds.some(({ state }) => state === 'retrying')) {
-      guidance.push('at least one refund is retrying automatically');
-    }
-    if (refunds.some(({ state }) => state === 'pending')) {
-      guidance.push('at least one refund is queued or processing');
-    }
-    if (guidance.length > 0) {
-      const organizerFollowUp = needsOrganizerFollowUp
-        ? ' Contact the organizer for an update.'
-        : '';
-      return `Your registration remains cancelled, but ${guidance.join('; ')}. Money has not necessarily been returned yet.${organizerFollowUp} Do not pay or register again to retry it.${progress}`;
-    }
-
-    return 'Your registration is cancelled. No refund is recorded for this registration.';
-  }
-
-  if (profileEventContinuePaymentUrl(event)) {
-    if (event.organizingRegistration) {
-      return 'Continue payment from this card to confirm your organizer/helper registration. Organizer access starts after payment succeeds.';
-    }
-
-    return 'Continue payment from this card, or open the event page for registration details.';
-  }
-
-  switch (event.status) {
-    case 'CONFIRMED': {
-      if (event.checkInTime) {
-        if (event.organizingRegistration) {
-          return 'You are checked in. Open the event page for organizer/helper pass details. Cancellation is no longer available after check-in.';
-        }
-
-        return 'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.';
-      }
-
-      if (event.organizingRegistration) {
-        return 'Open the event page for your organizer/helper pass, event management access, and current cancellation details.';
-      }
-
-      return "Open the event page for ticket access and to see whether cancellation or transfer is currently available. A transfer may be free or require the recipient to pay, based on current prices and the recipient's eligible discounts.";
-    }
-    case 'PENDING': {
-      if (event.paymentState === 'pending') {
-        if (event.organizingRegistration) {
-          return 'Payment setup is still in progress. Open the event page for the latest payment link. Organizer access starts only after payment succeeds.';
-        }
-
-        return 'Payment setup is still in progress. Open the event page for the latest payment link and current cancellation status.';
-      }
-
-      if (event.organizingRegistration) {
-        return 'Open the event page for organizer/helper application and cancellation status. Organizer access starts only after approval and any required payment.';
-      }
-
-      return 'Open the event page for pending-registration details and current cancellation status.';
-    }
-    case 'WAITLIST': {
-      return 'Open the event page for waitlist details and current cancellation status.';
-    }
-  }
-};
-
-export const registrationPaymentLabel = (
-  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded',
-): string => {
-  switch (paymentState) {
-    case 'cancelled': {
-      return 'Payment cancelled';
-    }
-    case 'notRequired': {
-      return 'No payment required';
-    }
-    case 'pending': {
-      return 'Payment pending';
-    }
-    case 'recorded': {
-      return 'Payment recorded';
-    }
-  }
-};
-
-export const registrationStatusLabel = (
-  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST',
-): string => {
-  switch (status) {
-    case 'CANCELLED': {
-      return 'Cancelled';
-    }
-    case 'CONFIRMED': {
-      return 'Confirmed';
-    }
-    case 'PENDING': {
-      return 'Pending';
-    }
-    case 'WAITLIST': {
-      return 'Waitlist';
-    }
-  }
-};
-
-export const registrationRefundStateLabel = (
-  state: ProfileEventRefund['state'],
-): string => {
-  switch (state) {
-    case 'actionRequired':
-    case 'needsAttention': {
-      return 'Contact organizer for refund update';
-    }
-    case 'pending': {
-      return 'Refund queued';
-    }
-    case 'retrying': {
-      return 'Refund retrying';
-    }
-    case 'succeeded': {
-      return 'Refund completed';
-    }
-  }
-};
-
-export const registrationRefundSourceLabel = (
-  source: ProfileEventRefund['source'],
-): string =>
-  source === 'registration' ? 'Registration payment' : 'Add-on payment';
-
-export const profileSectionFromFragment = (
-  fragment: null | string,
-  esnEnabled: boolean,
-): ProfileSection => {
-  if (fragment === 'discounts' && esnEnabled) {
-    return 'discounts';
-  }
-
-  if (fragment === 'events') {
-    return 'events';
-  }
-
-  if (fragment === 'receipts') {
-    return 'receipts';
-  }
-
-  return 'overview';
-};
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TenantDatePipe,
-    CurrencyPipe,
-    FontAwesomeModule,
-    FormField,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    ReceiptAmountPipe,
-    RouterLink,
-  ],
+  imports: [FontAwesomeModule, MatButtonModule, RouterLink],
   selector: 'app-user-profile',
-  styles: ``,
   templateUrl: './user-profile.component.html',
 })
 export class UserProfileComponent {
-  protected readonly allSectionEntries: {
-    icon: typeof faUser;
-    key: ProfileSection;
-    label: string;
-  }[] = [
-    { icon: faUser, key: 'overview', label: 'Overview' },
-    { icon: faCalendarDays, key: 'events', label: 'Events' },
-    { icon: faTags, key: 'discounts', label: 'Discounts' },
-    { icon: faReceipt, key: 'receipts', label: 'Receipts' },
-  ];
   private readonly rpc = AppRpc.injectClient();
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),
@@ -381,262 +113,135 @@ export class UserProfileComponent {
     const tenant = this.config.tenantSignal();
     return isBrowsingOutsideHomeTenant(user?.homeTenantId, tenant?.id);
   });
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.rpc.discounts.getTenantProviders.queryOptions(),
-  );
-  protected readonly buyEsnCardUrl = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return;
-    const providers = this.discountProvidersQuery.data();
-    const esnProvider = providers.find(
-      (provider) => provider.type === 'esnCard',
-    );
-    const buyEsnCardUrl = esnProvider?.config.buyEsnCardUrl?.trim();
-    return buyEsnCardUrl && buyEsnCardUrl.length > 0
-      ? buyEsnCardUrl
-      : undefined;
-  });
-  protected readonly deleteCardMutation = injectMutation(() =>
-    this.rpc.discounts.deleteMyCard.mutationOptions(),
-  );
-  protected readonly esnCardActionDisabled = esnCardActionDisabled;
-  protected readonly esnCardActionLabel = esnCardActionLabel;
-  protected readonly esnCardErrorMessage = signal<null | string>(null);
-  private readonly esnCardModel = signal({ identifier: '' });
-  protected readonly esnCardForm = form(this.esnCardModel, (schemaPath) => {
-    required(schemaPath.identifier);
-    pattern(schemaPath.identifier, /^[A-Za-z0-9]{8,16}$/);
-  });
-  protected readonly esnCardSaveDisabled = esnCardSaveDisabled;
-  protected readonly esnCardStatusLabel = esnCardStatusLabel;
-  protected readonly esnEnabled = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return false;
-    const providers = this.discountProvidersQuery.data();
-    return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
-  });
-  protected readonly faCalendarDays = faCalendarDays;
   protected readonly faPencil = faPencil;
-  protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
-  protected readonly faTags = faTags;
   protected readonly faTicket = faTicket;
-  protected readonly faUser = faUser;
-
-  protected readonly myCardsQuery = injectQuery(() =>
-    this.rpc.discounts.getMyCards.queryOptions(),
-  );
-  protected readonly hasVerifiedEsnCard = computed(() => {
-    if (!this.myCardsQuery.isSuccess()) return false;
-    const cards = this.myCardsQuery.data();
-    return cards.some(
-      (card) => card.type === 'esnCard' && card.status === 'verified',
-    );
-  });
-
-  protected readonly myReceiptsQuery = injectQuery(() =>
-    this.rpc.finance.receipts.my.queryOptions(),
-  );
-  protected readonly profileEditActionDisabled = profileEditActionDisabled;
-  protected readonly profileEventActionNote = profileEventActionNote;
-  protected readonly profileEventAudienceLabel = profileEventAudienceLabel;
-  protected readonly profileEventContinuePaymentUrl =
-    profileEventContinuePaymentUrl;
-  protected readonly profileEventDetailActionLabel =
-    profileEventDetailActionLabel;
-  protected readonly profileEventGuestLabel = profileEventGuestLabel;
-  protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
-
-  protected readonly profileEventPassLabel = profileEventPassLabel;
+  protected readonly profileDialogOpen = signal(false);
+  protected readonly profileReimbursementReadiness =
+    profileReimbursementReadiness;
   protected readonly profileTransferClaimPath = profileTransferClaimPath;
-  protected readonly receiptStatusLabel = receiptStatusLabel;
-  protected readonly refreshCardMutation = injectMutation(() =>
-    this.rpc.discounts.refreshMyCard.mutationOptions(),
-  );
-  protected readonly registrationPaymentLabel = registrationPaymentLabel;
-  protected readonly registrationRefundSourceLabel =
-    registrationRefundSourceLabel;
-  protected readonly registrationRefundStateLabel =
-    registrationRefundStateLabel;
-  protected readonly registrationStatusLabel = registrationStatusLabel;
-  protected readonly sectionEntries = computed(() =>
-    this.allSectionEntries.filter(
-      (section) => section.key !== 'discounts' || this.esnEnabled(),
-    ),
-  );
-  protected readonly selectedSection = signal<ProfileSection>('overview');
   protected readonly setHomeTenantMutation = injectMutation(() =>
     this.rpc.users.setHomeTenant.mutationOptions(),
   );
   protected readonly updateProfileMutation = injectMutation(() =>
     this.rpc.users.updateProfile.mutationOptions(),
   );
-  protected readonly upsertCardMutation = injectMutation(() =>
-    this.rpc.discounts.upsertMyCard.mutationOptions(),
-  );
-  protected readonly userEventsQuery = injectQuery(() =>
-    this.rpc.users.events.queryOptions(),
-  );
 
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
-
   private readonly queryClient = inject(QueryClient);
 
-  private readonly route = inject(ActivatedRoute);
-
-  private readonly routeFragment = signal<null | string>(null);
-
-  constructor() {
-    effect(() => {
-      if (this.routeFragment() === 'discounts') {
-        this.selectedSection.set(
-          profileSectionFromFragment(this.routeFragment(), this.esnEnabled()),
-        );
-      }
-    });
-
-    this.route.fragment.subscribe((fragment) => {
-      this.routeFragment.set(fragment);
-      this.selectedSection.set(
-        profileSectionFromFragment(fragment, this.esnEnabled()),
-      );
-    });
-  }
-
-  protected deleteEsnCard(): void {
-    if (this.esnCardMutationPending()) {
-      return;
-    }
-
-    this.esnCardErrorMessage.set(null);
-    this.deleteCardMutation.mutate(
-      { type: 'esnCard' },
-      {
-        onError: (error) => {
-          this.esnCardErrorMessage.set(
-            esnCardMutationErrorMessage('remove', error),
-          );
-        },
-        onSuccess: async () => {
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['discounts', 'getMyCards']),
-          );
-          this.esnCardErrorMessage.set(null);
-          this.notifications.showSuccess('ESN card removed');
-        },
-      },
-    );
-  }
-
   protected async openEditProfileDialog(): Promise<void> {
-    if (
-      profileEditActionDisabled({
-        mutationPending: this.updateProfileMutation.isPending(),
-      })
-    ) {
+    if (this.profileDialogOpen() || this.updateProfileMutation.isPending())
       return;
-    }
-
     const user = this.profileUser();
     if (!user) return;
-    const dialogReference = this.dialog.open<
-      EditProfileDialogComponent,
-      EditProfileDialogData,
-      EditProfileDialogResult
-    >(EditProfileDialogComponent, {
-      data: {
-        communicationEmail: user.communicationEmail ?? user.email,
-        firstName: user.firstName,
-        iban: user.iban ?? null,
-        lastName: user.lastName,
-        paypalEmail: user.paypalEmail ?? null,
-      },
-      width: '420px',
-    });
-    const result = await firstValueFrom(dialogReference.afterClosed());
-    if (!result) return;
-    this.updateProfileMutation.mutate(result, {
-      onError: (error) => {
-        const errorMessage = getErrorMessage(error, 'Failed to update profile');
-        this.notifications.showError(
-          'Failed to update profile: ' + errorMessage,
-        );
-      },
-      onSuccess: async () => {
-        const updatedUser = profileUserAfterEdit(user, result);
-        this.queryClient.setQueryData(
-          this.rpc.pathKey(['users', 'self']),
-          updatedUser,
-        );
-        this.queryClient.setQueryData(
-          this.rpc.pathKey(['users', 'maybeSelf']),
-          updatedUser,
-        );
-        await this.queryClient.invalidateQueries(
-          this.rpc.queryFilter(['users', 'self']),
-        );
-        await this.queryClient.invalidateQueries(
-          this.rpc.queryFilter(['users', 'maybeSelf']),
-        );
-        await this.queryClient.invalidateQueries(
-          this.rpc.queryFilter([
-            'finance',
-            'receipts.refundableGroupedByRecipient',
-          ]),
-        );
-        this.notifications.showSuccess('Profile updated successfully');
-      },
-    });
-  }
-  protected refreshEsnCard(): void {
-    if (this.esnCardMutationPending()) {
-      return;
-    }
 
-    this.esnCardErrorMessage.set(null);
-    this.refreshCardMutation.mutate(
-      { type: 'esnCard' },
-      {
-        onError: (error) => this.handleEsnCardMutationError('refresh', error),
-        onSuccess: async () => {
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['discounts', 'getMyCards']),
-          );
-          this.esnCardErrorMessage.set(null);
-          this.notifications.showSuccess('ESN card refreshed');
-        },
-      },
-    );
-  }
-  protected async saveEsnCard(event: Event): Promise<void> {
-    event.preventDefault();
-    if (this.esnCardMutationPending()) {
-      return;
-    }
+    this.profileDialogOpen.set(true);
+    try {
+      const dialogReference = this.dialog.open<
+        EditProfileDialogComponent,
+        EditProfileDialogData,
+        EditProfileDialogResult
+      >(EditProfileDialogComponent, {
+        data: {
+          communicationEmail: user.communicationEmail,
+          firstName: user.firstName,
+          iban: user.iban ?? null,
+          lastName: user.lastName,
+          paypalEmail: user.paypalEmail ?? null,
+          save: async (result): Promise<EditProfileSaveOutcome> => {
+            try {
+              await this.updateProfileMutation.mutateAsync(result);
+            } catch (error) {
+              return {
+                message: profileUpdateErrorMessage(error),
+                saved: false,
+              };
+            }
 
-    this.esnCardErrorMessage.set(null);
-    await submit(this.esnCardForm, async (formState) => {
-      this.upsertCardMutation.mutate(
-        esnCardSubmitPayloadFromIdentifier(formState().value().identifier),
-        {
-          onError: (error) => this.handleEsnCardMutationError('save', error),
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['discounts', 'getMyCards']),
-            );
-            this.esnCardModel.set({ identifier: '' });
-            this.esnCardErrorMessage.set(null);
-            this.notifications.showSuccess('ESN card saved');
+            try {
+              this.queryClient.setQueryData<typeof user>(
+                this.rpc.users.self.queryOptions().queryKey,
+                (currentUser) =>
+                  currentUser?.id === user.id
+                    ? profileUserAfterEdit(currentUser, result)
+                    : undefined,
+              );
+              this.queryClient.setQueryData<null | typeof user>(
+                this.rpc.users.maybeSelf.queryOptions().queryKey,
+                (currentUser) =>
+                  currentUser?.id === user.id
+                    ? profileUserAfterEdit(currentUser, result)
+                    : undefined,
+              );
+              const filters = [
+                this.rpc.queryFilter(['users', 'self']),
+                this.rpc.queryFilter(['users', 'maybeSelf']),
+                this.rpc.queryFilter([
+                  'finance',
+                  'receipts',
+                  'refundableGroupedByRecipient',
+                ]),
+              ];
+              const reads = filters.map(async (filter) => {
+                const invalidation = this.queryClient.invalidateQueries(
+                  filter,
+                  { throwOnError: true },
+                );
+                const activeReads = this.queryClient
+                  .getQueryCache()
+                  .findAll({ ...filter, type: 'active' })
+                  .filter(
+                    (query) =>
+                      !query.isDisabled() &&
+                      !query.isStatic() &&
+                      query.state.fetchStatus === 'fetching',
+                  )
+                  .map((query) => query.promise);
+                const results = await Promise.allSettled([
+                  invalidation,
+                  ...activeReads,
+                ]);
+                const failures: unknown[] = [];
+                for (const settled of results) {
+                  if (settled.status === 'rejected')
+                    failures.push(settled.reason);
+                }
+                if (failures.length > 0)
+                  throw new AggregateError(
+                    failures,
+                    'Profile follow-up reads failed',
+                  );
+              });
+              const results = await Promise.allSettled(reads);
+              const failures: unknown[] = [];
+              for (const settled of results) {
+                if (settled.status === 'rejected')
+                  failures.push(settled.reason);
+              }
+              if (failures.length > 0)
+                throw new AggregateError(
+                  failures,
+                  'Profile follow-up reads failed',
+                );
+            } catch {
+              return {
+                message:
+                  'Your profile was saved, but the latest information could not be loaded. Close this dialog and load your profile again to see the saved details.',
+                saved: true,
+              };
+            }
+            this.notifications.showSuccess('Profile updated');
+            return { saved: true };
           },
         },
-      );
-    });
-  }
-
-  protected sectionButtonClasses(section: ProfileSection): string {
-    if (this.selectedSection() === section) {
-      return 'bg-secondary-container text-on-secondary-container';
+        width: '420px',
+      });
+      await firstValueFrom(dialogReference.afterClosed());
+    } finally {
+      this.profileDialogOpen.set(false);
     }
-    return 'bg-surface text-on-surface';
   }
 
   protected setCurrentTenantAsHome(): void {
@@ -647,54 +252,38 @@ export class UserProfileComponent {
     this.setHomeTenantMutation.mutate(undefined, {
       onError: (error) => {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to change home organization'),
+          error instanceof RpcUnauthorizedError
+            ? 'Your home organization was not changed. Sign in again and check your membership in this organization before trying again.'
+            : "We couldn't confirm whether your home organization changed. Open your profile in another tab and check your home organization before trying again.",
         );
       },
       onSuccess: (homeTenant) => {
-        const updatedUser = {
-          ...user,
-          homeTenantId: homeTenant.homeTenantId,
-          homeTenantName: homeTenant.homeTenantName,
-        };
-        this.queryClient.setQueryData(
-          this.rpc.pathKey(['users', 'self']),
-          updatedUser,
+        this.queryClient.setQueryData<typeof user>(
+          this.rpc.users.self.queryOptions().queryKey,
+          (currentUser) =>
+            currentUser?.id === user.id
+              ? {
+                  ...currentUser,
+                  homeTenantId: homeTenant.homeTenantId,
+                  homeTenantName: homeTenant.homeTenantName,
+                }
+              : undefined,
         );
-        this.queryClient.setQueryData(
-          this.rpc.pathKey(['users', 'maybeSelf']),
-          updatedUser,
+        this.queryClient.setQueryData<null | typeof user>(
+          this.rpc.users.maybeSelf.queryOptions().queryKey,
+          (currentUser) =>
+            currentUser?.id === user.id
+              ? {
+                  ...currentUser,
+                  homeTenantId: homeTenant.homeTenantId,
+                  homeTenantName: homeTenant.homeTenantName,
+                }
+              : undefined,
         );
         this.notifications.showSuccess(
           `${homeTenant.homeTenantName} is now your home organization`,
         );
       },
-    });
-  }
-
-  protected setSelectedSection(section: ProfileSection): void {
-    this.selectedSection.set(section);
-  }
-
-  private async handleEsnCardMutationError(
-    action: 'refresh' | 'save',
-    error: unknown,
-  ): Promise<void> {
-    this.esnCardErrorMessage.set(esnCardMutationErrorMessage(action, error));
-    if (!isEsnCardChangedError(error)) return;
-
-    const result = await this.myCardsQuery.refetch();
-    this.esnCardErrorMessage.set(
-      result.isSuccess
-        ? 'Your saved ESN card changed while it was being checked. The old check was not saved. Review your current card before checking again.'
-        : 'Your saved ESN card changed while it was being checked. The old check was not saved, and your card list could not be updated. Reload the page to see your current cards.',
-    );
-  }
-
-  private esnCardMutationPending(): boolean {
-    return esnCardActionDisabled({
-      deletePending: this.deleteCardMutation.isPending(),
-      refreshPending: this.refreshCardMutation.isPending(),
-      upsertPending: this.upsertCardMutation.isPending(),
     });
   }
 }

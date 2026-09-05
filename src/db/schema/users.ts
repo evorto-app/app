@@ -1,5 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
+  check,
   foreignKey,
   index,
   pgTable,
@@ -20,6 +21,12 @@ export const roleAssignmentRoleTenantForeignKeyName =
   'roles_to_tenant_users_role_tenant_fk';
 export const userTenantIdentityUniqueConstraintName =
   'users_to_tenants_id_tenant_unique';
+export const userCommunicationEmailCanonicalCheckName =
+  'users_communication_email_canonical_check';
+export const userIbanCanonicalShapeCheckName =
+  'users_iban_canonical_shape_check';
+export const userPaypalEmailCanonicalCheckName =
+  'users_paypal_email_canonical_check';
 
 /**
  * To add unaccent to our database as immutable extension
@@ -74,6 +81,32 @@ export const users = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => ({
+    communicationEmailCanonicalCheck: check(
+      userCommunicationEmailCanonicalCheckName,
+      sql`
+        ${table.communicationEmail} = lower(btrim(${table.communicationEmail}))
+        and char_length(${table.communicationEmail}) <= 254
+        and ${table.communicationEmail} ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'
+      `,
+    ),
+    ibanCanonicalShapeCheck: check(
+      userIbanCanonicalShapeCheckName,
+      sql`
+        ${table.iban} is null
+        or ${table.iban} ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'
+      `,
+    ),
+    paypalEmailCanonicalCheck: check(
+      userPaypalEmailCanonicalCheckName,
+      sql`
+        ${table.paypalEmail} is null
+        or (
+          ${table.paypalEmail} = lower(btrim(${table.paypalEmail}))
+          and char_length(${table.paypalEmail}) <= 254
+          and ${table.paypalEmail} ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'
+        )
+      `,
+    ),
     searchGinIndex: index('searchable_info_idx').using(
       'gin',
       sql`${table.searchableInfo}
