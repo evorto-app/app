@@ -182,7 +182,9 @@ describe('global admin tenant form model', () => {
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
-    ).toThrow('Enter the main website address only, for example section.example.org.');
+    ).toThrow(
+      'Enter the main website address only, for example section.example.org.',
+    );
   });
 
   it('handles only the expected website-address validation error at the form boundary', () => {
@@ -209,7 +211,9 @@ describe('global admin tenant form model', () => {
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
-    ).toThrow('Enter the main website address only, for example section.example.org.');
+    ).toThrow(
+      'Enter the main website address only, for example section.example.org.',
+    );
   });
 
   it('preserves a typed organization validation reason', () => {
