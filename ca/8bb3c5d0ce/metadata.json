@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ca8bb3c5d0ce",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/admin/google-maps-location.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ca/8bb3c5d0ce/0/metadata.json",
+      "transcript": "/ca/8bb3c5d0ce/0/full.jsonl",
+      "content_hash": "/ca/8bb3c5d0ce/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 396430,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 14835456,
+    "output_tokens": 32391,
+    "api_call_count": 141
+  }
+}
