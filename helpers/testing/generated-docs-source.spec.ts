@@ -1087,7 +1087,7 @@ describe('generated docs source current behavior', () => {
       'Choose the sign-up choice that should show each question',
     );
     expect(source).toContain("questionEditor.getByLabel('Question order')");
-    expect(source).toContain('Legacy random templates stay read-only.');
+    expect(source).not.toContain('Legacy random templates stay read-only.');
     expect(source).toContain(
       'A restarted form does not retain unsaved event entries.',
     );
@@ -1122,9 +1122,8 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'If the reason says a sign-up choice no longer belongs to the selected template',
     );
-    expect(source).toContain(
-      'If it mentions random allocation, use **Back to template**, then choose or create a new template using **First come, first served** or **Manual approval**',
-    );
+    expect(source).toContain('First come, first served');
+    expect(source).toContain('Manual approval');
     expect(source).toContain(
       'If the event creation outcome could not be confirmed, open the event list, load the page again and check for this event before trying again.',
     );
@@ -1908,6 +1907,19 @@ describe('generated docs source current behavior', () => {
 
   it('keeps event-management docs aligned with scanner and organizer scope', () => {
     const source = readSource('tests/docs/events/event-management.doc.ts');
+
+    expect(source).toContain(
+      'If the save is refused, read the reason and correct any form entries before trying again.',
+    );
+    expect(source).toContain(
+      'If Evorto cannot confirm whether the event was saved, load the page again and check the event before trying again.',
+    );
+    expect(source).toContain(
+      'If Evorto confirms the event was saved but cannot load or open its latest details, open it from **Events**; do not save again just to open the page.',
+    );
+    expect(source).not.toContain(
+      'If an error remains on the editor, the event has not been updated',
+    );
 
     expect(source).toContain(
       'Each draft event has its own sign-up setup, independent of the template.',

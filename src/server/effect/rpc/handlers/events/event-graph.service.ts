@@ -99,17 +99,6 @@ export const validateEventGraphStructure = ({
     );
   }
 
-  if (
-    before.registrationOptions.some(
-      (option) => option.registrationMode === 'random',
-    )
-  ) {
-    return invalidGraph(
-      'Random allocation is legacy-readable but cannot be written',
-      'unsupportedEventRegistrationMode',
-    );
-  }
-
   const optionKeys = input.registrationOptions.map((option) => option.key);
   const addOnKeys = input.addOns.map((addOn) => addOn.key);
   const questionKeys = input.questions.map((question) => question.key);
@@ -174,7 +163,7 @@ export const validateEventGraphStructure = ({
       option.registrationMode !== 'fcfs'
     ) {
       return invalidGraph(
-        'Random allocation is legacy-readable but cannot be written',
+        'Use First come, first served or Manual approval for every sign-up choice.',
         'unsupportedEventRegistrationMode',
       );
     }

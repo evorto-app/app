@@ -7,7 +7,6 @@ import {
   advancedEventGraphWarnings,
   eventGraphFormToPayload,
   eventGraphRecordToFormModel,
-  legacyRandomEventEditMessage,
   simpleEventGraphIssue,
 } from './event-graph-form.model';
 
@@ -128,23 +127,6 @@ describe('event graph form mapping', () => {
       id: 'question-1',
       registrationOptionKey: 'participant-option',
     });
-  });
-
-  it('blocks unavailable random allocation without coercing it', () => {
-    const source = eventGraph();
-    const result = eventGraphRecordToFormModel(
-      {
-        ...source,
-        registrationOptions: source.registrationOptions.map((option, index) =>
-          index === 1 ? { ...option, registrationMode: 'random' } : option,
-        ),
-      },
-      DEFAULT_TENANT_TIMEZONE,
-    );
-    expect(legacyRandomEventEditMessage).toBe(
-      'Random allocation is unavailable. An authorized event editor must choose First come, first served or Manual approval before anyone can edit this registration setup.',
-    );
-    expect(result).toEqual({ error: legacyRandomEventEditMessage });
   });
 
   it('enforces simple compatibility while advanced category gaps remain warnings', () => {

@@ -552,6 +552,16 @@ export class EventEdit {
         if (failures.length > 0) {
           throw new AggregateError(failures, 'Event follow-up reads failed');
         }
+        // The destination may be inactive while editing. Replace any older read
+        // and load its canonical cache entry before returning to the detail page.
+        const detailQuery = this.rpc.events.findOne.queryOptions({
+          id: savedEventId,
+        });
+        await this.queryClient.cancelQueries({
+          exact: true,
+          queryKey: detailQuery.queryKey,
+        });
+        await this.queryClient.fetchQuery(detailQuery);
       } catch {
         this.saveError.set(
           'The event was saved, but its latest details could not be loaded. Load the page again to see the saved event.',

@@ -559,7 +559,7 @@ If **Review event creation** appears, your entries remain in the form. Read the 
 
 If the message says the event was created but the event list could not be updated, open the event list and load the page again to see it. If the event was created but its page could not be opened, open it from the event list before making further changes. Do not create the event again after a confirmed creation.
 
-If the reason says a sign-up choice no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. If it mentions random allocation, use **Back to template**, then choose or create a new template using **First come, first served** or **Manual approval**. Legacy random templates stay read-only. A restarted form does not retain unsaved event entries.
+If the reason says a sign-up choice no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. A restarted form does not retain unsaved event entries.
 `,
   });
   await page.getByRole('link', { name: 'Create event' }).click();

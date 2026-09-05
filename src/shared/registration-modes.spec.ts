@@ -4,16 +4,12 @@ import {
   type RegistrationMode,
   registrationModeLabel,
   registrationModeLabels,
-  writableRegistrationModes,
+  registrationModes,
 } from './registration-modes';
 
 describe('registrationModeLabel', () => {
-  it('renders readable labels for every persisted registration mode', () => {
-    const modes: readonly RegistrationMode[] = [
-      'application',
-      'fcfs',
-      'random',
-    ];
+  it('renders readable labels for every registration mode', () => {
+    const modes: readonly RegistrationMode[] = ['application', 'fcfs'];
 
     expect(Object.keys(registrationModeLabels).toSorted()).toEqual(
       [...modes].toSorted(),
@@ -21,11 +17,7 @@ describe('registrationModeLabel', () => {
     expect(modes.map((mode) => registrationModeLabel(mode))).toEqual([
       'Manual approval',
       'First come, first served',
-      'Unsupported random allocation',
     ]);
-  });
-
-  it('keeps unsupported random allocation out of writable modes', () => {
-    expect(writableRegistrationModes).toEqual(['fcfs', 'application']);
+    expect(registrationModes).toEqual(['fcfs', 'application']);
   });
 });

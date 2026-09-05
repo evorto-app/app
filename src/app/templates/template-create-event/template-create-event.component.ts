@@ -17,10 +17,7 @@ import {
   faArrowLeft,
   faCircleInfo,
 } from '@fortawesome/duotone-regular-svg-icons';
-import {
-  requireWritableRegistrationMode,
-  writableRegistrationModes,
-} from '@shared/registration-modes';
+import { registrationModes } from '@shared/registration-modes';
 import { EventCreateIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -74,7 +71,6 @@ export const templateCreateEventSubmitDisabled = ({
   discountProvidersReady,
   formInvalid,
   formSubmitting,
-  legacyRandomBlocked,
   mutationPending,
   paidGraphBlocked,
   taxRatesReady,
@@ -82,7 +78,6 @@ export const templateCreateEventSubmitDisabled = ({
   discountProvidersReady: boolean;
   formInvalid: boolean;
   formSubmitting: boolean;
-  legacyRandomBlocked: boolean;
   mutationPending: boolean;
   paidGraphBlocked: boolean;
   taxRatesReady: boolean;
@@ -92,16 +87,7 @@ export const templateCreateEventSubmitDisabled = ({
   paidGraphBlocked ||
   formInvalid ||
   formSubmitting ||
-  legacyRandomBlocked ||
   mutationPending;
-
-export const templateHasLegacyRandomRegistration = (
-  registrationOptions: readonly { registrationMode: string }[],
-): boolean =>
-  registrationOptions.some((option) => option.registrationMode === 'random');
-
-export const legacyRandomTemplateEventMessage =
-  'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.';
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
@@ -196,15 +182,6 @@ export class TemplateCreateEventComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
   protected readonly iconUsage = EventCreateIconUsage.make({});
-  protected readonly legacyRandomBlocked = computed(
-    () =>
-      this.templateQuery.isSuccess() &&
-      templateHasLegacyRandomRegistration(
-        this.templateQuery.data().registrationOptions,
-      ),
-  );
-  protected readonly legacyRandomTemplateEventMessage =
-    legacyRandomTemplateEventMessage;
   protected readonly stripeConnectionKnown = computed(
     () => this.config.tenantSignal() !== null,
   );
@@ -220,7 +197,7 @@ export class TemplateCreateEventComponent {
         (this.templateQuery.isSuccess() &&
           this.templateQuery.data().addOns.some((addOn) => addOn.isPaid))),
   );
-  protected readonly registrationModes = writableRegistrationModes;
+  protected readonly registrationModes = registrationModes;
   protected readonly taxRatesReady = computed(
     () => this.availableTaxRates() !== undefined,
   );
@@ -244,11 +221,6 @@ export class TemplateCreateEventComponent {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
       if (this.initializedTemplateId() === template.id) return;
-      if (templateHasLegacyRandomRegistration(template.registrationOptions)) {
-        this.initializedTemplateId.set(template.id);
-        return;
-      }
-
       const startDateTime = this.toDateTime(
         untracked(() => this.createEventForm.start().value()),
       );
@@ -260,9 +232,6 @@ export class TemplateCreateEventComponent {
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
-      if (templateHasLegacyRandomRegistration(template.registrationOptions)) {
-        return;
-      }
       const eventStart = this.createEventForm.start().value();
       const registrationOptions = this.createEventModel().registrationOptions;
       if (!eventStart || registrationOptions.length === 0) return;
@@ -308,7 +277,6 @@ export class TemplateCreateEventComponent {
         discountProvidersReady: this.discountProvidersReady(),
         formInvalid: this.createEventForm().invalid(),
         formSubmitting: this.createEventForm().submitting(),
-        legacyRandomBlocked: this.legacyRandomBlocked(),
         mutationPending: this.createEventMutation.isPending(),
         paidGraphBlocked: this.paidGraphBlocked(),
         taxRatesReady: this.taxRatesReady(),
@@ -358,9 +326,7 @@ export class TemplateCreateEventComponent {
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
-            registrationMode: requireWritableRegistrationMode(
-              option.registrationMode,
-            ),
+            registrationMode: option.registrationMode,
             roleIds: option.roleIds,
             sourceTemplateRegistrationOptionId: option.id || undefined,
             spots: option.spots,

@@ -130,7 +130,7 @@ export const organizerRegistrationApprovalState = ({
   registrationStatus,
   transactions,
 }: {
-  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationMode: 'application' | 'fcfs';
   registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
   transactions: readonly {
     status: string;

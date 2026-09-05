@@ -110,10 +110,7 @@ export type EventsCancellableRegistrationStatus = Schema.Schema.Type<
   typeof EventsCancellableRegistrationStatus
 >;
 
-export const EventsWritableRegistrationMode = literalUnion(
-  'application',
-  'fcfs',
-);
+export const EventsRegistrationMode = literalUnion('application', 'fcfs');
 
 export const EventsCanOrganize = asRpcQuery(
   Rpc.make('events.canOrganize', {
@@ -200,7 +197,7 @@ export const EventsCreateRegistrationOptionInput = Schema.Struct({
   price: nonNegativeNumber,
   refundFeesOnCancellation: NullableRefundFeesInput,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: EventsWritableRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   sourceTemplateRegistrationOptionId: Schema.optional(Schema.NonEmptyString),
   spots: nonNegativeNumber,
@@ -283,12 +280,6 @@ export const EventsEventList = asRpcQuery(
   }),
 );
 
-export const EventsFindOneForEditRegistrationMode = literalUnion(
-  'application',
-  'fcfs',
-  'random',
-);
-
 export const EventsFindOneForEditRegistrationOption = Schema.Struct({
   cancellationDeadlineHoursBeforeStart: Schema.NullOr(nonNegativeNumber),
   closeRegistrationTime: Schema.NonEmptyString,
@@ -301,7 +292,7 @@ export const EventsFindOneForEditRegistrationOption = Schema.Struct({
   price: Schema.Number,
   refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: EventsFindOneForEditRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
@@ -353,7 +344,7 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
     }),
   ),
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: EventsFindOneForEditRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   reservedSpots: Schema.Number,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
@@ -937,7 +928,7 @@ export const EventsUpdateRegistrationOptionInput = Schema.Struct({
   price: nonNegativeNumber,
   refundFeesOnCancellation: NullableRefundFeesInput,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: EventsWritableRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
@@ -958,7 +949,7 @@ export const EventGraphRegistrationOptionInput = Schema.Struct({
   price: nonNegativeNumber,
   refundFeesOnCancellation: NullableRefundFeesInput,
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: EventsWritableRegistrationMode,
+  registrationMode: EventsRegistrationMode,
   roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
