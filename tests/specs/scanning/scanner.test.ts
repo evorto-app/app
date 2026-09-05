@@ -56,7 +56,10 @@ const requireScannerFixture = async ({
   }
 
   const [optionBefore] = await database
-    .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+    .select({
+      checkedInSpots: eventRegistrationOptions.checkedInSpots,
+      confirmedSpots: eventRegistrationOptions.confirmedSpots,
+    })
     .from(eventRegistrationOptions)
     .where(
       and(
@@ -760,6 +763,15 @@ test('scan confirmed registration records check-in', async ({
       userId: scannerFixture.userId,
     });
 
+    await database
+      .update(eventRegistrationOptions)
+      .set({
+        confirmedSpots: scannerFixture.optionBefore.confirmedSpots + 3,
+      })
+      .where(
+        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
+      );
+
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
       page.getByRole('heading', { name: 'Registration scanned' }),
@@ -817,7 +829,10 @@ test('scan confirmed registration records check-in', async ({
       .where(eq(eventRegistrations.id, registrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: scannerFixture.optionBefore.checkedInSpots })
+      .set({
+        checkedInSpots: scannerFixture.optionBefore.checkedInSpots,
+        confirmedSpots: scannerFixture.optionBefore.confirmedSpots,
+      })
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
@@ -851,7 +866,10 @@ test('scan checked-in registration records remaining guest arrival', async ({
     });
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: checkedInBaseline })
+      .set({
+        checkedInSpots: checkedInBaseline,
+        confirmedSpots: scannerFixture.optionBefore.confirmedSpots + 3,
+      })
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
@@ -915,7 +933,10 @@ test('scan checked-in registration records remaining guest arrival', async ({
       .where(eq(eventRegistrations.id, registrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: scannerFixture.optionBefore.checkedInSpots })
+      .set({
+        checkedInSpots: scannerFixture.optionBefore.checkedInSpots,
+        confirmedSpots: scannerFixture.optionBefore.confirmedSpots,
+      })
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );

@@ -797,6 +797,18 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     );
   }
   const initialCheckedInSpots = scannerRegistrationOption.checkedInSpots;
+  const initialConfirmedSpots = scannerRegistrationOption.confirmedSpots;
+  const scannerRegistrationSpotCount = 3;
+  const scannerConfirmedSpots =
+    initialConfirmedSpots + scannerRegistrationSpotCount;
+  if (
+    scannerConfirmedSpots + scannerRegistrationOption.reservedSpots >
+    scannerRegistrationOption.spots
+  ) {
+    throw new Error(
+      'Expected enough seeded participant capacity for scanner documentation',
+    );
+  }
   const scannerUser = usersToAuthenticate.find(
     (user) => user.stateFile === emptyStateFile,
   );
@@ -806,17 +818,37 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
   const scannerRegistrationId = getId();
 
   try {
-    await database.insert(eventRegistrations).values({
-      basePriceAtRegistration: 0,
-      discountAmount: 0,
-      checkedInGuestCount: 0,
-      eventId: scannerEventId,
-      guestCount: 2,
-      id: scannerRegistrationId,
-      registrationOptionId: scannerRegistrationOption.id,
-      status: 'CONFIRMED',
-      tenantId: seeded.tenant.id,
-      userId: scannerUser.id,
+    await database.transaction(async (transaction) => {
+      const updatedOptions = await transaction
+        .update(eventRegistrationOptions)
+        .set({ confirmedSpots: scannerConfirmedSpots })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, scannerEventId),
+            eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+            eq(eventRegistrationOptions.checkedInSpots, initialCheckedInSpots),
+            eq(eventRegistrationOptions.confirmedSpots, initialConfirmedSpots),
+          ),
+        )
+        .returning({ id: eventRegistrationOptions.id });
+      if (updatedOptions.length !== 1) {
+        throw new Error(
+          'Seeded participant counters changed before scanner documentation setup',
+        );
+      }
+
+      await transaction.insert(eventRegistrations).values({
+        basePriceAtRegistration: 0,
+        discountAmount: 0,
+        checkedInGuestCount: 0,
+        eventId: scannerEventId,
+        guestCount: 2,
+        id: scannerRegistrationId,
+        registrationOptionId: scannerRegistrationOption.id,
+        status: 'CONFIRMED',
+        tenantId: seeded.tenant.id,
+        userId: scannerUser.id,
+      });
     });
 
     await page.goto(`/scan/registration/${scannerRegistrationId}`);
@@ -875,14 +907,14 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       .where(eq(eventRegistrations.id, scannerRegistrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: initialCheckedInSpots })
+      .set({
+        checkedInSpots: initialCheckedInSpots,
+        confirmedSpots: initialConfirmedSpots,
+      })
       .where(
         and(
+          eq(eventRegistrationOptions.eventId, scannerEventId),
           eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
-          eq(
-            eventRegistrationOptions.checkedInSpots,
-            initialCheckedInSpots + 3,
-          ),
         ),
       );
   }
