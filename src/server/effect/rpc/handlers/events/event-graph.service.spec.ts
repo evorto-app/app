@@ -147,7 +147,7 @@ const validInput = (): MutableFixture<EventGraphUpdateInput> => ({
 describe('event graph structural validation', () => {
   it('explains why a purchased add-on must keep its registration option', () => {
     expect(purchasedAddOnRegistrationOptionRemovalMessage).toBe(
-      'An add-on that has already been purchased must remain available with its existing registration option',
+      'An add-on that has already been bought must remain available with its current sign-up choice.',
     );
   });
 
@@ -192,8 +192,12 @@ describe('event graph structural validation', () => {
     });
 
     expect(
-      validateEventGraphStructure({ before: beforeGraph(), input })?.reason,
-    ).toBe('simpleEventGraphRequiresTwoOptions');
+      validateEventGraphStructure({ before: beforeGraph(), input }),
+    ).toMatchObject({
+      message:
+        'Simple setup needs exactly one organizer choice and one attendee choice.',
+      reason: 'simpleEventGraphRequiresTwoOptions',
+    });
   });
 
   it('allows optionless and category-missing advanced events', () => {
@@ -208,7 +212,7 @@ describe('event graph structural validation', () => {
     expect(validateEventGraphStructure({ before, input })).toBeNull();
   });
 
-  it('preserves every persisted option ID when switching a simple event to advanced mode', () => {
+  it('allows choices to be replaced while switching to advanced setup in one save', () => {
     const before = beforeGraph();
     const input = validInput();
     input.simpleModeEnabled = false;
@@ -217,15 +221,13 @@ describe('event graph structural validation', () => {
       id: undefined,
     }));
 
-    expect(validateEventGraphStructure({ before, input })).toMatchObject({
-      reason: 'eventModeTransitionMustPreserveOptionIds',
-    });
+    expect(validateEventGraphStructure({ before, input })).toBeNull();
 
     input.registrationOptions = validInput().registrationOptions;
     expect(validateEventGraphStructure({ before, input })).toBeNull();
   });
 
-  it('requires the persisted advanced event to have the simple shape before conversion', () => {
+  it('allows extra advanced choices to be removed while switching to simple setup in one save', () => {
     const before = beforeGraph();
     const participant = before.registrationOptions[1];
     if (!participant) throw new Error('Missing participant fixture');
@@ -235,6 +237,7 @@ describe('event graph structural validation', () => {
       { ...participant, id: 'option-guest', title: 'Guest' },
     ];
     const input = validInput();
+    expect(validateEventGraphStructure({ before, input })).toBeNull();
     const guestInput = input.registrationOptions[1];
     if (!guestInput) throw new Error('Missing guest input fixture');
     input.registrationOptions.push({
@@ -245,7 +248,7 @@ describe('event graph structural validation', () => {
     });
 
     expect(validateEventGraphStructure({ before, input })).toMatchObject({
-      reason: 'eventAdvancedToSimpleRequiresPersistedSimpleShape',
+      reason: 'simpleEventGraphRequiresTwoOptions',
     });
   });
 
@@ -268,8 +271,12 @@ describe('event graph structural validation', () => {
     };
 
     expect(
-      validateEventGraphStructure({ before: beforeGraph(), input })?.reason,
-    ).toBe('eventGraphIdMismatch');
+      validateEventGraphStructure({ before: beforeGraph(), input }),
+    ).toMatchObject({
+      message:
+        'Some event details changed while this page was open. Nothing was saved. Reopen the event and review the current details before making your changes again.',
+      reason: 'eventGraphIdMismatch',
+    });
   });
 
   it('accepts one add-on mapped to multiple options in advanced mode', () => {
@@ -303,6 +310,7 @@ describe('event graph structural validation', () => {
     expect(error).toBeInstanceOf(RpcBadRequestError);
     expect(error).toMatchObject({
       _tag: 'RpcBadRequestError',
+      message: 'Paid event registration options require a positive price',
       reason: 'paidEventRegistrationOptionRequiresPositivePrice',
     });
   });
@@ -322,6 +330,7 @@ describe('event graph structural validation', () => {
     expect(error).toBeInstanceOf(RpcBadRequestError);
     expect(error).toMatchObject({
       _tag: 'RpcBadRequestError',
+      message: 'Enter a price greater than zero for each paid add-on.',
       reason: 'paidEventAddonRequiresPositivePrice',
     });
   });

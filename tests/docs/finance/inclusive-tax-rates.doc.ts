@@ -410,7 +410,7 @@ Sign in to the organization you intend to edit. This journey needs **View templa
 
 # Require and assign a tax rate for paid registration options
 
-Paid event and template registration options must reference a compatible inclusive tax rate. Free options hide the price and tax-rate fields; select **Enable payment** or **Paid option** to reveal them.
+Paid event and template registration options must reference a compatible inclusive tax rate. Free options hide the price and tax-rate fields; select **Enable payment** or **Charge for this choice** to reveal them.
 
 Navigate to **Templates** and open an existing paid template. If the selector says **No active inclusive tax rates**, ask an organization administrator with **Manage tax rates** access to import one from the organization's connected Stripe account, then reload the editor. If loading failed, retry when Stripe is available again. Keep the option free until a compatible rate is available.
 `,
@@ -460,7 +460,7 @@ Each paid registration displays the final price together with its inclusive tax 
       .locator('app-template-registration-option-editor')
       .filter({
         has: page.getByRole('textbox', {
-          name: 'Registration option name',
+          name: 'Sign-up choice name',
         }),
       })
       .filter({
@@ -471,7 +471,7 @@ Each paid registration displays the final price together with its inclusive tax 
       .first();
     await expect(
       organizerSection.getByRole('textbox', {
-        name: 'Registration option name',
+        name: 'Sign-up choice name',
       }),
     ).toHaveValue('Organizer');
     const templateTaxRateSelect = organizerSection.getByRole('combobox', {
@@ -606,13 +606,13 @@ Open **Edit Event** on a draft event to adjust tax rates if regulations or prici
     await expect(
       eventOptionEditors
         .first()
-        .getByRole('textbox', { exact: true, name: 'Option name' }),
+        .getByRole('textbox', { exact: true, name: 'Sign-up choice name' }),
     ).toBeVisible();
     const matchingOrganizerEditors = [];
     for (const editor of await eventOptionEditors.all()) {
       const optionName = editor.getByRole('textbox', {
         exact: true,
-        name: 'Option name',
+        name: 'Sign-up choice name',
       });
       if ((await optionName.inputValue()) === eventOrganizerOption.title) {
         matchingOrganizerEditors.push(editor);
@@ -623,7 +623,9 @@ Open **Edit Event** on a draft event to adjust tax rates if regulations or prici
       throw new Error('Expected one matching organizer option editor');
     }
     await expect(
-      eventOrganizerSection.getByRole('textbox', { name: 'Option name' }),
+      eventOrganizerSection.getByRole('textbox', {
+        name: 'Sign-up choice name',
+      }),
     ).toHaveValue('Organizer');
     const eventEditTax = eventOrganizerSection.getByRole('combobox', {
       name: 'Tax rate',

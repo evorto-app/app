@@ -28,6 +28,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import {
@@ -138,7 +139,9 @@ export class PlatformEventCreateComponent {
           }
         : undefined;
     });
-    required(event.reason, { message: 'Enter an operational reason.' });
+    required(event.reason, {
+      message: 'Explain why this event is being created.',
+    });
     maxLength(event.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
@@ -168,7 +171,11 @@ export class PlatformEventCreateComponent {
 
   protected save(event: Event): void {
     event.preventDefault();
-    if (this.createMutation.isPending() || !this.optionsQuery.isSuccess()) {
+    if (
+      this.createMutation.isPending() ||
+      this.createForm().submitting() ||
+      !this.optionsQuery.isSuccess()
+    ) {
       return;
     }
     const timezone = this.optionsQuery.data().timezone;
@@ -183,6 +190,7 @@ export class PlatformEventCreateComponent {
         );
         return;
       }
+      let phase: 'list' | 'mutation' | 'navigation' = 'mutation';
       try {
         const created = await this.createMutation.mutateAsync({
           ...value,
@@ -190,17 +198,52 @@ export class PlatformEventCreateComponent {
           start,
           targetTenantId: this.tenantId(),
         });
-        await this.queryClient.invalidateQueries(this.operations.listFilter());
-        this.notifications.showSuccess('Event created');
-        await this.router.navigate([
+        phase = 'list';
+        const listFilter = this.operations.listFilter();
+        const activeLists = this.queryClient
+          .getQueryCache()
+          .findAll({ ...listFilter, type: 'active' })
+          .filter((query) => !query.isDisabled() && !query.isStatic());
+        const invalidation = this.queryClient.invalidateQueries(listFilter, {
+          throwOnError: true,
+        });
+        const listResults = await Promise.allSettled([
+          invalidation,
+          ...activeLists.flatMap((query) =>
+            query.state.fetchStatus === 'fetching' && query.promise
+              ? [query.promise]
+              : [],
+          ),
+        ]);
+        const listFailure = listResults.find(
+          (result) => result.status === 'rejected',
+        );
+        if (listFailure) throw listFailure.reason;
+        phase = 'navigation';
+        const opened = await this.router.navigate([
           '/global-admin/tenants',
           this.tenantId(),
           'events',
           created.id,
         ]);
-      } catch {
+        if (opened) {
+          this.notifications.showSuccess('Event created');
+        } else {
+          this.notifications.showError(
+            'The event was created, but its page could not be opened. Open it from the event list before making further changes.',
+          );
+        }
+      } catch (error) {
         this.notifications.showError(
-          'The event could not be created. Review the details and try again.',
+          phase === 'mutation'
+            ? getErrorMessage(
+                error,
+                'The event creation outcome could not be confirmed. Open the event list, load the page again and check for this event before trying again.',
+                ['RpcBadRequestError'],
+              )
+            : phase === 'list'
+              ? 'The event was created, but the event list could not be updated. Open the event list and load the page again to see it.'
+              : 'The event was created, but its page could not be opened. Open it from the event list before making further changes.',
         );
       }
     });

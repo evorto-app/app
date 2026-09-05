@@ -16,7 +16,7 @@ const eventOptionEditorByTitle = async (
 ): Promise<Locator> => {
   const editors = page.locator('app-event-registration-option-editor');
   const titleInputs = editors.getByRole('textbox', {
-    name: 'Option name',
+    name: 'Sign-up choice name',
     exact: true,
   });
   let matchingIndex = -1;

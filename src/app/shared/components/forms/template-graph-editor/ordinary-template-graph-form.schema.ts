@@ -19,7 +19,6 @@ import {
   MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
   MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import { templateGeneralFormSchema } from '../../../../templates/shared/template-form/template-general-form.schema';
 import { OrdinaryTemplateGraphFormModel } from './ordinary-template-graph-form';
@@ -32,14 +31,6 @@ import { templateGraphRegistrationOptionFormSchema } from './template-graph-regi
 export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
   (addOn) => {
     required(addOn.title, { message: 'Enter an add-on name.' });
-    validate(addOn.description, ({ value }) =>
-      hasTemporaryRichTextImageSources(value())
-        ? {
-            kind: 'richTextPendingUpload',
-            message: 'Wait for image uploads to finish before saving.',
-          }
-        : undefined,
-    );
     required(addOn.maxQuantityPerUser, {
       message: 'Enter a per-user maximum.',
     });
@@ -83,12 +74,12 @@ export const templateGraphAddonFormSchema = schema<TemplateGraphAddonFormModel>(
         ? undefined
         : {
             kind: 'duplicateRegistrationOption',
-            message: 'Use each registration option only once.',
+            message: 'Use each sign-up choice only once.',
           };
     });
     applyEach(addOn.registrationOptions, (mapping) => {
       required(mapping.registrationOptionKey, {
-        message: 'Select a registration option.',
+        message: 'Select a sign-up choice.',
       });
       required(mapping.includedQuantity, {
         message: 'Enter an included quantity.',
@@ -159,7 +150,7 @@ export const templateGraphQuestionFormSchema =
       },
     );
     required(question.registrationOptionKey, {
-      message: 'Select a registration option.',
+      message: 'Select a sign-up choice.',
     });
     required(question.sortOrder, { message: 'Enter a sort order.' });
     min(question.sortOrder, 0);
@@ -203,7 +194,7 @@ export const ordinaryTemplateGraphFormSchema =
         : {
             kind: 'simpleModeShape',
             message:
-              'Simple configuration requires exactly one organizing and one non-organizing option.',
+              'Simple setup needs exactly one organizer choice and one attendee choice.',
           };
     });
   });

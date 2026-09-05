@@ -46,7 +46,7 @@ describe('createRegistrationOptionFormModel', () => {
         .price()
         .errors()
         .map((error) => error.message),
-    ).toContain('Paid registrations must cost at least 0.01.');
+    ).toContain('A paid choice must cost at least 0.01.');
 
     option.price().value.set(1);
 
@@ -62,5 +62,27 @@ describe('createRegistrationOptionFormModel', () => {
 
     expect(option.price().hidden()).toBe(true);
     expect(option.price().errors()).toEqual([]);
+  });
+
+  it('explains an invalid discounted price in plain language', () => {
+    const option = form(
+      signal(
+        createRegistrationOptionFormModel({
+          esnCardDiscountedPrice: -1,
+          isPaid: true,
+          price: 10,
+          stripeTaxRateId: 'txr_test',
+        }),
+      ),
+      registrationOptionFormSchema,
+      { injector: TestBed.inject(Injector) },
+    );
+
+    expect(
+      option
+        .esnCardDiscountedPrice()
+        .errors()
+        .map((error) => error.message),
+    ).toContain('Discounted price must be zero or more.');
   });
 });

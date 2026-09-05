@@ -20,7 +20,6 @@ import {
 import {
   createTemplateGraphAddonFormModel,
   createTemplateGraphQuestionFormModel,
-  resetTemplateGraphPayments,
 } from './template-graph-form.model';
 
 describe('ordinaryTemplateGraphFormSchema', () => {
@@ -75,7 +74,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
       price()
         .errors()
         .map((error) => error.message),
-    ).toContain('Paid registrations must cost at least 0.01.');
+    ).toContain('Paid choices must cost at least 0.01.');
 
     price().value.set(1);
 
@@ -164,11 +163,10 @@ describe('ordinaryTemplateGraphFormSchema', () => {
     expect(graph.questions[0].sortOrder().errors()).not.toEqual([]);
   });
 
-  it('rejects unfinished uploads and registration windows that close before opening', () => {
+  it('rejects registration windows that close before opening', () => {
     const model = createOrdinaryTemplateGraphFormModel();
     const option = model.registrationOptions[0];
     if (!option) throw new Error('Expected a registration option');
-    option.description = '<img src="blob:pending-upload" />';
     option.openRegistrationOffset = 10;
     option.closeRegistrationOffset = 11;
 
@@ -178,16 +176,10 @@ describe('ordinaryTemplateGraphFormSchema', () => {
 
     expect(
       graph.registrationOptions[0]
-        .description()
-        .errors()
-        .map((error) => error.message),
-    ).toContain('Wait for image uploads to finish before saving.');
-    expect(
-      graph.registrationOptions[0]
         .closeRegistrationOffset()
         .errors()
         .map((error) => error.message),
-    ).toContain('Registration must open before it closes.');
+    ).toContain('Sign-up must open before it closes.');
   });
 
   it('rejects add-on purchase-window and mapping combinations the server cannot save', () => {
@@ -218,7 +210,7 @@ describe('ordinaryTemplateGraphFormSchema', () => {
         .registrationOptions()
         .errors()
         .map((error) => error.message),
-    ).toContain('Use each registration option only once.');
+    ).toContain('Use each sign-up choice only once.');
   });
 
   it('reactively disables paid controls until Stripe is available', () => {
@@ -248,45 +240,6 @@ describe('ordinaryTemplateGraphFormSchema', () => {
     expect(graph.addOns[0].price().disabled()).toBe(false);
   });
 
-  it('clears only template payment fields after a confirmed disconnect', () => {
-    const source = createOrdinaryTemplateGraphFormModel({
-      addOns: [
-        {
-          ...createTemplateGraphAddonFormModel(),
-          isPaid: true,
-          price: 500,
-          stripeTaxRateId: 'txr_addon',
-          title: 'Retained add-on',
-        },
-      ],
-      title: 'Retained template',
-    });
-    source.registrationOptions[0] = {
-      ...source.registrationOptions[0],
-      esnCardDiscountedPrice: 800,
-      isPaid: true,
-      price: 1000,
-      roleIds: ['role-1'],
-      stripeTaxRateId: 'txr_option',
-    };
-
-    const reset = resetTemplateGraphPayments(source);
-
-    expect(reset.title).toBe('Retained template');
-    expect(reset.registrationOptions[0]).toMatchObject({
-      esnCardDiscountedPrice: '',
-      isPaid: false,
-      price: 0,
-      roleIds: ['role-1'],
-      stripeTaxRateId: '',
-    });
-    expect(reset.addOns[0]).toMatchObject({
-      isPaid: false,
-      price: 0,
-      stripeTaxRateId: '',
-      title: 'Retained add-on',
-    });
-  });
   it('accepts add-on quantity caps and rejects cap plus one', () => {
     const model = createOrdinaryTemplateGraphFormModel();
     const option = model.registrationOptions[0];

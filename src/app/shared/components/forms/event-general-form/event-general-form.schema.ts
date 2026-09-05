@@ -1,13 +1,6 @@
 import type { IconValue } from '@shared/types/icon';
 
-import {
-  apply,
-  applyEach,
-  disabled,
-  schema,
-  validate,
-} from '@angular/forms/signals';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
+import { apply, applyEach, disabled, schema } from '@angular/forms/signals';
 import { DateTime } from 'luxon';
 
 import {
@@ -16,7 +9,6 @@ import {
 } from '../../../../../types/custom/tenant';
 import { EventLocationType } from '../../../../../types/location';
 import { tenantNow } from '../../../../core/tenant-runtime';
-import { resetRegistrationPayment } from '../payment-configuration';
 import {
   RegistrationOptionFormModel,
   registrationOptionFormSchema,
@@ -50,14 +42,6 @@ export const createEventGeneralFormModel = (
 };
 
 export const eventGeneralFormSchema = schema<EventGeneralFormModel>((form) => {
-  validate(form.description, ({ value }) => {
-    return hasTemporaryRichTextImageSources(value())
-      ? {
-          kind: 'richTextPendingUpload',
-          message: 'Wait for image uploads to finish before saving.',
-        }
-      : undefined;
-  });
   applyEach(form.registrationOptions, registrationOptionFormSchema);
 });
 
@@ -73,18 +57,3 @@ export const eventGeneralFormSchemaWithPaymentAvailability = (
       disabled(option.stripeTaxRateId, () => !paymentAllowed());
     });
   });
-
-export const resetEventGeneralFormPayments = <
-  Model extends EventGeneralFormModel,
->(
-  model: Model,
-): Model => {
-  const registrationOptions = model.registrationOptions.map((option) =>
-    resetRegistrationPayment(option, null, ''),
-  );
-  const unchanged = registrationOptions.every(
-    (option, index) => option === model.registrationOptions[index],
-  );
-
-  return unchanged ? model : { ...model, registrationOptions };
-};

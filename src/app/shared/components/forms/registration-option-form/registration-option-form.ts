@@ -1,3 +1,5 @@
+import type { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -16,10 +18,8 @@ import {
   type RegistrationMode,
   registrationModeLabel,
 } from '@shared/registration-modes';
-import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { ConfigService } from '../../../../core/config.service';
-import { AppRpc } from '../../../../core/effect-rpc-angular-client';
 import { tenantCurrencyCode } from '../../../../core/tenant-runtime';
 import { CurrencyAmountInputComponent } from '../../controls/currency-amount-input/currency-amount-input.component';
 import { EditorComponent } from '../../controls/editor/editor.component';
@@ -49,11 +49,11 @@ export class RegistrationOptionForm {
   public registrationModes = input.required<readonly RegistrationMode[]>();
   public registrationOptionForm =
     input.required<FieldTree<RegistrationOptionFormModel>>();
+  public taxRates = input.required<
+    readonly TaxRatesListActiveRecord[] | undefined
+  >();
+  public taxRateState = input.required<'error' | 'loading' | 'ready'>();
   protected readonly registrationModeLabel = registrationModeLabel;
-  private readonly rpc = AppRpc.injectClient();
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.rpc.taxRates.listActive.queryOptions(),
-  );
   private readonly config = inject(ConfigService);
   protected readonly tenantCurrency = computed(() =>
     tenantCurrencyCode(this.config),

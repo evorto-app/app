@@ -4,6 +4,7 @@ import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   input,
   signal,
 } from '@angular/core';
@@ -18,6 +19,7 @@ import { writableRegistrationModes } from '@shared/registration-modes';
 import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
 import { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
 import {
+  injectQuery,
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
@@ -28,7 +30,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '../../../../core/config.service';
 import {
   APP_RPC_CLIENT,
-  type AppRpc,
+  AppRpc,
 } from '../../../../core/effect-rpc-angular-client';
 import { TenantLuxonDateAdapter } from '../../../../core/tenant-luxon-date-adapter';
 import { EventAddonEditor } from '../../../../events/event-edit/event-addon-editor';
@@ -163,6 +165,8 @@ const taxSelectorGraphModel = (): EventGraphFormModel => {
       @case ('event-addon') {
         @for (addOn of graphForm.addOns; track addOn) {
           <app-event-addon-editor
+            [taxRates]="availableTaxRates()"
+            [taxRateState]="taxRateState()"
             [addOnForm]="addOn"
             currencyCode="EUR"
             [optionChoices]="[]"
@@ -172,6 +176,8 @@ const taxSelectorGraphModel = (): EventGraphFormModel => {
       @case ('event-registration') {
         @for (option of graphForm.registrationOptions; track option) {
           <app-event-registration-option-editor
+            [taxRates]="availableTaxRates()"
+            [taxRateState]="taxRateState()"
             [optionForm]="option"
             currencyCode="EUR"
             [esnEnabled]="false"
@@ -180,6 +186,8 @@ const taxSelectorGraphModel = (): EventGraphFormModel => {
       }
       @case ('shared-registration') {
         <app-registration-option-form
+          [taxRates]="availableTaxRates()"
+          [taxRateState]="taxRateState()"
           [registrationOptionForm]="sharedForm"
           [esnEnabled]="false"
           [registrationModes]="registrationModes"
@@ -189,6 +197,22 @@ const taxSelectorGraphModel = (): EventGraphFormModel => {
   `,
 })
 class TaxSelectorTestHost {
+  private readonly rpc = AppRpc.injectClient();
+  readonly taxRatesQuery = injectQuery(() =>
+    this.rpc.taxRates.listActive.queryOptions(),
+  );
+  readonly availableTaxRates = computed(() =>
+    this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
+      ? this.taxRatesQuery.data()
+      : undefined,
+  );
+  readonly taxRateState = computed<'error' | 'loading' | 'ready'>(() =>
+    this.taxRatesQuery.isError()
+      ? 'error'
+      : this.availableTaxRates() === undefined
+        ? 'loading'
+        : 'ready',
+  );
   readonly surface = input.required<TaxSelectorSurface>();
   readonly graphModel = signal(taxSelectorGraphModel());
   readonly graphForm = form(this.graphModel, eventGraphFormSchema);

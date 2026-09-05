@@ -16,6 +16,7 @@ import { Context, Effect, Option } from 'effect';
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database } from '../../../../../db';
+import { createId } from '../../../../../db/create-id';
 import {
   addonToEventRegistrationOptions,
   eventAddons,
@@ -25,7 +26,6 @@ import {
   eventRegistrationQuestions,
   eventTemplates,
   templateEventAddons,
-  templateRegistrationOptionDiscounts,
   templateRegistrationQuestions,
 } from '../../../../../db/schema';
 import {
@@ -270,30 +270,60 @@ export const buildEventQuestionInsert = ({
   title: question.title,
 });
 
-const validateCopiedTemplateDiscount = ({
-  discount,
+export const requireCreatedEventOption = <CreatedOption>(
+  createdOptionBySourceTemplateOptionId: ReadonlyMap<string, CreatedOption>,
+  sourceTemplateOptionId: string,
+  mappingKind: 'add-on' | 'discount' | 'question',
+): CreatedOption => {
+  const createdOption = createdOptionBySourceTemplateOptionId.get(
+    sourceTemplateOptionId,
+  );
+  if (!createdOption) {
+    throw new Error(
+      `Template ${mappingKind} mapping references missing registration option ${sourceTemplateOptionId}`,
+    );
+  }
+  return createdOption;
+};
+
+export const requireTemplateAddonMappingTarget = (
+  templateAddonIds: ReadonlySet<string>,
+  templateAddonId: string,
+): void => {
+  if (!templateAddonIds.has(templateAddonId)) {
+    throw new Error(
+      `Template add-on mapping references missing add-on ${templateAddonId}`,
+    );
+  }
+};
+
+const validateEventCreateDiscount = ({
   esnCardEnabledForTenant,
   option,
 }: {
-  discount: {
-    discountedPrice: number;
-    discountType: string;
-  };
   esnCardEnabledForTenant: boolean;
   option: {
+    esnCardDiscountedPrice: null | number;
     isPaid: boolean;
     price: number;
   };
 }): null | RpcBadRequestError => {
-  if (discount.discountType !== 'esnCard') {
+  if (option.esnCardDiscountedPrice === null) {
     return null;
   }
 
   if (!option.isPaid) {
-    return null;
+    return new RpcBadRequestError({
+      message: 'ESNcard discounts require a paid sign-up choice.',
+      reason: 'esnDiscountRequiresPaidOption',
+    });
   }
 
-  if (esnCardEnabledForTenant && discount.discountedPrice > option.price) {
+  if (!esnCardEnabledForTenant) {
+    return unavailableEsnCardDiscountError();
+  }
+
+  if (option.esnCardDiscountedPrice > option.price) {
     return invalidEsnCardDiscountPriceError();
   }
 
@@ -314,7 +344,8 @@ export const createEventGraph = (input: EventCreateInput) =>
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Event creator attribution tenant mismatch',
+          message:
+            'The selected creator is no longer a member of this organization.',
           reason: 'creatorTenantMismatch',
         }),
       );
@@ -374,7 +405,8 @@ export const createEventGraph = (input: EventCreateInput) =>
     if (!registrationRolesExist) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Registration option role not found for this tenant',
+          message:
+            'One selected sign-up role is no longer available in this organization.',
           reason: 'registrationRoleNotFound',
         }),
       );
@@ -430,7 +462,7 @@ export const createEventGraph = (input: EventCreateInput) =>
       return yield* Effect.fail(
         new RpcBadRequestError({
           message:
-            'Simple event configuration requires exactly one organizer option and one participant option',
+            'Choose exactly one organizer sign-up choice and one attendee sign-up choice for this event.',
           reason: 'invalidSimpleEventConfiguration',
         }),
       );
@@ -469,27 +501,29 @@ export const createEventGraph = (input: EventCreateInput) =>
     const sourceTemplateOptionIds = submittedSourceTemplateOptionIds.filter(
       (id): id is string => id !== undefined,
     );
+    const createdOptionPlans = sanitizedRegistrationOptions.map((option) => {
+      const sourceTemplateOptionId = option.sourceTemplateRegistrationOptionId;
+      if (!sourceTemplateOptionId) {
+        throw new Error(
+          'Validated event option is missing its source template option',
+        );
+      }
+      return {
+        createdOptionId: createId(),
+        isPaid: option.isPaid,
+        option,
+        sourceTemplateOptionId,
+      };
+    });
+    const createdOptionBySourceTemplateOptionId = new Map(
+      createdOptionPlans.map((plan) => [plan.sourceTemplateOptionId, plan]),
+    );
+    if (
+      createdOptionBySourceTemplateOptionId.size !== createdOptionPlans.length
+    ) {
+      throw new Error('Event option copy plan contains duplicate source IDs');
+    }
 
-    const templateDiscounts =
-      sourceTemplateOptionIds.length > 0
-        ? yield* databaseEffect((database) =>
-            database
-              .select({
-                discountedPrice:
-                  templateRegistrationOptionDiscounts.discountedPrice,
-                discountType: templateRegistrationOptionDiscounts.discountType,
-                registrationOptionId:
-                  templateRegistrationOptionDiscounts.registrationOptionId,
-              })
-              .from(templateRegistrationOptionDiscounts)
-              .where(
-                inArray(
-                  templateRegistrationOptionDiscounts.registrationOptionId,
-                  sourceTemplateOptionIds,
-                ),
-              ),
-          )
-        : [];
     const templateAddons = yield* databaseEffect((database) =>
       database.query.templateEventAddons.findMany({
         where: {
@@ -542,6 +576,22 @@ export const createEventGraph = (input: EventCreateInput) =>
               },
             }),
           );
+    const templateAddonIdSet = new Set(addonIds);
+    for (const mapping of templateAddonRegistrationOptions) {
+      requireTemplateAddonMappingTarget(templateAddonIdSet, mapping.addonId);
+      requireCreatedEventOption(
+        createdOptionBySourceTemplateOptionId,
+        mapping.registrationOptionId,
+        'add-on',
+      );
+    }
+    for (const question of templateQuestions) {
+      requireCreatedEventOption(
+        createdOptionBySourceTemplateOptionId,
+        question.registrationOptionId,
+        'question',
+      );
+    }
     const templateAddonsToCopy: TemplateAddonCopyRecord[] = templateAddons.map(
       (addOn) => ({
         ...addOn,
@@ -580,24 +630,12 @@ export const createEventGraph = (input: EventCreateInput) =>
       tenant.discountProviders ?? null,
     );
     for (const option of sanitizedRegistrationOptions) {
-      if (!option.sourceTemplateRegistrationOptionId) {
-        continue;
-      }
-
-      const copiedDiscounts = templateDiscounts.filter(
-        (discount) =>
-          discount.registrationOptionId ===
-          option.sourceTemplateRegistrationOptionId,
-      );
-      for (const discount of copiedDiscounts) {
-        const validationError = validateCopiedTemplateDiscount({
-          discount,
-          esnCardEnabledForTenant,
-          option,
-        });
-        if (validationError) {
-          return yield* Effect.fail(validationError);
-        }
+      const validationError = validateEventCreateDiscount({
+        esnCardEnabledForTenant,
+        option,
+      });
+      if (validationError) {
+        return yield* Effect.fail(validationError);
       }
     }
 
@@ -615,7 +653,7 @@ export const createEventGraph = (input: EventCreateInput) =>
           templateId: input.templateId,
           tenantId: tenant.id,
           title: input.title,
-          unlisted: templateDefaults?.unlisted ?? false,
+          unlisted: templateDefaults.unlisted,
         })
         .returning({
           id: eventInstances.id,
@@ -624,114 +662,60 @@ export const createEventGraph = (input: EventCreateInput) =>
     const event = events[0];
     if (!event) {
       return yield* Effect.fail(
-        new RpcInternalServerError({ message: 'Internal server error' }),
+        new RpcInternalServerError({
+          message: 'The event could not be saved. Try again.',
+        }),
       );
     }
 
-    const createdOptions =
-      sanitizedRegistrationOptions.length === 0
-        ? []
-        : yield* databaseEffect((database) =>
-            database
-              .insert(eventRegistrationOptions)
-              .values(
-                sanitizedRegistrationOptions.map((option) => ({
-                  cancellationDeadlineHoursBeforeStart:
-                    option.cancellationDeadlineHoursBeforeStart,
-                  closeRegistrationTime: option.closeRegistrationTime,
-                  description: option.description,
-                  eventId: event.id,
-                  isPaid: option.isPaid,
-                  openRegistrationTime: option.openRegistrationTime,
-                  organizingRegistration: option.organizingRegistration,
-                  price: option.price,
-                  refundFeesOnCancellation: option.refundFeesOnCancellation,
-                  registeredDescription: option.registeredDescription,
-                  registrationMode: option.registrationMode,
-                  roleIds: [...option.roleIds],
-                  spots: option.spots,
-                  stripeTaxRateId: option.stripeTaxRateId ?? null,
-                  title: option.title,
-                  transferDeadlineHoursBeforeStart:
-                    option.transferDeadlineHoursBeforeStart,
-                })),
-              )
-              .returning({
-                id: eventRegistrationOptions.id,
-              }),
-          );
-
-    if (templateDiscounts.length > 0) {
-      const createdOptionSources = createdOptions.map(
-        (createdOption, index) => ({
-          createdOptionId: createdOption.id,
-          isPaid: sanitizedRegistrationOptions[index]?.isPaid ?? false,
-          sourceTemplateOptionId:
-            sanitizedRegistrationOptions[index]
-              ?.sourceTemplateRegistrationOptionId,
-        }),
-      );
-      const discountInserts: EventRegistrationOptionDiscountInsert[] = [];
-      for (const createdOptionSource of createdOptionSources) {
-        if (
-          !createdOptionSource.sourceTemplateOptionId ||
-          !createdOptionSource.isPaid
-        ) {
-          continue;
-        }
-
-        for (const discount of templateDiscounts) {
-          if (
-            discount.registrationOptionId !==
-            createdOptionSource.sourceTemplateOptionId
-          ) {
-            continue;
-          }
-          if (discount.discountType === 'esnCard' && !esnCardEnabledForTenant) {
-            continue;
-          }
-          discountInserts.push({
-            discountedPrice: discount.discountedPrice,
-            discountType: discount.discountType,
+    if (createdOptionPlans.length > 0) {
+      yield* databaseEffect((database) =>
+        database.insert(eventRegistrationOptions).values(
+          createdOptionPlans.map(({ createdOptionId, option }) => ({
+            cancellationDeadlineHoursBeforeStart:
+              option.cancellationDeadlineHoursBeforeStart,
+            closeRegistrationTime: option.closeRegistrationTime,
+            description: option.description,
             eventId: event.id,
-            registrationOptionId: createdOptionSource.createdOptionId,
-          });
-        }
+            id: createdOptionId,
+            isPaid: option.isPaid,
+            openRegistrationTime: option.openRegistrationTime,
+            organizingRegistration: option.organizingRegistration,
+            price: option.price,
+            refundFeesOnCancellation: option.refundFeesOnCancellation,
+            registeredDescription: option.registeredDescription,
+            registrationMode: option.registrationMode,
+            roleIds: [...option.roleIds],
+            spots: option.spots,
+            stripeTaxRateId: option.stripeTaxRateId ?? null,
+            title: option.title,
+            transferDeadlineHoursBeforeStart:
+              option.transferDeadlineHoursBeforeStart,
+          })),
+        ),
+      );
+    }
+
+    const discountInserts: EventRegistrationOptionDiscountInsert[] = [];
+    for (const { createdOptionId, option } of createdOptionPlans) {
+      if (option.esnCardDiscountedPrice !== null) {
+        discountInserts.push({
+          discountedPrice: option.esnCardDiscountedPrice,
+          discountType: 'esnCard',
+          eventId: event.id,
+          registrationOptionId: createdOptionId,
+        });
       }
-      if (discountInserts.length > 0) {
-        yield* databaseEffect((database) =>
-          database
-            .insert(eventRegistrationOptionDiscounts)
-            .values(discountInserts),
-        );
-      }
+    }
+    if (discountInserts.length > 0) {
+      yield* databaseEffect((database) =>
+        database
+          .insert(eventRegistrationOptionDiscounts)
+          .values(discountInserts),
+      );
     }
 
     if (templateAddonsToCopy.length > 0) {
-      const createdOptionSources = createdOptions.map(
-        (createdOption, index) => ({
-          createdOptionId: createdOption.id,
-          sourceTemplateOptionId:
-            sanitizedRegistrationOptions[index]
-              ?.sourceTemplateRegistrationOptionId,
-        }),
-      );
-      const createdOptionIdBySourceTemplateOptionId = new Map(
-        createdOptionSources
-          .filter(
-            (
-              option,
-            ): option is {
-              createdOptionId: string;
-              sourceTemplateOptionId: string;
-            } => option.sourceTemplateOptionId !== undefined,
-          )
-          .map((option) => [
-            option.sourceTemplateOptionId,
-            option.createdOptionId,
-          ]),
-      );
-
       for (const addOn of templateAddonsToCopy) {
         const insertedAddons = yield* databaseEffect((database) =>
           database
@@ -742,28 +726,26 @@ export const createEventGraph = (input: EventCreateInput) =>
         const insertedAddon = insertedAddons[0];
         if (!insertedAddon) {
           return yield* Effect.fail(
-            new RpcInternalServerError({ message: 'Internal server error' }),
+            new RpcInternalServerError({
+              message: 'The event could not be saved. Try again.',
+            }),
           );
         }
 
-        const registrationOptionInserts = addOn.registrationOptions
-          .map((registrationOption) => {
-            const eventRegistrationOptionId =
-              createdOptionIdBySourceTemplateOptionId.get(
-                registrationOption.registrationOptionId,
-              );
-            return eventRegistrationOptionId
-              ? {
-                  addonId: insertedAddon.id,
-                  eventId: event.id,
-                  includedQuantity: registrationOption.includedQuantity,
-                  optionalPurchaseQuantity:
-                    registrationOption.optionalPurchaseQuantity,
-                  registrationOptionId: eventRegistrationOptionId,
-                }
-              : null;
-          })
-          .filter((insert) => insert !== null);
+        const registrationOptionInserts = addOn.registrationOptions.map(
+          (registrationOption) => ({
+            addonId: insertedAddon.id,
+            eventId: event.id,
+            includedQuantity: registrationOption.includedQuantity,
+            optionalPurchaseQuantity:
+              registrationOption.optionalPurchaseQuantity,
+            registrationOptionId: requireCreatedEventOption(
+              createdOptionBySourceTemplateOptionId,
+              registrationOption.registrationOptionId,
+              'add-on',
+            ).createdOptionId,
+          }),
+        );
         if (registrationOptionInserts.length > 0) {
           yield* databaseEffect((database) =>
             database
@@ -775,48 +757,17 @@ export const createEventGraph = (input: EventCreateInput) =>
     }
 
     if (templateQuestions.length > 0) {
-      const createdOptionSources = createdOptions.map(
-        (createdOption, index) => ({
-          createdOptionId: createdOption.id,
-          sourceTemplateOptionId:
-            sanitizedRegistrationOptions[index]
-              ?.sourceTemplateRegistrationOptionId,
+      const questionInserts = templateQuestions.map((question) =>
+        buildEventQuestionInsert({
+          eventId: event.id,
+          question,
+          registrationOptionId: requireCreatedEventOption(
+            createdOptionBySourceTemplateOptionId,
+            question.registrationOptionId,
+            'question',
+          ).createdOptionId,
         }),
       );
-      const createdOptionIdBySourceTemplateOptionId = new Map(
-        createdOptionSources
-          .filter(
-            (
-              option,
-            ): option is {
-              createdOptionId: string;
-              sourceTemplateOptionId: string;
-            } => option.sourceTemplateOptionId !== undefined,
-          )
-          .map((option) => [
-            option.sourceTemplateOptionId,
-            option.createdOptionId,
-          ]),
-      );
-      const questionInserts = templateQuestions
-        .map((question) => {
-          const registrationOptionId =
-            createdOptionIdBySourceTemplateOptionId.get(
-              question.registrationOptionId,
-            );
-
-          return registrationOptionId
-            ? buildEventQuestionInsert({
-                eventId: event.id,
-                question,
-                registrationOptionId,
-              })
-            : null;
-        })
-        .filter(
-          (insert): insert is typeof eventRegistrationQuestions.$inferInsert =>
-            insert !== null,
-        );
 
       if (questionInserts.length > 0) {
         yield* databaseEffect((database) =>

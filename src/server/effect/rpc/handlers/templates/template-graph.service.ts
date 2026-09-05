@@ -315,33 +315,6 @@ export const validateTemplateGraphStructure = ({
     );
   if (idError) return idError;
 
-  if (before && before.simpleModeEnabled !== input.simpleModeEnabled) {
-    const submittedOptionIds = new Set(
-      input.registrationOptions.flatMap((option) =>
-        option.id === undefined ? [] : [option.id],
-      ),
-    );
-    if (
-      before.registrationOptions.some(
-        (option) => !submittedOptionIds.has(option.id),
-      )
-    ) {
-      return invalidGraph(
-        'Changing template configuration mode must preserve every existing registration option ID',
-        'templateModeTransitionMustPreserveOptionIds',
-      );
-    }
-    if (
-      input.simpleModeEnabled &&
-      !hasSimpleRegistrationOptionShape(before.registrationOptions)
-    ) {
-      return invalidGraph(
-        'Save the advanced template with exactly one organizer option and one participant option before switching to simple configuration',
-        'templateAdvancedToSimpleRequiresPersistedSimpleShape',
-      );
-    }
-  }
-
   if (
     input.simpleModeEnabled &&
     !hasSimpleRegistrationOptionShape(input.registrationOptions)

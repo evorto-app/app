@@ -3,6 +3,12 @@
   [tenantId]="tenantId()"
 />
 
+@if (graphSaveMessage(); as message) {
+  <p class="bg-error-container text-on-error-container mb-4 p-4" role="alert">
+    {{ message }}
+  </p>
+}
+
 @if (eventQuery.isPending()) {
   <p role="status">Loading event...</p>
 } @else if (eventQuery.isError()) {
@@ -11,7 +17,12 @@
     role="alert"
   >
     <p>This event could not be loaded. Try again.</p>
-    <button mat-stroked-button type="button" (click)="eventQuery.refetch()">
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="graphSavePending() || editForm().submitting()"
+      (click)="eventQuery.refetch()"
+    >
       Try again
     </button>
   </section>
@@ -120,12 +131,14 @@
               role="alert"
             >
               <p>
-                Event editing settings could not be loaded. Nothing changed.
+                Event editing settings could not be loaded. Try again before
+                saving.
               </p>
               <div>
                 <button
                   mat-stroked-button
                   type="button"
+                  [disabled]="graphSavePending() || editForm().submitting()"
                   (click)="formOptionsQuery.refetch()"
                 >
                   Try again
